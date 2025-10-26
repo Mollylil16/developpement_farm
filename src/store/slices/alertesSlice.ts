@@ -7,7 +7,7 @@ export interface Alerte {
   type: 'warning' | 'info' | 'success' | 'error';
   title: string;
   message: string;
-  date: Date;
+  date: string; // ✅ Changé de Date à string
   porcId?: string;
   gestationId?: string;
   actionRequired?: boolean;
@@ -32,18 +32,19 @@ export const calculateAlertes = createAsyncThunk(
     try {
       const { porcs, gestations, transactions } = data;
       const alertes: Alerte[] = [];
+      const dateNow = new Date().toISOString(); // ✅ Créé une fois pour tout
 
       // Alertes pour les gestations proches du terme
       gestations.forEach(gestation => {
         if (gestation.statut === 'en_cours') {
-          const alerteMessage = GestionAlertes.alerteGestation(gestation.dateMiseBasPrevue);
+          const alerteMessage = GestionAlertes.alerteGestation(new Date(gestation.dateMiseBasPrevue));
           if (alerteMessage) {
             alertes.push({
               id: `gestation-${gestation.id}`,
               type: 'warning',
               title: 'Gestation',
               message: alerteMessage,
-              date: new Date(),
+              date: dateNow,
               gestationId: gestation.id,
               actionRequired: true,
             });
@@ -61,7 +62,7 @@ export const calculateAlertes = createAsyncThunk(
               type: 'info',
               title: 'Vente',
               message: `${alerteMessage} - ${porc.numeroIdentification}`,
-              date: new Date(),
+              date: dateNow,
               porcId: porc.id,
               actionRequired: false,
             });
@@ -72,14 +73,14 @@ export const calculateAlertes = createAsyncThunk(
       // Alertes pour les sevrages
       porcs.forEach(porc => {
         if (porc.statut === 'sevrage') {
-          const alerteMessage = CalculsAgricoles.alerteSevrage(porc.dateNaissance);
+          const alerteMessage = CalculsAgricoles.alerteSevrage(new Date(porc.dateNaissance));
           if (alerteMessage) {
             alertes.push({
               id: `sevrage-${porc.id}`,
               type: 'info',
               title: 'Sevrage',
               message: `${alerteMessage} - ${porc.numeroIdentification}`,
-              date: new Date(),
+              date: dateNow,
               porcId: porc.id,
               actionRequired: false,
             });
@@ -112,7 +113,7 @@ export const calculateAlertes = createAsyncThunk(
           type: 'error',
           title: 'Finance',
           message: `Bénéfice négatif ce mois : ${beneficeMois.toLocaleString()} €`,
-          date: new Date(),
+          date: dateNow,
           actionRequired: true,
         });
       }
@@ -124,7 +125,7 @@ export const calculateAlertes = createAsyncThunk(
           type: 'warning',
           title: 'Finance',
           message: 'Aucune transaction enregistrée ce mois',
-          date: new Date(),
+          date: dateNow,
           actionRequired: false,
         });
       }
@@ -132,7 +133,7 @@ export const calculateAlertes = createAsyncThunk(
       // Alertes pour les porcs en retard de croissance
       porcs.forEach(porc => {
         if (porc.statut === 'croissance') {
-          const ageJours = UtilitairesDate.differenceEnJours(porc.dateNaissance, new Date());
+          const ageJours = UtilitairesDate.differenceEnJours(new Date(porc.dateNaissance), new Date());
           const poidsAttendu = ageJours * 0.8; // Croissance moyenne de 0.8kg/jour
           
           if (porc.poidsActuel < poidsAttendu * 0.8) { // 20% en dessous de la moyenne
@@ -141,7 +142,7 @@ export const calculateAlertes = createAsyncThunk(
               type: 'warning',
               title: 'Croissance',
               message: `${porc.numeroIdentification} : Croissance lente (${porc.poidsActuel}kg vs ${poidsAttendu.toFixed(1)}kg attendus)`,
-              date: new Date(),
+              date: dateNow,
               porcId: porc.id,
               actionRequired: true,
             });
@@ -152,14 +153,14 @@ export const calculateAlertes = createAsyncThunk(
       // Alertes pour les gestations en retard
       gestations.forEach(gestation => {
         if (gestation.statut === 'en_cours') {
-          const joursDepuisSautage = UtilitairesDate.differenceEnJours(gestation.dateSautage, new Date());
+          const joursDepuisSautage = UtilitairesDate.differenceEnJours(new Date(gestation.dateSautage), new Date());
           if (joursDepuisSautage > 120) { // Plus de 120 jours
             alertes.push({
               id: `gestation-retard-${gestation.id}`,
               type: 'error',
               title: 'Gestation',
               message: `Gestation en retard : ${joursDepuisSautage} jours depuis le sautage`,
-              date: new Date(),
+              date: dateNow,
               gestationId: gestation.id,
               actionRequired: true,
             });
@@ -177,7 +178,8 @@ export const calculateAlertes = createAsyncThunk(
           return aPriority - bPriority;
         }
         
-        return b.date.getTime() - a.date.getTime();
+        // ✅ Comparaison de strings ISO (fonctionne parfaitement)
+        return b.date.localeCompare(a.date);
       });
     } catch (error) {
       return rejectWithValue('Erreur lors du calcul des alertes');
@@ -189,10 +191,11 @@ const alertesSlice = createSlice({
   name: 'alertes',
   initialState,
   reducers: {
-    addAlerte: (state, action: PayloadAction<Omit<Alerte, 'id'>>) => {
+    addAlerte: (state, action: PayloadAction<Omit<Alerte, 'id' | 'date'>>) => {
       const nouvelleAlerte: Alerte = {
         ...action.payload,
         id: Date.now().toString(),
+        date: new Date().toISOString(), // ✅ Ajout de la date en ISO string
       };
       state.alertes.unshift(nouvelleAlerte);
     },

@@ -20,7 +20,7 @@ import {
   setProjetActuel 
 } from '../store/slices/collaborationSlice';
 import { Section, CustomModal, FormField } from '../components/UIComponents';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { MaterialIcons } from '@expo/vector-icons';
 import { Projet, Utilisateur, ActiviteUtilisateur } from '../types';
 
 const CollaborationScreen: React.FC = () => {
@@ -182,13 +182,13 @@ const CollaborationScreen: React.FC = () => {
       onPress={() => dispatch(setProjetActuel(projet))}
     >
       <View style={styles.projetHeader}>
-        <Icon name="folder" size={24} color="#2E7D32" />
+        <MaterialIcons name="folder" size={24} color="#2E7D32" />
         <View style={styles.projetInfo}>
           <Text style={styles.projetNom}>{projet.nom}</Text>
           <Text style={styles.projetProprietaire}>Par {projet.proprietaireNom}</Text>
         </View>
         {projetActuel?.id === projet.id && (
-          <Icon name="check-circle" size={24} color="#4CAF50" />
+          <MaterialIcons name="check-circle" size={24} color="#4CAF50" />
         )}
       </View>
       
@@ -198,11 +198,11 @@ const CollaborationScreen: React.FC = () => {
       
       <View style={styles.projetStats}>
         <View style={styles.statItem}>
-          <Icon name="people" size={16} color="#666" />
+          <MaterialIcons name="people" size={16} color="#666" />
           <Text style={styles.statText}>{projet.utilisateurs.length} utilisateur(s)</Text>
         </View>
         <View style={styles.statItem}>
-          <Icon name="schedule" size={16} color="#666" />
+          <MaterialIcons name="schedule" size={16} color="#666" />
           <Text style={styles.statText}>
             Modifié {projet.derniereModification.toLocaleDateString()}
           </Text>
@@ -285,7 +285,7 @@ const CollaborationScreen: React.FC = () => {
             style={[styles.actionButton, { backgroundColor: '#4CAF50' }]}
             onPress={() => setShowCreerProjet(true)}
           >
-            <Icon name="add" size={24} color="#fff" />
+            <MaterialIcons name="add" size={24} color="#fff" />
             <Text style={styles.actionText}>Créer un projet</Text>
           </TouchableOpacity>
           
@@ -293,7 +293,7 @@ const CollaborationScreen: React.FC = () => {
             style={[styles.actionButton, { backgroundColor: '#2196F3' }]}
             onPress={() => setShowRejoindreProjet(true)}
           >
-            <Icon name="group-add" size={24} color="#fff" />
+            <MaterialIcons name="group-add" size={24} color="#fff" />
             <Text style={styles.actionText}>Rejoindre</Text>
           </TouchableOpacity>
           
@@ -302,7 +302,7 @@ const CollaborationScreen: React.FC = () => {
               style={[styles.actionButton, { backgroundColor: '#FF9800' }]}
               onPress={handlePartagerLien}
             >
-              <Icon name="share" size={24} color="#fff" />
+              <MaterialIcons name="share" size={24} color="#fff" />
               <Text style={styles.actionText}>Partager</Text>
             </TouchableOpacity>
           )}
@@ -313,7 +313,7 @@ const CollaborationScreen: React.FC = () => {
       <Section title="Mes Projets">
         {projets.length === 0 ? (
           <View style={styles.emptyState}>
-            <Icon name="folder-open" size={48} color="#ccc" />
+            <MaterialIcons name="folder-open" size={48} color="#ccc" />
             <Text style={styles.emptyText}>Aucun projet trouvé</Text>
             <Text style={styles.emptySubtext}>Créez votre premier projet ou rejoignez-en un</Text>
           </View>
@@ -340,7 +340,7 @@ const CollaborationScreen: React.FC = () => {
                 <View style={styles.lienRow}>
                   <Text style={styles.lienText}>{projetActuel.lienPartage}</Text>
                   <TouchableOpacity onPress={handleCopierLien}>
-                    <Icon name="content-copy" size={20} color="#2196F3" />
+                    <MaterialIcons name="content-copy" size={20} color="#2196F3" />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -353,7 +353,7 @@ const CollaborationScreen: React.FC = () => {
               style={styles.inviterButton}
               onPress={() => setShowInviterUtilisateur(true)}
             >
-              <Icon name="person-add" size={20} color="#4CAF50" />
+              <MaterialIcons name="person-add" size={20} color="#4CAF50" />
               <Text style={styles.inviterText}>Inviter un utilisateur</Text>
             </TouchableOpacity>
             
@@ -369,7 +369,7 @@ const CollaborationScreen: React.FC = () => {
               onPress={() => setShowActivites(true)}
             >
               <Text style={styles.voirToutesText}>Voir toutes les activités</Text>
-              <Icon name="chevron-right" size={20} color="#2196F3" />
+              <MaterialIcons name="chevron-right" size={20} color="#2196F3" />
             </TouchableOpacity>
             
             {activites.slice(0, 5).map((activite) => (

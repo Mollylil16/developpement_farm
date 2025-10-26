@@ -12,7 +12,7 @@ import { RootState, AppDispatch } from '../store/store';
 import { setDevise, setLangue, setNotifications, setTheme } from '../store/slices/parametresSlice';
 import { Section, CustomModal, FormField } from '../components/UIComponents';
 import { CalculsAgricoles } from '../utils/calculs';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { MaterialIcons } from '@expo/vector-icons';
 import { Devise, DeviseConfig } from '../types';
 import { DEVISES_CONFIG } from '../store/slices/parametresSlice';
 
@@ -64,13 +64,13 @@ const ParametresScreen: React.FC = () => {
     subtitle?: string;
   }) => (
     <TouchableOpacity style={[styles.parametreCard, { borderLeftColor: color }]} onPress={onPress}>
-      <Icon name={icon} size={24} color={color} />
+      <MaterialIcons name={icon} size={24} color={color} />
       <View style={styles.parametreContent}>
         <Text style={styles.parametreTitle}>{title}</Text>
         <Text style={styles.parametreValue}>{value}</Text>
         {subtitle && <Text style={styles.parametreSubtitle}>{subtitle}</Text>}
       </View>
-      <Icon name="chevron-right" size={24} color="#ccc" />
+      <MaterialIcons name="chevron-right" size={24} color="#ccc" />
     </TouchableOpacity>
   );
 
@@ -88,7 +88,7 @@ const ParametresScreen: React.FC = () => {
         <Text style={styles.deviseSymbole}>{config.symbole}</Text>
       </View>
       {parametres.devise === devise && (
-        <Icon name="check" size={24} color="#4CAF50" />
+        <MaterialIcons name="check" size={24} color="#4CAF50" />
       )}
     </TouchableOpacity>
   );
@@ -103,7 +103,7 @@ const ParametresScreen: React.FC = () => {
     >
       <Text style={styles.langueNom}>{nom}</Text>
       {parametres.langue === code && (
-        <Icon name="check" size={24} color="#4CAF50" />
+        <MaterialIcons name="check" size={24} color="#4CAF50" />
       )}
     </TouchableOpacity>
   );
@@ -118,7 +118,7 @@ const ParametresScreen: React.FC = () => {
     >
       <Text style={styles.themeNom}>{nom}</Text>
       {parametres.theme === code && (
-        <Icon name="check" size={24} color="#4CAF50" />
+        <MaterialIcons name="check" size={24} color="#4CAF50" />
       )}
     </TouchableOpacity>
   );

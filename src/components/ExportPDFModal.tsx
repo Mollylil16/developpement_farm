@@ -8,7 +8,7 @@ import {
   Alert,
 } from 'react-native';
 import { CustomModal, FormField } from './UIComponents';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { MaterialIcons } from '@expo/vector-icons';
 import { RapportPDFOptions } from '../services/PDFGeneratorService';
 
 interface ExportPDFModalProps {
@@ -48,7 +48,7 @@ const ExportPDFModal: React.FC<ExportPDFModalProps> = ({
         <Text style={styles.typeOptionDescription}>{description}</Text>
       </View>
       {options.type === value && (
-        <Icon name="check-circle" size={24} color="#4CAF50" />
+        <MaterialIcons name="check-circle" size={24} color="#4CAF50" />
       )}
     </TouchableOpacity>
   );
@@ -70,7 +70,7 @@ const ExportPDFModal: React.FC<ExportPDFModalProps> = ({
         <Text style={styles.checkboxDescription}>{description}</Text>
       </View>
       <View style={[styles.checkbox, value && styles.checkboxSelected]}>
-        {value && <Icon name="check" size={16} color="#fff" />}
+        {value && <MaterialIcons name="check" size={16} color="#fff" />}
       </View>
     </TouchableOpacity>
   );
@@ -137,7 +137,7 @@ const ExportPDFModal: React.FC<ExportPDFModalProps> = ({
           >
             <Text style={styles.languageText}>Français</Text>
             {options.language === 'fr' && (
-              <Icon name="check" size={20} color="#4CAF50" />
+              <MaterialIcons name="check" size={20} color="#4CAF50" />
             )}
           </TouchableOpacity>
           <TouchableOpacity
@@ -149,7 +149,7 @@ const ExportPDFModal: React.FC<ExportPDFModalProps> = ({
           >
             <Text style={styles.languageText}>English</Text>
             {options.language === 'en' && (
-              <Icon name="check" size={20} color="#4CAF50" />
+              <MaterialIcons name="check" size={20} color="#4CAF50" />
             )}
           </TouchableOpacity>
         </View>
@@ -186,7 +186,7 @@ const ExportPDFModal: React.FC<ExportPDFModalProps> = ({
             onPress={handleExport}
             disabled={loading}
           >
-            <Icon name="picture-as-pdf" size={20} color="#fff" />
+            <MaterialIcons name="picture-as-pdf" size={20} color="#fff" />
             <Text style={styles.exportButtonText}>
               {loading ? 'Génération...' : 'Générer PDF'}
             </Text>

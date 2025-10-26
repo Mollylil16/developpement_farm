@@ -25,6 +25,11 @@
         "android.permission.WRITE_EXTERNAL_STORAGE"
       ]
     },
-    "web": {}
+    "web": {},
+    "plugins": [
+      "expo-font",
+      "expo-sqlite",
+      "expo-asset"
+    ]
   }
 }

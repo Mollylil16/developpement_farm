@@ -147,12 +147,14 @@ export class CalculsAgricoles {
     const nombreSailliesMinimum = Math.max(nombreSailliesNecessaires, objectif.nombreMisesBasMinimum);
     
     // Calcul de l'intervalle entre les saillies
-    const dureePeriode = (objectif.periodePlanification.fin.getTime() - objectif.periodePlanification.debut.getTime()) / (1000 * 60 * 60 * 24);
+    const dateDebut = new Date(objectif.periodePlanification.debut);
+    const dateFin = new Date(objectif.periodePlanification.fin);
+    const dureePeriode = (dateFin.getTime() - dateDebut.getTime()) / (1000 * 60 * 60 * 24);
     const intervalleOptimal = Math.floor(dureePeriode / nombreSailliesMinimum);
     
     // Génération des saillies planifiées
     const saillies: SailliePlanifiee[] = [];
-    let dateSaillie = new Date(objectif.periodePlanification.debut);
+    let dateSaillie = new Date(dateDebut);
     
     for (let i = 0; i < nombreSailliesMinimum; i++) {
       // Sélection cyclique des truies et verrats
@@ -167,8 +169,8 @@ export class CalculsAgricoles {
         planificationId: '',
         truieId: truie.id,
         verratId: verrat.id,
-        dateSaillie: new Date(dateSaillie),
-        dateMiseBasPrevue,
+        dateSaillie: dateSaillie.toISOString(),
+        dateMiseBasPrevue: dateMiseBasPrevue.toISOString(),
         statut: 'planifie',
       });
       
@@ -176,7 +178,7 @@ export class CalculsAgricoles {
       dateSaillie.setDate(dateSaillie.getDate() + intervalleOptimal);
       
       // Vérifier qu'on ne dépasse pas la période
-      if (dateSaillie > objectif.periodePlanification.fin) {
+      if (dateSaillie > dateFin) {
         break;
       }
     }
@@ -451,8 +453,8 @@ export class CalculsAgricoles {
     const calendrier: Record<string, any> = {};
     
     planification.saillies.forEach((saillie: SailliePlanifiee) => {
-      const dateKey = saillie.dateSaillie.toISOString().split('T')[0];
-      const dateMiseBasKey = saillie.dateMiseBasPrevue.toISOString().split('T')[0];
+      const dateKey = saillie.dateSaillie.split('T')[0];
+      const dateMiseBasKey = saillie.dateMiseBasPrevue.split('T')[0];
       
       calendrier[dateKey] = {
         marked: true,

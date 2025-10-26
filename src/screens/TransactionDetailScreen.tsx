@@ -12,7 +12,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../store/store';
 import { LoadingSpinner, ErrorMessage } from '../components/LoadingStates';
 import { Section, CustomModal, FormField } from '../components/UIComponents';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { MaterialIcons } from '@expo/vector-icons';
 import { Transaction, Porc, DocumentFacture } from '../types';
 import { ValidationFormulaires } from '../utils/validation';
 import { CalculsAgricoles } from '../utils/calculs';
@@ -79,7 +79,7 @@ const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = ({ route
   if (!transaction) {
     return (
       <View style={styles.errorContainer}>
-        <Icon name="error-outline" size={64} color="#F44336" />
+        <MaterialIcons name="error-outline" size={64} color="#F44336" />
         <Text style={styles.errorTitle}>Transaction non trouvée</Text>
         <Text style={styles.errorMessage}>Cette transaction n'existe plus ou a été supprimée</Text>
         <TouchableOpacity style={styles.errorBackButton} onPress={() => navigation.goBack()}>
@@ -169,7 +169,7 @@ const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = ({ route
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Icon name="arrow-back" size={24} color="#fff" />
+          <MaterialIcons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>
@@ -180,7 +180,7 @@ const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = ({ route
           </Text>
         </View>
         <TouchableOpacity style={styles.editButton} onPress={() => setShowEditModal(true)}>
-          <Icon name="edit" size={24} color="#fff" />
+          <MaterialIcons name="edit" size={24} color="#fff" />
         </TouchableOpacity>
       </View>
 
@@ -188,7 +188,7 @@ const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = ({ route
       <Section title="Informations Générales">
         <View style={styles.infoGrid}>
           <View style={styles.infoItem}>
-            <Icon name={getTypeIcon(transaction.type)} size={20} color={getTypeColor(transaction.type)} />
+            <MaterialIcons name={getTypeIcon(transaction.type)} size={20} color={getTypeColor(transaction.type)} />
             <Text style={styles.infoLabel}>Type</Text>
             <Text style={[styles.infoValue, { color: getTypeColor(transaction.type) }]}>
               {transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
@@ -196,13 +196,13 @@ const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = ({ route
           </View>
           
           <View style={styles.infoItem}>
-            <Icon name="attach-money" size={20} color="#2E7D32" />
+            <MaterialIcons name="attach-money" size={20} color="#2E7D32" />
             <Text style={styles.infoLabel}>Montant</Text>
             <Text style={styles.infoValue}>{formaterMontant(transaction.montant)}</Text>
           </View>
           
           <View style={styles.infoItem}>
-            <Icon name="event" size={20} color="#2196F3" />
+            <MaterialIcons name="event" size={20} color="#2196F3" />
             <Text style={styles.infoLabel}>Date</Text>
             <Text style={styles.infoValue}>
               {transaction.date.toLocaleDateString('fr-FR')}
@@ -211,7 +211,7 @@ const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = ({ route
           
           {transaction.categorie && (
             <View style={styles.infoItem}>
-              <Icon name="category" size={20} color="#FF9800" />
+              <MaterialIcons name="category" size={20} color="#FF9800" />
               <Text style={styles.infoLabel}>Catégorie</Text>
               <Text style={styles.infoValue}>{transaction.categorie}</Text>
             </View>
@@ -219,14 +219,14 @@ const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = ({ route
           
           {porc && (
             <View style={styles.infoItem}>
-              <Icon name="pets" size={20} color="#9C27B0" />
+              <MaterialIcons name="pets" size={20} color="#9C27B0" />
               <Text style={styles.infoLabel}>Porc</Text>
               <Text style={styles.infoValue}>{porc.numeroIdentification}</Text>
             </View>
           )}
           
           <View style={styles.infoItem}>
-            <Icon name="description" size={20} color="#666" />
+            <MaterialIcons name="description" size={20} color="#666" />
             <Text style={styles.infoLabel}>Description</Text>
             <Text style={styles.infoValue}>{transaction.description}</Text>
           </View>
@@ -240,7 +240,7 @@ const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = ({ route
             {documents.map((document) => (
               <View key={document.id} style={styles.documentCard}>
                 <View style={styles.documentHeader}>
-                  <Icon 
+                  <MaterialIcons 
                     name={document.type === 'photo' ? 'photo' : 'picture-as-pdf'} 
                     size={24} 
                     color={document.type === 'photo' ? '#4CAF50' : '#F44336'} 
@@ -279,7 +279,7 @@ const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = ({ route
             style={styles.actionButton}
             onPress={() => setShowDocumentsModal(true)}
           >
-            <Icon name="attach-file" size={20} color="#fff" />
+            <MaterialIcons name="attach-file" size={20} color="#fff" />
             <Text style={styles.actionButtonText}>Gérer les documents</Text>
           </TouchableOpacity>
           
@@ -287,7 +287,7 @@ const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = ({ route
             style={[styles.actionButton, styles.deleteButton]}
             onPress={handleDeleteTransaction}
           >
-            <Icon name="delete" size={20} color="#fff" />
+            <MaterialIcons name="delete" size={20} color="#fff" />
             <Text style={styles.actionButtonText}>Supprimer</Text>
           </TouchableOpacity>
         </View>
@@ -352,7 +352,7 @@ const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = ({ route
           
           {documents.map((document) => (
             <View key={document.id} style={styles.modalDocumentCard}>
-              <Icon 
+              <MaterialIcons 
                 name={document.type === 'photo' ? 'photo' : 'picture-as-pdf'} 
                 size={20} 
                 color={document.type === 'photo' ? '#4CAF50' : '#F44336'} 

@@ -12,7 +12,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../store/store';
 import { LoadingSpinner, ErrorMessage } from '../components/LoadingStates';
 import { Section, CustomModal, FormField } from '../components/UIComponents';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { MaterialIcons } from '@expo/vector-icons';
 import { Porc, Vaccination, Traitement } from '../types';
 import { ValidationFormulaires } from '../utils/validation';
 
@@ -91,7 +91,7 @@ const PorcDetailScreen: React.FC<PorcDetailScreenProps> = ({ route, navigation }
   if (!porc) {
     return (
       <View style={styles.errorContainer}>
-        <Icon name="error-outline" size={64} color="#F44336" />
+        <MaterialIcons name="error-outline" size={64} color="#F44336" />
         <Text style={styles.errorTitle}>Porc non trouvé</Text>
         <Text style={styles.errorMessage}>Ce porc n'existe plus ou a été supprimé</Text>
         <TouchableOpacity style={styles.errorBackButton} onPress={() => navigation.goBack()}>
@@ -218,14 +218,14 @@ const PorcDetailScreen: React.FC<PorcDetailScreenProps> = ({ route, navigation }
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Icon name="arrow-back" size={24} color="#fff" />
+          <MaterialIcons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>{porc.numeroIdentification}</Text>
           <Text style={styles.headerSubtitle}>{porc.race} • {porc.sexe}</Text>
         </View>
         <TouchableOpacity style={styles.editButton} onPress={() => setShowEditModal(true)}>
-          <Icon name="edit" size={24} color="#fff" />
+          <MaterialIcons name="edit" size={24} color="#fff" />
         </TouchableOpacity>
       </View>
 
@@ -233,31 +233,31 @@ const PorcDetailScreen: React.FC<PorcDetailScreenProps> = ({ route, navigation }
       <Section title="Informations Générales">
         <View style={styles.infoGrid}>
           <View style={styles.infoItem}>
-            <Icon name="pets" size={20} color="#2E7D32" />
+            <MaterialIcons name="pets" size={20} color="#2E7D32" />
             <Text style={styles.infoLabel}>Identification</Text>
             <Text style={styles.infoValue}>{porc.numeroIdentification}</Text>
           </View>
           
           <View style={styles.infoItem}>
-            <Icon name="cake" size={20} color="#FF9800" />
+            <MaterialIcons name="cake" size={20} color="#FF9800" />
             <Text style={styles.infoLabel}>Date de naissance</Text>
             <Text style={styles.infoValue}>{porc.dateNaissance.toLocaleDateString('fr-FR')}</Text>
           </View>
           
           <View style={styles.infoItem}>
-            <Icon name="scale" size={20} color="#2196F3" />
+            <MaterialIcons name="scale" size={20} color="#2196F3" />
             <Text style={styles.infoLabel}>Poids actuel</Text>
             <Text style={styles.infoValue}>{porc.poidsActuel} kg</Text>
           </View>
           
           <View style={styles.infoItem}>
-            <Icon name="flag" size={20} color="#9C27B0" />
+            <MaterialIcons name="flag" size={20} color="#9C27B0" />
             <Text style={styles.infoLabel}>Poids cible</Text>
             <Text style={styles.infoValue}>{porc.poidsCible} kg</Text>
           </View>
           
           <View style={styles.infoItem}>
-            <Icon name={getStatutIcon(porc.statut)} size={20} color={getStatutColor(porc.statut)} />
+            <MaterialIcons name={getStatutIcon(porc.statut)} size={20} color={getStatutColor(porc.statut)} />
             <Text style={styles.infoLabel}>Statut</Text>
             <Text style={[styles.infoValue, { color: getStatutColor(porc.statut) }]}>
               {porc.statut.charAt(0).toUpperCase() + porc.statut.slice(1)}
@@ -265,7 +265,7 @@ const PorcDetailScreen: React.FC<PorcDetailScreenProps> = ({ route, navigation }
           </View>
           
           <View style={styles.infoItem}>
-            <Icon name="pets" size={20} color="#4CAF50" />
+            <MaterialIcons name="pets" size={20} color="#4CAF50" />
             <Text style={styles.infoLabel}>Race</Text>
             <Text style={styles.infoValue}>{porc.race}</Text>
           </View>
@@ -288,7 +288,7 @@ const PorcDetailScreen: React.FC<PorcDetailScreenProps> = ({ route, navigation }
             style={styles.addButton}
             onPress={() => setShowVaccinationModal(true)}
           >
-            <Icon name="add" size={20} color="#fff" />
+            <MaterialIcons name="add" size={20} color="#fff" />
             <Text style={styles.addButtonText}>Ajouter une vaccination</Text>
           </TouchableOpacity>
         </View>
@@ -297,7 +297,7 @@ const PorcDetailScreen: React.FC<PorcDetailScreenProps> = ({ route, navigation }
           porc.vaccinations.map((vaccination) => (
             <View key={vaccination.id} style={styles.vaccinationCard}>
               <View style={styles.vaccinationHeader}>
-                <Icon name="vaccines" size={20} color="#4CAF50" />
+                <MaterialIcons name="vaccines" size={20} color="#4CAF50" />
                 <Text style={styles.vaccinationName}>{vaccination.nom}</Text>
                 <Text style={styles.vaccinationDate}>
                   {vaccination.date.toLocaleDateString('fr-FR')}
@@ -328,7 +328,7 @@ const PorcDetailScreen: React.FC<PorcDetailScreenProps> = ({ route, navigation }
             style={styles.addButton}
             onPress={() => setShowTraitementModal(true)}
           >
-            <Icon name="add" size={20} color="#fff" />
+            <MaterialIcons name="add" size={20} color="#fff" />
             <Text style={styles.addButtonText}>Ajouter un traitement</Text>
           </TouchableOpacity>
         </View>
@@ -337,7 +337,7 @@ const PorcDetailScreen: React.FC<PorcDetailScreenProps> = ({ route, navigation }
           porc.traitements.map((traitement) => (
             <View key={traitement.id} style={styles.traitementCard}>
               <View style={styles.traitementHeader}>
-                <Icon name="medication" size={20} color="#F44336" />
+                <MaterialIcons name="medication" size={20} color="#F44336" />
                 <Text style={styles.traitementName}>{traitement.nom}</Text>
                 <Text style={styles.traitementDate}>
                   {traitement.dateDebut.toLocaleDateString('fr-FR')}

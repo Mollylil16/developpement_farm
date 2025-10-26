@@ -1,10 +1,9 @@
-
 // Types pour les vaccinations et traitements
 export interface Vaccination {
   id: string;
   nom: string;
-  date: Date;
-  prochainRappel?: Date;
+  date: string;
+  prochainRappel?: string;
   veterinaire?: string;
   notes?: string;
 }
@@ -12,8 +11,8 @@ export interface Vaccination {
 export interface Traitement {
   id: string;
   nom: string;
-  dateDebut: Date;
-  dateFin?: Date;
+  dateDebut: string;
+  dateFin?: string;
   medicament: string;
   posologie: string;
   veterinaire?: string;
@@ -24,9 +23,9 @@ export interface Traitement {
 export interface Gestation {
   id: string;
   truieId: string;
-  dateSautage: Date;
-  dateMiseBasPrevue: Date;
-  dateMiseBasReelle?: Date;
+  dateSautage: string;
+  dateMiseBasPrevue: string;
+  dateMiseBasReelle?: string;
   nombrePorceletsPrevu: number;
   nombrePorceletsReel?: number;
   statut: 'en_cours' | 'terminee' | 'avortement';
@@ -36,7 +35,7 @@ export interface Gestation {
 export interface Sevrage {
   id: string;
   porceletId: string;
-  dateSevrage: Date;
+  dateSevrage: string;
   poidsSevrage: number;
   alimentation: string;
   notes?: string;
@@ -62,7 +61,7 @@ export interface IngredientRation {
 
 
 export interface CashFlow {
-  date: Date;
+  date: string;
   recettes: number;
   depenses: number;
   solde: number;
@@ -75,8 +74,8 @@ export interface PlanificationAccouplement {
   objectifPorcs: number;
   nombreMisesBasMinimum: number;
   nombreMoyenPorceletsParMiseBas: number;
-  dateDebut: Date;
-  dateFin: Date;
+  dateDebut: string;
+  dateFin: string;
   statut: 'planifie' | 'en_cours' | 'termine';
   saillies: SailliePlanifiee[];
   notes?: string;
@@ -87,8 +86,8 @@ export interface SailliePlanifiee {
   planificationId: string;
   truieId: string;
   verratId: string;
-  dateSaillie: Date;
-  dateMiseBasPrevue: Date;
+  dateSaillie: string;
+  dateMiseBasPrevue: string;
   statut: 'planifie' | 'realise' | 'annule';
   notes?: string;
 }
@@ -97,8 +96,8 @@ export interface ObjectifReproduction {
   nombrePorcsCible: number;
   nombreMisesBasMinimum: number;
   periodePlanification: {
-    debut: Date;
-    fin: Date;
+    debut: string;
+    fin: string;
   };
   intervalleEntreSaillies: number; // jours
   dureeGestation: number; // jours (défaut: 114)
@@ -120,7 +119,7 @@ export interface Mortalite {
   id: string;
   porcId: string;
   porcNumeroIdentification: string;
-  dateDeces: Date;
+  dateDeces: string;
   causeDeces: 'maladie' | 'accident' | 'vieillesse' | 'autre';
   causeDetaillee?: string;
   poidsAuDeces: number;
@@ -139,7 +138,7 @@ export interface DocumentFacture {
   nomFichier: string;
   cheminFichier: string;
   tailleFichier: number; // en bytes
-  dateAjout: Date;
+  dateAjout: string;
   description?: string;
 }
 
@@ -149,7 +148,7 @@ export interface Transaction {
   type: 'vente' | 'achat' | 'depense';
   montant: number;
   description: string;
-  date: Date;
+  date: string;
   categorie?: string;
   porcId?: string; // Pour les ventes de porcs
   documents?: DocumentFacture[]; // Documents joints (photos, PDF)
@@ -161,7 +160,7 @@ export interface Porc {
   numeroIdentification: string;
   sexe: 'male' | 'femelle';
   race: string;
-  dateNaissance: Date;
+  dateNaissance: string;
   poidsActuel: number;
   poidsCible: number;
   statut: 'gestation' | 'sevrage' | 'croissance' | 'vente' | 'reproduction' | 'mort';
@@ -179,8 +178,8 @@ export interface Utilisateur {
   email: string;
   avatar?: string;
   role: 'proprietaire' | 'collaborateur' | 'lecteur';
-  dateAjout: Date;
-  derniereActivite?: Date;
+  dateAjout: string;
+  derniereActivite?: string;
 }
 
 export interface Projet {
@@ -189,8 +188,8 @@ export interface Projet {
   description?: string;
   proprietaireId: string;
   proprietaireNom: string;
-  dateCreation: Date;
-  derniereModification: Date;
+  dateCreation: string;
+  derniereModification: string;
   statut: 'actif' | 'archive' | 'suspendu';
   utilisateurs: Utilisateur[];
   lienPartage: string;
@@ -214,7 +213,7 @@ export interface ActiviteUtilisateur {
   action: 'ajout' | 'modification' | 'suppression' | 'connexion';
   typeDonnee: 'porc' | 'gestation' | 'nutrition' | 'finance' | 'planification' | 'projet';
   description: string;
-  date: Date;
+  date: string;
   details?: Record<string, any>;
 }
 
@@ -225,8 +224,8 @@ export interface InvitationProjet {
   emailInvite: string;
   rolePropose: 'collaborateur' | 'lecteur';
   statut: 'en_attente' | 'acceptee' | 'refusee' | 'expiree';
-  dateEnvoi: Date;
-  dateExpiration: Date;
+  dateEnvoi: string;
+  dateExpiration: string;
   codeInvitation: string;
 }
 
@@ -250,15 +249,15 @@ export interface ParametresApp {
 
 export interface RapportCroissance {
   porcId: string;
-  date: Date;
+  date: string;
   poids: number;
   gainQuotidien: number;
 }
 
 export interface RapportProduction {
   periode: {
-    debut: Date;
-    fin: Date;
+    debut: string;
+    fin: string;
   };
   nombreNaissances: number;
   nombreSevrages: number;

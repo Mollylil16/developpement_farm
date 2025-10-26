@@ -6,21 +6,23 @@ export const creerProjet = createAsyncThunk(
   'collaboration/creerProjet',
   async (donneesProjet: { nom: string; description?: string; proprietaireId: string; proprietaireNom: string }) => {
     // Simulation d'un appel API
+    const dateNow = new Date().toISOString();
+    
     const nouveauProjet: Projet = {
       id: `projet_${Date.now()}`,
       nom: donneesProjet.nom,
       description: donneesProjet.description,
       proprietaireId: donneesProjet.proprietaireId,
       proprietaireNom: donneesProjet.proprietaireNom,
-      dateCreation: new Date(),
-      derniereModification: new Date(),
+      dateCreation: dateNow,
+      derniereModification: dateNow,
       statut: 'actif',
       utilisateurs: [{
         id: donneesProjet.proprietaireId,
         nom: donneesProjet.proprietaireNom,
         email: 'proprietaire@example.com',
         role: 'proprietaire',
-        dateAjout: new Date(),
+        dateAjout: dateNow,
       }],
       lienPartage: `farmtrack://projet/${Date.now()}`,
       permissions: {
@@ -53,8 +55,8 @@ export const rejoindreProjet = createAsyncThunk(
       description: 'Projet partagé',
       proprietaireId: 'proprietaire_123',
       proprietaireNom: 'Jean Dupont',
-      dateCreation: new Date('2024-01-01'),
-      derniereModification: new Date(),
+      dateCreation: new Date('2024-01-01').toISOString(),
+      derniereModification: new Date().toISOString(),
       statut: 'actif',
       utilisateurs: [],
       lienPartage,
@@ -79,15 +81,16 @@ export const inviterUtilisateur = createAsyncThunk(
     // Simulation d'un appel API
     await new Promise(resolve => setTimeout(resolve, 1000));
     
+    const dateNow = Date.now();
     const invitation: InvitationProjet = {
-      id: `invitation_${Date.now()}`,
+      id: `invitation_${dateNow}`,
       projetId: donneesInvitation.projetId,
       projetNom: 'Ferme Exemple',
       emailInvite: donneesInvitation.email,
       rolePropose: donneesInvitation.role,
       statut: 'en_attente',
-      dateEnvoi: new Date(),
-      dateExpiration: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 jours
+      dateEnvoi: new Date(dateNow).toISOString(),
+      dateExpiration: new Date(dateNow + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 jours
       codeInvitation: Math.random().toString(36).substring(2, 8).toUpperCase(),
     };
     
@@ -104,7 +107,7 @@ export const enregistrerActivite = createAsyncThunk(
     const nouvelleActivite: ActiviteUtilisateur = {
       ...activite,
       id: `activite_${Date.now()}`,
-      date: new Date(),
+      date: new Date().toISOString(),
     };
     
     return nouvelleActivite;
@@ -129,7 +132,7 @@ const initialState: CollaborationState = {
     nom: 'Utilisateur Local',
     email: 'utilisateur@example.com',
     role: 'proprietaire',
-    dateAjout: new Date(),
+    dateAjout: new Date().toISOString(),
   },
   activites: [],
   invitations: [],

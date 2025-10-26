@@ -18,7 +18,7 @@ import { StatCard, QuickActionButton, AlertItem, Section } from '../components/U
 import { CustomModal, FormField, TypeSelector } from '../components/UIComponents';
 import { ValidationFormulaires } from '../utils/validation';
 import { CalculsAgricoles, UtilitairesDate } from '../utils/calculs';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { MaterialIcons } from '@expo/vector-icons';
 import { Calendar } from 'react-native-calendars';
 import { Gestation, Sevrage, Porc } from '../types';
 
@@ -288,7 +288,7 @@ const ReproductionScreen: React.FC = () => {
             ))}
             {gestations.filter(g => g.statut === 'en_cours').length === 0 && (
               <View style={styles.emptyContainer}>
-                <Icon name="pregnant-woman" size={48} color="#ccc" />
+                <MaterialIcons name="pregnant-woman" size={48} color="#ccc" />
                 <Text style={styles.emptyText}>Aucune gestation en cours</Text>
               </View>
             )}
@@ -302,7 +302,7 @@ const ReproductionScreen: React.FC = () => {
             ))}
             {sevrages.length === 0 && (
               <View style={styles.emptyContainer}>
-                <Icon name="child-care" size={48} color="#ccc" />
+                <MaterialIcons name="child-care" size={48} color="#ccc" />
                 <Text style={styles.emptyText}>Aucun sevrage enregistré</Text>
               </View>
             )}

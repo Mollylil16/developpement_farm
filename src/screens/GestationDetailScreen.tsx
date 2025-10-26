@@ -11,7 +11,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../store/store';
 import { LoadingSpinner, ErrorMessage } from '../components/LoadingStates';
 import { Section, CustomModal, FormField } from '../components/UIComponents';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { MaterialIcons } from '@expo/vector-icons';
 import { Gestation, Porc } from '../types';
 import { ValidationFormulaires } from '../utils/validation';
 
@@ -77,7 +77,7 @@ const GestationDetailScreen: React.FC<GestationDetailScreenProps> = ({ route, na
   if (!gestation) {
     return (
       <View style={styles.errorContainer}>
-        <Icon name="error-outline" size={64} color="#F44336" />
+        <MaterialIcons name="error-outline" size={64} color="#F44336" />
         <Text style={styles.errorTitle}>Gestation non trouvée</Text>
         <Text style={styles.errorMessage}>Cette gestation n'existe plus ou a été supprimée</Text>
         <TouchableOpacity style={styles.errorBackButton} onPress={() => navigation.goBack()}>
@@ -165,7 +165,7 @@ const GestationDetailScreen: React.FC<GestationDetailScreenProps> = ({ route, na
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Icon name="arrow-back" size={24} color="#fff" />
+          <MaterialIcons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Gestation #{gestation.id.slice(-6)}</Text>
@@ -174,7 +174,7 @@ const GestationDetailScreen: React.FC<GestationDetailScreenProps> = ({ route, na
           </Text>
         </View>
         <TouchableOpacity style={styles.editButton} onPress={() => setShowEditModal(true)}>
-          <Icon name="edit" size={24} color="#fff" />
+          <MaterialIcons name="edit" size={24} color="#fff" />
         </TouchableOpacity>
       </View>
 
@@ -182,7 +182,7 @@ const GestationDetailScreen: React.FC<GestationDetailScreenProps> = ({ route, na
       <Section title="Statut de la Gestation">
         <View style={styles.statutContainer}>
           <View style={styles.statutCard}>
-            <Icon 
+            <MaterialIcons 
               name={getStatutIcon(gestation.statut)} 
               size={32} 
               color={getStatutColor(gestation.statut)} 
@@ -208,7 +208,7 @@ const GestationDetailScreen: React.FC<GestationDetailScreenProps> = ({ route, na
       <Section title="Informations Générales">
         <View style={styles.infoGrid}>
           <View style={styles.infoItem}>
-            <Icon name="pregnant-woman" size={20} color="#FF9800" />
+            <MaterialIcons name="pregnant-woman" size={20} color="#FF9800" />
             <Text style={styles.infoLabel}>Truie</Text>
             <Text style={styles.infoValue}>
               {truie ? truie.numeroIdentification : 'Inconnue'}
@@ -216,7 +216,7 @@ const GestationDetailScreen: React.FC<GestationDetailScreenProps> = ({ route, na
           </View>
           
           <View style={styles.infoItem}>
-            <Icon name="schedule" size={20} color="#2196F3" />
+            <MaterialIcons name="schedule" size={20} color="#2196F3" />
             <Text style={styles.infoLabel}>Date de sautage</Text>
             <Text style={styles.infoValue}>
               {gestation.dateSautage.toLocaleDateString('fr-FR')}
@@ -224,7 +224,7 @@ const GestationDetailScreen: React.FC<GestationDetailScreenProps> = ({ route, na
           </View>
           
           <View style={styles.infoItem}>
-            <Icon name="event" size={20} color="#4CAF50" />
+            <MaterialIcons name="event" size={20} color="#4CAF50" />
             <Text style={styles.infoLabel}>Mise bas prévue</Text>
             <Text style={styles.infoValue}>
               {gestation.dateMiseBasPrevue.toLocaleDateString('fr-FR')}
@@ -233,7 +233,7 @@ const GestationDetailScreen: React.FC<GestationDetailScreenProps> = ({ route, na
           
           {gestation.dateMiseBasReelle && (
             <View style={styles.infoItem}>
-              <Icon name="check-circle" size={20} color="#4CAF50" />
+              <MaterialIcons name="check-circle" size={20} color="#4CAF50" />
               <Text style={styles.infoLabel}>Mise bas réelle</Text>
               <Text style={styles.infoValue}>
                 {gestation.dateMiseBasReelle.toLocaleDateString('fr-FR')}
@@ -242,14 +242,14 @@ const GestationDetailScreen: React.FC<GestationDetailScreenProps> = ({ route, na
           )}
           
           <View style={styles.infoItem}>
-            <Icon name="child-care" size={20} color="#9C27B0" />
+            <MaterialIcons name="child-care" size={20} color="#9C27B0" />
             <Text style={styles.infoLabel}>Porcelets prévus</Text>
             <Text style={styles.infoValue}>{gestation.nombrePorceletsPrevu}</Text>
           </View>
           
           {gestation.nombrePorceletsReel && (
             <View style={styles.infoItem}>
-              <Icon name="pets" size={20} color="#E91E63" />
+              <MaterialIcons name="pets" size={20} color="#E91E63" />
               <Text style={styles.infoLabel}>Porcelets réels</Text>
               <Text style={styles.infoValue}>{gestation.nombrePorceletsReel}</Text>
             </View>
@@ -291,7 +291,7 @@ const GestationDetailScreen: React.FC<GestationDetailScreenProps> = ({ route, na
               style={styles.actionButton}
               onPress={() => setShowMiseBasModal(true)}
             >
-              <Icon name="child-care" size={20} color="#fff" />
+              <MaterialIcons name="child-care" size={20} color="#fff" />
               <Text style={styles.actionButtonText}>Enregistrer la mise bas</Text>
             </TouchableOpacity>
           </View>

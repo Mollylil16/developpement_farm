@@ -14,7 +14,7 @@ import { StatCard, QuickActionButton, Section } from '../components/UIComponents
 import { CalculsAgricoles } from '../utils/calculs';
 import { PDFGeneratorService, RapportPDFData } from '../services/PDFGeneratorService';
 import ExportPDFModal from '../components/ExportPDFModal';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { MaterialIcons } from '@expo/vector-icons';
 import { LineChart, BarChart, PieChart } from 'react-native-chart-kit';
 import { Porc, Gestation, Transaction, Recommandation } from '../types';
 
@@ -154,7 +154,7 @@ const ReportsScreen: React.FC = () => {
       onPress={onPress}
       disabled={!onPress}
     >
-      <Icon name={icon} size={24} color={color} />
+      <MaterialIcons name={icon} size={24} color={color} />
       <Text style={styles.reportValue}>{value}</Text>
       <Text style={styles.reportTitle}>{title}</Text>
       {subtitle && <Text style={styles.reportSubtitle}>{subtitle}</Text>}
@@ -164,7 +164,7 @@ const ReportsScreen: React.FC = () => {
   const RecommandationCard = ({ recommandation }: { recommandation: Recommandation }) => (
     <View style={styles.recommendationCard}>
       <View style={styles.recommendationHeader}>
-        <Icon name={recommandation.icon} size={20} color={recommandation.color} />
+        <MaterialIcons name={recommandation.icon} size={20} color={recommandation.color} />
         <Text style={styles.recommendationTitle}>{recommandation.titre}</Text>
       </View>
       <Text style={styles.recommendationDescription}>{recommandation.description}</Text>
@@ -547,14 +547,14 @@ const ReportsScreen: React.FC = () => {
             onPress={() => setShowExportModal(true)}
             disabled={exportLoading}
           >
-            <Icon name="picture-as-pdf" size={24} color="#fff" />
+            <MaterialIcons name="picture-as-pdf" size={24} color="#fff" />
             <Text style={styles.exportButtonText}>
               {exportLoading ? 'Génération...' : 'Exporter en PDF'}
             </Text>
           </TouchableOpacity>
           
           <TouchableOpacity style={styles.shareButton}>
-            <Icon name="share" size={24} color="#2196F3" />
+            <MaterialIcons name="share" size={24} color="#2196F3" />
             <Text style={styles.shareButtonText}>Partager</Text>
           </TouchableOpacity>
         </View>

@@ -17,7 +17,7 @@ import {
 import { StatCard, QuickActionButton, Section } from '../components/UIComponents';
 import { CustomModal, FormField, TypeSelector } from '../components/UIComponents';
 import { CalculsAgricoles } from '../utils/calculs';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { MaterialIcons } from '@expo/vector-icons';
 import { Calendar } from 'react-native-calendars';
 import { PlanificationAccouplement, SailliePlanifiee, ObjectifReproduction, Porc } from '../types';
 
@@ -170,14 +170,14 @@ const PlanificationScreen: React.FC = () => {
             style={styles.actionButton}
             onPress={() => dispatch(setPlanificationActive(planification))}
           >
-            <Icon name="visibility" size={16} color="#2196F3" />
+            <MaterialIcons name="visibility" size={16} color="#2196F3" />
             <Text style={styles.actionButtonText}>Voir détails</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionButton}
             onPress={() => setActiveTab('calendrier')}
           >
-            <Icon name="calendar-today" size={16} color="#4CAF50" />
+            <MaterialIcons name="calendar-today" size={16} color="#4CAF50" />
             <Text style={styles.actionButtonText}>Calendrier</Text>
           </TouchableOpacity>
         </View>
@@ -214,14 +214,14 @@ const PlanificationScreen: React.FC = () => {
               style={[styles.saillieActionButton, { backgroundColor: '#4CAF50' }]}
               onPress={() => handleMettreAJourSaillie(planificationActive!.id, saillie.id, 'realise')}
             >
-              <Icon name="check" size={16} color="#fff" />
+              <MaterialIcons name="check" size={16} color="#fff" />
               <Text style={styles.saillieActionButtonText}>Réalisée</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.saillieActionButton, { backgroundColor: '#F44336' }]}
               onPress={() => handleMettreAJourSaillie(planificationActive!.id, saillie.id, 'annule')}
             >
-              <Icon name="close" size={16} color="#fff" />
+              <MaterialIcons name="close" size={16} color="#fff" />
               <Text style={styles.saillieActionButtonText}>Annuler</Text>
             </TouchableOpacity>
           </View>
@@ -337,7 +337,7 @@ const PlanificationScreen: React.FC = () => {
             ))}
             {planifications.length === 0 && (
               <View style={styles.emptyContainer}>
-                <Icon name="assignment" size={48} color="#ccc" />
+                <MaterialIcons name="assignment" size={48} color="#ccc" />
                 <Text style={styles.emptyText}>Aucune planification disponible</Text>
               </View>
             )}
@@ -375,7 +375,7 @@ const PlanificationScreen: React.FC = () => {
               </View>
             ) : (
               <View style={styles.emptyContainer}>
-                <Icon name="calendar-today" size={48} color="#ccc" />
+                <MaterialIcons name="calendar-today" size={48} color="#ccc" />
                 <Text style={styles.emptyText}>Sélectionnez une planification pour voir le calendrier</Text>
               </View>
             )}

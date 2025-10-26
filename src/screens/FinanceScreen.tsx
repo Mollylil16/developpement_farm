@@ -23,7 +23,7 @@ import { CalculsAgricoles } from '../utils/calculs';
 import { AnalyseFinanciereComponent, RentabilitePorcsComponent } from '../components/FinanceComponents';
 import DocumentManager from '../components/DocumentManager';
 import { LoadingSpinner, ErrorMessage, EmptyState } from '../components/LoadingStates';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { MaterialIcons } from '@expo/vector-icons';
 import { Transaction, DocumentFacture } from '../types';
 
 const { width } = Dimensions.get('window');
@@ -184,7 +184,7 @@ const FinanceScreen: React.FC = () => {
     <View style={styles.transactionCard}>
       <View style={styles.transactionHeader}>
         <View style={styles.transactionType}>
-          <Icon 
+          <MaterialIcons 
             name={
               transaction.type === 'vente' ? 'euro' :
               transaction.type === 'achat' ? 'shopping-cart' :
@@ -267,17 +267,17 @@ const FinanceScreen: React.FC = () => {
             {/* Résumé financier */}
             <View style={styles.summaryContainer}>
               <View style={styles.summaryCard}>
-                <Icon name="trending-up" size={24} color="#4CAF50" />
+                <MaterialIcons name="trending-up" size={24} color="#4CAF50" />
                 <Text style={styles.summaryValue}>{formaterMontant(recettesMois)}</Text>
                 <Text style={styles.summaryLabel}>Recettes du mois</Text>
               </View>
               <View style={styles.summaryCard}>
-                <Icon name="trending-down" size={24} color="#FF5722" />
+                <MaterialIcons name="trending-down" size={24} color="#FF5722" />
                 <Text style={styles.summaryValue}>{formaterMontant(depensesMois)}</Text>
                 <Text style={styles.summaryLabel}>Dépenses du mois</Text>
               </View>
               <View style={styles.summaryCard}>
-                <Icon name="account-balance-wallet" size={24} color={beneficeMois >= 0 ? "#4CAF50" : "#FF5722"} />
+                <MaterialIcons name="account-balance-wallet" size={24} color={beneficeMois >= 0 ? "#4CAF50" : "#FF5722"} />
                 <Text style={[styles.summaryValue, { color: beneficeMois >= 0 ? "#4CAF50" : "#FF5722" }]}>
                   {formaterMontant(beneficeMois)}
                 </Text>
@@ -312,7 +312,7 @@ const FinanceScreen: React.FC = () => {
         style={styles.floatingButton}
         onPress={() => setShowNewTransaction(true)}
       >
-        <Icon name="add" size={24} color="#fff" />
+        <MaterialIcons name="add" size={24} color="#fff" />
       </TouchableOpacity>
 
       {/* Modal Nouvelle Transaction */}
@@ -321,7 +321,7 @@ const FinanceScreen: React.FC = () => {
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Nouvelle Transaction</Text>
             <TouchableOpacity onPress={() => setShowNewTransaction(false)}>
-              <Icon name="close" size={24} color="#333" />
+              <MaterialIcons name="close" size={24} color="#333" />
             </TouchableOpacity>
           </View>
 

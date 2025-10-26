@@ -13,7 +13,7 @@ import { addRation } from '../store/slices/nutritionSlice';
 import { StatCard, QuickActionButton, Section } from '../components/UIComponents';
 import { CustomModal, FormField, TypeSelector } from '../components/UIComponents';
 import { CalculsAgricoles } from '../utils/calculs';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { MaterialIcons } from '@expo/vector-icons';
 import { Ration, IngredientRation, Porc } from '../types';
 
 const NutritionScreen: React.FC = () => {
@@ -347,7 +347,7 @@ const NutritionScreen: React.FC = () => {
             ))}
             {rations.length === 0 && (
               <View style={styles.emptyContainer}>
-                <Icon name="restaurant" size={48} color="#ccc" />
+                <MaterialIcons name="restaurant" size={48} color="#ccc" />
                 <Text style={styles.emptyText}>Aucune ration disponible</Text>
               </View>
             )}
@@ -411,7 +411,7 @@ const NutritionScreen: React.FC = () => {
                   style={styles.calculateButton}
                   onPress={handleCalculerRation}
                 >
-                  <Icon name="calculate" size={20} color="#fff" />
+                  <MaterialIcons name="calculate" size={20} color="#fff" />
                   <Text style={styles.calculateButtonText}>Calculer</Text>
                 </TouchableOpacity>
               </View>
@@ -436,7 +436,7 @@ const NutritionScreen: React.FC = () => {
                     style={styles.removeButton}
                     onPress={() => removeIngredient(index)}
                   >
-                    <Icon name="close" size={20} color="#fff" />
+                    <MaterialIcons name="close" size={20} color="#fff" />
                   </TouchableOpacity>
                 </View>
               ))}
@@ -474,7 +474,7 @@ const NutritionScreen: React.FC = () => {
                   style={styles.addIngredientButton}
                   onPress={addIngredient}
                 >
-                  <Icon name="add" size={20} color="#fff" />
+                  <MaterialIcons name="add" size={20} color="#fff" />
                   <Text style={styles.addIngredientButtonText}>Ajouter</Text>
                 </TouchableOpacity>
               </View>

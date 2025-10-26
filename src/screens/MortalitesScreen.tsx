@@ -18,7 +18,7 @@ import {
 } from '../store/slices/mortalitesSlice';
 import { Section, CustomModal, FormField } from '../components/UIComponents';
 import { LoadingSpinner, ErrorMessage, EmptyState } from '../components/LoadingStates';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { MaterialIcons } from '@expo/vector-icons';
 import { Mortalite, Porc } from '../types';
 import { ValidationFormulaires } from '../utils/validation';
 
@@ -124,7 +124,7 @@ const MortalitesScreen: React.FC = () => {
     return (
       <View style={styles.mortaliteCard}>
         <View style={styles.mortaliteHeader}>
-          <Icon name="pets" size={24} color="#F44336" />
+          <MaterialIcons name="pets" size={24} color="#F44336" />
           <View style={styles.mortaliteInfo}>
             <Text style={styles.mortalitePorc}>
               {mortalite.porcNumeroIdentification}
@@ -134,7 +134,7 @@ const MortalitesScreen: React.FC = () => {
             </Text>
           </View>
           <TouchableOpacity onPress={() => handleSupprimerMortalite(mortalite.id)}>
-            <Icon name="delete" size={20} color="#F44336" />
+            <MaterialIcons name="delete" size={20} color="#F44336" />
           </TouchableOpacity>
         </View>
         
@@ -247,7 +247,7 @@ const MortalitesScreen: React.FC = () => {
       <Section title="Mortalités Enregistrées">
         {mortalites.length === 0 ? (
           <View style={styles.emptyState}>
-            <Icon name="pets" size={48} color="#ccc" />
+            <MaterialIcons name="pets" size={48} color="#ccc" />
             <Text style={styles.emptyText}>Aucune mortalité enregistrée</Text>
             <Text style={styles.emptySubtext}>Les décès apparaîtront ici une fois enregistrés</Text>
           </View>
@@ -263,7 +263,7 @@ const MortalitesScreen: React.FC = () => {
         style={styles.addButton}
         onPress={() => setShowNouvelleMortalite(true)}
       >
-        <Icon name="add" size={24} color="#fff" />
+        <MaterialIcons name="add" size={24} color="#fff" />
         <Text style={styles.addButtonText}>Enregistrer une mortalité</Text>
       </TouchableOpacity>
 
