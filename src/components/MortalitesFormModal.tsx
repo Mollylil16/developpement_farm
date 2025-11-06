@@ -1,0 +1,271 @@
+/**
+ * Composant formulaire modal pour mortalité
+ */
+
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Platform } from 'react-native';
+import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { createMortalite, updateMortalite } from '../store/slices/mortalitesSlice';
+import { Mortalite, CreateMortaliteInput, CategorieMortalite } from '../types';
+import CustomModal from './CustomModal';
+import FormField from './FormField';
+import { COLORS, SPACING } from '../constants/theme';
+
+interface MortalitesFormModalProps {
+  visible: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+  mortalite?: Mortalite | null;
+  isEditing?: boolean;
+}
+
+export default function MortalitesFormModal({
+  visible,
+  onClose,
+  onSuccess,
+  mortalite,
+  isEditing = false,
+}: MortalitesFormModalProps) {
+  const dispatch = useAppDispatch();
+  const { projetActif } = useAppSelector((state) => state.projet);
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState<CreateMortaliteInput>({
+    projet_id: projetActif?.id || '',
+    nombre_porcs: 1,
+    date: new Date().toISOString().split('T')[0],
+    categorie: 'porcelet',
+    cause: '',
+    notes: '',
+  });
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  const categories: CategorieMortalite[] = ['porcelet', 'truie', 'verrat', 'autre'];
+  const categorieLabels: Record<CategorieMortalite, string> = {
+    porcelet: 'Porcelet',
+    truie: 'Truie',
+    verrat: 'Verrat',
+    autre: 'Autre',
+  };
+
+  useEffect(() => {
+    if (mortalite && isEditing) {
+      setFormData({
+        projet_id: mortalite.projet_id,
+        nombre_porcs: mortalite.nombre_porcs,
+        date: mortalite.date.split('T')[0],
+        categorie: mortalite.categorie,
+        cause: mortalite.cause || '',
+        notes: mortalite.notes || '',
+      });
+    } else {
+      setFormData({
+        projet_id: projetActif?.id || '',
+        nombre_porcs: 1,
+        date: new Date().toISOString().split('T')[0],
+        categorie: 'porcelet',
+        cause: '',
+        notes: '',
+      });
+    }
+  }, [mortalite, isEditing, visible, projetActif]);
+
+  const handleSubmit = async () => {
+    // Validation
+    if (!formData.projet_id) {
+      Alert.alert('Erreur', 'Aucun projet actif');
+      return;
+    }
+    if (formData.nombre_porcs <= 0) {
+      Alert.alert('Erreur', 'Le nombre de porcs doit être supérieur à 0');
+      return;
+    }
+    if (!formData.date) {
+      Alert.alert('Erreur', 'La date est requise');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (isEditing && mortalite) {
+        await dispatch(
+          updateMortalite({
+            id: mortalite.id,
+            updates: formData,
+          })
+        ).unwrap();
+      } else {
+        await dispatch(createMortalite(formData)).unwrap();
+      }
+      onSuccess();
+    } catch (error: any) {
+      Alert.alert('Erreur', error || "Erreur lors de l'enregistrement");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <CustomModal
+      visible={visible}
+      onClose={onClose}
+      title={isEditing ? 'Modifier la mortalité' : 'Nouvelle mortalité'}
+      confirmText={isEditing ? 'Modifier' : 'Créer'}
+      onConfirm={handleSubmit}
+      showButtons={true}
+      loading={loading}
+    >
+      <ScrollView style={styles.scrollView}>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Informations</Text>
+
+          <FormField
+            label="Nombre de porcs"
+            value={formData.nombre_porcs.toString()}
+            onChangeText={(text) =>
+              setFormData({ ...formData, nombre_porcs: parseInt(text) || 0 })
+            }
+            keyboardType="numeric"
+            placeholder="Ex: 2"
+          />
+
+          <View style={styles.dateContainer}>
+            <Text style={styles.label}>Date</Text>
+            <TouchableOpacity
+              style={styles.dateButton}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Text style={styles.dateButtonText}>
+                {new Date(formData.date).toLocaleDateString('fr-FR', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                })}
+              </Text>
+            </TouchableOpacity>
+            {showDatePicker && (
+              <DateTimePicker
+                value={new Date(formData.date)}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={(event, selectedDate) => {
+                  setShowDatePicker(Platform.OS === 'ios');
+                  if (selectedDate) {
+                    setFormData({
+                      ...formData,
+                      date: selectedDate.toISOString().split('T')[0],
+                    });
+                  }
+                }}
+              />
+            )}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Catégorie</Text>
+            <View style={styles.optionsContainer}>
+              {categories.map((cat) => (
+                <TouchableOpacity
+                  key={cat}
+                  style={[
+                    styles.option,
+                    formData.categorie === cat && styles.optionSelected,
+                  ]}
+                  onPress={() => setFormData({ ...formData, categorie: cat })}
+                >
+                  <Text
+                    style={[
+                      styles.optionText,
+                      formData.categorie === cat && styles.optionTextSelected,
+                    ]}
+                  >
+                    {categorieLabels[cat]}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          <FormField
+            label="Cause (optionnel)"
+            value={formData.cause}
+            onChangeText={(text) => setFormData({ ...formData, cause: text })}
+            placeholder="Ex: Maladie, Accident..."
+            multiline
+          />
+
+          <FormField
+            label="Notes (optionnel)"
+            value={formData.notes}
+            onChangeText={(text) => setFormData({ ...formData, notes: text })}
+            placeholder="Ajoutez des notes..."
+            multiline
+          />
+        </View>
+      </ScrollView>
+    </CustomModal>
+  );
+}
+
+const styles = StyleSheet.create({
+  scrollView: {
+    maxHeight: 500,
+  },
+  section: {
+    marginBottom: SPACING.lg,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: SPACING.md,
+  },
+  dateContainer: {
+    marginBottom: SPACING.md,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS.text,
+    marginBottom: SPACING.xs,
+  },
+  dateButton: {
+    backgroundColor: COLORS.surface,
+    padding: SPACING.md,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  dateButtonText: {
+    fontSize: 16,
+    color: COLORS.text,
+  },
+  optionsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  option: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: 8,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginRight: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+  optionSelected: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  optionText: {
+    fontSize: 14,
+    color: COLORS.text,
+  },
+  optionTextSelected: {
+    color: COLORS.textOnPrimary,
+    fontWeight: '600',
+  },
+});
+
