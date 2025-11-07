@@ -2,17 +2,19 @@
  * Composant liste des dépenses ponctuelles
  */
 
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, ScrollView, TouchableOpacity, Alert, Image } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadDepensesPonctuelles, deleteDepensePonctuelle } from '../store/slices/financeSlice';
 import { DepensePonctuelle } from '../types';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';
 import LoadingSpinner from './LoadingSpinner';
 import DepenseFormModal from './DepenseFormModal';
 
 export default function FinanceDepensesComponent() {
+  const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { depensesPonctuelles, loading } = useAppSelector((state) => state.finance);
   const [selectedDepense, setSelectedDepense] = useState<DepensePonctuelle | null>(null);
@@ -20,10 +22,37 @@ export default function FinanceDepensesComponent() {
   const [isEditing, setIsEditing] = useState(false);
   const [viewingPhotos, setViewingPhotos] = useState<string[]>([]);
   const [photoModalVisible, setPhotoModalVisible] = useState(false);
+  const [displayedDepenses, setDisplayedDepenses] = useState<DepensePonctuelle[]>([]);
+  const [page, setPage] = useState(1);
+  const ITEMS_PER_PAGE = 50;
 
   useEffect(() => {
     dispatch(loadDepensesPonctuelles());
   }, [dispatch]);
+
+  // Pagination: charger les premières dépenses
+  useEffect(() => {
+    const initial = depensesPonctuelles.slice(0, ITEMS_PER_PAGE);
+    setDisplayedDepenses(initial);
+    setPage(1);
+  }, [depensesPonctuelles.length]);
+
+  // Charger plus de dépenses
+  const loadMore = useCallback(() => {
+    if (displayedDepenses.length >= depensesPonctuelles.length) {
+      return;
+    }
+
+    const nextPage = page + 1;
+    const start = page * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+    const newItems = depensesPonctuelles.slice(start, end);
+
+    if (newItems.length > 0) {
+      setDisplayedDepenses((prev) => [...prev, ...newItems]);
+      setPage(nextPage);
+    }
+  }, [page, displayedDepenses.length, depensesPonctuelles]);
 
   const handleEdit = (depense: DepensePonctuelle) => {
     setSelectedDepense(depense);
@@ -105,61 +134,59 @@ export default function FinanceDepensesComponent() {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Dépenses Ponctuelles</Text>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+        <Text style={[styles.title, { color: colors.text }]}>Dépenses Ponctuelles</Text>
         <TouchableOpacity
-          style={styles.addButton}
+          style={[styles.addButton, { backgroundColor: colors.primary }]}
           onPress={() => {
             setSelectedDepense(null);
             setIsEditing(false);
             setModalVisible(true);
           }}
         >
-          <Text style={styles.addButtonText}>+ Ajouter</Text>
+          <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Ajouter</Text>
         </TouchableOpacity>
       </View>
 
       {/* Résumé du mois */}
-      <View style={styles.summary}>
+      <View style={[styles.summary, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>Dépenses ce mois</Text>
-          <Text style={styles.summaryValue}>{formatAmount(totalMois)}</Text>
+          <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Dépenses ce mois</Text>
+          <Text style={[styles.summaryValue, { color: colors.primary }]}>{formatAmount(totalMois)}</Text>
         </View>
         <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>Nombre de dépenses</Text>
-          <Text style={styles.summaryValue}>{depensesCeMois.length}</Text>
+          <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Nombre de dépenses</Text>
+          <Text style={[styles.summaryValue, { color: colors.primary }]}>{depensesCeMois.length}</Text>
         </View>
       </View>
 
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {depensesPonctuelles.length === 0 ? (
-          <EmptyState
-            title="Aucune dépense enregistrée"
-            message="Ajoutez votre première dépense pour commencer"
-            action={
-              <TouchableOpacity
-                style={styles.addButton}
-                onPress={() => {
-                  setSelectedDepense(null);
-                  setIsEditing(false);
-                  setModalVisible(true);
-                }}
-              >
-                <Text style={styles.addButtonText}>+ Ajouter une dépense</Text>
-              </TouchableOpacity>
-            }
-          />
-        ) : (
-          depensesPonctuelles.map((depense) => (
-            <View key={depense.id} style={styles.card}>
+      {depensesPonctuelles.length === 0 ? (
+        <EmptyState
+          title="Aucune dépense enregistrée"
+          message="Ajoutez votre première dépense pour commencer"
+          action={
+            <TouchableOpacity
+              style={[styles.addButton, { backgroundColor: colors.primary }]}
+              onPress={() => {
+                setSelectedDepense(null);
+                setIsEditing(false);
+                setModalVisible(true);
+              }}
+            >
+              <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Ajouter une dépense</Text>
+            </TouchableOpacity>
+          }
+        />
+      ) : (
+        <FlatList
+          data={displayedDepenses}
+          renderItem={({ item: depense }) => (
+            <View style={[styles.card, { backgroundColor: colors.surface, ...colors.shadow.small }]}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderLeft}>
-                  <Text style={styles.cardTitle}>{getCategoryLabel(depense.categorie)}</Text>
-                  <Text style={styles.cardDate}>{formatDate(depense.date)}</Text>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>{getCategoryLabel(depense.categorie)}</Text>
+                  <Text style={[styles.cardDate, { color: colors.textSecondary }]}>{formatDate(depense.date)}</Text>
                 </View>
                 <View style={styles.cardActions}>
                   {depense.photos && depense.photos.length > 0 && (
@@ -187,32 +214,48 @@ export default function FinanceDepensesComponent() {
 
               <View style={styles.cardContent}>
                 <View style={styles.amountRow}>
-                  <Text style={styles.amount}>{formatAmount(depense.montant)}</Text>
+                  <Text style={[styles.amount, { color: colors.primary }]}>{formatAmount(depense.montant)}</Text>
                 </View>
                 {depense.libelle_categorie && (
                   <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Libellé:</Text>
-                    <Text style={styles.infoValue}>{depense.libelle_categorie}</Text>
+                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Libellé:</Text>
+                    <Text style={[styles.infoValue, { color: colors.text }]}>{depense.libelle_categorie}</Text>
                   </View>
                 )}
                 {depense.commentaire && (
-                  <View style={styles.commentContainer}>
-                    <Text style={styles.commentLabel}>Commentaire:</Text>
-                    <Text style={styles.commentText}>{depense.commentaire}</Text>
+                  <View style={[styles.commentContainer, { borderTopColor: colors.border }]}>
+                    <Text style={[styles.commentLabel, { color: colors.textSecondary }]}>Commentaire:</Text>
+                    <Text style={[styles.commentText, { color: colors.text }]}>{depense.commentaire}</Text>
                   </View>
                 )}
                 {depense.photos && depense.photos.length > 0 && (
                   <View style={styles.photosContainer}>
-                    <Text style={styles.photosLabel}>
+                    <Text style={[styles.photosLabel, { color: colors.textSecondary }]}>
                       {depense.photos.length} photo{depense.photos.length > 1 ? 's' : ''} de reçu
                     </Text>
                   </View>
                 )}
               </View>
             </View>
-          ))
-        )}
-      </ScrollView>
+          )}
+          keyExtractor={(item) => item.id}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          // Optimisations de performance
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          initialNumToRender={10}
+          updateCellsBatchingPeriod={50}
+          ListFooterComponent={
+            displayedDepenses.length < depensesPonctuelles.length ? (
+              <LoadingSpinner message="Chargement..." />
+            ) : null
+          }
+        />
+      )}
 
       <DepenseFormModal
         visible={modalVisible}
@@ -225,11 +268,11 @@ export default function FinanceDepensesComponent() {
       {/* Modal pour voir les photos */}
       {photoModalVisible && (
         <View style={styles.photoModal}>
-          <View style={styles.photoModalContent}>
-            <View style={styles.photoModalHeader}>
-              <Text style={styles.photoModalTitle}>Photos du reçu</Text>
+          <View style={[styles.photoModalContent, { backgroundColor: colors.background }]}>
+            <View style={[styles.photoModalHeader, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.photoModalTitle, { color: colors.text }]}>Photos du reçu</Text>
               <TouchableOpacity onPress={() => setPhotoModalVisible(false)}>
-                <Text style={styles.photoModalClose}>✕</Text>
+                <Text style={[styles.photoModalClose, { color: colors.textSecondary }]}>✕</Text>
               </TouchableOpacity>
             </View>
             <ScrollView horizontal pagingEnabled>
@@ -252,7 +295,6 @@ export default function FinanceDepensesComponent() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: 'row',
@@ -261,21 +303,17 @@ const styles = StyleSheet.create({
     padding: SPACING.lg,
     paddingTop: SPACING.md + 10,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
   title: {
     fontSize: FONT_SIZES.xl,
     fontWeight: 'bold',
-    color: COLORS.text,
   },
   addButton: {
-    backgroundColor: COLORS.primary,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
     borderRadius: BORDER_RADIUS.md,
   },
   addButtonText: {
-    color: COLORS.background,
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
   },
@@ -283,22 +321,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     padding: SPACING.md,
-    backgroundColor: COLORS.surface,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
   summaryItem: {
     alignItems: 'center',
   },
   summaryLabel: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
     marginBottom: SPACING.xs,
   },
   summaryValue: {
     fontSize: FONT_SIZES.lg,
     fontWeight: 'bold',
-    color: COLORS.primary,
   },
   scrollView: {
     flex: 1,
@@ -307,15 +341,9 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.xxl + 85, // 85px pour la barre de navigation + espace
   },
   card: {
-    backgroundColor: COLORS.surface,
     margin: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -329,11 +357,9 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: FONT_SIZES.lg,
     fontWeight: 'bold',
-    color: COLORS.text,
   },
   cardDate: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
     marginTop: SPACING.xs,
   },
   cardActions: {
@@ -355,7 +381,6 @@ const styles = StyleSheet.create({
   amount: {
     fontSize: FONT_SIZES.xl,
     fontWeight: 'bold',
-    color: COLORS.primary,
   },
   infoRow: {
     flexDirection: 'row',
@@ -364,28 +389,23 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
     fontWeight: '600',
   },
   infoValue: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.text,
   },
   commentContainer: {
     marginTop: SPACING.sm,
     paddingTop: SPACING.sm,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
   },
   commentLabel: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
     fontWeight: '600',
     marginBottom: SPACING.xs,
   },
   commentText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.text,
     fontStyle: 'italic',
   },
   photosContainer: {
@@ -393,7 +413,6 @@ const styles = StyleSheet.create({
   },
   photosLabel: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
     fontStyle: 'italic',
   },
   photoModal: {
@@ -409,7 +428,6 @@ const styles = StyleSheet.create({
   photoModalContent: {
     width: '90%',
     height: '80%',
-    backgroundColor: COLORS.background,
     borderRadius: BORDER_RADIUS.lg,
     overflow: 'hidden',
   },
@@ -419,16 +437,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
   photoModalTitle: {
     fontSize: FONT_SIZES.lg,
     fontWeight: 'bold',
-    color: COLORS.text,
   },
   photoModalClose: {
     fontSize: FONT_SIZES.xl,
-    color: COLORS.textSecondary,
     fontWeight: 'bold',
   },
   photoImage: {

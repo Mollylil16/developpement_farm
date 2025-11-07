@@ -4,7 +4,8 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface StatCardProps {
   value: string | number;
@@ -22,36 +23,39 @@ export default function StatCard({
   unit,
   icon,
   style,
-  valueColor = COLORS.primary,
+  valueColor,
   gradient = false,
 }: StatCardProps) {
+  const { colors } = useTheme();
+  const finalValueColor = valueColor || colors.primary;
+  
   return (
-    <View style={[styles.container, gradient && styles.gradient, style]}>
+    <View style={[
+      styles.container,
+      {
+        backgroundColor: colors.surface,
+        borderColor: gradient ? colors.primaryLight : colors.borderLight,
+        ...colors.shadow.medium,
+      },
+      style
+    ]}>
       {icon && <View style={styles.iconContainer}>{icon}</View>}
-      <Text style={[styles.value, { color: valueColor }]}>
+      <Text style={[styles.value, { color: finalValueColor }]}>
         {value}
         {unit && <Text style={styles.unit}> {unit}</Text>}
       </Text>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label, { color: colors.textSecondary }]}>{label}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: COLORS.surface,
     padding: SPACING.lg,
     borderRadius: BORDER_RADIUS.lg,
     alignItems: 'center',
     flex: 1,
     marginHorizontal: SPACING.xs,
-    ...COLORS.shadow.medium,
-    borderWidth: 1,
-    borderColor: COLORS.borderLight,
-  },
-  gradient: {
-    backgroundColor: COLORS.surface,
-    borderColor: COLORS.primaryLight,
     borderWidth: 1,
   },
   iconContainer: {
@@ -68,7 +72,6 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
     textAlign: 'center',
     fontWeight: FONT_WEIGHTS.medium,
   },

@@ -11,9 +11,14 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { store, persistor } from './src/store/store';
 import AppNavigator from './src/navigation/AppNavigator';
 import { databaseService } from './src/services/database';
-import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS } from './src/constants/theme';
+import NotificationsManager from './src/components/NotificationsManager';
+import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS } from './src/constants/theme';
 
 function LoadingScreen({ message, error }: { message: string; error?: string }) {
+  // Utiliser les couleurs par défaut car on n'est pas encore dans le ThemeProvider
+  const { LIGHT_COLORS } = require('./src/constants/theme');
+  const colors = LIGHT_COLORS;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
@@ -50,7 +55,7 @@ function LoadingScreen({ message, error }: { message: string; error?: string }) 
   });
 
   return (
-    <View style={styles.loadingContainer}>
+    <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
       <Animated.View
         style={[
           styles.loadingContent,
@@ -61,10 +66,10 @@ function LoadingScreen({ message, error }: { message: string; error?: string }) 
         ]}
       >
         <Animated.View style={{ transform: [{ rotate: spin }] }}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </Animated.View>
-        <Text style={styles.loadingText}>{message}</Text>
-        {error && <Text style={styles.errorText}>{error}</Text>}
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>{message}</Text>
+        {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
       </Animated.View>
     </View>
   );
@@ -105,18 +110,30 @@ export default function App() {
         <PersistGate loading={
           <LoadingScreen message="Chargement de l'application..." />
         } persistor={persistor}>
-          <StatusBar style="auto" />
-          <AppNavigator />
+          <ThemeProvider>
+            <AppContent />
+          </ThemeProvider>
         </PersistGate>
       </Provider>
     </SafeAreaProvider>
   );
 }
 
+function AppContent() {
+  const { isDark } = useTheme();
+  
+  return (
+    <>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <NotificationsManager />
+      <AppNavigator />
+    </>
+  );
+}
+
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    backgroundColor: COLORS.background,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
@@ -128,11 +145,9 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: COLORS.textSecondary,
   },
   errorText: {
     marginTop: 8,
     fontSize: 14,
-    color: COLORS.error,
   },
 });

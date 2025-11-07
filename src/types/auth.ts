@@ -31,6 +31,5 @@ export interface EmailSignUpInput {
 
 export interface EmailSignInInput {
   email: string;
-  password: string;
 }
 

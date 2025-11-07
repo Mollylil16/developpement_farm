@@ -2,23 +2,52 @@
  * Composant historique des rations
  */
 
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadRations, deleteRation } from '../store/slices/nutritionSlice';
 import { Ration, IngredientRation } from '../types';
 import { getTypePorcLabel } from '../types/nutrition';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';
 import LoadingSpinner from './LoadingSpinner';
 
 export default function RationsHistoryComponent() {
+  const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { rations, loading } = useAppSelector((state) => state.nutrition);
+  const [displayedRations, setDisplayedRations] = useState<Ration[]>([]);
+  const [page, setPage] = useState(1);
+  const ITEMS_PER_PAGE = 50;
 
   useEffect(() => {
     dispatch(loadRations());
   }, [dispatch]);
+
+  // Pagination: charger les premières rations
+  useEffect(() => {
+    const initial = rations.slice(0, ITEMS_PER_PAGE);
+    setDisplayedRations(initial);
+    setPage(1);
+  }, [rations.length]);
+
+  // Charger plus de rations
+  const loadMore = useCallback(() => {
+    if (displayedRations.length >= rations.length) {
+      return;
+    }
+
+    const nextPage = page + 1;
+    const start = page * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+    const newItems = rations.slice(start, end);
+
+    if (newItems.length > 0) {
+      setDisplayedRations((prev) => [...prev, ...newItems]);
+      setPage(nextPage);
+    }
+  }, [page, displayedRations.length, rations]);
 
   const handleDelete = (id: string) => {
     Alert.alert(
@@ -59,25 +88,26 @@ export default function RationsHistoryComponent() {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Historique des Rations</Text>
-        <Text style={styles.subtitle}>{rations.length} ration{rations.length > 1 ? 's' : ''}</Text>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+        <Text style={[styles.title, { color: colors.text }]}>Historique des Rations</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{rations.length} ration{rations.length > 1 ? 's' : ''}</Text>
       </View>
 
-      <ScrollView style={styles.scrollView}>
-        {rations.length === 0 ? (
-          <EmptyState
-            title="Aucune ration enregistrée"
-            message="Les rations calculées seront enregistrées ici"
-          />
-        ) : (
-          rations.map((ration) => (
-            <View key={ration.id} style={styles.card}>
+      {rations.length === 0 ? (
+        <EmptyState
+          title="Aucune ration enregistrée"
+          message="Les rations calculées seront enregistrées ici"
+        />
+      ) : (
+        <FlatList
+          data={displayedRations}
+          renderItem={({ item: ration }) => (
+            <View style={[styles.card, { backgroundColor: colors.surface, ...colors.shadow.small }]}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderLeft}>
-                  <Text style={styles.cardTitle}>{getTypePorcLabel(ration.type_porc as any)}</Text>
-                  <Text style={styles.cardDate}>{formatDate(ration.date_creation)}</Text>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>{getTypePorcLabel(ration.type_porc as any)}</Text>
+                  <Text style={[styles.cardDate, { color: colors.textSecondary }]}>{formatDate(ration.date_creation)}</Text>
                 </View>
                 <TouchableOpacity
                   style={styles.actionButton}
@@ -89,38 +119,38 @@ export default function RationsHistoryComponent() {
 
               <View style={styles.cardContent}>
                 <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Poids:</Text>
-                  <Text style={styles.infoValue}>{ration.poids_kg} kg</Text>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Poids:</Text>
+                  <Text style={[styles.infoValue, { color: colors.text }]}>{ration.poids_kg} kg</Text>
                 </View>
                 {ration.nombre_porcs && (
                   <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Nombre de porcs:</Text>
-                    <Text style={styles.infoValue}>{ration.nombre_porcs}</Text>
+                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Nombre de porcs:</Text>
+                    <Text style={[styles.infoValue, { color: colors.text }]}>{ration.nombre_porcs}</Text>
                   </View>
                 )}
                 {ration.cout_total && (
                   <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Coût total:</Text>
-                    <Text style={[styles.infoValue, styles.amount]}>
+                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Coût total:</Text>
+                    <Text style={[styles.infoValue, styles.amount, { color: colors.primary }]}>
                       {formatAmount(ration.cout_total)}
                     </Text>
                   </View>
                 )}
                 {ration.cout_par_kg && (
                   <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Coût par kg:</Text>
-                    <Text style={[styles.infoValue, styles.amount]}>
+                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Coût par kg:</Text>
+                    <Text style={[styles.infoValue, styles.amount, { color: colors.primary }]}>
                       {formatAmount(ration.cout_par_kg)}
                     </Text>
                   </View>
                 )}
 
                 {ration.ingredients && ration.ingredients.length > 0 && (
-                  <View style={styles.ingredientsSection}>
-                    <Text style={styles.ingredientsTitle}>Ingrédients:</Text>
+                  <View style={[styles.ingredientsSection, { borderTopColor: colors.border }]}>
+                    <Text style={[styles.ingredientsTitle, { color: colors.text }]}>Ingrédients:</Text>
                     {ration.ingredients.map((ing: IngredientRation, index: number) => (
                       <View key={index} style={styles.ingredientItem}>
-                        <Text style={styles.ingredientText}>
+                        <Text style={[styles.ingredientText, { color: colors.text }]}>
                           • {ing.ingredient?.nom || 'Inconnu'}: {ing.quantite}{' '}
                           {ing.ingredient?.unite || ''}
                         </Text>
@@ -130,16 +160,32 @@ export default function RationsHistoryComponent() {
                 )}
 
                 {ration.notes && (
-                  <View style={styles.notesContainer}>
-                    <Text style={styles.notesLabel}>Notes:</Text>
-                    <Text style={styles.notesText}>{ration.notes}</Text>
+                  <View style={[styles.notesContainer, { borderTopColor: colors.border }]}>
+                    <Text style={[styles.notesLabel, { color: colors.textSecondary }]}>Notes:</Text>
+                    <Text style={[styles.notesText, { color: colors.text }]}>{ration.notes}</Text>
                   </View>
                 )}
               </View>
             </View>
-          ))
-        )}
-      </ScrollView>
+          )}
+          keyExtractor={(item) => item.id}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
+          contentContainerStyle={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+          // Optimisations de performance
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          initialNumToRender={10}
+          updateCellsBatchingPeriod={50}
+          ListFooterComponent={
+            displayedRations.length < rations.length ? (
+              <LoadingSpinner message="Chargement..." />
+            ) : null
+          }
+        />
+      )}
     </View>
   );
 }
@@ -147,38 +193,32 @@ export default function RationsHistoryComponent() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: SPACING.md,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.md,
+    paddingTop: SPACING.lg + 10,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
   title: {
     fontSize: FONT_SIZES.xl,
     fontWeight: 'bold',
-    color: COLORS.text,
   },
   subtitle: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
   },
   scrollView: {
     flex: 1,
+    paddingBottom: SPACING.xxl + 85, // 85px pour la barre de navigation + espace
   },
   card: {
-    backgroundColor: COLORS.surface,
-    margin: SPACING.md,
+    marginHorizontal: SPACING.xl,
+    marginVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    padding: SPACING.lg,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -192,11 +232,9 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: FONT_SIZES.lg,
     fontWeight: 'bold',
-    color: COLORS.text,
   },
   cardDate: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
     marginTop: SPACING.xs,
   },
   actionButton: {
@@ -215,27 +253,22 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
     fontWeight: '600',
   },
   infoValue: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.text,
   },
   amount: {
     fontWeight: 'bold',
-    color: COLORS.primary,
   },
   ingredientsSection: {
     marginTop: SPACING.sm,
     paddingTop: SPACING.sm,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
   },
   ingredientsTitle: {
     fontSize: FONT_SIZES.sm,
     fontWeight: '600',
-    color: COLORS.text,
     marginBottom: SPACING.xs,
   },
   ingredientItem: {
@@ -243,23 +276,19 @@ const styles = StyleSheet.create({
   },
   ingredientText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.text,
   },
   notesContainer: {
     marginTop: SPACING.sm,
     paddingTop: SPACING.sm,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
   },
   notesLabel: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
     fontWeight: '600',
     marginBottom: SPACING.xs,
   },
   notesText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.text,
     fontStyle: 'italic',
   },
 });

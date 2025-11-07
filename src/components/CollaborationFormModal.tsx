@@ -17,7 +17,8 @@ import {
 } from '../types';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface CollaborationFormModalProps {
   visible: boolean;
@@ -34,6 +35,7 @@ export default function CollaborationFormModal({
   collaborateur,
   isEditing = false,
 }: CollaborationFormModalProps) {
+  const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   const [loading, setLoading] = useState(false);
@@ -185,21 +187,32 @@ export default function CollaborationFormModal({
         />
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Rôle</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Rôle</Text>
           <View style={styles.optionsContainer}>
             {roles.map((role) => (
               <TouchableOpacity
                 key={role}
                 style={[
                   styles.option,
-                  formData.role === role && styles.optionSelected,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                  },
+                  formData.role === role && {
+                    backgroundColor: colors.primary,
+                    borderColor: colors.primary,
+                  },
                 ]}
                 onPress={() => handleRoleChange(role)}
               >
                 <Text
                   style={[
                     styles.optionText,
-                    formData.role === role && styles.optionTextSelected,
+                    { color: colors.text },
+                    formData.role === role && {
+                      color: colors.textOnPrimary,
+                      fontWeight: FONT_WEIGHTS.semiBold,
+                    },
                   ]}
                 >
                   {ROLE_LABELS[role]}
@@ -211,21 +224,32 @@ export default function CollaborationFormModal({
 
         {isEditing && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Statut</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Statut</Text>
             <View style={styles.optionsContainer}>
               {statuts.map((statut) => (
                 <TouchableOpacity
                   key={statut}
                   style={[
                     styles.option,
-                    formData.statut === statut && styles.optionSelected,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                    },
+                    formData.statut === statut && {
+                      backgroundColor: colors.primary,
+                      borderColor: colors.primary,
+                    },
                   ]}
                   onPress={() => setFormData({ ...formData, statut })}
                 >
                   <Text
                     style={[
                       styles.optionText,
-                      formData.statut === statut && styles.optionTextSelected,
+                      { color: colors.text },
+                      formData.statut === statut && {
+                        color: colors.textOnPrimary,
+                        fontWeight: FONT_WEIGHTS.semiBold,
+                      },
                     ]}
                   >
                     {STATUT_LABELS[statut]}
@@ -237,18 +261,18 @@ export default function CollaborationFormModal({
         )}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Permissions</Text>
-          <View style={styles.permissionsContainer}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Permissions</Text>
+          <View style={[styles.permissionsContainer, { backgroundColor: colors.surfaceVariant }]}>
             {Object.entries(formData.permissions || {}).map(([key, value]) => (
-              <View key={key} style={styles.permissionRow}>
-                <Text style={styles.permissionLabel}>
+              <View key={key} style={[styles.permissionRow, { borderBottomColor: colors.divider }]}>
+                <Text style={[styles.permissionLabel, { color: colors.text }]}>
                   {key.charAt(0).toUpperCase() + key.slice(1)}
                 </Text>
                 <Switch
                   value={value}
                   onValueChange={() => togglePermission(key as keyof Collaborateur['permissions'])}
-                  trackColor={{ false: COLORS.border, true: COLORS.primary }}
-                  thumbColor={value ? COLORS.textOnPrimary : COLORS.textSecondary}
+                  trackColor={{ false: colors.border, true: colors.primary }}
+                  thumbColor={value ? colors.textOnPrimary : colors.textSecondary}
                 />
               </View>
             ))}
@@ -277,7 +301,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.semiBold,
-    color: COLORS.text,
     marginBottom: SPACING.md,
   },
   optionsContainer: {
@@ -288,26 +311,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
     borderRadius: BORDER_RADIUS.md,
-    backgroundColor: COLORS.surface,
     borderWidth: 1.5,
-    borderColor: COLORS.border,
     marginRight: SPACING.sm,
     marginBottom: SPACING.sm,
   },
-  optionSelected: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
   optionText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.text,
-  },
-  optionTextSelected: {
-    color: COLORS.textOnPrimary,
-    fontWeight: FONT_WEIGHTS.semiBold,
   },
   permissionsContainer: {
-    backgroundColor: COLORS.surfaceVariant,
     borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md,
   },
@@ -317,11 +328,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: SPACING.sm,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.divider,
   },
   permissionLabel: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.text,
     fontWeight: FONT_WEIGHTS.medium,
   },
 });

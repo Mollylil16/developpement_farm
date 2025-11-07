@@ -7,11 +7,13 @@ import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { setIndicateursPerformance, setRecommandations } from '../store/slices/reportsSlice';
 import { IndicateursPerformance, Recommandation } from '../types';
-import { COLORS, SPACING, FONT_SIZES } from '../constants/theme';
+import { SPACING, FONT_SIZES } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import StatCard from './StatCard';
 import LoadingSpinner from './LoadingSpinner';
 
 export default function PerformanceIndicatorsComponent() {
+  const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   const { chargesFixes, depensesPonctuelles } = useAppSelector((state) => state.finance);
@@ -184,23 +186,23 @@ export default function PerformanceIndicatorsComponent() {
   const getRecommandationColor = (type: string) => {
     switch (type) {
       case 'avertissement':
-        return COLORS.warning;
+        return colors.warning;
       case 'information':
-        return COLORS.textSecondary;
+        return colors.textSecondary;
       case 'succes':
-        return COLORS.success;
+        return colors.success;
       default:
-        return COLORS.textSecondary;
+        return colors.textSecondary;
     }
   };
 
   return (
     <ScrollView 
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.scrollContent}
     >
       <View style={styles.content}>
-        <Text style={styles.title}>Indicateurs de Performance</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Indicateurs de Performance</Text>
 
         {calculatedIndicators ? (
           <>
@@ -211,32 +213,32 @@ export default function PerformanceIndicatorsComponent() {
                 label="Taux de mortalité"
                 unit="%"
                 valueColor={
-                  calculatedIndicators.taux_mortalite > 5 ? COLORS.error : COLORS.success
+                  calculatedIndicators.taux_mortalite > 5 ? colors.error : colors.success
                 }
               />
               <StatCard
                 value={calculatedIndicators.taux_croissance.toFixed(1)}
                 label="Taux de croissance"
                 unit="%"
-                valueColor={COLORS.primary}
+                valueColor={colors.primary}
               />
               <StatCard
                 value={calculatedIndicators.efficacite_alimentaire.toFixed(2)}
                 label="Efficacité alimentaire"
                 valueColor={
                   calculatedIndicators.efficacite_alimentaire > 2.5
-                    ? COLORS.success
-                    : COLORS.warning
+                    ? colors.success
+                    : colors.warning
                 }
               />
             </View>
 
             {/* Coût de production */}
             <View style={styles.costSection}>
-              <Text style={styles.sectionTitle}>Coût de Production</Text>
-              <View style={styles.costCard}>
-                <Text style={styles.costLabel}>Coût par kilogramme:</Text>
-                <Text style={styles.costValue}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Coût de Production</Text>
+              <View style={[styles.costCard, { backgroundColor: colors.surface }]}>
+                <Text style={[styles.costLabel, { color: colors.textSecondary }]}>Coût par kilogramme:</Text>
+                <Text style={[styles.costValue, { color: colors.text }]}>
                   {formatAmount(calculatedIndicators.cout_production_kg)}
                 </Text>
               </View>
@@ -244,28 +246,28 @@ export default function PerformanceIndicatorsComponent() {
 
             {/* Détails */}
             <View style={styles.detailsSection}>
-              <Text style={styles.sectionTitle}>Détails</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Détails</Text>
               <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Nombre total de porcs:</Text>
-                <Text style={styles.detailValue}>
+                <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Nombre total de porcs:</Text>
+                <Text style={[styles.detailValue, { color: colors.text }]}>
                   {calculatedIndicators.nombre_porcs_total}
                 </Text>
               </View>
               <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Porcs vivants:</Text>
-                <Text style={styles.detailValue}>
+                <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Porcs vivants:</Text>
+                <Text style={[styles.detailValue, { color: colors.text }]}>
                   {calculatedIndicators.nombre_porcs_vivants}
                 </Text>
               </View>
               <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Porcs morts:</Text>
-                <Text style={styles.detailValue}>
+                <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Porcs morts:</Text>
+                <Text style={[styles.detailValue, { color: colors.text }]}>
                   {calculatedIndicators.nombre_porcs_morts}
                 </Text>
               </View>
               <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Poids total:</Text>
-                <Text style={styles.detailValue}>
+                <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Poids total:</Text>
+                <Text style={[styles.detailValue, { color: colors.text }]}>
                   {calculatedIndicators.poids_total.toFixed(1)} kg
                 </Text>
               </View>
@@ -274,19 +276,19 @@ export default function PerformanceIndicatorsComponent() {
             {/* Recommandations */}
             {recommandations.length > 0 && (
               <View style={styles.recommendationsSection}>
-                <Text style={styles.sectionTitle}>💡 Recommandations</Text>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>💡 Recommandations</Text>
                 {recommandations.map((rec) => (
                   <View
                     key={rec.id}
                     style={[
                       styles.recommendationCard,
-                      { borderLeftColor: getRecommandationColor(rec.type) },
+                      { borderLeftColor: getRecommandationColor(rec.type), backgroundColor: colors.surface },
                     ]}
                   >
-                    <Text style={styles.recommendationTitle}>{rec.titre}</Text>
-                    <Text style={styles.recommendationMessage}>{rec.message}</Text>
+                    <Text style={[styles.recommendationTitle, { color: colors.text }]}>{rec.titre}</Text>
+                    <Text style={[styles.recommendationMessage, { color: colors.textSecondary }]}>{rec.message}</Text>
                     {rec.action && (
-                      <Text style={styles.recommendationAction}>→ {rec.action}</Text>
+                      <Text style={[styles.recommendationAction, { color: colors.primary }]}>→ {rec.action}</Text>
                     )}
                   </View>
                 ))}
@@ -304,7 +306,6 @@ export default function PerformanceIndicatorsComponent() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
   scrollContent: {
     paddingBottom: SPACING.xxl + 85, // 85px pour la barre de navigation + espace
@@ -315,7 +316,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FONT_SIZES.xxl,
     fontWeight: 'bold',
-    color: COLORS.text,
     marginBottom: SPACING.lg,
   },
   statsContainer: {
@@ -329,27 +329,22 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: FONT_SIZES.lg,
     fontWeight: 'bold',
-    color: COLORS.text,
     marginBottom: SPACING.md,
   },
   costCard: {
-    backgroundColor: COLORS.surface,
     padding: SPACING.md,
     borderRadius: 8,
     alignItems: 'center',
   },
   costLabel: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
     marginBottom: SPACING.xs,
   },
   costValue: {
     fontSize: FONT_SIZES.xxl,
     fontWeight: 'bold',
-    color: COLORS.primary,
   },
   detailsSection: {
-    backgroundColor: COLORS.surface,
     padding: SPACING.md,
     borderRadius: 8,
     marginBottom: SPACING.xl,
@@ -361,18 +356,15 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
   },
   detailValue: {
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
-    color: COLORS.text,
   },
   recommendationsSection: {
     marginBottom: SPACING.lg,
   },
   recommendationCard: {
-    backgroundColor: COLORS.surface,
     padding: SPACING.md,
     borderRadius: 8,
     marginBottom: SPACING.md,
@@ -381,22 +373,18 @@ const styles = StyleSheet.create({
   recommendationTitle: {
     fontSize: FONT_SIZES.md,
     fontWeight: 'bold',
-    color: COLORS.text,
     marginBottom: SPACING.xs,
   },
   recommendationMessage: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.text,
     marginBottom: SPACING.xs,
   },
   recommendationAction: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.primary,
     fontStyle: 'italic',
   },
   emptyText: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
     textAlign: 'center',
     marginTop: SPACING.xl,
   },

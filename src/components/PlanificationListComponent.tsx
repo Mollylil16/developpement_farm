@@ -2,8 +2,8 @@
  * Composant liste des planifications avec filtres
  */
 
-import React, { useEffect, useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import {
   loadPlanificationsParProjet,
@@ -12,12 +12,14 @@ import {
   updatePlanification,
 } from '../store/slices/planificationSlice';
 import { Planification, TypeTache, StatutTache, TYPE_TACHE_LABELS, STATUT_TACHE_LABELS, getTachesAVenir, getTachesEnRetard } from '../types';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';
 import LoadingSpinner from './LoadingSpinner';
 import PlanificationFormModal from './PlanificationFormModal';
 
 export default function PlanificationListComponent() {
+  const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   const { planifications, planificationsAVenir, loading } = useAppSelector((state) => state.planification);
@@ -25,6 +27,9 @@ export default function PlanificationListComponent() {
   const [modalVisible, setModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [filterStatut, setFilterStatut] = useState<StatutTache | 'tous'>('tous');
+  const [displayedPlanifications, setDisplayedPlanifications] = useState<Planification[]>([]);
+  const [page, setPage] = useState(1);
+  const ITEMS_PER_PAGE = 50;
 
   useEffect(() => {
     if (projetActif) {
@@ -42,6 +47,30 @@ export default function PlanificationListComponent() {
 
   const tachesAVenir = useMemo(() => getTachesAVenir(planifications), [planifications]);
   const tachesEnRetard = useMemo(() => getTachesEnRetard(planifications), [planifications]);
+
+  // Pagination: charger les premières planifications filtrées
+  useEffect(() => {
+    const initial = planificationsFiltrees.slice(0, ITEMS_PER_PAGE);
+    setDisplayedPlanifications(initial);
+    setPage(1);
+  }, [planificationsFiltrees.length, filterStatut]); // Reset quand le filtre ou le nombre change
+
+  // Charger plus de planifications
+  const loadMore = useCallback(() => {
+    if (displayedPlanifications.length >= planificationsFiltrees.length) {
+      return;
+    }
+
+    const nextPage = page + 1;
+    const start = page * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+    const newItems = planificationsFiltrees.slice(start, end);
+
+    if (newItems.length > 0) {
+      setDisplayedPlanifications((prev) => [...prev, ...newItems]);
+      setPage(nextPage);
+    }
+  }, [page, displayedPlanifications.length, planificationsFiltrees]);
 
   const handleEdit = (planification: Planification) => {
     setSelectedPlanification(planification);
@@ -121,34 +150,34 @@ export default function PlanificationListComponent() {
   const getStatutColor = (statut: StatutTache) => {
     switch (statut) {
       case 'a_faire':
-        return COLORS.warning;
+        return colors.warning;
       case 'en_cours':
-        return COLORS.primary;
+        return colors.primary;
       case 'terminee':
-        return COLORS.success;
+        return colors.success;
       case 'annulee':
-        return COLORS.textSecondary;
+        return colors.textSecondary;
       default:
-        return COLORS.textSecondary;
+        return colors.textSecondary;
     }
   };
 
   const getTypeColor = (type: TypeTache) => {
     switch (type) {
       case 'saillie':
-        return COLORS.primary;
+        return colors.primary;
       case 'vaccination':
-        return COLORS.warning;
+        return colors.warning;
       case 'sevrage':
-        return COLORS.success;
+        return colors.success;
       case 'nettoyage':
-        return COLORS.textSecondary;
+        return colors.textSecondary;
       case 'alimentation':
-        return COLORS.primary;
+        return colors.primary;
       case 'veterinaire':
-        return COLORS.error;
+        return colors.error;
       default:
-        return COLORS.textSecondary;
+        return colors.textSecondary;
     }
   };
 
@@ -176,18 +205,18 @@ export default function PlanificationListComponent() {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Planification</Text>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.divider }]}>
+        <Text style={[styles.title, { color: colors.text }]}>Planification</Text>
         <TouchableOpacity
-          style={styles.addButton}
+          style={[styles.addButton, { backgroundColor: colors.primary, ...colors.shadow.small }]}
           onPress={() => {
             setSelectedPlanification(null);
             setIsEditing(false);
             setModalVisible(true);
           }}
         >
-          <Text style={styles.addButtonText}>+ Ajouter</Text>
+          <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Ajouter</Text>
         </TouchableOpacity>
       </View>
 
@@ -195,34 +224,40 @@ export default function PlanificationListComponent() {
       {(tachesEnRetard.length > 0 || tachesAVenir.length > 0) && (
         <View style={styles.alertsContainer}>
           {tachesEnRetard.length > 0 && (
-            <View style={[styles.alertCard, { borderLeftColor: COLORS.error }]}>
-              <Text style={styles.alertTitle}>⚠️ {tachesEnRetard.length} tâche(s) en retard</Text>
+            <View style={[styles.alertCard, { backgroundColor: colors.surface, borderLeftColor: colors.error, ...colors.shadow.small }]}>
+              <Text style={[styles.alertTitle, { color: colors.text }]}>⚠️ {tachesEnRetard.length} tâche(s) en retard</Text>
             </View>
           )}
           {tachesAVenir.length > 0 && (
-            <View style={[styles.alertCard, { borderLeftColor: COLORS.warning }]}>
-              <Text style={styles.alertTitle}>📅 {tachesAVenir.length} tâche(s) à venir (7 jours)</Text>
+            <View style={[styles.alertCard, { backgroundColor: colors.surface, borderLeftColor: colors.warning, ...colors.shadow.small }]}>
+              <Text style={[styles.alertTitle, { color: colors.text }]}>📅 {tachesAVenir.length} tâche(s) à venir (7 jours)</Text>
             </View>
           )}
         </View>
       )}
 
       {/* Filtres */}
-      <View style={styles.filtersContainer}>
+      <View style={[styles.filtersContainer, { borderBottomColor: colors.divider }]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {(['tous', 'a_faire', 'en_cours', 'terminee'] as const).map((statut) => (
             <TouchableOpacity
               key={statut}
               style={[
                 styles.filterButton,
-                filterStatut === statut && styles.filterButtonActive,
+                {
+                  backgroundColor: filterStatut === statut ? colors.primary : colors.surface,
+                  borderColor: filterStatut === statut ? colors.primary : colors.border,
+                },
               ]}
               onPress={() => setFilterStatut(statut)}
             >
               <Text
                 style={[
                   styles.filterButtonText,
-                  filterStatut === statut && styles.filterButtonTextActive,
+                  {
+                    color: filterStatut === statut ? colors.textOnPrimary : colors.text,
+                    fontWeight: filterStatut === statut ? '600' : 'normal',
+                  },
                 ]}
               >
                 {statut === 'tous' ? 'Tous' : STATUT_TACHE_LABELS[statut as StatutTache]}
@@ -233,19 +268,26 @@ export default function PlanificationListComponent() {
       </View>
 
       {/* Liste des planifications */}
-      <ScrollView style={styles.listContainer}>
-        {planificationsFiltrees.length === 0 ? (
+      {planificationsFiltrees.length === 0 ? (
+        <View style={styles.listContainer}>
           <EmptyState
             title="Aucune planification"
             message="Ajoutez une tâche pour commencer la planification"
           />
-        ) : (
-          planificationsFiltrees.map((planification) => (
+        </View>
+      ) : (
+        <FlatList
+          data={displayedPlanifications}
+          renderItem={({ item: planification }) => (
             <View
-              key={planification.id}
               style={[
                 styles.card,
-                isEnRetard(planification) && styles.cardRetard,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.borderLight,
+                  ...colors.shadow.medium,
+                  ...(isEnRetard(planification) && { borderLeftWidth: 4, borderLeftColor: colors.error }),
+                },
               ]}
             >
               <View style={styles.cardHeader}>
@@ -256,7 +298,7 @@ export default function PlanificationListComponent() {
                       { backgroundColor: getTypeColor(planification.type) },
                     ]}
                   >
-                    <Text style={styles.typeBadgeText}>
+                    <Text style={[styles.typeBadgeText, { color: colors.textOnPrimary }]}>
                       {TYPE_TACHE_LABELS[planification.type as TypeTache]}
                     </Text>
                   </View>
@@ -266,7 +308,7 @@ export default function PlanificationListComponent() {
                       { backgroundColor: getStatutColor(planification.statut) },
                     ]}
                   >
-                    <Text style={styles.statutBadgeText}>
+                    <Text style={[styles.statutBadgeText, { color: colors.textOnPrimary }]}>
                       {STATUT_TACHE_LABELS[planification.statut as StatutTache]}
                     </Text>
                   </View>
@@ -274,20 +316,20 @@ export default function PlanificationListComponent() {
                 <View style={styles.cardActions}>
                   {planification.statut !== 'terminee' && (
                     <TouchableOpacity
-                      style={styles.actionButton}
+                      style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
                       onPress={() => handleMarquerTerminee(planification)}
                     >
                       <Text style={styles.actionButtonText}>✓</Text>
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity
-                    style={styles.actionButton}
+                    style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
                     onPress={() => handleEdit(planification)}
                   >
                     <Text style={styles.actionButtonText}>✏️</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={styles.actionButton}
+                    style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
                     onPress={() => handleDelete(planification.id)}
                   >
                     <Text style={styles.actionButtonText}>🗑️</Text>
@@ -295,28 +337,44 @@ export default function PlanificationListComponent() {
                 </View>
               </View>
               <View style={styles.cardContent}>
-                <Text style={styles.titreText}>{planification.titre}</Text>
-                <Text style={styles.dateText}>
+                <Text style={[styles.titreText, { color: colors.text }]}>{planification.titre}</Text>
+                <Text style={[styles.dateText, { color: colors.textSecondary }]}>
                   📅 {formatDate(planification.date_prevue)}
                   {planification.date_echeance &&
                     ` → ${formatDate(planification.date_echeance)}`}
                 </Text>
                 {planification.description && (
-                  <Text style={styles.descriptionText}>{planification.description}</Text>
+                  <Text style={[styles.descriptionText, { color: colors.text }]}>{planification.description}</Text>
                 )}
                 {planification.recurrence && planification.recurrence !== 'aucune' && (
-                  <Text style={styles.recurrenceText}>
+                  <Text style={[styles.recurrenceText, { color: colors.textSecondary }]}>
                     🔄 Récurrence: {planification.recurrence}
                   </Text>
                 )}
                 {planification.notes && (
-                  <Text style={styles.notesText}>{planification.notes}</Text>
+                  <Text style={[styles.notesText, { color: colors.textSecondary }]}>{planification.notes}</Text>
                 )}
               </View>
             </View>
-          ))
-        )}
-      </ScrollView>
+          )}
+          keyExtractor={(item) => item.id}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
+          contentContainerStyle={styles.listContainer}
+          showsVerticalScrollIndicator={false}
+          // Optimisations de performance
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          initialNumToRender={10}
+          updateCellsBatchingPeriod={50}
+          ListFooterComponent={
+            displayedPlanifications.length < planificationsFiltrees.length ? (
+              <LoadingSpinner message="Chargement..." />
+            ) : null
+          }
+        />
+      )}
 
       {/* Modal de formulaire */}
       <PlanificationFormModal
@@ -333,7 +391,6 @@ export default function PlanificationListComponent() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: 'row',
@@ -341,25 +398,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.xl,
-    backgroundColor: COLORS.surface,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.divider,
   },
   title: {
     fontSize: FONT_SIZES.xxl,
     fontWeight: 'bold',
-    color: COLORS.text,
   },
   addButton: {
-    backgroundColor: COLORS.primary,
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
-    ...COLORS.shadow.small,
     minHeight: 44,
   },
   addButtonText: {
-    color: COLORS.textOnPrimary,
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.semiBold,
   },
@@ -368,45 +419,30 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
   },
   alertCard: {
-    backgroundColor: COLORS.surface,
     padding: SPACING.lg,
     borderRadius: BORDER_RADIUS.md,
     marginBottom: SPACING.md,
     borderLeftWidth: 4,
-    ...COLORS.shadow.small,
   },
   alertTitle: {
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
-    color: COLORS.text,
   },
   filtersContainer: {
     paddingVertical: SPACING.lg,
     paddingHorizontal: SPACING.lg,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.divider,
   },
   filterButton: {
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
-    backgroundColor: COLORS.surface,
     marginRight: SPACING.md,
     borderWidth: 1.5,
-    borderColor: COLORS.border,
     minHeight: 40,
-  },
-  filterButtonActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
   },
   filterButtonText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.text,
-  },
-  filterButtonTextActive: {
-    color: COLORS.textOnPrimary,
-    fontWeight: '600',
   },
   listContainer: {
     flex: 1,
@@ -414,17 +450,10 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
   },
   card: {
-    backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     marginBottom: SPACING.lg,
-    ...COLORS.shadow.medium,
     borderWidth: 1,
-    borderColor: COLORS.borderLight,
-  },
-  cardRetard: {
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.error,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -444,7 +473,6 @@ const styles = StyleSheet.create({
     marginRight: SPACING.sm,
   },
   typeBadgeText: {
-    color: COLORS.textOnPrimary,
     fontSize: FONT_SIZES.xs,
     fontWeight: '600',
   },
@@ -454,7 +482,6 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.md,
   },
   statutBadgeText: {
-    color: COLORS.textOnPrimary,
     fontSize: FONT_SIZES.xs,
     fontWeight: '600',
   },
@@ -466,7 +493,6 @@ const styles = StyleSheet.create({
     padding: SPACING.sm,
     marginLeft: SPACING.sm,
     borderRadius: BORDER_RADIUS.sm,
-    backgroundColor: COLORS.surfaceVariant,
     minWidth: 40,
     minHeight: 40,
     alignItems: 'center',
@@ -481,29 +507,24 @@ const styles = StyleSheet.create({
   titreText: {
     fontSize: FONT_SIZES.lg,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.text,
     marginBottom: SPACING.sm,
     lineHeight: 22,
   },
   dateText: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
     marginBottom: SPACING.sm,
   },
   descriptionText: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.text,
     marginBottom: SPACING.sm,
     lineHeight: 20,
   },
   recurrenceText: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.primary,
     marginBottom: SPACING.xs,
   },
   notesText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
     fontStyle: 'italic',
   },
 });

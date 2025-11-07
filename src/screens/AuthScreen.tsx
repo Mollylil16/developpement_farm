@@ -24,13 +24,15 @@ import {
   signInWithApple,
   clearError,
 } from '../store/slices/authSlice';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS } from '../constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import Button from '../components/Button';
 import FormField from '../components/FormField';
 import GoogleLogo from '../components/GoogleLogo';
 import AppleLogo from '../components/AppleLogo';
 
 export default function AuthScreen() {
+  const { colors } = useTheme();
   const navigation = useNavigation<any>();
   const dispatch = useAppDispatch();
   const { isLoading, error, isAuthenticated } = useAppSelector((state) => state.auth);
@@ -39,7 +41,6 @@ export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [nom, setNom] = useState('');
   const [prenom, setPrenom] = useState('');
-  const [password, setPassword] = useState('');
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -79,20 +80,23 @@ export default function AuthScreen() {
       return;
     }
 
+    // Validation de l'email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      Alert.alert('Erreur', 'Veuillez entrer une adresse email valide');
+      return;
+    }
+
     if (isSignUp) {
       // Inscription
       if (!nom.trim() || !prenom.trim()) {
         Alert.alert('Erreur', 'Veuillez remplir tous les champs');
         return;
       }
-      dispatch(signUpWithEmail({ email, nom, prenom, password: password || 'temp' }));
+      dispatch(signUpWithEmail({ email: email.trim(), nom: nom.trim(), prenom: prenom.trim(), password: 'temp' }));
     } else {
-      // Connexion
-      if (!password.trim()) {
-        Alert.alert('Erreur', 'Veuillez entrer votre mot de passe');
-        return;
-      }
-      dispatch(signInWithEmail({ email, password }));
+      // Connexion - uniquement avec l'email
+      dispatch(signInWithEmail({ email: email.trim() }));
     }
   };
 
@@ -109,7 +113,7 @@ export default function AuthScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -130,10 +134,10 @@ export default function AuthScreen() {
           >
             {/* En-tête */}
             <View style={styles.header}>
-              <Text style={styles.title}>
+              <Text style={[styles.title, { color: colors.text }]}>
                 {isSignUp ? 'Créer un compte' : 'Connectez-vous'}
               </Text>
-              <Text style={styles.subtitle}>
+              <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                 {isSignUp
                   ? 'Rejoignez Fermier Pro pour gérer votre élevage'
                   : 'Accédez à votre ferme en toute simplicité'}
@@ -173,16 +177,6 @@ export default function AuthScreen() {
                 </>
               )}
 
-              {!isSignUp && (
-                <FormField
-                  label="Mot de passe"
-                  placeholder="••••••••"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry
-                  required
-                />
-              )}
 
               <Button
                 title={isLoading ? 'Chargement...' : isSignUp ? 'Créer mon compte' : 'Se connecter'}
@@ -197,39 +191,39 @@ export default function AuthScreen() {
 
             {/* Séparateur */}
             <View style={styles.separator}>
-              <View style={styles.separatorLine} />
-              <Text style={styles.separatorText}>Ou continuez avec</Text>
-              <View style={styles.separatorLine} />
+              <View style={[styles.separatorLine, { backgroundColor: colors.border }]} />
+              <Text style={[styles.separatorText, { color: colors.textSecondary }]}>Ou continuez avec</Text>
+              <View style={[styles.separatorLine, { backgroundColor: colors.border }]} />
             </View>
 
             {/* Boutons sociaux */}
             <View style={styles.socialContainer}>
               <TouchableOpacity
-                style={styles.socialButton}
+                style={[styles.socialButton, { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small }]}
                 onPress={handleGoogleAuth}
                 disabled={isLoading}
                 activeOpacity={0.7}
               >
                 <GoogleLogo size={20} />
-                <Text style={[styles.socialText, { marginLeft: SPACING.sm }]}>Google</Text>
+                <Text style={[styles.socialText, { color: colors.text, marginLeft: SPACING.sm }]}>Google</Text>
               </TouchableOpacity>
 
               {Platform.OS === 'ios' && (
                 <TouchableOpacity
-                  style={styles.socialButton}
+                  style={[styles.socialButton, { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small }]}
                   onPress={handleAppleAuth}
                   disabled={isLoading}
                   activeOpacity={0.7}
                 >
                   <AppleLogo size={20} />
-                  <Text style={[styles.socialText, { marginLeft: SPACING.sm }]}>Apple</Text>
+                  <Text style={[styles.socialText, { color: colors.text, marginLeft: SPACING.sm }]}>Apple</Text>
                 </TouchableOpacity>
               )}
             </View>
 
             {/* Lien pour basculer entre connexion/inscription */}
             <View style={styles.switchContainer}>
-              <Text style={styles.switchText}>
+              <Text style={[styles.switchText, { color: colors.textSecondary }]}>
                 {isSignUp ? 'Déjà un compte ?' : 'Pas encore de compte ?'}
               </Text>
               <TouchableOpacity
@@ -238,11 +232,10 @@ export default function AuthScreen() {
                   setEmail('');
                   setNom('');
                   setPrenom('');
-                  setPassword('');
                 }}
                 disabled={isLoading}
               >
-                <Text style={styles.switchLink}>
+                <Text style={[styles.switchLink, { color: colors.primary }]}>
                   {isSignUp ? 'Se connecter' : 'S\'inscrire'}
                 </Text>
               </TouchableOpacity>
@@ -257,7 +250,6 @@ export default function AuthScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
   keyboardView: {
     flex: 1,
@@ -277,13 +269,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FONT_SIZES.xxxl,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.text,
     marginBottom: SPACING.sm,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -301,12 +291,10 @@ const styles = StyleSheet.create({
   separatorLine: {
     flex: 1,
     height: 1,
-    backgroundColor: COLORS.border,
   },
   separatorText: {
     marginHorizontal: SPACING.md,
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
   },
   socialContainer: {
     flexDirection: 'row',
@@ -316,20 +304,16 @@ const styles = StyleSheet.create({
   socialButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surface,
     paddingHorizontal: SPACING.xl,
     paddingVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
     marginHorizontal: SPACING.sm,
-    ...COLORS.shadow.small,
     borderWidth: 1,
-    borderColor: COLORS.border,
     minWidth: 120,
     justifyContent: 'center',
   },
   socialText: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.text,
     fontWeight: FONT_WEIGHTS.medium,
   },
   switchContainer: {
@@ -340,12 +324,10 @@ const styles = StyleSheet.create({
   },
   switchText: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
     marginRight: SPACING.xs,
   },
   switchLink: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.primary,
     fontWeight: FONT_WEIGHTS.semiBold,
   },
 });

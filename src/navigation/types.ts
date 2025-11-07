@@ -9,6 +9,7 @@ export const SCREENS = {
   DASHBOARD: 'Dashboard',
   REPRODUCTION: 'Reproduction',
   NUTRITION: 'Nutrition',
+  PRODUCTION: 'Production',
   FINANCE: 'Finance',
   REPORTS: 'Reports',
   PLANIFICATION: 'Planification',

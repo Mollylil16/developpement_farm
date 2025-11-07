@@ -2,15 +2,67 @@
  * Composant paramètres de l'application
  */
 
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch } from 'react-native';
 import { useAppDispatch } from '../store/hooks';
 import { signOut } from '../store/slices/authSlice';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import { databaseService } from '../services/database';
+import { getAllScheduledNotifications, cancelAllNotifications, configureNotifications } from '../services/notificationsService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import ThemeSelector from './ThemeSelector';
+
+const NOTIFICATIONS_ENABLED_KEY = 'notifications_enabled';
 
 export default function ParametresAppComponent() {
   const dispatch = useAppDispatch();
+  const { colors } = useTheme();
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [scheduledCount, setScheduledCount] = useState(0);
+
+  useEffect(() => {
+    // Charger la préférence des notifications
+    AsyncStorage.getItem(NOTIFICATIONS_ENABLED_KEY).then((value) => {
+      if (value !== null) {
+        setNotificationsEnabled(value === 'true');
+      }
+    });
+
+    // Charger le nombre de notifications planifiées
+    loadScheduledCount();
+  }, []);
+
+  const loadScheduledCount = async () => {
+    try {
+      const notifications = await getAllScheduledNotifications();
+      setScheduledCount(notifications.length);
+    } catch (error) {
+      console.error('Erreur lors du chargement des notifications:', error);
+    }
+  };
+
+  const handleToggleNotifications = async (value: boolean) => {
+    try {
+      setNotificationsEnabled(value);
+      await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, value.toString());
+
+      if (value) {
+        // Activer les notifications
+        await configureNotifications();
+        await loadScheduledCount();
+        Alert.alert('Succès', 'Les notifications ont été activées');
+      } else {
+        // Désactiver les notifications
+        await cancelAllNotifications();
+        setScheduledCount(0);
+        Alert.alert('Succès', 'Les notifications ont été désactivées');
+      }
+    } catch (error: any) {
+      Alert.alert('Erreur', error.message || 'Erreur lors de la modification des notifications');
+      setNotificationsEnabled(!value); // Revenir à l'état précédent
+    }
+  };
 
   const handleSignOut = () => {
     Alert.alert(
@@ -79,126 +131,121 @@ export default function ParametresAppComponent() {
 
   return (
     <ScrollView 
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionIcon}>ℹ️</Text>
-          <Text style={styles.sectionTitle}>Informations</Text>
-        </View>
-        <View style={styles.card}>
-          <View style={styles.infoCard}>
-            <View style={styles.infoIconContainer}>
-              <Text style={styles.infoIcon}>📱</Text>
-            </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Version</Text>
-              <Text style={styles.infoValue}>1.0.0</Text>
-            </View>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Informations</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small }]}>
+          <View style={styles.infoRow}>
+            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Version</Text>
+            <Text style={[styles.infoValue, { color: colors.text }]}>1.0.0</Text>
           </View>
-          <View style={styles.divider} />
-          <View style={styles.infoCard}>
-            <View style={styles.infoIconContainer}>
-              <Text style={styles.infoIcon}>💾</Text>
-            </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Base de données</Text>
-              <Text style={styles.infoValue}>SQLite</Text>
-            </View>
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <View style={styles.infoRow}>
+            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Base de données</Text>
+            <Text style={[styles.infoValue, { color: colors.text }]}>SQLite</Text>
           </View>
         </View>
       </View>
 
       <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionIcon}>👤</Text>
-          <Text style={styles.sectionTitle}>Compte</Text>
-        </View>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Compte</Text>
         <TouchableOpacity 
-          style={[styles.actionCard, styles.dangerCard]} 
+          style={[styles.actionCard, { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small }]} 
           onPress={handleSignOut}
           activeOpacity={0.7}
         >
-          <View style={styles.actionCardIconContainer}>
-            <Text style={styles.actionCardIcon}>🚪</Text>
-          </View>
           <View style={styles.actionCardContent}>
-            <Text style={[styles.actionCardTitle, styles.dangerText]}>
+            <Text style={[styles.actionCardTitle, { color: colors.error }]}>
               Se déconnecter
             </Text>
-            <Text style={styles.actionCardDescription}>
+            <Text style={[styles.actionCardDescription, { color: colors.textSecondary }]}>
               Déconnectez-vous de votre compte
             </Text>
           </View>
-          <View style={styles.actionCardArrowContainer}>
-            <Text style={styles.actionCardArrow}>→</Text>
+          <View style={[styles.actionCardArrowContainer, { backgroundColor: colors.error + '10' }]}>
+            <Text style={[styles.actionCardArrow, { color: colors.error }]}>›</Text>
           </View>
         </TouchableOpacity>
       </View>
 
       <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionIcon}>🗄️</Text>
-          <Text style={styles.sectionTitle}>Gestion des données</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Apparence</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small }]}>
+          <ThemeSelector />
         </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Notifications</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small }]}>
+          <View style={styles.switchRow}>
+            <View style={styles.switchContent}>
+              <Text style={[styles.switchLabel, { color: colors.text }]}>Activer les notifications</Text>
+              <Text style={[styles.switchDescription, { color: colors.textSecondary }]}>
+                Recevez des alertes pour les gestations proches, stocks faibles, et tâches planifiées
+              </Text>
+              {scheduledCount > 0 && (
+                <Text style={[styles.scheduledCount, { color: colors.primary }]}>
+                  {scheduledCount} notification{scheduledCount > 1 ? 's' : ''} planifiée{scheduledCount > 1 ? 's' : ''}
+                </Text>
+              )}
+            </View>
+            <Switch
+              value={notificationsEnabled}
+              onValueChange={handleToggleNotifications}
+              trackColor={{ false: colors.border, true: colors.primary + '80' }}
+              thumbColor={notificationsEnabled ? colors.primary : colors.textSecondary}
+            />
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Gestion des données</Text>
         <TouchableOpacity 
-          style={styles.actionCard} 
+          style={[styles.actionCard, { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small }]} 
           onPress={handleClearCache}
           activeOpacity={0.7}
         >
-          <View style={[styles.actionCardIconContainer, styles.iconContainerBlue]}>
-            <Text style={styles.actionCardIcon}>🧹</Text>
-          </View>
           <View style={styles.actionCardContent}>
-            <Text style={styles.actionCardTitle}>Vider le cache</Text>
-            <Text style={styles.actionCardDescription}>
+            <Text style={[styles.actionCardTitle, { color: colors.text }]}>Vider le cache</Text>
+            <Text style={[styles.actionCardDescription, { color: colors.textSecondary }]}>
               Supprime les données temporaires
             </Text>
           </View>
-          <View style={styles.actionCardArrowContainer}>
-            <Text style={styles.actionCardArrow}>→</Text>
+          <View style={[styles.actionCardArrowContainer, { backgroundColor: colors.primary + '10' }]}>
+            <Text style={[styles.actionCardArrow, { color: colors.primary }]}>›</Text>
           </View>
         </TouchableOpacity>
 
         <TouchableOpacity 
-          style={[styles.actionCard, styles.dangerCard]} 
+          style={[styles.actionCard, { backgroundColor: colors.surface, borderColor: colors.error + '30', ...colors.shadow.small }]} 
           onPress={handleResetDatabase}
           activeOpacity={0.7}
         >
-          <View style={[styles.actionCardIconContainer, styles.iconContainerRed]}>
-            <Text style={styles.actionCardIcon}>⚠️</Text>
-          </View>
           <View style={styles.actionCardContent}>
-            <Text style={[styles.actionCardTitle, styles.dangerText]}>
+            <Text style={[styles.actionCardTitle, { color: colors.error }]}>
               Réinitialiser la base de données
             </Text>
-            <Text style={styles.actionCardDescription}>
+            <Text style={[styles.actionCardDescription, { color: colors.textSecondary }]}>
               Supprime toutes les données. Action irréversible.
             </Text>
           </View>
-          <View style={styles.actionCardArrowContainer}>
-            <Text style={styles.actionCardArrow}>→</Text>
+          <View style={[styles.actionCardArrowContainer, { backgroundColor: colors.error + '10' }]}>
+            <Text style={[styles.actionCardArrow, { color: colors.error }]}>›</Text>
           </View>
         </TouchableOpacity>
       </View>
 
       <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionIcon}>📖</Text>
-          <Text style={styles.sectionTitle}>À propos</Text>
-        </View>
-        <View style={styles.card}>
-          <View style={styles.aboutHeader}>
-            <Text style={styles.aboutIcon}>🐷</Text>
-            <Text style={styles.aboutTitle}>Fermier Pro</Text>
-          </View>
-          <Text style={styles.aboutText}>
-            Application mobile conçue pour aider les éleveurs porcins à mieux gérer leur ferme.
-          </Text>
-          <Text style={styles.aboutText}>
-            Outils avancés pour le planning de reproduction, la gestion nutritionnelle, le suivi financier et l'analyse de performance.
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>À propos</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small }]}>
+          <Text style={[styles.aboutTitle, { color: colors.text }]}>Fermier Pro</Text>
+          <Text style={[styles.aboutText, { color: colors.textSecondary }]}>
+            Application mobile conçue pour aider les éleveurs porcins à mieux gérer leur ferme. Outils avancés pour le planning de reproduction, la gestion nutritionnelle, le suivi financier et l'analyse de performance.
           </Text>
         </View>
       </View>
@@ -209,7 +256,6 @@ export default function ParametresAppComponent() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
   scrollContent: {
     paddingBottom: SPACING.xxl + 85, // 85px pour la barre de navigation + espace
@@ -218,148 +264,101 @@ const styles = StyleSheet.create({
     padding: SPACING.xl,
     paddingTop: SPACING.lg + 10,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: SPACING.lg,
-  },
-  sectionIcon: {
-    fontSize: 28,
-    marginRight: SPACING.sm,
-  },
   sectionTitle: {
-    fontSize: FONT_SIZES.xl,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    letterSpacing: 0.3,
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '600',
+    marginBottom: SPACING.md,
+    letterSpacing: 0.2,
   },
   card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.xl,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.lg,
     marginBottom: SPACING.md,
-    ...COLORS.shadow.medium,
-    borderWidth: 2,
-    borderColor: COLORS.primary + '20',
+    borderWidth: 1,
   },
-  infoCard: {
+  infoRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  infoIconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: COLORS.info + '20',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: SPACING.md,
-  },
-  infoIcon: {
-    fontSize: 24,
-  },
-  infoContent: {
-    flex: 1,
+    paddingVertical: SPACING.sm,
   },
   infoLabel: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
+    fontSize: FONT_SIZES.md,
     fontWeight: '500',
-    marginBottom: SPACING.xs / 2,
   },
   infoValue: {
-    fontSize: FONT_SIZES.lg,
-    color: COLORS.text,
-    fontWeight: 'bold',
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
   },
   divider: {
     height: 1,
-    backgroundColor: COLORS.border,
     marginVertical: SPACING.md,
   },
   actionCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.lg,
+    borderRadius: BORDER_RADIUS.md,
     padding: SPACING.lg,
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
     flexDirection: 'row',
     alignItems: 'center',
-    ...COLORS.shadow.medium,
-    borderWidth: 2,
-    borderColor: COLORS.borderLight,
-  },
-  dangerCard: {
-    borderColor: COLORS.error + '30',
-    backgroundColor: COLORS.error + '05',
-  },
-  actionCardIconContainer: {
-    width: 55,
-    height: 55,
-    borderRadius: 27.5,
-    backgroundColor: COLORS.primary + '15',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: SPACING.md,
-  },
-  iconContainerBlue: {
-    backgroundColor: COLORS.info + '20',
-  },
-  iconContainerRed: {
-    backgroundColor: COLORS.error + '20',
-  },
-  actionCardIcon: {
-    fontSize: 28,
+    borderWidth: 1,
   },
   actionCardContent: {
     flex: 1,
   },
   actionCardTitle: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+    marginBottom: SPACING.xs / 2,
   },
   actionCardDescription: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
     lineHeight: 18,
   },
   actionCardArrowContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.primary + '15',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: SPACING.md,
   },
   actionCardArrow: {
-    fontSize: FONT_SIZES.lg,
-    color: COLORS.primary,
-    fontWeight: 'bold',
-  },
-  dangerText: {
-    color: COLORS.error,
-  },
-  aboutHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: SPACING.md,
-  },
-  aboutIcon: {
-    fontSize: 32,
-    marginRight: SPACING.sm,
+    fontSize: FONT_SIZES.xl,
+    fontWeight: '300',
   },
   aboutTitle: {
-    fontSize: FONT_SIZES.xl,
-    fontWeight: 'bold',
-    color: COLORS.primary,
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '600',
+    marginBottom: SPACING.sm,
   },
   aboutText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.text,
     lineHeight: 22,
     marginBottom: SPACING.md,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: SPACING.sm,
+  },
+  switchContent: {
+    flex: 1,
+    marginRight: SPACING.md,
+  },
+  switchLabel: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+    marginBottom: SPACING.xs,
+  },
+  switchDescription: {
+    fontSize: FONT_SIZES.sm,
+    lineHeight: 18,
+  },
+  scheduledCount: {
+    fontSize: FONT_SIZES.xs,
+    marginTop: SPACING.xs,
+    fontWeight: '500',
   },
 });
 

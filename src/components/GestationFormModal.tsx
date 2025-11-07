@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput, FlatList } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Platform } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
@@ -12,7 +12,8 @@ import { Gestation, CreateGestationInput } from '../types';
 import { calculerDateMiseBasPrevue } from '../types/reproduction';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
-import { COLORS, SPACING } from '../constants/theme';
+import { SPACING } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface GestationFormModalProps {
   visible: boolean;
@@ -22,6 +23,15 @@ interface GestationFormModalProps {
   isEditing?: boolean;
 }
 
+// Fonction helper pour obtenir la date du jour au format YYYY-MM-DD en local
+const getTodayLocalDate = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function GestationFormModal({
   visible,
   onClose,
@@ -29,13 +39,14 @@ export default function GestationFormModal({
   gestation,
   isEditing = false,
 }: GestationFormModalProps) {
+  const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateGestationInput>({
     truie_id: '',
     truie_nom: '',
-    date_sautage: new Date().toISOString().split('T')[0],
+    date_sautage: getTodayLocalDate(),
     nombre_porcelets_prevu: 0,
     notes: '',
   });
@@ -122,7 +133,7 @@ export default function GestationFormModal({
       setFormData({
         truie_id: '',
         truie_nom: '',
-        date_sautage: new Date().toISOString().split('T')[0],
+        date_sautage: getTodayLocalDate(),
         nombre_porcelets_prevu: 0,
         notes: '',
       });
@@ -194,13 +205,13 @@ export default function GestationFormModal({
     >
       <ScrollView style={styles.scrollView}>
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Truie *</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Truie *</Text>
           
           {/* Champ de saisie directe du numéro */}
           <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Numéro de la truie (saisie rapide)</Text>
+            <Text style={[styles.inputLabel, { color: colors.text }]}>Numéro de la truie (saisie rapide)</Text>
             <TextInput
-              style={styles.directInput}
+              style={[styles.directInput, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
               value={directInput}
               onChangeText={(text) => {
                 setDirectInput(text);
@@ -208,10 +219,10 @@ export default function GestationFormModal({
               }}
               placeholder="Ex: 856"
               keyboardType="numeric"
-              placeholderTextColor={COLORS.textSecondary}
+              placeholderTextColor={colors.textSecondary}
             />
             {directInput.trim() && (
-              <Text style={styles.inputHint}>
+              <Text style={[styles.inputHint, { color: colors.primary }]}>
                 {(() => {
                   const numero = parseInt(directInput.trim());
                   if (!isNaN(numero) && numero > 0 && numero <= truies.length) {
@@ -229,22 +240,22 @@ export default function GestationFormModal({
           {/* Barre de recherche (si pas de saisie directe valide) */}
           {(!directInput.trim() || parseInt(directInput.trim()) > truies.length || isNaN(parseInt(directInput.trim()))) && (
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Rechercher une truie</Text>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Rechercher une truie</Text>
               <TextInput
-                style={styles.searchInput}
+                style={[styles.searchInput, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 placeholder="Rechercher par nom ou numéro..."
-                placeholderTextColor={COLORS.textSecondary}
+                placeholderTextColor={colors.textSecondary}
               />
             </View>
           )}
 
           {/* Affichage de la truie sélectionnée */}
           {formData.truie_id && (
-            <View style={styles.selectedTruieCard}>
-              <Text style={styles.selectedTruieLabel}>Truie sélectionnée:</Text>
-              <Text style={styles.selectedTruieValue}>{formData.truie_nom}</Text>
+            <View style={[styles.selectedTruieCard, { backgroundColor: colors.surface, borderColor: colors.primary }]}>
+              <Text style={[styles.selectedTruieLabel, { color: colors.textSecondary }]}>Truie sélectionnée:</Text>
+              <Text style={[styles.selectedTruieValue, { color: colors.primary }]}>{formData.truie_nom}</Text>
             </View>
           )}
 
@@ -254,28 +265,29 @@ export default function GestationFormModal({
               {truiesFiltrees.length > 0 ? (
                 <>
                   <View style={styles.resultsHeader}>
-                    <Text style={styles.resultsCount}>
+                    <Text style={[styles.resultsCount, { color: colors.textSecondary }]}>
                       {truiesFiltrees.length} résultat{truiesFiltrees.length > 1 ? 's' : ''}
                       {!showFullList && truiesFiltrees.length === 50 && ` (sur ${truies.length})`}
                     </Text>
                     {!showFullList && truies.length > 50 && (
                       <TouchableOpacity
-                        style={styles.showAllButton}
+                        style={[styles.showAllButton, { backgroundColor: colors.primary }]}
                         onPress={() => setShowFullList(true)}
                       >
-                        <Text style={styles.showAllButtonText}>Voir toutes ({truies.length})</Text>
+                        <Text style={[styles.showAllButtonText, { color: colors.textOnPrimary }]}>Voir toutes ({truies.length})</Text>
                       </TouchableOpacity>
                     )}
                   </View>
-                  <FlatList
-                    data={showFullList ? truies : truiesFiltrees}
-                    keyExtractor={(item) => item.id}
-                    scrollEnabled={false}
-                    renderItem={({ item }) => (
+                  <View style={styles.optionsContainer}>
+                    {(showFullList ? truies : truiesFiltrees).map((item) => (
                       <TouchableOpacity
+                        key={item.id}
                         style={[
                           styles.option,
-                          formData.truie_id === item.id && styles.optionSelected,
+                          {
+                            borderColor: formData.truie_id === item.id ? colors.primary : colors.border,
+                            backgroundColor: formData.truie_id === item.id ? colors.primary : colors.background,
+                          },
                         ]}
                         onPress={() => {
                           setFormData({
@@ -290,20 +302,21 @@ export default function GestationFormModal({
                         <Text
                           style={[
                             styles.optionText,
-                            formData.truie_id === item.id && styles.optionTextSelected,
+                            {
+                              color: formData.truie_id === item.id ? colors.textOnPrimary : colors.text,
+                              fontWeight: formData.truie_id === item.id ? '600' : 'normal',
+                            },
                           ]}
                         >
                           {item.nom}
                         </Text>
                       </TouchableOpacity>
-                    )}
-                    numColumns={3}
-                    contentContainerStyle={styles.optionsContainer}
-                  />
+                    ))}
+                  </View>
                 </>
               ) : (
                 <View style={styles.noResults}>
-                  <Text style={styles.noResultsText}>
+                  <Text style={[styles.noResultsText, { color: colors.textSecondary }]}>
                     {searchQuery.trim() ? 'Aucun résultat trouvé' : 'Commencez à rechercher ou saisissez un numéro'}
                   </Text>
                 </View>
@@ -324,15 +337,15 @@ export default function GestationFormModal({
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Date de sautage *</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Date de sautage *</Text>
           <TouchableOpacity
-            style={styles.dateButton}
+            style={[styles.dateButton, { borderColor: colors.border, backgroundColor: colors.background }]}
             onPress={() => {
               setDatePickerMode('date');
               setShowDatePicker(true);
             }}
           >
-            <Text style={styles.dateButtonText}>
+            <Text style={[styles.dateButtonText, { color: colors.text }]}>
               {new Date(formData.date_sautage).toLocaleDateString('fr-FR', {
                 day: '2-digit',
                 month: '2-digit',
@@ -348,9 +361,13 @@ export default function GestationFormModal({
               onChange={(event, selectedDate) => {
                 setShowDatePicker(Platform.OS === 'ios');
                 if (selectedDate) {
+                  // Convertir la date sélectionnée en format local YYYY-MM-DD
+                  const year = selectedDate.getFullYear();
+                  const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+                  const day = String(selectedDate.getDate()).padStart(2, '0');
                   setFormData({
                     ...formData,
-                    date_sautage: selectedDate.toISOString().split('T')[0],
+                    date_sautage: `${year}-${month}-${day}`,
                   });
                 }
               }}
@@ -358,10 +375,10 @@ export default function GestationFormModal({
           )}
         </View>
 
-        <View style={styles.infoBox}>
-          <Text style={styles.infoLabel}>Date de mise bas prévue:</Text>
-          <Text style={styles.infoValue}>{formattedDate}</Text>
-          <Text style={styles.infoNote}>
+        <View style={[styles.infoBox, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Date de mise bas prévue:</Text>
+          <Text style={[styles.infoValue, { color: colors.primary }]}>{formattedDate}</Text>
+          <Text style={[styles.infoNote, { color: colors.textSecondary }]}>
             (Calculée automatiquement: {formData.date_sautage} + 114 jours)
           </Text>
         </View>
@@ -400,7 +417,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.text,
     marginBottom: SPACING.sm,
   },
   inputContainer: {
@@ -409,50 +425,38 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 14,
     fontWeight: '500',
-    color: COLORS.text,
     marginBottom: SPACING.xs,
   },
   directInput: {
     borderWidth: 1,
-    borderColor: COLORS.border,
     borderRadius: 8,
     padding: SPACING.md,
-    backgroundColor: COLORS.background,
     fontSize: 16,
-    color: COLORS.text,
   },
   searchInput: {
     borderWidth: 1,
-    borderColor: COLORS.border,
     borderRadius: 8,
     padding: SPACING.md,
-    backgroundColor: COLORS.background,
     fontSize: 14,
-    color: COLORS.text,
   },
   inputHint: {
     fontSize: 12,
-    color: COLORS.primary,
     marginTop: SPACING.xs,
     fontWeight: '500',
   },
   selectedTruieCard: {
-    backgroundColor: COLORS.surface,
     padding: SPACING.md,
     borderRadius: 8,
     marginBottom: SPACING.md,
     borderWidth: 2,
-    borderColor: COLORS.primary,
   },
   selectedTruieLabel: {
     fontSize: 12,
-    color: COLORS.textSecondary,
     marginBottom: SPACING.xs,
   },
   selectedTruieValue: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: COLORS.primary,
   },
   resultsContainer: {
     marginTop: SPACING.md,
@@ -465,18 +469,15 @@ const styles = StyleSheet.create({
   },
   resultsCount: {
     fontSize: 12,
-    color: COLORS.textSecondary,
     fontWeight: '500',
   },
   showAllButton: {
     paddingHorizontal: SPACING.sm,
     paddingVertical: SPACING.xs,
-    backgroundColor: COLORS.primary,
     borderRadius: 6,
   },
   showAllButtonText: {
     fontSize: 12,
-    color: COLORS.textOnPrimary,
     fontWeight: '600',
   },
   noResults: {
@@ -485,7 +486,6 @@ const styles = StyleSheet.create({
   },
   noResultsText: {
     fontSize: 14,
-    color: COLORS.textSecondary,
     textAlign: 'center',
   },
   optionsContainer: {
@@ -498,37 +498,27 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.sm,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.background,
     marginHorizontal: SPACING.xs / 2,
     marginBottom: SPACING.sm,
     minWidth: '30%',
   },
   optionSelected: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
   },
   optionText: {
     fontSize: 14,
-    color: COLORS.text,
   },
   optionTextSelected: {
-    color: COLORS.background,
     fontWeight: '600',
   },
   dateButton: {
     borderWidth: 1,
-    borderColor: COLORS.border,
     borderRadius: 8,
     padding: SPACING.md,
-    backgroundColor: COLORS.background,
   },
   dateButtonText: {
     fontSize: 16,
-    color: COLORS.text,
   },
   infoBox: {
-    backgroundColor: COLORS.surface,
     padding: SPACING.md,
     borderRadius: 8,
     marginBottom: SPACING.md,
@@ -536,18 +526,15 @@ const styles = StyleSheet.create({
   infoLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.textSecondary,
     marginBottom: SPACING.xs,
   },
   infoValue: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.primary,
     marginBottom: SPACING.xs,
   },
   infoNote: {
     fontSize: 12,
-    color: COLORS.textSecondary,
     fontStyle: 'italic',
   },
 });

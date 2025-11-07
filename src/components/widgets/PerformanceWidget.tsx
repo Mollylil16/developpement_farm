@@ -7,7 +7,8 @@ import React, { useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { loadMortalitesParProjet } from '../../store/slices/mortalitesSlice';
-import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS } from '../../constants/theme';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS } from '../../constants/theme';
+import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
 
 interface PerformanceWidgetProps {
@@ -15,6 +16,7 @@ interface PerformanceWidgetProps {
 }
 
 export default function PerformanceWidget({ onPress }: PerformanceWidgetProps) {
+  const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   const { mortalites } = useAppSelector((state) => state.mortalites);
@@ -58,21 +60,21 @@ export default function PerformanceWidget({ onPress }: PerformanceWidgetProps) {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.emoji}>📊</Text>
-        <Text style={styles.title}>Performance</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Performance</Text>
       </View>
 
-      <View style={styles.divider} />
+      <View style={[styles.divider, { backgroundColor: colors.divider }]} />
 
       <View style={styles.content}>
         <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Performance globale:</Text>
-          <Text style={[styles.statValue, { color: COLORS.primary }]}>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Performance globale:</Text>
+          <Text style={[styles.statValue, { color: colors.primary }]}>
             {performanceData.performanceGlobale}%
           </Text>
         </View>
 
         <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Taux de mortalité:</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Taux de mortalité:</Text>
           <View style={styles.statValueRow}>
             <Text
               style={[
@@ -80,10 +82,10 @@ export default function PerformanceWidget({ onPress }: PerformanceWidgetProps) {
                 {
                   color:
                     performanceData.tauxMortalite < 5
-                      ? COLORS.success
+                      ? colors.success
                       : performanceData.tauxMortalite < 10
-                      ? COLORS.warning
-                      : COLORS.error,
+                      ? colors.warning
+                      : colors.error,
                 },
               ]}
             >
@@ -94,24 +96,24 @@ export default function PerformanceWidget({ onPress }: PerformanceWidgetProps) {
         </View>
 
         <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Coût de production:</Text>
-          <Text style={styles.statValue}>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Coût de production:</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>
             {performanceData.coutProduction} FCFA/kg
           </Text>
         </View>
 
-        <View style={styles.tendanceContainer}>
-          <Text style={styles.tendanceLabel}>Tendance:</Text>
+        <View style={[styles.tendanceContainer, { borderTopColor: colors.divider }]}>
+          <Text style={[styles.tendanceLabel, { color: colors.textSecondary }]}>Tendance:</Text>
           <Text
             style={[
               styles.tendanceValue,
               {
                 color:
                   performanceData.tendance === 'positive'
-                    ? COLORS.success
+                    ? colors.success
                     : performanceData.tendance === 'negative'
-                    ? COLORS.error
-                    : COLORS.warning,
+                    ? colors.error
+                    : colors.warning,
               },
             ]}
           >
@@ -155,11 +157,9 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FONT_SIZES.lg,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.text,
   },
   divider: {
     height: 1,
-    backgroundColor: COLORS.divider,
     marginBottom: SPACING.md,
   },
   content: {
@@ -172,13 +172,11 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
     flex: 1,
   },
   statValue: {
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.semiBold,
-    color: COLORS.text,
   },
   statValueRow: {
     flexDirection: 'row',
@@ -192,14 +190,12 @@ const styles = StyleSheet.create({
     marginTop: SPACING.sm,
     paddingTop: SPACING.sm,
     borderTopWidth: 1,
-    borderTopColor: COLORS.divider,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   tendanceLabel: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
   },
   tendanceValue: {
     fontSize: FONT_SIZES.md,

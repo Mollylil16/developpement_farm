@@ -6,7 +6,8 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppSelector } from '../../store/hooks';
-import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constants/theme';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constants/theme';
+import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
 
 interface OverviewWidgetProps {
@@ -14,6 +15,7 @@ interface OverviewWidgetProps {
 }
 
 export default function OverviewWidget({ onPress }: OverviewWidgetProps) {
+  const { colors } = useTheme();
   const { projetActif } = useAppSelector((state) => state.projet);
 
   const stats = useMemo(() => {
@@ -34,39 +36,39 @@ export default function OverviewWidget({ onPress }: OverviewWidgetProps) {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.emoji}>🏠</Text>
-        <Text style={styles.title}>Vue d'ensemble</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Vue d'ensemble</Text>
       </View>
 
-      <View style={styles.divider} />
+      <View style={[styles.divider, { backgroundColor: colors.divider }]} />
 
       <View style={styles.statsGrid}>
         <View style={styles.statItem}>
-          <Text style={styles.statLabel}>Truies</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Truies</Text>
           <View style={styles.statValueRow}>
-            <Text style={[styles.statValue, { color: COLORS.primary }]}>
+            <Text style={[styles.statValue, { color: colors.primary }]}>
               {stats.truies}
             </Text>
-            <Text style={styles.trend}>→</Text>
+            <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
           </View>
         </View>
 
         <View style={styles.statItem}>
-          <Text style={styles.statLabel}>Verrats</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Verrats</Text>
           <View style={styles.statValueRow}>
-            <Text style={[styles.statValue, { color: COLORS.secondary }]}>
+            <Text style={[styles.statValue, { color: colors.secondary }]}>
               {stats.verrats}
             </Text>
-            <Text style={styles.trend}>→</Text>
+            <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
           </View>
         </View>
 
         <View style={styles.statItem}>
-          <Text style={styles.statLabel}>Porcelets</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Porcelets</Text>
           <View style={styles.statValueRow}>
-            <Text style={[styles.statValue, { color: COLORS.accent }]}>
+            <Text style={[styles.statValue, { color: colors.accent }]}>
               {stats.porcelets}
             </Text>
-            <Text style={styles.trend}>→</Text>
+            <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
           </View>
         </View>
       </View>
@@ -106,11 +108,9 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FONT_SIZES.lg,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.text,
   },
   divider: {
     height: 1,
-    backgroundColor: COLORS.divider,
     marginBottom: SPACING.md,
   },
   statsGrid: {
@@ -124,7 +124,6 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
     marginBottom: SPACING.xs,
     fontWeight: FONT_WEIGHTS.medium,
   },
@@ -139,6 +138,5 @@ const styles = StyleSheet.create({
   trend: {
     fontSize: FONT_SIZES.md,
     marginLeft: SPACING.xs,
-    color: COLORS.textSecondary,
   },
 });

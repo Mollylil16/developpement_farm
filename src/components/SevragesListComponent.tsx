@@ -2,23 +2,28 @@
  * Composant liste des sevrages
  */
 
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadSevrages, deleteSevrage, createSevrage } from '../store/slices/reproductionSlice';
 import { Sevrage, Gestation } from '../types';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';
 import LoadingSpinner from './LoadingSpinner';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 
 export default function SevragesListComponent() {
+  const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { sevrages, gestations } = useAppSelector((state) => state.reproduction);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedGestation, setSelectedGestation] = useState<Gestation | null>(null);
+  const [displayedSevrages, setDisplayedSevrages] = useState<Sevrage[]>([]);
+  const [page, setPage] = useState(1);
+  const ITEMS_PER_PAGE = 50;
   const [formData, setFormData] = useState({
     date_sevrage: new Date().toISOString().split('T')[0],
     nombre_porcelets_sevres: 0,
@@ -110,58 +115,96 @@ export default function SevragesListComponent() {
     return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
   });
 
+  // Pagination: charger les premiers sevrages
+  useEffect(() => {
+    const initial = sevrages.slice(0, ITEMS_PER_PAGE);
+    setDisplayedSevrages(initial);
+    setPage(1);
+  }, [sevrages.length]);
+
+  // Charger plus de sevrages
+  const loadMore = useCallback(() => {
+    if (displayedSevrages.length >= sevrages.length) {
+      return;
+    }
+
+    const nextPage = page + 1;
+    const start = page * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+    const newItems = sevrages.slice(start, end);
+
+    if (newItems.length > 0) {
+      setDisplayedSevrages((prev) => [...prev, ...newItems]);
+      setPage(nextPage);
+    }
+  }, [page, displayedSevrages.length, sevrages]);
+
   if (loading) {
     return <LoadingSpinner message="Chargement des sevrages..." />;
   }
 
+  // Composant d'en-tête pour la FlatList
+  const ListHeader = () => (
+    <View>
+      {gestationsTerminees.length > 0 && sevrages.length === 0 && (
+        <View style={styles.actionSection}>
+          <Text style={[styles.actionSectionTitle, { color: colors.text }]}>
+            Gestations terminées disponibles pour sevrage:
+          </Text>
+          {gestationsTerminees.map((gestation) => {
+            const hasSevrage = sevrages.some((s) => s.gestation_id === gestation.id);
+            if (hasSevrage) return null;
+            
+            return (
+              <TouchableOpacity
+                key={gestation.id}
+                style={[styles.gestationCard, { backgroundColor: colors.surface, borderColor: colors.primary }]}
+                onPress={() => handleCreateSevrage(gestation)}
+              >
+                <Text style={[styles.gestationCardTitle, { color: colors.text }]}>
+                  {gestation.truie_nom || gestation.truie_id}
+                </Text>
+                <Text style={[styles.gestationCardSubtitle, { color: colors.textSecondary }]}>
+                  {gestation.nombre_porcelets_reel || gestation.nombre_porcelets_prevu}{' '}
+                  porcelets
+                </Text>
+                <Text style={[styles.gestationCardButton, { color: colors.primary }]}>+ Enregistrer le sevrage</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
+
+  if (gestationsTerminees.length === 0 && sevrages.length === 0) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { borderBottomColor: colors.border }]}>
+          <Text style={[styles.title, { color: colors.text }]}>Sevrages</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{sevragesCeMois.length} ce mois</Text>
+        </View>
+        <EmptyState
+          title="Aucun sevrage"
+          message="Les sevrages seront disponibles après les mises bas terminées"
+        />
+      </View>
+    );
+  }
+
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Sevrages</Text>
-        <Text style={styles.subtitle}>{sevragesCeMois.length} ce mois</Text>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+        <Text style={[styles.title, { color: colors.text }]}>Sevrages</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{sevragesCeMois.length} ce mois</Text>
       </View>
 
-      <ScrollView style={styles.scrollView}>
-        {gestationsTerminees.length === 0 && sevrages.length === 0 ? (
-          <EmptyState
-            title="Aucun sevrage"
-            message="Les sevrages seront disponibles après les mises bas terminées"
-          />
-        ) : (
-          <>
-            {gestationsTerminees.length > 0 && sevrages.length === 0 && (
-              <View style={styles.actionSection}>
-                <Text style={styles.actionSectionTitle}>
-                  Gestations terminées disponibles pour sevrage:
-                </Text>
-                {gestationsTerminees.map((gestation) => {
-                  const hasSevrage = sevrages.some((s) => s.gestation_id === gestation.id);
-                  if (hasSevrage) return null;
-                  
-                  return (
-                    <TouchableOpacity
-                      key={gestation.id}
-                      style={styles.gestationCard}
-                      onPress={() => handleCreateSevrage(gestation)}
-                    >
-                      <Text style={styles.gestationCardTitle}>
-                        {gestation.truie_nom || gestation.truie_id}
-                      </Text>
-                      <Text style={styles.gestationCardSubtitle}>
-                        {gestation.nombre_porcelets_reel || gestation.nombre_porcelets_prevu}{' '}
-                        porcelets
-                      </Text>
-                      <Text style={styles.gestationCardButton}>+ Enregistrer le sevrage</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-
-            {sevrages.map((sevrage) => (
-              <View key={sevrage.id} style={styles.card}>
+      <FlatList
+              data={displayedSevrages}
+              renderItem={({ item: sevrage }) => (
+                <View style={[styles.card, { backgroundColor: colors.surface, ...colors.shadow.small }]}>
                 <View style={styles.cardHeader}>
-                  <Text style={styles.cardTitle}>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>
                     {getGestationNom(sevrage.gestation_id)}
                   </Text>
                   <TouchableOpacity
@@ -174,31 +217,45 @@ export default function SevragesListComponent() {
 
                 <View style={styles.cardContent}>
                   <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Date de sevrage:</Text>
-                    <Text style={styles.infoValue}>{formatDate(sevrage.date_sevrage)}</Text>
+                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Date de sevrage:</Text>
+                    <Text style={[styles.infoValue, { color: colors.text }]}>{formatDate(sevrage.date_sevrage)}</Text>
                   </View>
                   <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Nombre de porcelets sevrés:</Text>
-                    <Text style={styles.infoValue}>{sevrage.nombre_porcelets_sevres}</Text>
+                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Nombre de porcelets sevrés:</Text>
+                    <Text style={[styles.infoValue, { color: colors.text }]}>{sevrage.nombre_porcelets_sevres}</Text>
                   </View>
                   {sevrage.poids_moyen_sevrage && (
                     <View style={styles.infoRow}>
-                      <Text style={styles.infoLabel}>Poids moyen:</Text>
-                      <Text style={styles.infoValue}>{sevrage.poids_moyen_sevrage} kg</Text>
+                      <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Poids moyen:</Text>
+                      <Text style={[styles.infoValue, { color: colors.text }]}>{sevrage.poids_moyen_sevrage} kg</Text>
                     </View>
                   )}
                   {sevrage.notes && (
-                    <View style={styles.notesContainer}>
-                      <Text style={styles.notesLabel}>Notes:</Text>
-                      <Text style={styles.notesText}>{sevrage.notes}</Text>
+                    <View style={[styles.notesContainer, { borderTopColor: colors.border }]}>
+                      <Text style={[styles.notesLabel, { color: colors.textSecondary }]}>Notes:</Text>
+                      <Text style={[styles.notesText, { color: colors.text }]}>{sevrage.notes}</Text>
                     </View>
                   )}
                 </View>
               </View>
-            ))}
-          </>
-        )}
-      </ScrollView>
+              )}
+        keyExtractor={(item) => item.id}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
+        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={ListHeader}
+        // Optimisations de performance
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        initialNumToRender={10}
+        updateCellsBatchingPeriod={50}
+        ListFooterComponent={
+          displayedSevrages.length < sevrages.length ? (
+            <LoadingSpinner message="Chargement..." />
+          ) : null
+        }
+      />
 
       {/* Modal de création de sevrage */}
       {selectedGestation && (
@@ -214,7 +271,7 @@ export default function SevragesListComponent() {
           showButtons={true}
         >
           <ScrollView style={styles.scrollView}>
-            <Text style={styles.modalLabel}>
+            <Text style={[styles.modalLabel, { color: colors.text }]}>
               Truie: {selectedGestation.truie_nom || selectedGestation.truie_id}
             </Text>
             <FormField
@@ -267,7 +324,6 @@ export default function SevragesListComponent() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: 'row',
@@ -276,16 +332,13 @@ const styles = StyleSheet.create({
     padding: SPACING.lg,
     paddingTop: SPACING.md + 10,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
   title: {
     fontSize: FONT_SIZES.xl,
     fontWeight: 'bold',
-    color: COLORS.text,
   },
   subtitle: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
   },
   scrollView: {
     flex: 1,
@@ -302,43 +355,31 @@ const styles = StyleSheet.create({
   actionSectionTitle: {
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
-    color: COLORS.text,
     marginBottom: SPACING.md,
   },
   gestationCard: {
-    backgroundColor: COLORS.surface,
     padding: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
     marginBottom: SPACING.sm,
     borderWidth: 1,
-    borderColor: COLORS.primary,
   },
   gestationCardTitle: {
     fontSize: FONT_SIZES.lg,
     fontWeight: 'bold',
-    color: COLORS.text,
     marginBottom: SPACING.xs,
   },
   gestationCardSubtitle: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
     marginBottom: SPACING.sm,
   },
   gestationCardButton: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.primary,
     fontWeight: '600',
   },
   card: {
-    backgroundColor: COLORS.surface,
     margin: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -349,7 +390,6 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: FONT_SIZES.lg,
     fontWeight: 'bold',
-    color: COLORS.text,
     flex: 1,
   },
   actionButton: {
@@ -368,34 +408,28 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
     fontWeight: '600',
   },
   infoValue: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.text,
   },
   notesContainer: {
     marginTop: SPACING.sm,
     paddingTop: SPACING.sm,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
   },
   notesLabel: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
     fontWeight: '600',
     marginBottom: SPACING.xs,
   },
   notesText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.text,
     fontStyle: 'italic',
   },
   modalLabel: {
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
-    color: COLORS.text,
     marginBottom: SPACING.md,
   },
 });

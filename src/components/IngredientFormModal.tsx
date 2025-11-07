@@ -9,7 +9,8 @@ import { createIngredient } from '../store/slices/nutritionSlice';
 import { CreateIngredientInput } from '../types';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
-import { COLORS, SPACING } from '../constants/theme';
+import { SPACING } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface IngredientFormModalProps {
   visible: boolean;
@@ -22,6 +23,7 @@ export default function IngredientFormModal({
   onClose,
   onSuccess,
 }: IngredientFormModalProps) {
+  const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateIngredientInput>({
@@ -83,21 +85,32 @@ export default function IngredientFormModal({
         />
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Unité *</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Unité *</Text>
           <View style={styles.optionsContainer}>
             {unites.map((unite) => (
               <TouchableOpacity
                 key={unite}
                 style={[
                   styles.option,
-                  formData.unite === unite && styles.optionSelected,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.background,
+                  },
+                  formData.unite === unite && {
+                    backgroundColor: colors.primary,
+                    borderColor: colors.primary,
+                  },
                 ]}
                 onPress={() => setFormData({ ...formData, unite })}
               >
                 <Text
                   style={[
                     styles.optionText,
-                    formData.unite === unite && styles.optionTextSelected,
+                    { color: colors.text },
+                    formData.unite === unite && {
+                      color: colors.background,
+                      fontWeight: '600',
+                    },
                   ]}
                 >
                   {unite.toUpperCase()}
@@ -158,7 +171,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.text,
     marginBottom: SPACING.sm,
   },
   optionsContainer: {
@@ -171,20 +183,9 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.sm,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.background,
-  },
-  optionSelected: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
   },
   optionText: {
     fontSize: 14,
-    color: COLORS.text,
-  },
-  optionTextSelected: {
-    color: COLORS.background,
-    fontWeight: '600',
   },
 });
 

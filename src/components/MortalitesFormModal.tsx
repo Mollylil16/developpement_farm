@@ -11,7 +11,8 @@ import { createMortalite, updateMortalite } from '../store/slices/mortalitesSlic
 import { Mortalite, CreateMortaliteInput, CategorieMortalite } from '../types';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
-import { COLORS, SPACING } from '../constants/theme';
+import { SPACING } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface MortalitesFormModalProps {
   visible: boolean;
@@ -28,6 +29,7 @@ export default function MortalitesFormModal({
   mortalite,
   isEditing = false,
 }: MortalitesFormModalProps) {
+  const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   const [loading, setLoading] = useState(false);
@@ -131,12 +133,12 @@ export default function MortalitesFormModal({
           />
 
           <View style={styles.dateContainer}>
-            <Text style={styles.label}>Date</Text>
+            <Text style={[styles.label, { color: colors.text }]}>Date</Text>
             <TouchableOpacity
-              style={styles.dateButton}
+              style={[styles.dateButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
               onPress={() => setShowDatePicker(true)}
             >
-              <Text style={styles.dateButtonText}>
+              <Text style={[styles.dateButtonText, { color: colors.text }]}>
                 {new Date(formData.date).toLocaleDateString('fr-FR', {
                   day: '2-digit',
                   month: '2-digit',
@@ -163,21 +165,32 @@ export default function MortalitesFormModal({
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Catégorie</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Catégorie</Text>
             <View style={styles.optionsContainer}>
               {categories.map((cat) => (
                 <TouchableOpacity
                   key={cat}
                   style={[
                     styles.option,
-                    formData.categorie === cat && styles.optionSelected,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                    },
+                    formData.categorie === cat && {
+                      backgroundColor: colors.primary,
+                      borderColor: colors.primary,
+                    },
                   ]}
                   onPress={() => setFormData({ ...formData, categorie: cat })}
                 >
                   <Text
                     style={[
                       styles.optionText,
-                      formData.categorie === cat && styles.optionTextSelected,
+                      { color: colors.text },
+                      formData.categorie === cat && {
+                        color: colors.textOnPrimary,
+                        fontWeight: '600',
+                      },
                     ]}
                   >
                     {categorieLabels[cat]}
@@ -218,7 +231,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.text,
     marginBottom: SPACING.md,
   },
   dateContainer: {
@@ -227,19 +239,15 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '500',
-    color: COLORS.text,
     marginBottom: SPACING.xs,
   },
   dateButton: {
-    backgroundColor: COLORS.surface,
     padding: SPACING.md,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.border,
   },
   dateButtonText: {
     fontSize: 16,
-    color: COLORS.text,
   },
   optionsContainer: {
     flexDirection: 'row',
@@ -249,23 +257,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
     borderRadius: 8,
-    backgroundColor: COLORS.surface,
     borderWidth: 1,
-    borderColor: COLORS.border,
     marginRight: SPACING.sm,
     marginBottom: SPACING.sm,
   },
-  optionSelected: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
   optionText: {
     fontSize: 14,
-    color: COLORS.text,
-  },
-  optionTextSelected: {
-    color: COLORS.textOnPrimary,
-    fontWeight: '600',
   },
 });
 

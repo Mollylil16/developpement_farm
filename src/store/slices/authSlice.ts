@@ -84,20 +84,26 @@ export const signInWithEmail = createAsyncThunk(
   'auth/signInWithEmail',
   async (input: EmailSignInInput, { rejectWithValue }) => {
     try {
-      // Simulation de connexion - TODO: Implémenter avec un vrai backend
-      // Pour l'instant, on crée un utilisateur temporaire
-      const user: User = {
-        id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        email: input.email,
-        nom: 'Utilisateur',
-        prenom: '',
-        provider: 'email',
-        date_creation: new Date().toISOString(),
+      // Vérifier si l'utilisateur existe dans le stockage
+      const existingUser = await loadUserFromStorage();
+      
+      if (!existingUser) {
+        return rejectWithValue('Aucun compte trouvé. Veuillez vous inscrire d\'abord.');
+      }
+
+      // Vérifier si l'email correspond
+      if (existingUser.email.toLowerCase() !== input.email.toLowerCase()) {
+        return rejectWithValue('Email incorrect. Veuillez vérifier votre adresse email.');
+      }
+
+      // Mettre à jour la dernière connexion
+      const updatedUser: User = {
+        ...existingUser,
         derniere_connexion: new Date().toISOString(),
       };
 
-      await saveUserToStorage(user);
-      return user;
+      await saveUserToStorage(updatedUser);
+      return updatedUser;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la connexion');
     }

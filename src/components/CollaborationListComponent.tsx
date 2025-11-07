@@ -2,8 +2,9 @@
  * Composant liste des collaborateurs avec filtres
  */
 
-import React, { useEffect, useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import {
   loadCollaborateursParProjet,
@@ -12,13 +13,16 @@ import {
   accepterInvitation,
 } from '../store/slices/collaborationSlice';
 import { Collaborateur, RoleCollaborateur, StatutCollaborateur, ROLE_LABELS, STATUT_LABELS } from '../types';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';
 import LoadingSpinner from './LoadingSpinner';
 import CollaborationFormModal from './CollaborationFormModal';
 import StatCard from './StatCard';
 
 export default function CollaborationListComponent() {
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   const { collaborateurs, loading } = useAppSelector((state) => state.collaboration);
@@ -26,6 +30,9 @@ export default function CollaborationListComponent() {
   const [modalVisible, setModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [filterStatut, setFilterStatut] = useState<StatutCollaborateur | 'tous'>('tous');
+  const [displayedCollaborateurs, setDisplayedCollaborateurs] = useState<Collaborateur[]>([]);
+  const [page, setPage] = useState(1);
+  const ITEMS_PER_PAGE = 50;
 
   useEffect(() => {
     if (projetActif) {
@@ -45,6 +52,30 @@ export default function CollaborationListComponent() {
     const enAttente = collaborateurs.filter((c) => c.statut === 'en_attente').length;
     return { actifs, enAttente, total: collaborateurs.length };
   }, [collaborateurs]);
+
+  // Pagination: charger les premiers collaborateurs filtrés
+  useEffect(() => {
+    const initial = collaborateursFiltres.slice(0, ITEMS_PER_PAGE);
+    setDisplayedCollaborateurs(initial);
+    setPage(1);
+  }, [collaborateursFiltres.length, filterStatut]);
+
+  // Charger plus de collaborateurs
+  const loadMore = useCallback(() => {
+    if (displayedCollaborateurs.length >= collaborateursFiltres.length) {
+      return;
+    }
+
+    const nextPage = page + 1;
+    const start = page * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+    const newItems = collaborateursFiltres.slice(start, end);
+
+    if (newItems.length > 0) {
+      setDisplayedCollaborateurs((prev) => [...prev, ...newItems]);
+      setPage(nextPage);
+    }
+  }, [page, displayedCollaborateurs.length, collaborateursFiltres]);
 
   const handleEdit = (collaborateur: Collaborateur) => {
     setSelectedCollaborateur(collaborateur);
@@ -107,30 +138,30 @@ export default function CollaborationListComponent() {
   const getRoleColor = (role: RoleCollaborateur) => {
     switch (role) {
       case 'proprietaire':
-        return COLORS.primary;
+        return colors.primary;
       case 'gestionnaire':
-        return COLORS.secondary;
+        return colors.secondary;
       case 'veterinaire':
-        return COLORS.info;
+        return colors.info;
       case 'ouvrier':
-        return COLORS.accent;
+        return colors.accent;
       case 'observateur':
-        return COLORS.textSecondary;
+        return colors.textSecondary;
       default:
-        return COLORS.textSecondary;
+        return colors.textSecondary;
     }
   };
 
   const getStatutColor = (statut: StatutCollaborateur) => {
     switch (statut) {
       case 'actif':
-        return COLORS.success;
+        return colors.success;
       case 'inactif':
-        return COLORS.textSecondary;
+        return colors.textSecondary;
       case 'en_attente':
-        return COLORS.warning;
+        return colors.warning;
       default:
-        return COLORS.textSecondary;
+        return colors.textSecondary;
     }
   };
 
@@ -147,18 +178,18 @@ export default function CollaborationListComponent() {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Collaboration</Text>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.divider, paddingTop: insets.top + SPACING.lg }]}>
+        <Text style={[styles.title, { color: colors.text }]}>Collaboration</Text>
         <TouchableOpacity
-          style={styles.addButton}
+          style={[styles.addButton, { backgroundColor: colors.primary, ...colors.shadow.small }]}
           onPress={() => {
             setSelectedCollaborateur(null);
             setIsEditing(false);
             setModalVisible(true);
           }}
         >
-          <Text style={styles.addButtonText}>+ Inviter</Text>
+          <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Inviter</Text>
         </TouchableOpacity>
       </View>
 
@@ -168,34 +199,40 @@ export default function CollaborationListComponent() {
           <StatCard
             value={statistiques.actifs}
             label="Actifs"
-            valueColor={COLORS.success}
+            valueColor={colors.success}
             style={{ marginRight: SPACING.sm }}
           />
           <StatCard
             value={statistiques.enAttente}
             label="En attente"
-            valueColor={COLORS.warning}
+            valueColor={colors.warning}
             style={{ marginLeft: SPACING.sm }}
           />
         </View>
       )}
 
       {/* Filtres */}
-      <View style={styles.filtersContainer}>
+      <View style={[styles.filtersContainer, { borderBottomColor: colors.divider }]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {(['tous', 'actif', 'en_attente', 'inactif'] as const).map((statut) => (
             <TouchableOpacity
               key={statut}
               style={[
                 styles.filterButton,
-                filterStatut === statut && styles.filterButtonActive,
+                {
+                  backgroundColor: filterStatut === statut ? colors.primary : colors.surface,
+                  borderColor: filterStatut === statut ? colors.primary : colors.border,
+                },
               ]}
               onPress={() => setFilterStatut(statut)}
             >
               <Text
                 style={[
                   styles.filterButtonText,
-                  filterStatut === statut && styles.filterButtonTextActive,
+                  {
+                    color: filterStatut === statut ? colors.textOnPrimary : colors.text,
+                    fontWeight: filterStatut === statut ? '600' : 'normal',
+                  },
                 ]}
               >
                 {statut === 'tous' ? 'Tous' : STATUT_LABELS[statut as StatutCollaborateur]}
@@ -206,47 +243,50 @@ export default function CollaborationListComponent() {
       </View>
 
       {/* Liste des collaborateurs */}
-      <ScrollView style={styles.listContainer}>
-        {collaborateursFiltres.length === 0 ? (
+      {collaborateursFiltres.length === 0 ? (
+        <View style={styles.listContainer}>
           <EmptyState
             title="Aucun collaborateur"
             message="Invitez des membres pour collaborer sur ce projet"
           />
-        ) : (
-          collaborateursFiltres.map((collaborateur) => (
-            <View key={collaborateur.id} style={styles.card}>
+        </View>
+      ) : (
+        <FlatList
+          data={displayedCollaborateurs}
+          renderItem={({ item: collaborateur }) => (
+            <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderLight, ...colors.shadow.medium }]}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderLeft}>
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>
+                  <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
+                    <Text style={[styles.avatarText, { color: colors.textOnPrimary }]}>
                       {collaborateur.prenom.charAt(0).toUpperCase()}
                       {collaborateur.nom.charAt(0).toUpperCase()}
                     </Text>
                   </View>
                   <View style={styles.infoContainer}>
-                    <Text style={styles.nomText}>
+                    <Text style={[styles.nomText, { color: colors.text }]}>
                       {collaborateur.prenom} {collaborateur.nom}
                     </Text>
-                    <Text style={styles.emailText}>{collaborateur.email}</Text>
+                    <Text style={[styles.emailText, { color: colors.textSecondary }]}>{collaborateur.email}</Text>
                   </View>
                 </View>
                 <View style={styles.cardActions}>
                   {collaborateur.statut === 'en_attente' && (
                     <TouchableOpacity
-                      style={styles.actionButton}
+                      style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
                       onPress={() => handleAccepterInvitation(collaborateur.id)}
                     >
                       <Text style={styles.actionButtonText}>✓</Text>
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity
-                    style={styles.actionButton}
+                    style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
                     onPress={() => handleEdit(collaborateur)}
                   >
                     <Text style={styles.actionButtonText}>✏️</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={styles.actionButton}
+                    style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
                     onPress={() => handleDelete(collaborateur.id)}
                   >
                     <Text style={styles.actionButtonText}>🗑️</Text>
@@ -261,7 +301,7 @@ export default function CollaborationListComponent() {
                       { backgroundColor: getRoleColor(collaborateur.role) },
                     ]}
                   >
-                    <Text style={styles.roleBadgeText}>
+                    <Text style={[styles.roleBadgeText, { color: colors.textOnPrimary }]}>
                       {ROLE_LABELS[collaborateur.role as RoleCollaborateur]}
                     </Text>
                   </View>
@@ -271,21 +311,21 @@ export default function CollaborationListComponent() {
                       { backgroundColor: getStatutColor(collaborateur.statut) },
                     ]}
                   >
-                    <Text style={styles.statutBadgeText}>
+                    <Text style={[styles.statutBadgeText, { color: colors.textOnPrimary }]}>
                       {STATUT_LABELS[collaborateur.statut as StatutCollaborateur]}
                     </Text>
                   </View>
                 </View>
                 {collaborateur.telephone && (
-                  <Text style={styles.telephoneText}>📞 {collaborateur.telephone}</Text>
+                  <Text style={[styles.telephoneText, { color: colors.textSecondary }]}>📞 {collaborateur.telephone}</Text>
                 )}
                 <View style={styles.permissionsContainer}>
-                  <Text style={styles.permissionsTitle}>Permissions:</Text>
+                  <Text style={[styles.permissionsTitle, { color: colors.text }]}>Permissions:</Text>
                   <View style={styles.permissionsList}>
                     {Object.entries(collaborateur.permissions).map(([key, value]) =>
                       value ? (
-                        <View key={key} style={styles.permissionBadge}>
-                          <Text style={styles.permissionBadgeText}>
+                        <View key={key} style={[styles.permissionBadge, { backgroundColor: colors.surfaceVariant }]}>
+                          <Text style={[styles.permissionBadgeText, { color: colors.text }]}>
                             {key.charAt(0).toUpperCase() + key.slice(1)}
                           </Text>
                         </View>
@@ -294,13 +334,29 @@ export default function CollaborationListComponent() {
                   </View>
                 </View>
                 {collaborateur.notes && (
-                  <Text style={styles.notesText}>{collaborateur.notes}</Text>
+                  <Text style={[styles.notesText, { color: colors.textSecondary }]}>{collaborateur.notes}</Text>
                 )}
               </View>
             </View>
-          ))
-        )}
-      </ScrollView>
+          )}
+          keyExtractor={(item) => item.id}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
+          contentContainerStyle={styles.listContainer}
+          showsVerticalScrollIndicator={false}
+          // Optimisations de performance
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          initialNumToRender={10}
+          updateCellsBatchingPeriod={50}
+          ListFooterComponent={
+            displayedCollaborateurs.length < collaborateursFiltres.length ? (
+              <LoadingSpinner message="Chargement..." />
+            ) : null
+          }
+        />
+      )}
 
       {/* Modal de formulaire */}
       <CollaborationFormModal
@@ -317,7 +373,6 @@ export default function CollaborationListComponent() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: 'row',
@@ -325,25 +380,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.xl,
-    backgroundColor: COLORS.surface,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.divider,
   },
   title: {
     fontSize: FONT_SIZES.xxl,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.text,
   },
   addButton: {
-    backgroundColor: COLORS.primary,
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
-    ...COLORS.shadow.small,
     minHeight: 44,
   },
   addButtonText: {
-    color: COLORS.textOnPrimary,
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.semiBold,
   },
@@ -356,29 +405,17 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.lg,
     paddingHorizontal: SPACING.lg,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.divider,
   },
   filterButton: {
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
-    backgroundColor: COLORS.surface,
     marginRight: SPACING.md,
     borderWidth: 1.5,
-    borderColor: COLORS.border,
     minHeight: 40,
-  },
-  filterButtonActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
   },
   filterButtonText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.text,
-  },
-  filterButtonTextActive: {
-    color: COLORS.textOnPrimary,
-    fontWeight: FONT_WEIGHTS.semiBold,
   },
   listContainer: {
     flex: 1,
@@ -386,13 +423,10 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
   },
   card: {
-    backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     marginBottom: SPACING.lg,
-    ...COLORS.shadow.medium,
     borderWidth: 1,
-    borderColor: COLORS.borderLight,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -409,13 +443,11 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: SPACING.md,
   },
   avatarText: {
-    color: COLORS.textOnPrimary,
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.bold,
   },
@@ -425,12 +457,10 @@ const styles = StyleSheet.create({
   nomText: {
     fontSize: FONT_SIZES.lg,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.text,
     marginBottom: SPACING.xs,
   },
   emailText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
   },
   cardActions: {
     flexDirection: 'row',
@@ -440,7 +470,6 @@ const styles = StyleSheet.create({
     padding: SPACING.sm,
     marginLeft: SPACING.sm,
     borderRadius: BORDER_RADIUS.sm,
-    backgroundColor: COLORS.surfaceVariant,
     minWidth: 40,
     minHeight: 40,
     alignItems: 'center',
@@ -465,7 +494,6 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
   },
   roleBadgeText: {
-    color: COLORS.textOnPrimary,
     fontSize: FONT_SIZES.xs,
     fontWeight: FONT_WEIGHTS.semiBold,
   },
@@ -476,13 +504,11 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
   },
   statutBadgeText: {
-    color: COLORS.textOnPrimary,
     fontSize: FONT_SIZES.xs,
     fontWeight: FONT_WEIGHTS.semiBold,
   },
   telephoneText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
     marginBottom: SPACING.sm,
   },
   permissionsContainer: {
@@ -491,7 +517,6 @@ const styles = StyleSheet.create({
   permissionsTitle: {
     fontSize: FONT_SIZES.sm,
     fontWeight: FONT_WEIGHTS.semiBold,
-    color: COLORS.text,
     marginBottom: SPACING.xs,
   },
   permissionsList: {
@@ -499,7 +524,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   permissionBadge: {
-    backgroundColor: COLORS.surfaceVariant,
     paddingHorizontal: SPACING.sm,
     paddingVertical: SPACING.xs,
     borderRadius: BORDER_RADIUS.sm,
@@ -508,12 +532,10 @@ const styles = StyleSheet.create({
   },
   permissionBadgeText: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.text,
     fontWeight: FONT_WEIGHTS.medium,
   },
   notesText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
     fontStyle: 'italic',
     marginTop: SPACING.sm,
   },

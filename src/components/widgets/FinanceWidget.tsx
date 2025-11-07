@@ -7,7 +7,8 @@ import React, { useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { loadChargesFixes, loadDepensesPonctuelles } from '../../store/slices/financeSlice';
-import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constants/theme';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constants/theme';
+import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
 import { startOfMonth, endOfMonth, parseISO, isWithinInterval } from 'date-fns';
 
@@ -16,6 +17,7 @@ interface FinanceWidgetProps {
 }
 
 export default function FinanceWidget({ onPress }: FinanceWidgetProps) {
+  const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { chargesFixes, depensesPonctuelles } = useAppSelector((state) => state.finance);
 
@@ -69,44 +71,44 @@ export default function FinanceWidget({ onPress }: FinanceWidgetProps) {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.emoji}>💰</Text>
-        <Text style={styles.title}>Finance</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Finance</Text>
       </View>
 
-      <View style={styles.divider} />
+      <View style={[styles.divider, { backgroundColor: colors.divider }]} />
 
       <View style={styles.content}>
         <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Budget mensuel:</Text>
-          <Text style={styles.statValue}>{formatMontant(financeData.budgetMensuel)}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Budget mensuel:</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>{formatMontant(financeData.budgetMensuel)}</Text>
         </View>
 
         <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Dépenses:</Text>
-          <Text style={[styles.statValue, { color: COLORS.error }]}>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Dépenses:</Text>
+          <Text style={[styles.statValue, { color: colors.error }]}>
             {formatMontant(financeData.depensesDuMois)} ({Math.round(financeData.pourcentageUtilise)}%)
           </Text>
         </View>
 
         <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Restant:</Text>
-          <Text style={[styles.statValue, { color: financeData.restant >= 0 ? COLORS.success : COLORS.error }]}>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Restant:</Text>
+          <Text style={[styles.statValue, { color: financeData.restant >= 0 ? colors.success : colors.error }]}>
             {formatMontant(financeData.restant)}
           </Text>
         </View>
 
         <View style={styles.progressContainer}>
-          <View style={styles.progressBar}>
+          <View style={[styles.progressBar, { backgroundColor: colors.borderLight }]}>
             <View
               style={[
                 styles.progressFill,
                 {
                   width: `${financeData.pourcentageUtilise}%`,
-                  backgroundColor: financeData.pourcentageUtilise > 80 ? COLORS.error : financeData.pourcentageUtilise > 60 ? COLORS.warning : COLORS.primary,
+                  backgroundColor: financeData.pourcentageUtilise > 80 ? colors.error : financeData.pourcentageUtilise > 60 ? colors.warning : colors.primary,
                 },
               ]}
             />
           </View>
-          <Text style={styles.progressText}>
+          <Text style={[styles.progressText, { color: colors.textSecondary }]}>
             {Math.round(financeData.pourcentageUtilise)}% du budget utilisé
           </Text>
         </View>
@@ -147,11 +149,9 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FONT_SIZES.lg,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.text,
   },
   divider: {
     height: 1,
-    backgroundColor: COLORS.divider,
     marginBottom: SPACING.md,
   },
   content: {
@@ -164,19 +164,16 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
   },
   statValue: {
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.semiBold,
-    color: COLORS.text,
   },
   progressContainer: {
     marginTop: SPACING.md,
   },
   progressBar: {
     height: 8,
-    backgroundColor: COLORS.borderLight,
     borderRadius: BORDER_RADIUS.sm,
     overflow: 'hidden',
     marginBottom: SPACING.xs,
@@ -187,7 +184,6 @@ const styles = StyleSheet.create({
   },
   progressText: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.textSecondary,
     textAlign: 'center',
   },
 });

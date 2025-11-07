@@ -2,8 +2,9 @@
  * Composant liste des mortalités avec statistiques
  */
 
-import React, { useEffect, useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import {
   loadMortalitesParProjet,
@@ -11,19 +12,25 @@ import {
   deleteMortalite,
 } from '../store/slices/mortalitesSlice';
 import { Mortalite, CategorieMortalite } from '../types';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';
 import LoadingSpinner from './LoadingSpinner';
 import MortalitesFormModal from './MortalitesFormModal';
 import StatCard from './StatCard';
 
 export default function MortalitesListComponent() {
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   const { mortalites, statistiques, loading } = useAppSelector((state) => state.mortalites);
   const [selectedMortalite, setSelectedMortalite] = useState<Mortalite | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [displayedMortalites, setDisplayedMortalites] = useState<Mortalite[]>([]);
+  const [page, setPage] = useState(1);
+  const ITEMS_PER_PAGE = 50;
 
   useEffect(() => {
     if (projetActif) {
@@ -31,6 +38,30 @@ export default function MortalitesListComponent() {
       dispatch(loadStatistiquesMortalite(projetActif.id));
     }
   }, [dispatch, projetActif]);
+
+  // Pagination: charger les premières mortalités
+  useEffect(() => {
+    const initial = mortalites.slice(0, ITEMS_PER_PAGE);
+    setDisplayedMortalites(initial);
+    setPage(1);
+  }, [mortalites.length]);
+
+  // Charger plus de mortalités
+  const loadMore = useCallback(() => {
+    if (displayedMortalites.length >= mortalites.length) {
+      return;
+    }
+
+    const nextPage = page + 1;
+    const start = page * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+    const newItems = mortalites.slice(start, end);
+
+    if (newItems.length > 0) {
+      setDisplayedMortalites((prev) => [...prev, ...newItems]);
+      setPage(nextPage);
+    }
+  }, [page, displayedMortalites.length, mortalites]);
 
   const handleEdit = (mortalite: Mortalite) => {
     setSelectedMortalite(mortalite);
@@ -100,15 +131,15 @@ export default function MortalitesListComponent() {
   const getCategorieColor = (categorie: CategorieMortalite) => {
     switch (categorie) {
       case 'porcelet':
-        return COLORS.warning;
+        return colors.warning;
       case 'truie':
-        return COLORS.error;
+        return colors.error;
       case 'verrat':
-        return COLORS.error;
+        return colors.error;
       case 'autre':
-        return COLORS.textSecondary;
+        return colors.textSecondary;
       default:
-        return COLORS.textSecondary;
+        return colors.textSecondary;
     }
   };
 
@@ -125,18 +156,18 @@ export default function MortalitesListComponent() {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Mortalités</Text>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.divider, paddingTop: insets.top + SPACING.lg }]}>
+        <Text style={[styles.title, { color: colors.text }]}>Mortalités</Text>
         <TouchableOpacity
-          style={styles.addButton}
+          style={[styles.addButton, { backgroundColor: colors.primary }]}
           onPress={() => {
             setSelectedMortalite(null);
             setIsEditing(false);
             setModalVisible(true);
           }}
         >
-          <Text style={styles.addButtonText}>+ Ajouter</Text>
+          <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Ajouter</Text>
         </TouchableOpacity>
       </View>
 
@@ -146,7 +177,7 @@ export default function MortalitesListComponent() {
           <StatCard
             value={statistiques.total_morts}
             label="Total morts"
-            valueColor={COLORS.error}
+            valueColor={colors.error}
             style={{ marginRight: SPACING.sm }}
           />
           <StatCard
@@ -154,7 +185,7 @@ export default function MortalitesListComponent() {
             label="Taux de mortalité"
             unit="%"
             valueColor={
-              statistiques.taux_mortalite > 5 ? COLORS.error : COLORS.success
+              statistiques.taux_mortalite > 5 ? colors.error : colors.success
             }
             style={{ marginLeft: SPACING.sm }}
           />
@@ -162,15 +193,18 @@ export default function MortalitesListComponent() {
       )}
 
       {/* Liste des mortalités */}
-      <ScrollView style={styles.listContainer}>
-        {mortalites.length === 0 ? (
+      {mortalites.length === 0 ? (
+        <View style={styles.listContainer}>
           <EmptyState
             title="Aucune mortalité enregistrée"
             message="Ajoutez une mortalité pour commencer le suivi"
           />
-        ) : (
-          mortalites.map((mortalite) => (
-            <View key={mortalite.id} style={styles.card}>
+        </View>
+      ) : (
+        <FlatList
+          data={displayedMortalites}
+          renderItem={({ item: mortalite }) => (
+            <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderLight, ...colors.shadow.medium }]}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderLeft}>
                   <View
@@ -179,23 +213,23 @@ export default function MortalitesListComponent() {
                       { backgroundColor: getCategorieColor(mortalite.categorie) },
                     ]}
                   >
-                    <Text style={styles.categorieBadgeText}>
+                    <Text style={[styles.categorieBadgeText, { color: colors.textOnPrimary }]}>
                       {getCategorieLabel(mortalite.categorie)}
                     </Text>
                   </View>
-                  <Text style={[styles.dateText, { marginLeft: SPACING.sm }]}>
+                  <Text style={[styles.dateText, { marginLeft: SPACING.sm, color: colors.textSecondary }]}>
                     {formatDate(mortalite.date)}
                   </Text>
                 </View>
                 <View style={styles.cardActions}>
                   <TouchableOpacity
-                    style={styles.actionButton}
+                    style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
                     onPress={() => handleEdit(mortalite)}
                   >
                     <Text style={styles.actionButtonText}>✏️</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={styles.actionButton}
+                    style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
                     onPress={() => handleDelete(mortalite.id)}
                   >
                     <Text style={styles.actionButtonText}>🗑️</Text>
@@ -203,20 +237,36 @@ export default function MortalitesListComponent() {
                 </View>
               </View>
               <View style={styles.cardContent}>
-                <Text style={styles.nombreText}>
+                <Text style={[styles.nombreText, { color: colors.text }]}>
                   {mortalite.nombre_porcs} porc{mortalite.nombre_porcs > 1 ? 's' : ''}
                 </Text>
                 {mortalite.cause && (
-                  <Text style={styles.causeText}>Cause: {mortalite.cause}</Text>
+                  <Text style={[styles.causeText, { color: colors.textSecondary }]}>Cause: {mortalite.cause}</Text>
                 )}
                 {mortalite.notes && (
-                  <Text style={styles.notesText}>{mortalite.notes}</Text>
+                  <Text style={[styles.notesText, { color: colors.textSecondary }]}>{mortalite.notes}</Text>
                 )}
               </View>
             </View>
-          ))
-        )}
-      </ScrollView>
+          )}
+          keyExtractor={(item) => item.id}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
+          contentContainerStyle={styles.listContainer}
+          showsVerticalScrollIndicator={false}
+          // Optimisations de performance
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          initialNumToRender={10}
+          updateCellsBatchingPeriod={50}
+          ListFooterComponent={
+            displayedMortalites.length < mortalites.length ? (
+              <LoadingSpinner message="Chargement..." />
+            ) : null
+          }
+        />
+      )}
 
       {/* Modal de formulaire */}
       <MortalitesFormModal
@@ -233,7 +283,6 @@ export default function MortalitesListComponent() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: 'row',
@@ -241,25 +290,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.xl,
-    backgroundColor: COLORS.surface,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.divider,
   },
   title: {
     fontSize: FONT_SIZES.xxl,
     fontWeight: 'bold',
-    color: COLORS.text,
   },
   addButton: {
-    backgroundColor: COLORS.primary,
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
-    ...COLORS.shadow.small,
     minHeight: 44,
   },
   addButtonText: {
-    color: COLORS.textOnPrimary,
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.semiBold,
   },
@@ -274,13 +317,10 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
   },
   card: {
-    backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     marginBottom: SPACING.lg,
-    ...COLORS.shadow.medium,
     borderWidth: 1,
-    borderColor: COLORS.borderLight,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -298,13 +338,11 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.sm,
   },
   categorieBadgeText: {
-    color: COLORS.textOnPrimary,
     fontSize: FONT_SIZES.xs,
     fontWeight: '600',
   },
   dateText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
   },
   cardActions: {
     flexDirection: 'row',
@@ -314,7 +352,6 @@ const styles = StyleSheet.create({
     padding: SPACING.sm,
     marginLeft: SPACING.sm,
     borderRadius: BORDER_RADIUS.sm,
-    backgroundColor: COLORS.surfaceVariant,
     minWidth: 40,
     minHeight: 40,
     alignItems: 'center',
@@ -329,17 +366,14 @@ const styles = StyleSheet.create({
   nombreText: {
     fontSize: FONT_SIZES.lg,
     fontWeight: 'bold',
-    color: COLORS.error,
     marginBottom: SPACING.xs,
   },
   causeText: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.text,
     marginBottom: SPACING.xs,
   },
   notesText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
     fontStyle: 'italic',
   },
 });

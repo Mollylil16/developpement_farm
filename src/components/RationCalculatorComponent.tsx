@@ -7,13 +7,15 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'rea
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadIngredients, createRation } from '../store/slices/nutritionSlice';
 import { TypePorc, CreateRationInput, RECOMMANDATIONS_NUTRITION, getTypePorcLabel } from '../types';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import FormField from './FormField';
 import LoadingSpinner from './LoadingSpinner';
 import CustomModal from './CustomModal';
 import IngredientFormModal from './IngredientFormModal';
 
 export default function RationCalculatorComponent() {
+  const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { ingredients, loading } = useAppSelector((state) => state.nutrition);
   const [typePorc, setTypePorc] = useState<TypePorc>('porc_croissance');
@@ -138,9 +140,13 @@ export default function RationCalculatorComponent() {
   const recommandation = RECOMMANDATIONS_NUTRITION[typePorc];
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView 
+      style={[styles.container, { backgroundColor: colors.background }]}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+    >
       <View style={styles.content}>
-        <Text style={styles.title}>Calculateur de Ration</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Calculateur de Ration</Text>
 
         {/* Sélection du type de porc */}
         <View style={styles.section}>
@@ -149,13 +155,18 @@ export default function RationCalculatorComponent() {
             {typesPorc.map((type) => (
               <TouchableOpacity
                 key={type}
-                style={[styles.option, typePorc === type && styles.optionSelected]}
+                style={[
+                  styles.option,
+                  { borderColor: colors.border, backgroundColor: colors.background },
+                  typePorc === type && { backgroundColor: colors.primary, borderColor: colors.primary }
+                ]}
                 onPress={() => setTypePorc(type)}
               >
                 <Text
                   style={[
                     styles.optionText,
-                    typePorc === type && styles.optionTextSelected,
+                    { color: colors.text },
+                    typePorc === type && { color: colors.background, fontWeight: '600' }
                   ]}
                 >
                   {getTypePorcLabel(type)}
@@ -164,13 +175,13 @@ export default function RationCalculatorComponent() {
             ))}
           </View>
           {recommandation && (
-            <View style={styles.recommendationBox}>
-              <Text style={styles.recommendationTitle}>Recommandations:</Text>
-              <Text style={styles.recommendationText}>
+            <View style={[styles.recommendationBox, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.recommendationTitle, { color: colors.text }]}>Recommandations:</Text>
+              <Text style={[styles.recommendationText, { color: colors.textSecondary }]}>
                 Ration quotidienne: {recommandation.ration_kg_jour} kg/jour
               </Text>
               {recommandation.proteine_pourcent && (
-                <Text style={styles.recommendationText}>
+                <Text style={[styles.recommendationText, { color: colors.textSecondary }]}>
                   Protéines: {recommandation.proteine_pourcent}%
                 </Text>
               )}
@@ -200,21 +211,21 @@ export default function RationCalculatorComponent() {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Ingrédients</Text>
             <TouchableOpacity
-              style={styles.addButton}
+              style={[styles.addButton, { backgroundColor: colors.primary }]}
               onPress={() => setModalIngredientVisible(true)}
             >
-              <Text style={styles.addButtonText}>+ Ajouter</Text>
+              <Text style={[styles.addButtonText, { color: colors.background }]}>+ Ajouter</Text>
             </TouchableOpacity>
           </View>
 
           {ingredients.length === 0 ? (
-            <View style={styles.emptyIngredients}>
-              <Text style={styles.emptyText}>Aucun ingrédient disponible</Text>
+            <View style={[styles.emptyIngredients, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Aucun ingrédient disponible</Text>
               <TouchableOpacity
-                style={styles.addButton}
+                style={[styles.addButton, { backgroundColor: colors.primary }]}
                 onPress={() => setModalIngredientVisible(true)}
               >
-                <Text style={styles.addButtonText}>+ Créer un ingrédient</Text>
+                <Text style={[styles.addButtonText, { color: colors.background }]}>+ Créer un ingrédient</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -224,10 +235,10 @@ export default function RationCalculatorComponent() {
                   (sel) => sel.ingredient_id === ingredient.id
                 );
                 return (
-                  <View key={ingredient.id} style={styles.ingredientRow}>
+                  <View key={ingredient.id} style={[styles.ingredientRow, { backgroundColor: colors.surface }]}>
                     <View style={styles.ingredientInfo}>
-                      <Text style={styles.ingredientName}>{ingredient.nom}</Text>
-                      <Text style={styles.ingredientPrice}>
+                      <Text style={[styles.ingredientName, { color: colors.text }]}>{ingredient.nom}</Text>
+                      <Text style={[styles.ingredientPrice, { color: colors.textSecondary }]}>
                         {new Intl.NumberFormat('fr-FR', {
                           style: 'currency',
                           currency: 'XOF',
@@ -246,13 +257,13 @@ export default function RationCalculatorComponent() {
                         keyboardType="decimal-pad"
                         style={styles.quantiteInput}
                       />
-                      <Text style={styles.uniteLabel}>{ingredient.unite}</Text>
+                      <Text style={[styles.uniteLabel, { color: colors.textSecondary }]}>{ingredient.unite}</Text>
                       {selected && selected.quantite > 0 && (
                         <TouchableOpacity
-                          style={styles.removeButton}
+                          style={[styles.removeButton, { backgroundColor: colors.error }]}
                           onPress={() => handleRemoveIngredient(ingredient.id)}
                         >
-                          <Text style={styles.removeButtonText}>✕</Text>
+                          <Text style={[styles.removeButtonText, { color: colors.background }]}>✕</Text>
                         </TouchableOpacity>
                       )}
                     </View>
@@ -265,23 +276,27 @@ export default function RationCalculatorComponent() {
 
         {/* Bouton calculer */}
         <TouchableOpacity
-          style={[styles.calculateButton, (!poidsKg || selectedIngredients.length === 0) && styles.calculateButtonDisabled]}
+          style={[
+            styles.calculateButton,
+            { backgroundColor: colors.primary },
+            (!poidsKg || selectedIngredients.length === 0) && { backgroundColor: colors.textSecondary, opacity: 0.5 }
+          ]}
           onPress={handleCalculate}
           disabled={!poidsKg || selectedIngredients.length === 0 || calculating}
         >
-          <Text style={styles.calculateButtonText}>
+          <Text style={[styles.calculateButtonText, { color: colors.background }]}>
             {calculating ? 'Calcul...' : 'Calculer la ration'}
           </Text>
         </TouchableOpacity>
 
         {/* Résultats */}
         {result && (
-          <View style={styles.resultContainer}>
-            <Text style={styles.resultTitle}>Résultats</Text>
+          <View style={[styles.resultContainer, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.resultTitle, { color: colors.text }]}>Résultats</Text>
 
             <View style={styles.resultItem}>
-              <Text style={styles.resultLabel}>Coût total:</Text>
-              <Text style={styles.resultValue}>
+              <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>Coût total:</Text>
+              <Text style={[styles.resultValue, { color: colors.primary }]}>
                 {new Intl.NumberFormat('fr-FR', {
                   style: 'currency',
                   currency: 'XOF',
@@ -290,8 +305,8 @@ export default function RationCalculatorComponent() {
             </View>
 
             <View style={styles.resultItem}>
-              <Text style={styles.resultLabel}>Coût par kg:</Text>
-              <Text style={styles.resultValue}>
+              <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>Coût par kg:</Text>
+              <Text style={[styles.resultValue, { color: colors.primary }]}>
                 {new Intl.NumberFormat('fr-FR', {
                   style: 'currency',
                   currency: 'XOF',
@@ -299,11 +314,11 @@ export default function RationCalculatorComponent() {
               </Text>
             </View>
 
-            <View style={styles.ingredientsList}>
-              <Text style={styles.resultLabel}>Ingrédients requis:</Text>
+            <View style={[styles.ingredientsList, { borderTopColor: colors.border }]}>
+              <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>Ingrédients requis:</Text>
               {result.ingredients.map((ing, index) => (
                 <View key={index} style={styles.ingredientResult}>
-                  <Text style={styles.ingredientResultText}>
+                  <Text style={[styles.ingredientResultText, { color: colors.text }]}>
                     {ing.nom}: {ing.quantite} {ing.unite} (
                     {new Intl.NumberFormat('fr-FR', {
                       style: 'currency',
@@ -316,11 +331,11 @@ export default function RationCalculatorComponent() {
             </View>
 
             <TouchableOpacity
-              style={styles.saveButton}
+              style={[styles.saveButton, { backgroundColor: colors.secondary }]}
               onPress={handleSaveRation}
               disabled={calculating}
             >
-              <Text style={styles.saveButtonText}>Enregistrer la ration</Text>
+              <Text style={[styles.saveButtonText, { color: colors.background }]}>Enregistrer la ration</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -341,15 +356,18 @@ export default function RationCalculatorComponent() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+  },
+  scrollContent: {
+    paddingBottom: SPACING.xxl + 85, // 85px pour la barre de navigation + espace
   },
   content: {
-    padding: SPACING.lg,
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.lg + 10,
+    paddingBottom: SPACING.lg,
   },
   title: {
     fontSize: FONT_SIZES.xxl,
     fontWeight: 'bold',
-    color: COLORS.text,
     marginBottom: SPACING.lg,
   },
   section: {
@@ -364,7 +382,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: FONT_SIZES.lg,
     fontWeight: 'bold',
-    color: COLORS.text,
     marginBottom: SPACING.sm,
   },
   optionsContainer: {
@@ -378,23 +395,11 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.sm,
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.background,
-  },
-  optionSelected: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
   },
   optionText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.text,
-  },
-  optionTextSelected: {
-    color: COLORS.background,
-    fontWeight: '600',
   },
   recommendationBox: {
-    backgroundColor: COLORS.surface,
     padding: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
     marginTop: SPACING.sm,
@@ -402,32 +407,26 @@ const styles = StyleSheet.create({
   recommendationTitle: {
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
-    color: COLORS.text,
     marginBottom: SPACING.xs,
   },
   recommendationText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
   },
   emptyIngredients: {
     alignItems: 'center',
     padding: SPACING.lg,
-    backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.md,
   },
   emptyText: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
     marginBottom: SPACING.md,
   },
   addButton: {
-    backgroundColor: COLORS.primary,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
     borderRadius: BORDER_RADIUS.md,
   },
   addButtonText: {
-    color: COLORS.background,
     fontSize: FONT_SIZES.sm,
     fontWeight: '600',
   },
@@ -435,7 +434,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: COLORS.surface,
     padding: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
     marginBottom: SPACING.sm,
@@ -446,12 +444,10 @@ const styles = StyleSheet.create({
   ingredientName: {
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
-    color: COLORS.text,
     marginBottom: SPACING.xs,
   },
   ingredientPrice: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
   },
   ingredientInput: {
     flexDirection: 'row',
@@ -464,10 +460,8 @@ const styles = StyleSheet.create({
   },
   uniteLabel: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
   },
   removeButton: {
-    backgroundColor: COLORS.error,
     width: 24,
     height: 24,
     borderRadius: 12,
@@ -475,28 +469,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   removeButtonText: {
-    color: COLORS.background,
     fontSize: 12,
     fontWeight: 'bold',
   },
   calculateButton: {
-    backgroundColor: COLORS.primary,
     padding: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
     alignItems: 'center',
     marginBottom: SPACING.lg,
   },
-  calculateButtonDisabled: {
-    backgroundColor: COLORS.textSecondary,
-    opacity: 0.5,
-  },
   calculateButtonText: {
-    color: COLORS.background,
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
   },
   resultContainer: {
-    backgroundColor: COLORS.surface,
     padding: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
     marginTop: SPACING.md,
@@ -504,7 +490,6 @@ const styles = StyleSheet.create({
   resultTitle: {
     fontSize: FONT_SIZES.lg,
     fontWeight: 'bold',
-    color: COLORS.text,
     marginBottom: SPACING.md,
   },
   resultItem: {
@@ -514,36 +499,30 @@ const styles = StyleSheet.create({
   },
   resultLabel: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
     fontWeight: '600',
   },
   resultValue: {
     fontSize: FONT_SIZES.md,
     fontWeight: 'bold',
-    color: COLORS.primary,
   },
   ingredientsList: {
     marginTop: SPACING.md,
     paddingTop: SPACING.md,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
   },
   ingredientResult: {
     marginBottom: SPACING.xs,
   },
   ingredientResultText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.text,
   },
   saveButton: {
-    backgroundColor: COLORS.secondary,
     padding: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
     alignItems: 'center',
     marginTop: SPACING.md,
   },
   saveButtonText: {
-    color: COLORS.background,
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
   },

@@ -16,13 +16,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { createProjet } from '../store/slices/projetSlice';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS } from '../constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import { CreateProjetInput } from '../types';
 import Button from '../components/Button';
 import FormField from '../components/FormField';
 import Card from '../components/Card';
 
 export default function CreateProjectScreen() {
+  const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { user } = useAppSelector((state) => state.auth);
   const [loading, setLoading] = useState(false);
@@ -99,7 +101,7 @@ export default function CreateProjectScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -123,20 +125,20 @@ export default function CreateProjectScreen() {
             <View style={styles.content}>
               {/* Header amélioré */}
               <View style={styles.header}>
-                <View style={styles.headerIconContainer}>
+                <View style={[styles.headerIconContainer, { backgroundColor: colors.primaryLight + '15', borderColor: colors.primaryLight + '30' }]}>
                   <Text style={styles.headerIcon}>🏡</Text>
                 </View>
-                <Text style={styles.title}>Créer votre ferme</Text>
-                <Text style={styles.subtitle}>
+                <Text style={[styles.title, { color: colors.text }]}>Créer votre ferme</Text>
+                <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                   Remplissez les informations de base pour démarrer la gestion de votre élevage
                 </Text>
               </View>
 
               {/* Section Informations générales */}
               <Card elevation="small" padding="large" style={styles.sectionCard}>
-                <View style={styles.sectionHeader}>
+                <View style={[styles.sectionHeader, { borderBottomColor: colors.primaryLight + '30' }]}>
                   <Text style={styles.sectionIcon}>📋</Text>
-                  <Text style={styles.sectionTitle}>Informations générales</Text>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Informations générales</Text>
                 </View>
                 <View style={styles.formSection}>
                   <FormField
@@ -159,9 +161,9 @@ export default function CreateProjectScreen() {
 
               {/* Section Effectifs */}
               <Card elevation="small" padding="large" style={styles.sectionCard}>
-                <View style={styles.sectionHeader}>
+                <View style={[styles.sectionHeader, { borderBottomColor: colors.primaryLight + '30' }]}>
                   <Text style={styles.sectionIcon}>🐷</Text>
-                  <Text style={styles.sectionTitle}>Effectifs initiaux</Text>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Effectifs initiaux</Text>
                 </View>
                 <View style={styles.formSection}>
                   <View style={styles.row}>
@@ -206,9 +208,9 @@ export default function CreateProjectScreen() {
 
               {/* Section Statistiques */}
               <Card elevation="small" padding="large" style={styles.sectionCard}>
-                <View style={styles.sectionHeader}>
+                <View style={[styles.sectionHeader, { borderBottomColor: colors.primaryLight + '30' }]}>
                   <Text style={styles.sectionIcon}>📊</Text>
-                  <Text style={styles.sectionTitle}>Statistiques moyennes</Text>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Statistiques moyennes</Text>
                 </View>
                 <View style={styles.formSection}>
                   <View style={styles.row}>
@@ -242,9 +244,9 @@ export default function CreateProjectScreen() {
 
               {/* Section Notes */}
               <Card elevation="small" padding="large" style={styles.sectionCard}>
-                <View style={styles.sectionHeader}>
+                <View style={[styles.sectionHeader, { borderBottomColor: colors.primaryLight + '30' }]}>
                   <Text style={styles.sectionIcon}>📝</Text>
-                  <Text style={styles.sectionTitle}>Notes supplémentaires</Text>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Notes supplémentaires</Text>
                 </View>
                 <View style={styles.formSection}>
                   <FormField
@@ -280,7 +282,6 @@ export default function CreateProjectScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
   keyboardView: {
     flex: 1,
@@ -306,12 +307,10 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: COLORS.primaryLight + '15',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: SPACING.md,
     borderWidth: 3,
-    borderColor: COLORS.primaryLight + '30',
   },
   headerIcon: {
     fontSize: 40,
@@ -319,13 +318,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FONT_SIZES.xxxl,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.text,
     marginBottom: SPACING.sm,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
     fontWeight: FONT_WEIGHTS.medium,
     lineHeight: 22,
     textAlign: 'center',
@@ -340,7 +337,6 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
     paddingBottom: SPACING.sm,
     borderBottomWidth: 2,
-    borderBottomColor: COLORS.primaryLight + '30',
   },
   sectionIcon: {
     fontSize: FONT_SIZES.xl,
@@ -349,7 +345,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: FONT_SIZES.lg,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.text,
   },
   formSection: {
     marginTop: SPACING.md,

@@ -2,8 +2,8 @@
  * Composant liste des gestations avec alertes
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import {
   loadGestations,
@@ -13,18 +13,23 @@ import {
 } from '../store/slices/reproductionSlice';
 import { Gestation } from '../types';
 import { doitGenererAlerte, joursRestantsAvantMiseBas } from '../types/reproduction';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';
 import LoadingSpinner from './LoadingSpinner';
 import GestationFormModal from './GestationFormModal';
 import StatCard from './StatCard';
 
 export default function GestationsListComponent() {
+  const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { gestations, loading } = useAppSelector((state) => state.reproduction);
   const [selectedGestation, setSelectedGestation] = useState<Gestation | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [displayedGestations, setDisplayedGestations] = useState<Gestation[]>([]);
+  const [page, setPage] = useState(1);
+  const ITEMS_PER_PAGE = 50;
 
   useEffect(() => {
     dispatch(loadGestations());
@@ -39,6 +44,30 @@ export default function GestationsListComponent() {
   const alertes = useMemo(() => {
     return gestationsEnCours.filter((g) => doitGenererAlerte(g.date_mise_bas_prevue));
   }, [gestationsEnCours]);
+
+  // Pagination: charger les premières gestations
+  useEffect(() => {
+    const initial = gestations.slice(0, ITEMS_PER_PAGE);
+    setDisplayedGestations(initial);
+    setPage(1);
+  }, [gestations.length]);
+
+  // Charger plus de gestations
+  const loadMore = useCallback(() => {
+    if (displayedGestations.length >= gestations.length) {
+      return;
+    }
+
+    const nextPage = page + 1;
+    const start = page * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+    const newItems = gestations.slice(start, end);
+
+    if (newItems.length > 0) {
+      setDisplayedGestations((prev) => [...prev, ...newItems]);
+      setPage(nextPage);
+    }
+  }, [page, displayedGestations.length, gestations]);
 
   const handleEdit = (gestation: Gestation) => {
     setSelectedGestation(gestation);
@@ -109,13 +138,13 @@ export default function GestationsListComponent() {
   const getStatusColor = (statut: string) => {
     switch (statut) {
       case 'en_cours':
-        return COLORS.success;
+        return colors.success;
       case 'terminee':
-        return COLORS.textSecondary;
+        return colors.textSecondary;
       case 'annulee':
-        return COLORS.error;
+        return colors.error;
       default:
-        return COLORS.textSecondary;
+        return colors.textSecondary;
     }
   };
 
@@ -153,37 +182,37 @@ export default function GestationsListComponent() {
       </View>
 
       {/* Statistiques */}
-      <View style={styles.statsContainer}>
+      <View style={[styles.statsContainer, { backgroundColor: colors.surface }]}>
         <StatCard
           value={gestationsEnCours.length}
           label="En cours"
-          valueColor={COLORS.primary}
+          valueColor={colors.primary}
         />
         <StatCard
           value={alertes.length}
           label="Alertes"
-          valueColor={COLORS.warning}
+          valueColor={colors.warning}
         />
         <StatCard
           value={gestations.filter((g) => g.statut === 'terminee').length}
           label="Terminées"
-          valueColor={COLORS.textSecondary}
+          valueColor={colors.textSecondary}
         />
       </View>
 
       {/* Alertes */}
       {alertes.length > 0 && (
-        <View style={styles.alertesContainer}>
-          <Text style={styles.alertesTitle}>🔔 Alertes</Text>
+        <View style={[styles.alertesContainer, { backgroundColor: colors.warning + '20' }]}>
+          <Text style={[styles.alertesTitle, { color: colors.text }]}>🔔 Alertes</Text>
           {alertes.map((gestation) => {
             const joursRestants = joursRestantsAvantMiseBas(gestation.date_mise_bas_prevue);
             return (
-              <View key={gestation.id} style={styles.alerteCard}>
-                <Text style={styles.alerteText}>
+              <View key={gestation.id} style={[styles.alerteCard, { backgroundColor: colors.background }]}>
+                <Text style={[styles.alerteText, { color: colors.warning }]}>
                   ⚠️ Mise bas prévue dans {joursRestants} jour{joursRestants > 1 ? 's' : ''} pour{' '}
                   {gestation.truie_nom || gestation.truie_id}
                 </Text>
-                <Text style={styles.alerteDate}>
+                <Text style={[styles.alerteDate, { color: colors.textSecondary }]}>
                   Date prévue: {formatDate(gestation.date_mise_bas_prevue)}
                 </Text>
               </View>
@@ -192,37 +221,35 @@ export default function GestationsListComponent() {
         </View>
       )}
 
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {gestations.length === 0 ? (
-          <EmptyState
-            title="Aucune gestation enregistrée"
-            message="Ajoutez votre première gestation pour commencer"
-            action={
-              <TouchableOpacity
-                style={styles.addButton}
-                onPress={() => {
-                  setSelectedGestation(null);
-                  setIsEditing(false);
-                  setModalVisible(true);
-                }}
-              >
-                <Text style={styles.addButtonText}>+ Nouvelle gestation</Text>
-              </TouchableOpacity>
-            }
-          />
-        ) : (
-          gestations.map((gestation) => (
-            <View key={gestation.id} style={styles.card}>
+      {gestations.length === 0 ? (
+        <EmptyState
+          title="Aucune gestation enregistrée"
+          message="Ajoutez votre première gestation pour commencer"
+          action={
+            <TouchableOpacity
+              style={[styles.addButton, { backgroundColor: colors.primary }]}
+              onPress={() => {
+                setSelectedGestation(null);
+                setIsEditing(false);
+                setModalVisible(true);
+              }}
+            >
+              <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Nouvelle gestation</Text>
+            </TouchableOpacity>
+          }
+        />
+      ) : (
+        <FlatList
+          data={displayedGestations}
+          renderItem={({ item: gestation }) => (
+            <View style={[styles.card, { backgroundColor: colors.surface, ...colors.shadow.small }]}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderLeft}>
-                  <Text style={styles.cardTitle}>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>
                     {gestation.truie_nom || gestation.truie_id}
                   </Text>
                   <View style={[styles.statusBadge, { backgroundColor: getStatusColor(gestation.statut), marginLeft: SPACING.sm }]}>
-                    <Text style={styles.statusText}>{getStatusLabel(gestation.statut)}</Text>
+                    <Text style={[styles.statusText, { color: colors.textOnPrimary }]}>{getStatusLabel(gestation.statut)}</Text>
                   </View>
                 </View>
                 <View style={styles.cardActions}>
@@ -251,36 +278,36 @@ export default function GestationsListComponent() {
 
               <View style={styles.cardContent}>
                 <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Date de sautage:</Text>
-                  <Text style={styles.infoValue}>{formatDate(gestation.date_sautage)}</Text>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Date de sautage:</Text>
+                  <Text style={[styles.infoValue, { color: colors.text }]}>{formatDate(gestation.date_sautage)}</Text>
                 </View>
                 <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Mise bas prévue:</Text>
-                  <Text style={[styles.infoValue, styles.highlight]}>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Mise bas prévue:</Text>
+                  <Text style={[styles.infoValue, styles.highlight, { color: colors.primary }]}>
                     {formatDate(gestation.date_mise_bas_prevue)}
                   </Text>
                 </View>
                 {gestation.date_mise_bas_reelle && (
                   <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Mise bas réelle:</Text>
-                    <Text style={styles.infoValue}>
+                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Mise bas réelle:</Text>
+                    <Text style={[styles.infoValue, { color: colors.text }]}>
                       {formatDate(gestation.date_mise_bas_reelle)}
                     </Text>
                   </View>
                 )}
                 <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Porcelets prévus:</Text>
-                  <Text style={styles.infoValue}>{gestation.nombre_porcelets_prevu}</Text>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Porcelets prévus:</Text>
+                  <Text style={[styles.infoValue, { color: colors.text }]}>{gestation.nombre_porcelets_prevu}</Text>
                 </View>
                 {gestation.nombre_porcelets_reel && (
                   <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Porcelets réels:</Text>
-                    <Text style={styles.infoValue}>{gestation.nombre_porcelets_reel}</Text>
+                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Porcelets réels:</Text>
+                    <Text style={[styles.infoValue, { color: colors.text }]}>{gestation.nombre_porcelets_reel}</Text>
                   </View>
                 )}
                 {gestation.statut === 'en_cours' && (
-                  <View style={styles.daysRemaining}>
-                    <Text style={styles.daysRemainingText}>
+                  <View style={[styles.daysRemaining, { backgroundColor: colors.primary + '20' }]}>
+                    <Text style={[styles.daysRemainingText, { color: colors.primary }]}>
                       {joursRestantsAvantMiseBas(gestation.date_mise_bas_prevue)} jour
                       {joursRestantsAvantMiseBas(gestation.date_mise_bas_prevue) > 1 ? 's' : ''}{' '}
                       restant{joursRestantsAvantMiseBas(gestation.date_mise_bas_prevue) > 1 ? 's' : ''}
@@ -288,16 +315,32 @@ export default function GestationsListComponent() {
                   </View>
                 )}
                 {gestation.notes && (
-                  <View style={styles.notesContainer}>
-                    <Text style={styles.notesLabel}>Notes:</Text>
-                    <Text style={styles.notesText}>{gestation.notes}</Text>
+                  <View style={[styles.notesContainer, { borderTopColor: colors.border }]}>
+                    <Text style={[styles.notesLabel, { color: colors.textSecondary }]}>Notes:</Text>
+                    <Text style={[styles.notesText, { color: colors.text }]}>{gestation.notes}</Text>
                   </View>
                 )}
               </View>
             </View>
-          ))
-        )}
-      </ScrollView>
+          )}
+          keyExtractor={(item) => item.id}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          // Optimisations de performance
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          initialNumToRender={10}
+          updateCellsBatchingPeriod={50}
+          ListFooterComponent={
+            displayedGestations.length < gestations.length ? (
+              <LoadingSpinner message="Chargement..." />
+            ) : null
+          }
+        />
+      )}
 
       <GestationFormModal
         visible={modalVisible}
@@ -313,7 +356,6 @@ export default function GestationsListComponent() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: 'row',
@@ -322,21 +364,17 @@ const styles = StyleSheet.create({
     padding: SPACING.lg,
     paddingTop: SPACING.md + 10,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
   title: {
     fontSize: FONT_SIZES.xl,
     fontWeight: 'bold',
-    color: COLORS.text,
   },
   addButton: {
-    backgroundColor: COLORS.primary,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
     borderRadius: BORDER_RADIUS.md,
   },
   addButtonText: {
-    color: COLORS.background,
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
   },
@@ -344,20 +382,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     padding: SPACING.md,
-    backgroundColor: COLORS.surface,
   },
   alertesContainer: {
     padding: SPACING.md,
-    backgroundColor: COLORS.warning + '20',
   },
   alertesTitle: {
     fontSize: FONT_SIZES.lg,
     fontWeight: 'bold',
-    color: COLORS.text,
     marginBottom: SPACING.sm,
   },
   alerteCard: {
-    backgroundColor: COLORS.background,
     padding: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
     marginBottom: SPACING.sm,
@@ -365,12 +399,10 @@ const styles = StyleSheet.create({
   alerteText: {
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
-    color: COLORS.warning,
     marginBottom: SPACING.xs,
   },
   alerteDate: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
   },
   scrollView: {
     flex: 1,
@@ -381,15 +413,9 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.xxl + 85, // 85px pour la barre de navigation + espace
   },
   card: {
-    backgroundColor: COLORS.surface,
     margin: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -405,7 +431,6 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: FONT_SIZES.lg,
     fontWeight: 'bold',
-    color: COLORS.text,
     flex: 1,
   },
   statusBadge: {
@@ -415,7 +440,6 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.background,
     fontWeight: '600',
   },
   cardActions: {
@@ -437,44 +461,36 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
     fontWeight: '600',
   },
   infoValue: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.text,
   },
   highlight: {
     fontWeight: 'bold',
-    color: COLORS.primary,
   },
   daysRemaining: {
     marginTop: SPACING.sm,
     padding: SPACING.sm,
-    backgroundColor: COLORS.primary + '20',
     borderRadius: BORDER_RADIUS.sm,
   },
   daysRemainingText: {
     fontSize: FONT_SIZES.sm,
     fontWeight: '600',
-    color: COLORS.primary,
     textAlign: 'center',
   },
   notesContainer: {
     marginTop: SPACING.sm,
     paddingTop: SPACING.sm,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
   },
   notesLabel: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
     fontWeight: '600',
     marginBottom: SPACING.xs,
   },
   notesText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.text,
     fontStyle: 'italic',
   },
 });

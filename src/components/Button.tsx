@@ -4,7 +4,8 @@
 
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle, ActivityIndicator } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, TRANSITIONS } from '../constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, TRANSITIONS } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface ButtonProps {
   title: string;
@@ -31,21 +32,32 @@ export default function Button({
   style,
   textStyle,
 }: ButtonProps) {
+  const { colors } = useTheme();
+  
   const getButtonStyle = (): ViewStyle[] => {
     const baseStyle: ViewStyle[] = [styles.button, styles[size]];
     
     switch (variant) {
       case 'primary':
-        baseStyle.push(styles.primary);
+        baseStyle.push({ backgroundColor: colors.primary });
         break;
       case 'secondary':
-        baseStyle.push(styles.secondary);
+        baseStyle.push({ backgroundColor: colors.secondary });
         break;
       case 'outline':
-        baseStyle.push(styles.outline);
+        baseStyle.push({
+          backgroundColor: 'transparent',
+          borderWidth: 1.5,
+          borderColor: colors.primary,
+          ...colors.shadow.small,
+        });
         break;
       case 'text':
-        baseStyle.push(styles.text);
+        baseStyle.push({
+          backgroundColor: 'transparent',
+          shadowOpacity: 0,
+          elevation: 0,
+        });
         break;
     }
     
@@ -66,18 +78,16 @@ export default function Button({
     switch (variant) {
       case 'primary':
       case 'secondary':
-        baseStyle.push(styles.textOnPrimary);
+        baseStyle.push({ color: colors.textOnPrimary });
         break;
       case 'outline':
-        baseStyle.push(styles.textOnOutline);
-        break;
       case 'text':
-        baseStyle.push(styles.textOnText);
+        baseStyle.push({ color: colors.primary });
         break;
     }
     
     if (disabled || loading) {
-      baseStyle.push(styles.textDisabled);
+      baseStyle.push({ opacity: 0.6 });
     }
     
     return baseStyle;
@@ -85,7 +95,7 @@ export default function Button({
 
   return (
     <TouchableOpacity
-      style={[...getButtonStyle(), style]}
+      style={[...getButtonStyle(), { ...colors.shadow.small }, style]}
       onPress={onPress}
       disabled={disabled || loading}
       activeOpacity={TRANSITIONS.opacity.pressed}
@@ -93,7 +103,7 @@ export default function Button({
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={variant === 'primary' || variant === 'secondary' ? COLORS.textOnPrimary : COLORS.primary}
+          color={variant === 'primary' || variant === 'secondary' ? colors.textOnPrimary : colors.primary}
         />
       ) : (
         <>
@@ -111,7 +121,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: BORDER_RADIUS.md,
-    ...COLORS.shadow.small,
   },
   // Tailles
   small: {
@@ -128,24 +137,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.xl,
     paddingVertical: SPACING.md,
     minHeight: 52,
-  },
-  // Variantes
-  primary: {
-    backgroundColor: COLORS.primary,
-  },
-  secondary: {
-    backgroundColor: COLORS.secondary,
-  },
-  outline: {
-    backgroundColor: 'transparent',
-    borderWidth: 1.5,
-    borderColor: COLORS.primary,
-    ...COLORS.shadow.small,
-  },
-  text: {
-    backgroundColor: 'transparent',
-    shadowOpacity: 0,
-    elevation: 0,
   },
   disabled: {
     opacity: TRANSITIONS.opacity.disabled,
@@ -166,18 +157,6 @@ const styles = StyleSheet.create({
   },
   largeText: {
     fontSize: FONT_SIZES.lg,
-  },
-  textOnPrimary: {
-    color: COLORS.textOnPrimary,
-  },
-  textOnOutline: {
-    color: COLORS.primary,
-  },
-  textOnText: {
-    color: COLORS.primary,
-  },
-  textDisabled: {
-    opacity: 0.6,
   },
 });
 

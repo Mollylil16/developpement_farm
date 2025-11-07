@@ -14,6 +14,8 @@ import reportsReducer from './slices/reportsSlice';
 import mortalitesReducer from './slices/mortalitesSlice';
 import planificationReducer from './slices/planificationSlice';
 import collaborationReducer from './slices/collaborationSlice';
+import stocksReducer from './slices/stocksSlice';
+import productionReducer from './slices/productionSlice';
 // Configuration de la persistance
 const persistConfig = {
   key: 'root',
@@ -28,6 +30,8 @@ const rootReducer = combineReducers({
   finance: financeReducer,
   reproduction: reproductionReducer,
   nutrition: nutritionReducer,
+  stocks: stocksReducer,
+  production: productionReducer,
   reports: reportsReducer,
   mortalites: mortalitesReducer,
   planification: planificationReducer,

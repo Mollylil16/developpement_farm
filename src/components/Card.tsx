@@ -4,7 +4,8 @@
 
 import React from 'react';
 import { View, StyleSheet, ViewStyle, TouchableOpacity } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, TRANSITIONS } from '../constants/theme';
+import { SPACING, BORDER_RADIUS, TRANSITIONS } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface CardProps {
   children: React.ReactNode;
@@ -21,11 +22,13 @@ export default function Card({
   elevation = 'medium',
   padding = 'medium',
 }: CardProps) {
+  const { colors } = useTheme();
+  
   // Mapping explicite pour éviter les erreurs TypeScript
-  const elevationMap: Record<'small' | 'medium' | 'large', keyof typeof styles> = {
-    small: 'elevationSmall',
-    medium: 'elevationMedium',
-    large: 'elevationLarge',
+  const elevationMap: Record<'small' | 'medium' | 'large', any> = {
+    small: colors.shadow.small,
+    medium: colors.shadow.medium,
+    large: colors.shadow.large,
   };
 
   const paddingMap: Record<'none' | 'small' | 'medium' | 'large', keyof typeof styles> = {
@@ -37,7 +40,11 @@ export default function Card({
 
   const cardStyle = [
     styles.card,
-    styles[elevationMap[elevation]],
+    {
+      backgroundColor: colors.surface,
+      borderColor: colors.borderLight,
+      ...elevationMap[elevation],
+    },
     styles[paddingMap[padding]],
     style,
   ];
@@ -59,19 +66,8 @@ export default function Card({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
-    borderColor: COLORS.borderLight,
-  },
-  elevationSmall: {
-    ...COLORS.shadow.small,
-  },
-  elevationMedium: {
-    ...COLORS.shadow.medium,
-  },
-  elevationLarge: {
-    ...COLORS.shadow.large,
   },
   paddingNone: {
     padding: 0,

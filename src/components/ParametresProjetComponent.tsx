@@ -12,12 +12,14 @@ import {
   loadProjetActif,
 } from '../store/slices/projetSlice';
 import { Projet } from '../types';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import LoadingSpinner from './LoadingSpinner';
 import EmptyState from './EmptyState';
 import FormField from './FormField';
 
 export default function ParametresProjetComponent() {
+  const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif, projets, loading } = useAppSelector((state) => state.projet);
   const [isEditing, setIsEditing] = useState(false);
@@ -92,53 +94,74 @@ export default function ParametresProjetComponent() {
 
   return (
     <ScrollView 
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
     >
       {/* Projet actif */}
       {projetActif && (
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionIcon}>📋</Text>
-            <Text style={styles.sectionTitle}>Projet Actif</Text>
-          </View>
-          <View style={styles.card}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Projet Actif</Text>
+          <View style={[
+            styles.card,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              ...colors.shadow.small,
+            },
+          ]}>
             <View style={styles.cardHeader}>
-              <View style={styles.cardHeaderIcon}>
-                <Text style={styles.cardHeaderIconText}>🐷</Text>
-              </View>
               <View style={styles.cardHeaderContent}>
-                <Text style={styles.cardTitle}>{projetActif.nom}</Text>
-                <Text style={styles.cardSubtitle}>{projetActif.localisation}</Text>
+                <Text style={[styles.cardTitle, { color: colors.text }]}>{projetActif.nom}</Text>
+                <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>{projetActif.localisation}</Text>
               </View>
             </View>
             {!isEditing ? (
               <>
-                <View style={styles.divider} />
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
                 <View style={styles.statsRow}>
-                  <View style={styles.statCard}>
-                    <Text style={styles.statIcon}>🐷</Text>
-                    <Text style={styles.statValue}>{projetActif.nombre_truies}</Text>
-                    <Text style={styles.statLabel}>Truies</Text>
+                  <View style={[
+                    styles.statCard,
+                    {
+                      backgroundColor: colors.background,
+                      borderColor: colors.border,
+                    },
+                  ]}>
+                    <Text style={[styles.statValue, { color: colors.text }]}>{projetActif.nombre_truies}</Text>
+                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Truies</Text>
                   </View>
-                  <View style={styles.statCard}>
-                    <Text style={styles.statIcon}>🐗</Text>
-                    <Text style={styles.statValue}>{projetActif.nombre_verrats}</Text>
-                    <Text style={styles.statLabel}>Verrats</Text>
+                  <View style={[
+                    styles.statCard,
+                    {
+                      backgroundColor: colors.background,
+                      borderColor: colors.border,
+                    },
+                  ]}>
+                    <Text style={[styles.statValue, { color: colors.text }]}>{projetActif.nombre_verrats}</Text>
+                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Verrats</Text>
                   </View>
-                  <View style={styles.statCard}>
-                    <Text style={styles.statIcon}>🐽</Text>
-                    <Text style={styles.statValue}>{projetActif.nombre_porcelets}</Text>
-                    <Text style={styles.statLabel}>Porcelets</Text>
+                  <View style={[
+                    styles.statCard,
+                    {
+                      backgroundColor: colors.background,
+                      borderColor: colors.border,
+                    },
+                  ]}>
+                    <Text style={[styles.statValue, { color: colors.text }]}>{projetActif.nombre_porcelets}</Text>
+                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Porcelets</Text>
                   </View>
                 </View>
                 <TouchableOpacity
-                  style={styles.editButton}
+                  style={[
+                    styles.editButton,
+                    {
+                      backgroundColor: colors.primary,
+                    },
+                  ]}
                   onPress={() => setIsEditing(true)}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.editButtonIcon}>✏️</Text>
-                  <Text style={styles.editButtonText}>Modifier le projet</Text>
+                  <Text style={[styles.editButtonText, { color: colors.textOnPrimary }]}>Modifier</Text>
                 </TouchableOpacity>
               </>
             ) : (
@@ -201,16 +224,22 @@ export default function ParametresProjetComponent() {
                 />
                 <View style={styles.editActions}>
                   <TouchableOpacity
-                    style={[styles.actionButton, styles.cancelButton]}
+                    style={[
+                      styles.actionButton,
+                      { backgroundColor: colors.textSecondary },
+                    ]}
                     onPress={() => setIsEditing(false)}
                   >
-                    <Text style={styles.cancelButtonText}>Annuler</Text>
+                    <Text style={[styles.cancelButtonText, { color: colors.textOnPrimary }]}>Annuler</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.actionButton, styles.saveButton]}
+                    style={[
+                      styles.actionButton,
+                      { backgroundColor: colors.primary },
+                    ]}
                     onPress={handleSaveEdit}
                   >
-                    <Text style={styles.saveButtonText}>Enregistrer</Text>
+                    <Text style={[styles.saveButtonText, { color: colors.textOnPrimary }]}>Enregistrer</Text>
                   </TouchableOpacity>
                 </View>
               </>
@@ -221,10 +250,7 @@ export default function ParametresProjetComponent() {
 
       {/* Liste des projets */}
       <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionIcon}>📁</Text>
-          <Text style={styles.sectionTitle}>Autres Projets</Text>
-        </View>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Autres Projets</Text>
         {projets.length === 0 ? (
           <EmptyState title="Aucun autre projet" message="Créez d'autres projets pour les gérer ici" />
         ) : (
@@ -233,29 +259,40 @@ export default function ParametresProjetComponent() {
             .map((projet) => (
               <TouchableOpacity
                 key={projet.id}
-                style={styles.projetCard}
+                style={[
+                  styles.projetCard,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    ...colors.shadow.small,
+                  },
+                ]}
                 onPress={() => handleSwitchProjet(projet.id)}
                 activeOpacity={0.7}
               >
-                <View style={styles.projetCardIcon}>
-                  <Text style={styles.projetCardIconText}>🐷</Text>
-                </View>
                 <View style={styles.projetCardContent}>
-                  <Text style={styles.projetCardTitle}>{projet.nom}</Text>
-                  <Text style={styles.projetCardLocation}>📍 {projet.localisation}</Text>
-                  <View style={styles.projetCardBadge}>
+                  <View style={styles.projetCardHeader}>
+                    <Text style={[styles.projetCardTitle, { color: colors.text }]}>{projet.nom}</Text>
                     <View style={[
                       styles.badge,
-                      projet.statut === 'actif' ? styles.badgeActive : styles.badgeArchived
+                      projet.statut === 'actif' 
+                        ? { backgroundColor: colors.success + '15' }
+                        : { backgroundColor: colors.textSecondary + '15' }
                     ]}>
-                      <Text style={styles.badgeText}>
-                        {projet.statut === 'actif' ? '✓ Actif' : '📦 Archivé'}
+                      <Text style={[
+                        styles.badgeText, 
+                        { 
+                          color: projet.statut === 'actif' ? colors.success : colors.textSecondary 
+                        }
+                      ]}>
+                        {projet.statut === 'actif' ? 'Actif' : 'Archivé'}
                       </Text>
                     </View>
                   </View>
+                  <Text style={[styles.projetCardLocation, { color: colors.textSecondary }]}>{projet.localisation}</Text>
                 </View>
-                <View style={styles.switchIconContainer}>
-                  <Text style={styles.switchIcon}>→</Text>
+                <View style={[styles.switchIconContainer, { backgroundColor: colors.primary + '10' }]}>
+                  <Text style={[styles.switchIcon, { color: colors.primary }]}>›</Text>
                 </View>
               </TouchableOpacity>
             ))
@@ -268,7 +305,6 @@ export default function ParametresProjetComponent() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
   scrollContent: {
     paddingBottom: SPACING.xxl + 85, // 85px pour la barre de navigation + espace
@@ -277,46 +313,20 @@ const styles = StyleSheet.create({
     padding: SPACING.xl,
     paddingTop: SPACING.lg + 10,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: SPACING.lg,
-  },
-  sectionIcon: {
-    fontSize: 28,
-    marginRight: SPACING.sm,
-  },
   sectionTitle: {
-    fontSize: FONT_SIZES.xl,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    letterSpacing: 0.3,
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '600',
+    marginBottom: SPACING.md,
+    letterSpacing: 0.2,
   },
   card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.xl,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.lg,
     marginBottom: SPACING.md,
-    ...COLORS.shadow.medium,
-    borderWidth: 2,
-    borderColor: COLORS.primary + '20',
+    borderWidth: 1,
   },
   cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
     marginBottom: SPACING.md,
-  },
-  cardHeaderIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: COLORS.primary + '15',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: SPACING.md,
-  },
-  cardHeaderIconText: {
-    fontSize: 32,
   },
   cardHeaderContent: {
     flex: 1,
@@ -324,16 +334,13 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: FONT_SIZES.xl,
     fontWeight: 'bold',
-    color: COLORS.text,
     marginBottom: SPACING.xs,
   },
   cardSubtitle: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
   },
   divider: {
     height: 1,
-    backgroundColor: COLORS.border,
     marginVertical: SPACING.lg,
   },
   infoRow: {
@@ -343,60 +350,45 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
     fontWeight: '500',
   },
   value: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.text,
     fontWeight: '600',
   },
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.lg,
+    gap: SPACING.sm,
   },
   statCard: {
     flex: 1,
-    backgroundColor: COLORS.primary + '08',
-    borderRadius: BORDER_RADIUS.md,
+    borderRadius: BORDER_RADIUS.sm,
     padding: SPACING.md,
     alignItems: 'center',
-    marginHorizontal: SPACING.xs,
     borderWidth: 1,
-    borderColor: COLORS.primary + '15',
-  },
-  statIcon: {
-    fontSize: 24,
-    marginBottom: SPACING.xs,
   },
   statValue: {
-    fontSize: FONT_SIZES.xxl,
-    fontWeight: 'bold',
-    color: COLORS.primary,
+    fontSize: FONT_SIZES.xl,
+    fontWeight: '700',
     marginBottom: SPACING.xs / 2,
   },
   statLabel: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.textSecondary,
-    fontWeight: '600',
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   editButton: {
-    backgroundColor: COLORS.primary,
-    padding: SPACING.md,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
     borderRadius: BORDER_RADIUS.md,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: SPACING.md,
-    ...COLORS.shadow.small,
-  },
-  editButtonIcon: {
-    fontSize: 20,
-    marginRight: SPACING.xs,
+    marginTop: SPACING.sm,
   },
   editButtonText: {
-    color: COLORS.textOnPrimary,
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
   },
@@ -412,91 +404,59 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginHorizontal: SPACING.xs,
   },
-  cancelButton: {
-    backgroundColor: COLORS.textSecondary,
-  },
-  saveButton: {
-    backgroundColor: COLORS.primary,
-  },
   cancelButtonText: {
-    color: COLORS.textOnPrimary,
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
   },
   saveButtonText: {
-    color: COLORS.textOnPrimary,
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
   },
   projetCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.lg,
+    borderRadius: BORDER_RADIUS.md,
     padding: SPACING.lg,
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
     flexDirection: 'row',
     alignItems: 'center',
-    ...COLORS.shadow.medium,
-    borderWidth: 2,
-    borderColor: COLORS.borderLight,
-  },
-  projetCardIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: COLORS.secondary + '20',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: SPACING.md,
-  },
-  projetCardIconText: {
-    fontSize: 24,
+    borderWidth: 1,
   },
   projetCardContent: {
     flex: 1,
   },
-  projetCardTitle: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: 'bold',
-    color: COLORS.text,
+  projetCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: SPACING.xs,
+  },
+  projetCardTitle: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+    flex: 1,
   },
   projetCardLocation: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.sm,
-  },
-  projetCardBadge: {
-    flexDirection: 'row',
   },
   badge: {
     paddingHorizontal: SPACING.sm,
     paddingVertical: SPACING.xs / 2,
     borderRadius: BORDER_RADIUS.sm,
   },
-  badgeActive: {
-    backgroundColor: COLORS.success + '20',
-  },
-  badgeArchived: {
-    backgroundColor: COLORS.textSecondary + '20',
-  },
   badgeText: {
     fontSize: FONT_SIZES.xs,
     fontWeight: '600',
-    color: COLORS.text,
   },
   switchIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.primary + '15',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: SPACING.md,
   },
   switchIcon: {
-    fontSize: FONT_SIZES.lg,
-    color: COLORS.primary,
-    fontWeight: 'bold',
+    fontSize: FONT_SIZES.xl,
+    fontWeight: '300',
   },
 });
 

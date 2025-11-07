@@ -1,9 +1,11 @@
 /**
  * Système de design moderne et convivial
  * Couleurs inspirées des meilleures pratiques UX/UI
+ * Support du mode sombre
  */
 
-export const COLORS = {
+// Couleurs claires (par défaut)
+export const LIGHT_COLORS = {
   // Couleurs principales - Palette verte moderne
   primary: '#2E7D32', // Vert forêt principal
   primaryLight: '#4CAF50', // Vert clair
@@ -62,6 +64,70 @@ export const COLORS = {
     },
   },
 };
+
+// Couleurs sombres
+export const DARK_COLORS = {
+  // Couleurs principales - Palette verte moderne (adaptée pour le dark)
+  primary: '#4CAF50', // Vert plus clair pour le dark
+  primaryLight: '#66BB6A', // Vert clair
+  primaryDark: '#2E7D32', // Vert foncé
+  secondary: '#81C784', // Vert secondaire
+  accent: '#FF9800', // Orange accent (identique)
+  
+  // Couleurs système
+  error: '#EF5350', // Rouge moderne (identique)
+  success: '#66BB6A', // Vert succès
+  warning: '#FFA726', // Orange avertissement
+  info: '#42A5F5', // Bleu information
+  
+  // Arrière-plans
+  background: '#121212', // Fond principal sombre (Material Dark)
+  surface: '#1E1E1E', // Surface des cartes
+  surfaceVariant: '#2C2C2C', // Surface variante
+  
+  // Texte
+  text: '#FFFFFF', // Texte principal (blanc pur pour contraste maximum)
+  textSecondary: '#E0E0E0', // Texte secondaire (plus clair pour meilleure lisibilité)
+  textTertiary: '#B0B0B0', // Texte tertiaire
+  textOnPrimary: '#FFFFFF', // Texte sur fond primaire
+  
+  // Bordures et séparateurs
+  border: '#333333', // Bordure standard
+  borderLight: '#2C2C2C', // Bordure légère
+  divider: '#3A3A3A', // Séparateur
+  
+  // États interactifs
+  overlay: 'rgba(0, 0, 0, 0.7)', // Overlay modal (plus opaque)
+  ripple: 'rgba(76, 175, 80, 0.2)', // Effet ripple
+  
+  // Ombres (moins visibles en dark)
+  shadow: {
+    small: {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.3,
+      shadowRadius: 2,
+      elevation: 2,
+    },
+    medium: {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.4,
+      shadowRadius: 4,
+      elevation: 4,
+    },
+    large: {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.5,
+      shadowRadius: 8,
+      elevation: 8,
+    },
+  },
+};
+
+// Export COLORS par défaut (light) pour compatibilité
+export const COLORS = LIGHT_COLORS;
 
 export const SPACING = {
   xs: 4,

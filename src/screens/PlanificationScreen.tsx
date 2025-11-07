@@ -4,23 +4,28 @@
 
 import React from 'react';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import PlanificationListComponent from '../components/PlanificationListComponent';
 import PlanificationCalendarComponent from '../components/PlanificationCalendarComponent';
-import { COLORS, FONT_SIZES } from '../constants/theme';
+import { FONT_SIZES } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 
 const Tab = createMaterialTopTabNavigator();
 
 export default function PlanificationScreen() {
+  const { colors } = useTheme();
+  
   return (
-    <Tab.Navigator
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'bottom']}>
+      <Tab.Navigator
       screenOptions={{
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.textSecondary,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textSecondary,
         tabBarIndicatorStyle: {
-          backgroundColor: COLORS.primary,
+          backgroundColor: colors.primary,
         },
         tabBarStyle: {
-          backgroundColor: COLORS.background,
+          backgroundColor: colors.background,
         },
         tabBarLabelStyle: {
           fontSize: FONT_SIZES.sm,
@@ -43,6 +48,7 @@ export default function PlanificationScreen() {
         }}
       />
     </Tab.Navigator>
+    </SafeAreaView>
   );
 }
 

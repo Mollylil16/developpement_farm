@@ -2,11 +2,12 @@
  * Écran Dashboard avec Widgets Interactifs (Variante 6D) - Design amélioré
  */
 
-import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Animated } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Animated, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppSelector } from '../store/hooks';
-import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS, BORDER_RADIUS } from '../constants/theme';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS, BORDER_RADIUS } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import EmptyState from '../components/EmptyState';
 import OverviewWidget from '../components/widgets/OverviewWidget';
@@ -14,13 +15,17 @@ import ReproductionWidget from '../components/widgets/ReproductionWidget';
 import FinanceWidget from '../components/widgets/FinanceWidget';
 import PerformanceWidget from '../components/widgets/PerformanceWidget';
 import SecondaryWidget from '../components/widgets/SecondaryWidget';
+import AlertesWidget from '../components/AlertesWidget';
+import GlobalSearchModal from '../components/GlobalSearchModal';
 import { useNavigation } from '@react-navigation/native';
 import { SCREENS } from '../navigation/types';
 import { format } from 'date-fns';
 
 export default function DashboardScreen() {
+  const { colors, isDark } = useTheme();
   const navigation = useNavigation();
   const { projetActif, loading } = useAppSelector((state) => state.projet);
+  const [searchModalVisible, setSearchModalVisible] = useState(false);
 
   // Animations pour les widgets
   const headerAnim = useRef(new Animated.Value(0)).current;
@@ -31,6 +36,7 @@ export default function DashboardScreen() {
     new Animated.Value(0),
   ]).current;
   const secondaryWidgetsAnim = useRef([
+    new Animated.Value(0),
     new Animated.Value(0),
     new Animated.Value(0),
     new Animated.Value(0),
@@ -116,16 +122,27 @@ export default function DashboardScreen() {
           >
             <View style={styles.headerTop}>
               <View style={styles.headerLeft}>
-                <Text style={styles.greeting}>Bonjour 👋</Text>
-                <Text style={styles.title}>{projetActif.nom}</Text>
-                <Text style={styles.date}>{currentDate}</Text>
+                <Text style={[styles.greeting, { color: colors.textSecondary }]}>Bonjour 👋</Text>
+                <Text style={[styles.title, { color: isDark ? '#FFFFFF' : colors.text }]}>{projetActif.nom}</Text>
+                <Text style={[styles.date, { color: colors.textSecondary }]}>{currentDate}</Text>
               </View>
-              <View style={styles.headerBadge}>
-                <Text style={styles.badgeText}>Actif</Text>
+              <View style={styles.headerRight}>
+                <TouchableOpacity
+                  style={[styles.searchButton, { backgroundColor: colors.primary, ...colors.shadow.small }]}
+                  onPress={() => setSearchModalVisible(true)}
+                >
+                  <Text style={styles.searchButtonIcon}>🔍</Text>
+                </TouchableOpacity>
+                <View style={[styles.headerBadge, { backgroundColor: colors.success + '20', borderColor: colors.success + '40' }]}>
+                  <Text style={[styles.badgeText, { color: colors.success }]}>Actif</Text>
+                </View>
               </View>
             </View>
-            <View style={styles.headerDivider} />
+                <View style={[styles.headerDivider, { backgroundColor: colors.primaryLight + '30' }]} />
           </Animated.View>
+
+          {/* Widget d'alertes */}
+          <AlertesWidget />
 
           {/* Widgets principaux avec animations */}
           <View style={styles.mainWidgetsContainer}>
@@ -214,14 +231,15 @@ export default function DashboardScreen() {
           </View>
 
           {/* Section widgets secondaires */}
-          <View style={styles.secondarySection}>
-            <Text style={styles.sectionTitle}>Modules complémentaires</Text>
+              <View style={styles.secondarySection}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Modules complémentaires</Text>
             <View style={styles.secondaryWidgetsContainer}>
               {[
                 { type: 'nutrition' as const, screen: SCREENS.NUTRITION },
                 { type: 'planning' as const, screen: SCREENS.PLANIFICATION },
                 { type: 'collaboration' as const, screen: SCREENS.COLLABORATION },
                 { type: 'mortalites' as const, screen: SCREENS.MORTALITES },
+                { type: 'production' as const, screen: SCREENS.PRODUCTION },
               ].map((widget, index) => (
                 <Animated.View
                   key={index}
@@ -253,6 +271,12 @@ export default function DashboardScreen() {
           </View>
         </View>
       </ScrollView>
+      {searchModalVisible && (
+        <GlobalSearchModal
+          visible={searchModalVisible}
+          onClose={() => setSearchModalVisible(false)}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -260,7 +284,6 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
   content: {
     padding: SPACING.xl,
@@ -279,40 +302,48 @@ const styles = StyleSheet.create({
   headerLeft: {
     flex: 1,
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  searchButton: {
+    width: 40,
+    height: 40,
+    borderRadius: BORDER_RADIUS.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  searchButtonIcon: {
+    fontSize: FONT_SIZES.lg,
+  },
   greeting: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
     fontWeight: FONT_WEIGHTS.medium,
     marginBottom: SPACING.xs,
   },
   title: {
     fontSize: FONT_SIZES.xxxl,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.text,
     marginBottom: SPACING.xs,
   },
   date: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
     fontWeight: FONT_WEIGHTS.medium,
   },
   headerBadge: {
-    backgroundColor: COLORS.success + '20',
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.xs,
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.success + '40',
   },
   badgeText: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.success,
     fontWeight: FONT_WEIGHTS.bold,
     textTransform: 'uppercase',
   },
   headerDivider: {
     height: 2,
-    backgroundColor: COLORS.primaryLight + '30',
     borderRadius: BORDER_RADIUS.xs,
     marginTop: SPACING.md,
   },
@@ -325,7 +356,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: FONT_SIZES.lg,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.text,
     marginBottom: SPACING.md,
     paddingLeft: SPACING.xs,
   },

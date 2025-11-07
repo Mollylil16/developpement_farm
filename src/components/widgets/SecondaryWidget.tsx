@@ -9,22 +9,26 @@ import { loadRations } from '../../store/slices/nutritionSlice';
 import { loadPlanificationsAVenir } from '../../store/slices/planificationSlice';
 import { loadCollaborateursParProjet } from '../../store/slices/collaborationSlice';
 import { loadMortalitesParProjet } from '../../store/slices/mortalitesSlice';
-import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constants/theme';
+import { loadProductionAnimaux, loadPeseesRecents } from '../../store/slices/productionSlice';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constants/theme';
+import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
 import { startOfMonth, parseISO, isAfter } from 'date-fns';
 
 interface SecondaryWidgetProps {
-  type: 'nutrition' | 'planning' | 'collaboration' | 'mortalites';
+  type: 'nutrition' | 'planning' | 'collaboration' | 'mortalites' | 'production';
   onPress?: () => void;
 }
 
 export default function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
+  const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   const { rations } = useAppSelector((state) => state.nutrition);
   const { planifications } = useAppSelector((state) => state.planification);
   const { collaborateurs } = useAppSelector((state) => state.collaboration);
   const { mortalites } = useAppSelector((state) => state.mortalites);
+  const { animaux, peseesRecents } = useAppSelector((state) => state.production);
 
   useEffect(() => {
     if (!projetActif) return;
@@ -41,6 +45,10 @@ export default function SecondaryWidget({ type, onPress }: SecondaryWidgetProps)
         break;
       case 'mortalites':
         dispatch(loadMortalitesParProjet(projetActif.id));
+        break;
+      case 'production':
+        dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
+        dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 }));
         break;
     }
   }, [dispatch, projetActif, type]);
@@ -101,10 +109,21 @@ export default function SecondaryWidget({ type, onPress }: SecondaryWidgetProps)
           labelSecondary: 'Ce mois',
         };
 
+      case 'production':
+        const animauxActifs = animaux.filter((a) => a.actif);
+        return {
+          emoji: '🐷',
+          title: 'Production',
+          primary: animauxActifs.length,
+          secondary: peseesRecents.length,
+          labelPrimary: 'Animaux',
+          labelSecondary: 'Pesées',
+        };
+
       default:
         return null;
     }
-  }, [type, rations, planifications, collaborateurs, mortalites, projetActif]);
+  }, [type, rations, planifications, collaborateurs, mortalites, animaux, peseesRecents, projetActif]);
 
   if (!widgetData) {
     return null;
@@ -114,18 +133,18 @@ export default function SecondaryWidget({ type, onPress }: SecondaryWidgetProps)
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.emoji}>{widgetData.emoji}</Text>
-        <Text style={styles.title}>{widgetData.title}</Text>
+        <Text style={[styles.title, { color: colors.text }]}>{widgetData.title}</Text>
       </View>
 
       <View style={styles.statsRow}>
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>{widgetData.primary}</Text>
-          <Text style={styles.statLabel}>{widgetData.labelPrimary}</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>{widgetData.primary}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{widgetData.labelPrimary}</Text>
         </View>
-        <View style={styles.dividerVertical} />
+        <View style={[styles.dividerVertical, { backgroundColor: colors.divider }]} />
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>{widgetData.secondary}</Text>
-          <Text style={styles.statLabel}>{widgetData.labelSecondary}</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>{widgetData.secondary}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{widgetData.labelSecondary}</Text>
         </View>
       </View>
     </View>
@@ -164,7 +183,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.text,
   },
   statsRow: {
     flexDirection: 'row',
@@ -178,18 +196,15 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: FONT_SIZES.xl,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.text,
     marginBottom: SPACING.xs,
   },
   statLabel: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.textSecondary,
     textAlign: 'center',
   },
   dividerVertical: {
     width: 1,
     height: 40,
-    backgroundColor: COLORS.divider,
   },
 });
 

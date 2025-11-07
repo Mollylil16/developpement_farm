@@ -4,7 +4,8 @@
 
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TextInputProps } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, TRANSITIONS } from '../constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, TRANSITIONS } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface FormFieldProps extends TextInputProps {
   label: string;
@@ -19,30 +20,34 @@ export default function FormField({
   style,
   ...textInputProps
 }: FormFieldProps) {
+  const { colors } = useTheme();
   const [isFocused, setIsFocused] = useState(false);
 
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>
+      <Text style={[styles.label, { color: colors.text }]}>
         {label}
-        {required && <Text style={styles.required}> *</Text>}
+        {required && <Text style={{ color: colors.error }}> *</Text>}
       </Text>
       <View
         style={[
           styles.inputContainer,
-          isFocused && styles.inputContainerFocused,
-          error && styles.inputContainerError,
+          {
+            borderColor: error ? colors.error : isFocused ? colors.primary : colors.border,
+            backgroundColor: colors.surface,
+            ...(isFocused && colors.shadow.small),
+          },
         ]}
       >
         <TextInput
-          style={[styles.input, style]}
-          placeholderTextColor={COLORS.textTertiary}
+          style={[styles.input, { color: colors.text }, style]}
+          placeholderTextColor={colors.textTertiary}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           {...textInputProps}
         />
       </View>
-      {error && <Text style={styles.errorText}>{error}</Text>}
+      {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
     </View>
   );
 }
@@ -54,35 +59,20 @@ const styles = StyleSheet.create({
   label: {
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.semiBold,
-    color: COLORS.text,
     marginBottom: SPACING.sm,
-  },
-  required: {
-    color: COLORS.error,
   },
   inputContainer: {
     borderWidth: 1.5,
-    borderColor: COLORS.border,
     borderRadius: BORDER_RADIUS.md,
-    backgroundColor: COLORS.surface,
     overflow: 'hidden',
-  },
-  inputContainerFocused: {
-    borderColor: COLORS.primary,
-    ...COLORS.shadow.small,
-  },
-  inputContainerError: {
-    borderColor: COLORS.error,
   },
   input: {
     padding: SPACING.md,
     fontSize: FONT_SIZES.md,
-    color: COLORS.text,
     minHeight: 44,
   },
   errorText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.error,
     marginTop: SPACING.xs,
     fontWeight: FONT_WEIGHTS.medium,
   },

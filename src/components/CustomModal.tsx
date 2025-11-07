@@ -4,7 +4,8 @@
 
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, Animated } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS } from '../constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface CustomModalProps {
   visible: boolean;
@@ -29,6 +30,7 @@ export default function CustomModal({
   showButtons = true,
   loading = false,
 }: CustomModalProps) {
+  const { colors } = useTheme();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
 
@@ -66,6 +68,7 @@ export default function CustomModal({
           styles.overlay,
           {
             opacity: fadeAnim,
+            backgroundColor: colors.overlay,
           },
         ]}
       >
@@ -79,42 +82,53 @@ export default function CustomModal({
             styles.modal,
             {
               transform: [{ translateY: slideAnim }],
+              backgroundColor: colors.surface,
+              ...colors.shadow.large,
             },
           ]}
         >
-          <View style={styles.header}>
-            <Text style={styles.title}>{title}</Text>
+          <View style={[styles.header, { borderBottomColor: colors.divider }]}>
+            <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
             <TouchableOpacity
               onPress={onClose}
               style={styles.closeButton}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Text style={styles.closeButtonText}>✕</Text>
+              <Text style={[styles.closeButtonText, { color: colors.textSecondary }]}>✕</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.content}>{children}</View>
 
           {showButtons && (
-            <View style={styles.footer}>
+            <View style={[styles.footer, { borderTopColor: colors.divider }]}>
               <TouchableOpacity
-                style={[styles.button, styles.buttonCancel]}
+                style={[
+                  styles.button,
+                  {
+                    backgroundColor: colors.surfaceVariant,
+                    ...colors.shadow.small,
+                  },
+                ]}
                 onPress={onClose}
                 disabled={loading}
               >
-                <Text style={styles.buttonCancelText}>{cancelText}</Text>
+                <Text style={[styles.buttonCancelText, { color: colors.text }]}>{cancelText}</Text>
               </TouchableOpacity>
               {onConfirm && (
                 <TouchableOpacity
                   style={[
                     styles.button,
-                    styles.buttonConfirm,
+                    {
+                      backgroundColor: colors.primary,
+                      ...colors.shadow.small,
+                    },
                     loading && styles.buttonDisabled,
                   ]}
                   onPress={onConfirm}
                   disabled={loading}
                 >
-                  <Text style={styles.buttonConfirmText}>
+                  <Text style={[styles.buttonConfirmText, { color: colors.textOnPrimary }]}>
                     {loading ? 'Chargement...' : confirmText}
                   </Text>
                 </TouchableOpacity>
@@ -130,18 +144,15 @@ export default function CustomModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: COLORS.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     padding: SPACING.lg,
   },
   modal: {
-    backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.xl,
     width: '100%',
     maxWidth: 500,
     maxHeight: '85%',
-    ...COLORS.shadow.large,
   },
   header: {
     flexDirection: 'row',
@@ -149,12 +160,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: SPACING.lg,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.divider,
   },
   title: {
     fontSize: FONT_SIZES.xl,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.text,
     flex: 1,
   },
   closeButton: {
@@ -163,7 +172,6 @@ const styles = StyleSheet.create({
   },
   closeButtonText: {
     fontSize: FONT_SIZES.xl,
-    color: COLORS.textSecondary,
     fontWeight: FONT_WEIGHTS.bold,
   },
   content: {
@@ -175,7 +183,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     padding: SPACING.lg,
     borderTopWidth: 1,
-    borderTopColor: COLORS.divider,
   },
   button: {
     paddingHorizontal: SPACING.xl,
@@ -185,24 +192,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: SPACING.md,
-    ...COLORS.shadow.small,
-  },
-  buttonCancel: {
-    backgroundColor: COLORS.surfaceVariant,
-  },
-  buttonConfirm: {
-    backgroundColor: COLORS.primary,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   buttonCancelText: {
-    color: COLORS.text,
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.semiBold,
   },
   buttonConfirmText: {
-    color: COLORS.textOnPrimary,
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.semiBold,
   },

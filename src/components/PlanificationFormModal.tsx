@@ -11,7 +11,8 @@ import { createPlanification, updatePlanification } from '../store/slices/planif
 import { Planification, CreatePlanificationInput, TypeTache, TYPE_TACHE_LABELS, StatutTache, STATUT_TACHE_LABELS } from '../types';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
-import { COLORS, SPACING } from '../constants/theme';
+import { SPACING } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface PlanificationFormModalProps {
   visible: boolean;
@@ -28,6 +29,7 @@ export default function PlanificationFormModal({
   planification,
   isEditing = false,
 }: PlanificationFormModalProps) {
+  const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   const { gestations } = useAppSelector((state) => state.reproduction);
@@ -144,21 +146,32 @@ export default function PlanificationFormModal({
     >
       <ScrollView style={styles.scrollView}>
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Type de tâche</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Type de tâche</Text>
           <View style={styles.optionsContainer}>
             {types.map((type) => (
               <TouchableOpacity
                 key={type}
                 style={[
                   styles.option,
-                  formData.type === type && styles.optionSelected,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                  },
+                  formData.type === type && {
+                    backgroundColor: colors.primary,
+                    borderColor: colors.primary,
+                  },
                 ]}
                 onPress={() => setFormData({ ...formData, type })}
               >
                 <Text
                   style={[
                     styles.optionText,
-                    formData.type === type && styles.optionTextSelected,
+                    { color: colors.text },
+                    formData.type === type && {
+                      color: colors.textOnPrimary,
+                      fontWeight: '600',
+                    },
                   ]}
                 >
                   {TYPE_TACHE_LABELS[type]}
@@ -184,15 +197,15 @@ export default function PlanificationFormModal({
         />
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Date prévue *</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Date prévue *</Text>
           <TouchableOpacity
-            style={styles.dateButton}
+            style={[styles.dateButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={() => {
               setDatePickerField('date_prevue');
               setShowDatePicker(true);
             }}
           >
-            <Text style={styles.dateButtonText}>
+            <Text style={[styles.dateButtonText, { color: colors.text }]}>
               {formData.date_prevue
                 ? new Date(formData.date_prevue).toLocaleDateString('fr-FR', {
                     day: '2-digit',
@@ -205,15 +218,15 @@ export default function PlanificationFormModal({
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Date d'échéance (optionnel)</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Date d'échéance (optionnel)</Text>
           <TouchableOpacity
-            style={styles.dateButton}
+            style={[styles.dateButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={() => {
               setDatePickerField('date_echeance');
               setShowDatePicker(true);
             }}
           >
-            <Text style={styles.dateButtonText}>
+            <Text style={[styles.dateButtonText, { color: colors.text }]}>
               {formData.date_echeance
                 ? new Date(formData.date_echeance).toLocaleDateString('fr-FR', {
                     day: '2-digit',
@@ -226,15 +239,15 @@ export default function PlanificationFormModal({
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Rappel (optionnel)</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Rappel (optionnel)</Text>
           <TouchableOpacity
-            style={styles.dateButton}
+            style={[styles.dateButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={() => {
               setDatePickerField('rappel');
               setShowDatePicker(true);
             }}
           >
-            <Text style={styles.dateButtonText}>
+            <Text style={[styles.dateButtonText, { color: colors.text }]}>
               {formData.rappel
                 ? new Date(formData.rappel).toLocaleDateString('fr-FR', {
                     day: '2-digit',
@@ -248,14 +261,21 @@ export default function PlanificationFormModal({
 
         {isEditing && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Statut</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Statut</Text>
             <View style={styles.optionsContainer}>
               {statuts.map((statut) => (
                 <TouchableOpacity
                   key={statut}
                   style={[
                     styles.option,
-                    planification?.statut === statut && styles.optionSelected,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                    },
+                    planification?.statut === statut && {
+                      backgroundColor: colors.primary,
+                      borderColor: colors.primary,
+                    },
                   ]}
                   onPress={() => {
                     if (planification) {
@@ -271,7 +291,11 @@ export default function PlanificationFormModal({
                   <Text
                     style={[
                       styles.optionText,
-                      planification?.statut === statut && styles.optionTextSelected,
+                      { color: colors.text },
+                      planification?.statut === statut && {
+                        color: colors.textOnPrimary,
+                        fontWeight: '600',
+                      },
                     ]}
                   >
                     {STATUT_TACHE_LABELS[statut]}
@@ -283,21 +307,32 @@ export default function PlanificationFormModal({
         )}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Récurrence</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Récurrence</Text>
           <View style={styles.optionsContainer}>
             {recurrences.map((rec) => (
               <TouchableOpacity
                 key={rec}
                 style={[
                   styles.option,
-                  formData.recurrence === rec && styles.optionSelected,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                  },
+                  formData.recurrence === rec && {
+                    backgroundColor: colors.primary,
+                    borderColor: colors.primary,
+                  },
                 ]}
                 onPress={() => setFormData({ ...formData, recurrence: rec })}
               >
                 <Text
                   style={[
                     styles.optionText,
-                    formData.recurrence === rec && styles.optionTextSelected,
+                    { color: colors.text },
+                    formData.recurrence === rec && {
+                      color: colors.textOnPrimary,
+                      fontWeight: '600',
+                    },
                   ]}
                 >
                   {rec === 'aucune' ? 'Aucune' : rec.charAt(0).toUpperCase() + rec.slice(1)}
@@ -309,19 +344,30 @@ export default function PlanificationFormModal({
 
         {gestationsEnCours.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Lier à une gestation (optionnel)</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Lier à une gestation (optionnel)</Text>
             <View style={styles.optionsContainer}>
               <TouchableOpacity
                 style={[
                   styles.option,
-                  !formData.lien_gestation_id && styles.optionSelected,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                  },
+                  !formData.lien_gestation_id && {
+                    backgroundColor: colors.primary,
+                    borderColor: colors.primary,
+                  },
                 ]}
                 onPress={() => setFormData({ ...formData, lien_gestation_id: '' })}
               >
                 <Text
                   style={[
                     styles.optionText,
-                    !formData.lien_gestation_id && styles.optionTextSelected,
+                    { color: colors.text },
+                    !formData.lien_gestation_id && {
+                      color: colors.textOnPrimary,
+                      fontWeight: '600',
+                    },
                   ]}
                 >
                   Aucune
@@ -332,14 +378,25 @@ export default function PlanificationFormModal({
                   key={gestation.id}
                   style={[
                     styles.option,
-                    formData.lien_gestation_id === gestation.id && styles.optionSelected,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                    },
+                    formData.lien_gestation_id === gestation.id && {
+                      backgroundColor: colors.primary,
+                      borderColor: colors.primary,
+                    },
                   ]}
                   onPress={() => setFormData({ ...formData, lien_gestation_id: gestation.id })}
                 >
                   <Text
                     style={[
                       styles.optionText,
-                      formData.lien_gestation_id === gestation.id && styles.optionTextSelected,
+                      { color: colors.text },
+                      formData.lien_gestation_id === gestation.id && {
+                        color: colors.textOnPrimary,
+                        fontWeight: '600',
+                      },
                     ]}
                   >
                     {gestation.truie_nom || `Truie ${gestation.truie_id}`} - {new Date(gestation.date_mise_bas_prevue).toLocaleDateString('fr-FR')}
@@ -389,19 +446,15 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.text,
     marginBottom: SPACING.md,
   },
   dateButton: {
-    backgroundColor: COLORS.surface,
     padding: SPACING.md,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.border,
   },
   dateButtonText: {
     fontSize: 16,
-    color: COLORS.text,
   },
   optionsContainer: {
     flexDirection: 'row',
@@ -411,23 +464,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
     borderRadius: 8,
-    backgroundColor: COLORS.surface,
     borderWidth: 1,
-    borderColor: COLORS.border,
     marginRight: SPACING.sm,
     marginBottom: SPACING.sm,
   },
-  optionSelected: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
   optionText: {
     fontSize: 14,
-    color: COLORS.text,
-  },
-  optionTextSelected: {
-    color: COLORS.textOnPrimary,
-    fontWeight: '600',
   },
 });
 

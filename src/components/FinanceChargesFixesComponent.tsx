@@ -11,12 +11,14 @@ import {
   updateChargeFixe,
 } from '../store/slices/financeSlice';
 import { ChargeFixe, StatutChargeFixe } from '../types';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';
 import LoadingSpinner from './LoadingSpinner';
 import ChargeFixeFormModal from './ChargeFixeFormModal';
 
 export default function FinanceChargesFixesComponent() {
+  const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { chargesFixes, loading } = useAppSelector((state) => state.finance);
   const [selectedCharge, setSelectedCharge] = useState<ChargeFixe | null>(null);
@@ -71,13 +73,13 @@ export default function FinanceChargesFixesComponent() {
   const getStatusColor = (statut: StatutChargeFixe) => {
     switch (statut) {
       case 'actif':
-        return COLORS.success;
+        return colors.success;
       case 'suspendu':
-        return COLORS.warning;
+        return colors.warning;
       case 'termine':
-        return COLORS.textSecondary;
+        return colors.textSecondary;
       default:
-        return COLORS.textSecondary;
+        return colors.textSecondary;
     }
   };
 
@@ -107,18 +109,18 @@ export default function FinanceChargesFixesComponent() {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Charges Fixes</Text>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+        <Text style={[styles.title, { color: colors.text }]}>Charges Fixes</Text>
         <TouchableOpacity
-          style={styles.addButton}
+          style={[styles.addButton, { backgroundColor: colors.primary }]}
           onPress={() => {
             setSelectedCharge(null);
             setIsEditing(false);
             setModalVisible(true);
           }}
         >
-          <Text style={styles.addButtonText}>+ Ajouter</Text>
+          <Text style={[styles.addButtonText, { color: colors.background }]}>+ Ajouter</Text>
         </TouchableOpacity>
       </View>
 
@@ -132,25 +134,25 @@ export default function FinanceChargesFixesComponent() {
             message="Ajoutez votre première charge fixe pour commencer"
             action={
               <TouchableOpacity
-                style={styles.addButton}
+                style={[styles.addButton, { backgroundColor: colors.primary }]}
                 onPress={() => {
                   setSelectedCharge(null);
                   setIsEditing(false);
                   setModalVisible(true);
                 }}
               >
-                <Text style={styles.addButtonText}>+ Ajouter une charge fixe</Text>
+                <Text style={[styles.addButtonText, { color: colors.background }]}>+ Ajouter une charge fixe</Text>
               </TouchableOpacity>
             }
           />
         ) : (
           chargesFixes.map((charge) => (
-            <View key={charge.id} style={styles.card}>
+            <View key={charge.id} style={[styles.card, { backgroundColor: colors.surface, ...colors.shadow.small }]}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderLeft}>
-                  <Text style={styles.cardTitle}>{charge.libelle}</Text>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>{charge.libelle}</Text>
                   <View style={[styles.statusBadge, { backgroundColor: getStatusColor(charge.statut) }]}>
-                    <Text style={styles.statusText}>{getStatusLabel(charge.statut)}</Text>
+                    <Text style={[styles.statusText, { color: colors.background }]}>{getStatusLabel(charge.statut)}</Text>
                   </View>
                 </View>
                 <View style={styles.cardActions}>
@@ -179,29 +181,29 @@ export default function FinanceChargesFixesComponent() {
 
               <View style={styles.cardContent}>
                 <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Catégorie:</Text>
-                  <Text style={styles.infoValue}>{charge.categorie}</Text>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Catégorie:</Text>
+                  <Text style={[styles.infoValue, { color: colors.text }]}>{charge.categorie}</Text>
                 </View>
                 <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Montant:</Text>
-                  <Text style={[styles.infoValue, styles.amount]}>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Montant:</Text>
+                  <Text style={[styles.infoValue, styles.amount, { color: colors.primary }]}>
                     {formatAmount(charge.montant)}
                   </Text>
                 </View>
                 <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Fréquence:</Text>
-                  <Text style={styles.infoValue}>{charge.frequence}</Text>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Fréquence:</Text>
+                  <Text style={[styles.infoValue, { color: colors.text }]}>{charge.frequence}</Text>
                 </View>
                 {charge.jour_paiement && (
                   <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Jour de paiement:</Text>
-                    <Text style={styles.infoValue}>Le {charge.jour_paiement} de chaque mois</Text>
+                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Jour de paiement:</Text>
+                    <Text style={[styles.infoValue, { color: colors.text }]}>Le {charge.jour_paiement} de chaque mois</Text>
                   </View>
                 )}
                 {charge.notes && (
-                  <View style={styles.notesContainer}>
-                    <Text style={styles.notesLabel}>Notes:</Text>
-                    <Text style={styles.notesText}>{charge.notes}</Text>
+                  <View style={[styles.notesContainer, { borderTopColor: colors.border }]}>
+                    <Text style={[styles.notesLabel, { color: colors.textSecondary }]}>Notes:</Text>
+                    <Text style={[styles.notesText, { color: colors.text }]}>{charge.notes}</Text>
                   </View>
                 )}
               </View>
@@ -224,7 +226,6 @@ export default function FinanceChargesFixesComponent() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: 'row',
@@ -233,21 +234,17 @@ const styles = StyleSheet.create({
     padding: SPACING.lg,
     paddingTop: SPACING.md + 10,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
   title: {
     fontSize: FONT_SIZES.xl,
     fontWeight: 'bold',
-    color: COLORS.text,
   },
   addButton: {
-    backgroundColor: COLORS.primary,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
     borderRadius: BORDER_RADIUS.md,
   },
   addButtonText: {
-    color: COLORS.background,
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
   },
@@ -258,15 +255,9 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.xxl + 85, // 85px pour la barre de navigation + espace
   },
   card: {
-    backgroundColor: COLORS.surface,
     margin: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -283,7 +274,6 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: FONT_SIZES.lg,
     fontWeight: 'bold',
-    color: COLORS.text,
     flex: 1,
   },
   statusBadge: {
@@ -293,7 +283,6 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.background,
     fontWeight: '600',
   },
   cardActions: {
@@ -316,32 +305,26 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
     fontWeight: '600',
   },
   infoValue: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.text,
   },
   amount: {
     fontWeight: 'bold',
-    color: COLORS.primary,
   },
   notesContainer: {
     marginTop: SPACING.sm,
     paddingTop: SPACING.sm,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
   },
   notesLabel: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
     fontWeight: '600',
     marginBottom: SPACING.xs,
   },
   notesText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.text,
     fontStyle: 'italic',
   },
 });

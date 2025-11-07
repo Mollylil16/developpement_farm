@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS } from '../constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import Button from '../components/Button';
 
 const logoImage = require('../../assets/logo.jpeg');
@@ -22,6 +23,7 @@ const logoImage = require('../../assets/logo.jpeg');
 const { width, height } = Dimensions.get('window');
 
 export default function WelcomeScreen() {
+  const { colors } = useTheme();
   const navigation = useNavigation<any>();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
@@ -304,11 +306,11 @@ export default function WelcomeScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       {/* Gradient de fond */}
       <View style={styles.gradientBackground}>
-        <View style={styles.gradientTop} />
-        <View style={styles.gradientBottom} />
+        <View style={[styles.gradientTop, { backgroundColor: colors.primaryLight + '08' }]} />
+        <View style={[styles.gradientBottom, { backgroundColor: colors.primary + '05' }]} />
       </View>
 
       <ScrollView
@@ -388,7 +390,7 @@ export default function WelcomeScreen() {
                   ]}
                 >
                   {/* Simule l'œil fermé avec un trait */}
-                  <View style={styles.winkLine} />
+                  <View style={[styles.winkLine, { backgroundColor: colors.text }]} />
                 </Animated.View>
                 
                 {/* Bouche animée (sourire qui apparaît) */}
@@ -416,6 +418,7 @@ export default function WelcomeScreen() {
                 {
                   opacity: glowOpacity,
                   transform: [{ scale: glowScale }],
+                  backgroundColor: colors.primaryLight,
                 },
               ]}
             />
@@ -429,6 +432,9 @@ export default function WelcomeScreen() {
                     { scale: logoScaleAnim },
                     { rotate: logoRotation },
                   ],
+                  backgroundColor: colors.surface,
+                  borderColor: colors.primaryLight + '50',
+                  ...colors.shadow.large,
                 },
               ]}
             >
@@ -442,12 +448,12 @@ export default function WelcomeScreen() {
 
           {/* Titre principal avec gradient */}
           <View style={styles.titleContainer}>
-            <Text style={styles.title}>Bienvenue sur</Text>
-            <Text style={styles.titleAccent}>Fermier Pro</Text>
+            <Text style={[styles.title, { color: colors.text }]}>Bienvenue sur</Text>
+            <Text style={[styles.titleAccent, { color: colors.primary }]}>Fermier Pro</Text>
           </View>
           
           {/* Sous-titre amélioré */}
-          <Text style={styles.subtitle}>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
             Votre assistant intelligent pour la gestion de votre élevage porcin
           </Text>
 
@@ -479,14 +485,14 @@ export default function WelcomeScreen() {
                   },
                 ]}
               >
-                <View style={styles.feature}>
-                  <View style={styles.featureIconContainer}>
+                <View style={[styles.feature, { backgroundColor: colors.surface, borderColor: colors.borderLight, ...colors.shadow.medium }]}>
+                  <View style={[styles.featureIconContainer, { backgroundColor: colors.primaryLight + '15', borderColor: colors.primaryLight + '30' }]}>
                     <Text style={styles.featureIcon}>{feature.icon}</Text>
                     <Text style={styles.featurePigIcon}>{feature.pigIcon}</Text>
                   </View>
                   <View style={styles.featureContent}>
-                    <Text style={styles.featureTitle}>{feature.title}</Text>
-                    <Text style={styles.featureDescription}>{feature.desc}</Text>
+                    <Text style={[styles.featureTitle, { color: colors.text }]}>{feature.title}</Text>
+                    <Text style={[styles.featureDescription, { color: colors.textSecondary }]}>{feature.desc}</Text>
                   </View>
                 </View>
               </Animated.View>
@@ -520,7 +526,6 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
   gradientBackground: {
     position: 'absolute',
@@ -535,7 +540,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: height * 0.4,
-    backgroundColor: COLORS.primaryLight + '08',
   },
   gradientBottom: {
     position: 'absolute',
@@ -543,7 +547,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: height * 0.3,
-    backgroundColor: COLORS.primary + '05',
   },
   scrollContent: {
     flexGrow: 1,
@@ -571,21 +574,17 @@ const styles = StyleSheet.create({
     width: 220,
     height: 220,
     borderRadius: 110,
-    backgroundColor: COLORS.primaryLight,
     zIndex: 0,
   },
   logoContainer: {
     width: 200,
     height: 200,
     borderRadius: 100,
-    backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    ...COLORS.shadow.large,
     zIndex: 1,
     overflow: 'hidden',
     borderWidth: 5,
-    borderColor: COLORS.primaryLight + '50',
   },
   logo: {
     width: '100%',
@@ -598,19 +597,16 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FONT_SIZES.xxxl,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.text,
     textAlign: 'center',
   },
   titleAccent: {
     fontSize: FONT_SIZES.xxxl + 8,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.primary,
     textAlign: 'center',
     marginTop: -SPACING.xs,
   },
   subtitle: {
     fontSize: FONT_SIZES.lg,
-    color: COLORS.textSecondary,
     textAlign: 'center',
     marginBottom: SPACING.xxl,
     lineHeight: 26,
@@ -628,23 +624,18 @@ const styles = StyleSheet.create({
   feature: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surface,
     padding: SPACING.lg + 4,
     borderRadius: BORDER_RADIUS.lg + 4,
-    ...COLORS.shadow.medium,
     borderWidth: 1.5,
-    borderColor: COLORS.borderLight,
   },
   featureIconContainer: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: COLORS.primaryLight + '15',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: SPACING.md,
     borderWidth: 2,
-    borderColor: COLORS.primaryLight + '30',
   },
   featureIcon: {
     fontSize: 30,
@@ -654,13 +645,11 @@ const styles = StyleSheet.create({
   },
   featureTitle: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.text,
     fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.xs,
   },
   featureDescription: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
     lineHeight: 20,
   },
   actions: {
@@ -709,7 +698,6 @@ const styles = StyleSheet.create({
   winkLine: {
     width: 20,
     height: 3,
-    backgroundColor: COLORS.text,
     borderRadius: 2,
     transform: [{ rotate: '15deg' }],
   },

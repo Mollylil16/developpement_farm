@@ -10,7 +10,8 @@ import { createDepensePonctuelle, updateDepensePonctuelle } from '../store/slice
 import { DepensePonctuelle, CreateDepensePonctuelleInput, CategorieDepense } from '../types';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
-import { COLORS, SPACING, BORDER_RADIUS } from '../constants/theme';
+import { SPACING, BORDER_RADIUS } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface DepenseFormModalProps {
   visible: boolean;
@@ -27,6 +28,7 @@ export default function DepenseFormModal({
   depense,
   isEditing = false,
 }: DepenseFormModalProps) {
+  const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateDepensePonctuelleInput & { photos: string[] }>({
@@ -220,21 +222,32 @@ export default function DepenseFormModal({
         />
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Catégorie</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Catégorie</Text>
           <View style={styles.optionsContainer}>
             {categories.map((cat) => (
               <TouchableOpacity
                 key={cat}
                 style={[
                   styles.option,
-                  formData.categorie === cat && styles.optionSelected,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.background,
+                  },
+                  formData.categorie === cat && {
+                    backgroundColor: colors.primary,
+                    borderColor: colors.primary,
+                  },
                 ]}
                 onPress={() => setFormData({ ...formData, categorie: cat })}
               >
                 <Text
                   style={[
                     styles.optionText,
-                    formData.categorie === cat && styles.optionTextSelected,
+                    { color: colors.text },
+                    formData.categorie === cat && {
+                      color: colors.background,
+                      fontWeight: '600',
+                    },
                   ]}
                 >
                   {getCategoryLabel(cat)}
@@ -272,7 +285,7 @@ export default function DepenseFormModal({
 
         {/* Section Photos */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
             Photos du reçu ({(formData.photos || []).length}/3)
           </Text>
           <View style={styles.photosContainer}>
@@ -280,21 +293,21 @@ export default function DepenseFormModal({
               <View key={index} style={styles.photoItem}>
                 <Image source={{ uri: photo }} style={styles.photoPreview} />
                 <TouchableOpacity
-                  style={styles.removePhotoButton}
+                  style={[styles.removePhotoButton, { backgroundColor: colors.error }]}
                   onPress={() => removePhoto(index)}
                 >
-                  <Text style={styles.removePhotoText}>✕</Text>
+                  <Text style={[styles.removePhotoText, { color: colors.background }]}>✕</Text>
                 </TouchableOpacity>
               </View>
             ))}
           </View>
           {(formData.photos || []).length < 3 && (
             <View style={styles.photoActions}>
-              <TouchableOpacity style={styles.photoButton} onPress={takePhoto}>
-                <Text style={styles.photoButtonText}>📷 Prendre une photo</Text>
+              <TouchableOpacity style={[styles.photoButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={takePhoto}>
+                <Text style={[styles.photoButtonText, { color: colors.text }]}>📷 Prendre une photo</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.photoButton} onPress={pickImageFromGallery}>
-                <Text style={styles.photoButtonText}>📂 Choisir depuis la galerie</Text>
+              <TouchableOpacity style={[styles.photoButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={pickImageFromGallery}>
+                <Text style={[styles.photoButtonText, { color: colors.text }]}>📂 Choisir depuis la galerie</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -314,7 +327,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.text,
     marginBottom: SPACING.sm,
   },
   optionsContainer: {
@@ -327,20 +339,9 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.sm,
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.background,
-  },
-  optionSelected: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
   },
   optionText: {
     fontSize: 14,
-    color: COLORS.text,
-  },
-  optionTextSelected: {
-    color: COLORS.background,
-    fontWeight: '600',
   },
   photosContainer: {
     flexDirection: 'row',
@@ -362,7 +363,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -5,
     right: -5,
-    backgroundColor: COLORS.error,
     width: 24,
     height: 24,
     borderRadius: 12,
@@ -370,7 +370,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   removePhotoText: {
-    color: COLORS.background,
     fontSize: 12,
     fontWeight: 'bold',
   },
@@ -380,16 +379,13 @@ const styles = StyleSheet.create({
   },
   photoButton: {
     flex: 1,
-    backgroundColor: COLORS.surface,
     padding: SPACING.sm,
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
     alignItems: 'center',
   },
   photoButtonText: {
     fontSize: 14,
-    color: COLORS.text,
   },
 });
 

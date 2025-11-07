@@ -8,23 +8,26 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import FinanceGraphiquesComponent from '../components/FinanceGraphiquesComponent';
 import FinanceChargesFixesComponent from '../components/FinanceChargesFixesComponent';
 import FinanceDepensesComponent from '../components/FinanceDepensesComponent';
-import { COLORS, FONT_SIZES } from '../constants/theme';
+import { FONT_SIZES } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 
 const Tab = createMaterialTopTabNavigator();
 
 export default function FinanceScreen() {
+  const { colors } = useTheme();
+  
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }} edges={['top', 'bottom']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'bottom']}>
       <Tab.Navigator
         screenOptions={{
-          tabBarActiveTintColor: COLORS.primary,
-          tabBarInactiveTintColor: COLORS.textSecondary,
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: colors.textSecondary,
           tabBarIndicatorStyle: {
-            backgroundColor: COLORS.primary,
+            backgroundColor: colors.primary,
             height: 3,
           },
           tabBarStyle: {
-            backgroundColor: COLORS.background,
+            backgroundColor: colors.background,
             elevation: 2,
             shadowColor: '#000',
             shadowOffset: { width: 0, height: 2 },

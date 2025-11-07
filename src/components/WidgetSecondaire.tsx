@@ -4,7 +4,8 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface WidgetSecondaireProps {
   icon: string;
@@ -21,17 +22,26 @@ export default function WidgetSecondaire({
   subtitle,
   onPress 
 }: WidgetSecondaireProps) {
+  const { colors } = useTheme();
+  
   return (
     <TouchableOpacity 
-      style={styles.container} 
+      style={[
+        styles.container,
+        {
+          backgroundColor: colors.surface,
+          borderColor: colors.borderLight,
+          ...colors.shadow.small,
+        },
+      ]} 
       onPress={onPress}
       activeOpacity={0.7}
     >
       <Text style={styles.icon}>{icon}</Text>
-      <Text style={styles.title} numberOfLines={1}>{title}</Text>
-      <Text style={styles.value}>{value}</Text>
+      <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>{title}</Text>
+      <Text style={[styles.value, { color: colors.primary }]}>{value}</Text>
       {subtitle && (
-        <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]} numberOfLines={1}>{subtitle}</Text>
       )}
     </TouchableOpacity>
   );
@@ -39,7 +49,6 @@ export default function WidgetSecondaire({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.md,
     alignItems: 'center',
@@ -47,9 +56,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginHorizontal: SPACING.xs,
     minHeight: 100,
-    ...COLORS.shadow.small,
     borderWidth: 1,
-    borderColor: COLORS.borderLight,
   },
   icon: {
     fontSize: FONT_SIZES.xxl,
@@ -58,19 +65,16 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FONT_SIZES.sm,
     fontWeight: FONT_WEIGHTS.semiBold,
-    color: COLORS.text,
     marginBottom: SPACING.xs,
     textAlign: 'center',
   },
   value: {
     fontSize: FONT_SIZES.lg,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.primary,
     marginBottom: SPACING.xs,
   },
   subtitle: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.textSecondary,
     textAlign: 'center',
   },
 });

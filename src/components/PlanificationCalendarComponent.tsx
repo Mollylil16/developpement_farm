@@ -8,9 +8,11 @@ import { Calendar, DateData } from 'react-native-calendars';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadPlanificationsParProjet } from '../store/slices/planificationSlice';
 import { Planification, TypeTache } from '../types';
-import { COLORS, SPACING, FONT_SIZES } from '../constants/theme';
+import { SPACING, FONT_SIZES } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function PlanificationCalendarComponent() {
+  const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   const { planifications } = useAppSelector((state) => state.planification);
@@ -36,39 +38,39 @@ export default function PlanificationCalendarComponent() {
       }
       
       // Couleur selon le type et le statut
-      let dotColor = COLORS.primary;
+      let dotColor = colors.primary;
       if (planification.statut === 'terminee') {
-        dotColor = COLORS.success;
+        dotColor = colors.success;
       } else if (planification.statut === 'annulee') {
-        dotColor = COLORS.textSecondary;
+        dotColor = colors.textSecondary;
       } else {
         // Couleur selon le type
         switch (planification.type) {
           case 'saillie':
-            dotColor = COLORS.primary;
+            dotColor = colors.primary;
             break;
           case 'vaccination':
-            dotColor = COLORS.warning;
+            dotColor = colors.warning;
             break;
           case 'sevrage':
-            dotColor = COLORS.success;
+            dotColor = colors.success;
             break;
           case 'veterinaire':
-            dotColor = COLORS.error;
+            dotColor = colors.error;
             break;
           default:
-            dotColor = COLORS.textSecondary;
+            dotColor = colors.textSecondary;
         }
       }
       
       marked[datePrevue].dots.push({
         color: dotColor,
-        selectedDotColor: COLORS.background,
+        selectedDotColor: colors.background,
       });
     });
     
     return marked;
-  }, [planifications]);
+  }, [planifications, colors]);
 
   const getPlanificationsPourDate = (date: string): Planification[] => {
     return planifications.filter((p) => p.date_prevue.split('T')[0] === date);
@@ -81,24 +83,24 @@ export default function PlanificationCalendarComponent() {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>Calendrier des planifications</Text>
-      <View style={styles.legend}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+      <Text style={[styles.title, { color: colors.text }]}>Calendrier des planifications</Text>
+      <View style={[styles.legend, { backgroundColor: colors.surface }]}>
         <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: COLORS.primary }]} />
-          <Text style={styles.legendText}>Saillie</Text>
+          <View style={[styles.legendDot, { backgroundColor: colors.primary }]} />
+          <Text style={[styles.legendText, { color: colors.text }]}>Saillie</Text>
         </View>
         <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: COLORS.warning }]} />
-          <Text style={styles.legendText}>Vaccination</Text>
+          <View style={[styles.legendDot, { backgroundColor: colors.warning }]} />
+          <Text style={[styles.legendText, { color: colors.text }]}>Vaccination</Text>
         </View>
         <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: COLORS.success }]} />
-          <Text style={styles.legendText}>Sevrage / Terminée</Text>
+          <View style={[styles.legendDot, { backgroundColor: colors.success }]} />
+          <Text style={[styles.legendText, { color: colors.text }]}>Sevrage / Terminée</Text>
         </View>
         <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: COLORS.error }]} />
-          <Text style={styles.legendText}>Vétérinaire</Text>
+          <View style={[styles.legendDot, { backgroundColor: colors.error }]} />
+          <Text style={[styles.legendText, { color: colors.text }]}>Vétérinaire</Text>
         </View>
       </View>
       <Calendar
@@ -107,18 +109,18 @@ export default function PlanificationCalendarComponent() {
         markingType="multi-dot"
         onDayPress={onDayPress}
         theme={{
-          backgroundColor: COLORS.background,
-          calendarBackground: COLORS.background,
-          textSectionTitleColor: COLORS.text,
-          selectedDayBackgroundColor: COLORS.primary,
-          selectedDayTextColor: COLORS.background,
-          todayTextColor: COLORS.primary,
-          dayTextColor: COLORS.text,
-          textDisabledColor: COLORS.textSecondary,
-          dotColor: COLORS.primary,
-          selectedDotColor: COLORS.background,
-          arrowColor: COLORS.primary,
-          monthTextColor: COLORS.text,
+          backgroundColor: colors.background,
+          calendarBackground: colors.background,
+          textSectionTitleColor: colors.text,
+          selectedDayBackgroundColor: colors.primary,
+          selectedDayTextColor: colors.background,
+          todayTextColor: colors.primary,
+          dayTextColor: colors.text,
+          textDisabledColor: colors.textSecondary,
+          dotColor: colors.primary,
+          selectedDotColor: colors.background,
+          arrowColor: colors.primary,
+          monthTextColor: colors.text,
           textDayFontWeight: '600',
           textMonthFontWeight: 'bold',
           textDayHeaderFontWeight: '600',
@@ -135,13 +137,11 @@ export default function PlanificationCalendarComponent() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
     padding: SPACING.md,
   },
   title: {
     fontSize: FONT_SIZES.xl,
     fontWeight: 'bold',
-    color: COLORS.text,
     marginBottom: SPACING.md,
   },
   legend: {
@@ -150,7 +150,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     marginBottom: SPACING.md,
     padding: SPACING.sm,
-    backgroundColor: COLORS.surface,
     borderRadius: 8,
   },
   legendItem: {
@@ -166,7 +165,6 @@ const styles = StyleSheet.create({
   },
   legendText: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.text,
   },
   calendar: {
     borderRadius: 8,

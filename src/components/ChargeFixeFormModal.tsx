@@ -9,7 +9,8 @@ import { createChargeFixe, updateChargeFixe } from '../store/slices/financeSlice
 import { ChargeFixe, CreateChargeFixeInput, CategorieChargeFixe, FrequenceCharge } from '../types';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
-import { COLORS, SPACING } from '../constants/theme';
+import { SPACING } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface ChargeFixeFormModalProps {
   visible: boolean;
@@ -26,6 +27,7 @@ export default function ChargeFixeFormModal({
   chargeFixe,
   isEditing = false,
 }: ChargeFixeFormModalProps) {
+  const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateChargeFixeInput>({
@@ -146,21 +148,32 @@ export default function ChargeFixeFormModal({
         />
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Catégorie</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Catégorie</Text>
           <View style={styles.optionsContainer}>
             {categories.map((cat) => (
               <TouchableOpacity
                 key={cat}
                 style={[
                   styles.option,
-                  formData.categorie === cat && styles.optionSelected,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.background,
+                  },
+                  formData.categorie === cat && {
+                    backgroundColor: colors.primary,
+                    borderColor: colors.primary,
+                  },
                 ]}
                 onPress={() => setFormData({ ...formData, categorie: cat })}
               >
                 <Text
                   style={[
                     styles.optionText,
-                    formData.categorie === cat && styles.optionTextSelected,
+                    { color: colors.text },
+                    formData.categorie === cat && {
+                      color: colors.background,
+                      fontWeight: '600',
+                    },
                   ]}
                 >
                   {getCategoryLabel(cat)}
@@ -189,21 +202,32 @@ export default function ChargeFixeFormModal({
         />
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Fréquence</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Fréquence</Text>
           <View style={styles.optionsContainer}>
             {frequences.map((freq) => (
               <TouchableOpacity
                 key={freq}
                 style={[
                   styles.option,
-                  formData.frequence === freq && styles.optionSelected,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.background,
+                  },
+                  formData.frequence === freq && {
+                    backgroundColor: colors.primary,
+                    borderColor: colors.primary,
+                  },
                 ]}
                 onPress={() => setFormData({ ...formData, frequence: freq })}
               >
                 <Text
                   style={[
                     styles.optionText,
-                    formData.frequence === freq && styles.optionTextSelected,
+                    { color: colors.text },
+                    formData.frequence === freq && {
+                      color: colors.background,
+                      fontWeight: '600',
+                    },
                   ]}
                 >
                   {getFrequenceLabel(freq)}
@@ -252,7 +276,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.text,
     marginBottom: SPACING.sm,
   },
   optionsContainer: {
@@ -265,20 +288,9 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.sm,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.background,
-  },
-  optionSelected: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
   },
   optionText: {
     fontSize: 14,
-    color: COLORS.text,
-  },
-  optionTextSelected: {
-    color: COLORS.background,
-    fontWeight: '600',
   },
 });
 

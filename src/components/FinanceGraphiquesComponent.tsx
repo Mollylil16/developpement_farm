@@ -7,13 +7,15 @@ import { View, Text, StyleSheet, ScrollView, Dimensions } from 'react-native';
 import { LineChart, PieChart } from 'react-native-chart-kit';
 import { useAppSelector } from '../store/hooks';
 import { ChargeFixe, DepensePonctuelle } from '../types';
-import { COLORS, SPACING, FONT_SIZES } from '../constants/theme';
+import { SPACING, FONT_SIZES } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import StatCard from './StatCard';
 import { format, subMonths, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 
 const screenWidth = Dimensions.get('window').width;
 
 export default function FinanceGraphiquesComponent() {
+  const { colors, isDark } = useTheme();
   const { chargesFixes, depensesPonctuelles } = useAppSelector((state) => state.finance);
 
   // Calcul des données pour les graphiques
@@ -79,20 +81,20 @@ export default function FinanceGraphiquesComponent() {
     };
 
     // Données pour le graphique par catégorie
+    const pieChartColors = [
+      '#2E7D32',
+      '#4CAF50',
+      '#FF9800',
+      '#F44336',
+      '#2196F3',
+      '#9C27B0',
+    ];
     const pieChartData = Object.entries(categoryData).map(([category, montant]) => {
-      const colors = [
-        '#2E7D32',
-        '#4CAF50',
-        '#FF9800',
-        '#F44336',
-        '#2196F3',
-        '#9C27B0',
-      ];
       return {
         name: category,
         population: montant,
-        color: colors[Object.keys(categoryData).indexOf(category) % colors.length],
-        legendFontColor: COLORS.text,
+        color: pieChartColors[Object.keys(categoryData).indexOf(category) % pieChartColors.length],
+        legendFontColor: colors.text,
         legendFontSize: 12,
       };
     });
@@ -112,24 +114,24 @@ export default function FinanceGraphiquesComponent() {
       ecart,
       depensesTotal,
     };
-  }, [chargesFixes, depensesPonctuelles]);
+  }, [chargesFixes, depensesPonctuelles, colors]);
 
-  const chartConfig = {
-    backgroundColor: COLORS.background,
-    backgroundGradientFrom: COLORS.background,
-    backgroundGradientTo: COLORS.surface,
+  const chartConfig = useMemo(() => ({
+    backgroundColor: colors.background,
+    backgroundGradientFrom: colors.background,
+    backgroundGradientTo: colors.surface,
     decimalPlaces: 0,
     color: (opacity = 1) => `rgba(46, 125, 50, ${opacity})`,
-    labelColor: (opacity = 1) => `rgba(33, 33, 33, ${opacity})`,
+    labelColor: (opacity = 1) => `rgba(${isDark ? '255, 255, 255' : '33, 33, 33'}, ${opacity})`,
     style: {
       borderRadius: 16,
     },
     propsForDots: {
       r: '6',
       strokeWidth: '2',
-      stroke: COLORS.primary,
+      stroke: colors.primary,
     },
-  };
+  }), [colors, isDark]);
 
   // Calculer les données pour le graphique réel (utilisé dans le rendu)
   const monthsDataForReel = useMemo(() => {
@@ -162,38 +164,38 @@ export default function FinanceGraphiquesComponent() {
 
   return (
     <ScrollView 
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.scrollContent}
     >
       <View style={styles.content}>
-        <Text style={styles.title}>Vue d'ensemble financière</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Vue d'ensemble financière</Text>
 
         {/* Indicateurs clés */}
         <View style={styles.statsContainer}>
           <StatCard
             value={formatAmount(graphData.budgetMois)}
             label="Budget du mois"
-            valueColor={COLORS.primary}
+            valueColor={colors.primary}
           />
           <StatCard
             value={formatAmount(graphData.depensesReelles)}
             label="Dépenses réelles"
-            valueColor={COLORS.accent}
+            valueColor={colors.accent}
           />
           <StatCard
             value={formatAmount(graphData.ecart)}
             label={graphData.ecart >= 0 ? 'Écart (sous budget)' : 'Écart (dépassement)'}
-            valueColor={graphData.ecart >= 0 ? COLORS.success : COLORS.error}
+            valueColor={graphData.ecart >= 0 ? colors.success : colors.error}
           />
         </View>
 
         {/* Graphique Planifié vs Réel */}
-        <View style={styles.chartSection}>
-          <Text style={styles.chartTitle}>Planifié vs Réel (6 derniers mois)</Text>
+        <View style={[styles.chartSection, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.chartTitle, { color: colors.text }]}>Planifié vs Réel (6 derniers mois)</Text>
           {graphData.lineChartData.datasets[0].data.length > 0 ? (
             <>
               <View style={styles.chartContainer}>
-                <Text style={styles.chartSubtitle}>Planifié</Text>
+                <Text style={[styles.chartSubtitle, { color: colors.text }]}>Planifié</Text>
                 <LineChart
                   data={graphData.lineChartData}
                   width={screenWidth - SPACING.lg * 2}
@@ -207,7 +209,7 @@ export default function FinanceGraphiquesComponent() {
                 />
               </View>
               <View style={styles.chartContainer}>
-                <Text style={styles.chartSubtitle}>Réel</Text>
+                <Text style={[styles.chartSubtitle, { color: colors.text }]}>Réel</Text>
                 <LineChart
                   data={{
                     labels: graphData.lineChartData.labels,
@@ -230,15 +232,15 @@ export default function FinanceGraphiquesComponent() {
             </>
           ) : (
             <View style={styles.emptyChart}>
-              <Text style={styles.emptyChartText}>Aucune donnée disponible</Text>
+              <Text style={[styles.emptyChartText, { color: colors.textSecondary }]}>Aucune donnée disponible</Text>
             </View>
           )}
         </View>
 
         {/* Graphique par catégorie */}
         {graphData.pieChartData.length > 0 && (
-          <View style={styles.chartSection}>
-            <Text style={styles.chartTitle}>Répartition par catégorie</Text>
+          <View style={[styles.chartSection, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.chartTitle, { color: colors.text }]}>Répartition par catégorie</Text>
             <PieChart
               data={graphData.pieChartData}
               width={screenWidth - SPACING.lg * 2}
@@ -253,19 +255,19 @@ export default function FinanceGraphiquesComponent() {
         )}
 
         {/* Résumé total */}
-        <View style={styles.summarySection}>
-          <Text style={styles.summaryTitle}>Résumé total</Text>
+        <View style={[styles.summarySection, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.summaryTitle, { color: colors.text }]}>Résumé total</Text>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total des dépenses enregistrées:</Text>
-            <Text style={styles.summaryValue}>{formatAmount(graphData.depensesTotal)}</Text>
+            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Total des dépenses enregistrées:</Text>
+            <Text style={[styles.summaryValue, { color: colors.text }]}>{formatAmount(graphData.depensesTotal)}</Text>
           </View>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Nombre de dépenses:</Text>
-            <Text style={styles.summaryValue}>{depensesPonctuelles.length}</Text>
+            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Nombre de dépenses:</Text>
+            <Text style={[styles.summaryValue, { color: colors.text }]}>{depensesPonctuelles.length}</Text>
           </View>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Charges fixes actives:</Text>
-            <Text style={styles.summaryValue}>
+            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Charges fixes actives:</Text>
+            <Text style={[styles.summaryValue, { color: colors.text }]}>
               {chargesFixes.filter((cf) => cf.statut === 'actif').length}
             </Text>
           </View>
@@ -278,7 +280,6 @@ export default function FinanceGraphiquesComponent() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
   scrollContent: {
     paddingBottom: SPACING.xxl + 85, // 85px pour la barre de navigation + espace
@@ -290,7 +291,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FONT_SIZES.xxl,
     fontWeight: 'bold',
-    color: COLORS.text,
     marginBottom: SPACING.lg,
   },
   statsContainer: {
@@ -300,14 +300,12 @@ const styles = StyleSheet.create({
   },
   chartSection: {
     marginBottom: SPACING.xl,
-    backgroundColor: COLORS.surface,
     padding: SPACING.md,
     borderRadius: 8,
   },
   chartTitle: {
     fontSize: FONT_SIZES.lg,
     fontWeight: 'bold',
-    color: COLORS.text,
     marginBottom: SPACING.md,
   },
   chart: {
@@ -321,7 +319,6 @@ const styles = StyleSheet.create({
   },
   emptyChartText: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
   },
   chartContainer: {
     marginBottom: SPACING.md,
@@ -329,11 +326,9 @@ const styles = StyleSheet.create({
   chartSubtitle: {
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
-    color: COLORS.text,
     marginBottom: SPACING.xs,
   },
   summarySection: {
-    backgroundColor: COLORS.surface,
     padding: SPACING.md,
     borderRadius: 8,
     marginBottom: SPACING.lg,
@@ -341,7 +336,6 @@ const styles = StyleSheet.create({
   summaryTitle: {
     fontSize: FONT_SIZES.lg,
     fontWeight: 'bold',
-    color: COLORS.text,
     marginBottom: SPACING.md,
   },
   summaryRow: {
@@ -351,12 +345,10 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
   },
   summaryValue: {
     fontSize: FONT_SIZES.md,
     fontWeight: 'bold',
-    color: COLORS.text,
   },
 });
 

@@ -3,22 +3,24 @@
  */
 
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import { COLORS } from '../constants/theme';
+import { StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTheme } from '../contexts/ThemeContext';
 import MortalitesListComponent from '../components/MortalitesListComponent';
 
 export default function MortalitesScreen() {
+  const { colors } = useTheme();
+  
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <MortalitesListComponent />
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
 });
 

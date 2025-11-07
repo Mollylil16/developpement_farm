@@ -18,6 +18,8 @@ export interface Projet {
   derniere_modification: string;
 }
 
+export type ProjetStatut = 'actif' | 'archive' | 'suspendu';
+
 export interface CreateProjetInput {
   nom: string;
   localisation: string;

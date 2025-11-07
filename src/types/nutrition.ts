@@ -58,6 +58,70 @@ export interface CreateIngredientInput {
   energie_kcal?: number;
 }
 
+export type UniteStock = 'kg' | 'g' | 'l' | 'ml' | 'sac' | 'unite';
+
+export type TypeMouvementStock = 'entree' | 'sortie' | 'ajustement';
+
+export interface StockAliment {
+  id: string;
+  projet_id: string;
+  nom: string;
+  categorie?: string;
+  quantite_actuelle: number;
+  unite: UniteStock;
+  seuil_alerte?: number;
+  date_derniere_entree?: string;
+  date_derniere_sortie?: string;
+  alerte_active: boolean;
+  notes?: string;
+  date_creation: string;
+  derniere_modification: string;
+}
+
+export interface CreateStockAlimentInput {
+  projet_id: string;
+  nom: string;
+  categorie?: string;
+  quantite_initiale?: number;
+  unite: UniteStock;
+  seuil_alerte?: number;
+  notes?: string;
+}
+
+export interface UpdateStockAlimentInput {
+  nom?: string;
+  categorie?: string;
+  unite?: UniteStock;
+  seuil_alerte?: number | null;
+  notes?: string | null;
+}
+
+export interface StockMouvement {
+  id: string;
+  projet_id: string;
+  aliment_id: string;
+  type: TypeMouvementStock;
+  quantite: number;
+  unite: UniteStock;
+  date: string;
+  origine?: string;
+  commentaire?: string;
+  cree_par?: string;
+  date_creation: string;
+}
+
+export interface CreateStockMouvementInput {
+  projet_id: string;
+  aliment_id: string;
+  type: TypeMouvementStock;
+  quantite: number;
+  unite: UniteStock;
+  date: string;
+  origine?: string;
+  commentaire?: string;
+  cree_par?: string;
+}
+
 /**
  * Recommandations nutritionnelles standards par type de porc (kg/jour)
  * Ces valeurs sont des moyennes et peuvent être ajustées

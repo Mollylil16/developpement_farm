@@ -7,7 +7,8 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { loadGestations, loadGestationsEnCours } from '../../store/slices/reproductionSlice';
-import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constants/theme';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constants/theme';
+import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
 import { useEffect } from 'react';
 import { differenceInDays, parseISO, isAfter, isBefore } from 'date-fns';
@@ -17,6 +18,7 @@ interface ReproductionWidgetProps {
 }
 
 export default function ReproductionWidget({ onPress }: ReproductionWidgetProps) {
+  const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { gestations } = useAppSelector((state) => state.reproduction);
 
@@ -65,31 +67,31 @@ export default function ReproductionWidget({ onPress }: ReproductionWidgetProps)
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.emoji}>🤰</Text>
-        <Text style={styles.title}>Reproduction</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Reproduction</Text>
       </View>
 
-      <View style={styles.divider} />
+      <View style={[styles.divider, { backgroundColor: colors.divider }]} />
 
       <View style={styles.content}>
         <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Gestations actives:</Text>
-          <Text style={styles.statValue}>{reproductionData.gestationsActives}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Gestations actives:</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>{reproductionData.gestationsActives}</Text>
         </View>
 
         <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Mises bas prévues:</Text>
-          <Text style={[styles.statValue, { color: reproductionData.prochainesMisesBas > 0 ? COLORS.warning : COLORS.text }]}>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Mises bas prévues:</Text>
+          <Text style={[styles.statValue, { color: reproductionData.prochainesMisesBas > 0 ? colors.warning : colors.text }]}>
             {reproductionData.prochainesMisesBas} (dans 7 jours)
           </Text>
         </View>
 
         {reproductionData.prochaineMiseBas && (
-          <View style={styles.nextBirthContainer}>
-            <Text style={styles.nextBirthLabel}>Prochaine:</Text>
-            <Text style={styles.nextBirthValue}>
+          <View style={[styles.nextBirthContainer, { backgroundColor: colors.primaryLight + '20' }]}>
+            <Text style={[styles.nextBirthLabel, { color: colors.textSecondary }]}>Prochaine:</Text>
+            <Text style={[styles.nextBirthValue, { color: colors.primary }]}>
               {reproductionData.prochaineMiseBas.truie_nom || `Truie ${reproductionData.prochaineMiseBas.truie_id}`}
             </Text>
-            <Text style={styles.nextBirthDays}>
+            <Text style={[styles.nextBirthDays, { color: colors.textSecondary }]}>
               dans {reproductionData.prochaineMiseBas.joursRestants} jour{reproductionData.prochaineMiseBas.joursRestants > 1 ? 's' : ''}
             </Text>
           </View>
@@ -97,15 +99,15 @@ export default function ReproductionWidget({ onPress }: ReproductionWidgetProps)
 
         {reproductionData.gestationsActives > 0 && (
           <View style={styles.progressContainer}>
-            <View style={styles.progressBar}>
+            <View style={[styles.progressBar, { backgroundColor: colors.borderLight }]}>
               <View
                 style={[
                   styles.progressFill,
-                  { width: `${reproductionData.progressionMoyenne}%` },
+                  { width: `${reproductionData.progressionMoyenne}%`, backgroundColor: colors.primary },
                 ]}
               />
             </View>
-            <Text style={styles.progressText}>
+            <Text style={[styles.progressText, { color: colors.textSecondary }]}>
               {Math.round(reproductionData.progressionMoyenne)}% de progression moyenne
             </Text>
           </View>
@@ -147,11 +149,9 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FONT_SIZES.lg,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.text,
   },
   divider: {
     height: 1,
-    backgroundColor: COLORS.divider,
     marginBottom: SPACING.md,
   },
   content: {
@@ -164,52 +164,43 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
   },
   statValue: {
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.semiBold,
-    color: COLORS.text,
   },
   nextBirthContainer: {
     marginTop: SPACING.sm,
     padding: SPACING.md,
-    backgroundColor: COLORS.primaryLight + '20',
     borderRadius: BORDER_RADIUS.md,
   },
   nextBirthLabel: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
     marginBottom: SPACING.xs,
   },
   nextBirthValue: {
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.primary,
     marginBottom: SPACING.xs,
   },
   nextBirthDays: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
   },
   progressContainer: {
     marginTop: SPACING.md,
   },
   progressBar: {
     height: 8,
-    backgroundColor: COLORS.borderLight,
     borderRadius: BORDER_RADIUS.sm,
     overflow: 'hidden',
     marginBottom: SPACING.xs,
   },
   progressFill: {
     height: '100%',
-    backgroundColor: COLORS.primary,
     borderRadius: BORDER_RADIUS.sm,
   },
   progressText: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.textSecondary,
     textAlign: 'center',
   },
 });

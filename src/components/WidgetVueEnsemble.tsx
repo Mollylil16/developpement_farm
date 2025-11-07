@@ -5,13 +5,15 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppSelector } from '../store/hooks';
-import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface WidgetVueEnsembleProps {
   onPress?: () => void;
 }
 
 export default function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
+  const { colors } = useTheme();
   const { projetActif } = useAppSelector((state) => state.projet);
   const { gestations } = useAppSelector((state) => state.reproduction);
   const { chargesFixes, depensesPonctuelles } = useAppSelector((state) => state.finance);
@@ -66,69 +68,89 @@ export default function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
     };
   }, [chargesFixes, depensesPonctuelles]);
 
-  // Performance globale
-  const performanceGlobale = indicateursPerformance?.performance_globale || 0;
+  // Calculer la performance globale à partir des indicateurs
+  const performanceGlobale = useMemo(() => {
+    if (!indicateursPerformance) return 0;
+    
+    // Score basé sur plusieurs facteurs (0-100)
+    // - Taux de croissance (0-50 points)
+    // - Taux de mortalité inversé (0-30 points, plus bas = mieux)
+    // - Efficacité alimentaire (0-20 points)
+    
+    const scoreCroissance = Math.min(50, (indicateursPerformance.taux_croissance / 100) * 50);
+    const scoreMortalite = Math.min(30, (1 - Math.min(1, indicateursPerformance.taux_mortalite / 10)) * 30);
+    const scoreEfficacite = Math.min(20, (indicateursPerformance.efficacite_alimentaire / 10) * 20);
+    
+    return scoreCroissance + scoreMortalite + scoreEfficacite;
+  }, [indicateursPerformance]);
 
   if (!projetActif) return null;
 
   const renderTrend = (value: number) => {
-    if (value > 0) return { icon: '↗️', color: COLORS.success };
-    if (value < 0) return { icon: '↘️', color: COLORS.error };
-    return { icon: '→', color: COLORS.textSecondary };
+    if (value > 0) return { icon: '↗️', color: colors.success };
+    if (value < 0) return { icon: '↘️', color: colors.error };
+    return { icon: '→', color: colors.textSecondary };
   };
 
   return (
     <TouchableOpacity 
-      style={styles.container} 
+      style={[
+        styles.container,
+        {
+          backgroundColor: colors.surface,
+          borderColor: colors.borderLight,
+          ...colors.shadow.medium,
+        },
+      ]} 
       onPress={onPress}
       activeOpacity={0.7}
     >
       <View style={styles.header}>
-        <Text style={styles.title}>🏠 Vue d'ensemble</Text>
+        <Text style={[styles.title, { color: colors.text }]}>🏠 Vue d'ensemble</Text>
       </View>
 
       <View style={styles.statsRow}>
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>{projetActif.nombre_truies}</Text>
-          <Text style={styles.statLabel}>Truies</Text>
+          <Text style={[styles.statValue, { color: colors.primary }]}>{projetActif.nombre_truies}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Truies</Text>
           <View style={styles.trendContainer}>
-            <Text style={[styles.trend, { color: COLORS.success }]}>↗️ +2</Text>
+            <Text style={[styles.trend, { color: colors.success }]}>↗️ +2</Text>
           </View>
         </View>
 
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>{projetActif.nombre_verrats}</Text>
-          <Text style={styles.statLabel}>Verrats</Text>
+          <Text style={[styles.statValue, { color: colors.primary }]}>{projetActif.nombre_verrats}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Verrats</Text>
           <View style={styles.trendContainer}>
-            <Text style={[styles.trend, { color: COLORS.textSecondary }]}>→ 0</Text>
+            <Text style={[styles.trend, { color: colors.textSecondary }]}>→ 0</Text>
           </View>
         </View>
 
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>{projetActif.nombre_porcelets}</Text>
-          <Text style={styles.statLabel}>Porcelets</Text>
+          <Text style={[styles.statValue, { color: colors.primary }]}>{projetActif.nombre_porcelets}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Porcelets</Text>
           <View style={styles.trendContainer}>
-            <Text style={[styles.trend, { color: COLORS.success }]}>↗️ +5</Text>
+            <Text style={[styles.trend, { color: colors.success }]}>↗️ +5</Text>
           </View>
         </View>
       </View>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { borderTopColor: colors.divider }]}>
         <View style={styles.footerItem}>
-          <Text style={styles.footerLabel}>📈 Performance globale</Text>
-          <Text style={styles.footerValue}>{performanceGlobale.toFixed(0)}%</Text>
+          <Text style={[styles.footerLabel, { color: colors.textSecondary }]}>📈 Performance globale</Text>
+          <Text style={[styles.footerValue, { color: colors.text }]}>{performanceGlobale.toFixed(0)}%</Text>
         </View>
 
         <View style={styles.footerItem}>
-          <Text style={styles.footerLabel}>💰 Budget restant</Text>
-          <Text style={styles.footerValue}>
+          <Text style={[styles.footerLabel, { color: colors.textSecondary }]}>💰 Budget restant</Text>
+          <Text style={[styles.footerValue, { color: colors.text }]}>
             {budgetInfo.budgetRestant.toLocaleString('fr-FR')} FCFA
           </Text>
         </View>
 
         {alertesMisesBas > 0 && (
-          <View style={styles.alertContainer}>
-            <Text style={styles.alertText}>
+          <View style={[styles.alertContainer, { backgroundColor: colors.warning + '20' }]}>
+            <Text style={[styles.alertText, { color: colors.warning }]}>
               ⚠️ {alertesMisesBas} mise{alertesMisesBas > 1 ? 's' : ''} bas prévue{alertesMisesBas > 1 ? 's' : ''} cette semaine
             </Text>
           </View>
@@ -140,13 +162,10 @@ export default function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     marginBottom: SPACING.md,
-    ...COLORS.shadow.medium,
     borderWidth: 1,
-    borderColor: COLORS.borderLight,
   },
   header: {
     marginBottom: SPACING.md,
@@ -154,7 +173,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FONT_SIZES.lg,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.text,
   },
   statsRow: {
     flexDirection: 'row',
@@ -168,12 +186,10 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: FONT_SIZES.xxl,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.primary,
     marginBottom: SPACING.xs,
   },
   statLabel: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
     marginBottom: SPACING.xs,
   },
   trendContainer: {
@@ -185,7 +201,6 @@ const styles = StyleSheet.create({
   },
   footer: {
     borderTopWidth: 1,
-    borderTopColor: COLORS.divider,
     paddingTop: SPACING.md,
     marginTop: SPACING.md,
   },
@@ -197,22 +212,18 @@ const styles = StyleSheet.create({
   },
   footerLabel: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
   },
   footerValue: {
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.semiBold,
-    color: COLORS.text,
   },
   alertContainer: {
-    backgroundColor: COLORS.warning + '20',
     borderRadius: BORDER_RADIUS.sm,
     padding: SPACING.sm,
     marginTop: SPACING.xs,
   },
   alertText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.warning,
     fontWeight: FONT_WEIGHTS.medium,
   },
 });

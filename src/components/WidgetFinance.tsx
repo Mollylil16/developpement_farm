@@ -5,13 +5,15 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppSelector } from '../store/hooks';
-import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface WidgetFinanceProps {
   onPress?: () => void;
 }
 
 export default function WidgetFinance({ onPress }: WidgetFinanceProps) {
+  const { colors } = useTheme();
   const { chargesFixes, depensesPonctuelles } = useAppSelector((state) => state.finance);
 
   // Calculer le budget mensuel et les dépenses
@@ -69,9 +71,9 @@ export default function WidgetFinance({ onPress }: WidgetFinanceProps) {
   }, [chargesFixes, depensesPonctuelles]);
 
   const getEvolutionColor = () => {
-    if (budgetInfo.evolution > 0) return COLORS.error;
-    if (budgetInfo.evolution < 0) return COLORS.success;
-    return COLORS.textSecondary;
+    if (budgetInfo.evolution > 0) return colors.error;
+    if (budgetInfo.evolution < 0) return colors.success;
+    return colors.textSecondary;
   };
 
   const getEvolutionIcon = () => {
@@ -82,59 +84,66 @@ export default function WidgetFinance({ onPress }: WidgetFinanceProps) {
 
   return (
     <TouchableOpacity 
-      style={styles.container} 
+      style={[
+        styles.container,
+        {
+          backgroundColor: colors.surface,
+          borderColor: colors.borderLight,
+          ...colors.shadow.medium,
+        },
+      ]} 
       onPress={onPress}
       activeOpacity={0.7}
     >
       <View style={styles.header}>
-        <Text style={styles.title}>💰 Finance</Text>
+        <Text style={[styles.title, { color: colors.text }]}>💰 Finance</Text>
       </View>
 
       <View style={styles.content}>
         <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Budget mensuel:</Text>
-          <Text style={styles.statValue}>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Budget mensuel:</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>
             {budgetInfo.budgetMensuel.toLocaleString('fr-FR')} FCFA
           </Text>
         </View>
 
         <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Dépenses:</Text>
-          <Text style={styles.statValue}>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Dépenses:</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>
             {budgetInfo.depensesMois.toLocaleString('fr-FR')} FCFA ({budgetInfo.pourcentageUtilise.toFixed(0)}%)
           </Text>
         </View>
 
         <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Restant:</Text>
-          <Text style={[styles.statValue, { color: budgetInfo.budgetRestant >= 0 ? COLORS.success : COLORS.error }]}>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Restant:</Text>
+          <Text style={[styles.statValue, { color: budgetInfo.budgetRestant >= 0 ? colors.success : colors.error }]}>
             {budgetInfo.budgetRestant.toLocaleString('fr-FR')} FCFA
           </Text>
         </View>
 
         <View style={styles.progressContainer}>
-          <View style={styles.progressBar}>
+          <View style={[styles.progressBar, { backgroundColor: colors.borderLight }]}>
             <View 
               style={[
                 styles.progressFill, 
                 { 
                   width: `${Math.min(100, budgetInfo.pourcentageUtilise)}%`,
                   backgroundColor: budgetInfo.pourcentageUtilise > 80 
-                    ? COLORS.error 
+                    ? colors.error 
                     : budgetInfo.pourcentageUtilise > 60 
-                    ? COLORS.warning 
-                    : COLORS.primary,
+                    ? colors.warning 
+                    : colors.primary,
                 }
               ]} 
             />
           </View>
-          <Text style={styles.progressText}>
+          <Text style={[styles.progressText, { color: colors.textSecondary }]}>
             {budgetInfo.pourcentageUtilise.toFixed(0)}% utilisé
           </Text>
         </View>
 
-        <View style={styles.evolutionContainer}>
-          <Text style={styles.evolutionLabel}>📊 Évolution mensuelle:</Text>
+        <View style={[styles.evolutionContainer, { borderTopColor: colors.divider }]}>
+          <Text style={[styles.evolutionLabel, { color: colors.textSecondary }]}>📊 Évolution mensuelle:</Text>
           <Text style={[styles.evolutionValue, { color: getEvolutionColor() }]}>
             {getEvolutionIcon()} {Math.abs(budgetInfo.evolution).toFixed(1)}%
           </Text>
@@ -146,13 +155,10 @@ export default function WidgetFinance({ onPress }: WidgetFinanceProps) {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     marginBottom: SPACING.md,
-    ...COLORS.shadow.medium,
     borderWidth: 1,
-    borderColor: COLORS.borderLight,
   },
   header: {
     marginBottom: SPACING.md,
@@ -160,7 +166,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FONT_SIZES.lg,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.text,
   },
   content: {
     gap: SPACING.sm,
@@ -172,19 +177,16 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
   },
   statValue: {
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.semiBold,
-    color: COLORS.text,
   },
   progressContainer: {
     marginTop: SPACING.sm,
   },
   progressBar: {
     height: 12,
-    backgroundColor: COLORS.borderLight,
     borderRadius: BORDER_RADIUS.sm,
     overflow: 'hidden',
     marginBottom: SPACING.xs,
@@ -195,7 +197,6 @@ const styles = StyleSheet.create({
   },
   progressText: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.textSecondary,
     textAlign: 'right',
   },
   evolutionContainer: {
@@ -205,11 +206,9 @@ const styles = StyleSheet.create({
     marginTop: SPACING.sm,
     paddingTop: SPACING.sm,
     borderTopWidth: 1,
-    borderTopColor: COLORS.divider,
   },
   evolutionLabel: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
   },
   evolutionValue: {
     fontSize: FONT_SIZES.md,

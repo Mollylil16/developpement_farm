@@ -6,13 +6,15 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppSelector } from '../store/hooks';
 import { joursRestantsAvantMiseBas } from '../types/reproduction';
-import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface WidgetReproductionProps {
   onPress?: () => void;
 }
 
 export default function WidgetReproduction({ onPress }: WidgetReproductionProps) {
+  const { colors } = useTheme();
   const { gestations } = useAppSelector((state) => state.reproduction);
 
   // Calculer les gestations en cours
@@ -67,53 +69,63 @@ export default function WidgetReproduction({ onPress }: WidgetReproductionProps)
 
   return (
     <TouchableOpacity 
-      style={styles.container} 
+      style={[
+        styles.container,
+        {
+          backgroundColor: colors.surface,
+          borderColor: colors.borderLight,
+          ...colors.shadow.medium,
+        },
+      ]} 
       onPress={onPress}
       activeOpacity={0.7}
     >
       <View style={styles.header}>
-        <Text style={styles.title}>🤰 Reproduction</Text>
+        <Text style={[styles.title, { color: colors.text }]}>🤰 Reproduction</Text>
       </View>
 
       <View style={styles.content}>
         <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Gestations actives:</Text>
-          <Text style={styles.statValue}>{gestationsEnCours.length}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Gestations actives:</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>{gestationsEnCours.length}</Text>
         </View>
 
         <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Mises bas prévues:</Text>
-          <Text style={styles.statValue}>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Mises bas prévues:</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>
             {prochainesMisesBas.length} (dans les 7 prochains jours)
           </Text>
         </View>
 
         {prochaineMiseBas && (
-          <View style={styles.prochaineContainer}>
-            <Text style={styles.prochaineLabel}>
-              Prochaine: Truie #{prochaineMiseBas.numero_truie} (dans {joursRestantsAvantMiseBas(prochaineMiseBas.date_mise_bas_prevue)} jour{joursRestantsAvantMiseBas(prochaineMiseBas.date_mise_bas_prevue) > 1 ? 's' : ''})
+          <View style={[styles.prochaineContainer, { backgroundColor: colors.info + '20' }]}>
+            <Text style={[styles.prochaineLabel, { color: colors.info }]}>
+              Prochaine: {prochaineMiseBas.truie_nom || `Truie ${prochaineMiseBas.truie_id}`} (dans {joursRestantsAvantMiseBas(prochaineMiseBas.date_mise_bas_prevue)} jour{joursRestantsAvantMiseBas(prochaineMiseBas.date_mise_bas_prevue) > 1 ? 's' : ''})
             </Text>
           </View>
         )}
 
         {prochaineMiseBas && (
           <View style={styles.progressContainer}>
-            <Text style={styles.progressLabel}>📅 Calendrier des prochaines mises bas</Text>
-            <View style={styles.progressBar}>
+            <Text style={[styles.progressLabel, { color: colors.textSecondary }]}>📅 Calendrier des prochaines mises bas</Text>
+            <View style={[styles.progressBar, { backgroundColor: colors.borderLight }]}>
               <View 
                 style={[
-                  styles.progressFill, 
-                  { width: `${progressionPourcentage}%` }
+                  styles.progressFill,
+                  {
+                    width: `${progressionPourcentage}%`,
+                    backgroundColor: colors.primary,
+                  },
                 ]} 
               />
             </View>
-            <Text style={styles.progressText}>{progressionPourcentage.toFixed(0)}%</Text>
+            <Text style={[styles.progressText, { color: colors.textSecondary }]}>{progressionPourcentage.toFixed(0)}%</Text>
           </View>
         )}
 
-        <View style={styles.tauxContainer}>
-          <Text style={styles.tauxLabel}>Taux de reproduction:</Text>
-          <Text style={styles.tauxValue}>
+        <View style={[styles.tauxContainer, { borderTopColor: colors.divider }]}>
+          <Text style={[styles.tauxLabel, { color: colors.textSecondary }]}>Taux de reproduction:</Text>
+          <Text style={[styles.tauxValue, { color: colors.primary }]}>
             {tauxReproduction.toFixed(0)}% 
             {tauxReproduction >= 80 ? ' ↗️' : tauxReproduction >= 60 ? ' →' : ' ↘️'}
           </Text>
@@ -125,13 +137,10 @@ export default function WidgetReproduction({ onPress }: WidgetReproductionProps)
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     marginBottom: SPACING.md,
-    ...COLORS.shadow.medium,
     borderWidth: 1,
-    borderColor: COLORS.borderLight,
   },
   header: {
     marginBottom: SPACING.md,
@@ -139,7 +148,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FONT_SIZES.lg,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.text,
   },
   content: {
     gap: SPACING.sm,
@@ -151,22 +159,18 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
   },
   statValue: {
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.semiBold,
-    color: COLORS.text,
   },
   prochaineContainer: {
-    backgroundColor: COLORS.info + '20',
     borderRadius: BORDER_RADIUS.sm,
     padding: SPACING.sm,
     marginTop: SPACING.xs,
   },
   prochaineLabel: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.info,
     fontWeight: FONT_WEIGHTS.medium,
   },
   progressContainer: {
@@ -174,23 +178,19 @@ const styles = StyleSheet.create({
   },
   progressLabel: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.textSecondary,
     marginBottom: SPACING.xs,
   },
   progressBar: {
     height: 8,
-    backgroundColor: COLORS.borderLight,
     borderRadius: BORDER_RADIUS.sm,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: COLORS.primary,
     borderRadius: BORDER_RADIUS.sm,
   },
   progressText: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.textSecondary,
     marginTop: SPACING.xs,
     textAlign: 'right',
   },
@@ -201,16 +201,13 @@ const styles = StyleSheet.create({
     marginTop: SPACING.sm,
     paddingTop: SPACING.sm,
     borderTopWidth: 1,
-    borderTopColor: COLORS.divider,
   },
   tauxLabel: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
   },
   tauxValue: {
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.primary,
   },
 });
 

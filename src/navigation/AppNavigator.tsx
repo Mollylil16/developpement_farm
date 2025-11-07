@@ -25,6 +25,7 @@ import PlanificationScreen from '../screens/PlanificationScreen';
 import ParametresScreen from '../screens/ParametresScreen';
 import CollaborationScreen from '../screens/CollaborationScreen';
 import MortalitesScreen from '../screens/MortalitesScreen';
+import ProductionScreen from '../screens/ProductionScreen';
 import { COLORS } from '../constants/theme';
 
 const Tab = createBottomTabNavigator();
@@ -149,6 +150,13 @@ function MainTabs() {
       <Tab.Screen
         name={SCREENS.MORTALITES}
         component={MortalitesScreen}
+        options={{
+          tabBarButton: () => null,
+        }}
+      />
+      <Tab.Screen
+        name={SCREENS.PRODUCTION}
+        component={ProductionScreen}
         options={{
           tabBarButton: () => null,
         }}

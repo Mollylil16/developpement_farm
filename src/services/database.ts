@@ -4,7 +4,33 @@
  */
 
 import * as SQLite from 'expo-sqlite';
-import { Projet, ChargeFixe, DepensePonctuelle, UpdateDepensePonctuelleInput, Gestation, Sevrage, Ingredient, Ration, RapportCroissance, Mortalite, Planification, Collaborateur, UpdateCollaborateurInput } from '../types';
+import {
+  Projet,
+  ChargeFixe,
+  DepensePonctuelle,
+  UpdateDepensePonctuelleInput,
+  Gestation,
+  Sevrage,
+  Ingredient,
+  Ration,
+  RapportCroissance,
+  Mortalite,
+  Planification,
+  Collaborateur,
+  UpdateCollaborateurInput,
+  StockAliment,
+  CreateStockAlimentInput,
+  UpdateStockAlimentInput,
+  StockMouvement,
+  CreateStockMouvementInput,
+  ProductionAnimal,
+  CreateProductionAnimalInput,
+  UpdateProductionAnimalInput,
+  ProductionPesee,
+  CreatePeseeInput,
+  ProductionStandardGMQ,
+  getStandardGMQ,
+} from '../types';
 import { calculerDateMiseBasPrevue } from '../types/reproduction';
 
 class DatabaseService {
@@ -123,6 +149,83 @@ class DatabaseService {
         proteine_pourcent REAL,
         energie_kcal REAL,
         date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Table stocks_aliments
+    await this.db.execAsync(`
+      CREATE TABLE IF NOT EXISTS stocks_aliments (
+        id TEXT PRIMARY KEY,
+        projet_id TEXT NOT NULL,
+        nom TEXT NOT NULL,
+        categorie TEXT,
+        quantite_actuelle REAL NOT NULL,
+        unite TEXT NOT NULL,
+        seuil_alerte REAL,
+        date_derniere_entree TEXT,
+        date_derniere_sortie TEXT,
+        alerte_active INTEGER DEFAULT 0,
+        notes TEXT,
+        date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+        derniere_modification TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (projet_id) REFERENCES projets(id)
+      );
+    `);
+
+    // Table stocks_mouvements
+    await this.db.execAsync(`
+      CREATE TABLE IF NOT EXISTS stocks_mouvements (
+        id TEXT PRIMARY KEY,
+        projet_id TEXT NOT NULL,
+        aliment_id TEXT NOT NULL,
+        type TEXT NOT NULL CHECK (type IN ('entree', 'sortie', 'ajustement')),
+        quantite REAL NOT NULL,
+        unite TEXT NOT NULL,
+        date TEXT NOT NULL,
+        origine TEXT,
+        commentaire TEXT,
+        cree_par TEXT,
+        date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (projet_id) REFERENCES projets(id),
+        FOREIGN KEY (aliment_id) REFERENCES stocks_aliments(id)
+      );
+    `);
+
+    // Table production_animaux
+    await this.db.execAsync(`
+      CREATE TABLE IF NOT EXISTS production_animaux (
+        id TEXT PRIMARY KEY,
+        projet_id TEXT NOT NULL,
+        code TEXT NOT NULL,
+        nom TEXT,
+        origine TEXT,
+        sexe TEXT NOT NULL CHECK (sexe IN ('male', 'femelle', 'indetermine')) DEFAULT 'indetermine',
+        date_naissance TEXT,
+        poids_initial REAL,
+        date_entree TEXT,
+        actif INTEGER DEFAULT 1,
+        notes TEXT,
+        date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+        derniere_modification TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (projet_id) REFERENCES projets(id)
+      );
+    `);
+
+    // Table production_pesees
+    await this.db.execAsync(`
+      CREATE TABLE IF NOT EXISTS production_pesees (
+        id TEXT PRIMARY KEY,
+        projet_id TEXT NOT NULL,
+        animal_id TEXT NOT NULL,
+        date TEXT NOT NULL,
+        poids_kg REAL NOT NULL,
+        gmq REAL,
+        difference_standard REAL,
+        commentaire TEXT,
+        cree_par TEXT,
+        date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (projet_id) REFERENCES projets(id),
+        FOREIGN KEY (animal_id) REFERENCES production_animaux(id)
       );
     `);
 
@@ -254,6 +357,14 @@ class DatabaseService {
       CREATE INDEX IF NOT EXISTS idx_collaborations_statut ON collaborations(statut);
       CREATE INDEX IF NOT EXISTS idx_collaborations_role ON collaborations(role);
       CREATE INDEX IF NOT EXISTS idx_collaborations_email ON collaborations(email);
+      CREATE INDEX IF NOT EXISTS idx_stocks_aliments_projet ON stocks_aliments(projet_id);
+      CREATE INDEX IF NOT EXISTS idx_stocks_aliments_alerte ON stocks_aliments(alerte_active);
+      CREATE INDEX IF NOT EXISTS idx_stocks_mouvements_aliment ON stocks_mouvements(aliment_id);
+      CREATE INDEX IF NOT EXISTS idx_stocks_mouvements_date ON stocks_mouvements(date);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_production_animaux_code ON production_animaux(projet_id, code);
+      CREATE INDEX IF NOT EXISTS idx_production_animaux_actif ON production_animaux(actif);
+      CREATE INDEX IF NOT EXISTS idx_production_pesees_animal ON production_pesees(animal_id);
+      CREATE INDEX IF NOT EXISTS idx_production_pesees_date ON production_pesees(date);
     `);
   }
 
@@ -916,6 +1027,505 @@ class DatabaseService {
     }
 
     await this.db.runAsync('DELETE FROM ingredients WHERE id = ?', [id]);
+  }
+
+  /**
+   * ============================================
+   * GESTION DES STOCKS D'ALIMENTS
+   * ============================================
+   */
+
+  async createStockAliment(input: CreateStockAlimentInput): Promise<StockAliment> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const id = `stock_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const date_creation = new Date().toISOString();
+    const quantite_initiale = input.quantite_initiale ?? 0;
+    const alerte_active = input.seuil_alerte !== undefined && input.seuil_alerte !== null
+      ? quantite_initiale <= input.seuil_alerte
+      : false;
+
+    await this.db.runAsync(
+      `INSERT INTO stocks_aliments (
+        id, projet_id, nom, categorie, quantite_actuelle, unite,
+        seuil_alerte, date_derniere_entree, date_derniere_sortie,
+        alerte_active, notes, date_creation, derniere_modification
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ,[
+        id,
+        input.projet_id,
+        input.nom,
+        input.categorie || null,
+        quantite_initiale,
+        input.unite,
+        input.seuil_alerte ?? null,
+        quantite_initiale > 0 ? date_creation : null,
+        null,
+        alerte_active ? 1 : 0,
+        input.notes || null,
+        date_creation,
+        date_creation,
+      ]
+    );
+
+    return this.getStockAlimentById(id);
+  }
+
+  async getStockAlimentById(id: string): Promise<StockAliment> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const result = await this.db.getFirstAsync<any>(
+      'SELECT * FROM stocks_aliments WHERE id = ?',
+      [id]
+    );
+
+    if (!result) {
+      throw new Error(`Aliment avec l'id ${id} non trouvé`);
+    }
+
+    return this.mapRowToStockAliment(result);
+  }
+
+  async getStocksParProjet(projetId: string): Promise<StockAliment[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const results = await this.db.getAllAsync<any>(
+      'SELECT * FROM stocks_aliments WHERE projet_id = ? ORDER BY nom ASC',
+      [projetId]
+    );
+
+    return results.map((row) => this.mapRowToStockAliment(row));
+  }
+
+  async getStocksEnAlerte(projetId: string): Promise<StockAliment[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const results = await this.db.getAllAsync<any>(
+      'SELECT * FROM stocks_aliments WHERE projet_id = ? AND alerte_active = 1 ORDER BY nom ASC',
+      [projetId]
+    );
+
+    return results.map((row) => this.mapRowToStockAliment(row));
+  }
+
+  async updateStockAliment(id: string, updates: UpdateStockAlimentInput): Promise<StockAliment> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const current = await this.getStockAlimentById(id);
+    const nouvelleQuantite = current.quantite_actuelle;
+    const nouveauSeuil = updates.seuil_alerte !== undefined ? updates.seuil_alerte ?? null : current.seuil_alerte ?? null;
+    const alerte_active = nouveauSeuil !== null ? nouvelleQuantite <= nouveauSeuil : false;
+    const derniere_modification = new Date().toISOString();
+
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (updates.nom !== undefined) {
+      fields.push('nom = ?');
+      values.push(updates.nom);
+    }
+    if (updates.categorie !== undefined) {
+      fields.push('categorie = ?');
+      values.push(updates.categorie ?? null);
+    }
+    if (updates.unite !== undefined) {
+      fields.push('unite = ?');
+      values.push(updates.unite);
+    }
+    if (updates.seuil_alerte !== undefined) {
+      fields.push('seuil_alerte = ?');
+      values.push(updates.seuil_alerte ?? null);
+    }
+    if (updates.notes !== undefined) {
+      fields.push('notes = ?');
+      values.push(updates.notes ?? null);
+    }
+
+    // Toujours mettre à jour alerte_active et derniere_modification
+    fields.push('alerte_active = ?');
+    values.push(alerte_active ? 1 : 0);
+    fields.push('derniere_modification = ?');
+    values.push(derniere_modification);
+    values.push(id);
+
+    await this.db.runAsync(
+      `UPDATE stocks_aliments SET ${fields.join(', ')} WHERE id = ?`,
+      values
+    );
+
+    return this.getStockAlimentById(id);
+  }
+
+  async deleteStockAliment(id: string): Promise<void> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    await this.db.runAsync('DELETE FROM stocks_mouvements WHERE aliment_id = ?', [id]);
+    await this.db.runAsync('DELETE FROM stocks_aliments WHERE id = ?', [id]);
+  }
+
+  async createStockMouvement(input: CreateStockMouvementInput): Promise<{ mouvement: StockMouvement; stock: StockAliment }> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const stock = await this.getStockAlimentById(input.aliment_id);
+    let nouvelleQuantite = stock.quantite_actuelle;
+
+    switch (input.type) {
+      case 'entree':
+        nouvelleQuantite += input.quantite;
+        break;
+      case 'sortie':
+        nouvelleQuantite -= input.quantite;
+        break;
+      case 'ajustement':
+        nouvelleQuantite = input.quantite;
+        break;
+      default:
+        break;
+    }
+
+    nouvelleQuantite = Math.max(0, nouvelleQuantite);
+
+    const id = `mvt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const date_creation = new Date().toISOString();
+
+    await this.db.runAsync(
+      `INSERT INTO stocks_mouvements (
+        id, projet_id, aliment_id, type, quantite, unite, date,
+        origine, commentaire, cree_par, date_creation
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ,[
+        id,
+        input.projet_id,
+        input.aliment_id,
+        input.type,
+        input.quantite,
+        input.unite,
+        input.date,
+        input.origine || null,
+        input.commentaire || null,
+        input.cree_par || null,
+        date_creation,
+      ]
+    );
+
+    const alerte_active = stock.seuil_alerte !== undefined && stock.seuil_alerte !== null
+      ? nouvelleQuantite <= stock.seuil_alerte
+      : false;
+
+    const dateDerniereEntree = input.type === 'entree' ? input.date : stock.date_derniere_entree || null;
+    const dateDerniereSortie = input.type === 'sortie' ? input.date : stock.date_derniere_sortie || null;
+
+    await this.db.runAsync(
+      `UPDATE stocks_aliments SET
+        quantite_actuelle = ?,
+        date_derniere_entree = ?,
+        date_derniere_sortie = ?,
+        alerte_active = ?,
+        derniere_modification = ?
+      WHERE id = ?`,
+      [
+        nouvelleQuantite,
+        dateDerniereEntree,
+        dateDerniereSortie,
+        alerte_active ? 1 : 0,
+        date_creation,
+        stock.id,
+      ]
+    );
+
+    const mouvement = await this.getStockMouvementById(id);
+    const updatedStock = await this.getStockAlimentById(stock.id);
+
+    return {
+      mouvement,
+      stock: updatedStock,
+    };
+  }
+
+  async getStockMouvementById(id: string): Promise<StockMouvement> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const result = await this.db.getFirstAsync<any>(
+      'SELECT * FROM stocks_mouvements WHERE id = ?',
+      [id]
+    );
+
+    if (!result) {
+      throw new Error(`Mouvement avec l'id ${id} non trouvé`);
+    }
+
+    return this.mapRowToStockMouvement(result);
+  }
+
+  async getMouvementsParAliment(alimentId: string, limit: number = 50): Promise<StockMouvement[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const results = await this.db.getAllAsync<any>(
+      'SELECT * FROM stocks_mouvements WHERE aliment_id = ? ORDER BY date DESC LIMIT ?',
+      [alimentId, limit]
+    );
+
+    return results.map((row) => this.mapRowToStockMouvement(row));
+  }
+
+  async getMouvementsRecents(projetId: string, limit: number = 20): Promise<StockMouvement[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const results = await this.db.getAllAsync<any>(
+      'SELECT * FROM stocks_mouvements WHERE projet_id = ? ORDER BY date DESC LIMIT ?',
+      [projetId, limit]
+    );
+
+    return results.map((row) => this.mapRowToStockMouvement(row));
+  }
+
+  /**
+   * ============================================
+   * GESTION PRODUCTION - ANIMAUX & PESÉES
+   * ============================================
+   */
+
+  async createProductionAnimal(input: CreateProductionAnimalInput): Promise<ProductionAnimal> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const id = `animal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const date_creation = new Date().toISOString();
+    const derniere_modification = date_creation;
+
+    await this.db.runAsync(
+      `INSERT INTO production_animaux (
+        id, projet_id, code, nom, origine, sexe, date_naissance, poids_initial,
+        date_entree, actif, notes, date_creation, derniere_modification
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ,[
+        id,
+        input.projet_id,
+        input.code,
+        input.nom || null,
+        input.origine || null,
+        input.sexe || 'indetermine',
+        input.date_naissance || null,
+        input.poids_initial ?? null,
+        input.date_entree || null,
+        1,
+        input.notes || null,
+        date_creation,
+        derniere_modification,
+      ]
+    );
+
+    return this.getProductionAnimalById(id);
+  }
+
+  async getProductionAnimalById(id: string): Promise<ProductionAnimal> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const result = await this.db.getFirstAsync<any>(
+      'SELECT * FROM production_animaux WHERE id = ?',
+      [id]
+    );
+
+    if (!result) {
+      throw new Error(`Animal avec l'id ${id} non trouvé`);
+    }
+
+    return this.mapRowToProductionAnimal(result);
+  }
+
+  async getProductionAnimaux(projetId: string, inclureInactifs: boolean = true): Promise<ProductionAnimal[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const query = inclureInactifs
+      ? 'SELECT * FROM production_animaux WHERE projet_id = ? ORDER BY code ASC'
+      : 'SELECT * FROM production_animaux WHERE projet_id = ? AND actif = 1 ORDER BY code ASC';
+
+    const results = await this.db.getAllAsync<any>(query, [projetId]);
+    return results.map((row) => this.mapRowToProductionAnimal(row));
+  }
+
+  async updateProductionAnimal(id: string, updates: UpdateProductionAnimalInput): Promise<ProductionAnimal> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value !== undefined) {
+        fields.push(`${key} = ?`);
+        values.push(value);
+      }
+    });
+
+    if (fields.length === 0) {
+      return this.getProductionAnimalById(id);
+    }
+
+    fields.push('derniere_modification = ?');
+    values.push(new Date().toISOString());
+    values.push(id);
+
+    await this.db.runAsync(
+      `UPDATE production_animaux SET ${fields.join(', ')} WHERE id = ?`,
+      values
+    );
+
+    return this.getProductionAnimalById(id);
+  }
+
+  async deleteProductionAnimal(id: string): Promise<void> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    await this.db.runAsync('DELETE FROM production_pesees WHERE animal_id = ?', [id]);
+    await this.db.runAsync('DELETE FROM production_animaux WHERE id = ?', [id]);
+  }
+
+  async createPesee(input: CreatePeseeInput): Promise<ProductionPesee> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const animal = await this.getProductionAnimalById(input.animal_id);
+    const previous = await this.getDernierePeseeAvantDate(input.animal_id, input.date);
+
+    let gmq: number | null = null;
+    let difference_standard: number | null = null;
+
+    let poidsReference = animal.poids_initial ?? null;
+    let dateReference = animal.date_entree ?? null;
+
+    if (previous) {
+      poidsReference = previous.poids_kg;
+      dateReference = previous.date;
+    }
+
+    if (poidsReference !== null && dateReference) {
+      const diffJours = this.calculateDayDifference(dateReference, input.date);
+      if (diffJours > 0) {
+        gmq = ((input.poids_kg - poidsReference) * 1000) / diffJours; // g/jour
+        const standard = getStandardGMQ(input.poids_kg);
+        if (standard) {
+          difference_standard = gmq - standard.gmq_cible;
+        }
+      }
+    }
+
+    const id = `pesee_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const date_creation = new Date().toISOString();
+
+    await this.db.runAsync(
+      `INSERT INTO production_pesees (
+        id, projet_id, animal_id, date, poids_kg, gmq, difference_standard,
+        commentaire, cree_par, date_creation
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ,[
+        id,
+        input.projet_id,
+        input.animal_id,
+        input.date,
+        input.poids_kg,
+        gmq ?? null,
+        difference_standard ?? null,
+        input.commentaire || null,
+        input.cree_par || null,
+        date_creation,
+      ]
+    );
+
+    return this.getPeseeById(id);
+  }
+
+  async getPeseeById(id: string): Promise<ProductionPesee> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const result = await this.db.getFirstAsync<any>(
+      'SELECT * FROM production_pesees WHERE id = ?',
+      [id]
+    );
+
+    if (!result) {
+      throw new Error(`Pesée avec l'id ${id} non trouvée`);
+    }
+
+    return this.mapRowToProductionPesee(result);
+  }
+
+  async getDernierePeseeAvantDate(animalId: string, date: string): Promise<ProductionPesee | null> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const result = await this.db.getFirstAsync<any>(
+      'SELECT * FROM production_pesees WHERE animal_id = ? AND date <= ? ORDER BY date DESC LIMIT 1',
+      [animalId, date]
+    );
+
+    return result ? this.mapRowToProductionPesee(result) : null;
+  }
+
+  async getPeseesParAnimal(animalId: string): Promise<ProductionPesee[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const results = await this.db.getAllAsync<any>(
+      'SELECT * FROM production_pesees WHERE animal_id = ? ORDER BY date DESC',
+      [animalId]
+    );
+
+    return results.map((row) => this.mapRowToProductionPesee(row));
+  }
+
+  async getPeseesRecents(projetId: string, limit: number = 20): Promise<ProductionPesee[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const results = await this.db.getAllAsync<any>(
+      'SELECT * FROM production_pesees WHERE projet_id = ? ORDER BY date DESC LIMIT ?',
+      [projetId, limit]
+    );
+
+    return results.map((row) => this.mapRowToProductionPesee(row));
+  }
+
+  async deletePesee(id: string): Promise<void> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    await this.db.runAsync('DELETE FROM production_pesees WHERE id = ?', [id]);
   }
 
   /**
@@ -1704,6 +2314,74 @@ class DatabaseService {
   }
 
   // Helper pour mapper les lignes de la base de données vers l'objet Collaborateur
+  private mapRowToStockAliment(row: any): StockAliment {
+    return {
+      id: row.id,
+      projet_id: row.projet_id,
+      nom: row.nom,
+      categorie: row.categorie || undefined,
+      quantite_actuelle: row.quantite_actuelle,
+      unite: row.unite,
+      seuil_alerte: row.seuil_alerte !== null && row.seuil_alerte !== undefined ? row.seuil_alerte : undefined,
+      date_derniere_entree: row.date_derniere_entree || undefined,
+      date_derniere_sortie: row.date_derniere_sortie || undefined,
+      alerte_active: row.alerte_active === 1,
+      notes: row.notes || undefined,
+      date_creation: row.date_creation,
+      derniere_modification: row.derniere_modification,
+    };
+  }
+
+  private mapRowToStockMouvement(row: any): StockMouvement {
+    return {
+      id: row.id,
+      projet_id: row.projet_id,
+      aliment_id: row.aliment_id,
+      type: row.type,
+      quantite: row.quantite,
+      unite: row.unite,
+      date: row.date,
+      origine: row.origine || undefined,
+      commentaire: row.commentaire || undefined,
+      cree_par: row.cree_par || undefined,
+      date_creation: row.date_creation,
+    };
+  }
+
+  private mapRowToProductionAnimal(row: any): ProductionAnimal {
+    return {
+      id: row.id,
+      projet_id: row.projet_id,
+      code: row.code,
+      nom: row.nom || undefined,
+      origine: row.origine || undefined,
+      sexe: row.sexe,
+      date_naissance: row.date_naissance || undefined,
+      poids_initial: row.poids_initial !== null ? row.poids_initial : undefined,
+      date_entree: row.date_entree || undefined,
+      actif: row.actif === 1,
+      notes: row.notes || undefined,
+      date_creation: row.date_creation,
+      derniere_modification: row.derniere_modification,
+    };
+  }
+
+  private mapRowToProductionPesee(row: any): ProductionPesee {
+    return {
+      id: row.id,
+      projet_id: row.projet_id,
+      animal_id: row.animal_id,
+      date: row.date,
+      poids_kg: row.poids_kg,
+      gmq: row.gmq !== null ? row.gmq : undefined,
+      difference_standard: row.difference_standard !== null ? row.difference_standard : undefined,
+      commentaire: row.commentaire || undefined,
+      cree_par: row.cree_par || undefined,
+      date_creation: row.date_creation,
+    };
+  }
+
+  // Helper pour mapper les lignes de la base de données vers l'objet Collaborateur
   private mapRowToCollaborateur(row: any): Collaborateur {
     return {
       id: row.id,
@@ -1728,6 +2406,14 @@ class DatabaseService {
       date_creation: row.date_creation,
       derniere_modification: row.derniere_modification,
     };
+  }
+
+  private calculateDayDifference(start: string, end: string): number {
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    const diffMs = endDate.getTime() - startDate.getTime();
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+    return diffDays <= 0 ? 0 : diffDays;
   }
 }
 
