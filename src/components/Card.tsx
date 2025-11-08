@@ -1,11 +1,13 @@
 /**
  * Composant Card moderne avec animations et effets visuels
+ * Support du néomorphisme pour les widgets du dashboard
  */
 
 import React from 'react';
 import { View, StyleSheet, ViewStyle, TouchableOpacity } from 'react-native';
 import { SPACING, BORDER_RADIUS, TRANSITIONS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { getNeomorphismRaised, neomorphismToStyle } from '../utils/neomorphism';
 
 interface CardProps {
   children: React.ReactNode;
@@ -13,6 +15,7 @@ interface CardProps {
   onPress?: () => void;
   elevation?: 'small' | 'medium' | 'large';
   padding?: 'none' | 'small' | 'medium' | 'large';
+  neomorphism?: boolean; // Active l'effet néomorphique
 }
 
 export default function Card({
@@ -21,8 +24,9 @@ export default function Card({
   onPress,
   elevation = 'medium',
   padding = 'medium',
+  neomorphism = false,
 }: CardProps) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   
   // Mapping explicite pour éviter les erreurs TypeScript
   const elevationMap: Record<'small' | 'medium' | 'large', any> = {
@@ -38,13 +42,22 @@ export default function Card({
     large: 'paddingLarge',
   };
 
+  // Si néomorphisme activé, utiliser le style néomorphique
+  const neomorphismStyle = neomorphism
+    ? neomorphismToStyle(getNeomorphismRaised(colors.surface, isDark))
+    : {};
+
   const cardStyle = [
     styles.card,
-    {
-      backgroundColor: colors.surface,
-      borderColor: colors.borderLight,
-      ...elevationMap[elevation],
-    },
+    neomorphism
+      ? {
+          ...neomorphismStyle,
+        }
+      : {
+          backgroundColor: colors.surface,
+          borderColor: colors.borderLight,
+          ...elevationMap[elevation],
+        },
     styles[paddingMap[padding]],
     style,
   ];

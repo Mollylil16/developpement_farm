@@ -43,9 +43,9 @@ export const createGestation = createAsyncThunk(
 
 export const loadGestations = createAsyncThunk(
   'reproduction/loadGestations',
-  async (_, { rejectWithValue }) => {
+  async (projetId: string, { rejectWithValue }) => {
     try {
-      const gestations = await databaseService.getAllGestations();
+      const gestations = await databaseService.getAllGestations(projetId);
       return gestations;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des gestations');
@@ -55,9 +55,9 @@ export const loadGestations = createAsyncThunk(
 
 export const loadGestationsEnCours = createAsyncThunk(
   'reproduction/loadGestationsEnCours',
-  async (_, { rejectWithValue }) => {
+  async (projetId: string, { rejectWithValue }) => {
     try {
-      const gestations = await databaseService.getGestationsEnCours();
+      const gestations = await databaseService.getGestationsEnCours(projetId);
       return gestations;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des gestations en cours');
@@ -104,9 +104,9 @@ export const createSevrage = createAsyncThunk(
 
 export const loadSevrages = createAsyncThunk(
   'reproduction/loadSevrages',
-  async (_, { rejectWithValue }) => {
+  async (projetId: string, { rejectWithValue }) => {
     try {
-      const sevrages = await databaseService.getAllSevrages();
+      const sevrages = await databaseService.getAllSevrages(projetId);
       return sevrages;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des sevrages');

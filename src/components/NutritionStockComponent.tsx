@@ -256,6 +256,19 @@ export default function NutritionStockComponent() {
             />
           }
         />
+        <StockAlimentFormModal
+          visible={showAlimentModal}
+          onClose={() => setShowAlimentModal(false)}
+          onSuccess={() => {
+            setShowAlimentModal(false);
+            if (projetActif) {
+              dispatch(loadStocks(projetActif.id));
+            }
+          }}
+          projetId={projetActif?.id || ''}
+          aliment={isEditing ? selectedStock : null}
+          isEditing={isEditing}
+        />
       </View>
     );
   }
@@ -377,7 +390,7 @@ export default function NutritionStockComponent() {
             dispatch(loadStocks(projetActif.id));
           }
         }}
-        projetId={projetActif.id}
+        projetId={projetActif?.id || ''}
         aliment={isEditing ? selectedStock : null}
         isEditing={isEditing}
       />
@@ -421,6 +434,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: SPACING.lg,
+    gap: SPACING.md,
   },
   summaryTitle: {
     fontSize: FONT_SIZES.xl,

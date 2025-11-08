@@ -61,12 +61,18 @@ export default function ProductionAnimalsListComponent() {
   const animauxAvecStats = useMemo(() => {
     return animaux.map((animal) => {
       const pesees = peseesParAnimal[animal.id] || [];
-      const dernierePesee = pesees[0];
+      const dernierePesee = pesees[0]; // La plus récente (triée DESC)
+      
+      // Pour le calcul du GMQ moyen, on a besoin de l'ordre chronologique (ASC)
+      const peseesTriees = [...pesees].sort((a, b) => 
+        new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
+      
       const gmqMoyen =
-        pesees.length > 1
-          ? pesees.reduce((sum, p, idx) => {
+        peseesTriees.length > 1
+          ? peseesTriees.reduce((sum, p, idx) => {
               if (idx === 0) return sum;
-              const prevPesee = pesees[idx - 1];
+              const prevPesee = peseesTriees[idx - 1];
               const jours = Math.max(
                 1,
                 Math.floor(
@@ -75,7 +81,7 @@ export default function ProductionAnimalsListComponent() {
                 )
               );
               return sum + (p.gmq || 0);
-            }, 0) / (pesees.length - 1)
+            }, 0) / (peseesTriees.length - 1)
           : dernierePesee?.gmq || null;
 
       return {
@@ -241,7 +247,7 @@ export default function ProductionAnimalsListComponent() {
               </Text>
             ) : (
               <View style={[styles.historyList, { backgroundColor: colors.background }]}>
-                {pesees.map((pesee) => (
+                {[...pesees].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((pesee) => (
                   <View key={pesee.id} style={[styles.historyItem, { borderBottomColor: colors.divider }]}>
                     <View style={styles.historyItemHeader}>
                       <Text style={[styles.historyDate, { color: colors.textSecondary }]}>

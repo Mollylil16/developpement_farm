@@ -41,9 +41,9 @@ export const createCollaborateur = createAsyncThunk(
 
 export const loadCollaborateurs = createAsyncThunk(
   'collaboration/loadCollaborateurs',
-  async (_, { rejectWithValue }) => {
+  async (projetId: string, { rejectWithValue }) => {
     try {
-      const collaborateurs = await databaseService.getAllCollaborateurs();
+      const collaborateurs = await databaseService.getAllCollaborateurs(projetId);
       return collaborateurs;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des collaborateurs');

@@ -38,9 +38,9 @@ export const createPlanification = createAsyncThunk(
 
 export const loadPlanifications = createAsyncThunk(
   'planification/loadPlanifications',
-  async (_, { rejectWithValue }) => {
+  async (projetId: string, { rejectWithValue }) => {
     try {
-      const planifications = await databaseService.getAllPlanifications();
+      const planifications = await databaseService.getAllPlanifications(projetId);
       return planifications;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des planifications');

@@ -142,22 +142,27 @@ export default function DashboardScreen() {
           </Animated.View>
 
           {/* Widget d'alertes */}
-          <AlertesWidget />
+          <View style={styles.alertesContainer}>
+            <AlertesWidget />
+          </View>
 
           {/* Widgets principaux avec animations */}
           <View style={styles.mainWidgetsContainer}>
             <Animated.View
-              style={{
-                opacity: mainWidgetsAnim[0],
-                transform: [
-                  {
-                    scale: mainWidgetsAnim[0].interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.9, 1],
-                    }),
-                  },
-                ],
-              }}
+              style={[
+                styles.widgetWrapper,
+                {
+                  opacity: mainWidgetsAnim[0],
+                  transform: [
+                    {
+                      scale: mainWidgetsAnim[0].interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.9, 1],
+                      }),
+                    },
+                  ],
+                },
+              ]}
             >
               <OverviewWidget
                 onPress={() => {
@@ -167,17 +172,20 @@ export default function DashboardScreen() {
             </Animated.View>
 
             <Animated.View
-              style={{
-                opacity: mainWidgetsAnim[1],
-                transform: [
-                  {
-                    scale: mainWidgetsAnim[1].interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.9, 1],
-                    }),
-                  },
-                ],
-              }}
+              style={[
+                styles.widgetWrapper,
+                {
+                  opacity: mainWidgetsAnim[1],
+                  transform: [
+                    {
+                      scale: mainWidgetsAnim[1].interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.9, 1],
+                      }),
+                    },
+                  ],
+                },
+              ]}
             >
               <ReproductionWidget
                 onPress={() => {
@@ -188,17 +196,20 @@ export default function DashboardScreen() {
             </Animated.View>
 
             <Animated.View
-              style={{
-                opacity: mainWidgetsAnim[2],
-                transform: [
-                  {
-                    scale: mainWidgetsAnim[2].interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.9, 1],
-                    }),
-                  },
-                ],
-              }}
+              style={[
+                styles.widgetWrapper,
+                {
+                  opacity: mainWidgetsAnim[2],
+                  transform: [
+                    {
+                      scale: mainWidgetsAnim[2].interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.9, 1],
+                      }),
+                    },
+                  ],
+                },
+              ]}
             >
               <FinanceWidget
                 onPress={() => {
@@ -209,17 +220,19 @@ export default function DashboardScreen() {
             </Animated.View>
 
             <Animated.View
-              style={{
-                opacity: mainWidgetsAnim[3],
-                transform: [
-                  {
-                    scale: mainWidgetsAnim[3].interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.9, 1],
-                    }),
-                  },
-                ],
-              }}
+              style={[
+                {
+                  opacity: mainWidgetsAnim[3],
+                  transform: [
+                    {
+                      scale: mainWidgetsAnim[3].interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.9, 1],
+                      }),
+                    },
+                  ],
+                },
+              ]}
             >
               <PerformanceWidget
                 onPress={() => {
@@ -347,11 +360,17 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.xs,
     marginTop: SPACING.md,
   },
+  alertesContainer: {
+    marginBottom: SPACING.xl,
+  },
   mainWidgetsContainer: {
     marginBottom: SPACING.xl + 10,
   },
+  widgetWrapper: {
+    marginBottom: SPACING.lg,
+  },
   secondarySection: {
-    marginTop: SPACING.lg,
+    marginTop: SPACING.xl,
   },
   sectionTitle: {
     fontSize: FONT_SIZES.lg,
@@ -363,12 +382,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     marginHorizontal: -SPACING.xs,
+    gap: SPACING.md,
   },
   secondaryWidgetWrapper: {
     flex: 1,
     minWidth: '45%',
     maxWidth: '48%',
     marginHorizontal: SPACING.xs,
-    marginBottom: SPACING.md,
   },
 });

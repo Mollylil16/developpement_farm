@@ -84,10 +84,15 @@ export default function CreateProjectScreen() {
 
     setLoading(true);
     try {
+      if (!user?.id) {
+        Alert.alert('Erreur', 'Vous devez être connecté pour créer un projet');
+        return;
+      }
+
       await dispatch(
         createProjet({
           ...formData,
-          proprietaire_id: user?.id || 'user_1', // Récupéré depuis l'authentification
+          proprietaire_id: user.id, // Récupéré depuis l'authentification
         })
       ).unwrap();
 

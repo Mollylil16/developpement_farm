@@ -37,9 +37,13 @@ export default function RationCalculatorComponent() {
     }>;
   } | null>(null);
 
+  const { projetActif } = useAppSelector((state) => state.projet);
+
   useEffect(() => {
-    dispatch(loadIngredients());
-  }, [dispatch]);
+    if (projetActif) {
+      dispatch(loadIngredients(projetActif.id));
+    }
+  }, [dispatch, projetActif?.id]);
 
   const typesPorc: TypePorc[] = [
     'porcelet',
@@ -346,7 +350,9 @@ export default function RationCalculatorComponent() {
         onClose={() => setModalIngredientVisible(false)}
         onSuccess={() => {
           setModalIngredientVisible(false);
-          dispatch(loadIngredients());
+          if (projetActif) {
+            dispatch(loadIngredients(projetActif.id));
+          }
         }}
       />
     </ScrollView>

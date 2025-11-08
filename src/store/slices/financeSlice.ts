@@ -44,9 +44,9 @@ export const createChargeFixe = createAsyncThunk(
 
 export const loadChargesFixes = createAsyncThunk(
   'finance/loadChargesFixes',
-  async (_, { rejectWithValue }) => {
+  async (projetId: string, { rejectWithValue }) => {
     try {
-      const charges = await databaseService.getAllChargesFixes();
+      const charges = await databaseService.getAllChargesFixes(projetId);
       return charges;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des charges fixes');
@@ -93,9 +93,9 @@ export const createDepensePonctuelle = createAsyncThunk(
 
 export const loadDepensesPonctuelles = createAsyncThunk(
   'finance/loadDepensesPonctuelles',
-  async (_, { rejectWithValue }) => {
+  async (projetId: string, { rejectWithValue }) => {
     try {
-      const depenses = await databaseService.getAllDepensesPonctuelles();
+      const depenses = await databaseService.getAllDepensesPonctuelles(projetId);
       return depenses;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des dépenses');

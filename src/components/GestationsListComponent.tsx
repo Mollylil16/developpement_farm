@@ -31,10 +31,14 @@ export default function GestationsListComponent() {
   const [page, setPage] = useState(1);
   const ITEMS_PER_PAGE = 50;
 
+  const { projetActif } = useAppSelector((state) => state.projet);
+
   useEffect(() => {
-    dispatch(loadGestations());
-    dispatch(loadGestationsEnCours());
-  }, [dispatch]);
+    if (projetActif) {
+      dispatch(loadGestations(projetActif.id));
+      dispatch(loadGestationsEnCours(projetActif.id));
+    }
+  }, [dispatch, projetActif?.id]);
 
   const gestationsEnCours = useMemo(
     () => gestations.filter((g) => g.statut === 'en_cours'),
@@ -122,8 +126,10 @@ export default function GestationsListComponent() {
 
   const handleSuccess = () => {
     handleCloseModal();
-    dispatch(loadGestations());
-    dispatch(loadGestationsEnCours());
+    if (projetActif) {
+      dispatch(loadGestations(projetActif.id));
+      dispatch(loadGestationsEnCours(projetActif.id));
+    }
   };
 
   const formatDate = (dateString: string) => {

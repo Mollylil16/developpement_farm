@@ -35,7 +35,7 @@ export default function SecondaryWidget({ type, onPress }: SecondaryWidgetProps)
 
     switch (type) {
       case 'nutrition':
-        dispatch(loadRations());
+        dispatch(loadRations(projetActif.id));
         break;
       case 'planning':
         dispatch(loadPlanificationsAVenir({ projetId: projetActif.id }));
@@ -153,7 +153,7 @@ export default function SecondaryWidget({ type, onPress }: SecondaryWidgetProps)
   if (onPress) {
     return (
       <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
-        <Card elevation="small" padding="medium">
+        <Card elevation="small" padding="medium" neomorphism={true}>
           {WidgetContent}
         </Card>
       </TouchableOpacity>
@@ -161,7 +161,7 @@ export default function SecondaryWidget({ type, onPress }: SecondaryWidgetProps)
   }
 
   return (
-    <Card elevation="small" padding="medium">
+    <Card elevation="small" padding="medium" neomorphism={true}>
       {WidgetContent}
     </Card>
   );

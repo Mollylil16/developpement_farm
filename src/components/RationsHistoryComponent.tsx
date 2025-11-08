@@ -21,9 +21,13 @@ export default function RationsHistoryComponent() {
   const [page, setPage] = useState(1);
   const ITEMS_PER_PAGE = 50;
 
+  const { projetActif } = useAppSelector((state) => state.projet);
+
   useEffect(() => {
-    dispatch(loadRations());
-  }, [dispatch]);
+    if (projetActif) {
+      dispatch(loadRations(projetActif.id));
+    }
+  }, [dispatch, projetActif?.id]);
 
   // Pagination: charger les premières rations
   useEffect(() => {

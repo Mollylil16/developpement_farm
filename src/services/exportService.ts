@@ -37,15 +37,15 @@ export async function exportAllDataJSON(projetId: string): Promise<string> {
   try {
     // Récupérer toutes les données depuis la base de données
     const projet = await databaseService.getProjetById(projetId);
-    const gestations = await databaseService.getAllGestations();
-    const sevrages = await databaseService.getAllSevrages();
-    const chargesFixes = await databaseService.getAllChargesFixes();
-    const depensesPonctuelles = await databaseService.getAllDepensesPonctuelles();
-    const ingredients = await databaseService.getAllIngredients();
-    const rations = await databaseService.getAllRations();
-    const mortalites = await databaseService.getAllMortalites();
-    const planifications = await databaseService.getAllPlanifications();
-    const collaborateurs = await databaseService.getAllCollaborateurs();
+    const gestations = await databaseService.getAllGestations(projetId);
+    const sevrages = await databaseService.getAllSevrages(projetId);
+    const chargesFixes = await databaseService.getAllChargesFixes(projetId);
+    const depensesPonctuelles = await databaseService.getAllDepensesPonctuelles(projetId);
+    const ingredients = await databaseService.getAllIngredients(projetId);
+    const rations = await databaseService.getAllRations(projetId);
+    const mortalites = await databaseService.getAllMortalites(projetId);
+    const planifications = await databaseService.getAllPlanifications(projetId);
+    const collaborateurs = await databaseService.getAllCollaborateurs(projetId);
     const stocksAliments = await databaseService.getStocksParProjet(projetId);
     
     // Récupérer les mouvements de stock pour chaque aliment
@@ -122,7 +122,7 @@ export async function exportDataCSV(projetId: string, module?: string): Promise<
     let csv = '';
     
     if (!module || module === 'gestations') {
-      const gestations = await databaseService.getAllGestations();
+      const gestations = await databaseService.getAllGestations(projetId);
       csv += 'Module: Gestations\n';
       csv += 'ID,Truie,Date Sautage,Date Mise Bas Prévue,Statut\n';
       gestations.forEach((g) => {
@@ -132,7 +132,7 @@ export async function exportDataCSV(projetId: string, module?: string): Promise<
     }
 
     if (!module || module === 'mortalites') {
-      const mortalites = await databaseService.getAllMortalites();
+      const mortalites = await databaseService.getAllMortalites(projetId);
       csv += 'Module: Mortalités\n';
       csv += 'ID,Date,Nombre Porcs,Cause,Catégorie\n';
       mortalites.forEach((m) => {
@@ -142,7 +142,7 @@ export async function exportDataCSV(projetId: string, module?: string): Promise<
     }
 
     if (!module || module === 'finances') {
-      const depenses = await databaseService.getAllDepensesPonctuelles();
+      const depenses = await databaseService.getAllDepensesPonctuelles(projetId);
       csv += 'Module: Dépenses\n';
       csv += 'ID,Date,Montant,Description\n';
       depenses.forEach((d) => {

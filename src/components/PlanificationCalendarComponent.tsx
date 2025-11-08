@@ -2,20 +2,23 @@
  * Composant calendrier des planifications
  */
 
-import React, { useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Calendar, DateData } from 'react-native-calendars';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadPlanificationsParProjet } from '../store/slices/planificationSlice';
 import { Planification, TypeTache } from '../types';
 import { SPACING, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { format, addMonths, subMonths } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 export default function PlanificationCalendarComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   const { planifications } = useAppSelector((state) => state.planification);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
 
   useEffect(() => {
     if (projetActif) {
@@ -82,6 +85,25 @@ export default function PlanificationCalendarComponent() {
     console.log(`Tâches pour ${day.dateString}:`, taches.length);
   };
 
+  const onMonthChange = (month: any) => {
+    const newDate = new Date(month.year, month.month - 1, 1);
+    setCurrentMonth(newDate);
+  };
+
+  const goToPreviousMonth = () => {
+    setCurrentMonth(subMonths(currentMonth, 1));
+  };
+
+  const goToNextMonth = () => {
+    setCurrentMonth(addMonths(currentMonth, 1));
+  };
+
+  const goToToday = () => {
+    setCurrentMonth(new Date());
+  };
+
+  const currentMonthString = format(currentMonth, 'yyyy-MM-dd');
+
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <Text style={[styles.title, { color: colors.text }]}>Calendrier des planifications</Text>
@@ -103,11 +125,39 @@ export default function PlanificationCalendarComponent() {
           <Text style={[styles.legendText, { color: colors.text }]}>Vétérinaire</Text>
         </View>
       </View>
+      <View style={[styles.calendarHeader, { backgroundColor: colors.surface }]}>
+        <TouchableOpacity
+          onPress={goToPreviousMonth}
+          style={[styles.navButton, { backgroundColor: colors.background, borderColor: colors.border }]}
+        >
+          <Text style={[styles.navButtonText, { color: colors.text }]}>‹</Text>
+        </TouchableOpacity>
+        <View style={styles.monthContainer}>
+          <Text style={[styles.monthText, { color: colors.text }]}>
+            {format(currentMonth, 'MMMM yyyy', { locale: fr })}
+          </Text>
+          <TouchableOpacity
+            onPress={goToToday}
+            style={[styles.todayButton, { backgroundColor: colors.primary }]}
+          >
+            <Text style={[styles.todayButtonText, { color: colors.textOnPrimary }]}>Aujourd'hui</Text>
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity
+          onPress={goToNextMonth}
+          style={[styles.navButton, { backgroundColor: colors.background, borderColor: colors.border }]}
+        >
+          <Text style={[styles.navButtonText, { color: colors.text }]}>›</Text>
+        </TouchableOpacity>
+      </View>
       <Calendar
-        current={new Date().toISOString().split('T')[0]}
+        current={currentMonthString}
         markedDates={markedDates}
         markingType="multi-dot"
         onDayPress={onDayPress}
+        onMonthChange={onMonthChange}
+        enableSwipeMonths={true}
+        hideArrows={true}
         theme={{
           backgroundColor: colors.background,
           calendarBackground: colors.background,
@@ -165,6 +215,46 @@ const styles = StyleSheet.create({
   },
   legendText: {
     fontSize: FONT_SIZES.xs,
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+    borderRadius: 8,
+  },
+  navButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  navButtonText: {
+    fontSize: FONT_SIZES.xl,
+    fontWeight: 'bold',
+  },
+  monthContainer: {
+    flex: 1,
+    alignItems: 'center',
+    marginHorizontal: SPACING.md,
+  },
+  monthText: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: 'bold',
+    marginBottom: SPACING.xs,
+    textTransform: 'capitalize',
+  },
+  todayButton: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: 16,
+  },
+  todayButtonText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
   },
   calendar: {
     borderRadius: 8,

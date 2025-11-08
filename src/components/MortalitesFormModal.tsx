@@ -14,6 +14,21 @@ import FormField from './FormField';
 import { SPACING } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
+// Fonction helper pour convertir une date en format local YYYY-MM-DD
+const formatDateToLocal = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// Fonction helper pour parser une date au format YYYY-MM-DD en Date locale
+const parseLocalDate = (dateString: string): Date => {
+  if (!dateString) return new Date();
+  const [year, month, day] = dateString.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
 interface MortalitesFormModalProps {
   visible: boolean;
   onClose: () => void;
@@ -36,7 +51,7 @@ export default function MortalitesFormModal({
   const [formData, setFormData] = useState<CreateMortaliteInput>({
     projet_id: projetActif?.id || '',
     nombre_porcs: 1,
-    date: new Date().toISOString().split('T')[0],
+    date: formatDateToLocal(new Date()),
     categorie: 'porcelet',
     cause: '',
     notes: '',
@@ -65,11 +80,12 @@ export default function MortalitesFormModal({
       setFormData({
         projet_id: projetActif?.id || '',
         nombre_porcs: 1,
-        date: new Date().toISOString().split('T')[0],
+        date: formatDateToLocal(new Date()),
         categorie: 'porcelet',
         cause: '',
         notes: '',
       });
+      setShowDatePicker(false);
     }
   }, [mortalite, isEditing, visible, projetActif]);
 
@@ -139,24 +155,26 @@ export default function MortalitesFormModal({
               onPress={() => setShowDatePicker(true)}
             >
               <Text style={[styles.dateButtonText, { color: colors.text }]}>
-                {new Date(formData.date).toLocaleDateString('fr-FR', {
-                  day: '2-digit',
-                  month: '2-digit',
-                  year: 'numeric',
-                })}
+                {formData.date
+                  ? parseLocalDate(formData.date).toLocaleDateString('fr-FR', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                    })
+                  : 'Sélectionner une date'}
               </Text>
             </TouchableOpacity>
             {showDatePicker && (
               <DateTimePicker
-                value={new Date(formData.date)}
+                value={formData.date ? parseLocalDate(formData.date) : new Date()}
                 mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                display="default"
                 onChange={(event, selectedDate) => {
-                  setShowDatePicker(Platform.OS === 'ios');
-                  if (selectedDate) {
+                  setShowDatePicker(false);
+                  if (selectedDate && event.type !== 'dismissed') {
                     setFormData({
                       ...formData,
-                      date: selectedDate.toISOString().split('T')[0],
+                      date: formatDateToLocal(selectedDate),
                     });
                   }
                 }}

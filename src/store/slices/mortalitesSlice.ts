@@ -35,9 +35,9 @@ export const createMortalite = createAsyncThunk(
 
 export const loadMortalites = createAsyncThunk(
   'mortalites/loadMortalites',
-  async (_, { rejectWithValue }) => {
+  async (projetId: string, { rejectWithValue }) => {
     try {
-      const mortalites = await databaseService.getAllMortalites();
+      const mortalites = await databaseService.getAllMortalites(projetId);
       return mortalites;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des mortalités');

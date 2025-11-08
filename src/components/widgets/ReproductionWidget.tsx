@@ -22,10 +22,14 @@ export default function ReproductionWidget({ onPress }: ReproductionWidgetProps)
   const dispatch = useAppDispatch();
   const { gestations } = useAppSelector((state) => state.reproduction);
 
+  const { projetActif } = useAppSelector((state) => state.projet);
+
   useEffect(() => {
-    dispatch(loadGestations());
-    dispatch(loadGestationsEnCours());
-  }, [dispatch]);
+    if (projetActif) {
+      dispatch(loadGestations(projetActif.id));
+      dispatch(loadGestationsEnCours(projetActif.id));
+    }
+  }, [dispatch, projetActif?.id]);
 
   const reproductionData = useMemo(() => {
     const gestationsEnCours = gestations.filter((g) => g.statut === 'en_cours');
@@ -119,7 +123,7 @@ export default function ReproductionWidget({ onPress }: ReproductionWidgetProps)
   if (onPress) {
     return (
       <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
-        <Card elevation="medium" padding="large">
+        <Card elevation="medium" padding="large" neomorphism={true}>
           {WidgetContent}
         </Card>
       </TouchableOpacity>
@@ -127,7 +131,7 @@ export default function ReproductionWidget({ onPress }: ReproductionWidgetProps)
   }
 
   return (
-    <Card elevation="medium" padding="large">
+    <Card elevation="medium" padding="large" neomorphism={true}>
       {WidgetContent}
     </Card>
   );

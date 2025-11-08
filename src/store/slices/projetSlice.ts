@@ -23,8 +23,19 @@ const initialState: ProjetState = {
 // Thunks asynchrones
 export const createProjet = createAsyncThunk(
   'projet/create',
-  async (input: CreateProjetInput & { proprietaire_id: string }, { rejectWithValue }) => {
+  async (input: CreateProjetInput & { proprietaire_id: string }, { rejectWithValue, getState }) => {
     try {
+      const userId = input.proprietaire_id;
+      
+      // Archiver tous les autres projets actifs de l'utilisateur
+      const projets = await databaseService.getAllProjets(userId);
+      for (const projet of projets) {
+        if (projet.statut === 'actif') {
+          await databaseService.updateProjet(projet.id, { statut: 'archive' }, userId);
+        }
+      }
+
+      // Créer le nouveau projet comme actif
       const projet = await databaseService.createProjet({
         ...input,
         statut: 'actif',
@@ -38,9 +49,12 @@ export const createProjet = createAsyncThunk(
 
 export const loadProjets = createAsyncThunk(
   'projet/loadAll',
-  async (_, { rejectWithValue }) => {
+  async (_, { rejectWithValue, getState }) => {
     try {
-      const projets = await databaseService.getAllProjets();
+      // Récupérer l'ID de l'utilisateur actuel depuis le state
+      const state = getState() as any;
+      const userId = state.auth?.user?.id;
+      const projets = await databaseService.getAllProjets(userId);
       return projets;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des projets');
@@ -50,9 +64,12 @@ export const loadProjets = createAsyncThunk(
 
 export const loadProjetActif = createAsyncThunk(
   'projet/loadActif',
-  async (_, { rejectWithValue }) => {
+  async (_, { rejectWithValue, getState }) => {
     try {
-      const projet = await databaseService.getProjetActif();
+      // Récupérer l'ID de l'utilisateur actuel depuis le state
+      const state = getState() as any;
+      const userId = state.auth?.user?.id;
+      const projet = await databaseService.getProjetActif(userId);
       return projet;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement du projet actif');
@@ -62,17 +79,32 @@ export const loadProjetActif = createAsyncThunk(
 
 export const switchProjetActif = createAsyncThunk(
   'projet/switchActif',
-  async (projetId: string, { rejectWithValue }) => {
+  async (projetId: string, { rejectWithValue, getState }) => {
     try {
-      // Marquer tous les projets comme non actifs
-      const projets = await databaseService.getAllProjets();
+      // Récupérer l'ID de l'utilisateur actuel depuis le state
+      const state = getState() as any;
+      const userId = state.auth?.user?.id;
+      
+      if (!userId) {
+        return rejectWithValue('Utilisateur non authentifié');
+      }
+
+      // Vérifier que le projet appartient bien à l'utilisateur
+      const projets = await databaseService.getAllProjets(userId);
+      const projetExiste = projets.find(p => p.id === projetId);
+      
+      if (!projetExiste) {
+        return rejectWithValue('Ce projet ne vous appartient pas');
+      }
+
+      // Marquer tous les projets de l'utilisateur comme non actifs
       for (const projet of projets) {
         if (projet.statut === 'actif' && projet.id !== projetId) {
-          await databaseService.updateProjet(projet.id, { statut: 'archive' });
+          await databaseService.updateProjet(projet.id, { statut: 'archive' }, userId);
         }
       }
-      // Activer le nouveau projet
-      const nouveauProjet = await databaseService.updateProjet(projetId, { statut: 'actif' });
+      // Activer le nouveau projet (userId déjà vérifié)
+      const nouveauProjet = await databaseService.updateProjet(projetId, { statut: 'actif' }, userId);
       return nouveauProjet;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du changement de projet');
@@ -82,9 +114,17 @@ export const switchProjetActif = createAsyncThunk(
 
 export const updateProjet = createAsyncThunk(
   'projet/update',
-  async ({ id, updates }: { id: string; updates: Partial<Projet> }, { rejectWithValue }) => {
+  async ({ id, updates }: { id: string; updates: Partial<Projet> }, { rejectWithValue, getState }) => {
     try {
-      const projet = await databaseService.updateProjet(id, updates);
+      // Récupérer l'ID de l'utilisateur actuel depuis le state
+      const state = getState() as any;
+      const userId = state.auth?.user?.id;
+      
+      if (!userId) {
+        return rejectWithValue('Utilisateur non authentifié');
+      }
+
+      const projet = await databaseService.updateProjet(id, updates, userId);
       return projet;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la mise à jour du projet');

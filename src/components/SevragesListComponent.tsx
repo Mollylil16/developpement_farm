@@ -31,9 +31,13 @@ export default function SevragesListComponent() {
     notes: '',
   });
 
+  const { projetActif } = useAppSelector((state) => state.projet);
+
   useEffect(() => {
-    dispatch(loadSevrages());
-  }, [dispatch]);
+    if (projetActif) {
+      dispatch(loadSevrages(projetActif.id));
+    }
+  }, [dispatch, projetActif?.id]);
 
   const gestationsTerminees = gestations.filter((g) => g.statut === 'terminee');
 
@@ -70,7 +74,9 @@ export default function SevragesListComponent() {
       
       setModalVisible(false);
       setSelectedGestation(null);
-      dispatch(loadSevrages());
+      if (projetActif) {
+        dispatch(loadSevrages(projetActif.id));
+      }
     } catch (error: any) {
       Alert.alert('Erreur', error || 'Erreur lors de la création du sevrage');
     } finally {

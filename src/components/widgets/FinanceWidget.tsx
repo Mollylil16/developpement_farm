@@ -21,10 +21,14 @@ export default function FinanceWidget({ onPress }: FinanceWidgetProps) {
   const dispatch = useAppDispatch();
   const { chargesFixes, depensesPonctuelles } = useAppSelector((state) => state.finance);
 
+  const { projetActif } = useAppSelector((state) => state.projet);
+
   useEffect(() => {
-    dispatch(loadChargesFixes());
-    dispatch(loadDepensesPonctuelles());
-  }, [dispatch]);
+    if (projetActif) {
+      dispatch(loadChargesFixes(projetActif.id));
+      dispatch(loadDepensesPonctuelles(projetActif.id));
+    }
+  }, [dispatch, projetActif?.id]);
 
   const financeData = useMemo(() => {
     // Calculer le budget mensuel (charges fixes actives)
@@ -119,7 +123,7 @@ export default function FinanceWidget({ onPress }: FinanceWidgetProps) {
   if (onPress) {
     return (
       <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
-        <Card elevation="medium" padding="large">
+        <Card elevation="medium" padding="large" neomorphism={true}>
           {WidgetContent}
         </Card>
       </TouchableOpacity>
@@ -127,7 +131,7 @@ export default function FinanceWidget({ onPress }: FinanceWidgetProps) {
   }
 
   return (
-    <Card elevation="medium" padding="large">
+    <Card elevation="medium" padding="large" neomorphism={true}>
       {WidgetContent}
     </Card>
   );

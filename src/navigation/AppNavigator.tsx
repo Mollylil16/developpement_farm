@@ -175,9 +175,14 @@ export default function AppNavigator() {
   useEffect(() => {
     // Charger l'utilisateur depuis le stockage au démarrage
     dispatch(loadUserFromStorageThunk());
-    // Charger le projet actif au démarrage
-    dispatch(loadProjetActif());
   }, [dispatch]);
+
+  useEffect(() => {
+    // Charger le projet actif seulement si l'utilisateur est authentifié
+    if (isAuthenticated && !authLoading) {
+      dispatch(loadProjetActif());
+    }
+  }, [dispatch, isAuthenticated, authLoading]);
 
   useEffect(() => {
     // Attendre que l'authentification soit chargée avant de naviguer

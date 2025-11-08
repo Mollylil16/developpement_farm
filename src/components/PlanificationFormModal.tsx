@@ -14,6 +14,21 @@ import FormField from './FormField';
 import { SPACING } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
+// Fonction helper pour convertir une date en format local YYYY-MM-DD
+const formatDateToLocal = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// Fonction helper pour parser une date au format YYYY-MM-DD en Date locale
+const parseLocalDate = (dateString: string): Date => {
+  if (!dateString) return new Date();
+  const [year, month, day] = dateString.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
 interface PlanificationFormModalProps {
   visible: boolean;
   onClose: () => void;
@@ -127,9 +142,11 @@ export default function PlanificationFormModal({
   };
 
   const handleDatePickerChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(Platform.OS === 'ios');
-    if (selectedDate) {
-      const dateStr = selectedDate.toISOString().split('T')[0];
+    // Sur iOS avec 'default', le picker se ferme automatiquement
+    // Sur Android, il se ferme aussi automatiquement
+    setShowDatePicker(false);
+    if (selectedDate && event.type !== 'dismissed') {
+      const dateStr = formatDateToLocal(selectedDate);
       setFormData({ ...formData, [datePickerField]: dateStr });
     }
   };
@@ -207,7 +224,7 @@ export default function PlanificationFormModal({
           >
             <Text style={[styles.dateButtonText, { color: colors.text }]}>
               {formData.date_prevue
-                ? new Date(formData.date_prevue).toLocaleDateString('fr-FR', {
+                ? parseLocalDate(formData.date_prevue).toLocaleDateString('fr-FR', {
                     day: '2-digit',
                     month: '2-digit',
                     year: 'numeric',
@@ -215,6 +232,14 @@ export default function PlanificationFormModal({
                 : 'Sélectionner une date'}
             </Text>
           </TouchableOpacity>
+          {showDatePicker && datePickerField === 'date_prevue' && (
+            <DateTimePicker
+              value={parseLocalDate(formData.date_prevue)}
+              mode="date"
+              display="default"
+              onChange={handleDatePickerChange}
+            />
+          )}
         </View>
 
         <View style={styles.section}>
@@ -228,7 +253,7 @@ export default function PlanificationFormModal({
           >
             <Text style={[styles.dateButtonText, { color: colors.text }]}>
               {formData.date_echeance
-                ? new Date(formData.date_echeance).toLocaleDateString('fr-FR', {
+                ? parseLocalDate(formData.date_echeance).toLocaleDateString('fr-FR', {
                     day: '2-digit',
                     month: '2-digit',
                     year: 'numeric',
@@ -236,6 +261,14 @@ export default function PlanificationFormModal({
                 : 'Sélectionner une date'}
             </Text>
           </TouchableOpacity>
+          {showDatePicker && datePickerField === 'date_echeance' && (
+            <DateTimePicker
+              value={formData.date_echeance ? parseLocalDate(formData.date_echeance) : new Date()}
+              mode="date"
+              display="default"
+              onChange={handleDatePickerChange}
+            />
+          )}
         </View>
 
         <View style={styles.section}>
@@ -249,7 +282,7 @@ export default function PlanificationFormModal({
           >
             <Text style={[styles.dateButtonText, { color: colors.text }]}>
               {formData.rappel
-                ? new Date(formData.rappel).toLocaleDateString('fr-FR', {
+                ? parseLocalDate(formData.rappel).toLocaleDateString('fr-FR', {
                     day: '2-digit',
                     month: '2-digit',
                     year: 'numeric',
@@ -257,6 +290,14 @@ export default function PlanificationFormModal({
                 : 'Sélectionner une date'}
             </Text>
           </TouchableOpacity>
+          {showDatePicker && datePickerField === 'rappel' && (
+            <DateTimePicker
+              value={formData.rappel ? parseLocalDate(formData.rappel) : new Date()}
+              mode="date"
+              display="default"
+              onChange={handleDatePickerChange}
+            />
+          )}
         </View>
 
         {isEditing && (
@@ -414,23 +455,6 @@ export default function PlanificationFormModal({
           placeholder="Ajoutez des notes..."
           multiline
         />
-
-        {showDatePicker && (
-          <DateTimePicker
-            value={
-              datePickerField === 'date_prevue'
-                ? new Date(formData.date_prevue)
-                : datePickerField === 'date_echeance' && formData.date_echeance
-                ? new Date(formData.date_echeance)
-                : datePickerField === 'rappel' && formData.rappel
-                ? new Date(formData.rappel)
-                : new Date()
-            }
-            mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={handleDatePickerChange}
-          />
-        )}
       </ScrollView>
     </CustomModal>
   );
@@ -455,6 +479,11 @@ const styles = StyleSheet.create({
   },
   dateButtonText: {
     fontSize: 16,
+  },
+  datePickerContainer: {
+    marginTop: SPACING.sm,
+    alignItems: 'center',
+    minHeight: 200,
   },
   optionsContainer: {
     flexDirection: 'row',

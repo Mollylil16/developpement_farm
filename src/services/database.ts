@@ -426,28 +426,51 @@ class DatabaseService {
     return result;
   }
 
-  async getAllProjets(): Promise<Projet[]> {
+  async getAllProjets(userId?: string): Promise<Projet[]> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
 
+    if (userId) {
+      // Filtrer par utilisateur si fourni
+      return await this.db.getAllAsync<Projet>(
+        'SELECT * FROM projets WHERE proprietaire_id = ? ORDER BY date_creation DESC',
+        [userId]
+      );
+    }
+
+    // Par défaut, retourner tous les projets (pour compatibilité)
     return await this.db.getAllAsync<Projet>('SELECT * FROM projets ORDER BY date_creation DESC');
   }
 
-  async getProjetActif(): Promise<Projet | null> {
+  async getProjetActif(userId?: string): Promise<Projet | null> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
 
+    if (!userId) {
+      // SANS userId, on ne retourne RIEN pour éviter les fuites de données
+      return null;
+    }
+
+    // TOUJOURS filtrer par utilisateur pour la sécurité
     return await this.db.getFirstAsync<Projet>(
-      'SELECT * FROM projets WHERE statut = ? ORDER BY date_creation DESC LIMIT 1',
-      ['actif']
+      'SELECT * FROM projets WHERE statut = ? AND proprietaire_id = ? ORDER BY date_creation DESC LIMIT 1',
+      ['actif', userId]
     );
   }
 
-  async updateProjet(id: string, updates: Partial<Projet>): Promise<Projet> {
+  async updateProjet(id: string, updates: Partial<Projet>, userId?: string): Promise<Projet> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
+    }
+
+    // Vérifier que le projet appartient à l'utilisateur si userId est fourni
+    if (userId) {
+      const projet = await this.getProjetById(id);
+      if (projet.proprietaire_id !== userId) {
+        throw new Error('Ce projet ne vous appartient pas');
+      }
     }
 
     const derniere_modification = new Date().toISOString();
@@ -532,24 +555,25 @@ class DatabaseService {
     return result;
   }
 
-  async getAllChargesFixes(): Promise<ChargeFixe[]> {
+  async getAllChargesFixes(projetId: string): Promise<ChargeFixe[]> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
 
     return await this.db.getAllAsync<ChargeFixe>(
-      'SELECT * FROM charges_fixes ORDER BY date_debut DESC'
+      'SELECT * FROM charges_fixes WHERE projet_id = ? ORDER BY date_debut DESC',
+      [projetId]
     );
   }
 
-  async getChargesFixesActives(): Promise<ChargeFixe[]> {
+  async getChargesFixesActives(projetId: string): Promise<ChargeFixe[]> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
 
     return await this.db.getAllAsync<ChargeFixe>(
-      'SELECT * FROM charges_fixes WHERE statut = ? ORDER BY date_debut DESC',
-      ['actif']
+      'SELECT * FROM charges_fixes WHERE projet_id = ? AND statut = ? ORDER BY date_debut DESC',
+      [projetId, 'actif']
     );
   }
 
@@ -648,13 +672,14 @@ class DatabaseService {
     };
   }
 
-  async getAllDepensesPonctuelles(): Promise<DepensePonctuelle[]> {
+  async getAllDepensesPonctuelles(projetId: string): Promise<DepensePonctuelle[]> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
 
     const results = await this.db.getAllAsync<any>(
-      'SELECT * FROM depenses_ponctuelles ORDER BY date DESC'
+      'SELECT * FROM depenses_ponctuelles WHERE projet_id = ? ORDER BY date DESC',
+      [projetId]
     );
 
     return results.map((result) => ({
@@ -772,23 +797,25 @@ class DatabaseService {
     return result;
   }
 
-  async getAllGestations(): Promise<Gestation[]> {
+  async getAllGestations(projetId: string): Promise<Gestation[]> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
 
     return await this.db.getAllAsync<Gestation>(
-      'SELECT * FROM gestations ORDER BY date_mise_bas_prevue ASC'
+      'SELECT * FROM gestations WHERE projet_id = ? ORDER BY date_mise_bas_prevue ASC',
+      [projetId]
     );
   }
 
-  async getGestationsEnCours(): Promise<Gestation[]> {
+  async getGestationsEnCours(projetId: string): Promise<Gestation[]> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
 
     return await this.db.getAllAsync<Gestation>(
-      "SELECT * FROM gestations WHERE statut = 'en_cours' ORDER BY date_mise_bas_prevue ASC"
+      "SELECT * FROM gestations WHERE projet_id = ? AND statut = 'en_cours' ORDER BY date_mise_bas_prevue ASC",
+      [projetId]
     );
   }
 
@@ -893,13 +920,14 @@ class DatabaseService {
     return result;
   }
 
-  async getAllSevrages(): Promise<Sevrage[]> {
+  async getAllSevrages(projetId: string): Promise<Sevrage[]> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
 
     return await this.db.getAllAsync<Sevrage>(
-      'SELECT * FROM sevrages ORDER BY date_sevrage DESC'
+      'SELECT * FROM sevrages WHERE projet_id = ? ORDER BY date_sevrage DESC',
+      [projetId]
     );
   }
 
@@ -982,13 +1010,14 @@ class DatabaseService {
     return result;
   }
 
-  async getAllIngredients(): Promise<Ingredient[]> {
+  async getAllIngredients(projetId: string): Promise<Ingredient[]> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
 
     return await this.db.getAllAsync<Ingredient>(
-      'SELECT * FROM ingredients ORDER BY nom ASC'
+      'SELECT * FROM ingredients WHERE projet_id = ? ORDER BY nom ASC',
+      [projetId]
     );
   }
 
@@ -1623,13 +1652,14 @@ class DatabaseService {
     };
   }
 
-  async getAllRations(): Promise<Ration[]> {
+  async getAllRations(projetId: string): Promise<Ration[]> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
 
     const rations = await this.db.getAllAsync<any>(
-      'SELECT * FROM rations ORDER BY date_creation DESC'
+      'SELECT * FROM rations WHERE projet_id = ? ORDER BY date_creation DESC',
+      [projetId]
     );
 
     // Récupérer les ingrédients pour chaque ration
@@ -1820,13 +1850,14 @@ class DatabaseService {
     return result;
   }
 
-  async getAllMortalites(): Promise<Mortalite[]> {
+  async getAllMortalites(projetId: string): Promise<Mortalite[]> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
 
     return await this.db.getAllAsync<Mortalite>(
-      'SELECT * FROM mortalites ORDER BY date DESC'
+      'SELECT * FROM mortalites WHERE projet_id = ? ORDER BY date DESC',
+      [projetId]
     );
   }
 
@@ -2019,13 +2050,14 @@ class DatabaseService {
     return result;
   }
 
-  async getAllPlanifications(): Promise<Planification[]> {
+  async getAllPlanifications(projetId: string): Promise<Planification[]> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
 
     return await this.db.getAllAsync<Planification>(
-      'SELECT * FROM planifications ORDER BY date_prevue ASC'
+      'SELECT * FROM planifications WHERE projet_id = ? ORDER BY date_prevue ASC',
+      [projetId]
     );
   }
 
@@ -2188,13 +2220,14 @@ class DatabaseService {
     return this.mapRowToCollaborateur(result);
   }
 
-  async getAllCollaborateurs(): Promise<Collaborateur[]> {
+  async getAllCollaborateurs(projetId: string): Promise<Collaborateur[]> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
 
     const results = await this.db.getAllAsync<any>(
-      'SELECT * FROM collaborations ORDER BY nom ASC, prenom ASC'
+      'SELECT * FROM collaborations WHERE projet_id = ? ORDER BY nom ASC, prenom ASC',
+      [projetId]
     );
 
     return results.map((row) => this.mapRowToCollaborateur(row));
@@ -2414,6 +2447,50 @@ class DatabaseService {
     const diffMs = endDate.getTime() - startDate.getTime();
     const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
     return diffDays <= 0 ? 0 : diffDays;
+  }
+
+  /**
+   * Nettoie toutes les données d'un utilisateur (projets et données associées)
+   */
+  async clearUserData(userId: string): Promise<void> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    try {
+      // Récupérer tous les projets de l'utilisateur
+      const projets = await this.db.getAllAsync<{ id: string }>(
+        'SELECT id FROM projets WHERE proprietaire_id = ?',
+        [userId]
+      );
+
+      // Pour chaque projet, supprimer toutes les données associées
+      for (const projet of projets) {
+        const projetId = projet.id;
+
+        // Supprimer toutes les données liées au projet (en respectant l'ordre des dépendances)
+        await this.db.runAsync('DELETE FROM stocks_mouvements WHERE projet_id = ?', [projetId]);
+        await this.db.runAsync('DELETE FROM stocks_aliments WHERE projet_id = ?', [projetId]);
+        await this.db.runAsync('DELETE FROM ingredients_ration WHERE ration_id IN (SELECT id FROM rations WHERE projet_id = ?)', [projetId]);
+        await this.db.runAsync('DELETE FROM rations WHERE projet_id = ?', [projetId]);
+        await this.db.runAsync('DELETE FROM production_pesees WHERE projet_id = ?', [projetId]);
+        await this.db.runAsync('DELETE FROM production_animaux WHERE projet_id = ?', [projetId]);
+        await this.db.runAsync('DELETE FROM sevrages WHERE projet_id = ?', [projetId]);
+        await this.db.runAsync('DELETE FROM gestations WHERE projet_id = ?', [projetId]);
+        await this.db.runAsync('DELETE FROM depenses_ponctuelles WHERE projet_id = ?', [projetId]);
+        await this.db.runAsync('DELETE FROM charges_fixes WHERE projet_id = ?', [projetId]);
+        await this.db.runAsync('DELETE FROM rapports_croissance WHERE projet_id = ?', [projetId]);
+        await this.db.runAsync('DELETE FROM mortalites WHERE projet_id = ?', [projetId]);
+        await this.db.runAsync('DELETE FROM planifications WHERE projet_id = ?', [projetId]);
+        await this.db.runAsync('DELETE FROM collaborations WHERE projet_id = ?', [projetId]);
+      }
+
+      // Supprimer les projets de l'utilisateur
+      await this.db.runAsync('DELETE FROM projets WHERE proprietaire_id = ?', [userId]);
+    } catch (error) {
+      console.error('Erreur lors du nettoyage des données utilisateur:', error);
+      throw error;
+    }
   }
 }
 

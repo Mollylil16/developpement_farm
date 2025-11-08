@@ -75,8 +75,13 @@ export default function StockAlimentFormModal({
   }, [visible, aliment, isEditing, projetId]);
 
   const handleSubmit = async () => {
+    if (!projetId) {
+      Alert.alert('Erreur', 'Aucun projet actif. Veuillez sélectionner un projet.');
+      return;
+    }
+
     if (!formData.nom.trim()) {
-      Alert.alert('Champ requis', 'Le nom de l’aliment est obligatoire');
+      Alert.alert('Champ requis', "Le nom de l'aliment est obligatoire");
       return;
     }
 
@@ -131,10 +136,7 @@ export default function StockAlimentFormModal({
       visible={visible}
       onClose={onClose}
       title={isEditing ? 'Modifier un aliment' : 'Nouvel aliment'}
-      confirmText={isEditing ? 'Enregistrer' : 'Créer'}
-      onConfirm={handleSubmit}
-      showButtons
-      loading={loading}
+      showButtons={false}
     >
       <ScrollView style={styles.scroll}>
         <FormField

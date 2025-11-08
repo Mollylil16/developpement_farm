@@ -25,9 +25,13 @@ export default function FinanceChargesFixesComponent() {
   const [modalVisible, setModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
+  const { projetActif } = useAppSelector((state) => state.projet);
+
   useEffect(() => {
-    dispatch(loadChargesFixes());
-  }, [dispatch]);
+    if (projetActif) {
+      dispatch(loadChargesFixes(projetActif.id));
+    }
+  }, [dispatch, projetActif?.id]);
 
   const handleEdit = (charge: ChargeFixe) => {
     setSelectedCharge(charge);
@@ -67,7 +71,9 @@ export default function FinanceChargesFixesComponent() {
 
   const handleSuccess = () => {
     handleCloseModal();
-    dispatch(loadChargesFixes());
+    if (projetActif) {
+      dispatch(loadChargesFixes(projetActif.id));
+    }
   };
 
   const getStatusColor = (statut: StatutChargeFixe) => {

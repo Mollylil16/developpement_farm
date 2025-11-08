@@ -357,10 +357,10 @@ export default function GestationFormModal({
             <DateTimePicker
               value={new Date(formData.date_sautage)}
               mode={datePickerMode}
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              display="default"
               onChange={(event, selectedDate) => {
-                setShowDatePicker(Platform.OS === 'ios');
-                if (selectedDate) {
+                setShowDatePicker(false);
+                if (selectedDate && event.type !== 'dismissed') {
                   // Convertir la date sélectionnée en format local YYYY-MM-DD
                   const year = selectedDate.getFullYear();
                   const month = String(selectedDate.getMonth() + 1).padStart(2, '0');

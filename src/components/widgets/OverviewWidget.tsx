@@ -78,7 +78,7 @@ export default function OverviewWidget({ onPress }: OverviewWidgetProps) {
   if (onPress) {
     return (
       <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
-        <Card elevation="medium" padding="large">
+        <Card elevation="medium" padding="large" neomorphism={true}>
           {WidgetContent}
         </Card>
       </TouchableOpacity>
@@ -86,7 +86,7 @@ export default function OverviewWidget({ onPress }: OverviewWidgetProps) {
   }
 
   return (
-    <Card elevation="medium" padding="large">
+    <Card elevation="medium" padding="large" neomorphism={true}>
       {WidgetContent}
     </Card>
   );

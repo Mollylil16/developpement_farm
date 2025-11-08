@@ -35,9 +35,9 @@ export const createIngredient = createAsyncThunk(
 
 export const loadIngredients = createAsyncThunk(
   'nutrition/loadIngredients',
-  async (_, { rejectWithValue }) => {
+  async (projetId: string, { rejectWithValue }) => {
     try {
-      const ingredients = await databaseService.getAllIngredients();
+      const ingredients = await databaseService.getAllIngredients(projetId);
       return ingredients;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des ingrédients');
@@ -75,7 +75,7 @@ export const createRation = createAsyncThunk(
   async (input: CreateRationInput, { rejectWithValue }) => {
     try {
       // Calculer le coût total
-      const ingredients = await databaseService.getAllIngredients();
+      const ingredients = await databaseService.getAllIngredients(input.projet_id);
       let coutTotal = 0;
       
       input.ingredients.forEach((ing: { ingredient_id: string; quantite: number }) => {
@@ -101,9 +101,9 @@ export const createRation = createAsyncThunk(
 
 export const loadRations = createAsyncThunk(
   'nutrition/loadRations',
-  async (_, { rejectWithValue }) => {
+  async (projetId: string, { rejectWithValue }) => {
     try {
-      const rations = await databaseService.getAllRations();
+      const rations = await databaseService.getAllRations(projetId);
       return rations;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des rations');

@@ -26,9 +26,13 @@ export default function FinanceDepensesComponent() {
   const [page, setPage] = useState(1);
   const ITEMS_PER_PAGE = 50;
 
+  const { projetActif } = useAppSelector((state) => state.projet);
+
   useEffect(() => {
-    dispatch(loadDepensesPonctuelles());
-  }, [dispatch]);
+    if (projetActif) {
+      dispatch(loadDepensesPonctuelles(projetActif.id));
+    }
+  }, [dispatch, projetActif?.id]);
 
   // Pagination: charger les premières dépenses
   useEffect(() => {
@@ -88,7 +92,9 @@ export default function FinanceDepensesComponent() {
 
   const handleSuccess = () => {
     handleCloseModal();
-    dispatch(loadDepensesPonctuelles());
+    if (projetActif) {
+      dispatch(loadDepensesPonctuelles(projetActif.id));
+    }
   };
 
   const getCategoryLabel = (categorie: string): string => {

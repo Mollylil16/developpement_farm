@@ -5,6 +5,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User, AuthState, EmailSignUpInput, EmailSignInInput, AuthProvider } from '../../types';
+import { setProjetActif } from './projetSlice';
 
 const AUTH_STORAGE_KEY = '@fermier_pro:auth';
 
@@ -58,9 +59,25 @@ export const loadUserFromStorageThunk = createAsyncThunk(
 // Thunk pour l'inscription avec email
 export const signUpWithEmail = createAsyncThunk(
   'auth/signUpWithEmail',
-  async (input: EmailSignUpInput, { rejectWithValue }) => {
+  async (input: EmailSignUpInput, { rejectWithValue, dispatch }) => {
     try {
-      // Simulation d'inscription - TODO: Implémenter avec un vrai backend
+      // Vérifier si un utilisateur existe déjà avec cet email
+      const existingUser = await loadUserFromStorage();
+      
+      if (existingUser) {
+        // Si l'email correspond, proposer de se connecter
+        if (existingUser.email.toLowerCase() === input.email.toLowerCase()) {
+          return rejectWithValue('Un compte existe déjà avec cet email. Veuillez vous connecter.');
+        }
+        
+        // Si l'email est différent, c'est un nouvel utilisateur
+        // Nettoyer les données de l'ancien utilisateur (projets, etc.)
+        // Import dynamique pour éviter les dépendances circulaires
+        const { databaseService } = await import('../../services/database');
+        await databaseService.clearUserData(existingUser.id);
+      }
+
+      // Créer le nouvel utilisateur
       const user: User = {
         id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         email: input.email,
@@ -72,6 +89,10 @@ export const signUpWithEmail = createAsyncThunk(
       };
 
       await saveUserToStorage(user);
+      
+      // Réinitialiser le projet actif pour le nouvel utilisateur
+      dispatch(setProjetActif(null));
+      
       return user;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de l\'inscription');
@@ -165,8 +186,12 @@ export const signInWithApple = createAsyncThunk(
 // Thunk pour la déconnexion
 export const signOut = createAsyncThunk(
   'auth/signOut',
-  async () => {
+  async (_, { dispatch }) => {
+    // Ne pas nettoyer les données lors de la déconnexion
+    // pour permettre à l'utilisateur de se reconnecter plus tard
     await removeUserFromStorage();
+    // Réinitialiser le projet actif lors de la déconnexion
+    dispatch(setProjetActif(null));
     return null;
   }
 );

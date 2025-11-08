@@ -13,6 +13,21 @@ import FormField from './FormField';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
+// Fonction helper pour convertir une date en format local YYYY-MM-DD
+const formatDateToLocal = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// Fonction helper pour parser une date au format YYYY-MM-DD en Date locale
+const parseLocalDate = (dateString: string): Date => {
+  if (!dateString) return new Date();
+  const [year, month, day] = dateString.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
 interface ProductionAnimalFormModalProps {
   visible: boolean;
   onClose: () => void;
@@ -173,7 +188,7 @@ export default function ProductionAnimalFormModal({
           >
             <Text style={[styles.dateButtonText, { color: colors.text }]}>
               {formData.date_naissance
-                ? new Date(formData.date_naissance).toLocaleDateString('fr-FR', {
+                ? parseLocalDate(formData.date_naissance).toLocaleDateString('fr-FR', {
                     day: '2-digit',
                     month: '2-digit',
                     year: 'numeric',
@@ -183,15 +198,15 @@ export default function ProductionAnimalFormModal({
           </TouchableOpacity>
           {showDateNaissancePicker && (
             <DateTimePicker
-              value={formData.date_naissance ? new Date(formData.date_naissance) : new Date()}
+              value={formData.date_naissance ? parseLocalDate(formData.date_naissance) : new Date()}
               mode="date"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              display="default"
               onChange={(event, selectedDate) => {
-                setShowDateNaissancePicker(Platform.OS === 'ios');
-                if (selectedDate) {
+                setShowDateNaissancePicker(false);
+                if (selectedDate && event.type !== 'dismissed') {
                   setFormData({
                     ...formData,
-                    date_naissance: selectedDate.toISOString().split('T')[0],
+                    date_naissance: formatDateToLocal(selectedDate),
                   });
                 }
               }}
@@ -215,7 +230,7 @@ export default function ProductionAnimalFormModal({
           >
             <Text style={[styles.dateButtonText, { color: colors.text }]}>
               {formData.date_entree
-                ? new Date(formData.date_entree).toLocaleDateString('fr-FR', {
+                ? parseLocalDate(formData.date_entree).toLocaleDateString('fr-FR', {
                     day: '2-digit',
                     month: '2-digit',
                     year: 'numeric',
@@ -225,15 +240,15 @@ export default function ProductionAnimalFormModal({
           </TouchableOpacity>
           {showDateEntreePicker && (
             <DateTimePicker
-              value={formData.date_entree ? new Date(formData.date_entree) : new Date()}
+              value={formData.date_entree ? parseLocalDate(formData.date_entree) : new Date()}
               mode="date"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              display="default"
               onChange={(event, selectedDate) => {
-                setShowDateEntreePicker(Platform.OS === 'ios');
-                if (selectedDate) {
+                setShowDateEntreePicker(false);
+                if (selectedDate && event.type !== 'dismissed') {
                   setFormData({
                     ...formData,
-                    date_entree: selectedDate.toISOString().split('T')[0],
+                    date_entree: formatDateToLocal(selectedDate),
                   });
                 }
               }}
@@ -289,6 +304,11 @@ const styles = StyleSheet.create({
   },
   dateButtonText: {
     fontSize: FONT_SIZES.md,
+  },
+  datePickerContainer: {
+    marginTop: SPACING.sm,
+    alignItems: 'center',
+    minHeight: 200,
   },
 });
 
