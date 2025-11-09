@@ -14,6 +14,7 @@ import {
   Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { createProjet } from '../store/slices/projetSlice';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS } from '../constants/theme';
@@ -26,7 +27,10 @@ import Card from '../components/Card';
 export default function CreateProjectScreen() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
+  const navigation = useNavigation<any>();
+  const route = useRoute();
   const { user } = useAppSelector((state) => state.auth);
+  const { projetActif } = useAppSelector((state) => state.projet);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateProjetInput>({
     nom: '',
@@ -96,8 +100,24 @@ export default function CreateProjectScreen() {
         })
       ).unwrap();
 
-      // La navigation sera gérée automatiquement par AppNavigator
-      // grâce au useEffect qui écoute les changements de projetActif
+      // Si l'utilisateur a déjà un projet actif, il vient probablement des paramètres
+      // Dans ce cas, on revient aux paramètres pour qu'il puisse voir son nouveau projet
+      if (projetActif) {
+        Alert.alert(
+          'Projet créé',
+          'Votre nouveau projet a été créé et est maintenant actif. Vous pouvez basculer entre vos projets dans les paramètres.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                navigation.goBack();
+              },
+            },
+          ]
+        );
+      } else {
+        // Pas de projet actif = premier projet, la navigation sera gérée automatiquement par AppNavigator
+      }
     } catch (error: any) {
       Alert.alert('Erreur', error || 'Erreur lors de la création du projet');
     } finally {

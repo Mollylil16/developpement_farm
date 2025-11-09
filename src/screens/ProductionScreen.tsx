@@ -5,6 +5,7 @@
 import React from 'react';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ProductionCheptelComponent from '../components/ProductionCheptelComponent';
 import ProductionAnimalsListComponent from '../components/ProductionAnimalsListComponent';
 import ProductionEstimationsComponent from '../components/ProductionEstimationsComponent';
 import { FONT_SIZES } from '../constants/theme';
@@ -44,6 +45,13 @@ export default function ProductionScreen() {
           tabBarPressColor: colors.surface,
         }}
       >
+        <Tab.Screen
+          name="Cheptel"
+          component={ProductionCheptelComponent}
+          options={{
+            title: 'Cheptel',
+          }}
+        />
         <Tab.Screen
           name="Pesées"
           component={ProductionAnimalsListComponent}

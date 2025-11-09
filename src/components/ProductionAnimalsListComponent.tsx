@@ -59,7 +59,10 @@ export default function ProductionAnimalsListComponent() {
   }, [dispatch, selectedAnimal]);
 
   const animauxAvecStats = useMemo(() => {
-    return animaux.map((animal) => {
+    // Filtrer uniquement les animaux actifs du cheptel
+    const animauxActifs = animaux.filter((animal) => animal.statut === 'actif');
+    
+    return animauxActifs.map((animal) => {
       const pesees = peseesParAnimal[animal.id] || [];
       const dernierePesee = pesees[0]; // La plus récente (triée DESC)
       

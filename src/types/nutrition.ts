@@ -29,6 +29,7 @@ export interface IngredientRation {
 
 export interface Ration {
   id: string;
+  projet_id: string;
   type_porc: TypePorc;
   poids_kg: number;
   nombre_porcs?: number; // Nombre de porcs pour lesquels la ration est calculée
@@ -40,6 +41,7 @@ export interface Ration {
 }
 
 export interface CreateRationInput {
+  projet_id: string;
   type_porc: TypePorc;
   poids_kg: number;
   nombre_porcs?: number;

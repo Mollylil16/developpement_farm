@@ -2,18 +2,21 @@
  * Composant calendrier des gestations
  */
 
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Calendar, DateData } from 'react-native-calendars';
 import { useAppSelector } from '../store/hooks';
 import { Gestation } from '../types';
 import { doitGenererAlerte } from '../types/reproduction';
 import { SPACING, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { format, addMonths, subMonths, parseISO, isAfter } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 export default function GestationsCalendarComponent() {
   const { colors } = useTheme();
   const { gestations } = useAppSelector((state) => state.reproduction);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
 
   // Préparer les dates marquées pour le calendrier
   const markedDates = useMemo(() => {
@@ -58,6 +61,49 @@ export default function GestationsCalendarComponent() {
     console.log('Jour sélectionné:', day);
   };
 
+  const onMonthChange = (month: any) => {
+    const newDate = new Date(month.year, month.month - 1, 1);
+    setCurrentMonth(newDate);
+  };
+
+  const goToPreviousMonth = () => {
+    setCurrentMonth(subMonths(currentMonth, 1));
+  };
+
+  const goToNextMonth = () => {
+    setCurrentMonth(addMonths(currentMonth, 1));
+  };
+
+  const goToToday = () => {
+    setCurrentMonth(new Date());
+  };
+
+  // Trouver le prochain événement futur (mise bas prévue)
+  const prochainEvenement = useMemo(() => {
+    const aujourdhui = new Date();
+    aujourdhui.setHours(0, 0, 0, 0);
+    
+    const evenementsFuturs = gestations
+      .filter((g) => g.statut === 'en_cours')
+      .map((g) => ({
+        date: parseISO(g.date_mise_bas_prevue),
+        type: 'mise_bas',
+        gestation: g,
+      }))
+      .filter((e) => isAfter(e.date, aujourdhui) || e.date.getTime() === aujourdhui.getTime())
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+    
+    return evenementsFuturs[0] || null;
+  }, [gestations]);
+
+  const goToProchainEvenement = () => {
+    if (prochainEvenement) {
+      setCurrentMonth(prochainEvenement.date);
+    }
+  };
+
+  const currentMonthString = format(currentMonth, 'yyyy-MM-dd');
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Text style={[styles.title, { color: colors.text }]}>Calendrier des gestations</Text>
@@ -75,11 +121,51 @@ export default function GestationsCalendarComponent() {
           <Text style={[styles.legendText, { color: colors.text }]}>Date de sautage</Text>
         </View>
       </View>
+      <View style={[styles.calendarHeader, { backgroundColor: colors.surface }]}>
+        <TouchableOpacity
+          onPress={goToPreviousMonth}
+          style={[styles.navButton, { backgroundColor: colors.background, borderColor: colors.border }]}
+        >
+          <Text style={[styles.navButtonText, { color: colors.text }]}>‹</Text>
+        </TouchableOpacity>
+        <View style={styles.monthContainer}>
+          <Text style={[styles.monthText, { color: colors.text }]}>
+            {format(currentMonth, 'MMMM yyyy', { locale: fr })}
+          </Text>
+          <View style={styles.buttonRow}>
+            <TouchableOpacity
+              onPress={goToToday}
+              style={[styles.todayButton, { backgroundColor: colors.primary }]}
+            >
+              <Text style={[styles.todayButtonText, { color: colors.textOnPrimary }]}>Aujourd'hui</Text>
+            </TouchableOpacity>
+            {prochainEvenement && (
+              <TouchableOpacity
+                onPress={goToProchainEvenement}
+                style={[styles.eventButton, { backgroundColor: colors.secondary }]}
+              >
+                <Text style={[styles.eventButtonText, { color: colors.textOnPrimary }]}>
+                  Prochain événement
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+        <TouchableOpacity
+          onPress={goToNextMonth}
+          style={[styles.navButton, { backgroundColor: colors.background, borderColor: colors.border }]}
+        >
+          <Text style={[styles.navButtonText, { color: colors.text }]}>›</Text>
+        </TouchableOpacity>
+      </View>
       <Calendar
-        current={new Date().toISOString().split('T')[0]}
+        current={currentMonthString}
         markedDates={markedDates}
         markingType="multi-dot"
         onDayPress={onDayPress}
+        onMonthChange={onMonthChange}
+        enableSwipeMonths={true}
+        hideArrows={true}
         theme={{
           backgroundColor: colors.background,
           calendarBackground: colors.background,
@@ -140,6 +226,61 @@ const styles = StyleSheet.create({
   calendar: {
     borderRadius: 8,
     overflow: 'hidden',
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+    borderRadius: 8,
+  },
+  navButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  navButtonText: {
+    fontSize: FONT_SIZES.xl,
+    fontWeight: 'bold',
+  },
+  monthContainer: {
+    flex: 1,
+    alignItems: 'center',
+    marginHorizontal: SPACING.md,
+  },
+  monthText: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: 'bold',
+    marginBottom: SPACING.xs,
+    textTransform: 'capitalize',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: SPACING.xs,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
+  todayButton: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: 16,
+  },
+  todayButtonText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+  },
+  eventButton: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: 16,
+  },
+  eventButtonText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
   },
 });
 

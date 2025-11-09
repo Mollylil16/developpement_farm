@@ -124,8 +124,9 @@ export default function StockAlimentFormModal({
         ).unwrap();
       }
       onSuccess();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erreur lors de la sauvegarde du stock:', error);
+      Alert.alert('Erreur', error?.message || 'Une erreur est survenue lors de la sauvegarde');
     } finally {
       setLoading(false);
     }

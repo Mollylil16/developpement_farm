@@ -7,7 +7,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform }
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAppDispatch } from '../store/hooks';
 import { createProductionAnimal, updateProductionAnimal } from '../store/slices/productionSlice';
-import { ProductionAnimal, CreateProductionAnimalInput, SexeAnimal } from '../types';
+import { ProductionAnimal, CreateProductionAnimalInput, SexeAnimal, StatutAnimal, STATUT_ANIMAL_LABELS } from '../types';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
@@ -57,6 +57,7 @@ export default function ProductionAnimalFormModal({
     date_naissance: '',
     poids_initial: 0,
     date_entree: '',
+    statut: 'actif',
     notes: '',
   });
   const [showDateNaissancePicker, setShowDateNaissancePicker] = useState(false);
@@ -73,6 +74,7 @@ export default function ProductionAnimalFormModal({
         date_naissance: animal.date_naissance || '',
         poids_initial: animal.poids_initial || 0,
         date_entree: animal.date_entree || '',
+        statut: animal.statut || 'actif',
         notes: animal.notes || '',
       });
     } else {
@@ -85,6 +87,7 @@ export default function ProductionAnimalFormModal({
         date_naissance: '',
         poids_initial: 0,
         date_entree: '',
+        statut: 'actif',
         notes: '',
       });
     }
@@ -256,11 +259,42 @@ export default function ProductionAnimalFormModal({
           )}
         </View>
 
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Statut *</Text>
+          <View style={styles.optionsContainer}>
+            {(['actif', 'mort', 'vendu', 'offert', 'autre'] as StatutAnimal[]).map((statut) => (
+              <TouchableOpacity
+                key={statut}
+                style={[
+                  styles.option,
+                  {
+                    borderColor: formData.statut === statut ? colors.primary : colors.border,
+                    backgroundColor: formData.statut === statut ? colors.primary : colors.background,
+                  },
+                ]}
+                onPress={() => setFormData({ ...formData, statut })}
+              >
+                <Text
+                  style={[
+                    styles.optionText,
+                    {
+                      color: formData.statut === statut ? colors.textOnPrimary : colors.text,
+                      fontWeight: formData.statut === statut ? '600' : 'normal',
+                    },
+                  ]}
+                >
+                  {STATUT_ANIMAL_LABELS[statut]}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
         <FormField
-          label="Notes"
+          label="Notes (vaccins, dates, etc.)"
           value={formData.notes || ''}
           onChangeText={(text) => setFormData({ ...formData, notes: text })}
-          placeholder="Notes supplémentaires sur cet animal..."
+          placeholder="Notes supplémentaires sur cet animal (vaccins, dates, etc.)..."
           multiline
           numberOfLines={3}
         />

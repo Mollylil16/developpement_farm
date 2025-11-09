@@ -43,9 +43,64 @@ class DatabaseService {
     try {
       this.db = await SQLite.openDatabaseAsync('fermier_pro.db');
       await this.createTables();
+      await this.migrateTables();
     } catch (error) {
       console.error('Erreur lors de l\'initialisation de la base de données:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Migrations pour les bases de données existantes
+   */
+  private async migrateTables(): Promise<void> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    try {
+      // Migration: Ajouter projet_id à la table rations si elle n'existe pas
+      const tableInfo = await this.db.getFirstAsync<{ name: string } | null>(
+        "SELECT name FROM pragma_table_info('rations') WHERE name = 'projet_id'"
+      );
+      
+      if (!tableInfo) {
+        // La colonne n'existe pas, on l'ajoute
+        await this.db.execAsync(`
+          ALTER TABLE rations ADD COLUMN projet_id TEXT;
+        `);
+        
+        // Pour les rations existantes sans projet_id, on peut les associer au premier projet actif
+        // ou les laisser NULL (selon votre logique métier)
+        console.log('Migration: Colonne projet_id ajoutée à la table rations');
+      }
+
+      // Migration: Ajouter statut à la table production_animaux si elle n'existe pas
+      const statutInfo = await this.db.getFirstAsync<{ name: string } | null>(
+        "SELECT name FROM pragma_table_info('production_animaux') WHERE name = 'statut'"
+      );
+      
+      if (!statutInfo) {
+        // La colonne n'existe pas, on l'ajoute
+        await this.db.execAsync(`
+          ALTER TABLE production_animaux ADD COLUMN statut TEXT DEFAULT 'actif' CHECK (statut IN ('actif', 'mort', 'vendu', 'offert', 'autre'));
+        `);
+        
+        // Pour les animaux existants, définir le statut basé sur actif
+        await this.db.execAsync(`
+          UPDATE production_animaux 
+          SET statut = CASE 
+            WHEN actif = 1 THEN 'actif' 
+            ELSE 'autre' 
+          END
+          WHERE statut IS NULL;
+        `);
+        
+        console.log('Migration: Colonne statut ajoutée à la table production_animaux');
+      }
+    } catch (error) {
+      // Si la migration échoue, on continue quand même
+      console.warn('Erreur lors de la migration des tables:', error);
     }
   }
 
@@ -233,13 +288,15 @@ class DatabaseService {
     await this.db.execAsync(`
       CREATE TABLE IF NOT EXISTS rations (
         id TEXT PRIMARY KEY,
+        projet_id TEXT NOT NULL,
         type_porc TEXT NOT NULL CHECK (type_porc IN ('porcelet', 'truie_gestante', 'truie_allaitante', 'verrat', 'porc_croissance')),
         poids_kg REAL NOT NULL,
         nombre_porcs INTEGER,
         cout_total REAL,
         cout_par_kg REAL,
         notes TEXT,
-        date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+        date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (projet_id) REFERENCES projets(id)
       );
     `);
 
@@ -1015,9 +1072,9 @@ class DatabaseService {
       throw new Error('Base de données non initialisée');
     }
 
+    // Les ingrédients sont partagés entre tous les projets (pas de projet_id dans la table)
     return await this.db.getAllAsync<Ingredient>(
-      'SELECT * FROM ingredients WHERE projet_id = ? ORDER BY nom ASC',
-      [projetId]
+      'SELECT * FROM ingredients ORDER BY nom ASC'
     );
   }
 
@@ -1346,8 +1403,8 @@ class DatabaseService {
     await this.db.runAsync(
       `INSERT INTO production_animaux (
         id, projet_id, code, nom, origine, sexe, date_naissance, poids_initial,
-        date_entree, actif, notes, date_creation, derniere_modification
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        date_entree, actif, statut, notes, date_creation, derniere_modification
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ,[
         id,
         input.projet_id,
@@ -1358,7 +1415,8 @@ class DatabaseService {
         input.date_naissance || null,
         input.poids_initial ?? null,
         input.date_entree || null,
-        1,
+        input.statut === 'actif' ? 1 : 0, // Pour compatibilité avec actif
+        input.statut || 'actif',
         input.notes || null,
         date_creation,
         derniere_modification,
@@ -1407,9 +1465,16 @@ class DatabaseService {
     const values: any[] = [];
 
     Object.entries(updates).forEach(([key, value]) => {
-      if (value !== undefined) {
-        fields.push(`${key} = ?`);
-        values.push(value);
+      if (value !== undefined && key !== 'actif') { // actif est géré via statut
+        if (key === 'statut') {
+          fields.push('statut = ?');
+          fields.push('actif = ?'); // Mettre à jour actif en fonction du statut
+          values.push(value);
+          values.push(value === 'actif' ? 1 : 0);
+        } else {
+          fields.push(`${key} = ?`);
+          values.push(value);
+        }
       }
     });
 
@@ -1564,6 +1629,7 @@ class DatabaseService {
    */
 
   async createRation(ration: {
+    projet_id: string;
     type_porc: string;
     poids_kg: number;
     nombre_porcs?: number;
@@ -1582,10 +1648,11 @@ class DatabaseService {
     // Créer la ration
     await this.db.runAsync(
       `INSERT INTO rations (
-        id, type_porc, poids_kg, nombre_porcs, cout_total, cout_par_kg, notes, date_creation
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, projet_id, type_porc, poids_kg, nombre_porcs, cout_total, cout_par_kg, notes, date_creation
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
+        ration.projet_id,
         ration.type_porc,
         ration.poids_kg,
         ration.nombre_porcs || null,
@@ -2393,6 +2460,7 @@ class DatabaseService {
       poids_initial: row.poids_initial !== null ? row.poids_initial : undefined,
       date_entree: row.date_entree || undefined,
       actif: row.actif === 1,
+      statut: (row.statut || (row.actif === 1 ? 'actif' : 'autre')) as any,
       notes: row.notes || undefined,
       date_creation: row.date_creation,
       derniere_modification: row.derniere_modification,

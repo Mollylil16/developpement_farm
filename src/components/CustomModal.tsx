@@ -86,6 +86,8 @@ export default function CustomModal({
               ...colors.shadow.large,
             },
           ]}
+          onStartShouldSetResponder={() => true}
+          onResponderGrant={() => {}}
         >
           <View style={[styles.header, { borderBottomColor: colors.divider }]}>
             <Text style={[styles.title, { color: colors.text }]}>{title}</Text>

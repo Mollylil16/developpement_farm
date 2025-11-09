@@ -6,11 +6,14 @@ import React, { useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { setIndicateursPerformance, setRecommandations } from '../store/slices/reportsSlice';
+import { loadProductionAnimaux, loadPeseesParAnimal } from '../store/slices/productionSlice';
+import { loadMortalites } from '../store/slices/mortalitesSlice';
 import { IndicateursPerformance, Recommandation } from '../types';
 import { SPACING, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import StatCard from './StatCard';
 import LoadingSpinner from './LoadingSpinner';
+import { parseISO, differenceInMonths, differenceInDays, isAfter, isBefore } from 'date-fns';
 
 export default function PerformanceIndicatorsComponent() {
   const { colors } = useTheme();
@@ -19,7 +22,23 @@ export default function PerformanceIndicatorsComponent() {
   const { chargesFixes, depensesPonctuelles } = useAppSelector((state) => state.finance);
   const { gestations, sevrages } = useAppSelector((state) => state.reproduction);
   const { rations } = useAppSelector((state) => state.nutrition);
+  const { animaux, peseesParAnimal } = useAppSelector((state) => state.production);
+  const { mortalites } = useAppSelector((state) => state.mortalites);
   const { indicateursPerformance, recommandations } = useAppSelector((state) => state.reports);
+
+  // Charger les animaux de production et leurs pesées
+  useEffect(() => {
+    if (projetActif) {
+      dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: true }));
+      dispatch(loadMortalites(projetActif.id));
+    }
+  }, [dispatch, projetActif]);
+
+  useEffect(() => {
+    animaux.forEach((animal) => {
+      dispatch(loadPeseesParAnimal(animal.id));
+    });
+  }, [dispatch, animaux]);
 
   // Calculer les indicateurs de performance
   const calculatedIndicators = useMemo(() => {
@@ -53,33 +72,191 @@ export default function PerformanceIndicatorsComponent() {
       projetActif.nombre_verrats +
       projetActif.nombre_porcelets;
 
-    // Calculer les mortalités (approximation - nécessiterait une table mortalites)
-    // Pour l'instant, on utilise une estimation basée sur les gestations terminées
-    const gestationsTerminees = gestations.filter((g) => g.statut === 'terminee');
-    const nombrePorceletsNes = gestationsTerminees.reduce(
-      (sum, g) => sum + (g.nombre_porcelets_reel || g.nombre_porcelets_prevu),
-      0
-    );
-    const nombrePorceletsVivants = projetActif.nombre_porcelets;
-    const nombrePorceletsMorts = nombrePorceletsNes - nombrePorceletsVivants;
-    const nombrePorcsMorts = nombrePorceletsMorts; // Approximation
+    // Calculer les mortalités à partir des données réelles
+    const nombrePorcsMorts = mortalites.reduce((sum, m) => sum + m.nombre_porcs, 0);
+    
+    // Calculer le nombre de porcs vivants (total - morts)
+    // Le nombre total inclut les truies, verrats et porcelets
+    const nombrePorcsVivants = Math.max(0, nombrePorcsTotal - nombrePorcsMorts);
 
     // Calculer le taux de mortalité
+    // Taux = (nombre de morts / nombre total initial) * 100
+    // Le nombre total initial = nombre actuel + nombre de morts
+    const nombrePorcsTotalInitial = nombrePorcsTotal + nombrePorcsMorts;
     const tauxMortalite =
-      nombrePorcsTotal > 0 ? (nombrePorcsMorts / nombrePorcsTotal) * 100 : 0;
+      nombrePorcsTotalInitial > 0 ? (nombrePorcsMorts / nombrePorcsTotalInitial) * 100 : 0;
 
     // Calculer le taux de croissance (basé sur les sevrages)
-    const tauxCroissance = sevrages.length > 0 ? (sevrages.length / gestationsTerminees.length) * 100 : 0;
+    const gestationsTerminees = gestations.filter((g) => g.statut === 'terminee');
+    const tauxCroissance = gestationsTerminees.length > 0 && sevrages.length > 0 
+      ? (sevrages.length / gestationsTerminees.length) * 100 
+      : 0;
 
     // Calculer l'efficacité alimentaire (ratio poids_gain / alimentation_consommee)
-    // Approximation: poids_total / alimentation_totale
+    // On utilise le poids réel basé sur les pesées si disponible
     const alimentationTotale = coutAlimentationTotal; // En CFA, à convertir en kg si nécessaire
+    
+    // Calculer le poids réel pour l'efficacité alimentaire (dernières pesées)
+    let poidsReelPourEfficacite = 0;
+    animaux.forEach((animal) => {
+      const pesees = peseesParAnimal[animal.id] || [];
+      if (pesees.length > 0) {
+        const peseesTriees = [...pesees].sort((a, b) => 
+          parseISO(b.date).getTime() - parseISO(a.date).getTime()
+        );
+        poidsReelPourEfficacite += peseesTriees[0].poids_kg;
+      }
+    });
+    
+    // Si pas de pesées, utiliser l'approximation
+    if (poidsReelPourEfficacite === 0) {
+      poidsReelPourEfficacite = poidsTotal;
+    }
+    
     const efficaciteAlimentaire =
-      alimentationTotale > 0 ? poidsTotal / (alimentationTotale / 1000) : 0; // Approximation
+      alimentationTotale > 0 ? poidsReelPourEfficacite / (alimentationTotale / 1000) : 0; // Approximation
 
-    // Calculer le coût de production par kg
-    const coutTotalMensuel = chargesFixesMensuelles + depensesPonctuellesTotales / 12; // Approximation mensuelle
-    const coutProductionKg = poidsTotal > 0 ? coutTotalMensuel / poidsTotal : 0;
+    // Calculer le coût de production par kg sur TOUTE la période de production
+    // 1. Trouver la période de production (date d'entrée la plus ancienne jusqu'à aujourd'hui)
+    const animauxAvecDateEntree = animaux.filter((a) => a.date_entree);
+    if (animauxAvecDateEntree.length === 0) {
+      // Si aucun animal avec date d'entrée, utiliser l'approximation mensuelle
+      // Mais on utilise quand même le poids réel basé sur les pesées si disponible
+      let poidsReelPourCalcul = 0;
+      animaux.forEach((animal) => {
+        const pesees = peseesParAnimal[animal.id] || [];
+        if (pesees.length > 0) {
+          const peseesTriees = [...pesees].sort((a, b) => 
+            parseISO(b.date).getTime() - parseISO(a.date).getTime()
+          );
+          poidsReelPourCalcul += peseesTriees[0].poids_kg;
+        }
+      });
+      
+      // Si pas de pesées, utiliser l'approximation du projet
+      if (poidsReelPourCalcul === 0) {
+        poidsReelPourCalcul = poidsTotal;
+      }
+      
+      const coutTotalMensuel = chargesFixesMensuelles + depensesPonctuellesTotales / 12;
+      const coutProductionKg = poidsReelPourCalcul > 0 ? coutTotalMensuel / poidsReelPourCalcul : 0;
+      return {
+        taux_mortalite: tauxMortalite,
+        taux_croissance: tauxCroissance,
+        efficacite_alimentaire: efficaciteAlimentaire,
+        cout_production_kg: coutProductionKg,
+        nombre_porcs_total: nombrePorcsTotal,
+        nombre_porcs_vivants: nombrePorcsVivants,
+        nombre_porcs_morts: nombrePorcsMorts,
+        poids_total: poidsReelPourCalcul,
+        alimentation_totale: alimentationTotale,
+      } as IndicateursPerformance;
+    }
+
+    const datesEntree = animauxAvecDateEntree.map((a) => parseISO(a.date_entree!));
+    const dateDebutProduction = new Date(Math.min(...datesEntree.map((d) => d.getTime())));
+    const dateFinProduction = new Date(); // Aujourd'hui
+
+    // 2. Calculer le nombre de mois de production
+    const nombreMoisProduction = Math.max(1, differenceInMonths(dateFinProduction, dateDebutProduction) + 1);
+
+    // 3. Calculer les charges fixes totales sur toute la période
+    const chargesFixesTotales = chargesFixesActives.reduce((sum, cf) => {
+      let montantMensuel = 0;
+      if (cf.frequence === 'mensuel') montantMensuel = cf.montant;
+      else if (cf.frequence === 'trimestriel') montantMensuel = cf.montant / 3;
+      else if (cf.frequence === 'annuel') montantMensuel = cf.montant / 12;
+      
+      // Si la charge fixe a une date de début, ne compter que depuis cette date
+      if (cf.date_debut) {
+        const dateDebutCharge = parseISO(cf.date_debut);
+        
+        // Ne compter que si la charge a commencé avant ou pendant la période de production
+        if (isAfter(dateDebutCharge, dateFinProduction)) {
+          return sum; // La charge commence après la fin de production
+        }
+        
+        // Si la charge est terminée (statut = 'termine'), utiliser la date de dernière modification comme fin
+        // Sinon, elle continue jusqu'à aujourd'hui
+        const dateFinCharge = cf.statut === 'termine' && cf.derniere_modification 
+          ? parseISO(cf.derniere_modification)
+          : dateFinProduction;
+        
+        const debutEffectif = isAfter(dateDebutCharge, dateDebutProduction) ? dateDebutCharge : dateDebutProduction;
+        const finEffectif = isBefore(dateFinCharge, dateFinProduction) ? dateFinCharge : dateFinProduction;
+        
+        // Ne compter que si la période effective est valide
+        if (isAfter(debutEffectif, finEffectif)) {
+          return sum;
+        }
+        
+        const moisEffectifs = Math.max(1, differenceInMonths(finEffectif, debutEffectif) + 1);
+        return sum + montantMensuel * moisEffectifs;
+      }
+      
+      // Si pas de date_debut, compter sur toute la période de production
+      return sum + montantMensuel * nombreMoisProduction;
+    }, 0);
+
+    // 4. Calculer les dépenses ponctuelles dans la période de production
+    const depensesPonctuellesDansPeriode = depensesPonctuelles.reduce((sum, dp) => {
+      const dateDepense = parseISO(dp.date);
+      if (isAfter(dateDepense, dateFinProduction) || isBefore(dateDepense, dateDebutProduction)) {
+        return sum;
+      }
+      return sum + dp.montant;
+    }, 0);
+
+    // 5. Calculer le coût total d'alimentation (rations) dans la période
+    const coutAlimentationDansPeriode = rations.reduce((sum, ration) => {
+      const dateRation = parseISO(ration.date_creation);
+      if (isAfter(dateRation, dateFinProduction) || isBefore(dateRation, dateDebutProduction)) {
+        return sum;
+      }
+      return sum + (ration.cout_total || 0);
+    }, 0);
+
+    // 6. Calculer le poids total actuel du cheptel (basé sur les dernières pesées réelles)
+    // On utilise la dernière pesée de chaque animal pour obtenir le poids total actuel
+    let poidsTotalProduit = 0;
+    let animauxAvecPesee = 0;
+    
+    animaux.forEach((animal) => {
+      const pesees = peseesParAnimal[animal.id] || [];
+      if (pesees.length > 0) {
+        // Trier les pesées par date (la plus récente en premier)
+        const peseesTriees = [...pesees].sort((a, b) => 
+          parseISO(b.date).getTime() - parseISO(a.date).getTime()
+        );
+        
+        // Prendre la dernière pesée (la plus récente)
+        const dernierePesee = peseesTriees[0];
+        const datePesee = parseISO(dernierePesee.date);
+        
+        // Ne compter que si la pesée est dans la période de production
+        if (!isAfter(datePesee, dateFinProduction) && !isBefore(datePesee, dateDebutProduction)) {
+          poidsTotalProduit += dernierePesee.poids_kg;
+          animauxAvecPesee++;
+        }
+      }
+    });
+
+    // Si aucun animal n'a de pesée, utiliser l'approximation basée sur le projet
+    // Sinon, si certains animaux n'ont pas de pesée, on peut les estimer avec le poids moyen
+    if (animauxAvecPesee === 0) {
+      poidsTotalProduit = poidsTotal;
+    } else if (animauxAvecPesee < animaux.length) {
+      // Si certains animaux n'ont pas de pesée, estimer leur poids avec le poids moyen du projet
+      const animauxSansPesee = animaux.length - animauxAvecPesee;
+      const poidsEstime = projetActif.poids_moyen_actuel * animauxSansPesee;
+      poidsTotalProduit += poidsEstime;
+    }
+
+    // 7. Calculer le coût total sur toute la période
+    const coutTotalProduction = chargesFixesTotales + depensesPonctuellesDansPeriode + coutAlimentationDansPeriode;
+
+    // 8. Calculer le coût par kg
+    const coutProductionKg = poidsTotalProduit > 0 ? coutTotalProduction / poidsTotalProduit : 0;
 
     return {
       taux_mortalite: tauxMortalite,
@@ -87,9 +264,9 @@ export default function PerformanceIndicatorsComponent() {
       efficacite_alimentaire: efficaciteAlimentaire,
       cout_production_kg: coutProductionKg,
       nombre_porcs_total: nombrePorcsTotal,
-      nombre_porcs_vivants: nombrePorceletsVivants,
+      nombre_porcs_vivants: nombrePorcsVivants,
       nombre_porcs_morts: nombrePorcsMorts,
-      poids_total: poidsTotal,
+      poids_total: poidsTotalProduit || poidsTotal,
       alimentation_totale: alimentationTotale,
     } as IndicateursPerformance;
   }, [
@@ -99,6 +276,9 @@ export default function PerformanceIndicatorsComponent() {
     gestations,
     sevrages,
     rations,
+    animaux,
+    peseesParAnimal,
+    mortalites,
   ]);
 
   // Générer les recommandations

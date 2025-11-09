@@ -10,7 +10,7 @@ import { loadPlanificationsParProjet } from '../store/slices/planificationSlice'
 import { Planification, TypeTache } from '../types';
 import { SPACING, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { format, addMonths, subMonths } from 'date-fns';
+import { format, addMonths, subMonths, parseISO, isAfter } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export default function PlanificationCalendarComponent() {
@@ -102,6 +102,30 @@ export default function PlanificationCalendarComponent() {
     setCurrentMonth(new Date());
   };
 
+  // Trouver le prochain événement futur (planification à faire)
+  const prochainEvenement = useMemo(() => {
+    const aujourdhui = new Date();
+    aujourdhui.setHours(0, 0, 0, 0);
+    
+    const evenementsFuturs = planifications
+      .filter((p) => p.statut === 'a_faire' || p.statut === 'en_cours')
+      .map((p) => ({
+        date: parseISO(p.date_prevue),
+        type: 'planification',
+        planification: p,
+      }))
+      .filter((e) => isAfter(e.date, aujourdhui) || e.date.getTime() === aujourdhui.getTime())
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+    
+    return evenementsFuturs[0] || null;
+  }, [planifications]);
+
+  const goToProchainEvenement = () => {
+    if (prochainEvenement) {
+      setCurrentMonth(prochainEvenement.date);
+    }
+  };
+
   const currentMonthString = format(currentMonth, 'yyyy-MM-dd');
 
   return (
@@ -136,12 +160,24 @@ export default function PlanificationCalendarComponent() {
           <Text style={[styles.monthText, { color: colors.text }]}>
             {format(currentMonth, 'MMMM yyyy', { locale: fr })}
           </Text>
-          <TouchableOpacity
-            onPress={goToToday}
-            style={[styles.todayButton, { backgroundColor: colors.primary }]}
-          >
-            <Text style={[styles.todayButtonText, { color: colors.textOnPrimary }]}>Aujourd'hui</Text>
-          </TouchableOpacity>
+          <View style={styles.buttonRow}>
+            <TouchableOpacity
+              onPress={goToToday}
+              style={[styles.todayButton, { backgroundColor: colors.primary }]}
+            >
+              <Text style={[styles.todayButtonText, { color: colors.textOnPrimary }]}>Aujourd'hui</Text>
+            </TouchableOpacity>
+            {prochainEvenement && (
+              <TouchableOpacity
+                onPress={goToProchainEvenement}
+                style={[styles.eventButton, { backgroundColor: colors.secondary }]}
+              >
+                <Text style={[styles.eventButtonText, { color: colors.textOnPrimary }]}>
+                  Prochain événement
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
         <TouchableOpacity
           onPress={goToNextMonth}
@@ -247,12 +283,27 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
     textTransform: 'capitalize',
   },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: SPACING.xs,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
   todayButton: {
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.xs,
     borderRadius: 16,
   },
   todayButtonText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+  },
+  eventButton: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: 16,
+  },
+  eventButtonText: {
     fontSize: FONT_SIZES.sm,
     fontWeight: '600',
   },

@@ -4,6 +4,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import {
   loadProjets,
@@ -17,10 +18,12 @@ import { useTheme } from '../contexts/ThemeContext';
 import LoadingSpinner from './LoadingSpinner';
 import EmptyState from './EmptyState';
 import FormField from './FormField';
+import Button from './Button';
 
 export default function ParametresProjetComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
+  const navigation = useNavigation<any>();
   const { projetActif, projets, loading } = useAppSelector((state) => state.projet);
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<Projet>>({});
@@ -28,6 +31,15 @@ export default function ParametresProjetComponent() {
   useEffect(() => {
     dispatch(loadProjets());
   }, [dispatch]);
+
+  // Recharger les projets après création d'un nouveau projet
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      dispatch(loadProjets());
+      dispatch(loadProjetActif());
+    });
+    return unsubscribe;
+  }, [navigation, dispatch]);
 
   useEffect(() => {
     if (projetActif && isEditing) {
@@ -250,9 +262,25 @@ export default function ParametresProjetComponent() {
 
       {/* Liste des projets */}
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Autres Projets</Text>
-        {projets.length === 0 ? (
-          <EmptyState title="Aucun autre projet" message="Créez d'autres projets pour les gérer ici" />
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Autres Projets</Text>
+          <Button
+            title="+ Nouveau projet"
+            onPress={() => navigation.navigate('CreateProject')}
+            size="small"
+          />
+        </View>
+        {projets.filter((p) => p.id !== projetActif?.id).length === 0 ? (
+          <EmptyState 
+            title="Aucun autre projet" 
+            message="Créez d'autres projets pour gérer plusieurs fermes"
+            action={
+              <Button
+                title="Créer un nouveau projet"
+                onPress={() => navigation.navigate('CreateProject')}
+              />
+            }
+          />
         ) : (
           projets
             .filter((p) => p.id !== projetActif?.id)
@@ -313,11 +341,17 @@ const styles = StyleSheet.create({
     padding: SPACING.xl,
     paddingTop: SPACING.lg + 10,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
   sectionTitle: {
     fontSize: FONT_SIZES.lg,
     fontWeight: '600',
-    marginBottom: SPACING.md,
     letterSpacing: 0.2,
+    flex: 1,
   },
   card: {
     borderRadius: BORDER_RADIUS.md,

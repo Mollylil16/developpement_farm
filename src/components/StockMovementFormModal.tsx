@@ -73,8 +73,9 @@ export default function StockMovementFormModal({ visible, onClose, onSuccess, al
       await dispatch(loadMouvementsParAliment({ alimentId: aliment.id })).unwrap();
 
       onSuccess();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erreur lors de la création du mouvement:', error);
+      Alert.alert('Erreur', error?.message || 'Une erreur est survenue lors de l\'enregistrement du mouvement');
     } finally {
       setLoading(false);
     }

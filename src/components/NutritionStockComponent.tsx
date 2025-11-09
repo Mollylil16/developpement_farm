@@ -9,6 +9,7 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
+  Pressable,
   Alert,
 } from 'react-native';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
@@ -258,9 +259,15 @@ export default function NutritionStockComponent() {
         />
         <StockAlimentFormModal
           visible={showAlimentModal}
-          onClose={() => setShowAlimentModal(false)}
+          onClose={() => {
+            setShowAlimentModal(false);
+            setIsEditing(false);
+            setSelectedStock(null);
+          }}
           onSuccess={() => {
             setShowAlimentModal(false);
+            setIsEditing(false);
+            setSelectedStock(null);
             if (projetActif) {
               dispatch(loadStocks(projetActif.id));
             }
@@ -283,7 +290,7 @@ export default function NutritionStockComponent() {
                 : null;
 
               return (
-                <TouchableOpacity
+                <View
                   key={stock.id}
                   style={[
                     styles.card,
@@ -294,56 +301,67 @@ export default function NutritionStockComponent() {
                       ...colors.shadow.small,
                     },
                   ]}
-                  onPress={() => setSelectedStock(stock)}
-                  activeOpacity={0.9}
                 >
-                  <View style={styles.cardHeader}>
-                    <View>
-                      <Text style={[styles.cardTitle, { color: colors.text }]}>{stock.nom}</Text>
-                      {stock.categorie ? (
-                        <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>{stock.categorie}</Text>
-                      ) : null}
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => setSelectedStock(stock)}
+                  >
+                    <View style={styles.cardHeader}>
+                      <View>
+                        <Text style={[styles.cardTitle, { color: colors.text }]}>{stock.nom}</Text>
+                        {stock.categorie ? (
+                          <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>{stock.categorie}</Text>
+                        ) : null}
+                      </View>
+                      {stock.alerte_active && <Text style={[styles.alertBadge, { color: colors.error }]}>Alerte</Text>}
                     </View>
-                    {stock.alerte_active && <Text style={[styles.alertBadge, { color: colors.error }]}>Alerte</Text>}
-                  </View>
-                  <View style={styles.cardContent}>
-                    <View style={styles.cardRow}>
-                      <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Stock actuel :</Text>
-                      <Text style={[styles.cardValue, { color: colors.text }]}>
-                        {stock.quantite_actuelle} {stock.unite}
-                      </Text>
-                    </View>
-                    {stock.seuil_alerte !== undefined && stock.seuil_alerte !== null && (
+                    <View style={styles.cardContent}>
                       <View style={styles.cardRow}>
-                        <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Seuil d'alerte :</Text>
+                        <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Stock actuel :</Text>
                         <Text style={[styles.cardValue, { color: colors.text }]}>
-                          {stock.seuil_alerte} {stock.unite}
+                          {stock.quantite_actuelle} {stock.unite}
                         </Text>
                       </View>
-                    )}
-                    {pourcentage !== null && stock.seuil_alerte !== undefined && stock.seuil_alerte !== null && (
-                      <View style={[styles.progressBar, { backgroundColor: colors.border }]}>
-                        <View
-                          style={[styles.progressFill, {
-                            width: `${Math.min(100, pourcentage)}%`,
-                            backgroundColor: stock.alerte_active ? colors.error : colors.primary,
-                          }]}
-                        />
-                      </View>
-                    )}
-                  </View>
+                      {stock.seuil_alerte !== undefined && stock.seuil_alerte !== null && (
+                        <View style={styles.cardRow}>
+                          <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Seuil d'alerte :</Text>
+                          <Text style={[styles.cardValue, { color: colors.text }]}>
+                            {stock.seuil_alerte} {stock.unite}
+                          </Text>
+                        </View>
+                      )}
+                      {pourcentage !== null && stock.seuil_alerte !== undefined && stock.seuil_alerte !== null && (
+                        <View style={[styles.progressBar, { backgroundColor: colors.border }]}>
+                          <View
+                            style={[styles.progressFill, {
+                              width: `${Math.min(100, pourcentage)}%`,
+                              backgroundColor: stock.alerte_active ? colors.error : colors.primary,
+                            }]}
+                          />
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
                   <View style={styles.cardActions}>
-                    <TouchableOpacity
-                      style={[styles.actionButton, { backgroundColor: colors.primary + '12' }]}
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.actionButton,
+                        { backgroundColor: colors.primary + '12' },
+                        pressed && { opacity: 0.7 },
+                      ]}
                       onPress={() => {
                         setSelectedStock(stock);
                         setShowMovementModal(true);
                       }}
                     >
                       <Text style={[styles.actionButtonText, { color: colors.text }]}>Mouvement</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.actionButton, { backgroundColor: colors.primary + '12' }]}
+                    </Pressable>
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.actionButton,
+                        { backgroundColor: colors.primary + '12' },
+                        pressed && { opacity: 0.7 },
+                      ]}
                       onPress={() => {
                         setSelectedStock(stock);
                         setIsEditing(true);
@@ -351,15 +369,19 @@ export default function NutritionStockComponent() {
                       }}
                     >
                       <Text style={[styles.actionButtonText, { color: colors.text }]}>Modifier</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.actionButton, { backgroundColor: colors.error + '15' }]}
+                    </Pressable>
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.actionButton,
+                        { backgroundColor: colors.error + '15' },
+                        pressed && { opacity: 0.7 },
+                      ]}
                       onPress={() => handleDelete(stock)}
                     >
                       <Text style={[styles.actionButtonText, { color: colors.error }]}>Supprimer</Text>
-                    </TouchableOpacity>
+                    </Pressable>
                   </View>
-                </TouchableOpacity>
+                </View>
               );
             }}
         keyExtractor={(item) => item.id}
@@ -383,9 +405,15 @@ export default function NutritionStockComponent() {
 
       <StockAlimentFormModal
         visible={showAlimentModal}
-        onClose={() => setShowAlimentModal(false)}
+        onClose={() => {
+          setShowAlimentModal(false);
+          setIsEditing(false);
+          setSelectedStock(null);
+        }}
         onSuccess={() => {
           setShowAlimentModal(false);
+          setIsEditing(false);
+          setSelectedStock(null);
           if (projetActif) {
             dispatch(loadStocks(projetActif.id));
           }
@@ -398,11 +426,14 @@ export default function NutritionStockComponent() {
       {selectedStock && (
         <StockMovementFormModal
           visible={showMovementModal}
-          onClose={() => setShowMovementModal(false)}
+          onClose={() => {
+            setShowMovementModal(false);
+          }}
           onSuccess={() => {
             setShowMovementModal(false);
             if (projetActif) {
               dispatch(loadStocks(projetActif.id));
+              dispatch(loadMouvementsParAliment({ alimentId: selectedStock.id }));
             }
           }}
           aliment={selectedStock}
@@ -489,6 +520,13 @@ const styles = StyleSheet.create({
     padding: SPACING.lg,
     marginBottom: SPACING.lg,
     borderWidth: 1,
+    overflow: 'hidden',
+  },
+  cardSelectable: {
+    marginBottom: SPACING.md,
+  },
+  cardSelectableContent: {
+    width: '100%',
   },
   cardHeader: {
     flexDirection: 'row',

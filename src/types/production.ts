@@ -3,6 +3,7 @@
  */
 
 export type SexeAnimal = 'male' | 'femelle' | 'indetermine';
+export type StatutAnimal = 'actif' | 'mort' | 'vendu' | 'offert' | 'autre';
 
 export interface ProductionAnimal {
   id: string;
@@ -14,11 +15,20 @@ export interface ProductionAnimal {
   date_naissance?: string;
   poids_initial?: number;
   date_entree?: string;
-  actif: boolean;
+  actif: boolean; // Déprécié, utiliser statut à la place
+  statut: StatutAnimal;
   notes?: string;
   date_creation: string;
   derniere_modification: string;
 }
+
+export const STATUT_ANIMAL_LABELS: Record<StatutAnimal, string> = {
+  actif: 'Actif',
+  mort: 'Mort',
+  vendu: 'Vendu',
+  offert: 'Offert',
+  autre: 'Autre',
+};
 
 export interface CreateProductionAnimalInput {
   projet_id: string;
@@ -29,6 +39,7 @@ export interface CreateProductionAnimalInput {
   date_naissance?: string;
   poids_initial?: number;
   date_entree?: string;
+  statut?: StatutAnimal;
   notes?: string;
 }
 
@@ -40,7 +51,8 @@ export interface UpdateProductionAnimalInput {
   date_naissance?: string | null;
   poids_initial?: number | null;
   date_entree?: string | null;
-  actif?: boolean;
+  actif?: boolean; // Déprécié, utiliser statut à la place
+  statut?: StatutAnimal;
   notes?: string | null;
 }
 

@@ -29,6 +29,7 @@ export default function RationCalculatorComponent() {
   const [result, setResult] = useState<{
     coutTotal: number;
     coutParKg: number;
+    poidsTotal: number;
     ingredients: Array<{
       nom: string;
       quantite: number;
@@ -85,13 +86,28 @@ export default function RationCalculatorComponent() {
 
     setCalculating(true);
 
-    // Calculer le coût total
+    // Calculer le coût total et le poids total
     let coutTotal = 0;
+    let poidsTotal = 0; // Poids total en kg
+    
     const ingredientsDetails = selectedIngredients.map((selIng) => {
       const ingredient = ingredients.find((i) => i.id === selIng.ingredient_id);
       if (ingredient) {
         const cout = selIng.quantite * ingredient.prix_unitaire;
         coutTotal += cout;
+        
+        // Convertir toutes les quantités en kg pour calculer le poids total
+        let quantiteEnKg = selIng.quantite;
+        if (ingredient.unite === 'g') {
+          quantiteEnKg = selIng.quantite / 1000; // Convertir g en kg
+        } else if (ingredient.unite === 'l') {
+          quantiteEnKg = selIng.quantite; // 1L ≈ 1kg pour les liquides
+        } else if (ingredient.unite === 'ml') {
+          quantiteEnKg = selIng.quantite / 1000; // Convertir ml en kg (approximation)
+        }
+        // Si l'unité est déjà en kg, on garde la valeur telle quelle
+        poidsTotal += quantiteEnKg;
+        
         return {
           nom: ingredient.nom,
           quantite: selIng.quantite,
@@ -108,6 +124,7 @@ export default function RationCalculatorComponent() {
     setResult({
       coutTotal,
       coutParKg,
+      poidsTotal,
       ingredients: ingredientsDetails,
     });
 
@@ -116,11 +133,16 @@ export default function RationCalculatorComponent() {
 
   const handleSaveRation = async () => {
     if (!result) return;
+    if (!projetActif) {
+      Alert.alert('Erreur', 'Aucun projet actif. Veuillez sélectionner un projet.');
+      return;
+    }
 
     setCalculating(true);
     try {
       await dispatch(
         createRation({
+          projet_id: projetActif.id,
           type_porc: typePorc,
           poids_kg: parseFloat(poidsKg),
           nombre_porcs: nombrePorcs ? parseInt(nombrePorcs) : undefined,
@@ -305,6 +327,13 @@ export default function RationCalculatorComponent() {
                   style: 'currency',
                   currency: 'XOF',
                 }).format(result.coutTotal)}
+              </Text>
+            </View>
+
+            <View style={styles.resultItem}>
+              <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>Poids total:</Text>
+              <Text style={[styles.resultValue, { color: colors.primary }]}>
+                {result.poidsTotal.toFixed(2)} kg
               </Text>
             </View>
 
