@@ -184,14 +184,17 @@ export default function AppNavigator() {
     }
   }, [dispatch, isAuthenticated, authLoading]);
 
+  const [hasNavigated, setHasNavigated] = React.useState(false);
+
   useEffect(() => {
     // Attendre que l'authentification soit chargée avant de naviguer
     if (authLoading) {
       return;
     }
 
-    // Navigation automatique basée sur l'état de l'authentification et du projet
-    if (navigationRef.current) {
+    // Navigation automatique UNIQUEMENT au démarrage (première fois)
+    // Ne pas réinitialiser la navigation si l'utilisateur navigue déjà dans l'app
+    if (navigationRef.current && !hasNavigated) {
       if (isAuthenticated) {
         // Utilisateur connecté
         if (projetActif) {
@@ -200,12 +203,14 @@ export default function AppNavigator() {
             index: 0,
             routes: [{ name: 'Main' }],
           });
+          setHasNavigated(true);
         } else {
           // Pas de projet -> Création de projet
           navigationRef.current.reset({
             index: 0,
             routes: [{ name: SCREENS.CREATE_PROJECT }],
           });
+          setHasNavigated(true);
         }
       } else {
         // Utilisateur non connecté -> Page de bienvenue
@@ -213,9 +218,10 @@ export default function AppNavigator() {
           index: 0,
           routes: [{ name: SCREENS.WELCOME }],
         });
+        setHasNavigated(true);
       }
     }
-  }, [isAuthenticated, projetActif, authLoading]);
+  }, [isAuthenticated, projetActif, authLoading, hasNavigated]);
 
   return (
     <NavigationContainer ref={navigationRef}>

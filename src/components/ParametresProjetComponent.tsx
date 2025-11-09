@@ -29,7 +29,9 @@ export default function ParametresProjetComponent() {
   const [editData, setEditData] = useState<Partial<Projet>>({});
 
   useEffect(() => {
+    // Charger les projets sans bloquer l'affichage
     dispatch(loadProjets());
+    dispatch(loadProjetActif());
   }, [dispatch]);
 
   // Recharger les projets après création d'un nouveau projet
