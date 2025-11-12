@@ -5,7 +5,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Animated, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAppSelector } from '../store/hooks';
+import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { useFocusEffect } from '@react-navigation/native';
+import { loadMortalitesParProjet } from '../store/slices/mortalitesSlice';
+import { loadProductionAnimaux, loadPeseesRecents } from '../store/slices/productionSlice';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -24,6 +27,7 @@ import { format } from 'date-fns';
 export default function DashboardScreen() {
   const { colors, isDark } = useTheme();
   const navigation = useNavigation();
+  const dispatch = useAppDispatch();
   const { projetActif, loading } = useAppSelector((state) => state.projet);
   const [searchModalVisible, setSearchModalVisible] = useState(false);
 
@@ -78,6 +82,19 @@ export default function DashboardScreen() {
       ]).start();
     });
   }, []);
+
+  // Recharger les données quand l'écran revient au focus (après création/modification de mortalité)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (projetActif) {
+        // Recharger les mortalités et les animaux pour mettre à jour les widgets
+        dispatch(loadMortalitesParProjet(projetActif.id));
+        dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: true }));
+        // Recharger les pesées récentes pour exclure celles des animaux retirés
+        dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 }));
+      }
+    }, [projetActif?.id, dispatch])
+  );
 
   // Ne pas recharger le projet ici - il est déjà chargé dans AppNavigator
   // Cela évite les conflits de navigation après création

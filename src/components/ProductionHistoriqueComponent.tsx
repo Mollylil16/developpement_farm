@@ -1,5 +1,5 @@
 /**
- * Composant pour gérer le cheptel (liste complète des animaux)
+ * Composant pour gérer l'historique des animaux (vendu, offert, mort)
  */
 
 import React, { useEffect, useState, useMemo } from 'react';
@@ -28,9 +28,12 @@ import ProductionAnimalFormModal from './ProductionAnimalFormModal';
 import { format, differenceInDays, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import Card from './Card';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 
-export default function ProductionCheptelComponent() {
+// Statuts qui doivent être dans l'historique
+const STATUTS_HISTORIQUE: StatutAnimal[] = ['vendu', 'offert', 'mort'];
+
+export default function ProductionHistoriqueComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const navigation = useNavigation<any>();
@@ -42,29 +45,23 @@ export default function ProductionCheptelComponent() {
   const [isEditing, setIsEditing] = useState(false);
   const [filterStatut, setFilterStatut] = useState<StatutAnimal | 'tous'>('tous');
 
-  // Statuts qui doivent être dans le cheptel (pas dans l'historique)
-  const STATUTS_CHEPTEL: StatutAnimal[] = ['actif', 'autre'];
+  useEffect(() => {
+    if (projetActif) {
+      dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
+    }
+  }, [dispatch, projetActif]);
 
-  // Charger les données uniquement quand l'onglet est visible
-  useFocusEffect(
-    React.useCallback(() => {
-      if (projetActif) {
-        dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
-      }
-    }, [dispatch, projetActif?.id])
-  );
-
-  // Filtrer uniquement les animaux du cheptel (actif et autre)
-  const animauxCheptel = useMemo(() => {
-    return animaux.filter((a) => STATUTS_CHEPTEL.includes(a.statut));
+  // Filtrer uniquement les animaux dans l'historique
+  const animauxHistorique = useMemo(() => {
+    return animaux.filter((a) => STATUTS_HISTORIQUE.includes(a.statut));
   }, [animaux]);
 
   const animauxFiltres = useMemo(() => {
     if (filterStatut === 'tous') {
-      return animauxCheptel;
+      return animauxHistorique;
     }
-    return animauxCheptel.filter((a) => a.statut === filterStatut);
-  }, [animauxCheptel, filterStatut]);
+    return animauxHistorique.filter((a) => a.statut === filterStatut);
+  }, [animauxHistorique, filterStatut]);
 
   const handleDelete = (animal: ProductionAnimal) => {
     Alert.alert(
@@ -108,6 +105,10 @@ export default function ProductionCheptelComponent() {
                 dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
                 // Recharger les pesées récentes pour exclure celles des animaux retirés
                 dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 }));
+              }
+              // Si le statut devient "actif", naviguer vers le cheptel
+              if (nouveauStatut === 'actif') {
+                navigation.goBack();
               }
             } catch (error: any) {
               Alert.alert('Erreur', error || 'Erreur lors de la mise à jour du statut');
@@ -211,12 +212,12 @@ export default function ProductionCheptelComponent() {
               <Text style={[styles.detailValue, { color: colors.text }]}>{item.origine}</Text>
             </View>
           )}
-          {age ? (
+          {age && (
             <View style={styles.detailRow}>
               <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Âge:</Text>
               <Text style={[styles.detailValue, { color: colors.text }]}>{age}</Text>
             </View>
-          ) : null}
+          )}
           {item.date_naissance && (
             <View style={styles.detailRow}>
               <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Date de naissance:</Text>
@@ -275,8 +276,8 @@ export default function ProductionCheptelComponent() {
         <View style={styles.statutSelector}>
           <Text style={[styles.statutSelectorLabel, { color: colors.text }]}>Changer le statut:</Text>
           <View style={styles.statutButtons}>
-            {/* Permettre de changer vers actif, autre, ou vers l'historique (mort, vendu, offert) */}
-            {(['actif', 'autre', 'mort', 'vendu', 'offert'] as StatutAnimal[]).map((statut) => (
+            {/* Permettre de remettre en actif ou changer entre les statuts d'historique */}
+            {(['actif', 'mort', 'vendu', 'offert', 'autre'] as StatutAnimal[]).map((statut) => (
               <TouchableOpacity
                 key={statut}
                 style={[
@@ -306,48 +307,20 @@ export default function ProductionCheptelComponent() {
     );
   };
 
-  const ListHeader = () => {
-    // Compter les animaux dans l'historique
-    const animauxHistorique = animaux.filter((a) => ['vendu', 'offert', 'mort'].includes(a.statut));
-    
-    return (
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <Text style={[styles.title, { color: colors.text }]}>Cheptel</Text>
-          <View style={styles.headerButtons}>
-            {animauxHistorique.length > 0 && (
-              <TouchableOpacity
-                style={[styles.historiqueButton, { backgroundColor: colors.secondary + '15', borderColor: colors.secondary }]}
-                onPress={() => navigation.navigate('Historique')}
-              >
-                <Text style={[styles.historiqueButtonText, { color: colors.secondary }]}>
-                  Historique ({animauxHistorique.length})
-                </Text>
-              </TouchableOpacity>
-            )}
-            <Button
-              title="+ Animal"
-              onPress={() => {
-                setSelectedAnimal(null);
-                setIsEditing(false);
-                setShowAnimalModal(true);
-              }}
-              size="small"
-            />
-          </View>
-        </View>
+  const ListHeader = () => (
+    <View style={styles.header}>
+      <View style={styles.headerTop}>
+        <Text style={[styles.title, { color: colors.text }]}>Historique</Text>
+      </View>
       <View style={styles.summary}>
         <Text style={[styles.summaryText, { color: colors.text }]}>
-          {animauxCheptel.length} animal{animauxCheptel.length > 1 ? 'aux' : ''} au total
-        </Text>
-        <Text style={[styles.summaryText, { color: colors.textSecondary }]}>
-          {animauxCheptel.filter((a) => a.statut === 'actif').length} actif{animauxCheptel.filter((a) => a.statut === 'actif').length > 1 ? 's' : ''}
+          {animauxHistorique.length} animal{animauxHistorique.length > 1 ? 'aux' : ''} dans l'historique
         </Text>
       </View>
       <View style={styles.filters}>
         <Text style={[styles.filterLabel, { color: colors.textSecondary }]}>Filtrer par statut:</Text>
         <View style={styles.filterButtons}>
-          {(['tous', 'actif', 'autre'] as const).map((statut) => (
+          {(['tous', 'mort', 'vendu', 'offert'] as const).map((statut) => (
             <TouchableOpacity
               key={statut}
               style={[
@@ -373,12 +346,11 @@ export default function ProductionCheptelComponent() {
           ))}
         </View>
       </View>
-      </View>
-    );
-  };
+    </View>
+  );
 
   if (loading) {
-    return <LoadingSpinner message="Chargement du cheptel..." />;
+    return <LoadingSpinner message="Chargement de l'historique..." />;
   }
 
   return (
@@ -390,18 +362,8 @@ export default function ProductionCheptelComponent() {
         ListHeaderComponent={ListHeader}
         ListEmptyComponent={
           <EmptyState
-            title="Aucun animal dans le cheptel"
-            message="Ajoutez des animaux pour commencer à gérer votre cheptel"
-            action={
-              <Button
-                title="Ajouter un animal"
-                onPress={() => {
-                  setSelectedAnimal(null);
-                  setIsEditing(false);
-                  setShowAnimalModal(true);
-                }}
-              />
-            }
+            title="Aucun animal dans l'historique"
+            message="Les animaux vendus, offerts ou morts apparaîtront ici"
           />
         }
         contentContainerStyle={styles.listContent}
@@ -449,21 +411,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: SPACING.md,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    gap: SPACING.xs,
-    alignItems: 'center',
-  },
-  historiqueButton: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
-    borderRadius: BORDER_RADIUS.sm,
-    borderWidth: 1,
-  },
-  historiqueButtonText: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '600',
   },
   title: {
     fontSize: FONT_SIZES.xxl,

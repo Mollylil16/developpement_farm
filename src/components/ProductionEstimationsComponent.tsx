@@ -23,6 +23,7 @@ import EmptyState from './EmptyState';
 import FormField from './FormField';
 import { format, differenceInDays, addDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { useFocusEffect } from '@react-navigation/native';
 
 type EstimationMode = 'date' | 'animaux';
 
@@ -41,17 +42,31 @@ export default function ProductionEstimationsComponent() {
     format(new Date(), 'yyyy-MM-dd')
   );
 
-  useEffect(() => {
-    if (projetActif) {
-      dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
-    }
-  }, [dispatch, projetActif]);
+  // Charger les animaux uniquement quand l'onglet est visible
+  useFocusEffect(
+    React.useCallback(() => {
+      if (projetActif) {
+        dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
+      }
+    }, [dispatch, projetActif?.id])
+  );
 
-  useEffect(() => {
-    animaux.forEach((animal) => {
-      dispatch(loadPeseesParAnimal(animal.id));
-    });
-  }, [dispatch, animaux]);
+  // Charger les pesées pour tous les animaux actifs (mais seulement quand l'onglet est visible)
+  // On charge uniquement les pesées manquantes pour éviter les requêtes inutiles
+  useFocusEffect(
+    React.useCallback(() => {
+      if (projetActif && animaux.length > 0) {
+        // Charger les pesées uniquement pour les animaux qui n'ont pas encore leurs pesées chargées
+        const animauxSansPesees = animaux.filter(
+          (a) => a.actif && !peseesParAnimal[a.id]
+        );
+        // Limiter à 10 animaux à la fois pour éviter de surcharger
+        animauxSansPesees.slice(0, 10).forEach((animal) => {
+          dispatch(loadPeseesParAnimal(animal.id));
+        });
+      }
+    }, [dispatch, projetActif?.id, animaux, peseesParAnimal])
+  );
 
   // Calculer les stats pour chaque animal
   const animauxAvecStats = useMemo(() => {

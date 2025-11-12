@@ -6,8 +6,11 @@ export type StatutGestation = 'en_cours' | 'terminee' | 'annulee';
 
 export interface Gestation {
   id: string;
+  projet_id: string;
   truie_id: string; // ID de la truie (pour l'instant simple string, pourrait être référence à table porcs)
   truie_nom?: string; // Nom de la truie pour affichage rapide
+  verrat_id?: string; // ID du verrat utilisé (référence à production_animaux)
+  verrat_nom?: string; // Nom du verrat pour affichage rapide
   date_sautage: string; // Date ISO
   date_mise_bas_prevue: string; // Date ISO (calculée automatiquement)
   date_mise_bas_reelle?: string; // Date ISO (optionnelle, remplie après la mise bas)
@@ -21,6 +24,7 @@ export interface Gestation {
 
 export interface Sevrage {
   id: string;
+  projet_id: string;
   gestation_id: string; // Référence à la gestation
   date_sevrage: string; // Date ISO
   nombre_porcelets_sevres: number;
@@ -30,8 +34,11 @@ export interface Sevrage {
 }
 
 export interface CreateGestationInput {
+  projet_id: string;
   truie_id: string;
   truie_nom?: string;
+  verrat_id?: string;
+  verrat_nom?: string;
   date_sautage: string;
   nombre_porcelets_prevu: number;
   notes?: string;

@@ -11,6 +11,7 @@ import {
   loadStatistiquesMortalite,
   deleteMortalite,
 } from '../store/slices/mortalitesSlice';
+import { loadProductionAnimaux, loadPeseesRecents } from '../store/slices/productionSlice';
 import { Mortalite, CategorieMortalite } from '../types';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -101,6 +102,10 @@ export default function MortalitesListComponent() {
     if (projetActif) {
       dispatch(loadMortalitesParProjet(projetActif.id));
       dispatch(loadStatistiquesMortalite(projetActif.id));
+      // Recharger les animaux pour mettre à jour le cheptel si un animal a été mis à mort
+      dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: true }));
+      // Recharger les pesées récentes pour exclure celles des animaux retirés
+      dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 }));
     }
   };
 
@@ -240,6 +245,11 @@ export default function MortalitesListComponent() {
                 <Text style={[styles.nombreText, { color: colors.text }]}>
                   {mortalite.nombre_porcs} porc{mortalite.nombre_porcs > 1 ? 's' : ''}
                 </Text>
+                {mortalite.animal_code && (
+                  <Text style={[styles.animalCodeText, { color: colors.primary }]}>
+                    Sujet: {mortalite.animal_code}
+                  </Text>
+                )}
                 {mortalite.cause && (
                   <Text style={[styles.causeText, { color: colors.textSecondary }]}>Cause: {mortalite.cause}</Text>
                 )}
@@ -366,6 +376,11 @@ const styles = StyleSheet.create({
   nombreText: {
     fontSize: FONT_SIZES.lg,
     fontWeight: 'bold',
+    marginBottom: SPACING.xs,
+  },
+  animalCodeText: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '500',
     marginBottom: SPACING.xs,
   },
   causeText: {

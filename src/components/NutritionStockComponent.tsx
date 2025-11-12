@@ -37,7 +37,7 @@ export default function NutritionStockComponent() {
   const [isEditing, setIsEditing] = useState(false);
   const [showMovementModal, setShowMovementModal] = useState(false);
   const [displayedStocks, setDisplayedStocks] = useState<StockAliment[]>([]);
-  const [displayedMouvements, setDisplayedMouvements] = useState<StockMouvement[]>([]);
+  const [displayedMouvements, setDisplayedMouvements] = useState<Array<StockMouvement & { alimentNom?: string; alimentCategorie?: string }>>([]);
   const [pageStocks, setPageStocks] = useState(1);
   const [pageMouvements, setPageMouvements] = useState(1);
   const ITEMS_PER_PAGE = 50;
@@ -48,15 +48,40 @@ export default function NutritionStockComponent() {
     }
   }, [dispatch, projetActif?.id]);
 
+  // Charger les mouvements pour tous les stocks au chargement
   useEffect(() => {
-    if (selectedStock) {
-      dispatch(loadMouvementsParAliment({ alimentId: selectedStock.id }));
+    if (projetActif && stocks.length > 0) {
+      stocks.forEach((stock) => {
+        dispatch(loadMouvementsParAliment({ alimentId: stock.id }));
+      });
     }
-  }, [dispatch, selectedStock?.id]);
+  }, [dispatch, projetActif?.id, stocks.length]);
 
   const alertes = useMemo(() => stocks.filter((stock) => stock.alerte_active), [stocks]);
 
-  const mouvements: StockMouvement[] = useMemo(() => {
+  // Créer un historique global de tous les mouvements avec le nom de l'aliment
+  const tousLesMouvements: Array<StockMouvement & { alimentNom: string; alimentCategorie?: string }> = useMemo(() => {
+    const mouvementsAvecAliment: Array<StockMouvement & { alimentNom: string; alimentCategorie?: string }> = [];
+    
+    stocks.forEach((stock) => {
+      const mouvements = mouvementsParAliment[stock.id] || [];
+      mouvements.forEach((mouvement) => {
+        mouvementsAvecAliment.push({
+          ...mouvement,
+          alimentNom: stock.nom,
+          alimentCategorie: stock.categorie,
+        });
+      });
+    });
+    
+    // Trier par date (les plus récents en premier)
+    return mouvementsAvecAliment.sort((a, b) => 
+      new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+  }, [stocks, mouvementsParAliment]);
+
+  // Mouvements du stock sélectionné (pour l'affichage détaillé si nécessaire)
+  const mouvementsStockSelectionne: StockMouvement[] = useMemo(() => {
     if (!selectedStock) {
       return [];
     }
@@ -70,12 +95,12 @@ export default function NutritionStockComponent() {
     setPageStocks(1);
   }, [stocks.length]);
 
-  // Pagination: charger les premiers mouvements
+  // Pagination: charger les premiers mouvements (historique global)
   useEffect(() => {
-    const initial = mouvements.slice(0, ITEMS_PER_PAGE);
+    const initial = tousLesMouvements.slice(0, ITEMS_PER_PAGE);
     setDisplayedMouvements(initial);
     setPageMouvements(1);
-  }, [mouvements.length, selectedStock?.id]);
+  }, [tousLesMouvements]);
 
   // Charger plus de stocks
   const loadMoreStocks = useCallback(() => {
@@ -96,20 +121,20 @@ export default function NutritionStockComponent() {
 
   // Charger plus de mouvements
   const loadMoreMouvements = useCallback(() => {
-    if (displayedMouvements.length >= mouvements.length) {
+    if (displayedMouvements.length >= tousLesMouvements.length) {
       return;
     }
 
     const nextPage = pageMouvements + 1;
     const start = pageMouvements * ITEMS_PER_PAGE;
     const end = start + ITEMS_PER_PAGE;
-    const newItems = mouvements.slice(start, end);
+    const newItems = tousLesMouvements.slice(start, end);
 
     if (newItems.length > 0) {
       setDisplayedMouvements((prev) => [...prev, ...newItems]);
       setPageMouvements(nextPage);
     }
-  }, [pageMouvements, displayedMouvements.length, mouvements]);
+  }, [pageMouvements, displayedMouvements.length, tousLesMouvements]);
 
   const handleDelete = (aliment: StockAliment) => {
     Alert.alert(
@@ -187,54 +212,60 @@ export default function NutritionStockComponent() {
         )}
       </View>
 
-      {selectedStock && (
+      {/* Historique global de tous les mouvements */}
+      {tousLesMouvements.length > 0 && (
         <View style={[styles.historyContainer, { backgroundColor: colors.surface, borderColor: colors.borderLight, ...colors.shadow.small }]}>
           <View style={styles.historyHeader}>
             <Text style={[styles.historyTitle, { color: colors.text }]}>Historique des mouvements</Text>
-            <Text style={[styles.historySubtitle, { color: colors.textSecondary }]}>{selectedStock.nom}</Text>
+            <Text style={[styles.historySubtitle, { color: colors.textSecondary }]}>
+              Tous les aliments ({tousLesMouvements.length} mouvement{tousLesMouvements.length > 1 ? 's' : ''})
+            </Text>
           </View>
-          {mouvements.length === 0 ? (
-            <EmptyState
-              title="Aucun mouvement enregistré"
-              message="Ajoutez votre premier mouvement pour suivre l'évolution de ce stock."
-              action={
-                <Button
-                  title="Ajouter un mouvement"
-                  onPress={() => setShowMovementModal(true)}
-                  size="small"
-                />
-              }
-            />
-          ) : (
-            <View>
-              {displayedMouvements.map((mouvement) => (
+          <View>
+            {displayedMouvements.map((mouvement) => {
+              // Trouver l'aliment associé à ce mouvement
+              const aliment = stocks.find((s) => s.id === mouvement.aliment_id);
+              const alimentNom = aliment?.nom || 'Aliment inconnu';
+              const alimentCategorie = aliment?.categorie;
+              
+              return (
                 <View key={mouvement.id} style={styles.historyItem}>
                   <View style={styles.historyItemHeader}>
-                    <Text style={[styles.historyDate, { color: colors.textSecondary }]}>{new Date(mouvement.date).toLocaleDateString('fr-FR')}</Text>
-                    <Text style={[styles.historyType, { color: colors.primary }]}>{mouvement.type}</Text>
+                    <View style={styles.historyItemHeaderLeft}>
+                      <Text style={[styles.historyDate, { color: colors.textSecondary }]}>
+                        {new Date(mouvement.date).toLocaleDateString('fr-FR')}
+                      </Text>
+                      <Text style={[styles.historyAliment, { color: colors.primary }]}>
+                        {alimentNom}
+                        {alimentCategorie ? ` (${alimentCategorie})` : ''}
+                      </Text>
+                    </View>
+                    <Text style={[styles.historyType, { color: mouvement.type === 'sortie' ? colors.error : colors.success }]}>
+                      {mouvement.type}
+                    </Text>
                   </View>
                   <Text style={[styles.historyQuantity, { color: colors.text }]}>
                     {mouvement.type === 'sortie' ? '-' : '+'}
                     {mouvement.quantite} {mouvement.unite}
                   </Text>
                   {mouvement.origine && (
-                    <Text style={[styles.historyNote, { color: colors.text }]}>Origine : {mouvement.origine}</Text>
+                    <Text style={[styles.historyNote, { color: colors.textSecondary }]}>Origine : {mouvement.origine}</Text>
                   )}
                   {mouvement.commentaire && (
-                    <Text style={[styles.historyNote, { color: colors.text }]}>{mouvement.commentaire}</Text>
+                    <Text style={[styles.historyNote, { color: colors.textSecondary }]}>{mouvement.commentaire}</Text>
                   )}
                 </View>
-              ))}
-              {displayedMouvements.length < mouvements.length && (
-                <TouchableOpacity
-                  onPress={loadMoreMouvements}
-                  style={[styles.loadMoreButton, { backgroundColor: colors.primary + '12' }]}
-                >
-                  <Text style={[styles.loadMoreText, { color: colors.primary }]}>Charger plus de mouvements</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
+              );
+            })}
+            {displayedMouvements.length < tousLesMouvements.length && (
+              <TouchableOpacity
+                onPress={loadMoreMouvements}
+                style={[styles.loadMoreButton, { backgroundColor: colors.primary + '12' }]}
+              >
+                <Text style={[styles.loadMoreText, { color: colors.primary }]}>Charger plus de mouvements</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       )}
     </View>
@@ -264,12 +295,13 @@ export default function NutritionStockComponent() {
             setIsEditing(false);
             setSelectedStock(null);
           }}
-          onSuccess={() => {
+          onSuccess={async () => {
             setShowAlimentModal(false);
             setIsEditing(false);
             setSelectedStock(null);
             if (projetActif) {
-              dispatch(loadStocks(projetActif.id));
+              // Recharger tous les stocks pour s'assurer que les données sont à jour
+              await dispatch(loadStocks(projetActif.id));
             }
           }}
           projetId={projetActif?.id || ''}
@@ -410,12 +442,13 @@ export default function NutritionStockComponent() {
           setIsEditing(false);
           setSelectedStock(null);
         }}
-        onSuccess={() => {
+        onSuccess={async () => {
           setShowAlimentModal(false);
           setIsEditing(false);
           setSelectedStock(null);
           if (projetActif) {
-            dispatch(loadStocks(projetActif.id));
+            // Recharger tous les stocks pour s'assurer que les données sont à jour
+            await dispatch(loadStocks(projetActif.id));
           }
         }}
         projetId={projetActif?.id || ''}
@@ -431,7 +464,8 @@ export default function NutritionStockComponent() {
           }}
           onSuccess={() => {
             setShowMovementModal(false);
-            if (projetActif) {
+            if (projetActif && selectedStock) {
+              // Recharger les stocks et les mouvements pour mettre à jour l'historique global
               dispatch(loadStocks(projetActif.id));
               dispatch(loadMouvementsParAliment({ alimentId: selectedStock.id }));
             }
@@ -589,9 +623,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   historyContainer: {
-    marginTop: SPACING.xl,
-    paddingHorizontal: SPACING.xl,
-    paddingBottom: SPACING.xxl,
+    marginHorizontal: SPACING.xl,
+    marginTop: SPACING.lg,
+    marginBottom: SPACING.lg,
+    padding: SPACING.lg,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
   },
   historyHeader: {
     marginBottom: SPACING.md,
@@ -615,6 +652,15 @@ const styles = StyleSheet.create({
   historyItemHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  historyItemHeaderLeft: {
+    flex: 1,
+  },
+  historyAliment: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+    marginTop: SPACING.xs / 2,
   },
   historyDate: {
     fontSize: FONT_SIZES.sm,

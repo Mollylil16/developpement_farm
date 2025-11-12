@@ -17,6 +17,10 @@ export interface ProductionAnimal {
   date_entree?: string;
   actif: boolean; // Déprécié, utiliser statut à la place
   statut: StatutAnimal;
+  race?: string;
+  reproducteur: boolean;
+  pere_id?: string | null;
+  mere_id?: string | null;
   notes?: string;
   date_creation: string;
   derniere_modification: string;
@@ -40,6 +44,10 @@ export interface CreateProductionAnimalInput {
   poids_initial?: number;
   date_entree?: string;
   statut?: StatutAnimal;
+  race?: string;
+  reproducteur?: boolean;
+  pere_id?: string | null;
+  mere_id?: string | null;
   notes?: string;
 }
 
@@ -53,6 +61,10 @@ export interface UpdateProductionAnimalInput {
   date_entree?: string | null;
   actif?: boolean; // Déprécié, utiliser statut à la place
   statut?: StatutAnimal;
+  race?: string | null;
+  reproducteur?: boolean;
+  pere_id?: string | null;
+  mere_id?: string | null;
   notes?: string | null;
 }
 

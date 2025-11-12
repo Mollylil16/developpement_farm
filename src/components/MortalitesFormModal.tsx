@@ -2,12 +2,13 @@
  * Composant formulaire modal pour mortalité
  */
 
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useState, useEffect, useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Platform } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { createMortalite, updateMortalite } from '../store/slices/mortalitesSlice';
+import { loadProductionAnimaux } from '../store/slices/productionSlice';
 import { Mortalite, CreateMortaliteInput, CategorieMortalite } from '../types';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
@@ -47,6 +48,7 @@ export default function MortalitesFormModal({
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
+  const { animaux } = useAppSelector((state) => state.production);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateMortaliteInput>({
     projet_id: projetActif?.id || '',
@@ -54,9 +56,12 @@ export default function MortalitesFormModal({
     date: formatDateToLocal(new Date()),
     categorie: 'porcelet',
     cause: '',
+    animal_code: '',
     notes: '',
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showAnimalModal, setShowAnimalModal] = useState(false);
+  const [animalSearchQuery, setAnimalSearchQuery] = useState('');
 
   const categories: CategorieMortalite[] = ['porcelet', 'truie', 'verrat', 'autre'];
   const categorieLabels: Record<CategorieMortalite, string> = {
@@ -66,6 +71,36 @@ export default function MortalitesFormModal({
     autre: 'Autre',
   };
 
+  // Filtrer les animaux actifs par code
+  const animauxFiltres = useMemo(() => {
+    if (!animalSearchQuery.trim()) {
+      return animaux.filter((a) => a.statut === 'actif');
+    }
+    const query = animalSearchQuery.toLowerCase().trim();
+    return animaux.filter(
+      (a) =>
+        a.statut === 'actif' &&
+        (a.code?.toLowerCase().includes(query) || a.nom?.toLowerCase().includes(query))
+    );
+  }, [animaux, animalSearchQuery]);
+
+  // Obtenir le label de l'animal sélectionné
+  const getAnimalLabel = (code?: string) => {
+    if (!code) return 'Non renseigné';
+    const animal = animaux.find((a) => a.code === code);
+    if (animal) {
+      return `${animal.code}${animal.nom ? ` (${animal.nom})` : ''}`;
+    }
+    return code;
+  };
+
+  // Charger les animaux actifs quand le modal est visible
+  useEffect(() => {
+    if (visible && projetActif?.id) {
+      dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: false }));
+    }
+  }, [visible, projetActif?.id, dispatch]);
+
   useEffect(() => {
     if (mortalite && isEditing) {
       setFormData({
@@ -74,6 +109,7 @@ export default function MortalitesFormModal({
         date: mortalite.date.split('T')[0],
         categorie: mortalite.categorie,
         cause: mortalite.cause || '',
+        animal_code: mortalite.animal_code || '',
         notes: mortalite.notes || '',
       });
     } else {
@@ -83,9 +119,11 @@ export default function MortalitesFormModal({
         date: formatDateToLocal(new Date()),
         categorie: 'porcelet',
         cause: '',
+        animal_code: '',
         notes: '',
       });
       setShowDatePicker(false);
+      setAnimalSearchQuery('');
     }
   }, [mortalite, isEditing, visible, projetActif]);
 
@@ -218,6 +256,22 @@ export default function MortalitesFormModal({
             </View>
           </View>
 
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Numéro du sujet (optionnel)</Text>
+            <Text style={[styles.helperText, { color: colors.textSecondary }]}>
+              Si le sujet mort a un numéro enregistré dans le cheptel, sélectionnez-le. Il sera automatiquement retiré du cheptel et mis dans l'historique. Sinon, laissez vide (pour les porcelets non enregistrés par exemple).
+            </Text>
+            <TouchableOpacity
+              style={[styles.selectButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
+              onPress={() => setShowAnimalModal(true)}
+            >
+              <Text style={[styles.selectButtonLabel, { color: colors.textSecondary }]}>Numéro du sujet</Text>
+              <Text style={[styles.selectButtonValue, { color: colors.text }]}>
+                {getAnimalLabel(formData.animal_code)}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           <FormField
             label="Cause (optionnel)"
             value={formData.cause}
@@ -235,6 +289,89 @@ export default function MortalitesFormModal({
           />
         </View>
       </ScrollView>
+
+      {/* Modal de sélection de l'animal */}
+      <CustomModal
+        visible={showAnimalModal}
+        onClose={() => {
+          setShowAnimalModal(false);
+          setAnimalSearchQuery('');
+        }}
+        title="Sélectionner le sujet"
+        showButtons={false}
+      >
+        <ScrollView style={styles.modalScroll}>
+          <View style={styles.inputContainer}>
+            <Text style={[styles.inputLabel, { color: colors.text }]}>Rechercher un sujet</Text>
+            <TextInput
+              style={[styles.searchInput, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
+              value={animalSearchQuery}
+              onChangeText={setAnimalSearchQuery}
+              placeholder="Rechercher par code ou nom..."
+              placeholderTextColor={colors.textSecondary}
+            />
+          </View>
+          <TouchableOpacity
+            style={[
+              styles.modalOption,
+              { borderColor: colors.border, backgroundColor: colors.surface },
+              !formData.animal_code && { borderColor: colors.primary, backgroundColor: colors.primary + '12' },
+            ]}
+            onPress={() => {
+              setFormData({ ...formData, animal_code: '' });
+              setShowAnimalModal(false);
+              setAnimalSearchQuery('');
+            }}
+          >
+            <Text style={[styles.modalOptionTitle, { color: colors.text }]}>Non renseigné</Text>
+            <Text style={[styles.modalOptionSubtitle, { color: colors.textSecondary }]}>
+              Aucun numéro de sujet (porcelet non enregistré)
+            </Text>
+          </TouchableOpacity>
+          {animauxFiltres.length === 0 ? (
+            <View style={styles.noResults}>
+              <Text style={[styles.noResultsText, { color: colors.textSecondary }]}>
+                {animalSearchQuery.trim()
+                  ? 'Aucun sujet trouvé'
+                  : 'Aucun sujet actif enregistré dans le cheptel.'}
+              </Text>
+            </View>
+          ) : (
+            animauxFiltres.map((animal) => {
+              const selected = formData.animal_code === animal.code;
+              return (
+                <TouchableOpacity
+                  key={animal.id}
+                  style={[
+                    styles.modalOption,
+                    {
+                      borderColor: selected ? colors.primary : colors.border,
+                      backgroundColor: selected ? colors.primary + '12' : colors.surface,
+                    },
+                  ]}
+                  onPress={() => {
+                    setFormData({
+                      ...formData,
+                      animal_code: animal.code,
+                    });
+                    setShowAnimalModal(false);
+                    setAnimalSearchQuery('');
+                  }}
+                >
+                  <Text style={[styles.modalOptionTitle, { color: colors.text }]}>
+                    {animal.code}
+                    {animal.nom ? ` (${animal.nom})` : ''}
+                  </Text>
+                  <Text style={[styles.modalOptionSubtitle, { color: colors.textSecondary }]}>
+                    {animal.race ? `Race : ${animal.race} • ` : ''}
+                    {animal.sexe === 'male' ? 'Mâle' : animal.sexe === 'femelle' ? 'Femelle' : 'Indéterminé'}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })
+          )}
+        </ScrollView>
+      </CustomModal>
     </CustomModal>
   );
 }
@@ -281,6 +418,64 @@ const styles = StyleSheet.create({
   },
   optionText: {
     fontSize: 14,
+  },
+  helperText: {
+    fontSize: 12,
+    marginBottom: SPACING.sm,
+    lineHeight: 18,
+  },
+  selectButton: {
+    padding: SPACING.md,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: SPACING.xs,
+  },
+  selectButtonLabel: {
+    fontSize: 12,
+    marginBottom: SPACING.xs,
+  },
+  selectButtonValue: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  modalScroll: {
+    maxHeight: 400,
+  },
+  inputContainer: {
+    marginBottom: SPACING.md,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: SPACING.xs,
+  },
+  searchInput: {
+    padding: SPACING.md,
+    borderRadius: 8,
+    borderWidth: 1,
+    fontSize: 16,
+  },
+  modalOption: {
+    padding: SPACING.md,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: SPACING.sm,
+  },
+  modalOptionTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: SPACING.xs,
+  },
+  modalOptionSubtitle: {
+    fontSize: 14,
+  },
+  noResults: {
+    padding: SPACING.lg,
+    alignItems: 'center',
+  },
+  noResultsText: {
+    fontSize: 14,
+    textAlign: 'center',
   },
 });
 

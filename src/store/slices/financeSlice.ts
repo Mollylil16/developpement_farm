@@ -6,15 +6,19 @@ import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import {
   ChargeFixe,
   DepensePonctuelle,
+  Revenu,
   CreateChargeFixeInput,
   CreateDepensePonctuelleInput,
   UpdateDepensePonctuelleInput,
+  CreateRevenuInput,
+  UpdateRevenuInput,
 } from '../../types';
 import { databaseService } from '../../services/database';
 
 interface FinanceState {
   chargesFixes: ChargeFixe[];
   depensesPonctuelles: DepensePonctuelle[];
+  revenus: Revenu[];
   loading: boolean;
   error: string | null;
 }
@@ -22,6 +26,7 @@ interface FinanceState {
 const initialState: FinanceState = {
   chargesFixes: [],
   depensesPonctuelles: [],
+  revenus: [],
   loading: false,
   error: null,
 };
@@ -248,9 +253,113 @@ const financeSlice = createSlice({
       .addCase(deleteDepensePonctuelle.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
+      })
+      // createRevenu
+      .addCase(createRevenu.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(createRevenu.fulfilled, (state, action) => {
+        state.loading = false;
+        state.revenus.unshift(action.payload);
+      })
+      .addCase(createRevenu.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      // loadRevenus
+      .addCase(loadRevenus.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(loadRevenus.fulfilled, (state, action) => {
+        state.loading = false;
+        state.revenus = action.payload;
+      })
+      .addCase(loadRevenus.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      // updateRevenu
+      .addCase(updateRevenu.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(updateRevenu.fulfilled, (state, action) => {
+        state.loading = false;
+        const index = state.revenus.findIndex((r: Revenu) => r.id === action.payload.id);
+        if (index !== -1) {
+          state.revenus[index] = action.payload;
+        }
+      })
+      .addCase(updateRevenu.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      // deleteRevenu
+      .addCase(deleteRevenu.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(deleteRevenu.fulfilled, (state, action) => {
+        state.loading = false;
+        state.revenus = state.revenus.filter((r: Revenu) => r.id !== action.payload);
+      })
+      .addCase(deleteRevenu.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
       });
   },
 });
+
+// Thunks pour Revenus
+export const createRevenu = createAsyncThunk(
+  'finance/createRevenu',
+  async (input: CreateRevenuInput, { rejectWithValue }) => {
+    try {
+      const revenu = await databaseService.createRevenu(input);
+      return revenu;
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Erreur lors de la création du revenu');
+    }
+  }
+);
+
+export const loadRevenus = createAsyncThunk(
+  'finance/loadRevenus',
+  async (projetId: string, { rejectWithValue }) => {
+    try {
+      const revenus = await databaseService.getAllRevenus(projetId);
+      return revenus;
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Erreur lors du chargement des revenus');
+    }
+  }
+);
+
+export const updateRevenu = createAsyncThunk(
+  'finance/updateRevenu',
+  async ({ id, updates }: { id: string; updates: UpdateRevenuInput }, { rejectWithValue }) => {
+    try {
+      const revenu = await databaseService.updateRevenu(id, updates);
+      return revenu;
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Erreur lors de la mise à jour du revenu');
+    }
+  }
+);
+
+export const deleteRevenu = createAsyncThunk(
+  'finance/deleteRevenu',
+  async (id: string, { rejectWithValue }) => {
+    try {
+      await databaseService.deleteRevenu(id);
+      return id;
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Erreur lors de la suppression du revenu');
+    }
+  }
+);
 
 export const { clearError } = financeSlice.actions;
 export default financeSlice.reducer;

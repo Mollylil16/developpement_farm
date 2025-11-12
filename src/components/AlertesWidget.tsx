@@ -10,10 +10,11 @@ import { useNavigation } from '@react-navigation/native';
 import { SCREENS } from '../navigation/types';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { differenceInDays, parseISO, isPast } from 'date-fns';
+import { differenceInDays, parseISO, isPast, addDays } from 'date-fns';
 import { doitGenererAlerte } from '../types/reproduction';
 import { loadStocks } from '../store/slices/stocksSlice';
 import { loadPlanificationsParProjet } from '../store/slices/planificationSlice';
+import { loadSevrages } from '../store/slices/reproductionSlice';
 
 export interface Alerte {
   id: string;
@@ -29,7 +30,7 @@ export default function AlertesWidget() {
   const navigation = useNavigation();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
-  const { gestations } = useAppSelector((state) => state.reproduction);
+  const { gestations, sevrages } = useAppSelector((state) => state.reproduction);
   const { stocks } = useAppSelector((state) => state.stocks);
   const { planifications } = useAppSelector((state) => state.planification);
 
@@ -38,6 +39,7 @@ export default function AlertesWidget() {
     if (projetActif) {
       dispatch(loadStocks(projetActif.id));
       dispatch(loadPlanificationsParProjet(projetActif.id));
+      dispatch(loadSevrages(projetActif.id));
     }
   }, [dispatch, projetActif]);
 
@@ -91,7 +93,44 @@ export default function AlertesWidget() {
       });
     });
 
-    // 3. Tâches en retard (calcul local)
+    // 3. Sevrages proches (calcul local)
+    // Détecter les gestations terminées sans sevrage qui approchent de la date de sevrage prévisionnelle
+    gestations
+      .filter((g) => g.statut === 'terminee' && g.date_mise_bas_reelle)
+      .forEach((g) => {
+        // Vérifier si un sevrage existe déjà pour cette gestation
+        const hasSevrage = sevrages.some((s) => s.gestation_id === g.id);
+        if (hasSevrage) return;
+
+        // Calculer la date prévisionnelle de sevrage (28 jours après la mise bas)
+        try {
+          const dateMiseBas = parseISO(g.date_mise_bas_reelle);
+          const dateSevragePrevue = addDays(dateMiseBas, 28);
+          const joursRestants = differenceInDays(dateSevragePrevue, new Date());
+
+          // Générer une alerte si le sevrage est prévu dans les 7 prochains jours
+          if (joursRestants <= 7 && joursRestants >= 0) {
+            alerts.push({
+              id: `sevrage_${g.id}`,
+              type: joursRestants <= 3 ? 'error' : 'warning',
+              icon: '🍼',
+              message: `Sevrage prévu dans ${joursRestants} jour${joursRestants > 1 ? 's' : ''} pour ${g.truie_nom || 'truie'} (${g.nombre_porcelets_reel || g.nombre_porcelets_prevu} porcelets). Pensez aux aliments adaptés !`,
+              action: () => {
+                // @ts-ignore - navigation typée
+                navigation.navigate('Main', { 
+                  screen: SCREENS.REPRODUCTION,
+                  params: { initialScreen: 'Sevrages' }
+                });
+              },
+              priority: joursRestants <= 3 ? 1 : joursRestants <= 5 ? 2 : 3,
+            });
+          }
+        } catch (error) {
+          // Ignorer les erreurs de parsing de date
+        }
+      });
+
+    // 4. Tâches en retard (calcul local)
     planifications
       .filter((p) => p.statut === 'a_faire' && p.date_echeance && isPast(parseISO(p.date_echeance)))
       .forEach((p) => {
@@ -192,7 +231,7 @@ export default function AlertesWidget() {
             activeOpacity={0.7}
           >
             <Text style={styles.alerteIcon}>{alerte.icon}</Text>
-            <Text style={[styles.alerteMessage, { color: colors.text }]} numberOfLines={2}>
+            <Text style={[styles.alerteMessage, { color: colors.text }]} numberOfLines={3}>
               {alerte.message}
             </Text>
           </TouchableOpacity>
@@ -223,10 +262,11 @@ export default function AlertesWidget() {
 const styles = StyleSheet.create({
   container: {
     borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.lg,
+    padding: SPACING.xl,
     marginHorizontal: SPACING.xl,
     marginBottom: SPACING.lg,
     borderWidth: 2,
+    minHeight: 140,
   },
   header: {
     flexDirection: 'row',
@@ -246,20 +286,22 @@ const styles = StyleSheet.create({
   },
   alerteCard: {
     borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md,
+    padding: SPACING.lg,
     marginRight: SPACING.md,
     minWidth: 200,
     maxWidth: 280,
+    minHeight: 100,
     borderWidth: 2,
+    justifyContent: 'center',
   },
   alerteIcon: {
-    fontSize: FONT_SIZES.xl,
-    marginBottom: SPACING.xs,
+    fontSize: FONT_SIZES.xxl,
+    marginBottom: SPACING.sm,
   },
   alerteMessage: {
-    fontSize: FONT_SIZES.sm,
+    fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.medium,
-    lineHeight: 18,
+    lineHeight: 22,
   },
   voirToutButton: {
     marginTop: SPACING.md,

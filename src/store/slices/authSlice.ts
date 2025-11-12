@@ -4,7 +4,7 @@
 
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { User, AuthState, EmailSignUpInput, EmailSignInInput, AuthProvider } from '../../types';
+import { User, AuthState, SignUpInput, SignInInput, AuthProvider } from '../../types';
 import { setProjetActif } from './projetSlice';
 
 const AUTH_STORAGE_KEY = '@fermier_pro:auth';
@@ -52,42 +52,66 @@ const initialState: AuthState = {
 export const loadUserFromStorageThunk = createAsyncThunk(
   'auth/loadUserFromStorage',
   async () => {
-    return await loadUserFromStorage();
+    // D'abord essayer AsyncStorage (pour compatibilité)
+    const storedUser = await loadUserFromStorage();
+    
+    if (storedUser) {
+      // Vérifier si l'utilisateur existe toujours dans la base de données
+      try {
+        const { databaseService } = await import('../../services/database');
+        const dbUser = await databaseService.getUserById(storedUser.id);
+        // Si trouvé dans la DB, utiliser celui de la DB (plus à jour)
+        return dbUser;
+      } catch (error) {
+        // Si pas trouvé dans la DB, utiliser celui d'AsyncStorage
+        return storedUser;
+      }
+    }
+    
+    return null;
   }
 );
 
-// Thunk pour l'inscription avec email
-export const signUpWithEmail = createAsyncThunk(
-  'auth/signUpWithEmail',
-  async (input: EmailSignUpInput, { rejectWithValue, dispatch }) => {
+// Thunk pour l'inscription
+export const signUp = createAsyncThunk(
+  'auth/signUp',
+  async (input: SignUpInput, { rejectWithValue, dispatch }) => {
     try {
-      // Vérifier si un utilisateur existe déjà avec cet email
-      const existingUser = await loadUserFromStorage();
-      
-      if (existingUser) {
-        // Si l'email correspond, proposer de se connecter
-        if (existingUser.email.toLowerCase() === input.email.toLowerCase()) {
-          return rejectWithValue('Un compte existe déjà avec cet email. Veuillez vous connecter.');
-        }
-        
-        // Si l'email est différent, c'est un nouvel utilisateur
-        // Nettoyer les données de l'ancien utilisateur (projets, etc.)
-        // Import dynamique pour éviter les dépendances circulaires
-        const { databaseService } = await import('../../services/database');
-        await databaseService.clearUserData(existingUser.id);
+      // Validation : au moins email ou téléphone
+      if (!input.email && !input.telephone) {
+        return rejectWithValue('Veuillez renseigner un email ou un numéro de téléphone');
       }
 
-      // Créer le nouvel utilisateur
-      const user: User = {
-        id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        email: input.email,
-        nom: input.nom,
-        prenom: input.prenom,
-        provider: 'email',
-        date_creation: new Date().toISOString(),
-        derniere_connexion: new Date().toISOString(),
-      };
+      // Validation du format email si fourni
+      if (input.email) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(input.email.trim())) {
+          return rejectWithValue('Format d\'email invalide');
+        }
+      }
 
+      // Validation du format téléphone si fourni (au moins 8 chiffres)
+      if (input.telephone) {
+        const phoneRegex = /^[0-9]{8,15}$/;
+        const cleanPhone = input.telephone.replace(/\s+/g, '');
+        if (!phoneRegex.test(cleanPhone)) {
+          return rejectWithValue('Format de numéro de téléphone invalide (8-15 chiffres)');
+        }
+      }
+
+      // Import dynamique pour éviter les dépendances circulaires
+      const { databaseService } = await import('../../services/database');
+
+      // Créer l'utilisateur dans la base de données
+      const user = await databaseService.createUser({
+        email: input.email?.trim(),
+        telephone: input.telephone?.replace(/\s+/g, ''),
+        nom: input.nom.trim(),
+        prenom: input.prenom.trim(),
+        provider: input.telephone ? 'telephone' : 'email',
+      });
+
+      // Sauvegarder aussi dans AsyncStorage pour compatibilité
       await saveUserToStorage(user);
       
       // Réinitialiser le projet actif pour le nouvel utilisateur
@@ -100,31 +124,30 @@ export const signUpWithEmail = createAsyncThunk(
   }
 );
 
-// Thunk pour la connexion avec email
-export const signInWithEmail = createAsyncThunk(
-  'auth/signInWithEmail',
-  async (input: EmailSignInInput, { rejectWithValue }) => {
+// Thunk pour la connexion
+export const signIn = createAsyncThunk(
+  'auth/signIn',
+  async (input: SignInInput, { rejectWithValue }) => {
     try {
-      // Vérifier si l'utilisateur existe dans le stockage
-      const existingUser = await loadUserFromStorage();
+      // Validation
+      if (!input.identifier || !input.identifier.trim()) {
+        return rejectWithValue('Veuillez entrer votre email ou numéro de téléphone');
+      }
+
+      // Import dynamique pour éviter les dépendances circulaires
+      const { databaseService } = await import('../../services/database');
+
+      // Se connecter avec email ou téléphone (sans mot de passe)
+      const user = await databaseService.loginUser(input.identifier.trim());
       
-      if (!existingUser) {
-        return rejectWithValue('Aucun compte trouvé. Veuillez vous inscrire d\'abord.');
+      if (!user) {
+        return rejectWithValue('Aucun compte trouvé avec cet email ou ce numéro. Veuillez vous inscrire.');
       }
 
-      // Vérifier si l'email correspond
-      if (existingUser.email.toLowerCase() !== input.email.toLowerCase()) {
-        return rejectWithValue('Email incorrect. Veuillez vérifier votre adresse email.');
-      }
-
-      // Mettre à jour la dernière connexion
-      const updatedUser: User = {
-        ...existingUser,
-        derniere_connexion: new Date().toISOString(),
-      };
-
-      await saveUserToStorage(updatedUser);
-      return updatedUser;
+      // Sauvegarder aussi dans AsyncStorage pour compatibilité
+      await saveUserToStorage(user);
+      
+      return user;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la connexion');
     }
@@ -225,31 +248,31 @@ const authSlice = createSlice({
         state.user = null;
         state.isAuthenticated = false;
       })
-      // signUpWithEmail
-      .addCase(signUpWithEmail.pending, (state) => {
+      // signUp
+      .addCase(signUp.pending, (state) => {
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(signUpWithEmail.fulfilled, (state, action) => {
+      .addCase(signUp.fulfilled, (state, action) => {
         state.isLoading = false;
         state.user = action.payload;
         state.isAuthenticated = true;
       })
-      .addCase(signUpWithEmail.rejected, (state, action) => {
+      .addCase(signUp.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
       })
-      // signInWithEmail
-      .addCase(signInWithEmail.pending, (state) => {
+      // signIn
+      .addCase(signIn.pending, (state) => {
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(signInWithEmail.fulfilled, (state, action) => {
+      .addCase(signIn.fulfilled, (state, action) => {
         state.isLoading = false;
         state.user = action.payload;
         state.isAuthenticated = true;
       })
-      .addCase(signInWithEmail.rejected, (state, action) => {
+      .addCase(signIn.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
       })

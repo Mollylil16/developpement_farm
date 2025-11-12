@@ -44,15 +44,60 @@ export default function StockMovementFormModal({ visible, onClose, onSuccess, al
     }
   }, [visible, aliment]);
 
+  const handleTypeChange = (newType: TypeMouvementStock) => {
+    setType(newType);
+
+    switch (newType) {
+      case 'entree':
+        setQuantite(0);
+        break;
+      case 'sortie':
+        setQuantite(aliment.quantite_actuelle);
+        break;
+      case 'ajustement':
+        setQuantite(aliment.quantite_actuelle);
+        break;
+      default:
+        break;
+    }
+  };
+
+  const quantiteSortieCalculee =
+    type === 'sortie' ? Math.max(0, aliment.quantite_actuelle - quantite) : 0;
+
   const handleSubmit = async () => {
-    if (type !== 'ajustement' && quantite <= 0) {
+    if (type === 'entree' && quantite <= 0) {
       Alert.alert('Valeur invalide', 'La quantité doit être supérieure à 0');
       return;
     }
 
-    if (type === 'ajustement' && quantite < 0) {
+    if ((type === 'sortie' || type === 'ajustement') && quantite < 0) {
       Alert.alert('Valeur invalide', 'La nouvelle quantité ne peut pas être négative');
       return;
+    }
+
+    let quantiteMouvement = quantite;
+
+    if (type === 'sortie') {
+      if (quantite > aliment.quantite_actuelle) {
+        Alert.alert(
+          'Valeur invalide',
+          'Le stock actuel après sortie ne peut pas être supérieur au stock disponible.'
+        );
+        return;
+      }
+
+      const difference = aliment.quantite_actuelle - quantite;
+
+      if (difference <= 0) {
+        Alert.alert(
+          'Valeur invalide',
+          'Le stock actuel doit être inférieur au stock disponible pour enregistrer une sortie.'
+        );
+        return;
+      }
+
+      quantiteMouvement = difference;
     }
 
     setLoading(true);
@@ -62,7 +107,7 @@ export default function StockMovementFormModal({ visible, onClose, onSuccess, al
           projet_id: aliment.projet_id,
           aliment_id: aliment.id,
           type,
-          quantite,
+          quantite: quantiteMouvement,
           unite,
           date,
           origine: origine || undefined,
@@ -122,7 +167,7 @@ export default function StockMovementFormModal({ visible, onClose, onSuccess, al
                     borderColor: colors.primary,
                   },
                 ]}
-                onPress={() => setType(t)}
+                onPress={() => handleTypeChange(t)}
               >
                 <Text
                   style={[
@@ -142,11 +187,21 @@ export default function StockMovementFormModal({ visible, onClose, onSuccess, al
         </View>
 
         <FormField
-          label={type === 'ajustement' ? 'Nouvelle quantité' : 'Quantité'}
+          label={
+            type === 'ajustement'
+              ? 'Nouvelle quantité'
+              : type === 'sortie'
+              ? 'Stock actuel après sortie'
+              : 'Quantité'
+          }
           value={quantite.toString()}
           onChangeText={(text) => setQuantite(text ? parseFloat(text) : 0)}
           keyboardType="numeric"
-          placeholder="0"
+          placeholder={
+            type === 'sortie' || type === 'ajustement'
+              ? aliment.quantite_actuelle.toString()
+              : '0'
+          }
           required
         />
 
@@ -190,6 +245,20 @@ export default function StockMovementFormModal({ visible, onClose, onSuccess, al
               ? `Seuil d'alerte: ${aliment.seuil_alerte} ${aliment.unite}`
               : 'Aucun seuil défini'}
           </Text>
+          {type === 'sortie' && (
+            <>
+              <Text style={[styles.summaryInfo, { color: colors.text }]}>
+                Sortie calculée : {quantiteSortieCalculee} {aliment.unite}
+              </Text>
+              {aliment.seuil_alerte !== undefined &&
+                aliment.seuil_alerte !== null &&
+                quantite <= aliment.seuil_alerte && (
+                  <Text style={[styles.summaryInfo, { color: colors.error, fontWeight: '600' }]}>
+                    ⚠️ Stock sous le seuil d'alerte
+                  </Text>
+                )}
+            </>
+          )}
         </View>
 
         <Button

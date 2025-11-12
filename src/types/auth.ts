@@ -2,11 +2,12 @@
  * Types pour l'authentification et les utilisateurs
  */
 
-export type AuthProvider = 'email' | 'google' | 'apple';
+export type AuthProvider = 'email' | 'google' | 'apple' | 'telephone';
 
 export interface User {
   id: string;
-  email: string;
+  email?: string;
+  telephone?: string;
   nom: string;
   prenom: string;
   provider: AuthProvider;
@@ -22,14 +23,14 @@ export interface AuthState {
   error: string | null;
 }
 
-export interface EmailSignUpInput {
-  email: string;
+export interface SignUpInput {
+  email?: string;
+  telephone?: string;
   nom: string;
   prenom: string;
-  password: string;
 }
 
-export interface EmailSignInInput {
-  email: string;
+export interface SignInInput {
+  identifier: string; // email ou téléphone
 }
 

@@ -1,0 +1,464 @@
+/**
+ * Composant liste des revenus
+ */
+
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, ScrollView, TouchableOpacity, Alert, Image } from 'react-native';
+import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { loadRevenus, deleteRevenu } from '../store/slices/financeSlice';
+import { Revenu } from '../types';
+import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
+import EmptyState from './EmptyState';
+import LoadingSpinner from './LoadingSpinner';
+import RevenuFormModal from './RevenuFormModal';
+
+export default function FinanceRevenusComponent() {
+  const { colors } = useTheme();
+  const dispatch = useAppDispatch();
+  const { revenus, loading } = useAppSelector((state) => state.finance);
+  const [selectedRevenu, setSelectedRevenu] = useState<Revenu | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [viewingPhotos, setViewingPhotos] = useState<string[]>([]);
+  const [photoModalVisible, setPhotoModalVisible] = useState(false);
+  const [displayedDepenses, setDisplayedDepenses] = useState<Revenu[]>([]);
+  const [page, setPage] = useState(1);
+  const ITEMS_PER_PAGE = 50;
+
+  const { projetActif } = useAppSelector((state) => state.projet);
+
+  useEffect(() => {
+    if (projetActif) {
+      dispatch(loadRevenus(projetActif.id));
+    }
+  }, [dispatch, projetActif?.id]);
+
+  // Pagination: charger les premiers revenus
+  useEffect(() => {
+    const initial = revenus.slice(0, ITEMS_PER_PAGE);
+    setDisplayedDepenses(initial);
+    setPage(1);
+  }, [revenus.length]);
+
+  // Charger plus de revenus
+  const loadMore = useCallback(() => {
+    if (displayedDepenses.length >= revenus.length) {
+      return;
+    }
+
+    const nextPage = page + 1;
+    const start = page * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+    const newItems = revenus.slice(start, end);
+
+    if (newItems.length > 0) {
+      setDisplayedDepenses((prev) => [...prev, ...newItems]);
+      setPage(nextPage);
+    }
+  }, [page, displayedDepenses.length, revenus]);
+
+  const handleEdit = (revenu: Revenu) => {
+    setSelectedRevenu(revenu);
+    setIsEditing(true);
+    setModalVisible(true);
+  };
+
+  const handleDelete = (id: string) => {
+    Alert.alert(
+      'Supprimer le revenu',
+      'Êtes-vous sûr de vouloir supprimer ce revenu ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: () => dispatch(deleteRevenu(id)),
+        },
+      ]
+    );
+  };
+
+  const handleViewPhotos = (photos: string[]) => {
+    setViewingPhotos(photos);
+    setPhotoModalVisible(true);
+  };
+
+  const handleCloseModal = () => {
+    setModalVisible(false);
+    setSelectedRevenu(null);
+    setIsEditing(false);
+  };
+
+  const handleSuccess = () => {
+    handleCloseModal();
+    if (projetActif) {
+      dispatch(loadRevenus(projetActif.id));
+    }
+  };
+
+  const getCategoryLabel = (categorie: string): string => {
+    const labels: Record<string, string> = {
+      vente_porc: 'Vente de porc',
+      vente_autre: 'Vente autre',
+      subvention: 'Subvention',
+      autre: 'Autre',
+    };
+    return labels[categorie] || categorie;
+  };
+
+  const formatAmount = (amount: number) => {
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: 'XOF',
+      minimumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  };
+
+  // Filtrer par mois actuel pour le résumé
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  const revenusCeMois = revenus.filter((revenu) => {
+    const date = new Date(revenu.date);
+    return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+  });
+  const totalMois = revenusCeMois.reduce((sum, rev) => sum + rev.montant, 0);
+
+  if (loading) {
+    return <LoadingSpinner message="Chargement des revenus..." />;
+  }
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+        <Text style={[styles.title, { color: colors.text }]}>Revenus</Text>
+        <TouchableOpacity
+          style={[styles.addButton, { backgroundColor: colors.primary }]}
+          onPress={() => {
+            setSelectedRevenu(null);
+            setIsEditing(false);
+            setModalVisible(true);
+          }}
+        >
+          <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Ajouter</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Résumé du mois */}
+      <View style={[styles.summary, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+        <View style={styles.summaryItem}>
+          <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Revenus ce mois</Text>
+          <Text style={[styles.summaryValue, { color: colors.success || colors.primary }]}>{formatAmount(totalMois)}</Text>
+        </View>
+        <View style={styles.summaryItem}>
+          <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Nombre de revenus</Text>
+          <Text style={[styles.summaryValue, { color: colors.success || colors.primary }]}>{revenusCeMois.length}</Text>
+        </View>
+      </View>
+
+      {revenus.length === 0 ? (
+        <EmptyState
+          title="Aucun revenu enregistré"
+          message="Ajoutez votre premier revenu pour commencer"
+          action={
+            <TouchableOpacity
+              style={[styles.addButton, { backgroundColor: colors.primary }]}
+              onPress={() => {
+                setSelectedRevenu(null);
+                setIsEditing(false);
+                setModalVisible(true);
+              }}
+            >
+              <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Ajouter un revenu</Text>
+            </TouchableOpacity>
+          }
+        />
+      ) : (
+        <FlatList
+          data={displayedDepenses}
+          renderItem={({ item: revenu }) => (
+            <View style={[styles.card, { backgroundColor: colors.surface, ...colors.shadow.small }]}>
+              <View style={styles.cardHeader}>
+                <View style={styles.cardHeaderLeft}>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>{getCategoryLabel(revenu.categorie)}</Text>
+                  <Text style={[styles.cardDate, { color: colors.textSecondary }]}>{formatDate(revenu.date)}</Text>
+                </View>
+                <View style={styles.cardActions}>
+                  {revenu.photos && revenu.photos.length > 0 && (
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() => handleViewPhotos(revenu.photos!)}
+                    >
+                      <Text style={styles.actionButtonText}>📷</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => handleEdit(revenu)}
+                  >
+                    <Text style={styles.actionButtonText}>✏️</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => handleDelete(revenu.id)}
+                  >
+                    <Text style={styles.actionButtonText}>🗑️</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.cardContent}>
+                <View style={styles.amountRow}>
+                  <Text style={[styles.amount, { color: colors.success || colors.primary }]}>{formatAmount(revenu.montant)}</Text>
+                </View>
+                {revenu.description && (
+                  <View style={styles.infoRow}>
+                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Description:</Text>
+                    <Text style={[styles.infoValue, { color: colors.text }]}>{revenu.description}</Text>
+                  </View>
+                )}
+                {revenu.libelle_categorie && (
+                  <View style={styles.infoRow}>
+                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Libellé:</Text>
+                    <Text style={[styles.infoValue, { color: colors.text }]}>{revenu.libelle_categorie}</Text>
+                  </View>
+                )}
+                {revenu.commentaire && (
+                  <View style={[styles.commentContainer, { borderTopColor: colors.border }]}>
+                    <Text style={[styles.commentLabel, { color: colors.textSecondary }]}>Commentaire:</Text>
+                    <Text style={[styles.commentText, { color: colors.text }]}>{revenu.commentaire}</Text>
+                  </View>
+                )}
+                {revenu.photos && revenu.photos.length > 0 && (
+                  <View style={styles.photosContainer}>
+                    <Text style={[styles.photosLabel, { color: colors.textSecondary }]}>
+                      {revenu.photos.length} photo{revenu.photos.length > 1 ? 's' : ''} de facture
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+          keyExtractor={(item) => item.id}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          // Optimisations de performance
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          initialNumToRender={10}
+          updateCellsBatchingPeriod={50}
+          ListFooterComponent={
+            displayedDepenses.length < revenus.length ? (
+              <LoadingSpinner message="Chargement..." />
+            ) : null
+          }
+        />
+      )}
+
+      <RevenuFormModal
+        visible={modalVisible}
+        onClose={handleCloseModal}
+        onSuccess={handleSuccess}
+        revenu={selectedRevenu}
+        isEditing={isEditing}
+      />
+
+      {/* Modal pour voir les photos */}
+      {photoModalVisible && (
+        <View style={styles.photoModal}>
+          <View style={[styles.photoModalContent, { backgroundColor: colors.background }]}>
+            <View style={[styles.photoModalHeader, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.photoModalTitle, { color: colors.text }]}>Photos de la facture</Text>
+              <TouchableOpacity onPress={() => setPhotoModalVisible(false)}>
+                <Text style={[styles.photoModalClose, { color: colors.textSecondary }]}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView horizontal pagingEnabled>
+              {viewingPhotos.map((photo, index) => (
+                <Image
+                  key={index}
+                  source={{ uri: photo }}
+                  style={styles.photoImage}
+                  resizeMode="contain"
+                />
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: SPACING.lg,
+    paddingTop: SPACING.md + 10,
+    borderBottomWidth: 1,
+  },
+  title: {
+    fontSize: FONT_SIZES.xl,
+    fontWeight: 'bold',
+  },
+  addButton: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  addButtonText: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+  },
+  summary: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    padding: SPACING.md,
+    borderBottomWidth: 1,
+  },
+  summaryItem: {
+    alignItems: 'center',
+  },
+  summaryLabel: {
+    fontSize: FONT_SIZES.sm,
+    marginBottom: SPACING.xs,
+  },
+  summaryValue: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: 'bold',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: SPACING.xxl + 85, // 85px pour la barre de navigation + espace
+  },
+  card: {
+    margin: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+  },
+  cardHeaderLeft: {
+    flex: 1,
+  },
+  cardTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: 'bold',
+  },
+  cardDate: {
+    fontSize: FONT_SIZES.sm,
+    marginTop: SPACING.xs,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    gap: SPACING.xs,
+  },
+  actionButton: {
+    padding: SPACING.xs,
+  },
+  actionButtonText: {
+    fontSize: FONT_SIZES.md,
+  },
+  cardContent: {
+    marginTop: SPACING.sm,
+  },
+  amountRow: {
+    marginBottom: SPACING.sm,
+  },
+  amount: {
+    fontSize: FONT_SIZES.xl,
+    fontWeight: 'bold',
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: SPACING.xs,
+  },
+  infoLabel: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+  },
+  infoValue: {
+    fontSize: FONT_SIZES.sm,
+  },
+  commentContainer: {
+    marginTop: SPACING.sm,
+    paddingTop: SPACING.sm,
+    borderTopWidth: 1,
+  },
+  commentLabel: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+    marginBottom: SPACING.xs,
+  },
+  commentText: {
+    fontSize: FONT_SIZES.sm,
+    fontStyle: 'italic',
+  },
+  photosContainer: {
+    marginTop: SPACING.sm,
+  },
+  photosLabel: {
+    fontSize: FONT_SIZES.sm,
+    fontStyle: 'italic',
+  },
+  photoModal: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoModalContent: {
+    width: '90%',
+    height: '80%',
+    borderRadius: BORDER_RADIUS.lg,
+    overflow: 'hidden',
+  },
+  photoModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: SPACING.md,
+    borderBottomWidth: 1,
+  },
+  photoModalTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: 'bold',
+  },
+  photoModalClose: {
+    fontSize: FONT_SIZES.xl,
+    fontWeight: 'bold',
+  },
+  photoImage: {
+    width: 300,
+    height: 400,
+  },
+});
+

@@ -171,6 +171,7 @@ export default function AppNavigator() {
   const { projetActif } = useAppSelector((state) => state.projet);
   const { isAuthenticated, isLoading: authLoading } = useAppSelector((state) => state.auth);
   const navigationRef = React.useRef<any>(null);
+  const lastRouteRef = React.useRef<string | null>(null);
 
   useEffect(() => {
     // Charger l'utilisateur depuis le stockage au démarrage
@@ -180,48 +181,48 @@ export default function AppNavigator() {
   useEffect(() => {
     // Charger le projet actif seulement si l'utilisateur est authentifié
     if (isAuthenticated && !authLoading) {
+      console.log('🔄 Chargement du projet actif...');
       dispatch(loadProjetActif());
     }
   }, [dispatch, isAuthenticated, authLoading]);
 
-  const [hasNavigated, setHasNavigated] = React.useState(false);
-
   useEffect(() => {
-    // Attendre que l'authentification soit chargée avant de naviguer
-    if (authLoading) {
+    if (authLoading || !navigationRef.current) {
+      console.log('⏳ En attente... authLoading:', authLoading, 'navigationRef:', !!navigationRef.current);
       return;
     }
 
-    // Navigation automatique UNIQUEMENT au démarrage (première fois)
-    // Ne pas réinitialiser la navigation si l'utilisateur navigue déjà dans l'app
-    if (navigationRef.current && !hasNavigated) {
-      if (isAuthenticated) {
-        // Utilisateur connecté
-        if (projetActif) {
-          // Projet actif existant -> Accès direct à l'application
-          navigationRef.current.reset({
-            index: 0,
-            routes: [{ name: 'Main' }],
-          });
-          setHasNavigated(true);
-        } else {
-          // Pas de projet -> Création de projet
-          navigationRef.current.reset({
-            index: 0,
-            routes: [{ name: SCREENS.CREATE_PROJECT }],
-          });
-          setHasNavigated(true);
-        }
-      } else {
-        // Utilisateur non connecté -> Page de bienvenue
+    let targetRoute: string;
+    if (isAuthenticated) {
+      targetRoute = projetActif ? 'Main' : SCREENS.CREATE_PROJECT;
+      console.log('✅ Utilisateur authentifié. Projet actif:', projetActif?.nom || 'aucun', '→ Route:', targetRoute);
+    } else {
+      targetRoute = SCREENS.WELCOME;
+      console.log('❌ Utilisateur non authentifié → Route:', targetRoute);
+    }
+
+    // Toujours naviguer si on change d'état d'authentification ou de projet
+    // ou si on est actuellement sur AUTH et qu'on devrait être ailleurs
+    const currentRoute = navigationRef.current?.getCurrentRoute()?.name;
+    const shouldNavigate = 
+      lastRouteRef.current !== targetRoute || 
+      (currentRoute === SCREENS.AUTH && targetRoute !== SCREENS.AUTH);
+
+    if (shouldNavigate) {
+      console.log('🚀 Navigation vers:', targetRoute, '(depuis:', lastRouteRef.current || currentRoute, ')');
+      try {
         navigationRef.current.reset({
           index: 0,
-          routes: [{ name: SCREENS.WELCOME }],
+          routes: [{ name: targetRoute }],
         });
-        setHasNavigated(true);
+        lastRouteRef.current = targetRoute;
+      } catch (error) {
+        console.error('❌ Erreur lors de la navigation:', error);
       }
+    } else {
+      console.log('⏸️ Pas de changement de route nécessaire');
     }
-  }, [isAuthenticated, projetActif, authLoading, hasNavigated]);
+  }, [isAuthenticated, projetActif, authLoading]);
 
   return (
     <NavigationContainer ref={navigationRef}>

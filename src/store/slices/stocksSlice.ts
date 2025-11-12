@@ -114,6 +114,7 @@ const stocksSlice = createSlice({
       })
       .addCase(loadStocks.fulfilled, (state, action) => {
         state.loading = false;
+        // Remplacer complètement la liste pour s'assurer que tous les stocks sont à jour
         state.stocks = action.payload;
       })
       .addCase(loadStocks.rejected, (state, action) => {
@@ -126,7 +127,15 @@ const stocksSlice = createSlice({
       })
       .addCase(createStockAliment.fulfilled, (state, action) => {
         state.loading = false;
-        state.stocks.unshift(action.payload);
+        // Ajouter le stock créé à la liste
+        // Le rechargement complet sera fait dans onSuccess du composant pour s'assurer de la cohérence
+        const existingIndex = state.stocks.findIndex((s) => s.id === action.payload.id);
+        if (existingIndex === -1) {
+          state.stocks.unshift(action.payload);
+        } else {
+          // Mettre à jour si déjà présent
+          state.stocks[existingIndex] = action.payload;
+        }
       })
       .addCase(createStockAliment.rejected, (state, action) => {
         state.loading = false;

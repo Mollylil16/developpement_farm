@@ -244,7 +244,7 @@ export default function CollaborationListComponent() {
 
       {/* Liste des collaborateurs */}
       {collaborateursFiltres.length === 0 ? (
-        <View style={styles.listContainer}>
+        <View style={[styles.listContainer, { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md }]}>
           <EmptyState
             title="Aucun collaborateur"
             message="Invitez des membres pour collaborer sur ce projet"
@@ -342,7 +342,8 @@ export default function CollaborationListComponent() {
           keyExtractor={(item) => item.id}
           onEndReached={loadMore}
           onEndReachedThreshold={0.5}
-          contentContainerStyle={styles.listContainer}
+          style={styles.listContainer}
+          contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           // Optimisations de performance
           removeClippedSubviews={true}
@@ -419,8 +420,11 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     flex: 1,
+  },
+  listContent: {
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
+    paddingBottom: SPACING.xxl + 85, // 85px pour la barre de navigation + espace
   },
   card: {
     borderRadius: BORDER_RADIUS.lg,

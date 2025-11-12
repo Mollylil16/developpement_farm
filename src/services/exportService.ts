@@ -247,8 +247,11 @@ export async function importDataFromJSON(jsonData: string): Promise<void> {
       for (const gestation of data.gestations) {
         try {
           await databaseService.createGestation({
+            projet_id: gestation.projet_id || data.projet?.id || '',
             truie_id: gestation.truie_id,
             truie_nom: gestation.truie_nom,
+            verrat_id: gestation.verrat_id,
+            verrat_nom: gestation.verrat_nom,
             date_sautage: gestation.date_sautage,
             nombre_porcelets_prevu: gestation.nombre_porcelets_prevu,
             notes: gestation.notes,

@@ -1,11 +1,11 @@
 /**
- * Écran Production avec deux sous-menus : Pesées et Estimations
+ * Écran Production avec sous-menus : Cheptel (avec Historique), Pesées et Estimations
  */
 
 import React from 'react';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import ProductionCheptelComponent from '../components/ProductionCheptelComponent';
+import CheptelStackNavigator from '../navigation/CheptelStackNavigator';
 import ProductionAnimalsListComponent from '../components/ProductionAnimalsListComponent';
 import ProductionEstimationsComponent from '../components/ProductionEstimationsComponent';
 import { FONT_SIZES } from '../constants/theme';
@@ -19,6 +19,7 @@ export default function ProductionScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'bottom']}>
       <Tab.Navigator
+        lazy={true}
         screenOptions={{
           tabBarActiveTintColor: colors.primary,
           tabBarInactiveTintColor: colors.textSecondary,
@@ -47,7 +48,7 @@ export default function ProductionScreen() {
       >
         <Tab.Screen
           name="Cheptel"
-          component={ProductionCheptelComponent}
+          component={CheptelStackNavigator}
           options={{
             title: 'Cheptel',
           }}

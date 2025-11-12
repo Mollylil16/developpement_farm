@@ -2,7 +2,7 @@
  * Composant liste des sevrages
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, FlatList, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadSevrages, deleteSevrage, createSevrage } from '../store/slices/reproductionSlice';
@@ -13,6 +13,7 @@ import EmptyState from './EmptyState';
 import LoadingSpinner from './LoadingSpinner';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
+import { addDays, format, parseISO, differenceInDays } from 'date-fns';
 
 export default function SevragesListComponent() {
   const { colors } = useTheme();
@@ -34,17 +35,49 @@ export default function SevragesListComponent() {
   const { projetActif } = useAppSelector((state) => state.projet);
 
   useEffect(() => {
-    if (projetActif) {
-      dispatch(loadSevrages(projetActif.id));
+    if (projetActif?.id) {
+      try {
+        dispatch(loadSevrages(projetActif.id));
+      } catch (error) {
+        console.error('Erreur lors du chargement des sevrages:', error);
+      }
     }
   }, [dispatch, projetActif?.id]);
 
-  const gestationsTerminees = gestations.filter((g) => g.statut === 'terminee');
+  const gestationsTerminees = useMemo(() => {
+    if (!projetActif?.id) return [];
+    return gestations.filter((g) => g.projet_id === projetActif.id && g.statut === 'terminee');
+  }, [gestations, projetActif?.id]);
+
+  // Fonction pour calculer la date prévisionnelle de sevrage (28 jours après la mise bas)
+  const calculerDateSevragePrevue = (dateMiseBas: string | undefined): string | null => {
+    if (!dateMiseBas) return null;
+    try {
+      const date = parseISO(dateMiseBas);
+      const dateSevrage = addDays(date, 28);
+      return format(dateSevrage, 'yyyy-MM-dd');
+    } catch {
+      return null;
+    }
+  };
+
+  // Fonction pour formater la date prévisionnelle
+  const formaterDateSevragePrevue = (dateMiseBas: string | undefined): string => {
+    const datePrevue = calculerDateSevragePrevue(dateMiseBas);
+    if (!datePrevue) return 'Non disponible';
+    try {
+      return format(parseISO(datePrevue), 'dd/MM/yyyy');
+    } catch {
+      return datePrevue;
+    }
+  };
 
   const handleCreateSevrage = (gestation: Gestation) => {
     setSelectedGestation(gestation);
+    // Utiliser la date prévisionnelle de sevrage par défaut (28 jours après la mise bas)
+    const dateSevragePrevue = calculerDateSevragePrevue(gestation.date_mise_bas_reelle) || new Date().toISOString().split('T')[0];
     setFormData({
-      date_sevrage: new Date().toISOString().split('T')[0],
+      date_sevrage: dateSevragePrevue,
       nombre_porcelets_sevres: gestation.nombre_porcelets_reel || gestation.nombre_porcelets_prevu,
       poids_moyen_sevrage: 0,
       notes: '',
@@ -116,49 +149,76 @@ export default function SevragesListComponent() {
   // Filtrer les sevrages du mois actuel
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
-  const sevragesCeMois = sevrages.filter((s) => {
-    const date = new Date(s.date_sevrage);
-    return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-  });
+  const sevragesCeMois = useMemo(() => {
+    if (!projetActif?.id) return [];
+    return sevrages.filter((s) => {
+      if (s.projet_id !== projetActif.id) return false;
+      try {
+        const date = new Date(s.date_sevrage);
+        if (isNaN(date.getTime())) return false;
+        return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+      } catch (error) {
+        console.error('Erreur lors du traitement de la date de sevrage:', error);
+        return false;
+      }
+    });
+  }, [sevrages, projetActif?.id, currentMonth, currentYear]);
 
   // Pagination: charger les premiers sevrages
   useEffect(() => {
-    const initial = sevrages.slice(0, ITEMS_PER_PAGE);
+    if (!projetActif?.id) {
+      setDisplayedSevrages([]);
+      return;
+    }
+    
+    // Filtrer les sevrages du projet actif
+    const sevragesProjet = sevrages.filter((s) => s.projet_id === projetActif.id);
+    const initial = sevragesProjet.slice(0, ITEMS_PER_PAGE);
     setDisplayedSevrages(initial);
     setPage(1);
-  }, [sevrages.length]);
+  }, [sevrages, projetActif?.id]);
 
   // Charger plus de sevrages
   const loadMore = useCallback(() => {
-    if (displayedSevrages.length >= sevrages.length) {
+    if (!projetActif?.id) return;
+    
+    // Filtrer les sevrages du projet actif
+    const sevragesProjet = sevrages.filter((s) => s.projet_id === projetActif.id);
+    
+    if (displayedSevrages.length >= sevragesProjet.length) {
       return;
     }
 
     const nextPage = page + 1;
     const start = page * ITEMS_PER_PAGE;
     const end = start + ITEMS_PER_PAGE;
-    const newItems = sevrages.slice(start, end);
+    const newItems = sevragesProjet.slice(start, end);
 
     if (newItems.length > 0) {
       setDisplayedSevrages((prev) => [...prev, ...newItems]);
       setPage(nextPage);
     }
-  }, [page, displayedSevrages.length, sevrages]);
+  }, [page, displayedSevrages.length, sevrages, projetActif?.id]);
 
   if (loading) {
     return <LoadingSpinner message="Chargement des sevrages..." />;
   }
 
+  const sevragesProjet = useMemo(() => {
+    if (!projetActif?.id) return [];
+    return sevrages.filter((s) => s.projet_id === projetActif.id);
+  }, [sevrages, projetActif?.id]);
+
   // Composant d'en-tête pour la FlatList
   const ListHeader = () => (
     <View>
-      {gestationsTerminees.length > 0 && sevrages.length === 0 && (
+      {gestationsTerminees.length > 0 && sevragesProjet.length === 0 && (
         <View style={styles.actionSection}>
           <Text style={[styles.actionSectionTitle, { color: colors.text }]}>
             Gestations terminées disponibles pour sevrage:
           </Text>
           {gestationsTerminees.map((gestation) => {
-            const hasSevrage = sevrages.some((s) => s.gestation_id === gestation.id);
+            const hasSevrage = sevragesProjet.some((s) => s.gestation_id === gestation.id);
             if (hasSevrage) return null;
             
             return (
@@ -174,6 +234,11 @@ export default function SevragesListComponent() {
                   {gestation.nombre_porcelets_reel || gestation.nombre_porcelets_prevu}{' '}
                   porcelets
                 </Text>
+                {gestation.date_mise_bas_reelle && (
+                  <Text style={[styles.gestationCardDate, { color: colors.textSecondary }]}>
+                    Sevrage prévu: {formaterDateSevragePrevue(gestation.date_mise_bas_reelle)}
+                  </Text>
+                )}
                 <Text style={[styles.gestationCardButton, { color: colors.primary }]}>+ Enregistrer le sevrage</Text>
               </TouchableOpacity>
             );
@@ -183,7 +248,7 @@ export default function SevragesListComponent() {
     </View>
   );
 
-  if (gestationsTerminees.length === 0 && sevrages.length === 0) {
+  if (gestationsTerminees.length === 0 && sevragesProjet.length === 0) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { borderBottomColor: colors.border }]}>
@@ -257,7 +322,7 @@ export default function SevragesListComponent() {
         initialNumToRender={10}
         updateCellsBatchingPeriod={50}
         ListFooterComponent={
-          displayedSevrages.length < sevrages.length ? (
+          displayedSevrages.length < sevragesProjet.length ? (
             <LoadingSpinner message="Chargement..." />
           ) : null
         }
@@ -277,9 +342,25 @@ export default function SevragesListComponent() {
           showButtons={true}
         >
           <ScrollView style={styles.scrollView}>
-            <Text style={[styles.modalLabel, { color: colors.text }]}>
-              Truie: {selectedGestation.truie_nom || selectedGestation.truie_id}
-            </Text>
+            <View style={[styles.infoBox, { backgroundColor: colors.primary + '10' }]}>
+              <Text style={[styles.infoBoxTitle, { color: colors.primary }]}>Informations de la gestation</Text>
+              <Text style={[styles.infoBoxText, { color: colors.text }]}>
+                Truie: {selectedGestation.truie_nom || selectedGestation.truie_id}
+              </Text>
+              <Text style={[styles.infoBoxText, { color: colors.text }]}>
+                Porcelets nés: {selectedGestation.nombre_porcelets_reel || selectedGestation.nombre_porcelets_prevu}
+              </Text>
+              {selectedGestation.date_mise_bas_reelle && (
+                <Text style={[styles.infoBoxText, { color: colors.text }]}>
+                  Date de mise bas: {formatDate(selectedGestation.date_mise_bas_reelle)}
+                </Text>
+              )}
+              {selectedGestation.date_mise_bas_reelle && (
+                <Text style={[styles.infoBoxText, { color: colors.primary, fontWeight: '600' }]}>
+                  Sevrage prévu: {formaterDateSevragePrevue(selectedGestation.date_mise_bas_reelle)}
+                </Text>
+              )}
+            </View>
             <FormField
               label="Date de sevrage *"
               value={formData.date_sevrage}
@@ -437,6 +518,24 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
     marginBottom: SPACING.md,
+  },
+  gestationCardDate: {
+    fontSize: FONT_SIZES.sm,
+    marginBottom: SPACING.xs,
+  },
+  infoBox: {
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+  },
+  infoBoxTitle: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+    marginBottom: SPACING.sm,
+  },
+  infoBoxText: {
+    fontSize: FONT_SIZES.sm,
+    marginBottom: SPACING.xs,
   },
 });
 

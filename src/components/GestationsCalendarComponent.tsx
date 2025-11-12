@@ -16,45 +16,68 @@ import { fr } from 'date-fns/locale';
 export default function GestationsCalendarComponent() {
   const { colors } = useTheme();
   const { gestations } = useAppSelector((state) => state.reproduction);
+  const { projetActif } = useAppSelector((state) => state.projet);
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   // Préparer les dates marquées pour le calendrier
   const markedDates = useMemo(() => {
     const marked: any = {};
     
-    gestations.forEach((gestation) => {
-      const dateMiseBas = gestation.date_mise_bas_prevue.split('T')[0];
-      const dateSautage = gestation.date_sautage.split('T')[0];
-      
-      // Marquer la date de mise bas prévue
-      if (!marked[dateMiseBas]) {
-        marked[dateMiseBas] = {
-          dots: [],
-          selected: false,
-        };
+    if (!projetActif?.id) return marked;
+    
+    // Filtrer les gestations du projet actif
+    const gestationsProjet = gestations.filter((g) => g.projet_id === projetActif.id);
+    
+    gestationsProjet.forEach((gestation) => {
+      try {
+        if (!gestation.date_mise_bas_prevue || !gestation.date_sautage) return;
+        
+        const dateMiseBas = gestation.date_mise_bas_prevue.split('T')[0];
+        const dateSautage = gestation.date_sautage.split('T')[0];
+        
+        // Vérifier que les dates sont valides
+        if (!dateMiseBas || !dateSautage) return;
+        
+        // Marquer la date de mise bas prévue
+        if (!marked[dateMiseBas]) {
+          marked[dateMiseBas] = {
+            dots: [],
+            selected: false,
+          };
+        }
+        
+        try {
+          const isAlerte = doitGenererAlerte(gestation.date_mise_bas_prevue);
+          marked[dateMiseBas].dots.push({
+            color: isAlerte ? colors.error : colors.primary,
+            selectedDotColor: colors.background,
+          });
+        } catch (error) {
+          console.error('Erreur lors de la vérification de l\'alerte:', error);
+          marked[dateMiseBas].dots.push({
+            color: colors.primary,
+            selectedDotColor: colors.background,
+          });
+        }
+        
+        // Marquer la date de sautage
+        if (!marked[dateSautage]) {
+          marked[dateSautage] = {
+            dots: [],
+            selected: false,
+          };
+        }
+        marked[dateSautage].dots.push({
+          color: colors.secondary,
+          selectedDotColor: colors.background,
+        });
+      } catch (error) {
+        console.error('Erreur lors du traitement de la gestation:', error);
       }
-      
-      const isAlerte = doitGenererAlerte(gestation.date_mise_bas_prevue);
-      marked[dateMiseBas].dots.push({
-        color: isAlerte ? colors.error : colors.primary,
-        selectedDotColor: colors.background,
-      });
-      
-      // Marquer la date de sautage
-      if (!marked[dateSautage]) {
-        marked[dateSautage] = {
-          dots: [],
-          selected: false,
-        };
-      }
-      marked[dateSautage].dots.push({
-        color: colors.secondary,
-        selectedDotColor: colors.background,
-      });
     });
     
     return marked;
-  }, [gestations, colors]);
+  }, [gestations, projetActif?.id, colors]);
 
   const onDayPress = (day: DateData) => {
     // Peut être utilisé pour afficher les détails d'une journée
@@ -80,21 +103,35 @@ export default function GestationsCalendarComponent() {
 
   // Trouver le prochain événement futur (mise bas prévue)
   const prochainEvenement = useMemo(() => {
+    if (!projetActif?.id) return null;
+    
     const aujourdhui = new Date();
     aujourdhui.setHours(0, 0, 0, 0);
     
-    const evenementsFuturs = gestations
-      .filter((g) => g.statut === 'en_cours')
-      .map((g) => ({
-        date: parseISO(g.date_mise_bas_prevue),
-        type: 'mise_bas',
-        gestation: g,
-      }))
-      .filter((e) => isAfter(e.date, aujourdhui) || e.date.getTime() === aujourdhui.getTime())
+    // Filtrer les gestations du projet actif
+    const gestationsProjet = gestations.filter((g) => g.projet_id === projetActif.id);
+    
+    const evenementsFuturs = gestationsProjet
+      .filter((g) => g.statut === 'en_cours' && g.date_mise_bas_prevue)
+      .map((g) => {
+        try {
+          const date = parseISO(g.date_mise_bas_prevue);
+          if (isNaN(date.getTime())) return null;
+          return {
+            date,
+            type: 'mise_bas' as const,
+            gestation: g,
+          };
+        } catch (error) {
+          console.error('Erreur lors du parsing de la date:', error);
+          return null;
+        }
+      })
+      .filter((e): e is NonNullable<typeof e> => e !== null && (isAfter(e.date, aujourdhui) || e.date.getTime() === aujourdhui.getTime()))
       .sort((a, b) => a.date.getTime() - b.date.getTime());
     
     return evenementsFuturs[0] || null;
-  }, [gestations]);
+  }, [gestations, projetActif?.id]);
 
   const goToProchainEvenement = () => {
     if (prochainEvenement) {

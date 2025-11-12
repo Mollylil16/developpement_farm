@@ -1,75 +1,78 @@
 /**
- * Composant formulaire modal pour dépense ponctuelle avec upload photos
+ * Composant formulaire modal pour revenu avec upload photos
  */
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { createDepensePonctuelle, updateDepensePonctuelle } from '../store/slices/financeSlice';
-import { DepensePonctuelle, CreateDepensePonctuelleInput, CategorieDepense } from '../types';
+import { createRevenu, updateRevenu } from '../store/slices/financeSlice';
+import { Revenu, CreateRevenuInput, CategorieRevenu } from '../types';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
-interface DepenseFormModalProps {
+interface RevenuFormModalProps {
   visible: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  depense?: DepensePonctuelle | null;
+  revenu?: Revenu | null;
   isEditing?: boolean;
 }
 
-export default function DepenseFormModal({
+export default function RevenuFormModal({
   visible,
   onClose,
   onSuccess,
-  depense,
+  revenu,
   isEditing = false,
-}: DepenseFormModalProps) {
+}: RevenuFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState<CreateDepensePonctuelleInput & { photos: string[] }>({
+  const [formData, setFormData] = useState<Omit<CreateRevenuInput, 'projet_id'> & { photos: string[] }>({
     montant: 0,
-    categorie: 'autre',
+    categorie: 'vente_porc',
     libelle_categorie: '',
     date: new Date().toISOString().split('T')[0],
+    description: '',
     commentaire: '',
     photos: [],
   });
 
   useEffect(() => {
-    if (depense && isEditing) {
+    if (revenu && isEditing) {
       setFormData({
-        montant: depense.montant,
-        categorie: depense.categorie,
-        libelle_categorie: depense.libelle_categorie || '',
-        date: depense.date.split('T')[0],
-        commentaire: depense.commentaire || '',
-        photos: depense.photos || [],
+        montant: revenu.montant,
+        categorie: revenu.categorie,
+        libelle_categorie: revenu.libelle_categorie || '',
+        date: revenu.date.split('T')[0],
+        description: revenu.description || '',
+        commentaire: revenu.commentaire || '',
+        photos: revenu.photos || [],
       });
     } else {
       // Reset form
       setFormData({
         montant: 0,
-        categorie: 'autre',
+        categorie: 'vente_porc',
         libelle_categorie: '',
         date: new Date().toISOString().split('T')[0],
+        description: '',
         commentaire: '',
         photos: [],
       });
     }
-  }, [depense, isEditing, visible]);
+  }, [revenu, isEditing, visible]);
 
   const requestImagePermission = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert(
         'Permission requise',
-        'L\'application a besoin de l\'accès à vos photos pour ajouter des reçus.'
+        'L\'application a besoin de l\'accès à vos photos pour ajouter des factures.'
       );
       return false;
     }
@@ -81,7 +84,7 @@ export default function DepenseFormModal({
     if (status !== 'granted') {
       Alert.alert(
         'Permission requise',
-        'L\'application a besoin de l\'accès à la caméra pour prendre des photos de reçus.'
+        'L\'application a besoin de l\'accès à la caméra pour prendre des photos de factures.'
       );
       return false;
     }
@@ -157,14 +160,15 @@ export default function DepenseFormModal({
 
     setLoading(true);
     try {
-      if (isEditing && depense) {
-        await dispatch(updateDepensePonctuelle({
-          id: depense.id,
+      if (isEditing && revenu) {
+        await dispatch(updateRevenu({
+          id: revenu.id,
           updates: {
             montant: formData.montant,
             categorie: formData.categorie,
             libelle_categorie: formData.libelle_categorie,
             date: formData.date,
+            description: formData.description,
             commentaire: formData.commentaire,
             photos: formData.photos || [],
           },
@@ -174,7 +178,7 @@ export default function DepenseFormModal({
           Alert.alert('Erreur', 'Aucun projet actif');
           return;
         }
-        await dispatch(createDepensePonctuelle({ ...formData, projet_id: projetActif.id })).unwrap();
+        await dispatch(createRevenu({ ...formData, projet_id: projetActif.id })).unwrap();
       }
       onSuccess();
     } catch (error: any) {
@@ -184,22 +188,18 @@ export default function DepenseFormModal({
     }
   };
 
-  const categories: CategorieDepense[] = [
-    'vaccins',
-    'alimentation',
-    'veterinaire',
-    'entretien',
-    'equipements',
+  const categories: CategorieRevenu[] = [
+    'vente_porc',
+    'vente_autre',
+    'subvention',
     'autre',
   ];
 
-  const getCategoryLabel = (cat: CategorieDepense): string => {
-    const labels: Record<CategorieDepense, string> = {
-      vaccins: 'Vaccins',
-      alimentation: 'Alimentation',
-      veterinaire: 'Vétérinaire',
-      entretien: 'Entretien',
-      equipements: 'Équipements',
+  const getCategoryLabel = (cat: CategorieRevenu): string => {
+    const labels: Record<CategorieRevenu, string> = {
+      vente_porc: 'Vente de porc',
+      vente_autre: 'Vente autre',
+      subvention: 'Subvention',
       autre: 'Autre',
     };
     return labels[cat];
@@ -209,7 +209,7 @@ export default function DepenseFormModal({
     <CustomModal
       visible={visible}
       onClose={onClose}
-      title={isEditing ? 'Modifier la dépense' : 'Nouvelle dépense'}
+      title={isEditing ? 'Modifier le revenu' : 'Nouveau revenu'}
       confirmText={isEditing ? 'Modifier' : 'Enregistrer'}
       onConfirm={handleSubmit}
       showButtons={true}
@@ -280,8 +280,17 @@ export default function DepenseFormModal({
         />
 
         <FormField
+          label="Description (ex: nombre de porcs vendus)"
+          value={formData.description || ''}
+          onChangeText={(text) => setFormData({ ...formData, description: text })}
+          placeholder="Description optionnelle..."
+          multiline
+          numberOfLines={2}
+        />
+
+        <FormField
           label="Commentaire"
-          value={formData.commentaire}
+          value={formData.commentaire || ''}
           onChangeText={(text) => setFormData({ ...formData, commentaire: text })}
           placeholder="Commentaire optionnel..."
           multiline
@@ -291,7 +300,7 @@ export default function DepenseFormModal({
         {/* Section Photos */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Photos du reçu ({(formData.photos || []).length}/3)
+            Photos de la facture ({(formData.photos || []).length}/3)
           </Text>
           <View style={styles.photosContainer}>
             {(formData.photos || []).map((photo, index) => (

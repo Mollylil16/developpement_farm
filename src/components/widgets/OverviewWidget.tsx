@@ -3,12 +3,14 @@
  * Affiche les statistiques principales avec indicateurs de tendance
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { useAppSelector } from '../../store/hooks';
+import { useAppSelector, useAppDispatch } from '../../store/hooks';
+import { loadProductionAnimaux } from '../../store/slices/productionSlice';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
+import { differenceInMonths, parseISO } from 'date-fns';
 
 interface OverviewWidgetProps {
   onPress?: () => void;
@@ -16,17 +18,93 @@ interface OverviewWidgetProps {
 
 export default function OverviewWidget({ onPress }: OverviewWidgetProps) {
   const { colors } = useTheme();
+  const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
+  const { animaux } = useAppSelector((state) => state.production);
+  const { mortalites } = useAppSelector((state) => state.mortalites);
+
+  // Charger les animaux du cheptel
+  useEffect(() => {
+    if (projetActif) {
+      dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
+    }
+  }, [dispatch, projetActif?.id]);
 
   const stats = useMemo(() => {
     if (!projetActif) return null;
 
-    return {
-      truies: projetActif.nombre_truies,
-      verrats: projetActif.nombre_verrats,
-      porcelets: projetActif.nombre_porcelets,
+    // Filtrer les animaux actifs du projet
+    const animauxActifs = animaux.filter(
+      (animal) => animal.projet_id === projetActif.id && animal.statut === 'actif'
+    );
+
+    const hasAnimauxActifs = animauxActifs.length > 0;
+
+    // Préparer les effectifs basés sur les données initiales et les mortalités
+    const baseCounts = {
+      truies: projetActif.nombre_truies ?? 0,
+      verrats: projetActif.nombre_verrats ?? 0,
+      porcelets: projetActif.nombre_porcelets ?? 0,
     };
-  }, [projetActif]);
+
+    const mortalitesProjet = mortalites.filter((m) => m.projet_id === projetActif.id);
+    const mortalitesTruies = mortalitesProjet
+      .filter((m) => m.categorie === 'truie')
+      .reduce((sum, m) => sum + (m.nombre_porcs || 0), 0);
+    const mortalitesVerrats = mortalitesProjet
+      .filter((m) => m.categorie === 'verrat')
+      .reduce((sum, m) => sum + (m.nombre_porcs || 0), 0);
+    const mortalitesPorcelets = mortalitesProjet
+      .filter((m) => m.categorie === 'porcelet')
+      .reduce((sum, m) => sum + (m.nombre_porcs || 0), 0);
+
+    const fallbackCounts = {
+      truies: Math.max(0, baseCounts.truies - mortalitesTruies),
+      verrats: Math.max(0, baseCounts.verrats - mortalitesVerrats),
+      porcelets: Math.max(0, baseCounts.porcelets - mortalitesPorcelets),
+    };
+
+    if (!hasAnimauxActifs) {
+      return fallbackCounts;
+    }
+
+    // Compter les truies (femelles actives)
+    const truies = animauxActifs.filter((animal) => animal.sexe === 'femelle').length;
+
+    // Compter les verrats (mâles actifs)
+    const verrats = animauxActifs.filter((animal) => animal.sexe === 'male').length;
+
+    // Compter les porcelets (animaux actifs qui ne sont pas des reproducteurs adultes)
+    // Un porcelet est un animal actif qui :
+    // - N'est pas marqué comme reproducteur, OU
+    // - A moins de 6 mois (si date_naissance disponible)
+    const porcelets = animauxActifs.filter((animal) => {
+      // Si l'animal est marqué comme reproducteur, ce n'est pas un porcelet
+      if (animal.reproducteur) return false;
+
+      // Si on a une date de naissance, vérifier l'âge
+      if (animal.date_naissance) {
+        try {
+          const dateNaissance = parseISO(animal.date_naissance);
+          const ageMois = differenceInMonths(new Date(), dateNaissance);
+          // Un porcelet a généralement moins de 6 mois
+          return ageMois < 6;
+        } catch {
+          // Si la date est invalide, considérer comme porcelet si pas reproducteur
+          return true;
+        }
+      }
+
+      // Si pas de date de naissance et pas reproducteur, considérer comme porcelet
+      return true;
+    }).length;
+
+    return {
+      truies,
+      verrats,
+      porcelets,
+    };
+  }, [projetActif, animaux, mortalites]);
 
   if (!stats || !projetActif) {
     return null;

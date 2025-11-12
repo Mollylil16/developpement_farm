@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import FinanceGraphiquesComponent from '../components/FinanceGraphiquesComponent';
 import FinanceChargesFixesComponent from '../components/FinanceChargesFixesComponent';
 import FinanceDepensesComponent from '../components/FinanceDepensesComponent';
+import FinanceRevenusComponent from '../components/FinanceRevenusComponent';
 import { FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -60,6 +61,13 @@ export default function FinanceScreen() {
           component={FinanceDepensesComponent}
           options={{
             title: 'Dépenses',
+          }}
+        />
+        <Tab.Screen
+          name="Revenus"
+          component={FinanceRevenusComponent}
+          options={{
+            title: 'Revenus',
           }}
         />
       </Tab.Navigator>

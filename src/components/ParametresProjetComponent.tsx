@@ -2,7 +2,7 @@
  * Composant gestion du projet dans les paramètres
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
@@ -12,7 +12,10 @@ import {
   updateProjet,
   loadProjetActif,
 } from '../store/slices/projetSlice';
+import { loadMortalitesParProjet } from '../store/slices/mortalitesSlice';
+import { loadProductionAnimaux } from '../store/slices/productionSlice';
 import { Projet } from '../types';
+import { differenceInMonths, parseISO } from 'date-fns';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import LoadingSpinner from './LoadingSpinner';
@@ -25,6 +28,8 @@ export default function ParametresProjetComponent() {
   const dispatch = useAppDispatch();
   const navigation = useNavigation<any>();
   const { projetActif, projets, loading } = useAppSelector((state) => state.projet);
+  const { mortalites } = useAppSelector((state) => state.mortalites);
+  const { animaux } = useAppSelector((state) => state.production);
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<Projet>>({});
 
@@ -32,16 +37,26 @@ export default function ParametresProjetComponent() {
     // Charger les projets sans bloquer l'affichage
     dispatch(loadProjets());
     dispatch(loadProjetActif());
-  }, [dispatch]);
+    // Charger les animaux du cheptel et les mortalités pour calculer les effectifs réels
+    if (projetActif) {
+      dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
+      dispatch(loadMortalitesParProjet(projetActif.id));
+    }
+  }, [dispatch, projetActif?.id]);
 
   // Recharger les projets après création d'un nouveau projet
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       dispatch(loadProjets());
       dispatch(loadProjetActif());
+      // Recharger les animaux et mortalités quand l'écran revient au focus
+      if (projetActif) {
+        dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
+        dispatch(loadMortalitesParProjet(projetActif.id));
+      }
     });
     return unsubscribe;
-  }, [navigation, dispatch]);
+  }, [navigation, dispatch, projetActif?.id]);
 
   useEffect(() => {
     if (projetActif && isEditing) {
@@ -74,6 +89,75 @@ export default function ParametresProjetComponent() {
       ]
     );
   };
+
+  // Calculer les effectifs réels à partir du cheptel (animaux réellement enregistrés)
+  const effectifsReels = useMemo(() => {
+    if (!projetActif) return { truies: 0, verrats: 0, porcelets: 0 };
+
+    // Filtrer les animaux actifs du projet
+    const animauxActifs = animaux.filter(
+      (animal) => animal.projet_id === projetActif.id && animal.statut === 'actif'
+    );
+
+    const baseCounts = {
+      truies: projetActif.nombre_truies ?? 0,
+      verrats: projetActif.nombre_verrats ?? 0,
+      porcelets: projetActif.nombre_porcelets ?? 0,
+    };
+
+    // Compter les truies (femelles actives)
+    const truies = animauxActifs.filter((animal) => animal.sexe === 'femelle').length;
+
+    // Compter les verrats (mâles actifs)
+    const verrats = animauxActifs.filter((animal) => animal.sexe === 'male').length;
+
+    // Compter les porcelets (animaux actifs qui ne sont pas des reproducteurs adultes)
+    const porcelets = animauxActifs.filter((animal) => {
+      // Si l'animal est marqué comme reproducteur, ce n'est pas un porcelet
+      if (animal.reproducteur) return false;
+
+      // Si on a une date de naissance, vérifier l'âge
+      if (animal.date_naissance) {
+        try {
+          const dateNaissance = parseISO(animal.date_naissance);
+          const ageMois = differenceInMonths(new Date(), dateNaissance);
+          // Un porcelet a généralement moins de 6 mois
+          return ageMois < 6;
+        } catch {
+          // Si la date est invalide, considérer comme porcelet si pas reproducteur
+          return true;
+        }
+      }
+
+      // Si pas de date de naissance et pas reproducteur, considérer comme porcelet
+      return true;
+    }).length;
+
+    if (animauxActifs.length === 0) {
+      const mortalitesProjet = mortalites.filter((m) => m.projet_id === projetActif.id);
+      const mortalitesTruies = mortalitesProjet
+        .filter((m) => m.categorie === 'truie')
+        .reduce((sum, m) => sum + (m.nombre_porcs || 0), 0);
+      const mortalitesVerrats = mortalitesProjet
+        .filter((m) => m.categorie === 'verrat')
+        .reduce((sum, m) => sum + (m.nombre_porcs || 0), 0);
+      const mortalitesPorcelets = mortalitesProjet
+        .filter((m) => m.categorie === 'porcelet')
+        .reduce((sum, m) => sum + (m.nombre_porcs || 0), 0);
+
+      return {
+        truies: Math.max(0, baseCounts.truies - mortalitesTruies),
+        verrats: Math.max(0, baseCounts.verrats - mortalitesVerrats),
+        porcelets: Math.max(0, baseCounts.porcelets - mortalitesPorcelets),
+      };
+    }
+
+    return {
+      truies,
+      verrats,
+      porcelets,
+    };
+  }, [projetActif, animaux, mortalites]);
 
   const handleSaveEdit = async () => {
     if (!projetActif) return;
@@ -141,8 +225,13 @@ export default function ParametresProjetComponent() {
                       borderColor: colors.border,
                     },
                   ]}>
-                    <Text style={[styles.statValue, { color: colors.text }]}>{projetActif.nombre_truies}</Text>
+                    <Text style={[styles.statValue, { color: colors.text }]}>{effectifsReels.truies}</Text>
                     <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Truies</Text>
+                    {projetActif.nombre_truies !== effectifsReels.truies && (
+                      <Text style={[styles.statSubtext, { color: colors.textSecondary }]}>
+                        (Initial: {projetActif.nombre_truies})
+                      </Text>
+                    )}
                   </View>
                   <View style={[
                     styles.statCard,
@@ -151,8 +240,13 @@ export default function ParametresProjetComponent() {
                       borderColor: colors.border,
                     },
                   ]}>
-                    <Text style={[styles.statValue, { color: colors.text }]}>{projetActif.nombre_verrats}</Text>
+                    <Text style={[styles.statValue, { color: colors.text }]}>{effectifsReels.verrats}</Text>
                     <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Verrats</Text>
+                    {projetActif.nombre_verrats !== effectifsReels.verrats && (
+                      <Text style={[styles.statSubtext, { color: colors.textSecondary }]}>
+                        (Initial: {projetActif.nombre_verrats})
+                      </Text>
+                    )}
                   </View>
                   <View style={[
                     styles.statCard,
@@ -161,8 +255,13 @@ export default function ParametresProjetComponent() {
                       borderColor: colors.border,
                     },
                   ]}>
-                    <Text style={[styles.statValue, { color: colors.text }]}>{projetActif.nombre_porcelets}</Text>
+                    <Text style={[styles.statValue, { color: colors.text }]}>{effectifsReels.porcelets}</Text>
                     <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Porcelets</Text>
+                    {projetActif.nombre_porcelets !== effectifsReels.porcelets && (
+                      <Text style={[styles.statSubtext, { color: colors.textSecondary }]}>
+                        (Initial: {projetActif.nombre_porcelets})
+                      </Text>
+                    )}
                   </View>
                 </View>
                 <TouchableOpacity
@@ -415,6 +514,11 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  statSubtext: {
+    fontSize: FONT_SIZES.xs - 2,
+    marginTop: SPACING.xs / 2,
+    fontStyle: 'italic',
   },
   editButton: {
     paddingVertical: SPACING.md,

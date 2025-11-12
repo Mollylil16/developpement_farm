@@ -6,7 +6,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Dimensions } from 'react-native';
 import { LineChart, PieChart } from 'react-native-chart-kit';
 import { useAppSelector } from '../store/hooks';
-import { ChargeFixe, DepensePonctuelle } from '../types';
+import { ChargeFixe, DepensePonctuelle, Revenu } from '../types';
 import { SPACING, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import StatCard from './StatCard';
@@ -16,7 +16,7 @@ const screenWidth = Dimensions.get('window').width;
 
 export default function FinanceGraphiquesComponent() {
   const { colors, isDark } = useTheme();
-  const { chargesFixes, depensesPonctuelles } = useAppSelector((state) => state.finance);
+  const { chargesFixes, depensesPonctuelles, revenus } = useAppSelector((state) => state.finance);
 
   // Calcul des données pour les graphiques
   const graphData = useMemo(() => {
@@ -55,18 +55,34 @@ export default function FinanceGraphiquesComponent() {
         })
         .reduce((sum, dp) => sum + dp.montant, 0);
 
+      // Revenus du mois
+      const revenusMois = revenus
+        .filter((r) => {
+          const rDate = parseISO(r.date);
+          return rDate >= monthStart && rDate <= monthEnd;
+        })
+        .reduce((sum, r) => sum + r.montant, 0);
+
       monthsData.push({
         month: monthKey,
         planifie,
         reel,
+        revenus: revenusMois,
       });
     }
 
-    // Données pour le graphique par catégorie
+    // Données pour le graphique par catégorie de dépenses
     const categoryData: Record<string, number> = {};
     depensesPonctuelles.forEach((dp) => {
       const category = dp.categorie;
       categoryData[category] = (categoryData[category] || 0) + dp.montant;
+    });
+
+    // Données pour le graphique par catégorie de revenus
+    const revenusCategoryData: Record<string, number> = {};
+    revenus.forEach((r) => {
+      const category = r.categorie;
+      revenusCategoryData[category] = (revenusCategoryData[category] || 0) + r.montant;
     });
 
     // Données pour le graphique planifié vs réel
@@ -80,7 +96,7 @@ export default function FinanceGraphiquesComponent() {
       ],
     };
 
-    // Données pour le graphique par catégorie
+    // Données pour le graphique par catégorie de dépenses
     const pieChartColors = [
       '#2E7D32',
       '#4CAF50',
@@ -99,22 +115,48 @@ export default function FinanceGraphiquesComponent() {
       };
     });
 
+    // Données pour le graphique par catégorie de revenus
+    const revenusPieChartData = Object.entries(revenusCategoryData).map(([category, montant]) => {
+      const categoryLabels: Record<string, string> = {
+        vente_porc: 'Vente porc',
+        vente_autre: 'Vente autre',
+        subvention: 'Subvention',
+        autre: 'Autre',
+      };
+      return {
+        name: categoryLabels[category] || category,
+        population: montant,
+        color: pieChartColors[Object.keys(revenusCategoryData).indexOf(category) % pieChartColors.length],
+        legendFontColor: colors.text,
+        legendFontSize: 12,
+      };
+    });
+
     // Indicateurs clés
     const currentMonth = monthsData[monthsData.length - 1];
     const budgetMois = currentMonth.planifie;
     const depensesReelles = currentMonth.reel;
+    const revenusMois = currentMonth.revenus;
     const ecart = budgetMois - depensesReelles;
+    const solde = revenusMois - depensesReelles;
     const depensesTotal = depensesPonctuelles.reduce((sum, dp) => sum + dp.montant, 0);
+    const revenusTotal = revenus.reduce((sum, r) => sum + r.montant, 0);
+    const soldeTotal = revenusTotal - depensesTotal;
 
     return {
       lineChartData,
       pieChartData,
+      revenusPieChartData,
       budgetMois,
       depensesReelles,
+      revenusMois,
       ecart,
+      solde,
       depensesTotal,
+      revenusTotal,
+      soldeTotal,
     };
-  }, [chargesFixes, depensesPonctuelles, colors]);
+  }, [chargesFixes, depensesPonctuelles, revenus, colors]);
 
   const chartConfig = useMemo(() => ({
     backgroundColor: colors.background,
@@ -133,7 +175,7 @@ export default function FinanceGraphiquesComponent() {
     },
   }), [colors, isDark]);
 
-  // Calculer les données pour le graphique réel (utilisé dans le rendu)
+  // Calculer les données pour le graphique réel et revenus (utilisé dans le rendu)
   const monthsDataForReel = useMemo(() => {
     const now = new Date();
     const data = [];
@@ -149,10 +191,17 @@ export default function FinanceGraphiquesComponent() {
         })
         .reduce((sum, dp) => sum + dp.montant, 0);
 
-      data.push(reel);
+      const revenusMois = revenus
+        .filter((r) => {
+          const rDate = parseISO(r.date);
+          return rDate >= monthStart && rDate <= monthEnd;
+        })
+        .reduce((sum, r) => sum + r.montant, 0);
+
+      data.push({ reel, revenus: revenusMois });
     }
     return data;
-  }, [depensesPonctuelles]);
+  }, [depensesPonctuelles, revenus]);
 
   const formatAmount = (amount: number) => {
     return new Intl.NumberFormat('fr-FR', {
@@ -173,19 +222,19 @@ export default function FinanceGraphiquesComponent() {
         {/* Indicateurs clés */}
         <View style={styles.statsContainer}>
           <StatCard
-            value={formatAmount(graphData.budgetMois)}
-            label="Budget du mois"
-            valueColor={colors.primary}
+            value={formatAmount(graphData.revenusMois)}
+            label="Revenus du mois"
+            valueColor={colors.success || colors.primary}
           />
           <StatCard
             value={formatAmount(graphData.depensesReelles)}
-            label="Dépenses réelles"
+            label="Dépenses du mois"
             valueColor={colors.accent}
           />
           <StatCard
-            value={formatAmount(graphData.ecart)}
-            label={graphData.ecart >= 0 ? 'Écart (sous budget)' : 'Écart (dépassement)'}
-            valueColor={graphData.ecart >= 0 ? colors.success : colors.error}
+            value={formatAmount(graphData.solde)}
+            label={graphData.solde >= 0 ? 'Solde (bénéfice)' : 'Solde (perte)'}
+            valueColor={graphData.solde >= 0 ? colors.success : colors.error}
           />
         </View>
 
@@ -209,13 +258,13 @@ export default function FinanceGraphiquesComponent() {
                 />
               </View>
               <View style={styles.chartContainer}>
-                <Text style={[styles.chartSubtitle, { color: colors.text }]}>Réel</Text>
+                <Text style={[styles.chartSubtitle, { color: colors.text }]}>Dépenses réelles</Text>
                 <LineChart
                   data={{
                     labels: graphData.lineChartData.labels,
                     datasets: [
                       {
-                        data: monthsDataForReel.map((d) => Math.round(d)),
+                        data: monthsDataForReel.map((d) => Math.round(d.reel)),
                       },
                     ],
                   }}
@@ -229,6 +278,27 @@ export default function FinanceGraphiquesComponent() {
                   style={styles.chart}
                 />
               </View>
+              <View style={styles.chartContainer}>
+                <Text style={[styles.chartSubtitle, { color: colors.text }]}>Revenus</Text>
+                <LineChart
+                  data={{
+                    labels: graphData.lineChartData.labels,
+                    datasets: [
+                      {
+                        data: monthsDataForReel.map((d) => Math.round(d.revenus)),
+                      },
+                    ],
+                  }}
+                  width={screenWidth - SPACING.lg * 2}
+                  height={200}
+                  chartConfig={{
+                    ...chartConfig,
+                    color: (opacity = 1) => `rgba(46, 125, 50, ${opacity})`,
+                  }}
+                  bezier
+                  style={styles.chart}
+                />
+              </View>
             </>
           ) : (
             <View style={styles.emptyChart}>
@@ -237,12 +307,29 @@ export default function FinanceGraphiquesComponent() {
           )}
         </View>
 
-        {/* Graphique par catégorie */}
+        {/* Graphique par catégorie de dépenses */}
         {graphData.pieChartData.length > 0 && (
           <View style={[styles.chartSection, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.chartTitle, { color: colors.text }]}>Répartition par catégorie</Text>
+            <Text style={[styles.chartTitle, { color: colors.text }]}>Répartition des dépenses par catégorie</Text>
             <PieChart
               data={graphData.pieChartData}
+              width={screenWidth - SPACING.lg * 2}
+              height={220}
+              chartConfig={chartConfig}
+              accessor="population"
+              backgroundColor="transparent"
+              paddingLeft="15"
+              style={styles.chart}
+            />
+          </View>
+        )}
+
+        {/* Graphique par catégorie de revenus */}
+        {graphData.revenusPieChartData.length > 0 && (
+          <View style={[styles.chartSection, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.chartTitle, { color: colors.text }]}>Répartition des revenus par catégorie</Text>
+            <PieChart
+              data={graphData.revenusPieChartData}
               width={screenWidth - SPACING.lg * 2}
               height={220}
               chartConfig={chartConfig}
@@ -258,8 +345,22 @@ export default function FinanceGraphiquesComponent() {
         <View style={[styles.summarySection, { backgroundColor: colors.surface }]}>
           <Text style={[styles.summaryTitle, { color: colors.text }]}>Résumé total</Text>
           <View style={styles.summaryRow}>
-            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Total des dépenses enregistrées:</Text>
+            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Total des revenus:</Text>
+            <Text style={[styles.summaryValue, { color: colors.success || colors.primary }]}>{formatAmount(graphData.revenusTotal)}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Total des dépenses:</Text>
             <Text style={[styles.summaryValue, { color: colors.text }]}>{formatAmount(graphData.depensesTotal)}</Text>
+          </View>
+          <View style={[styles.summaryRow, { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: SPACING.sm, marginTop: SPACING.sm }]}>
+            <Text style={[styles.summaryLabel, { color: colors.text, fontWeight: 'bold' }]}>Solde total:</Text>
+            <Text style={[styles.summaryValue, { color: graphData.soldeTotal >= 0 ? colors.success : colors.error, fontWeight: 'bold' }]}>
+              {formatAmount(graphData.soldeTotal)}
+            </Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Nombre de revenus:</Text>
+            <Text style={[styles.summaryValue, { color: colors.text }]}>{revenus.length}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Nombre de dépenses:</Text>

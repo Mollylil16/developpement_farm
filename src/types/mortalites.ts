@@ -11,6 +11,7 @@ export interface Mortalite {
   date: string; // Date ISO
   cause?: string; // Cause de la mortalité (maladie, accident, etc.)
   categorie: CategorieMortalite;
+  animal_code?: string; // Code du sujet mort (optionnel, pour les animaux enregistrés)
   notes?: string;
   date_creation: string;
 }
@@ -21,6 +22,7 @@ export interface CreateMortaliteInput {
   date: string;
   cause?: string;
   categorie: CategorieMortalite;
+  animal_code?: string; // Code du sujet mort (optionnel)
   notes?: string;
 }
 
@@ -29,6 +31,7 @@ export interface UpdateMortaliteInput {
   date?: string;
   cause?: string;
   categorie?: CategorieMortalite;
+  animal_code?: string;
   notes?: string;
 }
 

@@ -9,6 +9,8 @@ import {
   ChargeFixe,
   DepensePonctuelle,
   UpdateDepensePonctuelleInput,
+  Revenu,
+  UpdateRevenuInput,
   Gestation,
   Sevrage,
   Ingredient,
@@ -30,6 +32,7 @@ import {
   CreatePeseeInput,
   ProductionStandardGMQ,
   getStandardGMQ,
+  User,
 } from '../types';
 import { calculerDateMiseBasPrevue } from '../types/reproduction';
 
@@ -44,6 +47,7 @@ class DatabaseService {
       this.db = await SQLite.openDatabaseAsync('fermier_pro.db');
       await this.createTables();
       await this.migrateTables();
+      await this.createIndexesWithProjetId();
     } catch (error) {
       console.error('Erreur lors de l\'initialisation de la base de données:', error);
       throw error;
@@ -59,20 +63,126 @@ class DatabaseService {
     }
 
     try {
-      // Migration: Ajouter projet_id à la table rations si elle n'existe pas
-      const tableInfo = await this.db.getFirstAsync<{ name: string } | null>(
-        "SELECT name FROM pragma_table_info('rations') WHERE name = 'projet_id'"
-      );
+      // Toutes les migrations sont dans un try-catch global pour éviter qu'une erreur bloque l'initialisation
       
-      if (!tableInfo) {
-        // La colonne n'existe pas, on l'ajoute
-        await this.db.execAsync(`
-          ALTER TABLE rations ADD COLUMN projet_id TEXT;
-        `);
-        
-        // Pour les rations existantes sans projet_id, on peut les associer au premier projet actif
-        // ou les laisser NULL (selon votre logique métier)
-        console.log('Migration: Colonne projet_id ajoutée à la table rations');
+      // Migration: Mettre à jour la table users pour supporter email OU téléphone (sans mot de passe)
+      try {
+        const usersTableExists = await this.db.getFirstAsync<{ name: string } | null>(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='users'"
+        );
+
+        if (usersTableExists) {
+          // Vérifier si la colonne telephone existe
+          const telephoneInfo = await this.db.getFirstAsync<{ name: string } | null>(
+            "SELECT name FROM pragma_table_info('users') WHERE name = 'telephone'"
+          );
+
+          if (!telephoneInfo) {
+            // Ajouter la colonne telephone
+            await this.db.execAsync(`
+              ALTER TABLE users ADD COLUMN telephone TEXT;
+            `);
+            console.log('Migration: Colonne telephone ajoutée à la table users');
+          }
+
+          // Vérifier si la colonne email est encore NOT NULL (anciennes installations)
+          const usersColumns = await this.db.getAllAsync<{
+            name: string;
+            notnull: number;
+          }>("PRAGMA table_info('users')");
+
+          const emailColumn = usersColumns.find((col) => col.name === 'email');
+
+          if (emailColumn && emailColumn.notnull === 1) {
+            console.log(
+              'Migration: Recréation de la table users pour permettre email ou téléphone facultatif'
+            );
+
+            // Renommer l'ancienne table
+            await this.db.execAsync(`ALTER TABLE users RENAME TO users_old;`);
+
+            // Recréer la table avec la nouvelle structure (email/telephone facultatifs)
+            await this.db.execAsync(`
+              CREATE TABLE users (
+                id TEXT PRIMARY KEY,
+                email TEXT UNIQUE,
+                telephone TEXT UNIQUE,
+                nom TEXT NOT NULL,
+                prenom TEXT NOT NULL,
+                password_hash TEXT,
+                provider TEXT NOT NULL CHECK (provider IN ('email', 'google', 'apple', 'telephone')) DEFAULT 'email',
+                provider_id TEXT,
+                photo TEXT,
+                date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+                derniere_connexion TEXT,
+                is_active INTEGER DEFAULT 1 CHECK (is_active IN (0, 1)),
+                CHECK (email IS NOT NULL OR telephone IS NOT NULL)
+              );
+            `);
+
+            // Copier les données existantes
+            await this.db.execAsync(`
+              INSERT INTO users (
+                id, email, telephone, nom, prenom, password_hash, provider,
+                provider_id, photo, date_creation, derniere_connexion, is_active
+              )
+              SELECT
+                id,
+                NULLIF(email, ''),
+                NULLIF(telephone, ''),
+                nom,
+                prenom,
+                password_hash,
+                CASE
+                  WHEN provider IN ('email', 'google', 'apple', 'telephone') THEN provider
+                  ELSE 'email'
+                END,
+                provider_id,
+                photo,
+                date_creation,
+                derniere_connexion,
+                COALESCE(is_active, 1)
+              FROM users_old;
+            `);
+
+            // Supprimer l'ancienne table
+            await this.db.execAsync(`DROP TABLE users_old;`);
+
+            console.log('Migration: Table users recréée avec succès');
+          }
+        }
+      } catch (error: any) {
+        console.warn('Erreur lors de la migration de la table users:', error?.message || error);
+      }
+
+      // Migration: Ajouter projet_id à la table rations si elle n'existe pas
+      try {
+        // Vérifier d'abord si la table rations existe
+        const rationsTableExists = await this.db.getFirstAsync<{ name: string } | null>(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='rations'"
+        );
+
+        if (rationsTableExists) {
+          const tableInfo = await this.db.getFirstAsync<{ name: string } | null>(
+            "SELECT name FROM pragma_table_info('rations') WHERE name = 'projet_id'"
+          );
+          
+          if (!tableInfo) {
+            // La colonne n'existe pas, on l'ajoute
+            await this.db.execAsync(`
+              ALTER TABLE rations ADD COLUMN projet_id TEXT;
+            `);
+            
+            // Pour les rations existantes sans projet_id, on peut les associer au premier projet actif
+            // ou les laisser NULL (selon votre logique métier)
+            console.log('Migration: Colonne projet_id ajoutée à la table rations');
+          }
+        } else {
+          // Table n'existe pas encore, elle sera créée avec projet_id dans createTables
+          console.log('Migration: Table rations n\'existe pas encore, sera créée avec projet_id');
+        }
+      } catch (error: any) {
+        console.warn('Erreur lors de la migration projet_id pour rations:', error?.message || error);
       }
 
       // Migration: Ajouter statut à la table production_animaux si elle n'existe pas
@@ -98,10 +208,625 @@ class DatabaseService {
         
         console.log('Migration: Colonne statut ajoutée à la table production_animaux');
       }
+
+      // Migration: Ajouter race à la table production_animaux si elle n'existe pas
+      const raceInfo = await this.db.getFirstAsync<{ name: string } | null>(
+        "SELECT name FROM pragma_table_info('production_animaux') WHERE name = 'race'"
+      );
+
+      if (!raceInfo) {
+        await this.db.execAsync(`
+          ALTER TABLE production_animaux ADD COLUMN race TEXT;
+        `);
+        console.log('Migration: Colonne race ajoutée à la table production_animaux');
+      }
+
+      // Migration: Ajouter reproducteur (booléen) si absent
+      const reproducteurInfo = await this.db.getFirstAsync<{ name: string } | null>(
+        "SELECT name FROM pragma_table_info('production_animaux') WHERE name = 'reproducteur'"
+      );
+
+      if (!reproducteurInfo) {
+        await this.db.execAsync(`
+          ALTER TABLE production_animaux ADD COLUMN reproducteur INTEGER DEFAULT 0 CHECK (reproducteur IN (0, 1));
+        `);
+        await this.db.execAsync(`
+          UPDATE production_animaux SET reproducteur = 0 WHERE reproducteur IS NULL;
+        `);
+        console.log('Migration: Colonne reproducteur ajoutée à la table production_animaux');
+      }
+
+      // Migration: Ajouter pere_id si absent
+      const pereInfo = await this.db.getFirstAsync<{ name: string } | null>(
+        "SELECT name FROM pragma_table_info('production_animaux') WHERE name = 'pere_id'"
+      );
+
+      if (!pereInfo) {
+        await this.db.execAsync(`
+          ALTER TABLE production_animaux ADD COLUMN pere_id TEXT;
+        `);
+        console.log('Migration: Colonne pere_id ajoutée à la table production_animaux');
+      }
+
+      // Migration: Ajouter mere_id si absent
+      const mereInfo = await this.db.getFirstAsync<{ name: string } | null>(
+        "SELECT name FROM pragma_table_info('production_animaux') WHERE name = 'mere_id'"
+      );
+
+      if (!mereInfo) {
+        await this.db.execAsync(`
+          ALTER TABLE production_animaux ADD COLUMN mere_id TEXT;
+        `);
+        console.log('Migration: Colonne mere_id ajoutée à la table production_animaux');
+      }
+
+      // Migration: Ajouter verrat_id à la table gestations si elle n'existe pas
+      try {
+        // Vérifier d'abord si la table gestations existe
+        const gestationsTableExistsForVerratId = await this.db.getFirstAsync<{ name: string } | null>(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='gestations'"
+        );
+
+        if (gestationsTableExistsForVerratId) {
+          const verratIdInfo = await this.db.getFirstAsync<{ name: string } | null>(
+            "SELECT name FROM pragma_table_info('gestations') WHERE name = 'verrat_id'"
+          );
+
+          if (!verratIdInfo) {
+            await this.db.execAsync(`
+              ALTER TABLE gestations ADD COLUMN verrat_id TEXT;
+            `);
+            console.log('Migration: Colonne verrat_id ajoutée à la table gestations');
+          }
+        }
+      } catch (error: any) {
+        console.warn('Erreur lors de la migration verrat_id pour gestations:', error?.message || error);
+      }
+
+      // Migration: Ajouter verrat_nom à la table gestations si elle n'existe pas
+      try {
+        // Vérifier d'abord si la table gestations existe
+        const gestationsTableExistsForVerratNom = await this.db.getFirstAsync<{ name: string } | null>(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='gestations'"
+        );
+
+        if (gestationsTableExistsForVerratNom) {
+          const verratNomInfo = await this.db.getFirstAsync<{ name: string } | null>(
+            "SELECT name FROM pragma_table_info('gestations') WHERE name = 'verrat_nom'"
+          );
+
+          if (!verratNomInfo) {
+            await this.db.execAsync(`
+              ALTER TABLE gestations ADD COLUMN verrat_nom TEXT;
+            `);
+            console.log('Migration: Colonne verrat_nom ajoutée à la table gestations');
+          }
+        }
+      } catch (error: any) {
+        console.warn('Erreur lors de la migration verrat_nom pour gestations:', error?.message || error);
+      }
+
+      // Migration: Ajouter projet_id à la table gestations si elle n'existe pas
+      try {
+        // Vérifier d'abord si la table gestations existe
+        const gestationsTableExists = await this.db.getFirstAsync<{ name: string } | null>(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='gestations'"
+        );
+
+        if (gestationsTableExists) {
+          const gestationsProjetIdInfo = await this.db.getFirstAsync<{ name: string } | null>(
+            "SELECT name FROM pragma_table_info('gestations') WHERE name = 'projet_id'"
+          );
+
+          if (!gestationsProjetIdInfo) {
+            await this.db.execAsync(`
+              ALTER TABLE gestations ADD COLUMN projet_id TEXT;
+            `);
+            // Mettre à jour les gestations existantes avec le premier projet actif (si disponible)
+            const premierProjet = await this.db.getFirstAsync<{ id: string } | null>(
+              'SELECT id FROM projets ORDER BY date_creation ASC LIMIT 1'
+            );
+            if (premierProjet) {
+              await this.db.runAsync(
+                'UPDATE gestations SET projet_id = ? WHERE projet_id IS NULL',
+                [premierProjet.id]
+              );
+            }
+            console.log('Migration: Colonne projet_id ajoutée à la table gestations');
+          }
+        } else {
+          // Table n'existe pas encore, elle sera créée avec projet_id dans createTables
+          console.log('Migration: Table gestations n\'existe pas encore, sera créée avec projet_id');
+        }
+      } catch (error: any) {
+        console.warn('Erreur lors de la migration projet_id pour gestations:', error?.message || error);
+      }
+
+      // Migration: Ajouter animal_code à la table mortalites si elle n'existe pas
+      try {
+        // Vérifier d'abord si la table mortalites existe
+        const mortalitesTableExists = await this.db.getFirstAsync<{ name: string } | null>(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='mortalites'"
+        );
+
+        if (mortalitesTableExists) {
+          const animalCodeInfo = await this.db.getFirstAsync<{ name: string } | null>(
+            "SELECT name FROM pragma_table_info('mortalites') WHERE name = 'animal_code'"
+          );
+
+          if (!animalCodeInfo) {
+            await this.db.execAsync(`
+              ALTER TABLE mortalites ADD COLUMN animal_code TEXT;
+            `);
+            console.log('Migration: Colonne animal_code ajoutée à la table mortalites');
+          }
+        } else {
+          // Table n'existe pas encore, elle sera créée avec animal_code dans createTables
+          console.log('Migration: Table mortalites n\'existe pas encore, sera créée avec animal_code');
+        }
+      } catch (error: any) {
+        console.warn('Erreur lors de la migration animal_code pour mortalites:', error?.message || error);
+      }
+
+      // Migration: Ajouter projet_id à la table sevrages si elle n'existe pas
+      // IMPORTANT: Cette migration doit être exécutée APRÈS celle de gestations
+      try {
+        // Vérifier d'abord si la table sevrages existe
+        const sevragesTableExists = await this.db.getFirstAsync<{ name: string } | null>(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='sevrages'"
+        );
+
+        if (!sevragesTableExists) {
+          // Table n'existe pas encore, elle sera créée avec projet_id dans createTables
+          console.log('Migration: Table sevrages n\'existe pas encore, sera créée avec projet_id');
+        } else {
+          const sevragesProjetIdInfo = await this.db.getFirstAsync<{ name: string } | null>(
+            "SELECT name FROM pragma_table_info('sevrages') WHERE name = 'projet_id'"
+          );
+
+          if (!sevragesProjetIdInfo) {
+            await this.db.execAsync(`
+              ALTER TABLE sevrages ADD COLUMN projet_id TEXT;
+            `);
+            
+            // Vérifier d'abord si la table gestations existe et a la colonne projet_id
+            const gestationsTableExists = await this.db.getFirstAsync<{ name: string } | null>(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name='gestations'"
+            );
+            
+            if (gestationsTableExists) {
+              const gestationsHasProjetId = await this.db.getFirstAsync<{ name: string } | null>(
+                "SELECT name FROM pragma_table_info('gestations') WHERE name = 'projet_id'"
+              );
+              
+              if (gestationsHasProjetId) {
+                // Vérifier que la colonne projet_id est réellement utilisable dans gestations
+                try {
+                  // Test de la colonne avec une requête simple
+                  await this.db.getFirstAsync<any>('SELECT projet_id FROM gestations LIMIT 1');
+                  
+                  // Si on arrive ici, la colonne est utilisable
+                  // Vérifier qu'il y a des gestations avec projet_id
+                  const gestationsAvecProjetId = await this.db.getFirstAsync<{ count: number } | null>(
+                    'SELECT COUNT(*) as count FROM gestations WHERE projet_id IS NOT NULL'
+                  );
+                  
+                  if (gestationsAvecProjetId && gestationsAvecProjetId.count > 0) {
+                    // Utiliser une requête UPDATE avec sous-requête
+                    await this.db.runAsync(
+                      `UPDATE sevrages 
+                       SET projet_id = (
+                         SELECT projet_id FROM gestations 
+                         WHERE gestations.id = sevrages.gestation_id 
+                         LIMIT 1
+                       )
+                       WHERE projet_id IS NULL AND EXISTS (
+                         SELECT 1 FROM gestations 
+                         WHERE gestations.id = sevrages.gestation_id 
+                         AND gestations.projet_id IS NOT NULL
+                       )`
+                    );
+                  } else {
+                    // Pas de gestations avec projet_id, utiliser le premier projet
+                    const premierProjet = await this.db.getFirstAsync<{ id: string } | null>(
+                      'SELECT id FROM projets ORDER BY date_creation ASC LIMIT 1'
+                    );
+                    if (premierProjet) {
+                      await this.db.runAsync(
+                        'UPDATE sevrages SET projet_id = ? WHERE projet_id IS NULL',
+                        [premierProjet.id]
+                      );
+                    }
+                  }
+                } catch (testError: any) {
+                  // Si la colonne n'est pas utilisable, utiliser le premier projet comme fallback
+                  console.warn('Colonne projet_id non utilisable dans gestations, utilisation du fallback:', testError?.message || testError);
+                  const premierProjet = await this.db.getFirstAsync<{ id: string } | null>(
+                    'SELECT id FROM projets ORDER BY date_creation ASC LIMIT 1'
+                  );
+                  if (premierProjet) {
+                    await this.db.runAsync(
+                      'UPDATE sevrages SET projet_id = ? WHERE projet_id IS NULL',
+                      [premierProjet.id]
+                    );
+                  }
+                }
+              } else {
+                // gestations n'a pas encore projet_id, utiliser le premier projet
+                const premierProjet = await this.db.getFirstAsync<{ id: string } | null>(
+                  'SELECT id FROM projets ORDER BY date_creation ASC LIMIT 1'
+                );
+                if (premierProjet) {
+                  await this.db.runAsync(
+                    'UPDATE sevrages SET projet_id = ? WHERE projet_id IS NULL',
+                    [premierProjet.id]
+                  );
+                }
+              }
+            } else {
+              // Table gestations n'existe pas, utiliser le premier projet
+              const premierProjet = await this.db.getFirstAsync<{ id: string } | null>(
+                'SELECT id FROM projets ORDER BY date_creation ASC LIMIT 1'
+              );
+              if (premierProjet) {
+                await this.db.runAsync(
+                  'UPDATE sevrages SET projet_id = ? WHERE projet_id IS NULL',
+                  [premierProjet.id]
+                );
+              }
+            }
+            console.log('Migration: Colonne projet_id ajoutée à la table sevrages');
+          }
+        }
+      } catch (error: any) {
+        console.warn('Erreur lors de la migration projet_id pour sevrages:', error?.message || error);
+      }
+
+      // Migration: Ajouter projet_id à la table depenses_ponctuelles si elle n'existe pas
+      try {
+        // Vérifier d'abord si la table depenses_ponctuelles existe
+        const depensesTableExists = await this.db.getFirstAsync<{ name: string } | null>(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='depenses_ponctuelles'"
+        );
+
+        if (depensesTableExists) {
+          const depensesProjetIdInfo = await this.db.getFirstAsync<{ name: string } | null>(
+            "SELECT name FROM pragma_table_info('depenses_ponctuelles') WHERE name = 'projet_id'"
+          );
+
+          if (!depensesProjetIdInfo) {
+            await this.db.execAsync(`
+              ALTER TABLE depenses_ponctuelles ADD COLUMN projet_id TEXT;
+            `);
+            // Mettre à jour les dépenses existantes avec le premier projet actif (si disponible)
+            const premierProjet = await this.db.getFirstAsync<{ id: string } | null>(
+              'SELECT id FROM projets ORDER BY date_creation ASC LIMIT 1'
+            );
+            if (premierProjet) {
+              await this.db.runAsync(
+                'UPDATE depenses_ponctuelles SET projet_id = ? WHERE projet_id IS NULL',
+                [premierProjet.id]
+              );
+            }
+            console.log('Migration: Colonne projet_id ajoutée à la table depenses_ponctuelles');
+          }
+        } else {
+          // Table n'existe pas encore, elle sera créée avec projet_id dans createTables
+          console.log('Migration: Table depenses_ponctuelles n\'existe pas encore, sera créée avec projet_id');
+        }
+      } catch (error: any) {
+        console.warn('Erreur lors de la migration projet_id pour depenses_ponctuelles:', error?.message || error);
+      }
+
+      // Migration: Recalculer les GMQ des pesées existantes avec la nouvelle fonction de calcul
+      // Cette migration ne s'exécute qu'une seule fois (vérification via une table de migrations)
+      try {
+        // Vérifier si la migration a déjà été effectuée
+        const migrationCheck = await this.db.getFirstAsync<{ name: string } | null>(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='_migrations'"
+        );
+
+        let migrationEffectuee = false;
+        if (migrationCheck) {
+          const gmqMigration = await this.db.getFirstAsync<{ done: number } | null>(
+            "SELECT done FROM _migrations WHERE migration = 'recalcul_gmq_2025'"
+          );
+          migrationEffectuee = gmqMigration?.done === 1;
+        } else {
+          // Créer la table de migrations si elle n'existe pas
+          await this.db.execAsync(`
+            CREATE TABLE IF NOT EXISTS _migrations (
+              migration TEXT PRIMARY KEY,
+              done INTEGER DEFAULT 0,
+              date TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+          `);
+        }
+
+        if (!migrationEffectuee) {
+          const toutesLesPesees = await this.db.getAllAsync<any>(
+            'SELECT id, animal_id, date, poids_kg FROM production_pesees ORDER BY animal_id, date ASC'
+          );
+
+          for (const pesee of toutesLesPesees) {
+            const animal = await this.getProductionAnimalById(pesee.animal_id);
+            // Récupérer la pesée précédente en excluant la pesée actuelle
+            const previous = await this.db.getFirstAsync<any>(
+              'SELECT * FROM production_pesees WHERE animal_id = ? AND date < ? AND id != ? ORDER BY date DESC LIMIT 1',
+              [pesee.animal_id, pesee.date, pesee.id]
+            );
+
+            let poidsReference = animal.poids_initial ?? null;
+            let dateReference = animal.date_entree ?? null;
+
+            if (previous) {
+              poidsReference = previous.poids_kg;
+              dateReference = previous.date;
+            }
+
+            let gmq: number | null = null;
+            let difference_standard: number | null = null;
+
+            if (poidsReference !== null && dateReference) {
+              const diffJours = this.calculateDayDifference(dateReference, pesee.date);
+              if (diffJours > 0) {
+                gmq = ((pesee.poids_kg - poidsReference) * 1000) / diffJours; // g/jour
+                const standard = getStandardGMQ(pesee.poids_kg);
+                if (standard) {
+                  difference_standard = gmq - standard.gmq_cible;
+                }
+              }
+            }
+
+            // Mettre à jour le GMQ de cette pesée
+            await this.db.runAsync(
+              'UPDATE production_pesees SET gmq = ?, difference_standard = ? WHERE id = ?',
+              [gmq ?? null, difference_standard ?? null, pesee.id]
+            );
+          }
+
+          if (toutesLesPesees.length > 0) {
+            console.log(`Migration: GMQ recalculé pour ${toutesLesPesees.length} pesées`);
+          }
+
+          // Marquer la migration comme effectuée
+          await this.db.runAsync(
+            'INSERT OR REPLACE INTO _migrations (migration, done) VALUES (?, ?)',
+            ['recalcul_gmq_2025', 1]
+          );
+        }
+      } catch (error) {
+        // Si le recalcul échoue, on continue quand même
+        console.warn('Erreur lors du recalcul des GMQ:', error);
+      }
     } catch (error) {
       // Si la migration échoue, on continue quand même
       console.warn('Erreur lors de la migration des tables:', error);
     }
+  }
+
+  /**
+   * Créer les index qui utilisent projet_id après les migrations
+   * CRITIQUE: Ces index sont essentiels pour les performances (53+ requêtes utilisent projet_id)
+   * Création individuelle avec gestion d'erreur et réessai agressif pour chaque index
+   */
+  private async createIndexesWithProjetId(): Promise<void> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée lors de la création des index');
+    }
+
+    // Liste des index à créer avec leur table et colonne
+    // CRITIQUES: Tous ces index sont essentiels pour les performances
+    const indexes = [
+      { name: 'idx_depenses_projet', table: 'depenses_ponctuelles', column: 'projet_id', critical: true },
+      { name: 'idx_revenus_projet', table: 'revenus', column: 'projet_id', critical: true },
+      { name: 'idx_rapports_croissance_projet', table: 'rapports_croissance', column: 'projet_id', critical: true },
+      { name: 'idx_mortalites_projet', table: 'mortalites', column: 'projet_id', critical: true },
+      { name: 'idx_planifications_projet', table: 'planifications', column: 'projet_id', critical: true },
+      { name: 'idx_collaborations_projet', table: 'collaborations', column: 'projet_id', critical: true },
+      { name: 'idx_stocks_aliments_projet', table: 'stocks_aliments', column: 'projet_id', critical: true },
+      { name: 'idx_production_animaux_code', table: 'production_animaux', column: 'projet_id', unique: true, additionalColumns: 'code', critical: true },
+    ];
+
+    // Fonction helper pour vérifier si un index existe déjà
+    const indexExists = async (indexName: string): Promise<boolean> => {
+      try {
+        const result = await this.db!.getFirstAsync<{ name: string } | null>(
+          `SELECT name FROM sqlite_master WHERE type='index' AND name='${indexName}'`
+        );
+        return result !== null;
+      } catch {
+        return false;
+      }
+    };
+
+    // Fonction helper pour créer un index avec réessai agressif
+    const createIndexWithRetry = async (
+      index: typeof indexes[0],
+      maxRetries: number = 5  // Augmenté à 5 tentatives pour être plus agressif
+    ): Promise<boolean> => {
+      // Vérifier d'abord si l'index existe déjà
+      if (await indexExists(index.name)) {
+        return true;
+      }
+
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          // Vérifier que la table existe
+          const tableExists = await this.db!.getFirstAsync<{ name: string } | null>(
+            `SELECT name FROM sqlite_master WHERE type='table' AND name='${index.table}'`
+          );
+          
+          if (!tableExists) {
+            console.error(`❌ Index ${index.name} non créé: table ${index.table} n'existe pas`);
+            return false;
+          }
+
+          // Vérifier que la colonne projet_id existe
+          const columnExists = await this.db!.getFirstAsync<{ name: string } | null>(
+            `SELECT name FROM pragma_table_info('${index.table}') WHERE name = '${index.column}'`
+          );
+
+          if (!columnExists) {
+            console.error(`❌ Index ${index.name} non créé: colonne ${index.column} n'existe pas dans ${index.table}`);
+            return false;
+          }
+
+          // Créer l'index
+          if (index.unique && index.additionalColumns) {
+            await this.db!.execAsync(
+              `CREATE UNIQUE INDEX IF NOT EXISTS ${index.name} ON ${index.table}(${index.column}, ${index.additionalColumns})`
+            );
+          } else {
+            await this.db!.execAsync(
+              `CREATE INDEX IF NOT EXISTS ${index.name} ON ${index.table}(${index.column})`
+            );
+          }
+
+          // Vérifier que l'index a bien été créé
+          if (await indexExists(index.name)) {
+            console.log(`✓ Index ${index.name} créé avec succès`);
+            return true;
+          } else {
+            throw new Error(`Index ${index.name} n'a pas été créé après l'exécution`);
+          }
+        } catch (error: any) {
+          const errorMessage = error?.message || error;
+          
+          if (attempt < maxRetries) {
+            // Délai progressif plus long pour les tentatives suivantes
+            const delay = Math.min(200 * attempt, 1000); // Max 1 seconde
+            await new Promise(resolve => setTimeout(resolve, delay));
+            console.warn(`⚠ Tentative ${attempt}/${maxRetries} échouée pour ${index.name}, réessai dans ${delay}ms...`, errorMessage);
+          } else {
+            // Dernière tentative échouée
+            console.error(`❌ Échec définitif de création de l'index ${index.name} après ${maxRetries} tentatives:`, errorMessage);
+            return false;
+          }
+        }
+      }
+
+      return false;
+    };
+
+    // Créer tous les index (séquentiellement pour éviter les conflits)
+    const results: boolean[] = [];
+    for (const index of indexes) {
+      const success = await createIndexWithRetry(index);
+      results.push(success);
+    }
+
+    // Créer les index qui dépendent de colonnes ajoutées par migration (mais pas projet_id)
+    // Index sur users(telephone) - colonne ajoutée par migration
+    try {
+      const usersTableExists = await this.db.getFirstAsync<{ name: string } | null>(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='users'"
+      );
+
+      if (usersTableExists) {
+        const telephoneColumnExists = await this.db.getFirstAsync<{ name: string } | null>(
+          "SELECT name FROM pragma_table_info('users') WHERE name = 'telephone'"
+        );
+
+        if (telephoneColumnExists) {
+          if (!(await indexExists('idx_users_telephone'))) {
+            await this.db.execAsync(`
+              CREATE INDEX IF NOT EXISTS idx_users_telephone ON users(telephone);
+            `);
+            console.log('✓ Index idx_users_telephone créé avec succès');
+          }
+        }
+      }
+    } catch (error: any) {
+      console.warn('Erreur lors de la création de idx_users_telephone:', error?.message || error);
+    }
+
+    // Index sur production_animaux(reproducteur) - colonne ajoutée par migration
+    try {
+      const tableExists = await this.db.getFirstAsync<{ name: string } | null>(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='production_animaux'"
+      );
+      
+      if (tableExists) {
+        const columnExists = await this.db.getFirstAsync<{ name: string } | null>(
+          "SELECT name FROM pragma_table_info('production_animaux') WHERE name = 'reproducteur'"
+        );
+
+        if (columnExists) {
+          if (!(await indexExists('idx_production_animaux_reproducteur'))) {
+            await this.db.execAsync(`
+              CREATE INDEX IF NOT EXISTS idx_production_animaux_reproducteur ON production_animaux(reproducteur);
+            `);
+            console.log('✓ Index idx_production_animaux_reproducteur créé avec succès');
+          }
+        }
+      }
+    } catch (error: any) {
+      console.warn('Erreur lors de la création de idx_production_animaux_reproducteur:', error?.message || error);
+    }
+
+    // Résumé et vérification critique
+    const successCount = results.filter(r => r).length;
+    const failCount = results.filter(r => !r).length;
+    const failedIndexes = indexes.filter((_, i) => !results[i]);
+
+    if (failCount > 0) {
+      console.error(`❌ CRITIQUE: ${failCount} index(s) critique(s) n'ont pas pu être créés:`, failedIndexes.map(i => i.name).join(', '));
+      console.error(`⚠ Sans ces index, les requêtes sur projet_id seront TRÈS LENTES (scan complet de table)`);
+      console.error(`⚠ L'application fonctionnera mais l'expérience utilisateur sera dégradée`);
+      
+      // Ne pas bloquer l'initialisation, mais logger sévèrement
+      // L'application pourra réessayer lors de la prochaine initialisation
+    } else {
+      console.log(`✓ Tous les index critiques (${successCount}/${indexes.length}) ont été créés avec succès`);
+    }
+  }
+
+  /**
+   * Vérifie et répare les index manquants (peut être appelé périodiquement)
+   */
+  async repairMissingIndexes(): Promise<{ repaired: number; failed: number }> {
+    if (!this.db) {
+      return { repaired: 0, failed: 0 };
+    }
+
+    console.log('🔧 Vérification et réparation des index manquants...');
+    await this.createIndexesWithProjetId();
+    
+    // Compter les index manquants après réparation
+    const indexes = [
+      'idx_depenses_projet',
+      'idx_revenus_projet',
+      'idx_rapports_croissance_projet',
+      'idx_mortalites_projet',
+      'idx_planifications_projet',
+      'idx_collaborations_projet',
+      'idx_stocks_aliments_projet',
+      'idx_production_animaux_code',
+      'idx_production_animaux_reproducteur',
+    ];
+
+    let repaired = 0;
+    let failed = 0;
+
+    for (const indexName of indexes) {
+      const exists = await this.db.getFirstAsync<{ name: string } | null>(
+        `SELECT name FROM sqlite_master WHERE type='index' AND name='${indexName}'`
+      );
+      if (exists) {
+        repaired++;
+      } else {
+        failed++;
+      }
+    }
+
+    if (failed > 0) {
+      console.warn(`⚠ ${failed} index(s) toujours manquant(s) après réparation`);
+    } else {
+      console.log(`✓ Tous les index sont présents`);
+    }
+
+    return { repaired, failed };
   }
 
   /**
@@ -111,6 +836,25 @@ class DatabaseService {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
+
+    // Table users
+    await this.db.execAsync(`
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        email TEXT UNIQUE,
+        telephone TEXT UNIQUE,
+        nom TEXT NOT NULL,
+        prenom TEXT NOT NULL,
+        password_hash TEXT,
+        provider TEXT NOT NULL CHECK (provider IN ('email', 'google', 'apple', 'telephone')) DEFAULT 'email',
+        provider_id TEXT,
+        photo TEXT,
+        date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+        derniere_connexion TEXT,
+        is_active INTEGER DEFAULT 1 CHECK (is_active IN (0, 1)),
+        CHECK (email IS NOT NULL OR telephone IS NOT NULL)
+      );
+    `);
 
     // Table projets
     await this.db.execAsync(`
@@ -152,13 +896,32 @@ class DatabaseService {
     await this.db.execAsync(`
       CREATE TABLE IF NOT EXISTS depenses_ponctuelles (
         id TEXT PRIMARY KEY,
+        projet_id TEXT NOT NULL,
         montant REAL NOT NULL,
         categorie TEXT NOT NULL,
         libelle_categorie TEXT,
         date TEXT NOT NULL,
         commentaire TEXT,
         photos TEXT,
-        date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+        date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (projet_id) REFERENCES projets(id)
+      );
+    `);
+
+    // Table revenus
+    await this.db.execAsync(`
+      CREATE TABLE IF NOT EXISTS revenus (
+        id TEXT PRIMARY KEY,
+        projet_id TEXT NOT NULL,
+        montant REAL NOT NULL,
+        categorie TEXT NOT NULL CHECK (categorie IN ('vente_porc', 'vente_autre', 'subvention', 'autre')),
+        libelle_categorie TEXT,
+        date TEXT NOT NULL,
+        description TEXT,
+        commentaire TEXT,
+        photos TEXT,
+        date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (projet_id) REFERENCES projets(id)
       );
     `);
 
@@ -166,8 +929,11 @@ class DatabaseService {
     await this.db.execAsync(`
       CREATE TABLE IF NOT EXISTS gestations (
         id TEXT PRIMARY KEY,
+        projet_id TEXT NOT NULL,
         truie_id TEXT NOT NULL,
         truie_nom TEXT,
+        verrat_id TEXT,
+        verrat_nom TEXT,
         date_sautage TEXT NOT NULL,
         date_mise_bas_prevue TEXT NOT NULL,
         date_mise_bas_reelle TEXT,
@@ -176,7 +942,8 @@ class DatabaseService {
         statut TEXT NOT NULL CHECK (statut IN ('en_cours', 'terminee', 'annulee')),
         notes TEXT,
         date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
-        derniere_modification TEXT DEFAULT CURRENT_TIMESTAMP
+        derniere_modification TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (projet_id) REFERENCES projets(id)
       );
     `);
 
@@ -184,12 +951,14 @@ class DatabaseService {
     await this.db.execAsync(`
       CREATE TABLE IF NOT EXISTS sevrages (
         id TEXT PRIMARY KEY,
+        projet_id TEXT NOT NULL,
         gestation_id TEXT NOT NULL,
         date_sevrage TEXT NOT NULL,
         nombre_porcelets_sevres INTEGER NOT NULL,
         poids_moyen_sevrage REAL,
         notes TEXT,
         date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (projet_id) REFERENCES projets(id),
         FOREIGN KEY (gestation_id) REFERENCES gestations(id)
       );
     `);
@@ -259,10 +1028,17 @@ class DatabaseService {
         poids_initial REAL,
         date_entree TEXT,
         actif INTEGER DEFAULT 1,
+        statut TEXT DEFAULT 'actif' CHECK (statut IN ('actif', 'mort', 'vendu', 'offert', 'autre')),
+        race TEXT,
+        reproducteur INTEGER DEFAULT 0 CHECK (reproducteur IN (0, 1)),
+        pere_id TEXT,
+        mere_id TEXT,
         notes TEXT,
         date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
         derniere_modification TEXT DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (projet_id) REFERENCES projets(id)
+        FOREIGN KEY (projet_id) REFERENCES projets(id),
+        FOREIGN KEY (pere_id) REFERENCES production_animaux(id),
+        FOREIGN KEY (mere_id) REFERENCES production_animaux(id)
       );
     `);
 
@@ -337,6 +1113,7 @@ class DatabaseService {
         date TEXT NOT NULL,
         cause TEXT,
         categorie TEXT NOT NULL CHECK (categorie IN ('porcelet', 'truie', 'verrat', 'autre')),
+        animal_code TEXT,
         notes TEXT,
         date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (projet_id) REFERENCES projets(id)
@@ -391,38 +1168,270 @@ class DatabaseService {
       );
     `);
 
-    // Index pour optimiser les requêtes
+    // Index pour optimiser les requêtes (sans ceux qui utilisent projet_id)
     await this.db.execAsync(`
+      CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+      CREATE INDEX IF NOT EXISTS idx_users_provider ON users(provider, provider_id);
       CREATE INDEX IF NOT EXISTS idx_projets_statut ON projets(statut);
       CREATE INDEX IF NOT EXISTS idx_charges_fixes_statut ON charges_fixes(statut);
       CREATE INDEX IF NOT EXISTS idx_depenses_date ON depenses_ponctuelles(date);
+      CREATE INDEX IF NOT EXISTS idx_revenus_date ON revenus(date);
       CREATE INDEX IF NOT EXISTS idx_gestations_statut ON gestations(statut);
       CREATE INDEX IF NOT EXISTS idx_gestations_date_mise_bas ON gestations(date_mise_bas_prevue);
       CREATE INDEX IF NOT EXISTS idx_sevrages_gestation ON sevrages(gestation_id);
       CREATE INDEX IF NOT EXISTS idx_rations_type ON rations(type_porc);
       CREATE INDEX IF NOT EXISTS idx_ingredients_ration_ration ON ingredients_ration(ration_id);
       CREATE INDEX IF NOT EXISTS idx_rapports_croissance_date ON rapports_croissance(date);
-      CREATE INDEX IF NOT EXISTS idx_rapports_croissance_projet ON rapports_croissance(projet_id);
       CREATE INDEX IF NOT EXISTS idx_mortalites_date ON mortalites(date);
-      CREATE INDEX IF NOT EXISTS idx_mortalites_projet ON mortalites(projet_id);
       CREATE INDEX IF NOT EXISTS idx_mortalites_categorie ON mortalites(categorie);
       CREATE INDEX IF NOT EXISTS idx_planifications_date_prevue ON planifications(date_prevue);
-      CREATE INDEX IF NOT EXISTS idx_planifications_projet ON planifications(projet_id);
       CREATE INDEX IF NOT EXISTS idx_planifications_statut ON planifications(statut);
       CREATE INDEX IF NOT EXISTS idx_planifications_type ON planifications(type);
-      CREATE INDEX IF NOT EXISTS idx_collaborations_projet ON collaborations(projet_id);
       CREATE INDEX IF NOT EXISTS idx_collaborations_statut ON collaborations(statut);
       CREATE INDEX IF NOT EXISTS idx_collaborations_role ON collaborations(role);
       CREATE INDEX IF NOT EXISTS idx_collaborations_email ON collaborations(email);
-      CREATE INDEX IF NOT EXISTS idx_stocks_aliments_projet ON stocks_aliments(projet_id);
       CREATE INDEX IF NOT EXISTS idx_stocks_aliments_alerte ON stocks_aliments(alerte_active);
       CREATE INDEX IF NOT EXISTS idx_stocks_mouvements_aliment ON stocks_mouvements(aliment_id);
       CREATE INDEX IF NOT EXISTS idx_stocks_mouvements_date ON stocks_mouvements(date);
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_production_animaux_code ON production_animaux(projet_id, code);
       CREATE INDEX IF NOT EXISTS idx_production_animaux_actif ON production_animaux(actif);
       CREATE INDEX IF NOT EXISTS idx_production_pesees_animal ON production_pesees(animal_id);
       CREATE INDEX IF NOT EXISTS idx_production_pesees_date ON production_pesees(date);
     `);
+  }
+
+  /**
+   * ============================================
+   * GESTION DES UTILISATEURS
+   * ============================================
+   */
+
+  /**
+   * Créer un nouvel utilisateur
+   */
+  async createUser(input: {
+    email?: string;
+    telephone?: string;
+    nom: string;
+    prenom: string;
+    provider?: 'email' | 'google' | 'apple' | 'telephone';
+    provider_id?: string;
+    photo?: string;
+  }): Promise<User> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    // Vérifier qu'au moins email ou téléphone est fourni
+    if (!input.email && !input.telephone) {
+      throw new Error('Email ou numéro de téléphone requis');
+    }
+
+    // Vérifier si l'email existe déjà (si fourni)
+    if (input.email) {
+      const normalizedEmail = input.email.trim().toLowerCase();
+      const existingEmail = await this.db.getFirstAsync<{ id: string } | null>(
+        'SELECT id FROM users WHERE email = ?',
+        [normalizedEmail]
+      );
+
+      if (existingEmail) {
+        throw new Error('Un compte existe déjà avec cet email');
+      }
+    }
+
+    // Vérifier si le téléphone existe déjà (si fourni)
+    if (input.telephone) {
+      const existingPhone = await this.db.getFirstAsync<{ id: string } | null>(
+        'SELECT id FROM users WHERE telephone = ?',
+        [input.telephone]
+      );
+
+      if (existingPhone) {
+        throw new Error('Un compte existe déjà avec ce numéro de téléphone');
+      }
+    }
+
+    const id = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const now = new Date().toISOString();
+    const provider = input.provider || (input.telephone ? 'telephone' : 'email');
+    
+    // Normaliser l'email (trim + lowercase) si fourni
+    const normalizedEmail = input.email ? input.email.trim().toLowerCase() : null;
+    const normalizedTelephone = input.telephone ? input.telephone.trim().replace(/\s+/g, '') : null;
+
+    console.log('📝 Création utilisateur:', {
+      id,
+      email: normalizedEmail,
+      telephone: normalizedTelephone,
+      nom: input.nom,
+      prenom: input.prenom,
+      provider,
+    });
+
+    await this.db.runAsync(
+      `INSERT INTO users (
+        id, email, telephone, nom, prenom, password_hash, provider, provider_id, photo,
+        date_creation, derniere_connexion, is_active
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        normalizedEmail,
+        normalizedTelephone,
+        input.nom,
+        input.prenom,
+        null, // Pas de mot de passe
+        provider,
+        input.provider_id || null,
+        input.photo || null,
+        now,
+        now,
+        1,
+      ]
+    );
+
+    console.log('✅ Utilisateur créé avec succès:', id);
+    const createdUser = await this.getUserById(id);
+    console.log('📋 Utilisateur récupéré:', { id: createdUser.id, email: createdUser.email, telephone: createdUser.telephone });
+    return createdUser;
+  }
+
+  /**
+   * Récupérer un utilisateur par email
+   */
+  async getUserByEmail(email: string): Promise<User | null> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    console.log('🔍 Recherche par email normalisé:', normalizedEmail);
+    
+    const row = await this.db.getFirstAsync<any>(
+      'SELECT * FROM users WHERE email = ? AND is_active = 1',
+      [normalizedEmail]
+    );
+
+    if (!row) {
+      console.log('❌ Aucun utilisateur trouvé avec email:', normalizedEmail);
+      // Vérifier tous les emails dans la base (pour débogage)
+      const allEmails = await this.db.getAllAsync<any>('SELECT email FROM users WHERE email IS NOT NULL');
+      console.log('📋 Emails dans la base:', allEmails.map(e => e.email));
+      return null;
+    }
+
+    console.log('✅ Utilisateur trouvé par email:', row.id);
+    return this.mapRowToUser(row);
+  }
+
+  /**
+   * Récupérer un utilisateur par téléphone
+   */
+  async getUserByTelephone(telephone: string): Promise<User | null> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const row = await this.db.getFirstAsync<any>(
+      'SELECT * FROM users WHERE telephone = ? AND is_active = 1',
+      [telephone]
+    );
+
+    if (!row) {
+      return null;
+    }
+
+    return this.mapRowToUser(row);
+  }
+
+  /**
+   * Récupérer un utilisateur par email ou téléphone
+   */
+  async getUserByIdentifier(identifier: string): Promise<User | null> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    // Normaliser l'identifiant (trim + lowercase pour email)
+    const normalized = identifier.trim();
+    
+    // Vérifier si c'est un email (contient @) ou un téléphone
+    const isEmail = normalized.includes('@');
+    
+    if (isEmail) {
+      // Pour les emails, utiliser toLowerCase pour la recherche
+      return this.getUserByEmail(normalized.toLowerCase());
+    } else {
+      // Pour les téléphones, utiliser tel quel (sans espaces)
+      const cleanPhone = normalized.replace(/\s+/g, '');
+      return this.getUserByTelephone(cleanPhone);
+    }
+  }
+
+  /**
+   * Récupérer un utilisateur par ID
+   */
+  async getUserById(id: string): Promise<User> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const row = await this.db.getFirstAsync<any>(
+      'SELECT * FROM users WHERE id = ? AND is_active = 1',
+      [id]
+    );
+
+    if (!row) {
+      throw new Error('Utilisateur non trouvé');
+    }
+
+    return this.mapRowToUser(row);
+  }
+
+  /**
+   * Connecter un utilisateur par email ou téléphone (sans mot de passe)
+   */
+  async loginUser(identifier: string): Promise<User | null> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    console.log('🔍 Recherche utilisateur avec identifiant:', identifier);
+    const user = await this.getUserByIdentifier(identifier);
+    
+    if (!user) {
+      console.log('❌ Aucun utilisateur trouvé avec:', identifier);
+      // Vérifier si l'utilisateur existe dans la base (pour débogage)
+      const allUsers = await this.db.getAllAsync<any>('SELECT id, email, telephone FROM users WHERE is_active = 1');
+      console.log('📋 Utilisateurs actifs dans la base:', allUsers.map(u => ({ id: u.id, email: u.email, telephone: u.telephone })));
+      return null;
+    }
+
+    console.log('✅ Utilisateur trouvé:', user.id, user.email || user.telephone);
+
+    // Mettre à jour la dernière connexion
+    await this.db.runAsync(
+      'UPDATE users SET derniere_connexion = ? WHERE id = ?',
+      [new Date().toISOString(), user.id]
+    );
+
+    return this.getUserById(user.id);
+  }
+
+  /**
+   * Mapper une ligne de la base de données vers un objet User
+   */
+  private mapRowToUser(row: any): User {
+    return {
+      id: row.id,
+      email: row.email || undefined,
+      telephone: row.telephone || undefined,
+      nom: row.nom,
+      prenom: row.prenom,
+      provider: row.provider as 'email' | 'google' | 'apple' | 'telephone',
+      photo: row.photo || undefined,
+      date_creation: row.date_creation,
+      derniere_connexion: row.derniere_connexion || row.date_creation,
+    };
   }
 
   /**
@@ -691,11 +1700,12 @@ class DatabaseService {
 
     await this.db.runAsync(
       `INSERT INTO depenses_ponctuelles (
-        id, montant, categorie, libelle_categorie, date,
+        id, projet_id, montant, categorie, libelle_categorie, date,
         commentaire, photos, date_creation
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
+        depense.projet_id,
         depense.montant,
         depense.categorie,
         depense.libelle_categorie || null,
@@ -801,6 +1811,135 @@ class DatabaseService {
 
   /**
    * ============================================
+   * GESTION DES REVENUS
+   * ============================================
+   */
+
+  async createRevenu(revenu: Omit<Revenu, 'id' | 'date_creation'>): Promise<Revenu> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const id = `revenu_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const date_creation = new Date().toISOString();
+    const photosJson = revenu.photos ? JSON.stringify(revenu.photos) : null;
+
+    await this.db.runAsync(
+      `INSERT INTO revenus (
+        id, projet_id, montant, categorie, libelle_categorie, date,
+        description, commentaire, photos, date_creation
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        revenu.projet_id,
+        revenu.montant,
+        revenu.categorie,
+        revenu.libelle_categorie || null,
+        revenu.date,
+        revenu.description || null,
+        revenu.commentaire || null,
+        photosJson,
+        date_creation,
+      ]
+    );
+
+    return this.getRevenuById(id);
+  }
+
+  async getRevenuById(id: string): Promise<Revenu> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const result = await this.db.getFirstAsync<any>(
+      'SELECT * FROM revenus WHERE id = ?',
+      [id]
+    );
+
+    if (!result) {
+      throw new Error(`Revenu avec l'id ${id} non trouvé`);
+    }
+
+    return {
+      ...result,
+      photos: result.photos ? JSON.parse(result.photos) : undefined,
+    };
+  }
+
+  async getAllRevenus(projetId: string): Promise<Revenu[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const results = await this.db.getAllAsync<any>(
+      'SELECT * FROM revenus WHERE projet_id = ? ORDER BY date DESC',
+      [projetId]
+    );
+
+    return results.map((result) => ({
+      ...result,
+      photos: result.photos ? JSON.parse(result.photos) : undefined,
+    }));
+  }
+
+  async getRevenusByDateRange(dateDebut: string, dateFin: string, projetId: string): Promise<Revenu[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const results = await this.db.getAllAsync<any>(
+      'SELECT * FROM revenus WHERE projet_id = ? AND date >= ? AND date <= ? ORDER BY date DESC',
+      [projetId, dateDebut, dateFin]
+    );
+
+    return results.map((result) => ({
+      ...result,
+      photos: result.photos ? JSON.parse(result.photos) : undefined,
+    }));
+  }
+
+  async updateRevenu(id: string, updates: UpdateRevenuInput): Promise<Revenu> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const photosJson = updates.photos ? JSON.stringify(updates.photos) : null;
+
+    await this.db.runAsync(
+      `UPDATE revenus SET
+        montant = COALESCE(?, montant),
+        categorie = COALESCE(?, categorie),
+        libelle_categorie = COALESCE(?, libelle_categorie),
+        date = COALESCE(?, date),
+        description = COALESCE(?, description),
+        commentaire = COALESCE(?, commentaire),
+        photos = COALESCE(?, photos)
+      WHERE id = ?`,
+      [
+        updates.montant ?? null,
+        updates.categorie ?? null,
+        updates.libelle_categorie ?? null,
+        updates.date ?? null,
+        updates.description ?? null,
+        updates.commentaire ?? null,
+        photosJson,
+        id,
+      ]
+    );
+
+    return this.getRevenuById(id);
+  }
+
+  async deleteRevenu(id: string): Promise<void> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    await this.db.runAsync('DELETE FROM revenus WHERE id = ?', [id]);
+  }
+
+  /**
+   * ============================================
    * GESTION DES GESTATIONS
    * ============================================
    */
@@ -817,13 +1956,16 @@ class DatabaseService {
 
     await this.db.runAsync(
       `INSERT INTO gestations (
-        id, truie_id, truie_nom, date_sautage, date_mise_bas_prevue,
+        id, projet_id, truie_id, truie_nom, verrat_id, verrat_nom, date_sautage, date_mise_bas_prevue,
         nombre_porcelets_prevu, statut, notes, date_creation, derniere_modification
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
+        gestation.projet_id,
         gestation.truie_id,
         gestation.truie_nom || null,
+        gestation.verrat_id || null,
+        gestation.verrat_nom || null,
         gestation.date_sautage,
         date_mise_bas_prevue,
         gestation.nombre_porcelets_prevu,
@@ -938,16 +2080,23 @@ class DatabaseService {
       throw new Error('Base de données non initialisée');
     }
 
+    // Récupérer le projet_id depuis la gestation
+    const gestation = await this.getGestationById(sevrage.gestation_id);
+    if (!gestation.projet_id) {
+      throw new Error('La gestation n\'a pas de projet_id associé');
+    }
+
     const id = `sevrage_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const date_creation = new Date().toISOString();
 
     await this.db.runAsync(
       `INSERT INTO sevrages (
-        id, gestation_id, date_sevrage, nombre_porcelets_sevres,
+        id, projet_id, gestation_id, date_sevrage, nombre_porcelets_sevres,
         poids_moyen_sevrage, notes, date_creation
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
+        gestation.projet_id,
         sevrage.gestation_id,
         sevrage.date_sevrage,
         sevrage.nombre_porcelets_sevres,
@@ -1403,8 +2552,9 @@ class DatabaseService {
     await this.db.runAsync(
       `INSERT INTO production_animaux (
         id, projet_id, code, nom, origine, sexe, date_naissance, poids_initial,
-        date_entree, actif, statut, notes, date_creation, derniere_modification
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        date_entree, actif, statut, race, reproducteur, pere_id, mere_id, notes,
+        date_creation, derniere_modification
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ,[
         id,
         input.projet_id,
@@ -1417,6 +2567,10 @@ class DatabaseService {
         input.date_entree || null,
         input.statut === 'actif' ? 1 : 0, // Pour compatibilité avec actif
         input.statut || 'actif',
+        input.race || null,
+        input.reproducteur ? 1 : 0,
+        input.pere_id ?? null,
+        input.mere_id ?? null,
         input.notes || null,
         date_creation,
         derniere_modification,
@@ -1471,6 +2625,9 @@ class DatabaseService {
           fields.push('actif = ?'); // Mettre à jour actif en fonction du statut
           values.push(value);
           values.push(value === 'actif' ? 1 : 0);
+        } else if (key === 'reproducteur') {
+          fields.push('reproducteur = ?');
+          values.push(value ? 1 : 0);
         } else {
           fields.push(`${key} = ?`);
           values.push(value);
@@ -1606,8 +2763,12 @@ class DatabaseService {
       throw new Error('Base de données non initialisée');
     }
 
+    // Ne retourner que les pesées des animaux actifs
     const results = await this.db.getAllAsync<any>(
-      'SELECT * FROM production_pesees WHERE projet_id = ? ORDER BY date DESC LIMIT ?',
+      `SELECT pp.* FROM production_pesees pp
+       INNER JOIN production_animaux pa ON pp.animal_id = pa.id
+       WHERE pp.projet_id = ? AND pa.statut = 'actif'
+       ORDER BY pp.date DESC LIMIT ?`,
       [projetId, limit]
     );
 
@@ -1883,8 +3044,8 @@ class DatabaseService {
 
     await this.db.runAsync(
       `INSERT INTO mortalites (
-        id, projet_id, nombre_porcs, date, cause, categorie, notes, date_creation
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, projet_id, nombre_porcs, date, cause, categorie, animal_code, notes, date_creation
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         mortalite.projet_id,
@@ -1892,10 +3053,32 @@ class DatabaseService {
         mortalite.date,
         mortalite.cause || null,
         mortalite.categorie,
+        mortalite.animal_code || null,
         mortalite.notes || null,
         date_creation,
       ]
     );
+
+    // Si un code d'animal est renseigné, changer le statut de l'animal en "mort"
+    if (mortalite.animal_code) {
+      try {
+        const animal = await this.db.getFirstAsync<any>(
+          'SELECT * FROM production_animaux WHERE projet_id = ? AND code = ?',
+          [mortalite.projet_id, mortalite.animal_code]
+        );
+        
+        if (animal) {
+          // Changer le statut en "mort"
+          await this.db.runAsync(
+            'UPDATE production_animaux SET statut = ?, actif = 0, derniere_modification = ? WHERE id = ?',
+            ['mort', new Date().toISOString(), animal.id]
+          );
+        }
+      } catch (error) {
+        // Si l'animal n'est pas trouvé, on continue quand même (peut-être que le code est incorrect)
+        console.warn(`Animal avec le code ${mortalite.animal_code} non trouvé lors de la création de la mortalité`);
+      }
+    }
 
     return this.getMortaliteById(id);
   }
@@ -2461,6 +3644,10 @@ class DatabaseService {
       date_entree: row.date_entree || undefined,
       actif: row.actif === 1,
       statut: (row.statut || (row.actif === 1 ? 'actif' : 'autre')) as any,
+      race: row.race || undefined,
+      reproducteur: row.reproducteur === 1,
+      pere_id: row.pere_id || undefined,
+      mere_id: row.mere_id || undefined,
       notes: row.notes || undefined,
       date_creation: row.date_creation,
       derniere_modification: row.derniere_modification,
@@ -2510,10 +3697,18 @@ class DatabaseService {
   }
 
   private calculateDayDifference(start: string, end: string): number {
-    const startDate = new Date(start);
-    const endDate = new Date(end);
+    // Parser les dates en ignorant l'heure pour éviter les problèmes de timezone
+    // Format attendu: YYYY-MM-DD
+    const parseDateOnly = (dateStr: string): Date => {
+      const [year, month, day] = dateStr.split('-').map(Number);
+      return new Date(year, month - 1, day);
+    };
+    
+    const startDate = parseDateOnly(start);
+    const endDate = parseDateOnly(end);
     const diffMs = endDate.getTime() - startDate.getTime();
-    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+    // Utiliser Math.floor pour avoir le nombre exact de jours complets
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
     return diffDays <= 0 ? 0 : diffDays;
   }
 
@@ -2546,6 +3741,7 @@ class DatabaseService {
         await this.db.runAsync('DELETE FROM sevrages WHERE projet_id = ?', [projetId]);
         await this.db.runAsync('DELETE FROM gestations WHERE projet_id = ?', [projetId]);
         await this.db.runAsync('DELETE FROM depenses_ponctuelles WHERE projet_id = ?', [projetId]);
+        await this.db.runAsync('DELETE FROM revenus WHERE projet_id = ?', [projetId]);
         await this.db.runAsync('DELETE FROM charges_fixes WHERE projet_id = ?', [projetId]);
         await this.db.runAsync('DELETE FROM rapports_croissance WHERE projet_id = ?', [projetId]);
         await this.db.runAsync('DELETE FROM mortalites WHERE projet_id = ?', [projetId]);

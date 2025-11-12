@@ -3,7 +3,7 @@
  */
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import {
   loadGestations,
@@ -19,6 +19,9 @@ import EmptyState from './EmptyState';
 import LoadingSpinner from './LoadingSpinner';
 import GestationFormModal from './GestationFormModal';
 import StatCard from './StatCard';
+import CustomModal from './CustomModal';
+import FormField from './FormField';
+import Button from './Button';
 
 export default function GestationsListComponent() {
   const { colors } = useTheme();
@@ -30,48 +33,81 @@ export default function GestationsListComponent() {
   const [displayedGestations, setDisplayedGestations] = useState<Gestation[]>([]);
   const [page, setPage] = useState(1);
   const ITEMS_PER_PAGE = 50;
+  const [terminerModalVisible, setTerminerModalVisible] = useState(false);
+  const [gestationATerminer, setGestationATerminer] = useState<Gestation | null>(null);
+  const [nombrePorceletsReel, setNombrePorceletsReel] = useState<string>('');
+  const [dateMiseBasReelle, setDateMiseBasReelle] = useState<string>(new Date().toISOString().split('T')[0]);
 
   const { projetActif } = useAppSelector((state) => state.projet);
 
   useEffect(() => {
-    if (projetActif) {
-      dispatch(loadGestations(projetActif.id));
-      dispatch(loadGestationsEnCours(projetActif.id));
+    if (projetActif?.id) {
+      try {
+        dispatch(loadGestations(projetActif.id));
+        dispatch(loadGestationsEnCours(projetActif.id));
+      } catch (error) {
+        console.error('Erreur lors du chargement des gestations:', error);
+      }
     }
   }, [dispatch, projetActif?.id]);
 
   const gestationsEnCours = useMemo(
-    () => gestations.filter((g) => g.statut === 'en_cours'),
-    [gestations]
+    () => {
+      if (!projetActif?.id) return [];
+      return gestations.filter(
+        (g) => g.projet_id === projetActif.id && g.statut === 'en_cours'
+      );
+    },
+    [gestations, projetActif?.id]
   );
 
   const alertes = useMemo(() => {
-    return gestationsEnCours.filter((g) => doitGenererAlerte(g.date_mise_bas_prevue));
+    return gestationsEnCours.filter((g) => {
+      if (!g.date_mise_bas_prevue) return false;
+      try {
+        return doitGenererAlerte(g.date_mise_bas_prevue);
+      } catch (error) {
+        console.error('Erreur lors de la vérification de l\'alerte:', error);
+        return false;
+      }
+    });
   }, [gestationsEnCours]);
 
   // Pagination: charger les premières gestations
   useEffect(() => {
-    const initial = gestations.slice(0, ITEMS_PER_PAGE);
+    if (!projetActif?.id) {
+      setDisplayedGestations([]);
+      return;
+    }
+    
+    // Filtrer les gestations du projet actif
+    const gestationsProjet = gestations.filter((g) => g.projet_id === projetActif.id);
+    const initial = gestationsProjet.slice(0, ITEMS_PER_PAGE);
     setDisplayedGestations(initial);
     setPage(1);
-  }, [gestations.length]);
+  }, [gestations, projetActif?.id]);
 
   // Charger plus de gestations
   const loadMore = useCallback(() => {
-    if (displayedGestations.length >= gestations.length) {
+    if (!projetActif?.id) return;
+    
+    // Filtrer les gestations du projet actif
+    const gestationsProjet = gestations.filter((g) => g.projet_id === projetActif.id);
+    
+    if (displayedGestations.length >= gestationsProjet.length) {
       return;
     }
 
     const nextPage = page + 1;
     const start = page * ITEMS_PER_PAGE;
     const end = start + ITEMS_PER_PAGE;
-    const newItems = gestations.slice(start, end);
+    const newItems = gestationsProjet.slice(start, end);
 
     if (newItems.length > 0) {
       setDisplayedGestations((prev) => [...prev, ...newItems]);
       setPage(nextPage);
     }
-  }, [page, displayedGestations.length, gestations]);
+  }, [page, displayedGestations.length, gestations, projetActif?.id]);
 
   const handleEdit = (gestation: Gestation) => {
     setSelectedGestation(gestation);
@@ -95,27 +131,44 @@ export default function GestationsListComponent() {
   };
 
   const handleMarquerTerminee = (gestation: Gestation) => {
-    Alert.alert(
-      'Marquer comme terminée',
-      'Confirmez que la mise bas a eu lieu ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Confirmer',
-          onPress: () => {
-            dispatch(
-              updateGestation({
-                id: gestation.id,
-                updates: {
-                  statut: 'terminee',
-                  date_mise_bas_reelle: new Date().toISOString().split('T')[0],
-                },
-              })
-            );
+    setGestationATerminer(gestation);
+    setNombrePorceletsReel(gestation.nombre_porcelets_prevu.toString());
+    setDateMiseBasReelle(new Date().toISOString().split('T')[0]);
+    setTerminerModalVisible(true);
+  };
+
+  const handleConfirmerTerminaison = async () => {
+    if (!gestationATerminer) return;
+
+    const nombreReel = parseInt(nombrePorceletsReel, 10);
+    if (isNaN(nombreReel) || nombreReel < 0) {
+      Alert.alert('Erreur', 'Veuillez entrer un nombre valide de porcelets nés');
+      return;
+    }
+
+    try {
+      await dispatch(
+        updateGestation({
+          id: gestationATerminer.id,
+          updates: {
+            statut: 'terminee',
+            date_mise_bas_reelle: dateMiseBasReelle,
+            nombre_porcelets_reel: nombreReel,
           },
-        },
-      ]
-    );
+        })
+      ).unwrap();
+
+      setTerminerModalVisible(false);
+      setGestationATerminer(null);
+      setNombrePorceletsReel('');
+      
+      if (projetActif) {
+        dispatch(loadGestations(projetActif.id));
+        dispatch(loadGestationsEnCours(projetActif.id));
+      }
+    } catch (error: any) {
+      Alert.alert('Erreur', error?.message || 'Une erreur est survenue lors de la mise à jour');
+    }
   };
 
   const handleCloseModal = () => {
@@ -133,12 +186,19 @@ export default function GestationsListComponent() {
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('fr-FR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
+    if (!dateString) return 'Date invalide';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Date invalide';
+      return date.toLocaleDateString('fr-FR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      });
+    } catch (error) {
+      console.error('Erreur lors du formatage de la date:', error);
+      return 'Date invalide';
+    }
   };
 
   const getStatusColor = (statut: string) => {
@@ -200,7 +260,11 @@ export default function GestationsListComponent() {
           valueColor={colors.warning}
         />
         <StatCard
-          value={gestations.filter((g) => g.statut === 'terminee').length}
+          value={
+            projetActif?.id
+              ? gestations.filter((g) => g.projet_id === projetActif.id && g.statut === 'terminee').length
+              : 0
+          }
           label="Terminées"
           valueColor={colors.textSecondary}
         />
@@ -211,23 +275,29 @@ export default function GestationsListComponent() {
         <View style={[styles.alertesContainer, { backgroundColor: colors.warning + '20' }]}>
           <Text style={[styles.alertesTitle, { color: colors.text }]}>🔔 Alertes</Text>
           {alertes.map((gestation) => {
-            const joursRestants = joursRestantsAvantMiseBas(gestation.date_mise_bas_prevue);
-            return (
-              <View key={gestation.id} style={[styles.alerteCard, { backgroundColor: colors.background }]}>
-                <Text style={[styles.alerteText, { color: colors.warning }]}>
-                  ⚠️ Mise bas prévue dans {joursRestants} jour{joursRestants > 1 ? 's' : ''} pour{' '}
-                  {gestation.truie_nom || gestation.truie_id}
-                </Text>
-                <Text style={[styles.alerteDate, { color: colors.textSecondary }]}>
-                  Date prévue: {formatDate(gestation.date_mise_bas_prevue)}
-                </Text>
-              </View>
-            );
+            if (!gestation.date_mise_bas_prevue) return null;
+            try {
+              const joursRestants = joursRestantsAvantMiseBas(gestation.date_mise_bas_prevue);
+              return (
+                <View key={gestation.id} style={[styles.alerteCard, { backgroundColor: colors.background }]}>
+                  <Text style={[styles.alerteText, { color: colors.warning }]}>
+                    ⚠️ Mise bas prévue dans {joursRestants} jour{joursRestants > 1 ? 's' : ''} pour{' '}
+                    {gestation.truie_nom || gestation.truie_id}
+                  </Text>
+                  <Text style={[styles.alerteDate, { color: colors.textSecondary }]}>
+                    Date prévue: {formatDate(gestation.date_mise_bas_prevue)}
+                  </Text>
+                </View>
+              );
+            } catch (error) {
+              console.error('Erreur lors de l\'affichage de l\'alerte:', error);
+              return null;
+            }
           })}
         </View>
       )}
 
-      {gestations.length === 0 ? (
+      {(!projetActif?.id || gestations.filter((g) => g.projet_id === projetActif.id).length === 0) ? (
         <EmptyState
           title="Aucune gestation enregistrée"
           message="Ajoutez votre première gestation pour commencer"
@@ -283,6 +353,14 @@ export default function GestationsListComponent() {
               </View>
 
               <View style={styles.cardContent}>
+                {gestation.verrat_nom || gestation.verrat_id ? (
+                  <View style={styles.infoRow}>
+                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Verrat utilisé:</Text>
+                    <Text style={[styles.infoValue, { color: colors.text }]}>
+                      {gestation.verrat_nom || gestation.verrat_id}
+                    </Text>
+                  </View>
+                ) : null}
                 <View style={styles.infoRow}>
                   <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Date de sautage:</Text>
                   <Text style={[styles.infoValue, { color: colors.text }]}>{formatDate(gestation.date_sautage)}</Text>
@@ -311,15 +389,21 @@ export default function GestationsListComponent() {
                     <Text style={[styles.infoValue, { color: colors.text }]}>{gestation.nombre_porcelets_reel}</Text>
                   </View>
                 )}
-                {gestation.statut === 'en_cours' && (
-                  <View style={[styles.daysRemaining, { backgroundColor: colors.primary + '20' }]}>
-                    <Text style={[styles.daysRemainingText, { color: colors.primary }]}>
-                      {joursRestantsAvantMiseBas(gestation.date_mise_bas_prevue)} jour
-                      {joursRestantsAvantMiseBas(gestation.date_mise_bas_prevue) > 1 ? 's' : ''}{' '}
-                      restant{joursRestantsAvantMiseBas(gestation.date_mise_bas_prevue) > 1 ? 's' : ''}
-                    </Text>
-                  </View>
-                )}
+                {gestation.statut === 'en_cours' && gestation.date_mise_bas_prevue && (() => {
+                  try {
+                    const joursRestants = joursRestantsAvantMiseBas(gestation.date_mise_bas_prevue);
+                    return (
+                      <View style={[styles.daysRemaining, { backgroundColor: colors.primary + '20' }]}>
+                        <Text style={[styles.daysRemainingText, { color: colors.primary }]}>
+                          {joursRestants} jour{joursRestants > 1 ? 's' : ''} restant{joursRestants > 1 ? 's' : ''}
+                        </Text>
+                      </View>
+                    );
+                  } catch (error) {
+                    console.error('Erreur lors du calcul des jours restants:', error);
+                    return null;
+                  }
+                })()}
                 {gestation.notes && (
                   <View style={[styles.notesContainer, { borderTopColor: colors.border }]}>
                     <Text style={[styles.notesLabel, { color: colors.textSecondary }]}>Notes:</Text>
@@ -355,6 +439,56 @@ export default function GestationsListComponent() {
         gestation={selectedGestation}
         isEditing={isEditing}
       />
+
+      {/* Modal pour terminer la gestation */}
+      <CustomModal
+        visible={terminerModalVisible}
+        onClose={() => {
+          setTerminerModalVisible(false);
+          setGestationATerminer(null);
+          setNombrePorceletsReel('');
+        }}
+        title="Terminer la gestation"
+        showButtons={false}
+      >
+        <ScrollView style={styles.terminerModalScroll}>
+          {gestationATerminer && (
+            <>
+              <View style={[styles.infoBox, { backgroundColor: colors.primary + '10' }]}>
+                <Text style={[styles.infoBoxTitle, { color: colors.primary }]}>Informations de la gestation</Text>
+                <Text style={[styles.infoBoxText, { color: colors.text }]}>
+                  Truie: {gestationATerminer.truie_nom || gestationATerminer.truie_id}
+                </Text>
+                <Text style={[styles.infoBoxText, { color: colors.text }]}>
+                  Porcelets prévus: {gestationATerminer.nombre_porcelets_prevu}
+                </Text>
+              </View>
+
+              <FormField
+                label="Nombre de porcelets nés *"
+                value={nombrePorceletsReel}
+                onChangeText={setNombrePorceletsReel}
+                keyboardType="numeric"
+                placeholder="0"
+                required
+              />
+
+              <FormField
+                label="Date de mise bas réelle"
+                value={dateMiseBasReelle}
+                onChangeText={setDateMiseBasReelle}
+                placeholder="YYYY-MM-DD"
+              />
+
+              <Button
+                title="Confirmer la mise bas"
+                onPress={handleConfirmerTerminaison}
+                variant="primary"
+              />
+            </>
+          )}
+        </ScrollView>
+      </CustomModal>
     </View>
   );
 }
@@ -498,6 +632,23 @@ const styles = StyleSheet.create({
   notesText: {
     fontSize: FONT_SIZES.sm,
     fontStyle: 'italic',
+  },
+  terminerModalScroll: {
+    maxHeight: 400,
+  },
+  infoBox: {
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+  },
+  infoBoxTitle: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+    marginBottom: SPACING.sm,
+  },
+  infoBoxText: {
+    fontSize: FONT_SIZES.sm,
+    marginBottom: SPACING.xs,
   },
 });
 

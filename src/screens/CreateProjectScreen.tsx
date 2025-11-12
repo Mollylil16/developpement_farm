@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Animated,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -23,6 +24,8 @@ import { CreateProjetInput } from '../types';
 import Button from '../components/Button';
 import FormField from '../components/FormField';
 import Card from '../components/Card';
+import { signOut } from '../store/slices/authSlice';
+import { SCREENS } from '../navigation/types';
 
 export default function CreateProjectScreen() {
   const { colors } = useTheme();
@@ -125,6 +128,18 @@ export default function CreateProjectScreen() {
     }
   };
 
+  const handleSignOut = async () => {
+    try {
+      await dispatch(signOut()).unwrap();
+      navigation.reset({
+        index: 0,
+        routes: [{ name: SCREENS.WELCOME }],
+      });
+    } catch (error: any) {
+      Alert.alert('Erreur', error || 'Impossible de se déconnecter pour le moment.');
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <KeyboardAvoidingView
@@ -150,6 +165,15 @@ export default function CreateProjectScreen() {
             <View style={styles.content}>
               {/* Header amélioré */}
               <View style={styles.header}>
+                <View style={styles.headerActions}>
+                  <TouchableOpacity
+                    style={[styles.signOutButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
+                    onPress={handleSignOut}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.signOutText, { color: colors.error }]}>Se déconnecter</Text>
+                  </TouchableOpacity>
+                </View>
                 <View style={[styles.headerIconContainer, { backgroundColor: colors.primaryLight + '15', borderColor: colors.primaryLight + '30' }]}>
                   <Text style={styles.headerIcon}>🏡</Text>
                 </View>
@@ -327,6 +351,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: SPACING.xl + 10,
     paddingBottom: SPACING.lg + 10,
+  },
+  headerActions: {
+    alignSelf: 'flex-end',
+    marginBottom: SPACING.sm,
+  },
+  signOutButton: {
+    paddingVertical: SPACING.xs,
+    paddingHorizontal: SPACING.md,
+    borderWidth: 1,
+    borderRadius: 999,
+  },
+  signOutText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: FONT_WEIGHTS.medium,
   },
   headerIconContainer: {
     width: 80,

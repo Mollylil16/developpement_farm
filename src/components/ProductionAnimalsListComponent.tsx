@@ -28,6 +28,7 @@ import ProductionAnimalFormModal from './ProductionAnimalFormModal';
 import ProductionPeseeFormModal from './ProductionPeseeFormModal';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { useFocusEffect } from '@react-navigation/native';
 
 export default function ProductionAnimalsListComponent() {
   const { colors } = useTheme();
@@ -45,12 +46,15 @@ export default function ProductionAnimalsListComponent() {
   const [page, setPage] = useState(1);
   const ITEMS_PER_PAGE = 50;
 
-  useEffect(() => {
-    if (projetActif) {
-      dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
-      dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 }));
-    }
-  }, [dispatch, projetActif]);
+  // Charger les données uniquement quand l'onglet est visible
+  useFocusEffect(
+    React.useCallback(() => {
+      if (projetActif) {
+        dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
+        dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 }));
+      }
+    }, [dispatch, projetActif?.id])
+  );
 
   useEffect(() => {
     if (selectedAnimal) {

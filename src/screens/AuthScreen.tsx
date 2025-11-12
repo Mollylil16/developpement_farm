@@ -18,8 +18,8 @@ import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import {
-  signUpWithEmail,
-  signInWithEmail,
+  signUp,
+  signIn,
   signInWithGoogle,
   signInWithApple,
   clearError,
@@ -38,7 +38,7 @@ export default function AuthScreen() {
   const { isLoading, error, isAuthenticated } = useAppSelector((state) => state.auth);
   
   const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState(''); // email ou téléphone
   const [nom, setNom] = useState('');
   const [prenom, setPrenom] = useState('');
   
@@ -73,17 +73,10 @@ export default function AuthScreen() {
     }
   }, [error, dispatch]);
 
-  const handleEmailAuth = async () => {
+  const handleAuth = async () => {
     // Validation
-    if (!email.trim()) {
-      Alert.alert('Erreur', 'Veuillez entrer votre email');
-      return;
-    }
-
-    // Validation de l'email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
-      Alert.alert('Erreur', 'Veuillez entrer une adresse email valide');
+    if (!identifier.trim()) {
+      Alert.alert('Erreur', 'Veuillez entrer votre email ou numéro de téléphone');
       return;
     }
 
@@ -93,10 +86,31 @@ export default function AuthScreen() {
         Alert.alert('Erreur', 'Veuillez remplir tous les champs');
         return;
       }
-      dispatch(signUpWithEmail({ email: email.trim(), nom: nom.trim(), prenom: prenom.trim(), password: 'temp' }));
+
+      // Déterminer si c'est un email ou un téléphone
+      const isEmail = identifier.includes('@');
+      
+      if (isEmail) {
+        // Validation de l'email
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(identifier.trim())) {
+          Alert.alert('Erreur', 'Veuillez entrer une adresse email valide');
+          return;
+        }
+        dispatch(signUp({ email: identifier.trim(), nom: nom.trim(), prenom: prenom.trim() }));
+      } else {
+        // Validation du téléphone (au moins 8 chiffres)
+        const cleanPhone = identifier.replace(/\s+/g, '');
+        const phoneRegex = /^[0-9]{8,15}$/;
+        if (!phoneRegex.test(cleanPhone)) {
+          Alert.alert('Erreur', 'Veuillez entrer un numéro de téléphone valide (8-15 chiffres)');
+          return;
+        }
+        dispatch(signUp({ telephone: cleanPhone, nom: nom.trim(), prenom: prenom.trim() }));
+      }
     } else {
-      // Connexion - uniquement avec l'email
-      dispatch(signInWithEmail({ email: email.trim() }));
+      // Connexion - identifier peut être email ou téléphone
+      dispatch(signIn({ identifier: identifier.trim() }));
     }
   };
 
@@ -144,14 +158,14 @@ export default function AuthScreen() {
               </Text>
             </View>
 
-            {/* Formulaire Email */}
+            {/* Formulaire */}
             <View style={styles.form}>
               <FormField
-                label="Email"
-                placeholder="votre@email.com"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
+                label={isSignUp ? "Email ou Téléphone" : "Email ou Téléphone"}
+                placeholder={isSignUp ? "votre@email.com ou 0123456789" : "votre@email.com ou 0123456789"}
+                value={identifier}
+                onChangeText={setIdentifier}
+                keyboardType="default"
                 autoCapitalize="none"
                 required
               />
@@ -177,10 +191,9 @@ export default function AuthScreen() {
                 </>
               )}
 
-
               <Button
                 title={isLoading ? 'Chargement...' : isSignUp ? 'Créer mon compte' : 'Se connecter'}
-                onPress={handleEmailAuth}
+                onPress={handleAuth}
                 variant="primary"
                 size="large"
                 loading={isLoading}
@@ -229,7 +242,7 @@ export default function AuthScreen() {
               <TouchableOpacity
                 onPress={() => {
                   setIsSignUp(!isSignUp);
-                  setEmail('');
+                  setIdentifier('');
                   setNom('');
                   setPrenom('');
                 }}
