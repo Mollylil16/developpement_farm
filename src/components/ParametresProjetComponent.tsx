@@ -33,30 +33,22 @@ export default function ParametresProjetComponent() {
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<Projet>>({});
 
+  // Charger les données uniquement quand l'écran est en focus
   useEffect(() => {
-    // Charger les projets sans bloquer l'affichage
-    dispatch(loadProjets());
-    dispatch(loadProjetActif());
-    // Charger les animaux du cheptel et les mortalités pour calculer les effectifs réels
+    const unsubscribe = navigation.addListener('focus', () => {
+      dispatch(loadProjets());
+      dispatch(loadProjetActif());
+    });
+    return unsubscribe;
+  }, [navigation, dispatch]);
+
+  // Charger les animaux et mortalités quand le projet actif change
+  useEffect(() => {
     if (projetActif) {
       dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
       dispatch(loadMortalitesParProjet(projetActif.id));
     }
   }, [dispatch, projetActif?.id]);
-
-  // Recharger les projets après création d'un nouveau projet
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      dispatch(loadProjets());
-      dispatch(loadProjetActif());
-      // Recharger les animaux et mortalités quand l'écran revient au focus
-      if (projetActif) {
-        dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
-        dispatch(loadMortalitesParProjet(projetActif.id));
-      }
-    });
-    return unsubscribe;
-  }, [navigation, dispatch, projetActif?.id]);
 
   useEffect(() => {
     if (projetActif && isEditing) {

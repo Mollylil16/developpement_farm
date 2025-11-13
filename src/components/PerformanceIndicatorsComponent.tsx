@@ -2,7 +2,7 @@
  * Composant indicateurs de performance avec calcul du coût de production
  */
 
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { setIndicateursPerformance, setRecommandations } from '../store/slices/reportsSlice';
@@ -34,11 +34,21 @@ export default function PerformanceIndicatorsComponent() {
     }
   }, [dispatch, projetActif]);
 
+  // Charger les pesées uniquement pour les animaux qui n'ont pas encore leurs pesées chargées
+  // Utiliser useRef pour éviter les boucles infinies
+  const animauxChargesRef = useRef<Set<string>>(new Set());
+  
   useEffect(() => {
-    animaux.forEach((animal) => {
-      dispatch(loadPeseesParAnimal(animal.id));
-    });
-  }, [dispatch, animaux]);
+    if (projetActif && animaux.length > 0) {
+      const animauxSansPesees = animaux.filter(
+        (animal) => !peseesParAnimal[animal.id] && !animauxChargesRef.current.has(animal.id)
+      );
+      animauxSansPesees.forEach((animal) => {
+        animauxChargesRef.current.add(animal.id);
+        dispatch(loadPeseesParAnimal(animal.id));
+      });
+    }
+  }, [dispatch, projetActif?.id, animaux.length]);
 
   // Calculer les indicateurs de performance
   const calculatedIndicators = useMemo(() => {

@@ -2,7 +2,7 @@
  * Composant pour les estimations de poids et dates
  */
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -53,19 +53,23 @@ export default function ProductionEstimationsComponent() {
 
   // Charger les pesées pour tous les animaux actifs (mais seulement quand l'onglet est visible)
   // On charge uniquement les pesées manquantes pour éviter les requêtes inutiles
+  // Utiliser useRef pour éviter les boucles infinies
+  const animauxChargesRef = useRef<Set<string>>(new Set());
+  
   useFocusEffect(
     React.useCallback(() => {
       if (projetActif && animaux.length > 0) {
         // Charger les pesées uniquement pour les animaux qui n'ont pas encore leurs pesées chargées
         const animauxSansPesees = animaux.filter(
-          (a) => a.actif && !peseesParAnimal[a.id]
+          (a) => a.actif && !peseesParAnimal[a.id] && !animauxChargesRef.current.has(a.id)
         );
         // Limiter à 10 animaux à la fois pour éviter de surcharger
         animauxSansPesees.slice(0, 10).forEach((animal) => {
+          animauxChargesRef.current.add(animal.id);
           dispatch(loadPeseesParAnimal(animal.id));
         });
       }
-    }, [dispatch, projetActif?.id, animaux, peseesParAnimal])
+    }, [dispatch, projetActif?.id, animaux.length])
   );
 
   // Calculer les stats pour chaque animal
