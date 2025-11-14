@@ -30,6 +30,7 @@ import Button from '../components/Button';
 import FormField from '../components/FormField';
 import GoogleLogo from '../components/GoogleLogo';
 import AppleLogo from '../components/AppleLogo';
+import { databaseService } from '../services/database';
 
 export default function AuthScreen() {
   const { colors } = useTheme();
@@ -156,6 +157,13 @@ export default function AuthScreen() {
                   ? 'Rejoignez Fermier Pro pour gérer votre élevage'
                   : 'Accédez à votre ferme en toute simplicité'}
               </Text>
+              {isSignUp && (
+                <View style={[styles.infoBox, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '40' }]}>
+                  <Text style={[styles.infoText, { color: colors.primary }]}>
+                    💡 Si vous avez reçu une invitation, utilisez le même email que celui utilisé pour l'invitation. L'invitation sera automatiquement détectée après la création de votre compte.
+                  </Text>
+                </View>
+              )}
             </View>
 
             {/* Formulaire */}

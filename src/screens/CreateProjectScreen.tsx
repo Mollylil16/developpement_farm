@@ -26,6 +26,9 @@ import FormField from '../components/FormField';
 import Card from '../components/Card';
 import { signOut } from '../store/slices/authSlice';
 import { SCREENS } from '../navigation/types';
+import InvitationsModal from '../components/InvitationsModal';
+import { loadInvitationsEnAttente } from '../store/slices/collaborationSlice';
+import { loadProjets } from '../store/slices/projetSlice';
 
 export default function CreateProjectScreen() {
   const { colors } = useTheme();
@@ -34,7 +37,10 @@ export default function CreateProjectScreen() {
   const route = useRoute();
   const { user } = useAppSelector((state) => state.auth);
   const { projetActif } = useAppSelector((state) => state.projet);
+  const { invitationsEnAttente } = useAppSelector((state) => state.collaboration);
   const [loading, setLoading] = useState(false);
+  const [invitationsModalVisible, setInvitationsModalVisible] = useState(false);
+  const hasShownInvitationsRef = useRef(false);
   const [formData, setFormData] = useState<CreateProjetInput>({
     nom: '',
     localisation: '',
@@ -73,6 +79,27 @@ export default function CreateProjectScreen() {
       }),
     ]).start();
   }, []);
+
+  // Charger les invitations en attente au montage
+  useEffect(() => {
+    if (user) {
+      dispatch(loadInvitationsEnAttente({ 
+        userId: user.id, 
+        email: user.email || undefined 
+      }));
+    }
+  }, [dispatch, user?.id, user?.email]);
+
+  // Afficher automatiquement le modal des invitations si elles existent
+  useEffect(() => {
+    if (invitationsEnAttente.length > 0 && !hasShownInvitationsRef.current && !projetActif) {
+      hasShownInvitationsRef.current = true;
+      // Délai pour laisser le temps à l'écran de se charger
+      setTimeout(() => {
+        setInvitationsModalVisible(true);
+      }, 1000);
+    }
+  }, [invitationsEnAttente.length, projetActif]);
 
   const handleSubmit = async () => {
     // Validation
@@ -324,6 +351,18 @@ export default function CreateProjectScreen() {
           </ScrollView>
         </Animated.View>
       </KeyboardAvoidingView>
+      
+      {/* Modal d'invitations */}
+      <InvitationsModal
+        visible={invitationsModalVisible}
+        onClose={() => {
+          setInvitationsModalVisible(false);
+          // Recharger les projets après acceptation/rejet d'invitation
+          if (user) {
+            dispatch(loadProjets());
+          }
+        }}
+      />
     </SafeAreaView>
   );
 }

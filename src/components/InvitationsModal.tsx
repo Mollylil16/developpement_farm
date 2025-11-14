@@ -6,7 +6,7 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { accepterInvitation, rejeterInvitation, loadInvitationsEnAttente } from '../store/slices/collaborationSlice';
-import { loadProjets } from '../store/slices/projetSlice';
+import { loadProjets, loadProjetActif } from '../store/slices/projetSlice';
 import { Collaborateur, ROLE_LABELS } from '../types';
 import CustomModal from './CustomModal';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
@@ -57,9 +57,22 @@ export default function InvitationsModal({ visible, onClose }: InvitationsModalP
       // Recharger les projets pour inclure le nouveau projet
       await dispatch(loadProjets());
       
+      // Charger le projet actif (qui devrait maintenant inclure ce projet)
+      await dispatch(loadProjetActif());
+      
       Alert.alert(
         'Invitation acceptée',
-        `Vous avez rejoint le projet "${projetNoms[invitation.projet_id] || 'Projet'}" avec le rôle ${ROLE_LABELS[invitation.role]}.`
+        `Vous avez rejoint le projet "${projetNoms[invitation.projet_id] || 'Projet'}" avec le rôle ${ROLE_LABELS[invitation.role]}.`,
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              // Fermer le modal - la navigation sera gérée automatiquement par AppNavigator
+              // qui détectera le nouveau projet actif
+              onClose();
+            },
+          },
+        ]
       );
       
       // Recharger les invitations en attente

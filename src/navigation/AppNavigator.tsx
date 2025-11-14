@@ -208,6 +208,7 @@ export default function AppNavigator() {
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   const { isAuthenticated, isLoading: authLoading, user } = useAppSelector((state) => state.auth);
+  const { invitationsEnAttente } = useAppSelector((state) => state.collaboration);
   const navigationRef = React.useRef<any>(null);
   const lastRouteRef = React.useRef<string | null>(null);
 
@@ -254,8 +255,21 @@ export default function AppNavigator() {
 
     let targetRoute: string;
     if (isAuthenticated) {
-      targetRoute = projetActif ? 'Main' : SCREENS.CREATE_PROJECT;
-      console.log('✅ Utilisateur authentifié. Projet actif:', projetActif?.nom || 'aucun', '→ Route:', targetRoute);
+      // Si l'utilisateur a un projet actif, aller au Dashboard
+      if (projetActif) {
+        targetRoute = 'Main';
+      } 
+      // Si l'utilisateur a des invitations en attente, aller à CreateProjectScreen
+      // (qui affichera le modal d'invitations)
+      else if (invitationsEnAttente.length > 0) {
+        targetRoute = SCREENS.CREATE_PROJECT;
+        console.log('📬 Utilisateur a des invitations en attente, redirection vers CreateProject pour afficher les invitations');
+      }
+      // Sinon, créer un projet
+      else {
+        targetRoute = SCREENS.CREATE_PROJECT;
+      }
+      console.log('✅ Utilisateur authentifié. Projet actif:', projetActif?.nom || 'aucun', 'Invitations:', invitationsEnAttente.length, '→ Route:', targetRoute);
     } else {
       targetRoute = SCREENS.WELCOME;
       console.log('❌ Utilisateur non authentifié → Route:', targetRoute);
@@ -282,7 +296,7 @@ export default function AppNavigator() {
     } else {
       console.log('⏸️ Pas de changement de route nécessaire');
     }
-  }, [isAuthenticated, projetActif, authLoading]);
+  }, [isAuthenticated, projetActif, authLoading, invitationsEnAttente.length]);
 
   return (
     <NavigationContainer ref={navigationRef}>
