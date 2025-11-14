@@ -3833,7 +3833,6 @@ class DatabaseService {
 
     return this.getCollaborateurById(id);
   }
-
   async deleteCollaborateur(id: string): Promise<void> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
@@ -4017,4 +4016,5 @@ class DatabaseService {
 
 // Instance singleton
 export const databaseService = new DatabaseService();
+
 

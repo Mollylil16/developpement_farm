@@ -28,6 +28,7 @@ import ParametresScreen from '../screens/ParametresScreen';
 import CollaborationScreen from '../screens/CollaborationScreen';
 import MortalitesScreen from '../screens/MortalitesScreen';
 import ProductionScreen from '../screens/ProductionScreen';
+import AdminScreen from '../screens/AdminScreen';
 import { COLORS } from '../constants/theme';
 
 const Tab = createBottomTabNavigator();
@@ -350,6 +351,7 @@ export default function AppNavigator() {
         <Stack.Screen name={SCREENS.WELCOME} component={WelcomeScreen} />
         <Stack.Screen name={SCREENS.AUTH} component={AuthScreen} />
         <Stack.Screen name={SCREENS.CREATE_PROJECT} component={CreateProjectScreen} />
+        <Stack.Screen name={SCREENS.ADMIN} component={AdminScreen} />
         <Stack.Screen name="Main" component={MainTabs} />
       </Stack.Navigator>
     </NavigationContainer>

@@ -16,6 +16,7 @@ export const SCREENS = {
   PARAMETRES: 'Parametres',
   COLLABORATION: 'Collaboration',
   MORTALITES: 'Mortalites',
+  ADMIN: 'Admin',
 } as const;
 
 export type ScreenName = typeof SCREENS[keyof typeof SCREENS];
