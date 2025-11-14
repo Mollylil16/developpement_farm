@@ -221,6 +221,8 @@ class DatabaseService {
           );
           
           if (!userIdInfo) {
+            console.log('🔄 Migration: Ajout de la colonne user_id à la table collaborations...');
+            
             // Ajouter la colonne user_id (nullable car les anciens collaborateurs n'ont pas encore de user_id)
             await this.db.execAsync(`
               ALTER TABLE collaborations ADD COLUMN user_id TEXT;
@@ -231,11 +233,17 @@ class DatabaseService {
               CREATE INDEX IF NOT EXISTS idx_collaborations_user_id ON collaborations(user_id);
             `);
             
-            console.log('Migration: Colonne user_id ajoutée à la table collaborations');
+            console.log('✅ Migration: Colonne user_id ajoutée à la table collaborations avec succès');
+          } else {
+            console.log('✅ Migration: Colonne user_id existe déjà dans la table collaborations');
           }
+        } else {
+          console.log('ℹ️ Migration: Table collaborations n\'existe pas encore, sera créée avec user_id');
         }
       } catch (error: any) {
-        console.warn('Erreur lors de la migration user_id pour collaborations:', error?.message || error);
+        console.error('❌ Erreur lors de la migration user_id pour collaborations:', error?.message || error);
+        console.error('Détails de l\'erreur:', error);
+        // Ne pas bloquer l'initialisation, mais loguer l'erreur clairement
       }
 
       // Migration: Ajouter race à la table production_animaux si elle n'existe pas
