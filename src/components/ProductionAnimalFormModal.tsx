@@ -6,12 +6,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { createProductionAnimal, updateProductionAnimal, loadProductionAnimaux } from '../store/slices/productionSlice';
+import { createProductionAnimal, updateProductionAnimal } from '../store/slices/productionSlice';
 import { ProductionAnimal, CreateProductionAnimalInput, SexeAnimal, StatutAnimal, STATUT_ANIMAL_LABELS } from '../types';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { useActionPermissions } from '../hooks/useActionPermissions';
 
 // Fonction helper pour convertir une date en format local YYYY-MM-DD
 const formatDateToLocal = (date: Date): string => {
@@ -47,7 +48,8 @@ export default function ProductionAnimalFormModal({
 }: ProductionAnimalFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { animaux } = useAppSelector((state) => state.production);
+  const { animaux, loading: productionLoading } = useAppSelector((state) => state.production);
+  const { canCreate, canUpdate } = useActionPermissions();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateProductionAnimalInput>({
     projet_id: projetId,
@@ -70,18 +72,16 @@ export default function ProductionAnimalFormModal({
   const [showPereModal, setShowPereModal] = useState(false);
   const [showMereModal, setShowMereModal] = useState(false);
 
-  // Charger les animaux au montage du composant
-  useEffect(() => {
-    if (projetId && visible) {
-      dispatch(loadProductionAnimaux({ projetId, inclureInactifs: true }));
-    }
-  }, [dispatch, projetId, visible]);
-
   // Filtrer les animaux du projet actif
   const animauxProjet = useMemo(
     () => animaux.filter((a) => a.projet_id === projetId),
     [animaux, projetId]
   );
+  
+  // Ne PAS charger automatiquement les animaux - utiliser ceux déjà en cache
+  // Cela évite de bloquer l'interface quand on ouvre le modal
+  // Les animaux sont déjà chargés par ProductionCheptelComponent
+  // Si vraiment nécessaire, on peut charger en arrière-plan sans bloquer
 
   // Pour les parents, on permet de sélectionner tous les animaux actifs du projet
   // (pas seulement ceux marqués comme reproducteurs, pour plus de flexibilité)
@@ -171,6 +171,16 @@ export default function ProductionAnimalFormModal({
   }, [animal, isEditing, visible, projetId]);
 
   const handleSubmit = async () => {
+    // Vérifier les permissions
+    if (isEditing && !canUpdate('reproduction')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les animaux.');
+      return;
+    }
+    if (!isEditing && !canCreate('reproduction')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de créer des animaux.');
+      return;
+    }
+
     if (!formData.code.trim()) {
       Alert.alert('Erreur', 'Le code de l\'animal est requis.');
       return;

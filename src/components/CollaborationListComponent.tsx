@@ -19,11 +19,13 @@ import EmptyState from './EmptyState';
 import LoadingSpinner from './LoadingSpinner';
 import CollaborationFormModal from './CollaborationFormModal';
 import StatCard from './StatCard';
+import { usePermissions } from '../hooks/usePermissions';
 
 export default function CollaborationListComponent() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
+  const { isProprietaire } = usePermissions();
   const { projetActif } = useAppSelector((state) => state.projet);
   const { collaborateurs, loading } = useAppSelector((state) => state.collaboration);
   const [selectedCollaborateur, setSelectedCollaborateur] = useState<Collaborateur | null>(null);
@@ -78,12 +80,20 @@ export default function CollaborationListComponent() {
   }, [page, displayedCollaborateurs.length, collaborateursFiltres]);
 
   const handleEdit = (collaborateur: Collaborateur) => {
+    if (!isProprietaire) {
+      Alert.alert('Permission refusée', 'Seul le propriétaire peut modifier les collaborateurs.');
+      return;
+    }
     setSelectedCollaborateur(collaborateur);
     setIsEditing(true);
     setModalVisible(true);
   };
 
   const handleDelete = (id: string) => {
+    if (!isProprietaire) {
+      Alert.alert('Permission refusée', 'Seul le propriétaire peut supprimer les collaborateurs.');
+      return;
+    }
     Alert.alert(
       'Supprimer le collaborateur',
       'Êtes-vous sûr de vouloir supprimer ce collaborateur ?',
@@ -104,6 +114,10 @@ export default function CollaborationListComponent() {
   };
 
   const handleAccepterInvitation = (id: string) => {
+    if (!isProprietaire) {
+      Alert.alert('Permission refusée', 'Seul le propriétaire peut accepter les invitations.');
+      return;
+    }
     Alert.alert(
       'Accepter l\'invitation',
       'Confirmez que ce collaborateur a accepté l\'invitation ?',
@@ -181,16 +195,18 @@ export default function CollaborationListComponent() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.divider, paddingTop: insets.top + SPACING.lg }]}>
         <Text style={[styles.title, { color: colors.text }]}>Collaboration</Text>
-        <TouchableOpacity
-          style={[styles.addButton, { backgroundColor: colors.primary, ...colors.shadow.small }]}
-          onPress={() => {
-            setSelectedCollaborateur(null);
-            setIsEditing(false);
-            setModalVisible(true);
-          }}
-        >
-          <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Inviter</Text>
-        </TouchableOpacity>
+        {isProprietaire && (
+          <TouchableOpacity
+            style={[styles.addButton, { backgroundColor: colors.primary, ...colors.shadow.small }]}
+            onPress={() => {
+              setSelectedCollaborateur(null);
+              setIsEditing(false);
+              setModalVisible(true);
+            }}
+          >
+            <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Inviter</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Statistiques */}
@@ -271,7 +287,7 @@ export default function CollaborationListComponent() {
                   </View>
                 </View>
                 <View style={styles.cardActions}>
-                  {collaborateur.statut === 'en_attente' && (
+                  {collaborateur.statut === 'en_attente' && isProprietaire && (
                     <TouchableOpacity
                       style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
                       onPress={() => handleAccepterInvitation(collaborateur.id)}
@@ -279,18 +295,22 @@ export default function CollaborationListComponent() {
                       <Text style={styles.actionButtonText}>✓</Text>
                     </TouchableOpacity>
                   )}
-                  <TouchableOpacity
-                    style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
-                    onPress={() => handleEdit(collaborateur)}
-                  >
-                    <Text style={styles.actionButtonText}>✏️</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
-                    onPress={() => handleDelete(collaborateur.id)}
-                  >
-                    <Text style={styles.actionButtonText}>🗑️</Text>
-                  </TouchableOpacity>
+                  {isProprietaire && (
+                    <>
+                      <TouchableOpacity
+                        style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
+                        onPress={() => handleEdit(collaborateur)}
+                      >
+                        <Text style={styles.actionButtonText}>✏️</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
+                        onPress={() => handleDelete(collaborateur.id)}
+                      >
+                        <Text style={styles.actionButtonText}>🗑️</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
                 </View>
               </View>
               <View style={styles.cardContent}>

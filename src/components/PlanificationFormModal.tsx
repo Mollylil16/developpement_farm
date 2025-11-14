@@ -13,6 +13,7 @@ import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { useActionPermissions } from '../hooks/useActionPermissions';
 
 // Fonction helper pour convertir une date en format local YYYY-MM-DD
 const formatDateToLocal = (date: Date): string => {
@@ -49,6 +50,7 @@ export default function PlanificationFormModal({
   const { projetActif } = useAppSelector((state) => state.projet);
   const { gestations } = useAppSelector((state) => state.reproduction);
   const { sevrages } = useAppSelector((state) => state.reproduction);
+  const { canCreate, canUpdate } = useActionPermissions();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreatePlanificationInput>({
     projet_id: projetActif?.id || '',
@@ -107,6 +109,16 @@ export default function PlanificationFormModal({
   }, [planification, isEditing, visible, projetActif]);
 
   const handleSubmit = async () => {
+    // Vérifier les permissions
+    if (isEditing && !canUpdate('planification')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les planifications.');
+      return;
+    }
+    if (!isEditing && !canCreate('planification')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de créer des planifications.');
+      return;
+    }
+
     // Validation
     if (!formData.projet_id) {
       Alert.alert('Erreur', 'Aucun projet actif');

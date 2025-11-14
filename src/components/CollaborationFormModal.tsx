@@ -19,6 +19,7 @@ import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { usePermissions } from '../hooks/usePermissions';
 
 interface CollaborationFormModalProps {
   visible: boolean;
@@ -38,6 +39,7 @@ export default function CollaborationFormModal({
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
+  const { isProprietaire } = usePermissions();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateCollaborateurInput>({
     projet_id: projetActif?.id || '',
@@ -92,6 +94,12 @@ export default function CollaborationFormModal({
   };
 
   const handleSubmit = async () => {
+    // Vérifier les permissions
+    if (!isProprietaire) {
+      Alert.alert('Permission refusée', 'Seul le propriétaire peut créer ou modifier des collaborateurs.');
+      return;
+    }
+    
     // Validation
     if (!formData.projet_id) {
       Alert.alert('Erreur', 'Aucun projet actif');

@@ -8,6 +8,7 @@ export type StatutCollaborateur = 'actif' | 'inactif' | 'en_attente';
 export interface Collaborateur {
   id: string;
   projet_id: string;
+  user_id?: string; // ID de l'utilisateur lié (nullable pour compatibilité avec anciens collaborateurs)
   nom: string;
   prenom: string;
   email: string;
@@ -49,6 +50,7 @@ export interface CreateCollaborateurInput {
 }
 
 export interface UpdateCollaborateurInput {
+  user_id?: string;
   nom?: string;
   prenom?: string;
   email?: string;

@@ -155,6 +155,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 500,
     maxHeight: '85%',
+    flexDirection: 'column',
   },
   header: {
     flexDirection: 'row',
@@ -178,6 +179,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: SPACING.lg,
+    flexShrink: 1,
     maxHeight: 500,
   },
   footer: {

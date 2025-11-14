@@ -12,10 +12,12 @@ import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';
 import LoadingSpinner from './LoadingSpinner';
 import DepenseFormModal from './DepenseFormModal';
+import { useActionPermissions } from '../hooks/useActionPermissions';
 
 export default function FinanceDepensesComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
+  const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const { depensesPonctuelles, loading } = useAppSelector((state) => state.finance);
   const [selectedDepense, setSelectedDepense] = useState<DepensePonctuelle | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -59,12 +61,20 @@ export default function FinanceDepensesComponent() {
   }, [page, displayedDepenses.length, depensesPonctuelles]);
 
   const handleEdit = (depense: DepensePonctuelle) => {
+    if (!canUpdate('finance')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les dépenses.');
+      return;
+    }
     setSelectedDepense(depense);
     setIsEditing(true);
     setModalVisible(true);
   };
 
   const handleDelete = (id: string) => {
+    if (!canDelete('finance')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de supprimer les dépenses.');
+      return;
+    }
     Alert.alert(
       'Supprimer la dépense',
       'Êtes-vous sûr de vouloir supprimer cette dépense ?',
@@ -143,16 +153,18 @@ export default function FinanceDepensesComponent() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <Text style={[styles.title, { color: colors.text }]}>Dépenses Ponctuelles</Text>
-        <TouchableOpacity
-          style={[styles.addButton, { backgroundColor: colors.primary }]}
-          onPress={() => {
-            setSelectedDepense(null);
-            setIsEditing(false);
-            setModalVisible(true);
-          }}
-        >
-          <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Ajouter</Text>
-        </TouchableOpacity>
+        {canCreate('finance') && (
+          <TouchableOpacity
+            style={[styles.addButton, { backgroundColor: colors.primary }]}
+            onPress={() => {
+              setSelectedDepense(null);
+              setIsEditing(false);
+              setModalVisible(true);
+            }}
+          >
+            <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Ajouter</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Résumé du mois */}
@@ -172,16 +184,18 @@ export default function FinanceDepensesComponent() {
           title="Aucune dépense enregistrée"
           message="Ajoutez votre première dépense pour commencer"
           action={
-            <TouchableOpacity
-              style={[styles.addButton, { backgroundColor: colors.primary }]}
-              onPress={() => {
-                setSelectedDepense(null);
-                setIsEditing(false);
-                setModalVisible(true);
-              }}
-            >
-              <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Ajouter une dépense</Text>
-            </TouchableOpacity>
+            canCreate('finance') ? (
+              <TouchableOpacity
+                style={[styles.addButton, { backgroundColor: colors.primary }]}
+                onPress={() => {
+                  setSelectedDepense(null);
+                  setIsEditing(false);
+                  setModalVisible(true);
+                }}
+              >
+                <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Ajouter une dépense</Text>
+              </TouchableOpacity>
+            ) : null
           }
         />
       ) : (
@@ -203,18 +217,22 @@ export default function FinanceDepensesComponent() {
                       <Text style={styles.actionButtonText}>📷</Text>
                     </TouchableOpacity>
                   )}
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => handleEdit(depense)}
-                  >
-                    <Text style={styles.actionButtonText}>✏️</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => handleDelete(depense.id)}
-                  >
-                    <Text style={styles.actionButtonText}>🗑️</Text>
-                  </TouchableOpacity>
+                  {canUpdate('finance') && (
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() => handleEdit(depense)}
+                    >
+                      <Text style={styles.actionButtonText}>✏️</Text>
+                    </TouchableOpacity>
+                  )}
+                  {canDelete('finance') && (
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() => handleDelete(depense.id)}
+                    >
+                      <Text style={styles.actionButtonText}>🗑️</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
 

@@ -19,11 +19,13 @@ import EmptyState from './EmptyState';
 import LoadingSpinner from './LoadingSpinner';
 import MortalitesFormModal from './MortalitesFormModal';
 import StatCard from './StatCard';
+import { useActionPermissions } from '../hooks/useActionPermissions';
 
 export default function MortalitesListComponent() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
+  const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const { projetActif } = useAppSelector((state) => state.projet);
   const { mortalites, statistiques, loading } = useAppSelector((state) => state.mortalites);
   const [selectedMortalite, setSelectedMortalite] = useState<Mortalite | null>(null);
@@ -65,12 +67,20 @@ export default function MortalitesListComponent() {
   }, [page, displayedMortalites.length, mortalites]);
 
   const handleEdit = (mortalite: Mortalite) => {
+    if (!canUpdate('mortalites')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les mortalités.');
+      return;
+    }
     setSelectedMortalite(mortalite);
     setIsEditing(true);
     setModalVisible(true);
   };
 
   const handleDelete = (id: string) => {
+    if (!canDelete('mortalites')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de supprimer les mortalités.');
+      return;
+    }
     Alert.alert(
       'Supprimer la mortalité',
       'Êtes-vous sûr de vouloir supprimer cette entrée ?',
@@ -164,16 +174,18 @@ export default function MortalitesListComponent() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.divider, paddingTop: insets.top + SPACING.lg }]}>
         <Text style={[styles.title, { color: colors.text }]}>Mortalités</Text>
-        <TouchableOpacity
-          style={[styles.addButton, { backgroundColor: colors.primary }]}
-          onPress={() => {
-            setSelectedMortalite(null);
-            setIsEditing(false);
-            setModalVisible(true);
-          }}
-        >
-          <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Ajouter</Text>
-        </TouchableOpacity>
+        {canCreate('mortalites') && (
+          <TouchableOpacity
+            style={[styles.addButton, { backgroundColor: colors.primary }]}
+            onPress={() => {
+              setSelectedMortalite(null);
+              setIsEditing(false);
+              setModalVisible(true);
+            }}
+          >
+            <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Ajouter</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Statistiques */}
@@ -227,18 +239,22 @@ export default function MortalitesListComponent() {
                   </Text>
                 </View>
                 <View style={styles.cardActions}>
-                  <TouchableOpacity
-                    style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
-                    onPress={() => handleEdit(mortalite)}
-                  >
-                    <Text style={styles.actionButtonText}>✏️</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
-                    onPress={() => handleDelete(mortalite.id)}
-                  >
-                    <Text style={styles.actionButtonText}>🗑️</Text>
-                  </TouchableOpacity>
+                  {canUpdate('mortalites') && (
+                    <TouchableOpacity
+                      style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
+                      onPress={() => handleEdit(mortalite)}
+                    >
+                      <Text style={styles.actionButtonText}>✏️</Text>
+                    </TouchableOpacity>
+                  )}
+                  {canDelete('mortalites') && (
+                    <TouchableOpacity
+                      style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
+                      onPress={() => handleDelete(mortalite.id)}
+                    >
+                      <Text style={styles.actionButtonText}>🗑️</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
               <View style={styles.cardContent}>

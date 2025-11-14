@@ -26,24 +26,36 @@ export default function PerformanceIndicatorsComponent() {
   const { mortalites } = useAppSelector((state) => state.mortalites);
   const { indicateursPerformance, recommandations } = useAppSelector((state) => state.reports);
 
-  // Charger les animaux de production et leurs pesées
+  // Utiliser useRef pour tracker les chargements et éviter les boucles
+  const aChargeRef = useRef<string | null>(null);
+  const animauxChargesRef = useRef<Set<string>>(new Set());
+  
+  // Charger les animaux de production et leurs pesées (une seule fois par projet)
   useEffect(() => {
-    if (projetActif) {
+    if (!projetActif) {
+      aChargeRef.current = null;
+      animauxChargesRef.current.clear();
+      return;
+    }
+    
+    // Charger uniquement si le projet a changé
+    if (aChargeRef.current !== projetActif.id) {
+      aChargeRef.current = projetActif.id;
+      animauxChargesRef.current.clear(); // Réinitialiser pour le nouveau projet
       dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: true }));
       dispatch(loadMortalites(projetActif.id));
     }
-  }, [dispatch, projetActif]);
-
-  // Charger les pesées uniquement pour les animaux qui n'ont pas encore leurs pesées chargées
-  // Utiliser useRef pour éviter les boucles infinies
-  const animauxChargesRef = useRef<Set<string>>(new Set());
+  }, [dispatch, projetActif?.id]);
   
   useEffect(() => {
     if (projetActif && animaux.length > 0) {
       const animauxSansPesees = animaux.filter(
-        (animal) => !peseesParAnimal[animal.id] && !animauxChargesRef.current.has(animal.id)
+        (animal) => aChargeRef.current === projetActif.id && // S'assurer qu'on est sur le bon projet
+          !peseesParAnimal[animal.id] && 
+          !animauxChargesRef.current.has(animal.id)
       );
-      animauxSansPesees.forEach((animal) => {
+      // Limiter à 10 animaux à la fois pour éviter de surcharger
+      animauxSansPesees.slice(0, 10).forEach((animal) => {
         animauxChargesRef.current.add(animal.id);
         dispatch(loadPeseesParAnimal(animal.id));
       });

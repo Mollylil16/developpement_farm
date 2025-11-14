@@ -3,9 +3,8 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput, Modal, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Platform } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { createGestation, updateGestation } from '../store/slices/reproductionSlice';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
@@ -16,6 +15,7 @@ import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { useActionPermissions } from '../hooks/useActionPermissions';
 
 interface GestationFormModalProps {
   visible: boolean;
@@ -59,6 +59,7 @@ export default function GestationFormModal({
   const { projetActif } = useAppSelector((state) => state.projet);
   const { animaux } = useAppSelector((state) => state.production);
   const { mortalites } = useAppSelector((state) => state.mortalites);
+  const { canCreate, canUpdate } = useActionPermissions();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateGestationInput>({
     projet_id: projetActif?.id ?? '',
@@ -76,7 +77,6 @@ export default function GestationFormModal({
   const [searchQuery, setSearchQuery] = useState('');
   const [showFullList, setShowFullList] = useState(false);
   const [verratSearchQuery, setVerratSearchQuery] = useState('');
-  const [showVerratModal, setShowVerratModal] = useState(false);
 
   // Charger les animaux et mortalités au montage du composant
   useEffect(() => {
@@ -85,6 +85,7 @@ export default function GestationFormModal({
       dispatch(loadMortalitesParProjet(projetActif.id));
     }
   }, [dispatch, projetActif, visible]);
+
 
   // Générer une liste de truies basée sur le projet actif (en soustrayant les mortalités)
   const truies = useMemo(() => {
@@ -298,11 +299,20 @@ export default function GestationFormModal({
       setSearchQuery('');
       setVerratSearchQuery('');
       setShowFullList(false);
-      setShowVerratModal(false);
     }
   }, [gestation, isEditing, visible, projetActif?.id]);
 
   const handleSubmit = async () => {
+    // Vérifier les permissions
+    if (isEditing && !canUpdate('reproduction')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les gestations.');
+      return;
+    }
+    if (!isEditing && !canCreate('reproduction')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de créer des gestations.');
+      return;
+    }
+
     // Validation
     if (!formData.projet_id) {
       Alert.alert('Erreur', 'Aucun projet actif n\'est sélectionné pour cette gestation');
@@ -365,126 +375,6 @@ export default function GestationFormModal({
 
   return (
     <>
-    {/* Sélecteur de verrat en bottom sheet - doit être rendu en premier pour être au-dessus */}
-    <Modal
-      visible={showVerratModal}
-      transparent
-      animationType="slide"
-      onRequestClose={() => {
-        setShowVerratModal(false);
-        setVerratSearchQuery('');
-      }}
-      statusBarTranslucent
-    >
-      <View style={styles.sheetModalContainer}>
-        <TouchableWithoutFeedback
-          onPress={() => {
-            setShowVerratModal(false);
-            setVerratSearchQuery('');
-          }}
-        >
-          <View style={styles.sheetOverlay} />
-        </TouchableWithoutFeedback>
-        <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-          <View style={[styles.sheetContainer, { backgroundColor: colors.surface }]}>
-            <View style={styles.sheetHandle} />
-            <View style={styles.sheetHeader}>
-              <Text style={[styles.sheetTitle, { color: colors.text }]}>Sélectionner le verrat</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setShowVerratModal(false);
-                  setVerratSearchQuery('');
-                }}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Text style={[styles.sheetClose, { color: colors.textSecondary }]}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.sheetSearchContainer}>
-              <Text style={[styles.inputLabel, { color: colors.text }]}>Rechercher un verrat</Text>
-              <TextInput
-                style={[
-                  styles.searchInput,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                  },
-                ]}
-                value={verratSearchQuery}
-                onChangeText={setVerratSearchQuery}
-                placeholder="Rechercher par code ou nom..."
-                placeholderTextColor={colors.textSecondary}
-              />
-            </View>
-
-            <ScrollView style={styles.sheetList} contentContainerStyle={styles.sheetListContent}>
-              {verratsFiltres.length === 0 ? (
-                <View style={styles.noResults}>
-                  <Text style={[styles.noResultsText, { color: colors.textSecondary }]}>
-                    {verratSearchQuery.trim()
-                      ? 'Aucun verrat trouvé avec cette recherche'
-                      : verrats.length === 0
-                      ? `Aucun verrat disponible. Nombre de verrats dans le projet: ${projetActif?.nombre_verrats ?? 0}. Vérifiez les paramètres du projet ou ajoutez des verrats dans le module Production.`
-                      : 'Aucun verrat disponible pour cette recherche.'}
-                  </Text>
-                </View>
-              ) : (
-                verratsFiltres.map((verrat) => {
-                  const selected = formData.verrat_id === verrat.id;
-                  return (
-                    <TouchableOpacity
-                      key={verrat.id}
-                      style={[
-                        styles.sheetOption,
-                        {
-                          borderColor: selected ? colors.primary : colors.border,
-                          backgroundColor: selected ? colors.primary + '12' : colors.surface,
-                        },
-                      ]}
-                      onPress={() => {
-                        console.log('Verrat sélectionné:', verrat);
-                        setFormData((prev) => ({
-                          ...prev,
-                          verrat_id: verrat.id,
-                          verrat_nom: `${verrat.code}${verrat.nom ? ` (${verrat.nom})` : ''}`,
-                        }));
-                        setShowVerratModal(false);
-                        setVerratSearchQuery('');
-                      }}
-                    >
-                      <Text style={[styles.sheetOptionTitle, { color: colors.text }]}>
-                        {verrat.code}
-                        {verrat.nom ? ` (${verrat.nom})` : ''}
-                      </Text>
-                      <Text style={[styles.sheetOptionSubtitle, { color: colors.textSecondary }]}>
-                        {verrat.race ? `Race : ${verrat.race} • ` : ''}
-                        {verrat.statut === 'actif'
-                          ? 'Actif'
-                          : verrat.statut === 'mort'
-                          ? 'Mort'
-                          : verrat.statut === 'vendu'
-                          ? 'Vendu'
-                          : verrat.statut === 'offert'
-                          ? 'Offert'
-                          : verrat.statut}
-                      </Text>
-                      {!verrat.reproducteur && (
-                        <Text style={[styles.sheetOptionWarning, { color: colors.warning }]}>
-                          Non marqué comme reproducteur
-                        </Text>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })
-              )}
-            </ScrollView>
-          </View>
-        </TouchableWithoutFeedback>
-      </View>
-    </Modal>
-
     <CustomModal
       visible={visible}
       onClose={onClose}
@@ -493,7 +383,11 @@ export default function GestationFormModal({
       onConfirm={handleSubmit}
       showButtons={true}
     >
-      <ScrollView style={styles.scrollView}>
+      <ScrollView 
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={true}
+        nestedScrollEnabled={true}
+      >
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Truie *</Text>
           
@@ -631,20 +525,108 @@ export default function GestationFormModal({
           <Text style={[styles.helperText, { color: colors.textSecondary }]}>
             Sélectionnez le verrat utilisé pour cette saillie. Ce champ est obligatoire pour tracer la généalogie.
           </Text>
-          <TouchableOpacity
-            style={[styles.selectButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
-            onPress={() => {
-              console.log('Opening verrat modal, verrats count:', verrats.length);
-              console.log('Projet actif:', projetActif?.nombre_verrats);
-              setShowVerratModal(true);
-            }}
-            disabled={!projetActif}
-          >
-            <Text style={[styles.selectButtonLabel, { color: colors.textSecondary }]}>Verrat</Text>
-            <Text style={[styles.selectButtonValue, { color: colors.text }]}>
-              {formData.verrat_nom || formData.verrat_id || 'Sélectionner un verrat *'}
-            </Text>
-          </TouchableOpacity>
+          
+          {/* Champ de recherche pour verrat */}
+          <View style={styles.inputContainer}>
+            <Text style={[styles.inputLabel, { color: colors.text }]}>Rechercher un verrat</Text>
+            <TextInput
+              style={[styles.searchInput, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
+              value={verratSearchQuery}
+              onChangeText={setVerratSearchQuery}
+              placeholder="Rechercher par code ou nom..."
+              placeholderTextColor={colors.textSecondary}
+            />
+          </View>
+
+          {/* Affichage du verrat sélectionné */}
+          {formData.verrat_id && (
+            <View style={[styles.selectedTruieCard, { backgroundColor: colors.surface, borderColor: colors.primary }]}>
+              <Text style={[styles.selectedTruieLabel, { color: colors.textSecondary }]}>Verrat sélectionné:</Text>
+              <Text style={[styles.selectedTruieValue, { color: colors.primary }]}>{formData.verrat_nom}</Text>
+            </View>
+          )}
+
+          {/* Liste des verrats disponibles */}
+          {verrats.length > 0 && (
+            <View style={styles.resultsContainer}>
+              <View style={styles.resultsHeader}>
+                <Text style={[styles.resultsCount, { color: colors.textSecondary }]}>
+                  {verratsFiltres.length} verrat{verratsFiltres.length > 1 ? 's' : ''} disponible{verratsFiltres.length > 1 ? 's' : ''}
+                </Text>
+              </View>
+              <ScrollView 
+                style={[styles.verratListContainer, { maxHeight: 200, borderColor: colors.border }]}
+                nestedScrollEnabled={true}
+              >
+                {verratsFiltres.length > 0 ? (
+                  verratsFiltres.map((verrat) => {
+                    const selected = formData.verrat_id === verrat.id;
+                    return (
+                      <TouchableOpacity
+                        key={verrat.id}
+                        style={[
+                          styles.option,
+                          {
+                            borderColor: selected ? colors.primary : colors.border,
+                            backgroundColor: selected ? colors.primary + '20' : colors.background,
+                          },
+                        ]}
+                        onPress={() => {
+                          console.log('Verrat sélectionné:', verrat);
+                          setFormData((prev) => ({
+                            ...prev,
+                            verrat_id: verrat.id,
+                            verrat_nom: `${verrat.code}${verrat.nom ? ` (${verrat.nom})` : ''}`,
+                          }));
+                          setVerratSearchQuery('');
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.optionText,
+                            {
+                              color: selected ? colors.primary : colors.text,
+                              fontWeight: selected ? '600' : 'normal',
+                            },
+                          ]}
+                        >
+                          {verrat.code}
+                          {verrat.nom ? ` - ${verrat.nom}` : ''}
+                        </Text>
+                        {verrat.race && (
+                          <Text style={[styles.optionSubtext, { color: colors.textSecondary }]}>
+                            Race: {verrat.race} • {verrat.statut === 'actif' ? 'Actif' : verrat.statut}
+                          </Text>
+                        )}
+                        {!verrat.reproducteur && (
+                          <Text style={[styles.optionWarning, { color: colors.warning }]}>
+                            ⚠️ Non marqué comme reproducteur
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })
+                ) : (
+                  <View style={styles.noResults}>
+                    <Text style={[styles.noResultsText, { color: colors.textSecondary }]}>
+                      {verratSearchQuery.trim()
+                        ? 'Aucun verrat trouvé avec cette recherche'
+                        : 'Aucun verrat disponible'}
+                    </Text>
+                  </View>
+                )}
+              </ScrollView>
+            </View>
+          )}
+
+          {verrats.length === 0 && (
+            <View style={[styles.warningBox, { backgroundColor: colors.warning + '15', borderColor: colors.warning }]}>
+              <Text style={[styles.warningText, { color: colors.warning }]}>
+                ⚠️ Aucun verrat disponible. Nombre de verrats dans le projet: {projetActif?.nombre_verrats ?? 0}. 
+                Vérifiez les paramètres du projet ou ajoutez des verrats dans le module Production.
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.section}>
@@ -721,7 +703,7 @@ export default function GestationFormModal({
 
 const styles = StyleSheet.create({
   scrollView: {
-    maxHeight: 500,
+    maxHeight: 400,
   },
   section: {
     marginBottom: SPACING.md,
@@ -822,6 +804,31 @@ const styles = StyleSheet.create({
   optionTextSelected: {
     fontWeight: '600',
   },
+  optionSubtext: {
+    fontSize: 12,
+    marginTop: SPACING.xs,
+  },
+  optionWarning: {
+    fontSize: 11,
+    marginTop: SPACING.xs,
+    fontStyle: 'italic',
+  },
+  verratListContainer: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: SPACING.sm,
+    marginTop: SPACING.sm,
+  },
+  warningBox: {
+    padding: SPACING.md,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: SPACING.sm,
+  },
+  warningText: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
   dateButton: {
     borderWidth: 1,
     borderRadius: 8,
@@ -868,15 +875,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
-  sheetModalContainer: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  sheetOverlay: {
+  modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
   },
-  sheetContainer: {
+  modalSheetContainer: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: SPACING.sm,

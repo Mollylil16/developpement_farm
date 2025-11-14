@@ -8,12 +8,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import GestationsListComponent from '../components/GestationsListComponent';
 import GestationsCalendarComponent from '../components/GestationsCalendarComponent';
 import SevragesListComponent from '../components/SevragesListComponent';
+import ProtectedScreen from '../components/ProtectedScreen';
 import { FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
 const Tab = createMaterialTopTabNavigator();
 
-export default function ReproductionScreen() {
+function ReproductionScreenContent() {
   const { colors } = useTheme();
   
   return (
@@ -64,5 +65,13 @@ export default function ReproductionScreen() {
         />
       </Tab.Navigator>
     </SafeAreaView>
+  );
+}
+
+export default function ReproductionScreen() {
+  return (
+    <ProtectedScreen requiredPermission="reproduction">
+      <ReproductionScreenContent />
+    </ProtectedScreen>
   );
 }

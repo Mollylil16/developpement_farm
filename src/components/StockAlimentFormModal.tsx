@@ -15,6 +15,7 @@ import CustomModal from './CustomModal';
 import FormField from './FormField';
 import Button from './Button';
 import { StockAliment, UniteStock, CreateStockAlimentInput } from '../types';
+import { useActionPermissions } from '../hooks/useActionPermissions';
 
 interface StockAlimentFormModalProps {
   visible: boolean;
@@ -37,6 +38,7 @@ export default function StockAlimentFormModal({
 }: StockAlimentFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
+  const { canCreate, canUpdate } = useActionPermissions();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateStockAlimentInput>({
     projet_id: projetId,
@@ -75,6 +77,16 @@ export default function StockAlimentFormModal({
   }, [visible, aliment, isEditing, projetId]);
 
   const handleSubmit = async () => {
+    // Vérifier les permissions
+    if (isEditing && !canUpdate('nutrition')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les stocks.');
+      return;
+    }
+    if (!isEditing && !canCreate('nutrition')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de créer des stocks.');
+      return;
+    }
+
     if (!projetId) {
       Alert.alert('Erreur', 'Aucun projet actif. Veuillez sélectionner un projet.');
       return;

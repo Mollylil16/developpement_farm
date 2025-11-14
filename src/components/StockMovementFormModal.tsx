@@ -12,6 +12,7 @@ import CustomModal from './CustomModal';
 import FormField from './FormField';
 import Button from './Button';
 import { StockAliment, TypeMouvementStock, UniteStock } from '../types';
+import { useActionPermissions } from '../hooks/useActionPermissions';
 
 interface StockMovementFormModalProps {
   visible: boolean;
@@ -25,6 +26,7 @@ const TYPES_MOUVEMENT: TypeMouvementStock[] = ['entree', 'sortie', 'ajustement']
 export default function StockMovementFormModal({ visible, onClose, onSuccess, aliment }: StockMovementFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
+  const { canCreate } = useActionPermissions();
   const [loading, setLoading] = useState(false);
   const [type, setType] = useState<TypeMouvementStock>('entree');
   const [quantite, setQuantite] = useState<number>(0);
@@ -52,7 +54,7 @@ export default function StockMovementFormModal({ visible, onClose, onSuccess, al
         setQuantite(0);
         break;
       case 'sortie':
-        setQuantite(aliment.quantite_actuelle);
+        setQuantite(0); // Pour une sortie, on entre la quantité à sortir (pas le stock restant)
         break;
       case 'ajustement':
         setQuantite(aliment.quantite_actuelle);
@@ -62,43 +64,45 @@ export default function StockMovementFormModal({ visible, onClose, onSuccess, al
     }
   };
 
-  const quantiteSortieCalculee =
-    type === 'sortie' ? Math.max(0, aliment.quantite_actuelle - quantite) : 0;
+  // Calculer le stock restant après sortie (pour affichage)
+  const stockRestantApresSortie =
+    type === 'sortie' ? Math.max(0, aliment.quantite_actuelle - quantite) : aliment.quantite_actuelle;
 
   const handleSubmit = async () => {
+    // Vérifier les permissions
+    if (!canCreate('nutrition')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission d\'effectuer des mouvements de stock.');
+      return;
+    }
+
     if (type === 'entree' && quantite <= 0) {
       Alert.alert('Valeur invalide', 'La quantité doit être supérieure à 0');
       return;
     }
 
-    if ((type === 'sortie' || type === 'ajustement') && quantite < 0) {
+    if (type === 'sortie') {
+      if (quantite <= 0) {
+        Alert.alert('Valeur invalide', 'La quantité à sortir doit être supérieure à 0');
+        return;
+      }
+      
+      if (quantite > aliment.quantite_actuelle) {
+        Alert.alert(
+          'Valeur invalide',
+          `La quantité à sortir (${quantite}) ne peut pas être supérieure au stock actuel (${aliment.quantite_actuelle} ${aliment.unite})`
+        );
+        return;
+      }
+    }
+
+    if (type === 'ajustement' && quantite < 0) {
       Alert.alert('Valeur invalide', 'La nouvelle quantité ne peut pas être négative');
       return;
     }
 
-    let quantiteMouvement = quantite;
-
-    if (type === 'sortie') {
-      if (quantite > aliment.quantite_actuelle) {
-        Alert.alert(
-          'Valeur invalide',
-          'Le stock actuel après sortie ne peut pas être supérieur au stock disponible.'
-        );
-        return;
-      }
-
-      const difference = aliment.quantite_actuelle - quantite;
-
-      if (difference <= 0) {
-        Alert.alert(
-          'Valeur invalide',
-          'Le stock actuel doit être inférieur au stock disponible pour enregistrer une sortie.'
-        );
-        return;
-      }
-
-      quantiteMouvement = difference;
-    }
+    // Pour une sortie, la quantité du mouvement est directement la quantité à sortir
+    // La base de données calculera automatiquement le stock restant
+    const quantiteMouvement = quantite;
 
     setLoading(true);
     try {
@@ -191,14 +195,16 @@ export default function StockMovementFormModal({ visible, onClose, onSuccess, al
             type === 'ajustement'
               ? 'Nouvelle quantité'
               : type === 'sortie'
-              ? 'Stock actuel après sortie'
+              ? 'Quantité à sortir'
               : 'Quantité'
           }
           value={quantite.toString()}
           onChangeText={(text) => setQuantite(text ? parseFloat(text) : 0)}
           keyboardType="numeric"
           placeholder={
-            type === 'sortie' || type === 'ajustement'
+            type === 'sortie'
+              ? '0'
+              : type === 'ajustement'
               ? aliment.quantite_actuelle.toString()
               : '0'
           }
@@ -245,16 +251,16 @@ export default function StockMovementFormModal({ visible, onClose, onSuccess, al
               ? `Seuil d'alerte: ${aliment.seuil_alerte} ${aliment.unite}`
               : 'Aucun seuil défini'}
           </Text>
-          {type === 'sortie' && (
+          {type === 'sortie' && quantite > 0 && (
             <>
               <Text style={[styles.summaryInfo, { color: colors.text }]}>
-                Sortie calculée : {quantiteSortieCalculee} {aliment.unite}
+                Stock après sortie : {stockRestantApresSortie} {aliment.unite}
               </Text>
               {aliment.seuil_alerte !== undefined &&
                 aliment.seuil_alerte !== null &&
-                quantite <= aliment.seuil_alerte && (
+                stockRestantApresSortie <= aliment.seuil_alerte && (
                   <Text style={[styles.summaryInfo, { color: colors.error, fontWeight: '600' }]}>
-                    ⚠️ Stock sous le seuil d'alerte
+                    ⚠️ Stock sous le seuil d'alerte après cette sortie
                   </Text>
                 )}
             </>

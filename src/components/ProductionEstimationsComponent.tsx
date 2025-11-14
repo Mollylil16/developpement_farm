@@ -191,6 +191,12 @@ export default function ProductionEstimationsComponent() {
     return <LoadingSpinner message="Chargement des animaux..." />;
   }
 
+  // Vérifier si des animaux ont des pesées
+  const animauxAvecPesees = animaux.filter((a) => {
+    const pesees = peseesParAnimal[a.id] || [];
+    return pesees.length > 0;
+  });
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
@@ -198,6 +204,19 @@ export default function ProductionEstimationsComponent() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* Message d'information */}
+        <View style={[styles.infoBox, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' }]}>
+          <Text style={[styles.infoTitle, { color: colors.primary }]}>ℹ️ Comment utiliser les estimations</Text>
+          <Text style={[styles.infoText, { color: colors.text }]}>
+            {mode === 'date' 
+              ? 'Sélectionnez un animal et entrez un poids cible. Le système calculera la date à laquelle l\'animal atteindra ce poids.'
+              : 'Entrez un poids cible et une date. Le système trouvera tous les animaux qui atteindront ce poids à cette date.'}
+          </Text>
+          <Text style={[styles.infoNote, { color: colors.textSecondary }]}>
+            ⚠️ Les estimations nécessitent au moins une pesée par animal.
+          </Text>
+        </View>
+
         {/* Sélecteur de mode */}
         <View style={[styles.modeSelector, { backgroundColor: colors.surface, ...colors.shadow.small }]}>
           <TouchableOpacity
@@ -207,7 +226,11 @@ export default function ProductionEstimationsComponent() {
                 backgroundColor: mode === 'date' ? colors.primary : 'transparent',
               },
             ]}
-            onPress={() => setMode('date')}
+            onPress={() => {
+              setMode('date');
+              setSelectedAnimalId('');
+              setPoidsCible('');
+            }}
           >
             <Text
               style={[
@@ -228,7 +251,11 @@ export default function ProductionEstimationsComponent() {
                 backgroundColor: mode === 'animaux' ? colors.primary : 'transparent',
               },
             ]}
-            onPress={() => setMode('animaux')}
+            onPress={() => {
+              setMode('animaux');
+              setPoidsCible('');
+              setDateCible(format(new Date(), 'yyyy-MM-dd'));
+            }}
           >
             <Text
               style={[
@@ -252,47 +279,106 @@ export default function ProductionEstimationsComponent() {
             </Text>
 
             <View style={[styles.formContainer, { backgroundColor: colors.surface, ...colors.shadow.small }]}>
-              <View style={styles.selectContainer}>
-                <Text style={[styles.label, { color: colors.text }]}>Animal *</Text>
-                <ScrollView style={[styles.animalSelect, { borderColor: colors.border, backgroundColor: colors.background }]}>
-                  {animauxAvecStats.map((stats) => (
-                    <TouchableOpacity
-                      key={stats.animal.id}
-                      style={[
-                        styles.animalOption,
-                        {
-                          backgroundColor: selectedAnimalId === stats.animal.id ? colors.primary + '15' : 'transparent',
-                          borderBottomColor: colors.divider,
-                        },
-                      ]}
-                      onPress={() => setSelectedAnimalId(stats.animal.id)}
-                    >
-                      <Text
-                        style={[
-                          styles.animalOptionText,
-                          {
-                            color: selectedAnimalId === stats.animal.id ? colors.primary : colors.text,
-                            fontWeight: selectedAnimalId === stats.animal.id ? '600' : 'normal',
-                          },
-                        ]}
-                      >
-                        {stats.animal.code}
-                        {stats.animal.nom && ` - ${stats.animal.nom}`}
-                        {' - '}
-                        {stats.poidsActuel.toFixed(1)} kg (GMQ: {stats.gmq.toFixed(0)} g/j)
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
+              {animauxAvecStats.length === 0 ? (
+                <View style={styles.emptyStateContainer}>
+                  <Text style={[styles.emptyStateTitle, { color: colors.text }]}>
+                    Aucun animal avec pesées disponible
+                  </Text>
+                  <Text style={[styles.emptyStateMessage, { color: colors.textSecondary }]}>
+                    Pour utiliser les estimations, vous devez d'abord enregistrer au moins une pesée pour vos animaux.{'\n\n'}
+                    Allez dans l'onglet "Suivi des pesées" pour ajouter des pesées.
+                  </Text>
+                  {animaux.length > 0 && (
+                    <Text style={[styles.emptyStateStats, { color: colors.textSecondary }]}>
+                      {animaux.length} animal(s) enregistré(s), {animauxAvecPesees.length} avec pesées
+                    </Text>
+                  )}
+                </View>
+              ) : (
+                <>
+                  <View style={styles.selectContainer}>
+                    <Text style={[styles.label, { color: colors.text }]}>Animal *</Text>
+                    <Text style={[styles.helperText, { color: colors.textSecondary }]}>
+                      {animauxAvecStats.length} animal(s) disponible(s) avec pesées
+                    </Text>
+                    <ScrollView style={[styles.animalSelect, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                      {animauxAvecStats.map((stats) => (
+                        <TouchableOpacity
+                          key={stats.animal.id}
+                          style={[
+                            styles.animalOption,
+                            {
+                              backgroundColor: selectedAnimalId === stats.animal.id ? colors.primary + '15' : 'transparent',
+                              borderBottomColor: colors.border,
+                            },
+                          ]}
+                          onPress={() => setSelectedAnimalId(stats.animal.id)}
+                        >
+                          <Text
+                            style={[
+                              styles.animalOptionText,
+                              {
+                                color: selectedAnimalId === stats.animal.id ? colors.primary : colors.text,
+                                fontWeight: selectedAnimalId === stats.animal.id ? '600' : 'normal',
+                              },
+                            ]}
+                          >
+                            {stats.animal.code}
+                            {stats.animal.nom && ` - ${stats.animal.nom}`}
+                            {' - '}
+                            {stats.poidsActuel.toFixed(1)} kg (GMQ: {stats.gmq.toFixed(0)} g/j)
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                </>
+              )}
 
-              <FormField
-                label="Poids cible (kg) *"
-                value={poidsCible}
-                onChangeText={setPoidsCible}
-                keyboardType="numeric"
-                placeholder="Ex: 100"
-              />
+              {animauxAvecStats.length > 0 && (
+                <>
+                  <FormField
+                    label="Poids cible (kg) *"
+                    value={poidsCible}
+                    onChangeText={setPoidsCible}
+                    keyboardType="numeric"
+                    placeholder="Ex: 100"
+                  />
+
+                  {!selectedAnimalId && (
+                    <View style={[styles.warningBox, { backgroundColor: colors.warning + '15' }]}>
+                      <Text style={[styles.warningText, { color: colors.warning }]}>
+                        ⚠️ Veuillez sélectionner un animal ci-dessus
+                      </Text>
+                    </View>
+                  )}
+
+                  {selectedAnimalId && !poidsCible && (
+                    <View style={[styles.warningBox, { backgroundColor: colors.warning + '15' }]}>
+                      <Text style={[styles.warningText, { color: colors.warning }]}>
+                        ⚠️ Veuillez entrer un poids cible
+                      </Text>
+                    </View>
+                  )}
+
+                  {selectedAnimalId && poidsCible && (
+                    (() => {
+                      const animalStats = animauxAvecStats.find((s) => s.animal.id === selectedAnimalId);
+                      const poidsCibleNum = parseFloat(poidsCible);
+                      if (animalStats && !isNaN(poidsCibleNum) && poidsCibleNum <= animalStats.poidsActuel) {
+                        return (
+                          <View style={[styles.warningBox, { backgroundColor: colors.error + '15' }]}>
+                            <Text style={[styles.warningText, { color: colors.error }]}>
+                              ⚠️ Le poids cible doit être supérieur au poids actuel ({animalStats.poidsActuel.toFixed(1)} kg)
+                            </Text>
+                          </View>
+                        );
+                      }
+                      return null;
+                    })()
+                  )}
+                </>
+              )}
 
               {estimationDate && (
                 <View style={[styles.resultCard, { backgroundColor: colors.surfaceVariant, borderColor: colors.primary + '30' }]}>
@@ -360,19 +446,54 @@ export default function ProductionEstimationsComponent() {
             </Text>
 
             <View style={[styles.formContainer, { backgroundColor: colors.surface, ...colors.shadow.small }]}>
-              <FormField
-                label="Poids cible (kg) *"
-                value={poidsCible}
-                onChangeText={setPoidsCible}
-                keyboardType="numeric"
-                placeholder="Ex: 100"
-              />
-              <FormField
-                label="Date cible *"
-                value={dateCible}
-                onChangeText={setDateCible}
-                placeholder="YYYY-MM-DD"
-              />
+              {animauxAvecStats.length === 0 ? (
+                <View style={styles.emptyStateContainer}>
+                  <Text style={[styles.emptyStateTitle, { color: colors.text }]}>
+                    Aucun animal avec pesées disponible
+                  </Text>
+                  <Text style={[styles.emptyStateMessage, { color: colors.textSecondary }]}>
+                    Pour utiliser les estimations, vous devez d'abord enregistrer au moins une pesée pour vos animaux.{'\n\n'}
+                    Allez dans l'onglet "Suivi des pesées" pour ajouter des pesées.
+                  </Text>
+                  {animaux.length > 0 && (
+                    <Text style={[styles.emptyStateStats, { color: colors.textSecondary }]}>
+                      {animaux.length} animal(s) enregistré(s), {animauxAvecPesees.length} avec pesées
+                    </Text>
+                  )}
+                </View>
+              ) : (
+                <>
+                  <FormField
+                    label="Poids cible (kg) *"
+                    value={poidsCible}
+                    onChangeText={setPoidsCible}
+                    keyboardType="numeric"
+                    placeholder="Ex: 100"
+                  />
+                  <FormField
+                    label="Date cible *"
+                    value={dateCible}
+                    onChangeText={setDateCible}
+                    placeholder="YYYY-MM-DD"
+                  />
+
+                  {(!poidsCible || !dateCible) && (
+                    <View style={[styles.warningBox, { backgroundColor: colors.warning + '15' }]}>
+                      <Text style={[styles.warningText, { color: colors.warning }]}>
+                        ⚠️ Veuillez remplir le poids cible et la date cible
+                      </Text>
+                    </View>
+                  )}
+
+                  {poidsCible && dateCible && animauxAtteignantPoids.length === 0 && (
+                    <View style={[styles.warningBox, { backgroundColor: colors.textSecondary + '15' }]}>
+                      <Text style={[styles.warningText, { color: colors.textSecondary }]}>
+                        ℹ️ Aucun animal n'atteindra ce poids à cette date avec les données actuelles
+                      </Text>
+                    </View>
+                  )}
+                </>
+              )}
 
               {animauxAtteignantPoids.length > 0 && (
                 <View style={styles.resultsContainer}>
@@ -578,6 +699,61 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.md,
     fontWeight: 'bold',
     marginBottom: SPACING.md,
+  },
+  infoBox: {
+    margin: SPACING.xl,
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+  },
+  infoTitle: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+    marginBottom: SPACING.xs,
+  },
+  infoText: {
+    fontSize: FONT_SIZES.sm,
+    marginBottom: SPACING.xs,
+    lineHeight: 20,
+  },
+  infoNote: {
+    fontSize: FONT_SIZES.xs,
+    fontStyle: 'italic',
+    marginTop: SPACING.xs,
+  },
+  helperText: {
+    fontSize: FONT_SIZES.xs,
+    marginBottom: SPACING.sm,
+  },
+  emptyStateContainer: {
+    padding: SPACING.lg,
+    alignItems: 'center',
+  },
+  emptyStateTitle: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+    marginBottom: SPACING.sm,
+    textAlign: 'center',
+  },
+  emptyStateMessage: {
+    fontSize: FONT_SIZES.sm,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: SPACING.sm,
+  },
+  emptyStateStats: {
+    fontSize: FONT_SIZES.xs,
+    textAlign: 'center',
+    marginTop: SPACING.sm,
+  },
+  warningBox: {
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    marginTop: SPACING.md,
+  },
+  warningText: {
+    fontSize: FONT_SIZES.sm,
+    textAlign: 'center',
   },
 });
 

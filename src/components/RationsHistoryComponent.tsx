@@ -12,10 +12,12 @@ import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';
 import LoadingSpinner from './LoadingSpinner';
+import { useActionPermissions } from '../hooks/useActionPermissions';
 
 export default function RationsHistoryComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
+  const { canDelete } = useActionPermissions();
   const { rations, loading } = useAppSelector((state) => state.nutrition);
   const [displayedRations, setDisplayedRations] = useState<Ration[]>([]);
   const [page, setPage] = useState(1);
@@ -54,6 +56,10 @@ export default function RationsHistoryComponent() {
   }, [page, displayedRations.length, rations]);
 
   const handleDelete = (id: string) => {
+    if (!canDelete('nutrition')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de supprimer les rations.');
+      return;
+    }
     Alert.alert(
       'Supprimer la ration',
       'Êtes-vous sûr de vouloir supprimer cette ration ?',
@@ -113,12 +119,14 @@ export default function RationsHistoryComponent() {
                   <Text style={[styles.cardTitle, { color: colors.text }]}>{getTypePorcLabel(ration.type_porc as any)}</Text>
                   <Text style={[styles.cardDate, { color: colors.textSecondary }]}>{formatDate(ration.date_creation)}</Text>
                 </View>
-                <TouchableOpacity
-                  style={styles.actionButton}
-                  onPress={() => handleDelete(ration.id)}
-                >
-                  <Text style={styles.actionButtonText}>🗑️</Text>
-                </TouchableOpacity>
+                {canDelete('nutrition') && (
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => handleDelete(ration.id)}
+                  >
+                    <Text style={styles.actionButtonText}>🗑️</Text>
+                  </TouchableOpacity>
+                )}
               </View>
 
               <View style={styles.cardContent}>

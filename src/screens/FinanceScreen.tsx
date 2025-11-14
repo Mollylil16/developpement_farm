@@ -9,12 +9,13 @@ import FinanceGraphiquesComponent from '../components/FinanceGraphiquesComponent
 import FinanceChargesFixesComponent from '../components/FinanceChargesFixesComponent';
 import FinanceDepensesComponent from '../components/FinanceDepensesComponent';
 import FinanceRevenusComponent from '../components/FinanceRevenusComponent';
+import ProtectedScreen from '../components/ProtectedScreen';
 import { FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
 const Tab = createMaterialTopTabNavigator();
 
-export default function FinanceScreen() {
+function FinanceScreenContent() {
   const { colors } = useTheme();
   
   return (
@@ -72,5 +73,13 @@ export default function FinanceScreen() {
         />
       </Tab.Navigator>
     </SafeAreaView>
+  );
+}
+
+export default function FinanceScreen() {
+  return (
+    <ProtectedScreen requiredPermission="finance">
+      <FinanceScreenContent />
+    </ProtectedScreen>
   );
 }

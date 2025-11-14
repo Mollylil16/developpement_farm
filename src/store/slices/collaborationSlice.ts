@@ -8,12 +8,16 @@ import { databaseService } from '../../services/database';
 
 interface CollaborationState {
   collaborateurs: Collaborateur[];
+  collaborateurActuel: Collaborateur | null; // Collaborateur actuel pour le projet actif
+  invitationsEnAttente: Collaborateur[]; // Invitations en attente pour l'utilisateur connecté
   loading: boolean;
   error: string | null;
 }
 
 const initialState: CollaborationState = {
   collaborateurs: [],
+  collaborateurActuel: null,
+  invitationsEnAttente: [],
   loading: false,
   error: null,
 };
@@ -102,12 +106,94 @@ export const accepterInvitation = createAsyncThunk(
   }
 );
 
+/**
+ * Charger le collaborateur actuel pour le projet actif et l'utilisateur connecté
+ */
+export const loadCollaborateurActuel = createAsyncThunk(
+  'collaboration/loadCollaborateurActuel',
+  async ({ userId, projetId }: { userId: string; projetId: string }, { rejectWithValue }) => {
+    try {
+      // Chercher le collaborateur actif pour cet utilisateur et ce projet
+      const collaborateurs = await databaseService.getCollaborateursActifsParUserId(userId);
+      const collaborateur = collaborateurs.find((c) => c.projet_id === projetId && c.statut === 'actif');
+      
+      return collaborateur || null;
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Erreur lors du chargement du collaborateur actuel');
+    }
+  }
+);
+
+/**
+ * Charger les invitations en attente pour un utilisateur
+ * Utilise user_id si disponible, sinon email
+ */
+export const loadInvitationsEnAttente = createAsyncThunk(
+  'collaboration/loadInvitationsEnAttente',
+  async ({ userId, email }: { userId?: string; email?: string }, { rejectWithValue }) => {
+    try {
+      if (!userId && !email) {
+        return [];
+      }
+
+      let invitations: Collaborateur[] = [];
+      
+      // D'abord essayer par user_id si disponible
+      if (userId) {
+        invitations = await databaseService.getInvitationsEnAttenteParUserId(userId);
+      }
+      
+      // Si pas d'invitations par user_id, essayer par email
+      if (invitations.length === 0 && email) {
+        invitations = await databaseService.getInvitationsEnAttenteParEmail(email);
+        // Si on trouve des invitations par email et qu'on a un userId, les lier
+        if (invitations.length > 0 && userId) {
+          for (const invitation of invitations) {
+            if (!invitation.user_id) {
+              await databaseService.lierCollaborateurAUtilisateur(userId, email);
+            }
+          }
+          // Recharger après liaison
+          invitations = await databaseService.getInvitationsEnAttenteParUserId(userId);
+        }
+      }
+      
+      return invitations;
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Erreur lors du chargement des invitations en attente');
+    }
+  }
+);
+
+/**
+ * Rejeter une invitation
+ */
+export const rejeterInvitation = createAsyncThunk(
+  'collaboration/rejeterInvitation',
+  async (id: string, { rejectWithValue }) => {
+    try {
+      await databaseService.updateCollaborateur(id, {
+        statut: 'inactif',
+      });
+      return id;
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Erreur lors du rejet de l\'invitation');
+    }
+  }
+);
+
 const collaborationSlice = createSlice({
   name: 'collaboration',
   initialState,
   reducers: {
     clearError: (state) => {
       state.error = null;
+    },
+    clearCollaborateurActuel: (state) => {
+      state.collaborateurActuel = null;
+    },
+    clearInvitationsEnAttente: (state) => {
+      state.invitationsEnAttente = [];
     },
   },
   extraReducers: (builder) => {
@@ -191,14 +277,60 @@ const collaborationSlice = createSlice({
         if (index !== -1) {
           state.collaborateurs[index] = action.payload;
         }
+        // Retirer de la liste des invitations en attente
+        state.invitationsEnAttente = state.invitationsEnAttente.filter(
+          (inv) => inv.id !== action.payload.id
+        );
       })
       .addCase(accepterInvitation.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      // loadCollaborateurActuel
+      .addCase(loadCollaborateurActuel.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(loadCollaborateurActuel.fulfilled, (state, action) => {
+        state.loading = false;
+        state.collaborateurActuel = action.payload;
+      })
+      .addCase(loadCollaborateurActuel.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+        state.collaborateurActuel = null;
+      })
+      // loadInvitationsEnAttente
+      .addCase(loadInvitationsEnAttente.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(loadInvitationsEnAttente.fulfilled, (state, action) => {
+        state.loading = false;
+        state.invitationsEnAttente = action.payload;
+      })
+      .addCase(loadInvitationsEnAttente.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      // rejeterInvitation
+      .addCase(rejeterInvitation.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(rejeterInvitation.fulfilled, (state, action) => {
+        state.loading = false;
+        state.invitationsEnAttente = state.invitationsEnAttente.filter(
+          (inv) => inv.id !== action.payload
+        );
+      })
+      .addCase(rejeterInvitation.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       });
   },
 });
 
-export const { clearError } = collaborationSlice.actions;
+export const { clearError, clearCollaborateurActuel, clearInvitationsEnAttente } = collaborationSlice.actions;
 export default collaborationSlice.reducer;
 

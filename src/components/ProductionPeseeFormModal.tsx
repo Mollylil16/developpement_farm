@@ -12,6 +12,7 @@ import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { useActionPermissions } from '../hooks/useActionPermissions';
 
 // Fonction helper pour convertir une date en format local YYYY-MM-DD
 const formatDateToLocal = (date: Date): string => {
@@ -45,6 +46,7 @@ export default function ProductionPeseeFormModal({
 }: ProductionPeseeFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
+  const { canCreate } = useActionPermissions();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreatePeseeInput>({
     projet_id: projetId,
@@ -69,6 +71,12 @@ export default function ProductionPeseeFormModal({
   }, [visible, projetId, animal]);
 
   const handleSubmit = async () => {
+    // Vérifier les permissions
+    if (!canCreate('reproduction')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission d\'ajouter des pesées.');
+      return;
+    }
+
     if (formData.poids_kg <= 0) {
       Alert.alert('Erreur', 'Le poids doit être supérieur à 0.');
       return;

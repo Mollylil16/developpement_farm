@@ -3,7 +3,8 @@
  */
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadSevrages, deleteSevrage, createSevrage } from '../store/slices/reproductionSlice';
 import { Sevrage, Gestation } from '../types';
@@ -14,10 +15,12 @@ import LoadingSpinner from './LoadingSpinner';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { addDays, format, parseISO, differenceInDays } from 'date-fns';
+import { useActionPermissions } from '../hooks/useActionPermissions';
 
 export default function SevragesListComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
+  const { canCreate, canDelete } = useActionPermissions();
   const { sevrages, gestations } = useAppSelector((state) => state.reproduction);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
@@ -31,6 +34,7 @@ export default function SevragesListComponent() {
     poids_moyen_sevrage: 0,
     notes: '',
   });
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const { projetActif } = useAppSelector((state) => state.projet);
 
@@ -73,6 +77,10 @@ export default function SevragesListComponent() {
   };
 
   const handleCreateSevrage = (gestation: Gestation) => {
+    if (!canCreate('reproduction')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de créer des sevrages.');
+      return;
+    }
     setSelectedGestation(gestation);
     // Utiliser la date prévisionnelle de sevrage par défaut (28 jours après la mise bas)
     const dateSevragePrevue = calculerDateSevragePrevue(gestation.date_mise_bas_reelle) || new Date().toISOString().split('T')[0];
@@ -87,6 +95,11 @@ export default function SevragesListComponent() {
 
   const handleSubmit = async () => {
     if (!selectedGestation) return;
+    
+    if (!canCreate('reproduction')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de créer des sevrages.');
+      return;
+    }
     
     if (formData.nombre_porcelets_sevres <= 0) {
       Alert.alert('Erreur', 'Le nombre de porcelets sevrés doit être supérieur à 0');
@@ -118,6 +131,10 @@ export default function SevragesListComponent() {
   };
 
   const handleDelete = (id: string) => {
+    if (!canDelete('reproduction')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de supprimer les sevrages.');
+      return;
+    }
     Alert.alert(
       'Supprimer le sevrage',
       'Êtes-vous sûr de vouloir supprimer ce sevrage ?',
@@ -200,14 +217,14 @@ export default function SevragesListComponent() {
     }
   }, [page, displayedSevrages.length, sevrages, projetActif?.id]);
 
-  if (loading) {
-    return <LoadingSpinner message="Chargement des sevrages..." />;
-  }
-
   const sevragesProjet = useMemo(() => {
     if (!projetActif?.id) return [];
     return sevrages.filter((s) => s.projet_id === projetActif.id);
   }, [sevrages, projetActif?.id]);
+
+  if (loading) {
+    return <LoadingSpinner message="Chargement des sevrages..." />;
+  }
 
   // Composant d'en-tête pour la FlatList
   const ListHeader = () => (
@@ -221,7 +238,7 @@ export default function SevragesListComponent() {
             const hasSevrage = sevragesProjet.some((s) => s.gestation_id === gestation.id);
             if (hasSevrage) return null;
             
-            return (
+            return canCreate('reproduction') ? (
               <TouchableOpacity
                 key={gestation.id}
                 style={[styles.gestationCard, { backgroundColor: colors.surface, borderColor: colors.primary }]}
@@ -241,7 +258,7 @@ export default function SevragesListComponent() {
                 )}
                 <Text style={[styles.gestationCardButton, { color: colors.primary }]}>+ Enregistrer le sevrage</Text>
               </TouchableOpacity>
-            );
+            ) : null;
           })}
         </View>
       )}
@@ -278,12 +295,14 @@ export default function SevragesListComponent() {
                   <Text style={[styles.cardTitle, { color: colors.text }]}>
                     {getGestationNom(sevrage.gestation_id)}
                   </Text>
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => handleDelete(sevrage.id)}
-                  >
-                    <Text style={styles.actionButtonText}>🗑️</Text>
-                  </TouchableOpacity>
+                  {canDelete('reproduction') && (
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() => handleDelete(sevrage.id)}
+                    >
+                      <Text style={styles.actionButtonText}>🗑️</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
 
                 <View style={styles.cardContent}>
@@ -341,7 +360,11 @@ export default function SevragesListComponent() {
           onConfirm={handleSubmit}
           showButtons={true}
         >
-          <ScrollView style={styles.scrollView}>
+          <ScrollView 
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={true}
+          >
             <View style={[styles.infoBox, { backgroundColor: colors.primary + '10' }]}>
               <Text style={[styles.infoBoxTitle, { color: colors.primary }]}>Informations de la gestation</Text>
               <Text style={[styles.infoBoxText, { color: colors.text }]}>
@@ -361,13 +384,48 @@ export default function SevragesListComponent() {
                 </Text>
               )}
             </View>
-            <FormField
-              label="Date de sevrage *"
-              value={formData.date_sevrage}
-              onChangeText={(text) => setFormData({ ...formData, date_sevrage: text })}
-              placeholder="YYYY-MM-DD"
-              required
-            />
+            <View style={styles.dateFieldContainer}>
+              <Text style={[styles.dateFieldLabel, { color: colors.text }]}>
+                Date de sevrage *
+                <Text style={{ color: colors.error }}> *</Text>
+              </Text>
+              <TouchableOpacity
+                style={[styles.datePickerButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                onPress={() => setShowDatePicker(true)}
+              >
+                <Text style={[styles.datePickerText, { color: colors.text }]}>
+                  {formData.date_sevrage ? format(parseISO(formData.date_sevrage), 'dd/MM/yyyy') : 'Sélectionner une date'}
+                </Text>
+              </TouchableOpacity>
+              {showDatePicker && (
+                <DateTimePicker
+                  value={formData.date_sevrage ? parseISO(formData.date_sevrage) : new Date()}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={(event, selectedDate) => {
+                    if (Platform.OS === 'android') {
+                      setShowDatePicker(false);
+                    }
+                    if (event.type === 'set' && selectedDate) {
+                      setFormData({ ...formData, date_sevrage: selectedDate.toISOString().split('T')[0] });
+                    }
+                    if (Platform.OS === 'android' && event.type === 'dismissed') {
+                      setShowDatePicker(false);
+                    }
+                  }}
+                />
+              )}
+              {Platform.OS === 'ios' && showDatePicker && (
+                <View style={styles.iosDatePickerActions}>
+                  <TouchableOpacity
+                    style={[styles.iosDatePickerButton, { backgroundColor: colors.primary }]}
+                    onPress={() => setShowDatePicker(false)}
+                  >
+                    <Text style={[styles.iosDatePickerButtonText, { color: colors.textOnPrimary }]}>OK</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
             <FormField
               label="Nombre de porcelets sevrés *"
               value={formData.nombre_porcelets_sevres.toString()}
@@ -428,12 +486,10 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.md,
   },
   scrollView: {
-    flex: 1,
+    maxHeight: 400,
   },
   scrollContent: {
-    padding: SPACING.xl,
-    paddingTop: SPACING.lg + 10,
-    paddingBottom: SPACING.xxl + 85, // 85px pour la barre de navigation + espace
+    paddingBottom: SPACING.md,
   },
   actionSection: {
     padding: SPACING.lg,
@@ -536,6 +592,38 @@ const styles = StyleSheet.create({
   infoBoxText: {
     fontSize: FONT_SIZES.sm,
     marginBottom: SPACING.xs,
+  },
+  dateFieldContainer: {
+    marginBottom: SPACING.md,
+  },
+  dateFieldLabel: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+    marginBottom: SPACING.xs,
+  },
+  datePickerButton: {
+    borderWidth: 1,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    minHeight: 48,
+    justifyContent: 'center',
+  },
+  datePickerText: {
+    fontSize: FONT_SIZES.md,
+  },
+  iosDatePickerActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: SPACING.sm,
+  },
+  iosDatePickerButton: {
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  iosDatePickerButtonText: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
   },
 });
 

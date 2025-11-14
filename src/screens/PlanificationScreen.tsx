@@ -7,12 +7,13 @@ import { createMaterialTopTabNavigator } from '@react-navigation/material-top-ta
 import { SafeAreaView } from 'react-native-safe-area-context';
 import PlanificationListComponent from '../components/PlanificationListComponent';
 import PlanificationCalendarComponent from '../components/PlanificationCalendarComponent';
+import ProtectedScreen from '../components/ProtectedScreen';
 import { FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
 const Tab = createMaterialTopTabNavigator();
 
-export default function PlanificationScreen() {
+function PlanificationScreenContent() {
   const { colors } = useTheme();
   
   return (
@@ -49,6 +50,14 @@ export default function PlanificationScreen() {
       />
     </Tab.Navigator>
     </SafeAreaView>
+  );
+}
+
+export default function PlanificationScreen() {
+  return (
+    <ProtectedScreen requiredPermission="planification">
+      <PlanificationScreenContent />
+    </ProtectedScreen>
   );
 }
 

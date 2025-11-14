@@ -209,6 +209,35 @@ class DatabaseService {
         console.log('Migration: Colonne statut ajoutée à la table production_animaux');
       }
 
+      // Migration: Ajouter user_id à la table collaborations si elle n'existe pas
+      try {
+        const collaborationsTableExists = await this.db.getFirstAsync<{ name: string } | null>(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='collaborations'"
+        );
+
+        if (collaborationsTableExists) {
+          const userIdInfo = await this.db.getFirstAsync<{ name: string } | null>(
+            "SELECT name FROM pragma_table_info('collaborations') WHERE name = 'user_id'"
+          );
+          
+          if (!userIdInfo) {
+            // Ajouter la colonne user_id (nullable car les anciens collaborateurs n'ont pas encore de user_id)
+            await this.db.execAsync(`
+              ALTER TABLE collaborations ADD COLUMN user_id TEXT;
+            `);
+            
+            // Créer un index pour user_id
+            await this.db.execAsync(`
+              CREATE INDEX IF NOT EXISTS idx_collaborations_user_id ON collaborations(user_id);
+            `);
+            
+            console.log('Migration: Colonne user_id ajoutée à la table collaborations');
+          }
+        }
+      } catch (error: any) {
+        console.warn('Erreur lors de la migration user_id pour collaborations:', error?.message || error);
+      }
+
       // Migration: Ajouter race à la table production_animaux si elle n'existe pas
       const raceInfo = await this.db.getFirstAsync<{ name: string } | null>(
         "SELECT name FROM pragma_table_info('production_animaux') WHERE name = 'race'"
@@ -1147,6 +1176,7 @@ class DatabaseService {
       CREATE TABLE IF NOT EXISTS collaborations (
         id TEXT PRIMARY KEY,
         projet_id TEXT NOT NULL,
+        user_id TEXT,
         nom TEXT NOT NULL,
         prenom TEXT NOT NULL,
         email TEXT NOT NULL,
@@ -1164,7 +1194,8 @@ class DatabaseService {
         notes TEXT,
         date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
         derniere_modification TEXT DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (projet_id) REFERENCES projets(id)
+        FOREIGN KEY (projet_id) REFERENCES projets(id),
+        FOREIGN KEY (user_id) REFERENCES users(id)
       );
     `);
 
@@ -1190,6 +1221,7 @@ class DatabaseService {
       CREATE INDEX IF NOT EXISTS idx_collaborations_statut ON collaborations(statut);
       CREATE INDEX IF NOT EXISTS idx_collaborations_role ON collaborations(role);
       CREATE INDEX IF NOT EXISTS idx_collaborations_email ON collaborations(email);
+      CREATE INDEX IF NOT EXISTS idx_collaborations_user_id ON collaborations(user_id);
       CREATE INDEX IF NOT EXISTS idx_stocks_aliments_alerte ON stocks_aliments(alerte_active);
       CREATE INDEX IF NOT EXISTS idx_stocks_mouvements_aliment ON stocks_mouvements(aliment_id);
       CREATE INDEX IF NOT EXISTS idx_stocks_mouvements_date ON stocks_mouvements(date);
@@ -1492,16 +1524,24 @@ class DatabaseService {
     return result;
   }
 
+  /**
+   * Obtenir tous les projets d'un utilisateur (propriétaire + collaborateur)
+   */
   async getAllProjets(userId?: string): Promise<Projet[]> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
 
     if (userId) {
-      // Filtrer par utilisateur si fourni
+      // Récupérer les projets où l'utilisateur est propriétaire
+      // ET les projets où l'utilisateur est collaborateur actif
       return await this.db.getAllAsync<Projet>(
-        'SELECT * FROM projets WHERE proprietaire_id = ? ORDER BY date_creation DESC',
-        [userId]
+        `SELECT DISTINCT p.* 
+         FROM projets p
+         LEFT JOIN collaborations c ON p.id = c.projet_id AND c.user_id = ? AND c.statut = 'actif'
+         WHERE p.proprietaire_id = ? OR c.user_id = ?
+         ORDER BY p.date_creation DESC`,
+        [userId, userId, userId]
       );
     }
 
@@ -1509,6 +1549,9 @@ class DatabaseService {
     return await this.db.getAllAsync<Projet>('SELECT * FROM projets ORDER BY date_creation DESC');
   }
 
+  /**
+   * Obtenir le projet actif d'un utilisateur (propriétaire ou collaborateur)
+   */
   async getProjetActif(userId?: string): Promise<Projet | null> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
@@ -1519,10 +1562,16 @@ class DatabaseService {
       return null;
     }
 
-    // TOUJOURS filtrer par utilisateur pour la sécurité
+    // Récupérer le projet actif où l'utilisateur est propriétaire
+    // OU collaborateur actif
     return await this.db.getFirstAsync<Projet>(
-      'SELECT * FROM projets WHERE statut = ? AND proprietaire_id = ? ORDER BY date_creation DESC LIMIT 1',
-      ['actif', userId]
+      `SELECT DISTINCT p.* 
+       FROM projets p
+       LEFT JOIN collaborations c ON p.id = c.projet_id AND c.user_id = ? AND c.statut = 'actif'
+       WHERE p.statut = 'actif' AND (p.proprietaire_id = ? OR c.user_id = ?)
+       ORDER BY p.date_creation DESC 
+       LIMIT 1`,
+      [userId, userId, userId]
     );
   }
 
@@ -2416,23 +2465,52 @@ class DatabaseService {
     }
 
     const stock = await this.getStockAlimentById(input.aliment_id);
-    let nouvelleQuantite = stock.quantite_actuelle;
+    
+    // S'assurer que les valeurs sont des nombres
+    const quantiteActuelle = typeof stock.quantite_actuelle === 'number' ? stock.quantite_actuelle : parseFloat(String(stock.quantite_actuelle)) || 0;
+    const quantiteMouvement = typeof input.quantite === 'number' ? input.quantite : parseFloat(String(input.quantite)) || 0;
+    
+    console.log('[createStockMouvement] Avant calcul:', {
+      type: input.type,
+      quantiteActuelle,
+      quantiteMouvement,
+      aliment_id: input.aliment_id,
+    });
+    
+    let nouvelleQuantite = quantiteActuelle;
 
     switch (input.type) {
       case 'entree':
-        nouvelleQuantite += input.quantite;
+        nouvelleQuantite = quantiteActuelle + quantiteMouvement;
         break;
       case 'sortie':
-        nouvelleQuantite -= input.quantite;
+        nouvelleQuantite = quantiteActuelle - quantiteMouvement;
         break;
       case 'ajustement':
-        nouvelleQuantite = input.quantite;
+        nouvelleQuantite = quantiteMouvement;
         break;
       default:
         break;
     }
 
     nouvelleQuantite = Math.max(0, nouvelleQuantite);
+    
+    // S'assurer que nouvelleQuantite est bien un nombre
+    const nouvelleQuantiteNum = typeof nouvelleQuantite === 'number' 
+      ? nouvelleQuantite 
+      : parseFloat(String(nouvelleQuantite)) || 0;
+    
+    // S'assurer que input.quantite est bien un nombre pour l'insertion
+    const quantiteMouvementNum = typeof input.quantite === 'number'
+      ? input.quantite
+      : parseFloat(String(input.quantite)) || 0;
+    
+    console.log('[createStockMouvement] Après calcul:', {
+      nouvelleQuantite: nouvelleQuantiteNum,
+      type: input.type,
+      stock_unite: stock.unite,
+      mouvement_unite: input.unite,
+    });
 
     const id = `mvt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const date_creation = new Date().toISOString();
@@ -2447,7 +2525,7 @@ class DatabaseService {
         input.projet_id,
         input.aliment_id,
         input.type,
-        input.quantite,
+        quantiteMouvementNum, // Utiliser la valeur convertie en nombre
         input.unite,
         input.date,
         input.origine || null,
@@ -2458,11 +2536,17 @@ class DatabaseService {
     );
 
     const alerte_active = stock.seuil_alerte !== undefined && stock.seuil_alerte !== null
-      ? nouvelleQuantite <= stock.seuil_alerte
+      ? nouvelleQuantiteNum <= stock.seuil_alerte
       : false;
 
     const dateDerniereEntree = input.type === 'entree' ? input.date : stock.date_derniere_entree || null;
     const dateDerniereSortie = input.type === 'sortie' ? input.date : stock.date_derniere_sortie || null;
+
+    console.log('[createStockMouvement] Avant UPDATE:', {
+      stock_id: stock.id,
+      nouvelleQuantite: nouvelleQuantiteNum,
+      quantite_actuelle_avant: quantiteActuelle,
+    });
 
     await this.db.runAsync(
       `UPDATE stocks_aliments SET
@@ -2473,7 +2557,7 @@ class DatabaseService {
         derniere_modification = ?
       WHERE id = ?`,
       [
-        nouvelleQuantite,
+        nouvelleQuantiteNum, // Utiliser la valeur convertie en nombre
         dateDerniereEntree,
         dateDerniereSortie,
         alerte_active ? 1 : 0,
@@ -2481,9 +2565,35 @@ class DatabaseService {
         stock.id,
       ]
     );
+    
+    console.log('[createStockMouvement] UPDATE exécuté avec succès');
+
+    // Vérifier que la mise à jour a bien été effectuée
+    const verification = await this.db.getFirstAsync<any>(
+      'SELECT quantite_actuelle FROM stocks_aliments WHERE id = ?',
+      [stock.id]
+    );
+    
+    // Convertir en nombre pour la comparaison
+    const quantiteEnDb = typeof verification?.quantite_actuelle === 'number'
+      ? verification.quantite_actuelle
+      : parseFloat(String(verification?.quantite_actuelle)) || 0;
+    
+    console.log('[createStockMouvement] Vérification après UPDATE:', {
+      quantite_actuelle_en_db: quantiteEnDb,
+      nouvelleQuantite_calculee: nouvelleQuantite,
+      match: Math.abs(quantiteEnDb - nouvelleQuantite) < 0.001, // Comparaison avec tolérance pour les nombres à virgule
+      stock_unite: stock.unite,
+      mouvement_unite: input.unite,
+    });
 
     const mouvement = await this.getStockMouvementById(id);
     const updatedStock = await this.getStockAlimentById(stock.id);
+    
+    console.log('[createStockMouvement] Stock retourné:', {
+      id: updatedStock.id,
+      quantite_actuelle: updatedStock.quantite_actuelle,
+    });
 
     return {
       mouvement,
@@ -3422,14 +3532,15 @@ class DatabaseService {
 
     await this.db.runAsync(
       `INSERT INTO collaborations (
-        id, projet_id, nom, prenom, email, telephone, role, statut,
+        id, projet_id, user_id, nom, prenom, email, telephone, role, statut,
         permission_reproduction, permission_nutrition, permission_finance,
         permission_rapports, permission_planification, permission_mortalites,
         date_invitation, date_acceptation, notes, date_creation, derniere_modification
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         collaborateur.projet_id,
+        collaborateur.user_id || null,
         collaborateur.nom,
         collaborateur.prenom,
         collaborateur.email,
@@ -3522,6 +3633,135 @@ class DatabaseService {
     return results.map((row) => this.mapRowToCollaborateur(row));
   }
 
+  /**
+   * Trouver un collaborateur actif par email
+   */
+  async getCollaborateurActifParEmail(email: string): Promise<Collaborateur | null> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const emailNormalized = email.trim().toLowerCase();
+    const result = await this.db.getFirstAsync<any>(
+      'SELECT * FROM collaborations WHERE LOWER(TRIM(email)) = ? AND statut = ? LIMIT 1',
+      [emailNormalized, 'actif']
+    );
+
+    if (!result) {
+      return null;
+    }
+
+    return this.mapRowToCollaborateur(result);
+  }
+
+  /**
+   * Obtenir tous les collaborateurs actifs d'un utilisateur (par user_id)
+   */
+  async getCollaborateursActifsParUserId(userId: string): Promise<Collaborateur[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const results = await this.db.getAllAsync<any>(
+      'SELECT * FROM collaborations WHERE user_id = ? AND statut = ? ORDER BY nom ASC, prenom ASC',
+      [userId, 'actif']
+    );
+
+    return results.map((row) => this.mapRowToCollaborateur(row));
+  }
+
+  /**
+   * Lier un collaborateur à un utilisateur par email
+   * Cette fonction met à jour le user_id du collaborateur si l'email correspond
+   */
+  async lierCollaborateurAUtilisateur(userId: string, email: string): Promise<Collaborateur | null> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const emailNormalized = email.trim().toLowerCase();
+    
+    // Trouver le collaborateur avec cet email qui n'a pas encore de user_id
+    const collaborateur = await this.db.getFirstAsync<any>(
+      'SELECT * FROM collaborations WHERE LOWER(TRIM(email)) = ? AND (user_id IS NULL OR user_id = ?) LIMIT 1',
+      [emailNormalized, userId]
+    );
+
+    if (!collaborateur) {
+      return null;
+    }
+
+    // Mettre à jour le user_id
+    await this.db.runAsync(
+      'UPDATE collaborations SET user_id = ?, derniere_modification = ? WHERE id = ?',
+      [userId, new Date().toISOString(), collaborateur.id]
+    );
+
+    // Retourner le collaborateur mis à jour
+    return this.getCollaborateurById(collaborateur.id);
+  }
+
+  /**
+   * Obtenir tous les collaborateurs (actifs ou en attente) d'un utilisateur par email
+   * Utile pour vérifier les invitations en attente
+   */
+  async getCollaborateursParEmail(email: string): Promise<Collaborateur[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const emailNormalized = email.trim().toLowerCase();
+    const results = await this.db.getAllAsync<any>(
+      'SELECT * FROM collaborations WHERE LOWER(TRIM(email)) = ? ORDER BY statut ASC, nom ASC, prenom ASC',
+      [emailNormalized]
+    );
+
+    return results.map((row) => this.mapRowToCollaborateur(row));
+  }
+
+  /**
+   * Obtenir toutes les invitations en attente pour un utilisateur (par user_id)
+   * Utile pour afficher les invitations en attente au démarrage
+   */
+  async getInvitationsEnAttenteParUserId(userId: string): Promise<Collaborateur[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const results = await this.db.getAllAsync<any>(
+      `SELECT c.*, p.nom as projet_nom 
+       FROM collaborations c
+       LEFT JOIN projets p ON c.projet_id = p.id
+       WHERE c.user_id = ? AND c.statut = ? 
+       ORDER BY c.date_invitation DESC`,
+      [userId, 'en_attente']
+    );
+
+    return results.map((row) => this.mapRowToCollaborateur(row));
+  }
+
+  /**
+   * Obtenir toutes les invitations en attente pour un utilisateur (par email)
+   * Utile pour détecter les invitations avant que l'utilisateur soit lié
+   */
+  async getInvitationsEnAttenteParEmail(email: string): Promise<Collaborateur[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const emailNormalized = email.trim().toLowerCase();
+    const results = await this.db.getAllAsync<any>(
+      `SELECT c.*, p.nom as projet_nom 
+       FROM collaborations c
+       LEFT JOIN projets p ON c.projet_id = p.id
+       WHERE LOWER(TRIM(c.email)) = ? AND c.statut = ? 
+       ORDER BY c.date_invitation DESC`,
+      [emailNormalized, 'en_attente']
+    );
+
+    return results.map((row) => this.mapRowToCollaborateur(row));
+  }
+
   async updateCollaborateur(id: string, updates: UpdateCollaborateurInput): Promise<Collaborateur> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
@@ -3539,6 +3779,12 @@ class DatabaseService {
 
     Object.entries(updates).forEach(([key, value]) => {
       if (key !== 'id' && key !== 'date_creation' && key !== 'projet_id' && value !== undefined) {
+        // Gérer user_id séparément
+        if (key === 'user_id') {
+          fields.push('user_id = ?');
+          values.push(value);
+          return;
+        }
         if (key === 'permissions') {
           const perms = value as UpdateCollaborateurInput['permissions'];
           // Fusionner les permissions partielles avec les permissions actuelles
@@ -3598,14 +3844,24 @@ class DatabaseService {
 
   // Helper pour mapper les lignes de la base de données vers l'objet Collaborateur
   private mapRowToStockAliment(row: any): StockAliment {
+    // S'assurer que quantite_actuelle est toujours un nombre
+    const quantiteActuelle = typeof row.quantite_actuelle === 'number' 
+      ? row.quantite_actuelle 
+      : parseFloat(String(row.quantite_actuelle)) || 0;
+    
+    // S'assurer que seuil_alerte est un nombre ou undefined
+    const seuilAlerte = row.seuil_alerte !== null && row.seuil_alerte !== undefined
+      ? (typeof row.seuil_alerte === 'number' ? row.seuil_alerte : parseFloat(String(row.seuil_alerte)) || undefined)
+      : undefined;
+    
     return {
       id: row.id,
       projet_id: row.projet_id,
       nom: row.nom,
       categorie: row.categorie || undefined,
-      quantite_actuelle: row.quantite_actuelle,
+      quantite_actuelle: quantiteActuelle,
       unite: row.unite,
-      seuil_alerte: row.seuil_alerte !== null && row.seuil_alerte !== undefined ? row.seuil_alerte : undefined,
+      seuil_alerte: seuilAlerte,
       date_derniere_entree: row.date_derniere_entree || undefined,
       date_derniere_sortie: row.date_derniere_sortie || undefined,
       alerte_active: row.alerte_active === 1,
@@ -3674,6 +3930,7 @@ class DatabaseService {
     return {
       id: row.id,
       projet_id: row.projet_id,
+      user_id: row.user_id || undefined,
       nom: row.nom,
       prenom: row.prenom,
       email: row.email,

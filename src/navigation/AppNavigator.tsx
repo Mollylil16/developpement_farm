@@ -10,7 +10,9 @@ import { Text, TouchableOpacity, Dimensions } from 'react-native';
 import { SCREENS } from './types';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadProjetActif } from '../store/slices/projetSlice';
+import { loadCollaborateurActuel, clearCollaborateurActuel, loadInvitationsEnAttente } from '../store/slices/collaborationSlice';
 import { loadUserFromStorageThunk } from '../store/slices/authSlice';
+import { usePermissions } from '../hooks/usePermissions';
 
 // Import des écrans
 import WelcomeScreen from '../screens/WelcomeScreen';
@@ -38,6 +40,8 @@ const TAB_WIDTH = SCREEN_WIDTH / 5;
 // Navigation par onglets - Variante 6D : Barre minimale avec 5 onglets essentiels
 // Les autres modules (Nutrition, Planning, Collaboration, Mortalités) sont accessibles via le Dashboard
 function MainTabs() {
+  const { hasPermission, isProprietaire } = usePermissions();
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -85,6 +89,7 @@ function MainTabs() {
         tabBarShowLabel: true,
       }}
     >
+      {/* Dashboard - Toujours visible */}
       <Tab.Screen
         name={SCREENS.DASHBOARD}
         component={DashboardScreen}
@@ -93,30 +98,44 @@ function MainTabs() {
           tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>🏠</Text>,
         }}
       />
-      <Tab.Screen
-        name={SCREENS.REPRODUCTION}
-        component={ReproductionScreen}
-        options={{
-          tabBarLabel: 'Reprod.',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>🤰</Text>,
-        }}
-      />
-      <Tab.Screen
-        name={SCREENS.FINANCE}
-        component={FinanceScreen}
-        options={{
-          tabBarLabel: 'Finance',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>💰</Text>,
-        }}
-      />
-      <Tab.Screen
-        name={SCREENS.REPORTS}
-        component={ReportsScreen}
-        options={{
-          tabBarLabel: 'Rapports',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>📊</Text>,
-        }}
-      />
+      
+      {/* Reproduction - Visible si permission reproduction */}
+      {hasPermission('reproduction') && (
+        <Tab.Screen
+          name={SCREENS.REPRODUCTION}
+          component={ReproductionScreen}
+          options={{
+            tabBarLabel: 'Reprod.',
+            tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>🤰</Text>,
+          }}
+        />
+      )}
+      
+      {/* Finance - Visible si permission finance */}
+      {hasPermission('finance') && (
+        <Tab.Screen
+          name={SCREENS.FINANCE}
+          component={FinanceScreen}
+          options={{
+            tabBarLabel: 'Finance',
+            tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>💰</Text>,
+          }}
+        />
+      )}
+      
+      {/* Rapports - Visible si permission rapports */}
+      {hasPermission('rapports') && (
+        <Tab.Screen
+          name={SCREENS.REPORTS}
+          component={ReportsScreen}
+          options={{
+            tabBarLabel: 'Rapports',
+            tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>📊</Text>,
+          }}
+        />
+      )}
+      
+      {/* Paramètres - Toujours visible */}
       <Tab.Screen
         name={SCREENS.PARAMETRES}
         component={ParametresScreen}
@@ -125,35 +144,54 @@ function MainTabs() {
           tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>⚙️</Text>,
         }}
       />
-      {/* Modules accessibles via Dashboard : Nutrition, Planning, Collaboration, Mortalités */}
-      <Tab.Screen
-        name={SCREENS.NUTRITION}
-        component={NutritionScreen}
-        options={{
-          tabBarButton: () => null, // Caché de la barre mais accessible via navigation
-        }}
-      />
-      <Tab.Screen
-        name={SCREENS.PLANIFICATION}
-        component={PlanificationScreen}
-        options={{
-          tabBarButton: () => null,
-        }}
-      />
-      <Tab.Screen
-        name={SCREENS.COLLABORATION}
-        component={CollaborationScreen}
-        options={{
-          tabBarButton: () => null,
-        }}
-      />
-      <Tab.Screen
-        name={SCREENS.MORTALITES}
-        component={MortalitesScreen}
-        options={{
-          tabBarButton: () => null,
-        }}
-      />
+      {/* Modules accessibles via Dashboard : Nutrition, Planning, Collaboration, Mortalités, Production */}
+      {/* Ces écrans sont cachés de la barre mais accessibles via navigation si permission accordée */}
+      
+      {/* Nutrition - Accessible si permission nutrition */}
+      {hasPermission('nutrition') && (
+        <Tab.Screen
+          name={SCREENS.NUTRITION}
+          component={NutritionScreen}
+          options={{
+            tabBarButton: () => null, // Caché de la barre mais accessible via navigation
+          }}
+        />
+      )}
+      
+      {/* Planification - Accessible si permission planification */}
+      {hasPermission('planification') && (
+        <Tab.Screen
+          name={SCREENS.PLANIFICATION}
+          component={PlanificationScreen}
+          options={{
+            tabBarButton: () => null,
+          }}
+        />
+      )}
+      
+      {/* Collaboration - Accessible seulement au propriétaire */}
+      {isProprietaire && (
+        <Tab.Screen
+          name={SCREENS.COLLABORATION}
+          component={CollaborationScreen}
+          options={{
+            tabBarButton: () => null,
+          }}
+        />
+      )}
+      
+      {/* Mortalités - Accessible si permission mortalites */}
+      {hasPermission('mortalites') && (
+        <Tab.Screen
+          name={SCREENS.MORTALITES}
+          component={MortalitesScreen}
+          options={{
+            tabBarButton: () => null,
+          }}
+        />
+      )}
+      
+      {/* Production - Toujours accessible (pas de permission spécifique pour l'instant) */}
       <Tab.Screen
         name={SCREENS.PRODUCTION}
         component={ProductionScreen}
@@ -169,7 +207,7 @@ function MainTabs() {
 export default function AppNavigator() {
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
-  const { isAuthenticated, isLoading: authLoading } = useAppSelector((state) => state.auth);
+  const { isAuthenticated, isLoading: authLoading, user } = useAppSelector((state) => state.auth);
   const navigationRef = React.useRef<any>(null);
   const lastRouteRef = React.useRef<string | null>(null);
 
@@ -185,6 +223,28 @@ export default function AppNavigator() {
       dispatch(loadProjetActif());
     }
   }, [dispatch, isAuthenticated, authLoading]);
+
+  useEffect(() => {
+    // Charger le collaborateur actuel quand le projet actif change
+    if (isAuthenticated && user && projetActif) {
+      console.log('🔄 Chargement du collaborateur actuel pour le projet:', projetActif.id);
+      dispatch(loadCollaborateurActuel({ userId: user.id, projetId: projetActif.id }));
+    } else if (!projetActif) {
+      // Si pas de projet actif, effacer le collaborateur actuel
+      dispatch(clearCollaborateurActuel());
+    }
+  }, [dispatch, isAuthenticated, user?.id, projetActif?.id]);
+
+  useEffect(() => {
+    // Charger les invitations en attente quand l'utilisateur est authentifié
+    if (isAuthenticated && user) {
+      console.log('🔄 Chargement des invitations en attente pour:', user.id);
+      dispatch(loadInvitationsEnAttente({ 
+        userId: user.id, 
+        email: user.email || undefined 
+      }));
+    }
+  }, [dispatch, isAuthenticated, user?.id, user?.email]);
 
   useEffect(() => {
     if (authLoading || !navigationRef.current) {

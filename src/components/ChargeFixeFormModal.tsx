@@ -11,6 +11,8 @@ import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { useActionPermissions } from '../hooks/useActionPermissions';
+import { Alert } from 'react-native';
 
 interface ChargeFixeFormModalProps {
   visible: boolean;
@@ -29,6 +31,7 @@ export default function ChargeFixeFormModal({
 }: ChargeFixeFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
+  const { canCreate, canUpdate } = useActionPermissions();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateChargeFixeInput>({
     categorie: 'autre',
@@ -66,6 +69,16 @@ export default function ChargeFixeFormModal({
   }, [chargeFixe, isEditing, visible]);
 
   const handleSubmit = async () => {
+    // Vérifier les permissions
+    if (isEditing && !canUpdate('finance')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les charges fixes.');
+      return;
+    }
+    if (!isEditing && !canCreate('finance')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de créer des charges fixes.');
+      return;
+    }
+
     // Validation
     if (!formData.libelle.trim()) {
       return;

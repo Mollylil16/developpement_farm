@@ -12,10 +12,12 @@ import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';
 import LoadingSpinner from './LoadingSpinner';
 import RevenuFormModal from './RevenuFormModal';
+import { useActionPermissions } from '../hooks/useActionPermissions';
 
 export default function FinanceRevenusComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
+  const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const { revenus, loading } = useAppSelector((state) => state.finance);
   const [selectedRevenu, setSelectedRevenu] = useState<Revenu | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -59,12 +61,20 @@ export default function FinanceRevenusComponent() {
   }, [page, displayedDepenses.length, revenus]);
 
   const handleEdit = (revenu: Revenu) => {
+    if (!canUpdate('finance')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les revenus.');
+      return;
+    }
     setSelectedRevenu(revenu);
     setIsEditing(true);
     setModalVisible(true);
   };
 
   const handleDelete = (id: string) => {
+    if (!canDelete('finance')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de supprimer les revenus.');
+      return;
+    }
     Alert.alert(
       'Supprimer le revenu',
       'Êtes-vous sûr de vouloir supprimer ce revenu ?',
@@ -141,16 +151,18 @@ export default function FinanceRevenusComponent() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <Text style={[styles.title, { color: colors.text }]}>Revenus</Text>
-        <TouchableOpacity
-          style={[styles.addButton, { backgroundColor: colors.primary }]}
-          onPress={() => {
-            setSelectedRevenu(null);
-            setIsEditing(false);
-            setModalVisible(true);
-          }}
-        >
-          <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Ajouter</Text>
-        </TouchableOpacity>
+        {canCreate('finance') && (
+          <TouchableOpacity
+            style={[styles.addButton, { backgroundColor: colors.primary }]}
+            onPress={() => {
+              setSelectedRevenu(null);
+              setIsEditing(false);
+              setModalVisible(true);
+            }}
+          >
+            <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Ajouter</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Résumé du mois */}
@@ -170,16 +182,18 @@ export default function FinanceRevenusComponent() {
           title="Aucun revenu enregistré"
           message="Ajoutez votre premier revenu pour commencer"
           action={
-            <TouchableOpacity
-              style={[styles.addButton, { backgroundColor: colors.primary }]}
-              onPress={() => {
-                setSelectedRevenu(null);
-                setIsEditing(false);
-                setModalVisible(true);
-              }}
-            >
-              <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Ajouter un revenu</Text>
-            </TouchableOpacity>
+            canCreate('finance') ? (
+              <TouchableOpacity
+                style={[styles.addButton, { backgroundColor: colors.primary }]}
+                onPress={() => {
+                  setSelectedRevenu(null);
+                  setIsEditing(false);
+                  setModalVisible(true);
+                }}
+              >
+                <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Ajouter un revenu</Text>
+              </TouchableOpacity>
+            ) : null
           }
         />
       ) : (
@@ -201,18 +215,22 @@ export default function FinanceRevenusComponent() {
                       <Text style={styles.actionButtonText}>📷</Text>
                     </TouchableOpacity>
                   )}
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => handleEdit(revenu)}
-                  >
-                    <Text style={styles.actionButtonText}>✏️</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => handleDelete(revenu.id)}
-                  >
-                    <Text style={styles.actionButtonText}>🗑️</Text>
-                  </TouchableOpacity>
+                  {canUpdate('finance') && (
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() => handleEdit(revenu)}
+                    >
+                      <Text style={styles.actionButtonText}>✏️</Text>
+                    </TouchableOpacity>
+                  )}
+                  {canDelete('finance') && (
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() => handleDelete(revenu.id)}
+                    >
+                      <Text style={styles.actionButtonText}>🗑️</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
 

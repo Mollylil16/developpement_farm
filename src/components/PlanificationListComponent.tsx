@@ -17,10 +17,12 @@ import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';
 import LoadingSpinner from './LoadingSpinner';
 import PlanificationFormModal from './PlanificationFormModal';
+import { useActionPermissions } from '../hooks/useActionPermissions';
 
 export default function PlanificationListComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
+  const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const { projetActif } = useAppSelector((state) => state.projet);
   const { planifications, planificationsAVenir, loading } = useAppSelector((state) => state.planification);
   const [selectedPlanification, setSelectedPlanification] = useState<Planification | null>(null);
@@ -73,12 +75,20 @@ export default function PlanificationListComponent() {
   }, [page, displayedPlanifications.length, planificationsFiltrees]);
 
   const handleEdit = (planification: Planification) => {
+    if (!canUpdate('planification')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les planifications.');
+      return;
+    }
     setSelectedPlanification(planification);
     setIsEditing(true);
     setModalVisible(true);
   };
 
   const handleDelete = (id: string) => {
+    if (!canDelete('planification')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de supprimer les planifications.');
+      return;
+    }
     Alert.alert(
       'Supprimer la planification',
       'Êtes-vous sûr de vouloir supprimer cette tâche ?',
@@ -100,6 +110,10 @@ export default function PlanificationListComponent() {
   };
 
   const handleMarquerTerminee = (planification: Planification) => {
+    if (!canUpdate('planification')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les planifications.');
+      return;
+    }
     Alert.alert(
       'Marquer comme terminée',
       'Confirmez que cette tâche est terminée ?',
@@ -208,16 +222,18 @@ export default function PlanificationListComponent() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.divider }]}>
         <Text style={[styles.title, { color: colors.text }]}>Planification</Text>
-        <TouchableOpacity
-          style={[styles.addButton, { backgroundColor: colors.primary, ...colors.shadow.small }]}
-          onPress={() => {
-            setSelectedPlanification(null);
-            setIsEditing(false);
-            setModalVisible(true);
-          }}
-        >
-          <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Ajouter</Text>
-        </TouchableOpacity>
+        {canCreate('planification') && (
+          <TouchableOpacity
+            style={[styles.addButton, { backgroundColor: colors.primary, ...colors.shadow.small }]}
+            onPress={() => {
+              setSelectedPlanification(null);
+              setIsEditing(false);
+              setModalVisible(true);
+            }}
+          >
+            <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Ajouter</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Alertes */}
@@ -314,7 +330,7 @@ export default function PlanificationListComponent() {
                   </View>
                 </View>
                 <View style={styles.cardActions}>
-                  {planification.statut !== 'terminee' && (
+                  {planification.statut !== 'terminee' && canUpdate('planification') && (
                     <TouchableOpacity
                       style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
                       onPress={() => handleMarquerTerminee(planification)}
@@ -322,18 +338,22 @@ export default function PlanificationListComponent() {
                       <Text style={styles.actionButtonText}>✓</Text>
                     </TouchableOpacity>
                   )}
-                  <TouchableOpacity
-                    style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
-                    onPress={() => handleEdit(planification)}
-                  >
-                    <Text style={styles.actionButtonText}>✏️</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
-                    onPress={() => handleDelete(planification.id)}
-                  >
-                    <Text style={styles.actionButtonText}>🗑️</Text>
-                  </TouchableOpacity>
+                  {canUpdate('planification') && (
+                    <TouchableOpacity
+                      style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
+                      onPress={() => handleEdit(planification)}
+                    >
+                      <Text style={styles.actionButtonText}>✏️</Text>
+                    </TouchableOpacity>
+                  )}
+                  {canDelete('planification') && (
+                    <TouchableOpacity
+                      style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
+                      onPress={() => handleDelete(planification.id)}
+                    >
+                      <Text style={styles.actionButtonText}>🗑️</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
               <View style={styles.cardContent}>

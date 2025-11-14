@@ -14,6 +14,7 @@ import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { useActionPermissions } from '../hooks/useActionPermissions';
 
 // Fonction helper pour convertir une date en format local YYYY-MM-DD
 const formatDateToLocal = (date: Date): string => {
@@ -49,6 +50,7 @@ export default function MortalitesFormModal({
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   const { animaux } = useAppSelector((state) => state.production);
+  const { canCreate, canUpdate } = useActionPermissions();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateMortaliteInput>({
     projet_id: projetActif?.id || '',
@@ -128,6 +130,16 @@ export default function MortalitesFormModal({
   }, [mortalite, isEditing, visible, projetActif]);
 
   const handleSubmit = async () => {
+    // Vérifier les permissions
+    if (isEditing && !canUpdate('mortalites')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les mortalités.');
+      return;
+    }
+    if (!isEditing && !canCreate('mortalites')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de créer des mortalités.');
+      return;
+    }
+
     // Validation
     if (!formData.projet_id) {
       Alert.alert('Erreur', 'Aucun projet actif');

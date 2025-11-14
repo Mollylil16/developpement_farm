@@ -60,6 +60,17 @@ export const loadUserFromStorageThunk = createAsyncThunk(
       try {
         const { databaseService } = await import('../../services/database');
         const dbUser = await databaseService.getUserById(storedUser.id);
+        
+        // Vérifier si l'utilisateur est un collaborateur et le lier si nécessaire
+        if (dbUser.email) {
+          try {
+            await databaseService.lierCollaborateurAUtilisateur(dbUser.id, dbUser.email);
+          } catch (error: any) {
+            // Ne pas bloquer le chargement si la liaison échoue
+            console.warn('Avertissement lors de la liaison du collaborateur au démarrage:', error?.message || error);
+          }
+        }
+        
         // Si trouvé dans la DB, utiliser celui de la DB (plus à jour)
         return dbUser;
       } catch (error) {
@@ -111,10 +122,28 @@ export const signUp = createAsyncThunk(
         provider: input.telephone ? 'telephone' : 'email',
       });
 
+      // Vérifier si l'utilisateur est un collaborateur et le lier
+      // On vérifie seulement si l'utilisateur a un email (pas de téléphone pour les collaborateurs)
+      if (user.email) {
+        try {
+          // Chercher un collaborateur avec cet email et le lier
+          const collaborateur = await databaseService.lierCollaborateurAUtilisateur(user.id, user.email);
+          
+          if (collaborateur) {
+            console.log('✅ Collaborateur lié à l\'utilisateur lors de l\'inscription:', collaborateur.id);
+            // Le projet sera chargé automatiquement dans loadProjetActif
+          }
+        } catch (error: any) {
+          // Ne pas bloquer l'inscription si la liaison échoue
+          console.warn('Avertissement lors de la liaison du collaborateur à l\'inscription:', error?.message || error);
+        }
+      }
+
       // Sauvegarder aussi dans AsyncStorage pour compatibilité
       await saveUserToStorage(user);
       
       // Réinitialiser le projet actif pour le nouvel utilisateur
+      // (sera rechargé automatiquement si c'est un collaborateur)
       dispatch(setProjetActif(null));
       
       return user;
@@ -127,7 +156,7 @@ export const signUp = createAsyncThunk(
 // Thunk pour la connexion
 export const signIn = createAsyncThunk(
   'auth/signIn',
-  async (input: SignInInput, { rejectWithValue }) => {
+  async (input: SignInInput, { rejectWithValue, dispatch }) => {
     try {
       // Validation
       if (!input.identifier || !input.identifier.trim()) {
@@ -142,6 +171,23 @@ export const signIn = createAsyncThunk(
       
       if (!user) {
         return rejectWithValue('Aucun compte trouvé avec cet email ou ce numéro. Veuillez vous inscrire.');
+      }
+
+      // Vérifier si l'utilisateur est un collaborateur et le lier
+      // On vérifie seulement si l'utilisateur a un email (pas de téléphone pour les collaborateurs)
+      if (user.email) {
+        try {
+          // Chercher un collaborateur avec cet email et le lier
+          const collaborateur = await databaseService.lierCollaborateurAUtilisateur(user.id, user.email);
+          
+          if (collaborateur) {
+            console.log('✅ Collaborateur lié à l\'utilisateur:', collaborateur.id);
+            // Le projet sera chargé automatiquement dans loadProjetActif
+          }
+        } catch (error: any) {
+          // Ne pas bloquer la connexion si la liaison échoue
+          console.warn('Avertissement lors de la liaison du collaborateur:', error?.message || error);
+        }
       }
 
       // Sauvegarder aussi dans AsyncStorage pour compatibilité

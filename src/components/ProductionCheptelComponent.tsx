@@ -2,7 +2,7 @@
  * Composant pour gérer le cheptel (liste complète des animaux)
  */
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -29,10 +29,12 @@ import { format, differenceInDays, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import Card from './Card';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useActionPermissions } from '../hooks/useActionPermissions';
 
 export default function ProductionCheptelComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
+  const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const navigation = useNavigation<any>();
   const { projetActif } = useAppSelector((state) => state.projet);
   const { animaux, loading } = useAppSelector((state) => state.production);
@@ -45,10 +47,19 @@ export default function ProductionCheptelComponent() {
   // Statuts qui doivent être dans le cheptel (pas dans l'historique)
   const STATUTS_CHEPTEL: StatutAnimal[] = ['actif', 'autre'];
 
-  // Charger les données uniquement quand l'onglet est visible
+  // Charger les données uniquement quand l'onglet est visible (éviter les boucles infinies)
+  const aChargeRef = useRef<string | null>(null);
+  
   useFocusEffect(
     React.useCallback(() => {
-      if (projetActif) {
+      if (!projetActif) {
+        aChargeRef.current = null;
+        return;
+      }
+      
+      // Charger uniquement une fois par projet (quand le projet change ou au premier focus)
+      if (aChargeRef.current !== projetActif.id) {
+        aChargeRef.current = projetActif.id;
         dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
       }
     }, [dispatch, projetActif?.id])
@@ -67,6 +78,10 @@ export default function ProductionCheptelComponent() {
   }, [animauxCheptel, filterStatut]);
 
   const handleDelete = (animal: ProductionAnimal) => {
+    if (!canDelete('reproduction')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de supprimer les animaux.');
+      return;
+    }
     Alert.alert(
       'Supprimer l\'animal',
       `Êtes-vous sûr de vouloir supprimer ${animal.code}${animal.nom ? ` (${animal.nom})` : ''} ?`,
@@ -88,6 +103,10 @@ export default function ProductionCheptelComponent() {
   };
 
   const handleChangeStatut = (animal: ProductionAnimal, nouveauStatut: StatutAnimal) => {
+    if (!canUpdate('reproduction')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les animaux.');
+      return;
+    }
     Alert.alert(
       'Changer le statut',
       `Voulez-vous changer le statut de ${animal.code}${animal.nom ? ` (${animal.nom})` : ''} en "${STATUT_ANIMAL_LABELS[nouveauStatut]}" ?`,
@@ -176,29 +195,33 @@ export default function ProductionCheptelComponent() {
                 {STATUT_ANIMAL_LABELS[item.statut]}
               </Text>
             </View>
-          {item.reproducteur && (
-            <View style={[styles.reproducteurBadge, { backgroundColor: colors.success + '18' }]}>
-              <Text style={[styles.reproducteurText, { color: colors.success }]}>Reproducteur</Text>
-            </View>
-          )}
+            {item.reproducteur && (
+              <View style={[styles.reproducteurBadge, { backgroundColor: colors.success + '18' }]}>
+                <Text style={[styles.reproducteurText, { color: colors.success }]}>Reproducteur</Text>
+              </View>
+            )}
           </View>
           <View style={styles.animalActions}>
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: colors.primary + '15' }]}
-              onPress={() => {
-                setSelectedAnimal(item);
-                setIsEditing(true);
-                setShowAnimalModal(true);
-              }}
-            >
-              <Text style={[styles.actionButtonText, { color: colors.primary }]}>Modifier</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: colors.error + '15' }]}
-              onPress={() => handleDelete(item)}
-            >
-              <Text style={[styles.actionButtonText, { color: colors.error }]}>Supprimer</Text>
-            </TouchableOpacity>
+            {canUpdate('reproduction') && (
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: colors.primary + '15' }]}
+                onPress={() => {
+                  setSelectedAnimal(item);
+                  setIsEditing(true);
+                  setShowAnimalModal(true);
+                }}
+              >
+                <Text style={[styles.actionButtonText, { color: colors.primary }]}>Modifier</Text>
+              </TouchableOpacity>
+            )}
+            {canDelete('reproduction') && (
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: colors.error + '15' }]}
+                onPress={() => handleDelete(item)}
+              >
+                <Text style={[styles.actionButtonText, { color: colors.error }]}>Supprimer</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -272,36 +295,38 @@ export default function ProductionCheptelComponent() {
         )}
 
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
-        <View style={styles.statutSelector}>
-          <Text style={[styles.statutSelectorLabel, { color: colors.text }]}>Changer le statut:</Text>
-          <View style={styles.statutButtons}>
-            {/* Permettre de changer vers actif, autre, ou vers l'historique (mort, vendu, offert) */}
-            {(['actif', 'autre', 'mort', 'vendu', 'offert'] as StatutAnimal[]).map((statut) => (
-              <TouchableOpacity
-                key={statut}
-                style={[
-                  styles.statutButton,
-                  {
-                    backgroundColor: item.statut === statut ? getStatutColor(statut) : colors.background,
-                    borderColor: getStatutColor(statut),
-                  },
-                ]}
-                onPress={() => handleChangeStatut(item, statut)}
-              >
-                <Text
+        {canUpdate('reproduction') && (
+          <View style={styles.statutSelector}>
+            <Text style={[styles.statutSelectorLabel, { color: colors.text }]}>Changer le statut:</Text>
+            <View style={styles.statutButtons}>
+              {/* Permettre de changer vers actif, autre, ou vers l'historique (mort, vendu, offert) */}
+              {(['actif', 'autre', 'mort', 'vendu', 'offert'] as StatutAnimal[]).map((statut) => (
+                <TouchableOpacity
+                  key={statut}
                   style={[
-                    styles.statutButtonText,
+                    styles.statutButton,
                     {
-                      color: item.statut === statut ? colors.textOnPrimary : getStatutColor(statut),
+                      backgroundColor: item.statut === statut ? getStatutColor(statut) : colors.background,
+                      borderColor: getStatutColor(statut),
                     },
                   ]}
+                  onPress={() => handleChangeStatut(item, statut)}
                 >
-                  {STATUT_ANIMAL_LABELS[statut]}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text
+                    style={[
+                      styles.statutButtonText,
+                      {
+                        color: item.statut === statut ? colors.textOnPrimary : getStatutColor(statut),
+                      },
+                    ]}
+                  >
+                    {STATUT_ANIMAL_LABELS[statut]}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
-        </View>
+        )}
       </Card>
     );
   };
@@ -325,15 +350,17 @@ export default function ProductionCheptelComponent() {
                 </Text>
               </TouchableOpacity>
             )}
-            <Button
-              title="+ Animal"
-              onPress={() => {
-                setSelectedAnimal(null);
-                setIsEditing(false);
-                setShowAnimalModal(true);
-              }}
-              size="small"
-            />
+            {canCreate('reproduction') && (
+              <Button
+                title="+ Animal"
+                onPress={() => {
+                  setSelectedAnimal(null);
+                  setIsEditing(false);
+                  setShowAnimalModal(true);
+                }}
+                size="small"
+              />
+            )}
           </View>
         </View>
       <View style={styles.summary}>
@@ -377,7 +404,8 @@ export default function ProductionCheptelComponent() {
     );
   };
 
-  if (loading) {
+  // Afficher le spinner uniquement lors du premier chargement (pas à chaque re-render)
+  if (loading && animaux.length === 0) {
     return <LoadingSpinner message="Chargement du cheptel..." />;
   }
 
@@ -393,14 +421,16 @@ export default function ProductionCheptelComponent() {
             title="Aucun animal dans le cheptel"
             message="Ajoutez des animaux pour commencer à gérer votre cheptel"
             action={
-              <Button
-                title="Ajouter un animal"
-                onPress={() => {
-                  setSelectedAnimal(null);
-                  setIsEditing(false);
-                  setShowAnimalModal(true);
-                }}
-              />
+              canCreate('reproduction') ? (
+                <Button
+                  title="Ajouter un animal"
+                  onPress={() => {
+                    setSelectedAnimal(null);
+                    setIsEditing(false);
+                    setShowAnimalModal(true);
+                  }}
+                />
+              ) : null
             }
           />
         }
@@ -416,12 +446,16 @@ export default function ProductionCheptelComponent() {
             setIsEditing(false);
             setSelectedAnimal(null);
           }}
-          onSuccess={() => {
+          onSuccess={async () => {
             setShowAnimalModal(false);
             setIsEditing(false);
             setSelectedAnimal(null);
+            // Recharger en arrière-plan sans bloquer l'interface
             if (projetActif) {
-              dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
+              // Utiliser setTimeout pour différer le chargement et ne pas bloquer
+              setTimeout(() => {
+                dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
+              }, 100);
             }
           }}
           projetId={projetActif.id}

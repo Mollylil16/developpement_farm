@@ -8,12 +8,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import RationCalculatorComponent from '../components/RationCalculatorComponent';
 import RationsHistoryComponent from '../components/RationsHistoryComponent';
 import NutritionStockComponent from '../components/NutritionStockComponent';
+import StockMouvementsHistoryComponent from '../components/StockMouvementsHistoryComponent';
+import ProtectedScreen from '../components/ProtectedScreen';
 import { FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
 const Tab = createMaterialTopTabNavigator();
 
-export default function NutritionScreen() {
+function NutritionScreenContent() {
   const { colors } = useTheme();
   
   return (
@@ -49,13 +51,28 @@ export default function NutritionScreen() {
         }}
       />
       <Tab.Screen
-        name="Historique"
+        name="Historique Rations"
         component={RationsHistoryComponent}
         options={{
-          title: 'Historique',
+          title: 'Historique Rations',
+        }}
+      />
+      <Tab.Screen
+        name="Mouvements Stock"
+        component={StockMouvementsHistoryComponent}
+        options={{
+          title: 'Mouvements',
         }}
       />
     </Tab.Navigator>
     </SafeAreaView>
+  );
+}
+
+export default function NutritionScreen() {
+  return (
+    <ProtectedScreen requiredPermission="nutrition">
+      <NutritionScreenContent />
+    </ProtectedScreen>
   );
 }

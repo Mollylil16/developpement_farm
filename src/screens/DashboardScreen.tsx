@@ -20,16 +20,32 @@ import PerformanceWidget from '../components/widgets/PerformanceWidget';
 import SecondaryWidget from '../components/widgets/SecondaryWidget';
 import AlertesWidget from '../components/AlertesWidget';
 import GlobalSearchModal from '../components/GlobalSearchModal';
+import InvitationsModal from '../components/InvitationsModal';
 import { useNavigation } from '@react-navigation/native';
 import { SCREENS } from '../navigation/types';
 import { format } from 'date-fns';
+import { usePermissions } from '../hooks/usePermissions';
 
 export default function DashboardScreen() {
   const { colors, isDark } = useTheme();
   const navigation = useNavigation();
   const dispatch = useAppDispatch();
   const { projetActif, loading } = useAppSelector((state) => state.projet);
+  const { invitationsEnAttente } = useAppSelector((state) => state.collaboration);
+  const { hasPermission, isProprietaire } = usePermissions();
   const [searchModalVisible, setSearchModalVisible] = useState(false);
+  const [invitationsModalVisible, setInvitationsModalVisible] = useState(false);
+  const hasShownInvitationsRef = useRef(false);
+  const [greeting, setGreeting] = useState(() => {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) {
+      return 'Bonjour 👋';
+    } else if (hour >= 12 && hour < 18) {
+      return 'Bonne après-midi 👋';
+    } else {
+      return 'Bonsoir 👋';
+    }
+  });
 
   // Animations pour les widgets
   const headerAnim = useRef(new Animated.Value(0)).current;
@@ -46,6 +62,18 @@ export default function DashboardScreen() {
     new Animated.Value(0),
     new Animated.Value(0),
   ]).current;
+
+  // Fonction pour mettre à jour le message de salutation
+  const updateGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) {
+      setGreeting('Bonjour 👋');
+    } else if (hour >= 12 && hour < 18) {
+      setGreeting('Bonne après-midi 👋');
+    } else {
+      setGreeting('Bonsoir 👋');
+    }
+  };
 
   useEffect(() => {
     // Animation du header
@@ -81,12 +109,56 @@ export default function DashboardScreen() {
         }),
       ]).start();
     });
+
+    // Mettre à jour le message de salutation toutes les minutes
+    updateGreeting();
+    const interval = setInterval(updateGreeting, 60000); // Mise à jour toutes les minutes
+
+    return () => clearInterval(interval);
   }, []);
 
   // Recharger les données quand l'écran revient au focus (après création/modification de mortalité)
+  // Utiliser useRef pour éviter les chargements redondants
+  const dernierChargementRef = useRef<{ projetId: string | null; timestamp: number }>({
+    projetId: null,
+    timestamp: 0,
+  });
+
+  // Afficher automatiquement le modal des invitations si elles existent et qu'on ne l'a pas encore montré
+  useEffect(() => {
+    if (invitationsEnAttente.length > 0 && !hasShownInvitationsRef.current && projetActif) {
+      hasShownInvitationsRef.current = true;
+      // Délai pour laisser le temps à l'écran de se charger
+      setTimeout(() => {
+        setInvitationsModalVisible(true);
+      }, 1000);
+    }
+  }, [invitationsEnAttente.length, projetActif]);
+  
   useFocusEffect(
     React.useCallback(() => {
-      if (projetActif) {
+      // Mettre à jour le message de salutation quand l'écran revient au focus
+      updateGreeting();
+
+      if (!projetActif) {
+        dernierChargementRef.current = { projetId: null, timestamp: 0 };
+        return;
+      }
+      
+      const maintenant = Date.now();
+      const delaiMinimum = 2000; // 2 secondes minimum entre deux chargements
+      const memeProjet = dernierChargementRef.current.projetId === projetActif.id;
+      const assezRecent = maintenant - dernierChargementRef.current.timestamp < delaiMinimum;
+      
+      // Charger uniquement si :
+      // - Le projet a changé
+      // - Ou si le dernier chargement remonte à plus de 2 secondes (évite les chargements multiples rapides)
+      if (!memeProjet || !assezRecent) {
+        dernierChargementRef.current = {
+          projetId: projetActif.id,
+          timestamp: maintenant,
+        };
+        
         // Recharger les mortalités et les animaux pour mettre à jour les widgets
         dispatch(loadMortalitesParProjet(projetActif.id));
         dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: true }));
@@ -139,11 +211,19 @@ export default function DashboardScreen() {
           >
             <View style={styles.headerTop}>
               <View style={styles.headerLeft}>
-                <Text style={[styles.greeting, { color: colors.textSecondary }]}>Bonjour 👋</Text>
+                <Text style={[styles.greeting, { color: colors.textSecondary }]}>{greeting}</Text>
                 <Text style={[styles.title, { color: isDark ? '#FFFFFF' : colors.text }]}>{projetActif.nom}</Text>
                 <Text style={[styles.date, { color: colors.textSecondary }]}>{currentDate}</Text>
               </View>
               <View style={styles.headerRight}>
+                {invitationsEnAttente.length > 0 && (
+                  <TouchableOpacity
+                    style={[styles.invitationBadge, { backgroundColor: colors.warning, ...colors.shadow.small }]}
+                    onPress={() => setInvitationsModalVisible(true)}
+                  >
+                    <Text style={styles.invitationBadgeText}>📬 {invitationsEnAttente.length}</Text>
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity
                   style={[styles.searchButton, { backgroundColor: colors.primary, ...colors.shadow.small }]}
                   onPress={() => setSearchModalVisible(true)}
@@ -188,89 +268,119 @@ export default function DashboardScreen() {
               />
             </Animated.View>
 
-            <Animated.View
-              style={[
-                styles.widgetWrapper,
-                {
-                  opacity: mainWidgetsAnim[1],
-                  transform: [
-                    {
-                      scale: mainWidgetsAnim[1].interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.9, 1],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            >
-              <ReproductionWidget
-                onPress={() => {
-                  // @ts-ignore - navigation typée
-                  navigation.navigate('Main', { screen: SCREENS.REPRODUCTION });
-                }}
-              />
-            </Animated.View>
+            {/* Widget Reproduction - Visible si permission reproduction */}
+            {hasPermission('reproduction') && (
+              <Animated.View
+                style={[
+                  styles.widgetWrapper,
+                  {
+                    opacity: mainWidgetsAnim[1],
+                    transform: [
+                      {
+                        scale: mainWidgetsAnim[1].interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.9, 1],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <ReproductionWidget
+                  onPress={() => {
+                    // @ts-ignore - navigation typée
+                    navigation.navigate('Main', { screen: SCREENS.REPRODUCTION });
+                  }}
+                />
+              </Animated.View>
+            )}
 
-            <Animated.View
-              style={[
-                styles.widgetWrapper,
-                {
-                  opacity: mainWidgetsAnim[2],
-                  transform: [
-                    {
-                      scale: mainWidgetsAnim[2].interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.9, 1],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            >
-              <FinanceWidget
-                onPress={() => {
-                  // @ts-ignore - navigation typée
-                  navigation.navigate('Main', { screen: SCREENS.FINANCE });
-                }}
-              />
-            </Animated.View>
+            {/* Widget Finance - Visible si permission finance */}
+            {hasPermission('finance') && (
+              <Animated.View
+                style={[
+                  styles.widgetWrapper,
+                  {
+                    opacity: mainWidgetsAnim[2],
+                    transform: [
+                      {
+                        scale: mainWidgetsAnim[2].interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.9, 1],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <FinanceWidget
+                  onPress={() => {
+                    // @ts-ignore - navigation typée
+                    navigation.navigate('Main', { screen: SCREENS.FINANCE });
+                  }}
+                />
+              </Animated.View>
+            )}
 
-            <Animated.View
-              style={[
-                {
-                  opacity: mainWidgetsAnim[3],
-                  transform: [
-                    {
-                      scale: mainWidgetsAnim[3].interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.9, 1],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            >
-              <PerformanceWidget
-                onPress={() => {
-                  // @ts-ignore - navigation typée
-                  navigation.navigate('Main', { screen: SCREENS.REPORTS });
-                }}
-              />
-            </Animated.View>
+            {/* Widget Rapports - Visible si permission rapports */}
+            {hasPermission('rapports') && (
+              <Animated.View
+                style={[
+                  {
+                    opacity: mainWidgetsAnim[3],
+                    transform: [
+                      {
+                        scale: mainWidgetsAnim[3].interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.9, 1],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <PerformanceWidget
+                  onPress={() => {
+                    // @ts-ignore - navigation typée
+                    navigation.navigate('Main', { screen: SCREENS.REPORTS });
+                  }}
+                />
+              </Animated.View>
+            )}
           </View>
 
           {/* Section widgets secondaires */}
               <View style={styles.secondarySection}>
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Modules complémentaires</Text>
             <View style={styles.secondaryWidgetsContainer}>
-              {[
-                { type: 'nutrition' as const, screen: SCREENS.NUTRITION },
-                { type: 'planning' as const, screen: SCREENS.PLANIFICATION },
-                { type: 'collaboration' as const, screen: SCREENS.COLLABORATION },
-                { type: 'mortalites' as const, screen: SCREENS.MORTALITES },
-                { type: 'production' as const, screen: SCREENS.PRODUCTION },
-              ].map((widget, index) => (
+              {(() => {
+                const widgets: Array<{ type: 'nutrition' | 'planning' | 'collaboration' | 'mortalites' | 'production'; screen: string }> = [];
+                
+                // Nutrition - Visible si permission nutrition
+                if (hasPermission('nutrition')) {
+                  widgets.push({ type: 'nutrition', screen: SCREENS.NUTRITION });
+                }
+                
+                // Planification - Visible si permission planification
+                if (hasPermission('planification')) {
+                  widgets.push({ type: 'planning', screen: SCREENS.PLANIFICATION });
+                }
+                
+                // Collaboration - Visible seulement au propriétaire
+                if (isProprietaire) {
+                  widgets.push({ type: 'collaboration', screen: SCREENS.COLLABORATION });
+                }
+                
+                // Mortalités - Visible si permission mortalites
+                if (hasPermission('mortalites')) {
+                  widgets.push({ type: 'mortalites', screen: SCREENS.MORTALITES });
+                }
+                
+                // Production - Toujours visible (pas de permission spécifique pour l'instant)
+                widgets.push({ type: 'production', screen: SCREENS.PRODUCTION });
+                
+                return widgets;
+              })().map((widget, index) => (
                 <Animated.View
                   key={index}
                   style={[
@@ -307,6 +417,10 @@ export default function DashboardScreen() {
           onClose={() => setSearchModalVisible(false)}
         />
       )}
+      <InvitationsModal
+        visible={invitationsModalVisible}
+        onClose={() => setInvitationsModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -346,6 +460,19 @@ const styles = StyleSheet.create({
   },
   searchButtonIcon: {
     fontSize: FONT_SIZES.lg,
+  },
+  invitationBadge: {
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.md,
+    marginRight: SPACING.xs,
+    minWidth: 50,
+    alignItems: 'center',
+  },
+  invitationBadgeText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: FONT_WEIGHTS.bold,
+    color: '#FFFFFF',
   },
   greeting: {
     fontSize: FONT_SIZES.md,

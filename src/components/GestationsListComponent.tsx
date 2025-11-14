@@ -22,10 +22,12 @@ import StatCard from './StatCard';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 import Button from './Button';
+import { useActionPermissions } from '../hooks/useActionPermissions';
 
 export default function GestationsListComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
+  const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const { gestations, loading } = useAppSelector((state) => state.reproduction);
   const [selectedGestation, setSelectedGestation] = useState<Gestation | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -110,12 +112,20 @@ export default function GestationsListComponent() {
   }, [page, displayedGestations.length, gestations, projetActif?.id]);
 
   const handleEdit = (gestation: Gestation) => {
+    if (!canUpdate('reproduction')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les gestations.');
+      return;
+    }
     setSelectedGestation(gestation);
     setIsEditing(true);
     setModalVisible(true);
   };
 
   const handleDelete = (id: string) => {
+    if (!canDelete('reproduction')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de supprimer les gestations.');
+      return;
+    }
     Alert.alert(
       'Supprimer la gestation',
       'Êtes-vous sûr de vouloir supprimer cette gestation ?',
@@ -235,16 +245,18 @@ export default function GestationsListComponent() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Gestations</Text>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => {
-            setSelectedGestation(null);
-            setIsEditing(false);
-            setModalVisible(true);
-          }}
-        >
-          <Text style={styles.addButtonText}>+ Nouvelle</Text>
-        </TouchableOpacity>
+        {canCreate('reproduction') && (
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => {
+              setSelectedGestation(null);
+              setIsEditing(false);
+              setModalVisible(true);
+            }}
+          >
+            <Text style={styles.addButtonText}>+ Nouvelle</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Statistiques */}
@@ -302,16 +314,18 @@ export default function GestationsListComponent() {
           title="Aucune gestation enregistrée"
           message="Ajoutez votre première gestation pour commencer"
           action={
-            <TouchableOpacity
-              style={[styles.addButton, { backgroundColor: colors.primary }]}
-              onPress={() => {
-                setSelectedGestation(null);
-                setIsEditing(false);
-                setModalVisible(true);
-              }}
-            >
-              <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Nouvelle gestation</Text>
-            </TouchableOpacity>
+            canCreate('reproduction') ? (
+              <TouchableOpacity
+                style={[styles.addButton, { backgroundColor: colors.primary }]}
+                onPress={() => {
+                  setSelectedGestation(null);
+                  setIsEditing(false);
+                  setModalVisible(true);
+                }}
+              >
+                <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Nouvelle gestation</Text>
+              </TouchableOpacity>
+            ) : null
           }
         />
       ) : (
@@ -329,7 +343,7 @@ export default function GestationsListComponent() {
                   </View>
                 </View>
                 <View style={styles.cardActions}>
-                  {gestation.statut === 'en_cours' && (
+                  {gestation.statut === 'en_cours' && canUpdate('reproduction') && (
                     <TouchableOpacity
                       style={styles.actionButton}
                       onPress={() => handleMarquerTerminee(gestation)}
@@ -337,18 +351,22 @@ export default function GestationsListComponent() {
                       <Text style={styles.actionButtonText}>✓</Text>
                     </TouchableOpacity>
                   )}
-                  <TouchableOpacity
-                    style={[styles.actionButton, gestation.statut === 'en_cours' ? { marginLeft: SPACING.xs } : {}]}
-                    onPress={() => handleEdit(gestation)}
-                  >
-                    <Text style={styles.actionButtonText}>✏️</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.actionButton, { marginLeft: SPACING.xs }]}
-                    onPress={() => handleDelete(gestation.id)}
-                  >
-                    <Text style={styles.actionButtonText}>🗑️</Text>
-                  </TouchableOpacity>
+                  {canUpdate('reproduction') && (
+                    <TouchableOpacity
+                      style={[styles.actionButton, (gestation.statut === 'en_cours' && canUpdate('reproduction')) ? { marginLeft: SPACING.xs } : {}]}
+                      onPress={() => handleEdit(gestation)}
+                    >
+                      <Text style={styles.actionButtonText}>✏️</Text>
+                    </TouchableOpacity>
+                  )}
+                  {canDelete('reproduction') && (
+                    <TouchableOpacity
+                      style={[styles.actionButton, { marginLeft: SPACING.xs }]}
+                      onPress={() => handleDelete(gestation.id)}
+                    >
+                      <Text style={styles.actionButtonText}>🗑️</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
 

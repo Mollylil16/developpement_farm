@@ -2,9 +2,9 @@
  * Composant gestion du projet dans les paramètres
  */
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import {
   loadProjets,
@@ -33,22 +33,33 @@ export default function ParametresProjetComponent() {
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<Projet>>({});
 
+  // Utiliser useRef pour tracker les chargements et éviter les boucles
+  const aChargeRef = useRef<string | null>(null);
+  
   // Charger les données uniquement quand l'écran est en focus
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
+  useFocusEffect(
+    React.useCallback(() => {
       dispatch(loadProjets());
       dispatch(loadProjetActif());
-    });
-    return unsubscribe;
-  }, [navigation, dispatch]);
+    }, [dispatch])
+  );
 
-  // Charger les animaux et mortalités quand le projet actif change
-  useEffect(() => {
-    if (projetActif) {
-      dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
-      dispatch(loadMortalitesParProjet(projetActif.id));
-    }
-  }, [dispatch, projetActif?.id]);
+  // Charger les animaux et mortalités quand le projet actif change (une seule fois par projet)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!projetActif) {
+        aChargeRef.current = null;
+        return;
+      }
+      
+      // Charger uniquement si le projet a changé
+      if (aChargeRef.current !== projetActif.id) {
+        aChargeRef.current = projetActif.id;
+        dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
+        dispatch(loadMortalitesParProjet(projetActif.id));
+      }
+    }, [dispatch, projetActif?.id])
+  );
 
   useEffect(() => {
     if (projetActif && isEditing) {

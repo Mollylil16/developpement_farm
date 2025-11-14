@@ -2,7 +2,7 @@
  * Composant pour afficher la liste des animaux en production avec leurs pesées
  */
 
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -29,10 +29,12 @@ import ProductionPeseeFormModal from './ProductionPeseeFormModal';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useFocusEffect } from '@react-navigation/native';
+import { useActionPermissions } from '../hooks/useActionPermissions';
 
 export default function ProductionAnimalsListComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
+  const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const { projetActif } = useAppSelector((state) => state.projet);
   const { animaux, peseesParAnimal, peseesRecents, loading } = useAppSelector(
     (state) => state.production
@@ -46,10 +48,20 @@ export default function ProductionAnimalsListComponent() {
   const [page, setPage] = useState(1);
   const ITEMS_PER_PAGE = 50;
 
+  // Utiliser useRef pour tracker les chargements et éviter les boucles
+  const aChargeRef = useRef<string | null>(null);
+  
   // Charger les données uniquement quand l'onglet est visible
   useFocusEffect(
     React.useCallback(() => {
-      if (projetActif) {
+      if (!projetActif) {
+        aChargeRef.current = null;
+        return;
+      }
+      
+      // Charger uniquement si le projet a changé
+      if (aChargeRef.current !== projetActif.id) {
+        aChargeRef.current = projetActif.id;
         dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
         dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 }));
       }
@@ -125,6 +137,10 @@ export default function ProductionAnimalsListComponent() {
   }, [page, displayedAnimals.length, animauxAvecStats]);
 
   const handleDelete = useCallback((animal: ProductionAnimal) => {
+    if (!canDelete('reproduction')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de supprimer les animaux.');
+      return;
+    }
     Alert.alert(
       'Supprimer l\'animal',
       `Voulez-vous supprimer ${animal.code}${animal.nom ? ` (${animal.nom})` : ''} ? Toutes les pesées associées seront également supprimées.`,
@@ -142,7 +158,7 @@ export default function ProductionAnimalsListComponent() {
         },
       ]
     );
-  }, [dispatch, selectedAnimal, setSelectedAnimal]);
+  }, [dispatch, selectedAnimal, setSelectedAnimal, canDelete]);
 
   // Composant mémorisé pour chaque carte d'animal - défini AVANT les retours anticipés pour éviter les problèmes de hooks
   const AnimalCard = React.memo(({ item, isSelected, pesees, onSelect, onPesee, onEdit, onDelete }: {
@@ -184,24 +200,30 @@ export default function ProductionAnimalsListComponent() {
             )}
           </View>
           <View style={styles.cardActions}>
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: colors.primaryLight + '15' }]}
-              onPress={() => onPesee(animal)}
-            >
-              <Text style={[styles.actionButtonText, { color: colors.primaryDark }]}>Pesée</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: colors.primaryLight + '15' }]}
-              onPress={() => onEdit(animal)}
-            >
-              <Text style={[styles.actionButtonText, { color: colors.primaryDark }]}>Modifier</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: colors.error + '15' }]}
-              onPress={() => onDelete(animal)}
-            >
-              <Text style={[styles.actionButtonText, { color: colors.error }]}>Supprimer</Text>
-            </TouchableOpacity>
+            {canCreate('reproduction') && (
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: colors.primaryLight + '15' }]}
+                onPress={() => onPesee(animal)}
+              >
+                <Text style={[styles.actionButtonText, { color: colors.primaryDark }]}>Pesée</Text>
+              </TouchableOpacity>
+            )}
+            {canUpdate('reproduction') && (
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: colors.primaryLight + '15' }]}
+                onPress={() => onEdit(animal)}
+              >
+                <Text style={[styles.actionButtonText, { color: colors.primaryDark }]}>Modifier</Text>
+              </TouchableOpacity>
+            )}
+            {canDelete('reproduction') && (
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: colors.error + '15' }]}
+                onPress={() => onDelete(animal)}
+              >
+                <Text style={[styles.actionButtonText, { color: colors.error }]}>Supprimer</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -294,10 +316,18 @@ export default function ProductionAnimalsListComponent() {
         pesees={pesees}
         onSelect={(animal) => setSelectedAnimal(isSelected ? null : animal)}
         onPesee={(animal) => {
+          if (!canCreate('reproduction')) {
+            Alert.alert('Permission refusée', 'Vous n\'avez pas la permission d\'ajouter des pesées.');
+            return;
+          }
           setSelectedAnimal(animal);
           setShowPeseeModal(true);
         }}
         onEdit={(animal) => {
+          if (!canUpdate('reproduction')) {
+            Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les animaux.');
+            return;
+          }
           setSelectedAnimal(animal);
           setIsEditing(true);
           setShowAnimalModal(true);
@@ -305,7 +335,7 @@ export default function ProductionAnimalsListComponent() {
         onDelete={handleDelete}
       />
     );
-  }, [selectedAnimal, peseesParAnimal, handleDelete, setSelectedAnimal, setShowPeseeModal, setIsEditing, setShowAnimalModal]);
+  }, [selectedAnimal, peseesParAnimal, handleDelete, setSelectedAnimal, setShowPeseeModal, setIsEditing, setShowAnimalModal, canCreate, canUpdate]);
 
   const ListHeader = React.useCallback(() => (
     <>
@@ -313,15 +343,17 @@ export default function ProductionAnimalsListComponent() {
       <View style={[styles.summaryCard, { backgroundColor: colors.surface, ...colors.shadow.medium }]}>
         <View style={styles.summaryHeader}>
           <Text style={[styles.summaryTitle, { color: colors.text }]}>Suivi des pesées</Text>
-          <Button
-            title="+ Animal"
-            onPress={() => {
-              setSelectedAnimal(null);
-              setIsEditing(false);
-              setShowAnimalModal(true);
-            }}
-            size="small"
-          />
+          {canCreate('reproduction') && (
+            <Button
+              title="+ Animal"
+              onPress={() => {
+                setSelectedAnimal(null);
+                setIsEditing(false);
+                setShowAnimalModal(true);
+              }}
+              size="small"
+            />
+          )}
         </View>
         <View style={styles.summaryStats}>
           <View style={styles.summaryItem}>
@@ -341,7 +373,7 @@ export default function ProductionAnimalsListComponent() {
         <Text style={[styles.listTitle, { color: colors.text }]}>Mes animaux ({animaux.length})</Text>
       </View>
     </>
-  ), [colors, animaux, peseesRecents.length, setSelectedAnimal, setIsEditing, setShowAnimalModal]);
+  ), [colors, animaux, peseesRecents.length, setSelectedAnimal, setIsEditing, setShowAnimalModal, canCreate]);
 
   const ListFooter = React.useCallback(() => {
     if (displayedAnimals.length >= animauxAvecStats.length) {
@@ -377,14 +409,16 @@ export default function ProductionAnimalsListComponent() {
             title="Aucun animal enregistré"
             message="Ajoutez votre premier animal pour commencer le suivi des pesées."
             action={
-              <Button
-                title="Ajouter un animal"
-                onPress={() => {
-                  setSelectedAnimal(null);
-                  setIsEditing(false);
-                  setShowAnimalModal(true);
-                }}
-              />
+              canCreate('reproduction') ? (
+                <Button
+                  title="Ajouter un animal"
+                  onPress={() => {
+                    setSelectedAnimal(null);
+                    setIsEditing(false);
+                    setShowAnimalModal(true);
+                  }}
+                />
+              ) : null
             }
           />
         </View>

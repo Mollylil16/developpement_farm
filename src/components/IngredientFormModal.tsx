@@ -11,6 +11,7 @@ import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { useActionPermissions } from '../hooks/useActionPermissions';
 
 interface IngredientFormModalProps {
   visible: boolean;
@@ -25,6 +26,7 @@ export default function IngredientFormModal({
 }: IngredientFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
+  const { canCreate } = useActionPermissions();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateIngredientInput>({
     nom: '',
@@ -35,6 +37,12 @@ export default function IngredientFormModal({
   });
 
   const handleSubmit = async () => {
+    // Vérifier les permissions
+    if (!canCreate('nutrition')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de créer des ingrédients.');
+      return;
+    }
+    
     // Validation
     if (!formData.nom.trim()) {
       Alert.alert('Erreur', 'Le nom de l\'ingrédient est requis');

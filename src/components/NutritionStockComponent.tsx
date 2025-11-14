@@ -26,10 +26,12 @@ import EmptyState from './EmptyState';
 import StockAlimentFormModal from './StockAlimentFormModal';
 import StockMovementFormModal from './StockMovementFormModal';
 import Button from './Button';
+import { useActionPermissions } from '../hooks/useActionPermissions';
 
 export default function NutritionStockComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
+  const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const { projetActif } = useAppSelector((state) => state.projet);
   const { stocks, mouvementsParAliment, loading } = useAppSelector((state) => state.stocks);
   const [selectedStock, setSelectedStock] = useState<StockAliment | null>(null);
@@ -37,9 +39,7 @@ export default function NutritionStockComponent() {
   const [isEditing, setIsEditing] = useState(false);
   const [showMovementModal, setShowMovementModal] = useState(false);
   const [displayedStocks, setDisplayedStocks] = useState<StockAliment[]>([]);
-  const [displayedMouvements, setDisplayedMouvements] = useState<Array<StockMouvement & { alimentNom?: string; alimentCategorie?: string }>>([]);
   const [pageStocks, setPageStocks] = useState(1);
-  const [pageMouvements, setPageMouvements] = useState(1);
   const ITEMS_PER_PAGE = 50;
 
   useEffect(() => {
@@ -48,37 +48,10 @@ export default function NutritionStockComponent() {
     }
   }, [dispatch, projetActif?.id]);
 
-  // Charger les mouvements pour tous les stocks au chargement
-  useEffect(() => {
-    if (projetActif && stocks.length > 0) {
-      stocks.forEach((stock) => {
-        dispatch(loadMouvementsParAliment({ alimentId: stock.id }));
-      });
-    }
-  }, [dispatch, projetActif?.id, stocks.length]);
+  // Ne plus charger automatiquement tous les mouvements - c'est maintenant dans un onglet séparé
+  // Charger uniquement les mouvements du stock sélectionné si nécessaire
 
   const alertes = useMemo(() => stocks.filter((stock) => stock.alerte_active), [stocks]);
-
-  // Créer un historique global de tous les mouvements avec le nom de l'aliment
-  const tousLesMouvements: Array<StockMouvement & { alimentNom: string; alimentCategorie?: string }> = useMemo(() => {
-    const mouvementsAvecAliment: Array<StockMouvement & { alimentNom: string; alimentCategorie?: string }> = [];
-    
-    stocks.forEach((stock) => {
-      const mouvements = mouvementsParAliment[stock.id] || [];
-      mouvements.forEach((mouvement) => {
-        mouvementsAvecAliment.push({
-          ...mouvement,
-          alimentNom: stock.nom,
-          alimentCategorie: stock.categorie,
-        });
-      });
-    });
-    
-    // Trier par date (les plus récents en premier)
-    return mouvementsAvecAliment.sort((a, b) => 
-      new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-  }, [stocks, mouvementsParAliment]);
 
   // Mouvements du stock sélectionné (pour l'affichage détaillé si nécessaire)
   const mouvementsStockSelectionne: StockMouvement[] = useMemo(() => {
@@ -88,19 +61,28 @@ export default function NutritionStockComponent() {
     return mouvementsParAliment[selectedStock.id] || [];
   }, [selectedStock, mouvementsParAliment]);
 
-  // Pagination: charger les premiers stocks
+  // Synchroniser selectedStock avec les stocks Redux (pour mettre à jour après un mouvement)
+  useEffect(() => {
+    if (selectedStock) {
+      const updatedStock = stocks.find((s) => s.id === selectedStock.id);
+      if (updatedStock && updatedStock.quantite_actuelle !== selectedStock.quantite_actuelle) {
+        setSelectedStock(updatedStock);
+      }
+    }
+  }, [stocks, selectedStock]);
+
+  // Pagination: mettre à jour displayedStocks quand stocks change (pas seulement la longueur)
+  // Créer une clé basée sur les IDs et quantités pour détecter les changements
+  const stocksKey = useMemo(() => {
+    return stocks.map(s => `${s.id}:${s.quantite_actuelle}`).join(',');
+  }, [stocks]);
+  
+  // Synchroniser displayedStocks quand stocks change (détecté via la clé)
   useEffect(() => {
     const initial = stocks.slice(0, ITEMS_PER_PAGE);
     setDisplayedStocks(initial);
     setPageStocks(1);
-  }, [stocks.length]);
-
-  // Pagination: charger les premiers mouvements (historique global)
-  useEffect(() => {
-    const initial = tousLesMouvements.slice(0, ITEMS_PER_PAGE);
-    setDisplayedMouvements(initial);
-    setPageMouvements(1);
-  }, [tousLesMouvements]);
+  }, [stocksKey]);
 
   // Charger plus de stocks
   const loadMoreStocks = useCallback(() => {
@@ -119,26 +101,13 @@ export default function NutritionStockComponent() {
     }
   }, [pageStocks, displayedStocks.length, stocks]);
 
-  // Charger plus de mouvements
-  const loadMoreMouvements = useCallback(() => {
-    if (displayedMouvements.length >= tousLesMouvements.length) {
+  const handleDelete = (aliment: StockAliment) => {
+    if (!canDelete('nutrition')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de supprimer les stocks.');
       return;
     }
-
-    const nextPage = pageMouvements + 1;
-    const start = pageMouvements * ITEMS_PER_PAGE;
-    const end = start + ITEMS_PER_PAGE;
-    const newItems = tousLesMouvements.slice(start, end);
-
-    if (newItems.length > 0) {
-      setDisplayedMouvements((prev) => [...prev, ...newItems]);
-      setPageMouvements(nextPage);
-    }
-  }, [pageMouvements, displayedMouvements.length, tousLesMouvements]);
-
-  const handleDelete = (aliment: StockAliment) => {
     Alert.alert(
-      'Supprimer l’aliment',
+      "Supprimer l'aliment",
       `Voulez-vous supprimer ${aliment.nom} ? Toutes les données de stock associées seront supprimées.`,
       [
         { text: 'Annuler', style: 'cancel' },
@@ -175,14 +144,16 @@ export default function NutritionStockComponent() {
       <View style={[styles.summaryCard, { backgroundColor: colors.surface, ...colors.shadow.medium }]}>
         <View style={styles.summaryHeader}>
           <Text style={[styles.summaryTitle, { color: colors.text }]}>Suivi des stocks</Text>
-          <Button
-            title="Nouvel aliment"
-            onPress={() => {
-              setIsEditing(false);
-              setShowAlimentModal(true);
-            }}
-            size="small"
-          />
+          {canCreate('nutrition') && (
+            <Button
+              title="Nouvel aliment"
+              onPress={() => {
+                setIsEditing(false);
+                setShowAlimentModal(true);
+              }}
+              size="small"
+            />
+          )}
         </View>
         <View style={styles.summaryStats}>
           <View style={styles.summaryItem}>
@@ -212,62 +183,6 @@ export default function NutritionStockComponent() {
         )}
       </View>
 
-      {/* Historique global de tous les mouvements */}
-      {tousLesMouvements.length > 0 && (
-        <View style={[styles.historyContainer, { backgroundColor: colors.surface, borderColor: colors.borderLight, ...colors.shadow.small }]}>
-          <View style={styles.historyHeader}>
-            <Text style={[styles.historyTitle, { color: colors.text }]}>Historique des mouvements</Text>
-            <Text style={[styles.historySubtitle, { color: colors.textSecondary }]}>
-              Tous les aliments ({tousLesMouvements.length} mouvement{tousLesMouvements.length > 1 ? 's' : ''})
-            </Text>
-          </View>
-          <View>
-            {displayedMouvements.map((mouvement) => {
-              // Trouver l'aliment associé à ce mouvement
-              const aliment = stocks.find((s) => s.id === mouvement.aliment_id);
-              const alimentNom = aliment?.nom || 'Aliment inconnu';
-              const alimentCategorie = aliment?.categorie;
-              
-              return (
-                <View key={mouvement.id} style={styles.historyItem}>
-                  <View style={styles.historyItemHeader}>
-                    <View style={styles.historyItemHeaderLeft}>
-                      <Text style={[styles.historyDate, { color: colors.textSecondary }]}>
-                        {new Date(mouvement.date).toLocaleDateString('fr-FR')}
-                      </Text>
-                      <Text style={[styles.historyAliment, { color: colors.primary }]}>
-                        {alimentNom}
-                        {alimentCategorie ? ` (${alimentCategorie})` : ''}
-                      </Text>
-                    </View>
-                    <Text style={[styles.historyType, { color: mouvement.type === 'sortie' ? colors.error : colors.success }]}>
-                      {mouvement.type}
-                    </Text>
-                  </View>
-                  <Text style={[styles.historyQuantity, { color: colors.text }]}>
-                    {mouvement.type === 'sortie' ? '-' : '+'}
-                    {mouvement.quantite} {mouvement.unite}
-                  </Text>
-                  {mouvement.origine && (
-                    <Text style={[styles.historyNote, { color: colors.textSecondary }]}>Origine : {mouvement.origine}</Text>
-                  )}
-                  {mouvement.commentaire && (
-                    <Text style={[styles.historyNote, { color: colors.textSecondary }]}>{mouvement.commentaire}</Text>
-                  )}
-                </View>
-              );
-            })}
-            {displayedMouvements.length < tousLesMouvements.length && (
-              <TouchableOpacity
-                onPress={loadMoreMouvements}
-                style={[styles.loadMoreButton, { backgroundColor: colors.primary + '12' }]}
-              >
-                <Text style={[styles.loadMoreText, { color: colors.primary }]}>Charger plus de mouvements</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-      )}
     </View>
   );
 
@@ -279,13 +194,15 @@ export default function NutritionStockComponent() {
           title="Aucun aliment enregistré"
           message="Ajoutez votre premier aliment pour suivre vos stocks."
           action={
-            <Button
-              title="Ajouter un aliment"
-              onPress={() => {
-                setIsEditing(false);
-                setShowAlimentModal(true);
-              }}
-            />
+            canCreate('nutrition') ? (
+              <Button
+                title="Ajouter un aliment"
+                onPress={() => {
+                  setIsEditing(false);
+                  setShowAlimentModal(true);
+                }}
+              />
+            ) : null
           }
         />
         <StockAlimentFormModal
@@ -375,43 +292,49 @@ export default function NutritionStockComponent() {
                     </View>
                   </TouchableOpacity>
                   <View style={styles.cardActions}>
-                    <Pressable
-                      style={({ pressed }) => [
-                        styles.actionButton,
-                        { backgroundColor: colors.primary + '12' },
-                        pressed && { opacity: 0.7 },
-                      ]}
-                      onPress={() => {
-                        setSelectedStock(stock);
-                        setShowMovementModal(true);
-                      }}
-                    >
-                      <Text style={[styles.actionButtonText, { color: colors.text }]}>Mouvement</Text>
-                    </Pressable>
-                    <Pressable
-                      style={({ pressed }) => [
-                        styles.actionButton,
-                        { backgroundColor: colors.primary + '12' },
-                        pressed && { opacity: 0.7 },
-                      ]}
-                      onPress={() => {
-                        setSelectedStock(stock);
-                        setIsEditing(true);
-                        setShowAlimentModal(true);
-                      }}
-                    >
-                      <Text style={[styles.actionButtonText, { color: colors.text }]}>Modifier</Text>
-                    </Pressable>
-                    <Pressable
-                      style={({ pressed }) => [
-                        styles.actionButton,
-                        { backgroundColor: colors.error + '15' },
-                        pressed && { opacity: 0.7 },
-                      ]}
-                      onPress={() => handleDelete(stock)}
-                    >
-                      <Text style={[styles.actionButtonText, { color: colors.error }]}>Supprimer</Text>
-                    </Pressable>
+                    {canCreate('nutrition') && (
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.actionButton,
+                          { backgroundColor: colors.primary + '12' },
+                          pressed && { opacity: 0.7 },
+                        ]}
+                        onPress={() => {
+                          setSelectedStock(stock);
+                          setShowMovementModal(true);
+                        }}
+                      >
+                        <Text style={[styles.actionButtonText, { color: colors.text }]}>Mouvement</Text>
+                      </Pressable>
+                    )}
+                    {canUpdate('nutrition') && (
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.actionButton,
+                          { backgroundColor: colors.primary + '12' },
+                          pressed && { opacity: 0.7 },
+                        ]}
+                        onPress={() => {
+                          setSelectedStock(stock);
+                          setIsEditing(true);
+                          setShowAlimentModal(true);
+                        }}
+                      >
+                        <Text style={[styles.actionButtonText, { color: colors.text }]}>Modifier</Text>
+                      </Pressable>
+                    )}
+                    {canDelete('nutrition') && (
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.actionButton,
+                          { backgroundColor: colors.error + '15' },
+                          pressed && { opacity: 0.7 },
+                        ]}
+                        onPress={() => handleDelete(stock)}
+                      >
+                        <Text style={[styles.actionButtonText, { color: colors.error }]}>Supprimer</Text>
+                      </Pressable>
+                    )}
                   </View>
                 </View>
               );
@@ -462,12 +385,13 @@ export default function NutritionStockComponent() {
           onClose={() => {
             setShowMovementModal(false);
           }}
-          onSuccess={() => {
+          onSuccess={async () => {
             setShowMovementModal(false);
             if (projetActif && selectedStock) {
               // Recharger les stocks et les mouvements pour mettre à jour l'historique global
-              dispatch(loadStocks(projetActif.id));
-              dispatch(loadMouvementsParAliment({ alimentId: selectedStock.id }));
+              // Le useEffect ci-dessus synchronisera automatiquement selectedStock
+              await dispatch(loadStocks(projetActif.id));
+              await dispatch(loadMouvementsParAliment({ alimentId: selectedStock.id }));
             }
           }}
           aliment={selectedStock}
@@ -620,73 +544,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   actionButtonText: {
-    fontWeight: '600',
-  },
-  historyContainer: {
-    marginHorizontal: SPACING.xl,
-    marginTop: SPACING.lg,
-    marginBottom: SPACING.lg,
-    padding: SPACING.lg,
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 1,
-  },
-  historyHeader: {
-    marginBottom: SPACING.md,
-  },
-  historyTitle: {
-    fontSize: FONT_SIZES.xl,
-    fontWeight: 'bold',
-  },
-  historySubtitle: {
-    fontSize: FONT_SIZES.sm,
-    marginTop: SPACING.xs / 2,
-  },
-  historyList: {
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.lg,
-    borderWidth: 1,
-  },
-  historyItem: {
-    marginBottom: SPACING.lg,
-  },
-  historyItemHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  historyItemHeaderLeft: {
-    flex: 1,
-  },
-  historyAliment: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '600',
-    marginTop: SPACING.xs / 2,
-  },
-  historyDate: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '600',
-  },
-  historyType: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '600',
-  },
-  historyQuantity: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: 'bold',
-    marginTop: SPACING.xs,
-  },
-  historyNote: {
-    fontSize: FONT_SIZES.sm,
-    marginTop: SPACING.xs / 2,
-  },
-  loadMoreButton: {
-    padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    alignItems: 'center',
-    marginTop: SPACING.md,
-  },
-  loadMoreText: {
-    fontSize: FONT_SIZES.md,
     fontWeight: '600',
   },
 });

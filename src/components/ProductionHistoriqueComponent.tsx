@@ -29,6 +29,7 @@ import { format, differenceInDays, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import Card from './Card';
 import { useNavigation } from '@react-navigation/native';
+import { useActionPermissions } from '../hooks/useActionPermissions';
 
 // Statuts qui doivent être dans l'historique
 const STATUTS_HISTORIQUE: StatutAnimal[] = ['vendu', 'offert', 'mort'];
@@ -36,6 +37,7 @@ const STATUTS_HISTORIQUE: StatutAnimal[] = ['vendu', 'offert', 'mort'];
 export default function ProductionHistoriqueComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
+  const { canUpdate, canDelete } = useActionPermissions();
   const navigation = useNavigation<any>();
   const { projetActif } = useAppSelector((state) => state.projet);
   const { animaux, loading } = useAppSelector((state) => state.production);
@@ -64,6 +66,10 @@ export default function ProductionHistoriqueComponent() {
   }, [animauxHistorique, filterStatut]);
 
   const handleDelete = (animal: ProductionAnimal) => {
+    if (!canDelete('reproduction')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de supprimer les animaux.');
+      return;
+    }
     Alert.alert(
       'Supprimer l\'animal',
       `Êtes-vous sûr de vouloir supprimer ${animal.code}${animal.nom ? ` (${animal.nom})` : ''} ?`,
@@ -85,6 +91,10 @@ export default function ProductionHistoriqueComponent() {
   };
 
   const handleChangeStatut = (animal: ProductionAnimal, nouveauStatut: StatutAnimal) => {
+    if (!canUpdate('reproduction')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les animaux.');
+      return;
+    }
     Alert.alert(
       'Changer le statut',
       `Voulez-vous changer le statut de ${animal.code}${animal.nom ? ` (${animal.nom})` : ''} en "${STATUT_ANIMAL_LABELS[nouveauStatut]}" ?`,
@@ -184,22 +194,26 @@ export default function ProductionHistoriqueComponent() {
           )}
           </View>
           <View style={styles.animalActions}>
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: colors.primary + '15' }]}
-              onPress={() => {
-                setSelectedAnimal(item);
-                setIsEditing(true);
-                setShowAnimalModal(true);
-              }}
-            >
-              <Text style={[styles.actionButtonText, { color: colors.primary }]}>Modifier</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: colors.error + '15' }]}
-              onPress={() => handleDelete(item)}
-            >
-              <Text style={[styles.actionButtonText, { color: colors.error }]}>Supprimer</Text>
-            </TouchableOpacity>
+            {canUpdate('reproduction') && (
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: colors.primary + '15' }]}
+                onPress={() => {
+                  setSelectedAnimal(item);
+                  setIsEditing(true);
+                  setShowAnimalModal(true);
+                }}
+              >
+                <Text style={[styles.actionButtonText, { color: colors.primary }]}>Modifier</Text>
+              </TouchableOpacity>
+            )}
+            {canDelete('reproduction') && (
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: colors.error + '15' }]}
+                onPress={() => handleDelete(item)}
+              >
+                <Text style={[styles.actionButtonText, { color: colors.error }]}>Supprimer</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -273,36 +287,38 @@ export default function ProductionHistoriqueComponent() {
         )}
 
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
-        <View style={styles.statutSelector}>
-          <Text style={[styles.statutSelectorLabel, { color: colors.text }]}>Changer le statut:</Text>
-          <View style={styles.statutButtons}>
-            {/* Permettre de remettre en actif ou changer entre les statuts d'historique */}
-            {(['actif', 'mort', 'vendu', 'offert', 'autre'] as StatutAnimal[]).map((statut) => (
-              <TouchableOpacity
-                key={statut}
-                style={[
-                  styles.statutButton,
-                  {
-                    backgroundColor: item.statut === statut ? getStatutColor(statut) : colors.background,
-                    borderColor: getStatutColor(statut),
-                  },
-                ]}
-                onPress={() => handleChangeStatut(item, statut)}
-              >
-                <Text
+        {canUpdate('reproduction') && (
+          <View style={styles.statutSelector}>
+            <Text style={[styles.statutSelectorLabel, { color: colors.text }]}>Changer le statut:</Text>
+            <View style={styles.statutButtons}>
+              {/* Permettre de remettre en actif ou changer entre les statuts d'historique */}
+              {(['actif', 'mort', 'vendu', 'offert', 'autre'] as StatutAnimal[]).map((statut) => (
+                <TouchableOpacity
+                  key={statut}
                   style={[
-                    styles.statutButtonText,
+                    styles.statutButton,
                     {
-                      color: item.statut === statut ? colors.textOnPrimary : getStatutColor(statut),
+                      backgroundColor: item.statut === statut ? getStatutColor(statut) : colors.background,
+                      borderColor: getStatutColor(statut),
                     },
                   ]}
+                  onPress={() => handleChangeStatut(item, statut)}
                 >
-                  {STATUT_ANIMAL_LABELS[statut]}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text
+                    style={[
+                      styles.statutButtonText,
+                      {
+                        color: item.statut === statut ? colors.textOnPrimary : getStatutColor(statut),
+                      },
+                    ]}
+                  >
+                    {STATUT_ANIMAL_LABELS[statut]}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
-        </View>
+        )}
       </Card>
     );
   };

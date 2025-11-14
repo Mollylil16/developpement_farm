@@ -8,12 +8,13 @@ import { createMaterialTopTabNavigator } from '@react-navigation/material-top-ta
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import ProtectedScreen from '../components/ProtectedScreen';
 import PerformanceIndicatorsComponent from '../components/PerformanceIndicatorsComponent';
 import TendancesChartsComponent from '../components/TendancesChartsComponent';
 
 const Tab = createMaterialTopTabNavigator();
 
-export default function ReportsScreen() {
+function ReportsScreenContent() {
   const { colors } = useTheme();
   
   return (
@@ -61,6 +62,14 @@ export default function ReportsScreen() {
         />
       </Tab.Navigator>
     </SafeAreaView>
+  );
+}
+
+export default function ReportsScreen() {
+  return (
+    <ProtectedScreen requiredPermission="rapports">
+      <ReportsScreenContent />
+    </ProtectedScreen>
   );
 }
 

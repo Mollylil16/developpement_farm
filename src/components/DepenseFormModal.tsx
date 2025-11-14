@@ -12,6 +12,7 @@ import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { useActionPermissions } from '../hooks/useActionPermissions';
 
 interface DepenseFormModalProps {
   visible: boolean;
@@ -31,6 +32,7 @@ export default function DepenseFormModal({
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
+  const { canCreate, canUpdate } = useActionPermissions();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateDepensePonctuelleInput & { photos: string[] }>({
     montant: 0,
@@ -145,6 +147,16 @@ export default function DepenseFormModal({
   };
 
   const handleSubmit = async () => {
+    // Vérifier les permissions
+    if (isEditing && !canUpdate('finance')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les dépenses.');
+      return;
+    }
+    if (!isEditing && !canCreate('finance')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de créer des dépenses.');
+      return;
+    }
+
     // Validation
     if (formData.montant <= 0) {
       Alert.alert('Erreur', 'Le montant doit être supérieur à 0');

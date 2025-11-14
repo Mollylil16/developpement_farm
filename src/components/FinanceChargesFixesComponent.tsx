@@ -16,10 +16,12 @@ import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';
 import LoadingSpinner from './LoadingSpinner';
 import ChargeFixeFormModal from './ChargeFixeFormModal';
+import { useActionPermissions } from '../hooks/useActionPermissions';
 
 export default function FinanceChargesFixesComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
+  const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const { chargesFixes, loading } = useAppSelector((state) => state.finance);
   const [selectedCharge, setSelectedCharge] = useState<ChargeFixe | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -34,12 +36,20 @@ export default function FinanceChargesFixesComponent() {
   }, [dispatch, projetActif?.id]);
 
   const handleEdit = (charge: ChargeFixe) => {
+    if (!canUpdate('finance')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les charges fixes.');
+      return;
+    }
     setSelectedCharge(charge);
     setIsEditing(true);
     setModalVisible(true);
   };
 
   const handleDelete = (id: string) => {
+    if (!canDelete('finance')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de supprimer les charges fixes.');
+      return;
+    }
     Alert.alert(
       'Supprimer la charge fixe',
       'Êtes-vous sûr de vouloir supprimer cette charge fixe ?',
@@ -55,6 +65,10 @@ export default function FinanceChargesFixesComponent() {
   };
 
   const handleSuspend = (charge: ChargeFixe) => {
+    if (!canUpdate('finance')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les charges fixes.');
+      return;
+    }
     dispatch(
       updateChargeFixe({
         id: charge.id,
@@ -118,16 +132,18 @@ export default function FinanceChargesFixesComponent() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <Text style={[styles.title, { color: colors.text }]}>Charges Fixes</Text>
-        <TouchableOpacity
-          style={[styles.addButton, { backgroundColor: colors.primary }]}
-          onPress={() => {
-            setSelectedCharge(null);
-            setIsEditing(false);
-            setModalVisible(true);
-          }}
-        >
-          <Text style={[styles.addButtonText, { color: colors.background }]}>+ Ajouter</Text>
-        </TouchableOpacity>
+        {canCreate('finance') && (
+          <TouchableOpacity
+            style={[styles.addButton, { backgroundColor: colors.primary }]}
+            onPress={() => {
+              setSelectedCharge(null);
+              setIsEditing(false);
+              setModalVisible(true);
+            }}
+          >
+            <Text style={[styles.addButtonText, { color: colors.background }]}>+ Ajouter</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <ScrollView 
@@ -139,16 +155,18 @@ export default function FinanceChargesFixesComponent() {
             title="Aucune charge fixe"
             message="Ajoutez votre première charge fixe pour commencer"
             action={
-              <TouchableOpacity
-                style={[styles.addButton, { backgroundColor: colors.primary }]}
-                onPress={() => {
-                  setSelectedCharge(null);
-                  setIsEditing(false);
-                  setModalVisible(true);
-                }}
-              >
-                <Text style={[styles.addButtonText, { color: colors.background }]}>+ Ajouter une charge fixe</Text>
-              </TouchableOpacity>
+              canCreate('finance') ? (
+                <TouchableOpacity
+                  style={[styles.addButton, { backgroundColor: colors.primary }]}
+                  onPress={() => {
+                    setSelectedCharge(null);
+                    setIsEditing(false);
+                    setModalVisible(true);
+                  }}
+                >
+                  <Text style={[styles.addButtonText, { color: colors.background }]}>+ Ajouter une charge fixe</Text>
+                </TouchableOpacity>
+              ) : null
             }
           />
         ) : (
@@ -162,26 +180,32 @@ export default function FinanceChargesFixesComponent() {
                   </View>
                 </View>
                 <View style={styles.cardActions}>
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => handleSuspend(charge)}
-                  >
-                    <Text style={styles.actionButtonText}>
-                      {charge.statut === 'actif' ? '⏸' : '▶'}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => handleEdit(charge)}
-                  >
-                    <Text style={styles.actionButtonText}>✏️</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => handleDelete(charge.id)}
-                  >
-                    <Text style={styles.actionButtonText}>🗑️</Text>
-                  </TouchableOpacity>
+                  {canUpdate('finance') && (
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() => handleSuspend(charge)}
+                    >
+                      <Text style={styles.actionButtonText}>
+                        {charge.statut === 'actif' ? '⏸' : '▶'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  {canUpdate('finance') && (
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() => handleEdit(charge)}
+                    >
+                      <Text style={styles.actionButtonText}>✏️</Text>
+                    </TouchableOpacity>
+                  )}
+                  {canDelete('finance') && (
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() => handleDelete(charge.id)}
+                    >
+                      <Text style={styles.actionButtonText}>🗑️</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
 
