@@ -3,9 +3,10 @@
  */
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, RefreshControlProps } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { selectAllMortalites, selectStatistiquesMortalite, selectMortalitesLoading } from '../store/selectors/mortalitesSelectors';
 import {
   loadMortalitesParProjet,
   loadStatistiquesMortalite,
@@ -21,13 +22,19 @@ import MortalitesFormModal from './MortalitesFormModal';
 import StatCard from './StatCard';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 
-export default function MortalitesListComponent() {
+interface Props {
+  refreshControl?: React.ReactElement<RefreshControlProps>;
+}
+
+export default function MortalitesListComponent({ refreshControl }: Props) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const { projetActif } = useAppSelector((state) => state.projet);
-  const { mortalites, statistiques, loading } = useAppSelector((state) => state.mortalites);
+  const mortalites = useAppSelector(selectAllMortalites);
+  const statistiques = useAppSelector(selectStatistiquesMortalite);
+  const loading = useAppSelector(selectMortalitesLoading);
   const [selectedMortalite, setSelectedMortalite] = useState<Mortalite | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -44,13 +51,18 @@ export default function MortalitesListComponent() {
 
   // Pagination: charger les premières mortalités
   useEffect(() => {
+    if (!Array.isArray(mortalites)) {
+      setDisplayedMortalites([]);
+      return;
+    }
     const initial = mortalites.slice(0, ITEMS_PER_PAGE);
     setDisplayedMortalites(initial);
     setPage(1);
-  }, [mortalites.length]);
+  }, [mortalites]);
 
   // Charger plus de mortalités
   const loadMore = useCallback(() => {
+    if (!Array.isArray(mortalites)) return;
     if (displayedMortalites.length >= mortalites.length) {
       return;
     }
@@ -210,7 +222,7 @@ export default function MortalitesListComponent() {
       )}
 
       {/* Liste des mortalités */}
-      {mortalites.length === 0 ? (
+      {!Array.isArray(mortalites) || mortalites.length === 0 ? (
         <View style={styles.listContainer}>
           <EmptyState
             title="Aucune mortalité enregistrée"
@@ -280,6 +292,7 @@ export default function MortalitesListComponent() {
           onEndReachedThreshold={0.5}
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
+          refreshControl={refreshControl}
           // Optimisations de performance
           removeClippedSubviews={true}
           maxToRenderPerBatch={10}
@@ -287,7 +300,7 @@ export default function MortalitesListComponent() {
           initialNumToRender={10}
           updateCellsBatchingPeriod={50}
           ListFooterComponent={
-            displayedMortalites.length < mortalites.length ? (
+            Array.isArray(mortalites) && displayedMortalites.length < mortalites.length ? (
               <LoadingSpinner message="Chargement..." />
             ) : null
           }

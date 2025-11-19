@@ -1,12 +1,12 @@
 /**
  * Écran Nutrition avec onglets
+ * Module Budgétisation divisé en 2 sous-sections (Ingrédients + Budgétisation Aliment)
  */
 
 import React from 'react';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import RationCalculatorComponent from '../components/RationCalculatorComponent';
-import RationsHistoryComponent from '../components/RationsHistoryComponent';
+import CalculateurNavigationScreen from './CalculateurNavigationScreen';
 import NutritionStockComponent from '../components/NutritionStockComponent';
 import StockMouvementsHistoryComponent from '../components/StockMouvementsHistoryComponent';
 import ProtectedScreen from '../components/ProtectedScreen';
@@ -26,42 +26,47 @@ function NutritionScreenContent() {
         tabBarInactiveTintColor: colors.textSecondary,
         tabBarIndicatorStyle: {
           backgroundColor: colors.primary,
+          height: 3,
         },
         tabBarStyle: {
           backgroundColor: colors.background,
+          elevation: 4,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
         },
         tabBarLabelStyle: {
           fontSize: FONT_SIZES.sm,
           fontWeight: '600',
+          textTransform: 'none',
+        },
+        tabBarScrollEnabled: true,
+        tabBarItemStyle: {
+          width: 'auto',
+          minWidth: 100,
         },
       }}
     >
       <Tab.Screen
-        name="Calculateur"
-        component={RationCalculatorComponent}
+        name="Budgetisation"
+        component={CalculateurNavigationScreen}
         options={{
-          title: 'Calculateur',
+          title: '💰 Budgétisation',
         }}
       />
       <Tab.Screen
         name="Stocks"
         component={NutritionStockComponent}
         options={{
-          title: 'Stocks',
-        }}
-      />
-      <Tab.Screen
-        name="Historique Rations"
-        component={RationsHistoryComponent}
-        options={{
-          title: 'Historique Rations',
+          title: '📦 Stocks',
         }}
       />
       <Tab.Screen
         name="Mouvements Stock"
         component={StockMouvementsHistoryComponent}
         options={{
-          title: 'Mouvements',
+          title: '📊 Mouvements',
         }}
       />
     </Tab.Navigator>

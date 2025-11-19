@@ -8,6 +8,9 @@ import { useAppSelector } from '../store/hooks';
 import { joursRestantsAvantMiseBas } from '../types/reproduction';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { denormalize } from 'normalizr';
+import { gestationsSchema } from '../store/normalization/schemas';
+import { Gestation } from '../types';
 
 interface WidgetReproductionProps {
   onPress?: () => void;
@@ -15,11 +18,15 @@ interface WidgetReproductionProps {
 
 export default function WidgetReproduction({ onPress }: WidgetReproductionProps) {
   const { colors } = useTheme();
-  const { gestations } = useAppSelector((state) => state.reproduction);
+  const gestations: Gestation[] = useAppSelector((state) => {
+    const { entities, ids } = state.reproduction;
+    const result = denormalize(ids.gestations, gestationsSchema, { gestations: entities.gestations });
+    return Array.isArray(result) ? result : [];
+  });
 
   // Calculer les gestations en cours
   const gestationsEnCours = useMemo(
-    () => gestations.filter((g) => g.statut === 'en_cours'),
+    () => gestations.filter((g: Gestation) => g.statut === 'en_cours'),
     [gestations]
   );
 
@@ -30,11 +37,11 @@ export default function WidgetReproduction({ onPress }: WidgetReproductionProps)
     dans7Jours.setDate(aujourdhui.getDate() + 7);
 
     return gestationsEnCours
-      .filter((g) => {
+      .filter((g: Gestation) => {
         const dateMiseBas = new Date(g.date_mise_bas_prevue);
         return dateMiseBas >= aujourdhui && dateMiseBas <= dans7Jours;
       })
-      .sort((a, b) => {
+      .sort((a: Gestation, b: Gestation) => {
         return new Date(a.date_mise_bas_prevue).getTime() - new Date(b.date_mise_bas_prevue).getTime();
       })
       .slice(0, 3); // Les 3 prochaines
@@ -55,10 +62,10 @@ export default function WidgetReproduction({ onPress }: WidgetReproductionProps)
 
   // Taux de reproduction (approximation basée sur les gestations terminées)
   const tauxReproduction = useMemo(() => {
-    const gestationsTerminees = gestations.filter((g) => g.statut === 'terminee');
+    const gestationsTerminees = gestations.filter((g: Gestation) => g.statut === 'terminee');
     if (gestationsTerminees.length === 0) return 0;
     
-    const reussies = gestationsTerminees.filter((g) => 
+    const reussies = gestationsTerminees.filter((g: Gestation) => 
       (g.nombre_porcelets_reel || g.nombre_porcelets_prevu) > 0
     ).length;
     
@@ -113,7 +120,7 @@ export default function WidgetReproduction({ onPress }: WidgetReproductionProps)
                 style={[
                   styles.progressFill,
                   {
-                    width: `${progressionPourcentage}%`,
+                    width: `${Math.round(progressionPourcentage)}%`,
                     backgroundColor: colors.primary,
                   },
                 ]} 

@@ -12,7 +12,8 @@ export type PermissionType =
   | 'finance'
   | 'rapports'
   | 'planification'
-  | 'mortalites';
+  | 'mortalites'
+  | 'sante';
 
 interface UsePermissionsReturn {
   // Le collaborateur actuel (null si l'utilisateur est propriétaire)
@@ -127,7 +128,20 @@ export function usePermissions(): UsePermissionsReturn {
       permissions: null,
       role: null,
     };
-  }, [user, projetActif, collaborateurActuel]);
+  }, [
+    user?.id, 
+    projetActif?.id, 
+    collaborateurActuel?.id, 
+    collaborateurActuel?.statut, 
+    collaborateurActuel?.role,
+    // Ajouter les permissions pour qu'elles se mettent à jour quand le rôle change
+    collaborateurActuel?.permissions?.reproduction,
+    collaborateurActuel?.permissions?.nutrition,
+    collaborateurActuel?.permissions?.finance,
+    collaborateurActuel?.permissions?.rapports,
+    collaborateurActuel?.permissions?.planification,
+    collaborateurActuel?.permissions?.mortalites,
+  ]);  // ✅ Utiliser des propriétés primitives au lieu de l'objet complet pour éviter les boucles infinies
 
   return result;
 }

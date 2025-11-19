@@ -2,7 +2,7 @@
  * Composant pour gérer l'historique des animaux (vendu, offert, mort)
  */
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   FlatList,
   TouchableOpacity,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import {
@@ -18,6 +19,7 @@ import {
   updateProductionAnimal,
   loadPeseesRecents,
 } from '../store/slices/productionSlice';
+import { selectAllAnimaux, selectProductionLoading } from '../store/selectors/productionSelectors';
 import { ProductionAnimal, StatutAnimal, STATUT_ANIMAL_LABELS } from '../types';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -25,11 +27,12 @@ import LoadingSpinner from './LoadingSpinner';
 import EmptyState from './EmptyState';
 import Button from './Button';
 import ProductionAnimalFormModal from './ProductionAnimalFormModal';
-import { format, differenceInDays, parseISO } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import Card from './Card';
 import { useNavigation } from '@react-navigation/native';
 import { useActionPermissions } from '../hooks/useActionPermissions';
+import { calculerAge, getStatutColor } from '../utils/animalUtils';
 
 // Statuts qui doivent être dans l'historique
 const STATUTS_HISTORIQUE: StatutAnimal[] = ['vendu', 'offert', 'mort'];
@@ -40,22 +43,38 @@ export default function ProductionHistoriqueComponent() {
   const { canUpdate, canDelete } = useActionPermissions();
   const navigation = useNavigation<any>();
   const { projetActif } = useAppSelector((state) => state.projet);
-  const { animaux, loading } = useAppSelector((state) => state.production);
+  const animaux = useAppSelector(selectAllAnimaux);
+  const loading = useAppSelector(selectProductionLoading);
 
   const [showAnimalModal, setShowAnimalModal] = useState(false);
   const [selectedAnimal, setSelectedAnimal] = useState<ProductionAnimal | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [filterStatut, setFilterStatut] = useState<StatutAnimal | 'tous'>('tous');
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (projetActif) {
       dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
     }
   }, [dispatch, projetActif]);
+  
+  // Fonction pour rafraîchir les données (pull-to-refresh)
+  const onRefresh = useCallback(async () => {
+    if (!projetActif?.id) return;
+    
+    setRefreshing(true);
+    try {
+      await dispatch(loadProductionAnimaux({ projetId: projetActif.id })).unwrap();
+    } catch (error) {
+      console.error('Erreur lors du rafraîchissement:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [projetActif?.id, dispatch]);
 
-  // Filtrer uniquement les animaux dans l'historique
+  // Filtrer uniquement les animaux dans l'historique (avec protection contre undefined)
   const animauxHistorique = useMemo(() => {
-    return animaux.filter((a) => STATUTS_HISTORIQUE.includes(a.statut));
+    return (animaux || []).filter((a) => STATUTS_HISTORIQUE.includes(a.statut));
   }, [animaux]);
 
   const animauxFiltres = useMemo(() => {
@@ -129,35 +148,6 @@ export default function ProductionHistoriqueComponent() {
     );
   };
 
-  const calculerAge = (dateNaissance?: string): string | null => {
-    if (!dateNaissance) return null;
-    try {
-      const date = parseISO(dateNaissance);
-      const jours = differenceInDays(new Date(), date);
-      if (jours < 30) return `${jours} jour${jours > 1 ? 's' : ''}`;
-      const mois = Math.floor(jours / 30);
-      if (mois < 12) return `${mois} mois`;
-      const annees = Math.floor(mois / 12);
-      return `${annees} an${annees > 1 ? 's' : ''}`;
-    } catch {
-      return null;
-    }
-  };
-
-  const getStatutColor = (statut: StatutAnimal): string => {
-    switch (statut) {
-      case 'actif':
-        return colors.success;
-      case 'mort':
-        return colors.error;
-      case 'vendu':
-        return colors.warning;
-      case 'offert':
-        return colors.secondary;
-      default:
-        return colors.textSecondary;
-    }
-  };
 
   const getParentLabel = (id?: string | null) => {
     if (!id) {
@@ -172,7 +162,7 @@ export default function ProductionHistoriqueComponent() {
 
   const renderAnimal = ({ item }: { item: ProductionAnimal }) => {
     const age = calculerAge(item.date_naissance);
-    const statutColor = getStatutColor(item.statut);
+    const statutColor = getStatutColor(item.statut, colors);
 
     return (
       <Card elevation="small" padding="medium" style={styles.animalCard}>
@@ -298,8 +288,8 @@ export default function ProductionHistoriqueComponent() {
                   style={[
                     styles.statutButton,
                     {
-                      backgroundColor: item.statut === statut ? getStatutColor(statut) : colors.background,
-                      borderColor: getStatutColor(statut),
+                      backgroundColor: item.statut === statut ? getStatutColor(statut, colors) : colors.background,
+                      borderColor: getStatutColor(statut, colors),
                     },
                   ]}
                   onPress={() => handleChangeStatut(item, statut)}
@@ -308,7 +298,7 @@ export default function ProductionHistoriqueComponent() {
                     style={[
                       styles.statutButtonText,
                       {
-                        color: item.statut === statut ? colors.textOnPrimary : getStatutColor(statut),
+                        color: item.statut === statut ? colors.textOnPrimary : getStatutColor(statut, colors),
                       },
                     ]}
                   >
@@ -376,6 +366,14 @@ export default function ProductionHistoriqueComponent() {
         renderItem={renderAnimal}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={ListHeader}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
         ListEmptyComponent={
           <EmptyState
             title="Aucun animal dans l'historique"

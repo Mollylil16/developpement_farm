@@ -29,6 +29,9 @@ export default function StatCard({
   const { colors } = useTheme();
   const finalValueColor = valueColor || colors.primary;
   
+  // Sécuriser la valeur pour éviter l'erreur "Text strings must be rendered within a <Text> component"
+  const safeValue = value !== undefined && value !== null ? value : 0;
+  
   return (
     <View style={[
       styles.container,
@@ -41,7 +44,7 @@ export default function StatCard({
     ]}>
       {icon && <View style={styles.iconContainer}>{icon}</View>}
       <Text style={[styles.value, { color: finalValueColor }]}>
-        {value}
+        {safeValue}
         {unit && <Text style={styles.unit}> {unit}</Text>}
       </Text>
       <Text style={[styles.label, { color: colors.textSecondary }]}>{label}</Text>

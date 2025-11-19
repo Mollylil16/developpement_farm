@@ -96,6 +96,34 @@ export const deletePlanification = createAsyncThunk(
   }
 );
 
+/**
+ * Créer plusieurs planifications en batch (pour les saillies validées)
+ */
+export const createPlanificationsBatch = createAsyncThunk(
+  'planification/createPlanificationsBatch',
+  async (inputs: CreatePlanificationInput[], { rejectWithValue }) => {
+    try {
+      console.log(`📋 [BATCH] Création de ${inputs.length} tâches...`);
+      
+      const planifications: Planification[] = [];
+      
+      for (const input of inputs) {
+        const planification = await databaseService.createPlanification({
+          ...input,
+          statut: 'a_faire',
+        });
+        planifications.push(planification);
+      }
+      
+      console.log(`✅ [BATCH] ${planifications.length} tâches créées avec succès`);
+      return planifications;
+    } catch (error: any) {
+      console.error('❌ [BATCH] Erreur:', error);
+      return rejectWithValue(error.message || 'Erreur lors de la création des planifications');
+    }
+  }
+);
+
 const planificationSlice = createSlice({
   name: 'planification',
   initialState,
@@ -189,6 +217,20 @@ const planificationSlice = createSlice({
         state.planificationsAVenir = state.planificationsAVenir.filter((p: Planification) => p.id !== action.payload);
       })
       .addCase(deletePlanification.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      // createPlanificationsBatch
+      .addCase(createPlanificationsBatch.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(createPlanificationsBatch.fulfilled, (state, action) => {
+        state.loading = false;
+        // Ajouter toutes les nouvelles planifications au début
+        state.planifications = [...action.payload, ...state.planifications];
+      })
+      .addCase(createPlanificationsBatch.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       });

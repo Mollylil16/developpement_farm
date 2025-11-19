@@ -14,6 +14,10 @@ import { fr } from 'date-fns/locale';
 import Card from './Card';
 import { loadPeseesRecents } from '../store/slices/productionSlice';
 import { loadMortalitesParProjet } from '../store/slices/mortalitesSlice';
+import { ChargeFixe, DepensePonctuelle, Mortalite, ProductionPesee } from '../types';
+import { selectPeseesRecents } from '../store/selectors/productionSelectors';
+import { selectAllMortalites } from '../store/selectors/mortalitesSelectors';
+import { selectAllChargesFixes, selectAllDepensesPonctuelles } from '../store/selectors/financeSelectors';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -23,9 +27,10 @@ export default function TendancesChartsComponent() {
   const { colors, isDark } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
-  const { peseesRecents } = useAppSelector((state) => state.production);
-  const { mortalites } = useAppSelector((state) => state.mortalites);
-  const { chargesFixes, depensesPonctuelles } = useAppSelector((state) => state.finance);
+  const peseesRecents: ProductionPesee[] = useAppSelector(selectPeseesRecents);
+  const mortalites: Mortalite[] = useAppSelector(selectAllMortalites);
+  const chargesFixes: ChargeFixe[] = useAppSelector(selectAllChargesFixes);
+  const depensesPonctuelles: DepensePonctuelle[] = useAppSelector(selectAllDepensesPonctuelles);
   const [periode, setPeriode] = useState<PeriodeType>('3m');
 
   // Charger les données nécessaires
@@ -76,7 +81,7 @@ export default function TendancesChartsComponent() {
   // 1. Graphique d'évolution du poids moyen
   const poidsChartData = useMemo(() => {
     const dateDebut = getDateDebut(periode);
-    const peseesFiltrees = peseesRecents.filter((p) => {
+    const peseesFiltrees = peseesRecents.filter((p: ProductionPesee) => {
       const datePesee = parseISO(p.date);
       return datePesee >= dateDebut;
     });
@@ -86,7 +91,7 @@ export default function TendancesChartsComponent() {
     // Grouper par semaine ou mois selon la période
     const groupBy = periode === '7j' || periode === '30j' ? 'week' : 'month';
     
-    const grouped = peseesFiltrees.reduce((acc, pesee) => {
+    const grouped = peseesFiltrees.reduce((acc: Record<string, { poids: number[]; count: number }>, pesee: ProductionPesee) => {
       const datePesee = parseISO(pesee.date);
       let key: string;
       
@@ -165,7 +170,7 @@ export default function TendancesChartsComponent() {
   // 3. Graphique de GMQ par période
   const gmqChartData = useMemo(() => {
     const dateDebut = getDateDebut(periode);
-    const peseesFiltrees = peseesRecents.filter((p) => {
+    const peseesFiltrees = peseesRecents.filter((p: ProductionPesee) => {
       const datePesee = parseISO(p.date);
       return datePesee >= dateDebut && p.gmq !== null && p.gmq !== undefined;
     });
@@ -173,7 +178,7 @@ export default function TendancesChartsComponent() {
     if (peseesFiltrees.length === 0) return null;
 
     // Grouper par mois
-    const grouped = peseesFiltrees.reduce((acc, pesee) => {
+    const grouped = peseesFiltrees.reduce((acc: Record<string, { gmq: number[]; count: number }>, pesee: ProductionPesee) => {
       const datePesee = parseISO(pesee.date);
       const key = format(datePesee, 'MMM yyyy', { locale: fr });
       
@@ -210,19 +215,19 @@ export default function TendancesChartsComponent() {
     const maintenantStart = startOfMonth(maintenant);
     
     // Calculer les dépenses par mois (uniquement dans le passé)
-    const depensesFiltrees = depensesPonctuelles.filter((d) => {
+    const depensesFiltrees = depensesPonctuelles.filter((d: DepensePonctuelle) => {
       const dateDepense = parseISO(d.date);
       return dateDepense >= dateDebut && dateDepense <= maintenant;
     });
 
     // Calculer les charges fixes mensuelles
-    const chargesFixesActives = chargesFixes.filter((cf) => cf.statut === 'actif');
+    const chargesFixesActives = chargesFixes.filter((cf: ChargeFixe) => cf.statut === 'actif');
     
     // Grouper par mois avec clé de date pour tri chronologique
     const grouped = new Map<string, { date: Date; montant: number }>();
     
     // Ajouter les dépenses ponctuelles
-    depensesFiltrees.forEach((depense) => {
+    depensesFiltrees.forEach((depense: DepensePonctuelle) => {
       const dateDepense = parseISO(depense.date);
       const monthStart = startOfMonth(dateDepense);
       const key = format(monthStart, 'yyyy-MM');
@@ -235,7 +240,7 @@ export default function TendancesChartsComponent() {
     });
 
     // Ajouter les charges fixes mensuelles
-    chargesFixesActives.forEach((cf) => {
+    chargesFixesActives.forEach((cf: ChargeFixe) => {
       const montantMensuel = cf.frequence === 'mensuel' 
         ? cf.montant 
         : cf.frequence === 'trimestriel' 

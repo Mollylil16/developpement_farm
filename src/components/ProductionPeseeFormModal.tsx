@@ -1,13 +1,13 @@
 /**
- * Modal pour créer une nouvelle pesée
+ * Modal pour créer ou modifier une pesée
  */
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAppDispatch } from '../store/hooks';
-import { createPesee } from '../store/slices/productionSlice';
-import { ProductionAnimal, CreatePeseeInput } from '../types';
+import { createPesee, updatePesee } from '../store/slices/productionSlice';
+import { ProductionAnimal, ProductionPesee, CreatePeseeInput } from '../types';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
@@ -35,6 +35,8 @@ interface ProductionPeseeFormModalProps {
   onSuccess: () => void;
   projetId: string;
   animal: ProductionAnimal;
+  pesee?: ProductionPesee | null;
+  isEditing?: boolean;
 }
 
 export default function ProductionPeseeFormModal({
@@ -43,10 +45,12 @@ export default function ProductionPeseeFormModal({
   onSuccess,
   projetId,
   animal,
+  pesee,
+  isEditing = false,
 }: ProductionPeseeFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { canCreate } = useActionPermissions();
+  const { canCreate, canUpdate } = useActionPermissions();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreatePeseeInput>({
     projet_id: projetId,
@@ -59,20 +63,36 @@ export default function ProductionPeseeFormModal({
 
   useEffect(() => {
     if (visible) {
-      setFormData({
-        projet_id: projetId,
-        animal_id: animal.id,
-        date: formatDateToLocal(new Date()),
-        poids_kg: 0,
-        commentaire: '',
-      });
+      if (isEditing && pesee) {
+        // Mode édition : charger les données de la pesée
+        setFormData({
+          projet_id: pesee.projet_id,
+          animal_id: pesee.animal_id,
+          date: pesee.date,
+          poids_kg: pesee.poids_kg,
+          commentaire: pesee.commentaire || '',
+        });
+      } else {
+        // Mode création : données vides
+        setFormData({
+          projet_id: projetId,
+          animal_id: animal.id,
+          date: formatDateToLocal(new Date()),
+          poids_kg: 0,
+          commentaire: '',
+        });
+      }
       setShowDatePicker(false);
     }
-  }, [visible, projetId, animal]);
+  }, [visible, projetId, animal, pesee, isEditing]);
 
   const handleSubmit = async () => {
     // Vérifier les permissions
-    if (!canCreate('reproduction')) {
+    if (isEditing && !canUpdate('reproduction')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les pesées.');
+      return;
+    }
+    if (!isEditing && !canCreate('reproduction')) {
       Alert.alert('Permission refusée', 'Vous n\'avez pas la permission d\'ajouter des pesées.');
       return;
     }
@@ -84,10 +104,14 @@ export default function ProductionPeseeFormModal({
 
     setLoading(true);
     try {
-      await dispatch(createPesee(formData)).unwrap();
+      if (isEditing && pesee) {
+        await dispatch(updatePesee({ id: pesee.id, updates: formData })).unwrap();
+      } else {
+        await dispatch(createPesee(formData)).unwrap();
+      }
       onSuccess();
     } catch (error: any) {
-      Alert.alert('Erreur', error || 'Erreur lors de l\'enregistrement de la pesée.');
+      Alert.alert('Erreur', error || `Erreur lors de ${isEditing ? 'la modification' : 'l\'enregistrement'} de la pesée.`);
     } finally {
       setLoading(false);
     }
@@ -97,8 +121,8 @@ export default function ProductionPeseeFormModal({
     <CustomModal
       visible={visible}
       onClose={onClose}
-      title={`Nouvelle pesée - ${animal.code}${animal.nom ? ` (${animal.nom})` : ''}`}
-      confirmText="Enregistrer"
+      title={`${isEditing ? 'Modifier' : 'Nouvelle'} pesée - ${animal.code}${animal.nom ? ` (${animal.nom})` : ''}`}
+      confirmText={isEditing ? 'Modifier' : 'Enregistrer'}
       onConfirm={handleSubmit}
       showButtons={true}
       loading={loading}

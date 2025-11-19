@@ -41,14 +41,22 @@ export default function PlanificationListComponent() {
   }, [dispatch, projetActif]);
 
   const planificationsFiltrees = useMemo(() => {
+    if (!planifications || !Array.isArray(planifications)) return [];
     if (filterStatut === 'tous') {
       return planifications;
     }
     return planifications.filter((p) => p.statut === filterStatut);
   }, [planifications, filterStatut]);
 
-  const tachesAVenir = useMemo(() => getTachesAVenir(planifications), [planifications]);
-  const tachesEnRetard = useMemo(() => getTachesEnRetard(planifications), [planifications]);
+  const tachesAVenir = useMemo(() => {
+    if (!planifications || !Array.isArray(planifications)) return [];
+    return getTachesAVenir(planifications);
+  }, [planifications]);
+  
+  const tachesEnRetard = useMemo(() => {
+    if (!planifications || !Array.isArray(planifications)) return [];
+    return getTachesEnRetard(planifications);
+  }, [planifications]);
 
   // Pagination: charger les premières planifications filtrées
   useEffect(() => {

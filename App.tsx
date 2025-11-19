@@ -6,18 +6,19 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, ActivityIndicator, StyleSheet, Animated } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, Animated, AppRegistry } from 'react-native';
+import { registerRootComponent } from 'expo';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { store, persistor } from './src/store/store';
 import AppNavigator from './src/navigation/AppNavigator';
 import { databaseService } from './src/services/database';
-import NotificationsManager from './src/components/NotificationsManager';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
-import { SPACING, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS } from './src/constants/theme';
+import { LanguageProvider } from './src/contexts/LanguageContext';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS, LIGHT_COLORS } from './src/constants/theme';
+import ErrorBoundary from './src/components/ErrorBoundary';
 
 function LoadingScreen({ message, error }: { message: string; error?: string }) {
   // Utiliser les couleurs par défaut car on n'est pas encore dans le ThemeProvider
-  const { LIGHT_COLORS } = require('./src/constants/theme');
   const colors = LIGHT_COLORS;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
@@ -68,8 +69,8 @@ function LoadingScreen({ message, error }: { message: string; error?: string }) 
         <Animated.View style={{ transform: [{ rotate: spin }] }}>
           <ActivityIndicator size="large" color={colors.primary} />
         </Animated.View>
-        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>{message}</Text>
-        {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>{message || ''}</Text>
+        {error && <Text style={[styles.errorText, { color: colors.error }]}>{error || ''}</Text>}
       </Animated.View>
     </View>
   );
@@ -110,9 +111,13 @@ export default function App() {
         <PersistGate loading={
           <LoadingScreen message="Chargement de l'application..." />
         } persistor={persistor}>
-          <ThemeProvider>
-            <AppContent />
-          </ThemeProvider>
+          <LanguageProvider>
+            <ThemeProvider>
+              <ErrorBoundary>
+                <AppContent />
+              </ErrorBoundary>
+            </ThemeProvider>
+          </LanguageProvider>
         </PersistGate>
       </Provider>
     </SafeAreaProvider>
@@ -125,7 +130,6 @@ function AppContent() {
   return (
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      <NotificationsManager />
       <AppNavigator />
     </>
   );
@@ -151,3 +155,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
+
+// Enregistrer l'application pour Expo
+registerRootComponent(App);
+
+// Enregistrer également avec AppRegistry pour compatibilité React Native CLI
+if (!AppRegistry.getAppKeys().includes('main')) {
+  AppRegistry.registerComponent('main', () => App);
+}

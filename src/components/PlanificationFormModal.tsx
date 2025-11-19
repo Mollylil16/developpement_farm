@@ -14,6 +14,7 @@ import FormField from './FormField';
 import { SPACING } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useActionPermissions } from '../hooks/useActionPermissions';
+import { selectAllGestations, selectAllSevrages } from '../store/selectors/reproductionSelectors';
 
 // Fonction helper pour convertir une date en format local YYYY-MM-DD
 const formatDateToLocal = (date: Date): string => {
@@ -48,8 +49,8 @@ export default function PlanificationFormModal({
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
-  const { gestations } = useAppSelector((state) => state.reproduction);
-  const { sevrages } = useAppSelector((state) => state.reproduction);
+  const gestations = useAppSelector(selectAllGestations);
+  const sevrages = useAppSelector(selectAllSevrages);
   const { canCreate, canUpdate } = useActionPermissions();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreatePlanificationInput>({
@@ -73,7 +74,8 @@ export default function PlanificationFormModal({
   const recurrences: Array<'aucune' | 'quotidienne' | 'hebdomadaire' | 'mensuelle'> = ['aucune', 'quotidienne', 'hebdomadaire', 'mensuelle'];
 
   const gestationsEnCours = useMemo(() => {
-    return gestations.filter((g) => g.statut === 'en_cours');
+    if (!gestations || !Array.isArray(gestations)) return [];
+    return gestations.filter((g) => g?.statut === 'en_cours');
   }, [gestations]);
 
   useEffect(() => {
@@ -395,7 +397,7 @@ export default function PlanificationFormModal({
           </View>
         </View>
 
-        {gestationsEnCours.length > 0 && (
+        {Array.isArray(gestationsEnCours) && gestationsEnCours.length > 0 && (
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Lier à une gestation (optionnel)</Text>
             <View style={styles.optionsContainer}>

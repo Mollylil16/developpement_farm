@@ -14,6 +14,8 @@ import {
 } from '../store/slices/projetSlice';
 import { loadMortalitesParProjet } from '../store/slices/mortalitesSlice';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
+import { selectAllAnimaux } from '../store/selectors/productionSelectors';
+import { selectAllMortalites } from '../store/selectors/mortalitesSelectors';
 import { Projet } from '../types';
 import { differenceInMonths, parseISO } from 'date-fns';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
@@ -22,14 +24,15 @@ import LoadingSpinner from './LoadingSpinner';
 import EmptyState from './EmptyState';
 import FormField from './FormField';
 import Button from './Button';
+import { countAnimalsByCategory } from '../utils/animalUtils';
 
 export default function ParametresProjetComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const navigation = useNavigation<any>();
   const { projetActif, projets, loading } = useAppSelector((state) => state.projet);
-  const { mortalites } = useAppSelector((state) => state.mortalites);
-  const { animaux } = useAppSelector((state) => state.production);
+  const mortalites = useAppSelector(selectAllMortalites);
+  const animaux = useAppSelector(selectAllAnimaux);
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<Projet>>({});
 
@@ -71,10 +74,12 @@ export default function ParametresProjetComponent() {
         nombre_porcelets: projetActif.nombre_porcelets,
         poids_moyen_actuel: projetActif.poids_moyen_actuel,
         age_moyen_actuel: projetActif.age_moyen_actuel,
+        prix_kg_vif: projetActif.prix_kg_vif,
+        prix_kg_carcasse: projetActif.prix_kg_carcasse,
         notes: projetActif.notes || '',
       });
     }
-  }, [projetActif, isEditing]);
+  }, [projetActif?.id, isEditing]);
 
   const handleSwitchProjet = (projetId: string) => {
     Alert.alert(
@@ -97,9 +102,9 @@ export default function ParametresProjetComponent() {
   const effectifsReels = useMemo(() => {
     if (!projetActif) return { truies: 0, verrats: 0, porcelets: 0 };
 
-    // Filtrer les animaux actifs du projet
+    // Filtrer les animaux actifs du projet (insensible à la casse)
     const animauxActifs = animaux.filter(
-      (animal) => animal.projet_id === projetActif.id && animal.statut === 'actif'
+      (animal) => animal.projet_id === projetActif.id && animal.statut?.toLowerCase() === 'actif'
     );
 
     const baseCounts = {
@@ -108,33 +113,8 @@ export default function ParametresProjetComponent() {
       porcelets: projetActif.nombre_porcelets ?? 0,
     };
 
-    // Compter les truies (femelles actives)
-    const truies = animauxActifs.filter((animal) => animal.sexe === 'femelle').length;
-
-    // Compter les verrats (mâles actifs)
-    const verrats = animauxActifs.filter((animal) => animal.sexe === 'male').length;
-
-    // Compter les porcelets (animaux actifs qui ne sont pas des reproducteurs adultes)
-    const porcelets = animauxActifs.filter((animal) => {
-      // Si l'animal est marqué comme reproducteur, ce n'est pas un porcelet
-      if (animal.reproducteur) return false;
-
-      // Si on a une date de naissance, vérifier l'âge
-      if (animal.date_naissance) {
-        try {
-          const dateNaissance = parseISO(animal.date_naissance);
-          const ageMois = differenceInMonths(new Date(), dateNaissance);
-          // Un porcelet a généralement moins de 6 mois
-          return ageMois < 6;
-        } catch {
-          // Si la date est invalide, considérer comme porcelet si pas reproducteur
-          return true;
-        }
-      }
-
-      // Si pas de date de naissance et pas reproducteur, considérer comme porcelet
-      return true;
-    }).length;
+    // Utiliser la fonction utilitaire pour compter les animaux par catégorie
+    const { truies, verrats, porcelets } = countAnimalsByCategory(animauxActifs);
 
     if (animauxActifs.length === 0) {
       const mortalitesProjet = mortalites.filter((m) => m.projet_id === projetActif.id);
@@ -160,7 +140,7 @@ export default function ParametresProjetComponent() {
       verrats,
       porcelets,
     };
-  }, [projetActif, animaux, mortalites]);
+  }, [projetActif?.id, animaux, mortalites]);
 
   const handleSaveEdit = async () => {
     if (!projetActif) return;
@@ -331,6 +311,24 @@ export default function ParametresProjetComponent() {
                     setEditData({ ...editData, age_moyen_actuel: parseInt(text) || 0 })
                   }
                   keyboardType="numeric"
+                />
+                <FormField
+                  label="Prix/kg vif (XOF)"
+                  value={editData.prix_kg_vif?.toString() || ''}
+                  onChangeText={(text) =>
+                    setEditData({ ...editData, prix_kg_vif: text ? parseFloat(text) : undefined })
+                  }
+                  keyboardType="numeric"
+                  placeholder="Ex: 1000"
+                />
+                <FormField
+                  label="Prix/kg carcasse (XOF)"
+                  value={editData.prix_kg_carcasse?.toString() || ''}
+                  onChangeText={(text) =>
+                    setEditData({ ...editData, prix_kg_carcasse: text ? parseFloat(text) : undefined })
+                  }
+                  keyboardType="numeric"
+                  placeholder="Ex: 1300"
                 />
                 <FormField
                   label="Notes"

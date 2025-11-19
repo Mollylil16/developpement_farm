@@ -9,13 +9,24 @@ import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { createGestation, updateGestation } from '../store/slices/reproductionSlice';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
 import { loadMortalitesParProjet } from '../store/slices/mortalitesSlice';
-import { Gestation, CreateGestationInput } from '../types';
+import { Gestation, CreateGestationInput, ProductionAnimal, Mortalite } from '../types';
 import { calculerDateMiseBasPrevue } from '../types/reproduction';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useActionPermissions } from '../hooks/useActionPermissions';
+import { selectAllAnimaux } from '../store/selectors/productionSelectors';
+import { selectAllMortalites } from '../store/selectors/mortalitesSelectors';
+import { 
+  detecterConsanguinite, 
+  getCouleurRisque, 
+  getIconeRisque, 
+  doitBloquerAccouplement,
+  doitAfficherAvertissement,
+  ResultatConsanguinite,
+  RisqueConsanguinite
+} from '../utils/consanguiniteUtils';
 
 interface GestationFormModalProps {
   visible: boolean;
@@ -57,8 +68,8 @@ export default function GestationFormModal({
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
-  const { animaux } = useAppSelector((state) => state.production);
-  const { mortalites } = useAppSelector((state) => state.mortalites);
+  const animaux: ProductionAnimal[] = useAppSelector(selectAllAnimaux);
+  const mortalites: Mortalite[] = useAppSelector(selectAllMortalites);
   const { canCreate, canUpdate } = useActionPermissions();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateGestationInput>({
@@ -77,6 +88,7 @@ export default function GestationFormModal({
   const [searchQuery, setSearchQuery] = useState('');
   const [showFullList, setShowFullList] = useState(false);
   const [verratSearchQuery, setVerratSearchQuery] = useState('');
+  const [resultatConsanguinite, setResultatConsanguinite] = useState<ResultatConsanguinite | null>(null);
 
   // Charger les animaux et mortalités au montage du composant
   useEffect(() => {
@@ -84,7 +96,7 @@ export default function GestationFormModal({
       dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
       dispatch(loadMortalitesParProjet(projetActif.id));
     }
-  }, [dispatch, projetActif, visible]);
+  }, [dispatch, projetActif?.id, visible]);
 
 
   // Générer une liste de truies basée sur le projet actif (en soustrayant les mortalités)
@@ -92,10 +104,10 @@ export default function GestationFormModal({
     if (!projetActif) return [];
     
     // Calculer le nombre de truies mortes
-    const mortalitesProjet = mortalites.filter((m) => m.projet_id === projetActif.id);
+    const mortalitesProjet = mortalites.filter((m: Mortalite) => m.projet_id === projetActif.id);
     const mortalitesTruies = mortalitesProjet
-      .filter((m) => m.categorie === 'truie')
-      .reduce((sum, m) => sum + (m.nombre_porcs || 0), 0);
+      .filter((m: Mortalite) => m.categorie === 'truie')
+      .reduce((sum: number, m: Mortalite) => sum + (m.nombre_porcs || 0), 0);
     
     // Nombre de truies actives = nombre initial - mortalités
     const nombreTruiesActives = Math.max(0, projetActif.nombre_truies - mortalitesTruies);
@@ -109,11 +121,11 @@ export default function GestationFormModal({
       });
     }
     return truiesList;
-  }, [projetActif, mortalites]);
+  }, [projetActif?.id, mortalites]);
 
   const animauxProjet = useMemo(() => {
     if (!projetActif) return [];
-    return animaux.filter((a) => a.projet_id === projetActif.id);
+    return animaux.filter((a: ProductionAnimal) => a.projet_id === projetActif.id);
   }, [animaux, projetActif?.id]);
 
   // Générer une liste de verrats basée sur le projet actif (en soustrayant les mortalités)
@@ -125,10 +137,10 @@ export default function GestationFormModal({
     }
 
     // Calculer le nombre de verrats morts
-    const mortalitesProjet = mortalites.filter((m) => m.projet_id === projetActif.id);
+    const mortalitesProjet = mortalites.filter((m: Mortalite) => m.projet_id === projetActif.id);
     const mortalitesVerrats = mortalitesProjet
-      .filter((m) => m.categorie === 'verrat')
-      .reduce((sum, m) => sum + (m.nombre_porcs || 0), 0);
+      .filter((m: Mortalite) => m.categorie === 'verrat')
+      .reduce((sum: number, m: Mortalite) => sum + (m.nombre_porcs || 0), 0);
     
     // Nombre de verrats actifs = nombre initial - mortalités
     const nombreVerratsInitial = projetActif.nombre_verrats ?? 0;
@@ -156,15 +168,15 @@ export default function GestationFormModal({
 
     // Récupérer les verrats réellement enregistrés dans le cheptel
     const malesActifsEnregistres = animauxProjet.filter(
-      (a) =>
+      (a: ProductionAnimal) =>
         a.sexe === 'male' &&
-        (a.statut === 'actif' || a.id === formData.verrat_id)
+        (a.statut?.toLowerCase() === 'actif' || a.id === formData.verrat_id)
     );
 
     // Combiner les deux listes, en évitant les doublons
     // Si un verrat enregistré a le même code qu'un virtuel, on garde l'enregistré
     const verratsCombines: VerratOption[] = [...verratsVirtuels];
-    malesActifsEnregistres.forEach((verratEnregistre) => {
+    malesActifsEnregistres.forEach((verratEnregistre: ProductionAnimal) => {
       const indexExistant = verratsCombines.findIndex(
         (v) => v.id === verratEnregistre.id || v.code === verratEnregistre.code
       );
@@ -206,7 +218,7 @@ export default function GestationFormModal({
     
     console.log('Final verrats list:', verratsTries.length, verratsTries);
     return verratsTries;
-  }, [animauxProjet, projetActif, mortalites, formData.verrat_id]);
+  }, [animauxProjet, projetActif?.id, mortalites, formData.verrat_id]);
 
   // Filtrer les verrats selon la recherche
   const verratsFiltres = useMemo(() => {
@@ -266,6 +278,37 @@ export default function GestationFormModal({
       }
     }
   }, [directInput, truies]);
+
+  // Détecter automatiquement la consanguinité quand une truie et un verrat sont sélectionnés
+  useEffect(() => {
+    if (formData.truie_id && formData.verrat_id && animauxProjet.length > 0) {
+      // Trouver la truie réelle dans le cheptel
+      const truieReelle = animauxProjet.find((a) => a.id === formData.truie_id);
+      
+      if (truieReelle) {
+        const resultat = detecterConsanguinite(
+          formData.truie_id,
+          formData.verrat_id,
+          animauxProjet
+        );
+        setResultatConsanguinite(resultat);
+        
+        // Afficher une alerte si risque critique
+        if (doitBloquerAccouplement(resultat)) {
+          Alert.alert(
+            '🚨 Risque de Consanguinité Critique',
+            `${resultat.message}\n\n${resultat.details}\n\nCet accouplement est fortement déconseillé et peut causer de graves problèmes de santé chez les porcelets.`,
+            [{ text: 'J\'ai compris', style: 'cancel' }]
+          );
+        }
+      } else {
+        // Si la truie n'est pas dans le cheptel (truie virtuelle), on ne peut pas détecter
+        setResultatConsanguinite(null);
+      }
+    } else {
+      setResultatConsanguinite(null);
+    }
+  }, [formData.truie_id, formData.verrat_id, animauxProjet]);
 
   useEffect(() => {
     if (gestation && isEditing) {
@@ -335,6 +378,43 @@ export default function GestationFormModal({
       return;
     }
 
+    // Vérifier la consanguinité avant de soumettre
+    if (resultatConsanguinite && doitBloquerAccouplement(resultatConsanguinite)) {
+      Alert.alert(
+        '⚠️ Confirmation requise',
+        `Un risque critique de consanguinité a été détecté :\n\n${resultatConsanguinite.message}\n\n${resultatConsanguinite.details}\n\nÊtes-vous sûr de vouloir continuer ?`,
+        [
+          { text: 'Annuler', style: 'cancel', onPress: () => {} },
+          { 
+            text: 'Continuer quand même', 
+            style: 'destructive', 
+            onPress: () => proceedWithSubmit() 
+          },
+        ]
+      );
+      return;
+    }
+
+    // Avertissement pour risques modérés/élevés
+    if (resultatConsanguinite && doitAfficherAvertissement(resultatConsanguinite)) {
+      Alert.alert(
+        '⚠️ Avertissement',
+        `${resultatConsanguinite.message}\n\n${resultatConsanguinite.details}\n\nVoulez-vous continuer ?`,
+        [
+          { text: 'Annuler', style: 'cancel', onPress: () => {} },
+          { 
+            text: 'Continuer', 
+            onPress: () => proceedWithSubmit() 
+          },
+        ]
+      );
+      return;
+    }
+
+    proceedWithSubmit();
+  };
+
+  const proceedWithSubmit = async () => {
     setLoading(true);
     try {
       if (isEditing && gestation) {
@@ -561,6 +641,18 @@ export default function GestationFormModal({
                 {verratsFiltres.length > 0 ? (
                   verratsFiltres.map((verrat) => {
                     const selected = formData.verrat_id === verrat.id;
+                    
+                    // Calculer le risque de consanguinité pour ce verrat si une truie est sélectionnée
+                    let risqueVerrat: ResultatConsanguinite | null = null;
+                    if (formData.truie_id && verrat.projet_id) {
+                      // Seulement si le verrat est réellement dans le cheptel
+                      risqueVerrat = detecterConsanguinite(
+                        formData.truie_id,
+                        verrat.id,
+                        animauxProjet
+                      );
+                    }
+                    
                     return (
                       <TouchableOpacity
                         key={verrat.id}
@@ -581,21 +673,34 @@ export default function GestationFormModal({
                           setVerratSearchQuery('');
                         }}
                       >
-                        <Text
-                          style={[
-                            styles.optionText,
-                            {
-                              color: selected ? colors.primary : colors.text,
-                              fontWeight: selected ? '600' : 'normal',
-                            },
-                          ]}
-                        >
-                          {verrat.code}
-                          {verrat.nom ? ` - ${verrat.nom}` : ''}
-                        </Text>
+                        <View style={styles.verratOptionHeader}>
+                          <Text
+                            style={[
+                              styles.optionText,
+                              {
+                                color: selected ? colors.primary : colors.text,
+                                fontWeight: selected ? '600' : 'normal',
+                                flex: 1,
+                              },
+                            ]}
+                          >
+                            {verrat.code}
+                            {verrat.nom ? ` - ${verrat.nom}` : ''}
+                          </Text>
+                          {risqueVerrat && risqueVerrat.risque !== RisqueConsanguinite.AUCUN && (
+                            <Text style={{ fontSize: 18, marginLeft: SPACING.xs }}>
+                              {getIconeRisque(risqueVerrat.niveau)}
+                            </Text>
+                          )}
+                        </View>
                         {verrat.race && (
                           <Text style={[styles.optionSubtext, { color: colors.textSecondary }]}>
-                            Race: {verrat.race} • {verrat.statut === 'actif' ? 'Actif' : verrat.statut}
+                            Race: {verrat.race} • {verrat.statut?.toLowerCase() === 'actif' ? 'Actif' : verrat.statut}
+                          </Text>
+                        )}
+                        {risqueVerrat && risqueVerrat.risque !== RisqueConsanguinite.AUCUN && (
+                          <Text style={[styles.optionConsanguinite, { color: getCouleurRisque(risqueVerrat.niveau) }]}>
+                            ⚠️ {risqueVerrat.message}
                           </Text>
                         )}
                         {!verrat.reproducteur && (
@@ -628,6 +733,61 @@ export default function GestationFormModal({
             </View>
           )}
         </View>
+
+        {/* Alerte de consanguinité */}
+        {resultatConsanguinite && resultatConsanguinite.risque !== RisqueConsanguinite.AUCUN && (
+          <View 
+            style={[
+              styles.consanguiniteBox, 
+              { 
+                backgroundColor: getCouleurRisque(resultatConsanguinite.niveau) + '15', 
+                borderColor: getCouleurRisque(resultatConsanguinite.niveau),
+                borderWidth: 2,
+              }
+            ]}
+          >
+            <View style={styles.consanguiniteHeader}>
+              <Text style={[styles.consanguiniteIcone, { fontSize: 24 }]}>
+                {getIconeRisque(resultatConsanguinite.niveau)}
+              </Text>
+              <Text style={[styles.consanguiniteTitre, { color: getCouleurRisque(resultatConsanguinite.niveau) }]}>
+                {resultatConsanguinite.message}
+              </Text>
+            </View>
+            {resultatConsanguinite.details && (
+              <Text style={[styles.consanguiniteDetails, { color: colors.text }]}>
+                {resultatConsanguinite.details}
+              </Text>
+            )}
+            {resultatConsanguinite.niveau === 'critique' && (
+              <View style={[styles.consanguiniteWarning, { backgroundColor: getCouleurRisque('critique') }]}>
+                <Text style={styles.consanguiniteWarningText}>
+                  ⛔ Cet accouplement n'est PAS recommandé et peut entraîner des malformations graves.
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Message de confirmation si aucun risque */}
+        {resultatConsanguinite && resultatConsanguinite.risque === RisqueConsanguinite.AUCUN && (
+          <View 
+            style={[
+              styles.consanguiniteBox, 
+              { 
+                backgroundColor: getCouleurRisque('aucun') + '15', 
+                borderColor: getCouleurRisque('aucun'),
+              }
+            ]}
+          >
+            <View style={styles.consanguiniteHeader}>
+              <Text style={[styles.consanguiniteIcone, { fontSize: 20 }]}>✓</Text>
+              <Text style={[styles.consanguiniteOkText, { color: getCouleurRisque('aucun') }]}>
+                Aucun risque de consanguinité détecté
+              </Text>
+            </View>
+          </View>
+        )}
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Date de sautage *</Text>
@@ -941,6 +1101,56 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
   },
   sheetOptionWarning: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: SPACING.xs,
+  },
+  consanguiniteBox: {
+    padding: SPACING.md,
+    borderRadius: 12,
+    marginVertical: SPACING.md,
+    borderWidth: 1,
+  },
+  consanguiniteHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+  },
+  consanguiniteIcone: {
+    marginRight: SPACING.sm,
+  },
+  consanguiniteTitre: {
+    fontSize: 16,
+    fontWeight: '700',
+    flex: 1,
+  },
+  consanguiniteOkText: {
+    fontSize: 15,
+    fontWeight: '600',
+    flex: 1,
+  },
+  consanguiniteDetails: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: SPACING.sm,
+  },
+  consanguiniteWarning: {
+    padding: SPACING.sm,
+    borderRadius: 8,
+    marginTop: SPACING.sm,
+  },
+  consanguiniteWarningText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  verratOptionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  optionConsanguinite: {
     fontSize: 12,
     fontWeight: '600',
     marginTop: SPACING.xs,

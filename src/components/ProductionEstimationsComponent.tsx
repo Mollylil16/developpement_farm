@@ -15,6 +15,7 @@ import {
   loadProductionAnimaux,
   loadPeseesParAnimal,
 } from '../store/slices/productionSlice';
+import { selectAllAnimaux, selectPeseesParAnimal } from '../store/selectors/productionSelectors';
 import { ProductionAnimal, ProductionPesee, getStandardGMQ } from '../types';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -31,9 +32,9 @@ export default function ProductionEstimationsComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
-  const { animaux, peseesParAnimal, loading } = useAppSelector(
-    (state) => state.production
-  );
+  const animaux = useAppSelector(selectAllAnimaux);
+  const peseesParAnimal = useAppSelector(selectPeseesParAnimal);
+  const loading = useAppSelector((state) => state.production.loading);
 
   const [mode, setMode] = useState<EstimationMode>('date');
   const [selectedAnimalId, setSelectedAnimalId] = useState<string>('');
@@ -61,7 +62,7 @@ export default function ProductionEstimationsComponent() {
       if (projetActif && animaux.length > 0) {
         // Charger les pesées uniquement pour les animaux qui n'ont pas encore leurs pesées chargées
         const animauxSansPesees = animaux.filter(
-          (a) => a.actif && !peseesParAnimal[a.id] && !animauxChargesRef.current.has(a.id)
+          (a) => a.statut?.toLowerCase() === 'actif' && !peseesParAnimal[a.id] && !animauxChargesRef.current.has(a.id)
         );
         // Limiter à 10 animaux à la fois pour éviter de surcharger
         animauxSansPesees.slice(0, 10).forEach((animal) => {
@@ -75,7 +76,7 @@ export default function ProductionEstimationsComponent() {
   // Calculer les stats pour chaque animal
   const animauxAvecStats = useMemo(() => {
     return animaux
-      .filter((a) => a.actif)
+      .filter((a) => a.statut?.toLowerCase() === 'actif')
       .map((animal) => {
         const pesees = peseesParAnimal[animal.id] || [];
         const dernierePesee = pesees[0];

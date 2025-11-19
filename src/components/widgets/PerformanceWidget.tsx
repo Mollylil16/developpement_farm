@@ -3,9 +3,10 @@
  * Affiche les indicateurs de performance clés
  */
 
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
+import { selectAllMortalites } from '../../store/selectors/mortalitesSelectors';
 import { loadMortalitesParProjet } from '../../store/slices/mortalitesSlice';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -15,18 +16,35 @@ interface PerformanceWidgetProps {
   onPress?: () => void;
 }
 
-export default function PerformanceWidget({ onPress }: PerformanceWidgetProps) {
+function PerformanceWidget({ onPress }: PerformanceWidgetProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
-  const { mortalites } = useAppSelector((state) => state.mortalites);
+  const mortalites = useAppSelector(selectAllMortalites);
   const { indicateursPerformance } = useAppSelector((state) => state.reports);
 
+  // Utiliser useRef pour éviter les chargements multiples (boucle infinie)
+  const dataChargeesRef = React.useRef<string | null>(null);
+
   useEffect(() => {
-    if (projetActif) {
-      dispatch(loadMortalitesParProjet(projetActif.id));
+    if (!projetActif) {
+      dataChargeesRef.current = null;
+      return;
     }
-  }, [dispatch, projetActif]);
+    
+    if (dataChargeesRef.current === projetActif.id) return; // Déjà chargé !
+    
+    dataChargeesRef.current = projetActif.id;
+    dispatch(loadMortalitesParProjet(projetActif.id));
+  }, [dispatch, projetActif?.id]);
+
+  // ✅ MÉMOÏSER les valeurs calculées des mortalités pour éviter les boucles infinies
+  const totalMorts = useMemo(() => 
+    Array.isArray(mortalites) 
+      ? mortalites.reduce((sum, m) => sum + (m.nombre_porcs || 0), 0) 
+      : 0,
+    [mortalites.length]  // ✅ Utiliser .length au lieu de l'array complet
+  );
 
   const performanceData = useMemo(() => {
     if (!projetActif) return null;
@@ -36,8 +54,6 @@ export default function PerformanceWidget({ onPress }: PerformanceWidgetProps) {
       projetActif.nombre_verrats +
       projetActif.nombre_porcelets;
 
-    // Calculer le taux de mortalité depuis les mortalités
-    const totalMorts = mortalites.reduce((sum, m) => sum + m.nombre_porcs, 0);
     const tauxMortalite = nombrePorcsTotal > 0 ? (totalMorts / nombrePorcsTotal) * 100 : 0;
 
     // Utiliser les indicateurs de performance s'ils sont disponibles
@@ -50,7 +66,7 @@ export default function PerformanceWidget({ onPress }: PerformanceWidgetProps) {
       coutProduction: Math.round(coutProduction),
       tendance: tauxMortalite < 5 ? 'positive' : tauxMortalite < 10 ? 'neutre' : 'negative',
     };
-  }, [projetActif, mortalites, indicateursPerformance]);
+  }, [projetActif?.id, totalMorts, indicateursPerformance?.taux_croissance, indicateursPerformance?.cout_production_kg]);
 
   if (!performanceData) {
     return null;
@@ -69,7 +85,7 @@ export default function PerformanceWidget({ onPress }: PerformanceWidgetProps) {
         <View style={styles.statRow}>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Performance globale:</Text>
           <Text style={[styles.statValue, { color: colors.primary }]}>
-            {performanceData.performanceGlobale}%
+            {performanceData.performanceGlobale ?? 0}%
           </Text>
         </View>
 
@@ -81,24 +97,24 @@ export default function PerformanceWidget({ onPress }: PerformanceWidgetProps) {
                 styles.statValue,
                 {
                   color:
-                    performanceData.tauxMortalite < 5
+                    (performanceData.tauxMortalite ?? 0) < 5
                       ? colors.success
-                      : performanceData.tauxMortalite < 10
+                      : (performanceData.tauxMortalite ?? 0) < 10
                       ? colors.warning
                       : colors.error,
                 },
               ]}
             >
-              {performanceData.tauxMortalite}%
+              {performanceData.tauxMortalite ?? 0}%
             </Text>
-            {performanceData.tauxMortalite < 5 && <Text style={styles.checkmark}>✅</Text>}
+            {(performanceData.tauxMortalite ?? 0) < 5 && <Text style={styles.checkmark}>✅</Text>}
           </View>
         </View>
 
         <View style={styles.statRow}>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Coût de production:</Text>
           <Text style={[styles.statValue, { color: colors.text }]}>
-            {performanceData.coutProduction} FCFA/kg
+            {performanceData.coutProduction ?? 0} FCFA/kg
           </Text>
         </View>
 
@@ -202,4 +218,6 @@ const styles = StyleSheet.create({
     fontWeight: FONT_WEIGHTS.semiBold,
   },
 });
+
+export default memo(PerformanceWidget);
 

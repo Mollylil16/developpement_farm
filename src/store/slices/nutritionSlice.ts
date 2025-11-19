@@ -3,12 +3,13 @@
  */
 
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { Ingredient, Ration, CreateIngredientInput, CreateRationInput } from '../../types';
+import { Ingredient, Ration, CreateIngredientInput, CreateRationInput, RationBudget, CreateRationBudgetInput, UpdateRationBudgetInput } from '../../types';
 import { databaseService } from '../../services/database';
 
 interface NutritionState {
   ingredients: Ingredient[];
   rations: Ration[];
+  rationsBudget: RationBudget[];
   loading: boolean;
   error: string | null;
 }
@@ -16,6 +17,7 @@ interface NutritionState {
 const initialState: NutritionState = {
   ingredients: [],
   rations: [],
+  rationsBudget: [],
   loading: false,
   error: null,
 };
@@ -123,6 +125,58 @@ export const deleteRation = createAsyncThunk(
   }
 );
 
+// Thunks pour Rations Budget (Budgétisation Aliment)
+export const createRationBudget = createAsyncThunk(
+  'nutrition/createRationBudget',
+  async (input: CreateRationBudgetInput, { rejectWithValue }) => {
+    try {
+      const rationBudget = await databaseService.createRationBudget(input);
+      return rationBudget;
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Erreur lors de la création de la ration budget');
+    }
+  }
+);
+
+export const loadRationsBudget = createAsyncThunk(
+  'nutrition/loadRationsBudget',
+  async (projetId: string, { rejectWithValue }) => {
+    try {
+      const rationsBudget = await databaseService.getRationsBudgetByProjet(projetId);
+      return rationsBudget;
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Erreur lors du chargement des rations budget');
+    }
+  }
+);
+
+export const updateRationBudget = createAsyncThunk(
+  'nutrition/updateRationBudget',
+  async ({ id, updates }: { id: string; updates: UpdateRationBudgetInput }, { rejectWithValue }) => {
+    try {
+      const rationBudget = await databaseService.updateRationBudget(id, updates);
+      if (!rationBudget) {
+        throw new Error('Ration budget non trouvée');
+      }
+      return rationBudget;
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Erreur lors de la mise à jour de la ration budget');
+    }
+  }
+);
+
+export const deleteRationBudget = createAsyncThunk(
+  'nutrition/deleteRationBudget',
+  async (id: string, { rejectWithValue }) => {
+    try {
+      await databaseService.deleteRationBudget(id);
+      return id;
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Erreur lors de la suppression de la ration budget');
+    }
+  }
+);
+
 const nutritionSlice = createSlice({
   name: 'nutrition',
   initialState,
@@ -224,6 +278,61 @@ const nutritionSlice = createSlice({
         state.rations = state.rations.filter((r: Ration) => r.id !== action.payload);
       })
       .addCase(deleteRation.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      // createRationBudget
+      .addCase(createRationBudget.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(createRationBudget.fulfilled, (state, action) => {
+        state.loading = false;
+        state.rationsBudget.unshift(action.payload);
+      })
+      .addCase(createRationBudget.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      // loadRationsBudget
+      .addCase(loadRationsBudget.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(loadRationsBudget.fulfilled, (state, action) => {
+        state.loading = false;
+        state.rationsBudget = action.payload;
+      })
+      .addCase(loadRationsBudget.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      // updateRationBudget
+      .addCase(updateRationBudget.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(updateRationBudget.fulfilled, (state, action) => {
+        state.loading = false;
+        const index = state.rationsBudget.findIndex((r: RationBudget) => r.id === action.payload.id);
+        if (index !== -1) {
+          state.rationsBudget[index] = action.payload;
+        }
+      })
+      .addCase(updateRationBudget.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      // deleteRationBudget
+      .addCase(deleteRationBudget.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(deleteRationBudget.fulfilled, (state, action) => {
+        state.loading = false;
+        state.rationsBudget = state.rationsBudget.filter((r: RationBudget) => r.id !== action.payload);
+      })
+      .addCase(deleteRationBudget.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       });

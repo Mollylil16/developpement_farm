@@ -2,7 +2,7 @@
  * Composant pour gérer le cheptel (liste complète des animaux)
  */
 
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,9 @@ import {
   FlatList,
   TouchableOpacity,
   Alert,
+  TextInput,
+  RefreshControl,
+  Image,
 } from 'react-native';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import {
@@ -18,6 +21,10 @@ import {
   updateProductionAnimal,
   loadPeseesRecents,
 } from '../store/slices/productionSlice';
+import { selectAllAnimaux, selectProductionLoading } from '../store/selectors/productionSelectors';
+import { selectAllVaccinations, selectAllMaladies, selectAllTraitements } from '../store/selectors/santeSelectors';
+import { loadVaccinations, loadMaladies, loadTraitements } from '../store/slices/santeSlice';
+import { useAnimauxActifs } from '../hooks/useAnimauxActifs';
 import { ProductionAnimal, StatutAnimal, STATUT_ANIMAL_LABELS } from '../types';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -27,9 +34,12 @@ import Button from './Button';
 import ProductionAnimalFormModal from './ProductionAnimalFormModal';
 import { format, differenceInDays, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import * as Haptics from 'expo-haptics';
 import Card from './Card';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useActionPermissions } from '../hooks/useActionPermissions';
+import { getCategorieAnimal, calculerAge, getStatutColor } from '../utils/animalUtils';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function ProductionCheptelComponent() {
   const { colors } = useTheme();
@@ -37,12 +47,19 @@ export default function ProductionCheptelComponent() {
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const navigation = useNavigation<any>();
   const { projetActif } = useAppSelector((state) => state.projet);
-  const { animaux, loading } = useAppSelector((state) => state.production);
-
+  const loading = useAppSelector(selectProductionLoading);
+  const allAnimaux = useAppSelector(selectAllAnimaux);
+  const vaccinations = useAppSelector(selectAllVaccinations);
+  const maladies = useAppSelector(selectAllMaladies);
+  const traitements = useAppSelector(selectAllTraitements);
+  
   const [showAnimalModal, setShowAnimalModal] = useState(false);
   const [selectedAnimal, setSelectedAnimal] = useState<ProductionAnimal | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [filterStatut, setFilterStatut] = useState<StatutAnimal | 'tous'>('tous');
+  const [filterCategorie, setFilterCategorie] = useState<'tous' | 'truie' | 'verrat' | 'porcelet'>('tous');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [expandedHistorique, setExpandedHistorique] = useState<string | null>(null);
 
   // Statuts qui doivent être dans le cheptel (pas dans l'historique)
   const STATUTS_CHEPTEL: StatutAnimal[] = ['actif', 'autre'];
@@ -61,21 +78,70 @@ export default function ProductionCheptelComponent() {
       if (aChargeRef.current !== projetActif.id) {
         aChargeRef.current = projetActif.id;
         dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
+        dispatch(loadVaccinations(projetActif.id));
+        dispatch(loadMaladies(projetActif.id));
+        dispatch(loadTraitements(projetActif.id));
       }
     }, [dispatch, projetActif?.id])
   );
-
-  // Filtrer uniquement les animaux du cheptel (actif et autre)
-  const animauxCheptel = useMemo(() => {
-    return animaux.filter((a) => STATUTS_CHEPTEL.includes(a.statut));
-  }, [animaux]);
-
-  const animauxFiltres = useMemo(() => {
-    if (filterStatut === 'tous') {
-      return animauxCheptel;
+  
+  // Fonction pour rafraîchir les données (pull-to-refresh)
+  const onRefresh = useCallback(async () => {
+    if (!projetActif?.id) return;
+    
+    setRefreshing(true);
+    try {
+      await dispatch(loadProductionAnimaux({ projetId: projetActif.id })).unwrap();
+    } catch (error) {
+      console.error('Erreur lors du rafraîchissement:', error);
+    } finally {
+      setRefreshing(false);
     }
-    return animauxCheptel.filter((a) => a.statut === filterStatut);
-  }, [animauxCheptel, filterStatut]);
+  }, [projetActif?.id, dispatch]);
+
+  // Filtrer les animaux du cheptel (actif et autre) avec les filtres appliqués
+  const animauxFiltres = useMemo(() => {
+    if (!Array.isArray(allAnimaux)) return [];
+    
+    // D'abord filtrer par statut (cheptel uniquement)
+    let result = allAnimaux.filter((a) => 
+      a.projet_id === projetActif?.id && 
+      STATUTS_CHEPTEL.includes(a.statut)
+    );
+
+    // Filtrer par catégorie si spécifié
+    if (filterCategorie !== 'tous') {
+      result = result.filter((a) => getCategorieAnimal(a) === filterCategorie);
+    }
+
+    // Filtrer par recherche (code ou nom) si spécifié
+    if (searchQuery.trim()) {
+      const query = searchQuery.trim().toLowerCase();
+      result = result.filter((a) => {
+        const codeMatch = a.code?.toLowerCase().includes(query) || false;
+        const nomMatch = a.nom?.toLowerCase().includes(query) || false;
+        return codeMatch || nomMatch;
+      });
+    }
+
+    return result;
+  }, [allAnimaux, projetActif?.id, filterCategorie, searchQuery]);
+
+  // Compter par catégorie pour les animaux du cheptel
+  const countByCategory = useMemo(() => {
+    if (!Array.isArray(allAnimaux)) return { truies: 0, verrats: 0, porcelets: 0 };
+    
+    const animauxCheptel = allAnimaux.filter((a) => 
+      a.projet_id === projetActif?.id && 
+      STATUTS_CHEPTEL.includes(a.statut)
+    );
+    
+    return {
+      truies: animauxCheptel.filter((a) => getCategorieAnimal(a) === 'truie').length,
+      verrats: animauxCheptel.filter((a) => getCategorieAnimal(a) === 'verrat').length,
+      porcelets: animauxCheptel.filter((a) => getCategorieAnimal(a) === 'porcelet').length,
+    };
+  }, [allAnimaux, projetActif?.id]);
 
   const handleDelete = (animal: ProductionAnimal) => {
     if (!canDelete('reproduction')) {
@@ -102,7 +168,7 @@ export default function ProductionCheptelComponent() {
     );
   };
 
-  const handleChangeStatut = (animal: ProductionAnimal, nouveauStatut: StatutAnimal) => {
+  const handleChangeStatut = useCallback((animal: ProductionAnimal, nouveauStatut: StatutAnimal) => {
     if (!canUpdate('reproduction')) {
       Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les animaux.');
       return;
@@ -135,56 +201,40 @@ export default function ProductionCheptelComponent() {
         },
       ]
     );
-  };
+  }, [dispatch, projetActif?.id, canUpdate]);
 
-  const calculerAge = (dateNaissance?: string): string | null => {
-    if (!dateNaissance) return null;
-    try {
-      const date = parseISO(dateNaissance);
-      const jours = differenceInDays(new Date(), date);
-      if (jours < 30) return `${jours} jour${jours > 1 ? 's' : ''}`;
-      const mois = Math.floor(jours / 30);
-      if (mois < 12) return `${mois} mois`;
-      const annees = Math.floor(mois / 12);
-      return `${annees} an${annees > 1 ? 's' : ''}`;
-    } catch {
-      return null;
-    }
-  };
 
-  const getStatutColor = (statut: StatutAnimal): string => {
-    switch (statut) {
-      case 'actif':
-        return colors.success;
-      case 'mort':
-        return colors.error;
-      case 'vendu':
-        return colors.warning;
-      case 'offert':
-        return colors.secondary;
-      default:
-        return colors.textSecondary;
-    }
-  };
-
-  const getParentLabel = (id?: string | null) => {
+  const getParentLabel = useCallback((id?: string | null) => {
     if (!id) {
       return 'Inconnu';
     }
-    const parent = animaux.find((a) => a.id === id);
+    if (!Array.isArray(allAnimaux)) {
+      return 'Inconnu';
+    }
+    const parent = allAnimaux.find((a) => a.id === id);
     if (!parent) {
       return 'Inconnu';
     }
     return `${parent.code}${parent.nom ? ` (${parent.nom})` : ''}`;
-  };
+  }, [allAnimaux]);
 
-  const renderAnimal = ({ item }: { item: ProductionAnimal }) => {
+  const renderAnimal = useCallback(({ item }: { item: ProductionAnimal }) => {
     const age = calculerAge(item.date_naissance);
-    const statutColor = getStatutColor(item.statut);
+    const statutColor = getStatutColor(item.statut, colors);
 
     return (
       <Card elevation="small" padding="medium" style={styles.animalCard}>
         <View style={styles.animalHeader}>
+          {item.photo_uri ? (
+            <Image 
+              source={{ uri: item.photo_uri }} 
+              style={styles.animalPhoto}
+            />
+          ) : (
+            <View style={[styles.animalPhoto, styles.animalPhotoPlaceholder, { backgroundColor: colors.primaryLight + '15', borderColor: colors.primary + '30' }]}>
+              <Text style={{ fontSize: 40 }}>🐷</Text>
+            </View>
+          )}
           <View style={styles.animalInfo}>
             <Text style={[styles.animalCode, { color: colors.text }]}>
               {item.code}
@@ -284,6 +334,158 @@ export default function ProductionCheptelComponent() {
           </View>
         </View>
 
+        {/* Historique sanitaire */}
+        {(() => {
+          const vaccinationsAnimal = (vaccinations || []).filter(
+            v => v.animal_ids?.includes(item.id)
+          ).sort((a, b) => new Date(b.date_vaccination).getTime() - new Date(a.date_vaccination).getTime());
+          
+          const maladiesAnimal = (maladies || []).filter(
+            m => m.animal_id === item.id
+          ).sort((a, b) => new Date(b.date_debut).getTime() - new Date(a.date_debut).getTime());
+          
+          const traitementsAnimal = (traitements || []).filter(
+            t => t.animal_id === item.id
+          ).sort((a, b) => new Date(b.date_debut).getTime() - new Date(a.date_debut).getTime());
+          
+          const totalHistorique = vaccinationsAnimal.length + maladiesAnimal.length + traitementsAnimal.length;
+          
+          if (totalHistorique === 0) return null;
+          
+          const isExpanded = expandedHistorique === item.id;
+          
+          return (
+            <>
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+              <View style={styles.historiqueContainer}>
+                <TouchableOpacity
+                  style={styles.historiqueHeader}
+                  onPress={() => setExpandedHistorique(isExpanded ? null : item.id)}
+                >
+                  <View style={styles.historiqueHeaderLeft}>
+                    <Ionicons name="medkit" size={18} color={colors.primary} />
+                    <Text style={[styles.historiqueTitle, { color: colors.text }]}>
+                      Historique sanitaire
+                    </Text>
+                    <View style={[styles.historiqueBadge, { backgroundColor: colors.primary + '15' }]}>
+                      <Text style={[styles.historiqueBadgeText, { color: colors.primary }]}>
+                        {totalHistorique}
+                      </Text>
+                    </View>
+                  </View>
+                  <Ionicons 
+                    name={isExpanded ? "chevron-up" : "chevron-down"} 
+                    size={20} 
+                    color={colors.textSecondary} 
+                  />
+                </TouchableOpacity>
+
+                {isExpanded && (
+                  <View style={styles.historiqueContent}>
+                    {/* Vaccinations */}
+                    {vaccinationsAnimal.length > 0 && (
+                      <View style={styles.historiqueSection}>
+                        <Text style={[styles.historiqueSectionTitle, { color: colors.success }]}>
+                          💉 Vaccinations ({vaccinationsAnimal.length})
+                        </Text>
+                        {vaccinationsAnimal.slice(0, 5).map((v, index) => (
+                          <View key={v.id} style={[styles.historiqueItem, { backgroundColor: colors.success + '08', borderLeftColor: colors.success }]}>
+                            <Text style={[styles.historiqueItemDate, { color: colors.textSecondary }]}>
+                              {format(parseISO(v.date_vaccination), 'dd MMM yyyy', { locale: fr })}
+                            </Text>
+                            <Text style={[styles.historiqueItemTitle, { color: colors.text }]}>
+                              {v.produit_administre}
+                            </Text>
+                            <Text style={[styles.historiqueItemDetail, { color: colors.textSecondary }]}>
+                              Dosage: {v.dosage} {v.unite_dosage || ''}
+                            </Text>
+                          </View>
+                        ))}
+                        {vaccinationsAnimal.length > 5 && (
+                          <Text style={[styles.historiqueMore, { color: colors.textSecondary }]}>
+                            +{vaccinationsAnimal.length - 5} vaccination(s) supplémentaire(s)
+                          </Text>
+                        )}
+                      </View>
+                    )}
+
+                    {/* Maladies */}
+                    {maladiesAnimal.length > 0 && (
+                      <View style={styles.historiqueSection}>
+                        <Text style={[styles.historiqueSectionTitle, { color: colors.warning }]}>
+                          🏥 Maladies ({maladiesAnimal.length})
+                        </Text>
+                        {maladiesAnimal.slice(0, 5).map((m, index) => (
+                          <View key={m.id} style={[styles.historiqueItem, { backgroundColor: colors.warning + '08', borderLeftColor: colors.warning }]}>
+                            <Text style={[styles.historiqueItemDate, { color: colors.textSecondary }]}>
+                              {format(parseISO(m.date_debut), 'dd MMM yyyy', { locale: fr })}
+                              {m.gueri && m.date_fin && ` → ${format(parseISO(m.date_fin), 'dd MMM yyyy', { locale: fr })}`}
+                            </Text>
+                            <Text style={[styles.historiqueItemTitle, { color: colors.text }]}>
+                              {m.nom_maladie}
+                            </Text>
+                            {m.symptomes && (
+                              <Text style={[styles.historiqueItemDetail, { color: colors.textSecondary }]} numberOfLines={2}>
+                                {m.symptomes}
+                              </Text>
+                            )}
+                            <View style={[styles.graviteBadge, { 
+                              backgroundColor: m.gravite === 'critique' ? colors.error + '15' :
+                                              m.gravite === 'grave' ? colors.warning + '15' :
+                                              colors.info + '15' 
+                            }]}>
+                              <Text style={[styles.graviteBadgeText, { 
+                                color: m.gravite === 'critique' ? colors.error :
+                                       m.gravite === 'grave' ? colors.warning :
+                                       colors.info
+                              }]}>
+                                {m.gravite === 'critique' ? 'Critique' : m.gravite === 'grave' ? 'Grave' : m.gravite === 'moderee' ? 'Modérée' : 'Faible'}
+                              </Text>
+                            </View>
+                          </View>
+                        ))}
+                        {maladiesAnimal.length > 5 && (
+                          <Text style={[styles.historiqueMore, { color: colors.textSecondary }]}>
+                            +{maladiesAnimal.length - 5} maladie(s) supplémentaire(s)
+                          </Text>
+                        )}
+                      </View>
+                    )}
+
+                    {/* Traitements */}
+                    {traitementsAnimal.length > 0 && (
+                      <View style={styles.historiqueSection}>
+                        <Text style={[styles.historiqueSectionTitle, { color: colors.info }]}>
+                          💊 Traitements ({traitementsAnimal.length})
+                        </Text>
+                        {traitementsAnimal.slice(0, 5).map((t, index) => (
+                          <View key={t.id} style={[styles.historiqueItem, { backgroundColor: colors.info + '08', borderLeftColor: colors.info }]}>
+                            <Text style={[styles.historiqueItemDate, { color: colors.textSecondary }]}>
+                              {format(parseISO(t.date_debut), 'dd MMM yyyy', { locale: fr })}
+                              {t.date_fin && ` → ${format(parseISO(t.date_fin), 'dd MMM yyyy', { locale: fr })}`}
+                            </Text>
+                            <Text style={[styles.historiqueItemTitle, { color: colors.text }]}>
+                              {t.nom_medicament}
+                            </Text>
+                            <Text style={[styles.historiqueItemDetail, { color: colors.textSecondary }]}>
+                              {t.dosage} • {t.voie_administration} • {t.frequence}
+                            </Text>
+                          </View>
+                        ))}
+                        {traitementsAnimal.length > 5 && (
+                          <Text style={[styles.historiqueMore, { color: colors.textSecondary }]}>
+                            +{traitementsAnimal.length - 5} traitement(s) supplémentaire(s)
+                          </Text>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+            </>
+          );
+        })()}
+
         {item.notes && (
           <>
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
@@ -306,8 +508,8 @@ export default function ProductionCheptelComponent() {
                   style={[
                     styles.statutButton,
                     {
-                      backgroundColor: item.statut === statut ? getStatutColor(statut) : colors.background,
-                      borderColor: getStatutColor(statut),
+                      backgroundColor: item.statut === statut ? getStatutColor(statut, colors) : colors.background,
+                      borderColor: getStatutColor(statut, colors),
                     },
                   ]}
                   onPress={() => handleChangeStatut(item, statut)}
@@ -316,7 +518,7 @@ export default function ProductionCheptelComponent() {
                     style={[
                       styles.statutButtonText,
                       {
-                        color: item.statut === statut ? colors.textOnPrimary : getStatutColor(statut),
+                        color: item.statut === statut ? colors.textOnPrimary : getStatutColor(statut, colors),
                       },
                     ]}
                   >
@@ -329,11 +531,11 @@ export default function ProductionCheptelComponent() {
         )}
       </Card>
     );
-  };
+  }, [colors, canUpdate, canDelete, handleDelete, handleChangeStatut, getParentLabel]);
 
   const ListHeader = () => {
     // Compter les animaux dans l'historique
-    const animauxHistorique = animaux.filter((a) => ['vendu', 'offert', 'mort'].includes(a.statut));
+    const animauxHistorique = allAnimaux.filter((a) => ['vendu', 'offert', 'mort'].includes(a.statut));
     
     return (
       <View style={styles.header}>
@@ -365,36 +567,61 @@ export default function ProductionCheptelComponent() {
         </View>
       <View style={styles.summary}>
         <Text style={[styles.summaryText, { color: colors.text }]}>
-          {animauxCheptel.length} animal{animauxCheptel.length > 1 ? 'aux' : ''} au total
+          {animauxFiltres.length} animal{animauxFiltres.length > 1 ? 'aux' : ''} actif{animauxFiltres.length > 1 ? 's' : ''}
         </Text>
-        <Text style={[styles.summaryText, { color: colors.textSecondary }]}>
-          {animauxCheptel.filter((a) => a.statut === 'actif').length} actif{animauxCheptel.filter((a) => a.statut === 'actif').length > 1 ? 's' : ''}
-        </Text>
+        {filterCategorie === 'tous' && (
+          <View style={styles.summaryDetails}>
+            <Text style={[styles.summaryText, { color: colors.textSecondary }]}>
+              {countByCategory.truies} truie{countByCategory.truies > 1 ? 's' : ''} • {' '}
+              {countByCategory.verrats} verrat{countByCategory.verrats > 1 ? 's' : ''} • {' '}
+              {countByCategory.porcelets} porcelet{countByCategory.porcelets > 1 ? 's' : ''}
+            </Text>
+          </View>
+        )}
       </View>
+      
+      {/* Barre de recherche */}
+      <View style={[styles.searchContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={styles.searchIcon}>🔍</Text>
+        <TextInput
+          style={[styles.searchInput, { color: colors.text }]}
+          placeholder="Rechercher par numéro ou nom..."
+          placeholderTextColor={colors.textSecondary}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
+            <Text style={[styles.clearButtonText, { color: colors.textSecondary }]}>✕</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Filtres par catégorie */}
       <View style={styles.filters}>
-        <Text style={[styles.filterLabel, { color: colors.textSecondary }]}>Filtrer par statut:</Text>
+        <Text style={[styles.filterLabel, { color: colors.textSecondary }]}>Filtrer par catégorie:</Text>
         <View style={styles.filterButtons}>
-          {(['tous', 'actif', 'autre'] as const).map((statut) => (
+          {(['tous', 'truie', 'verrat', 'porcelet'] as const).map((categorie) => (
             <TouchableOpacity
-              key={statut}
+              key={categorie}
               style={[
                 styles.filterButton,
                 {
-                  backgroundColor: filterStatut === statut ? colors.primary : colors.background,
+                  backgroundColor: filterCategorie === categorie ? colors.primary : colors.background,
                   borderColor: colors.border,
                 },
               ]}
-              onPress={() => setFilterStatut(statut === 'tous' ? 'tous' : statut)}
+              onPress={() => setFilterCategorie(categorie)}
             >
               <Text
                 style={[
                   styles.filterButtonText,
                   {
-                    color: filterStatut === statut ? colors.textOnPrimary : colors.text,
+                    color: filterCategorie === categorie ? colors.textOnPrimary : colors.text,
                   },
                 ]}
               >
-                {statut === 'tous' ? 'Tous' : STATUT_ANIMAL_LABELS[statut]}
+                {categorie === 'tous' ? 'Tous' : categorie === 'truie' ? 'Truies' : categorie === 'verrat' ? 'Verrats' : 'Porcelets'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -405,7 +632,7 @@ export default function ProductionCheptelComponent() {
   };
 
   // Afficher le spinner uniquement lors du premier chargement (pas à chaque re-render)
-  if (loading && animaux.length === 0) {
+  if (loading && (!Array.isArray(allAnimaux) || allAnimaux.length === 0)) {
     return <LoadingSpinner message="Chargement du cheptel..." />;
   }
 
@@ -416,23 +643,45 @@ export default function ProductionCheptelComponent() {
         renderItem={renderAnimal}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={ListHeader}
-        ListEmptyComponent={
-          <EmptyState
-            title="Aucun animal dans le cheptel"
-            message="Ajoutez des animaux pour commencer à gérer votre cheptel"
-            action={
-              canCreate('reproduction') ? (
-                <Button
-                  title="Ajouter un animal"
-                  onPress={() => {
-                    setSelectedAnimal(null);
-                    setIsEditing(false);
-                    setShowAnimalModal(true);
-                  }}
-                />
-              ) : null
-            }
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
           />
+        }
+        ListEmptyComponent={
+          searchQuery.trim() ? (
+            <EmptyState
+              title="Aucun animal trouvé"
+              message={`Aucun animal ne correspond à "${searchQuery}"`}
+              action={
+                <Button
+                  title="Effacer la recherche"
+                  onPress={() => setSearchQuery('')}
+                  variant="secondary"
+                />
+              }
+            />
+          ) : (
+            <EmptyState
+              title="Aucun animal dans le cheptel"
+              message="Ajoutez des animaux pour commencer à gérer votre cheptel"
+              action={
+                canCreate('reproduction') ? (
+                  <Button
+                    title="Ajouter un animal"
+                    onPress={() => {
+                      setSelectedAnimal(null);
+                      setIsEditing(false);
+                      setShowAnimalModal(true);
+                    }}
+                  />
+                ) : null
+              }
+            />
+          )
         }
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
@@ -504,13 +753,15 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   summary: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
     marginBottom: SPACING.md,
   },
   summaryText: {
     fontSize: FONT_SIZES.md,
     fontWeight: '500',
+  },
+  summaryDetails: {
+    marginTop: SPACING.xs,
   },
   filters: {
     marginTop: SPACING.md,
@@ -534,6 +785,32 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
     fontWeight: '500',
   },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+  },
+  searchIcon: {
+    fontSize: FONT_SIZES.lg,
+    marginRight: SPACING.sm,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: FONT_SIZES.md,
+  },
+  clearButton: {
+    padding: SPACING.xs,
+    marginLeft: SPACING.xs,
+  },
+  clearButtonText: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '600',
+  },
   animalCard: {
     marginBottom: SPACING.md,
   },
@@ -542,6 +819,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: SPACING.sm,
+    gap: SPACING.sm,
+  },
+  animalPhoto: {
+    width: 80,
+    height: 80,
+    borderRadius: BORDER_RADIUS.lg,
+    resizeMode: 'cover',
+  },
+  animalPhotoPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderStyle: 'dashed',
   },
   animalInfo: {
     flex: 1,
@@ -637,6 +927,79 @@ const styles = StyleSheet.create({
   statutButtonText: {
     fontSize: FONT_SIZES.xs,
     fontWeight: '600',
+  },
+  historiqueContainer: {
+    marginTop: SPACING.sm,
+  },
+  historiqueHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+  },
+  historiqueHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  historiqueTitle: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+  },
+  historiqueBadge: {
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 2,
+    borderRadius: BORDER_RADIUS.sm,
+  },
+  historiqueBadgeText: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '700',
+  },
+  historiqueContent: {
+    marginTop: SPACING.sm,
+    gap: SPACING.md,
+  },
+  historiqueSection: {
+    gap: SPACING.xs,
+  },
+  historiqueSectionTitle: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '700',
+    marginBottom: SPACING.xs,
+  },
+  historiqueItem: {
+    padding: SPACING.sm,
+    borderRadius: BORDER_RADIUS.sm,
+    borderLeftWidth: 3,
+    gap: 4,
+  },
+  historiqueItemDate: {
+    fontSize: FONT_SIZES.xs,
+  },
+  historiqueItemTitle: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+  },
+  historiqueItemDetail: {
+    fontSize: FONT_SIZES.xs,
+    lineHeight: 16,
+  },
+  graviteBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: SPACING.xs,
+    paddingVertical: 2,
+    borderRadius: BORDER_RADIUS.xs,
+    marginTop: 4,
+  },
+  graviteBadgeText: {
+    fontSize: FONT_SIZES.xs - 1,
+    fontWeight: '600',
+  },
+  historiqueMore: {
+    fontSize: FONT_SIZES.xs,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: SPACING.xs,
   },
 });
 

@@ -2,21 +2,144 @@
  * Composant graphiques financiers
  */
 
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Dimensions } from 'react-native';
+import React, { useMemo, useEffect, useCallback, useRef, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Dimensions, Animated, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { LineChart, PieChart } from 'react-native-chart-kit';
-import { useAppSelector } from '../store/hooks';
-import { ChargeFixe, DepensePonctuelle, Revenu } from '../types';
-import { SPACING, FONT_SIZES } from '../constants/theme';
+import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { loadProductionAnimaux, loadPeseesParAnimal } from '../store/slices/productionSlice';
+import { loadRevenus } from '../store/slices/financeSlice';
+import { selectAllAnimaux, selectPeseesParAnimal } from '../store/selectors/productionSelectors';
+import { selectAllChargesFixes, selectAllDepensesPonctuelles, selectAllRevenus } from '../store/selectors/financeSelectors';
+import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import StatCard from './StatCard';
 import { format, subMonths, startOfMonth, endOfMonth, parseISO } from 'date-fns';
+import { fr } from 'date-fns/locale';
+import PriceConfigCard from './finance/PriceConfigCard';
+import LivestockStatsCard from './finance/LivestockStatsCard';
+import ProjectedRevenueCard from './finance/ProjectedRevenueCard';
+import ComparisonCard from './finance/ComparisonCard';
+import { exportFinancePDF } from '../services/pdf/financePDF';
 
 const screenWidth = Dimensions.get('window').width;
 
 export default function FinanceGraphiquesComponent() {
   const { colors, isDark } = useTheme();
-  const { chargesFixes, depensesPonctuelles, revenus } = useAppSelector((state) => state.finance);
+  const dispatch = useAppDispatch();
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [exportingPDF, setExportingPDF] = useState(false);
+  const chargesFixes = useAppSelector(selectAllChargesFixes);
+  const depensesPonctuelles = useAppSelector(selectAllDepensesPonctuelles);
+  const revenus = useAppSelector(selectAllRevenus);
+  const financeLoading = useAppSelector((state) => state.finance.loading);
+  const { projetActif } = useAppSelector((state) => state.projet);
+  const animaux = useAppSelector(selectAllAnimaux);
+  const peseesParAnimal = useAppSelector(selectPeseesParAnimal);
+  
+  // Charger les données nécessaires
+  useEffect(() => {
+    if (projetActif) {
+      dispatch(loadRevenus(projetActif.id));
+      dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
+    }
+  }, [dispatch, projetActif?.id]);
+
+  // Animation fade-in au chargement
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 500,
+      useNativeDriver: true,
+    }).start();
+  }, [fadeAnim]);
+
+  // ✅ Mémoïser les IDs des animaux pour éviter les re-renders inutiles
+  const animauxIds = React.useMemo(() => 
+    animaux.map(a => a.id).sort().join(','), 
+    [animaux]
+  );
+
+  // ✅ Utiliser useRef pour tracker les pesées déjà chargées
+  const peseesChargeesRef = React.useRef<Set<string>>(new Set());
+
+  // Charger les pesées pour tous les animaux actifs
+  useEffect(() => {
+    if (!projetActif) return;
+    
+    const animauxActifs = animaux.filter(
+      (a) => a.projet_id === projetActif.id && a.statut?.toLowerCase() === 'actif'
+    );
+    
+    // Ne charger que les pesées qui n'ont pas encore été chargées
+    animauxActifs.forEach((animal) => {
+      if (!peseesChargeesRef.current.has(animal.id)) {
+        peseesChargeesRef.current.add(animal.id);
+        dispatch(loadPeseesParAnimal(animal.id));
+      }
+    });
+  }, [dispatch, projetActif?.id, animauxIds, animaux]);
+
+  // Callback pour mettre à jour après modification des prix
+  const handlePriceUpdate = React.useCallback(() => {
+    // Les composants enfants se mettront à jour automatiquement via les sélecteurs Redux
+  }, []);
+
+  // Fonction pour exporter les finances en PDF
+  const handleExportPDF = useCallback(async () => {
+    if (!projetActif) return;
+    
+    setExportingPDF(true);
+    try {
+      // Calculer les totaux
+      const totalCharges = chargesFixes.reduce((sum, c) => sum + c.montant, 0);
+      const totalDepenses = depensesPonctuelles.reduce((sum, d) => sum + d.montant, 0);
+      const totalRevenus = revenus.reduce((sum, r) => sum + r.montant, 0);
+      const solde = totalRevenus - (totalCharges + totalDepenses);
+      
+      // Calculer les moyennes mensuelles (basé sur les 6 derniers mois)
+      const nombreMois = 6;
+      const depensesMensuelle = (totalCharges + totalDepenses) / nombreMois;
+      const revenusMensuel = totalRevenus / nombreMois;
+      
+      // Préparer les données pour le PDF
+      const financeData = {
+        projet: projetActif,
+        chargesFixes: chargesFixes,
+        depensesPonctuelles: depensesPonctuelles,
+        revenus: revenus,
+        totaux: {
+          chargesFixes: totalCharges,
+          depensesPonctuelles: totalDepenses,
+          totalDepenses: totalCharges + totalDepenses,
+          totalRevenus: totalRevenus,
+          solde: solde,
+        },
+        moyennes: {
+          depensesMensuelle: depensesMensuelle,
+          revenusMensuel: revenusMensuel,
+        },
+      };
+      
+      // Générer et partager le PDF
+      await exportFinancePDF(financeData);
+      
+      Alert.alert(
+        'PDF généré avec succès',
+        'Le rapport financier a été généré et est prêt à être partagé.',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('Erreur lors de l\'export PDF:', error);
+      Alert.alert(
+        'Erreur',
+        'Impossible de générer le PDF. Vérifiez vos données et réessayez.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setExportingPDF(false);
+    }
+  }, [projetActif, chargesFixes, depensesPonctuelles, revenus]);
+
+
 
   // Calcul des données pour les graphiques
   const graphData = useMemo(() => {
@@ -134,6 +257,7 @@ export default function FinanceGraphiquesComponent() {
 
     // Indicateurs clés
     const currentMonth = monthsData[monthsData.length - 1];
+    const previousMonth = monthsData[monthsData.length - 2] || { revenus: 0, reel: 0 };
     const budgetMois = currentMonth.planifie;
     const depensesReelles = currentMonth.reel;
     const revenusMois = currentMonth.revenus;
@@ -142,6 +266,23 @@ export default function FinanceGraphiquesComponent() {
     const depensesTotal = depensesPonctuelles.reduce((sum, dp) => sum + dp.montant, 0);
     const revenusTotal = revenus.reduce((sum, r) => sum + r.montant, 0);
     const soldeTotal = revenusTotal - depensesTotal;
+
+    // Calculer les tendances (comparaison avec le mois précédent)
+    const revenusTrend = previousMonth.revenus > 0 
+      ? ((revenusMois - previousMonth.revenus) / previousMonth.revenus) * 100 
+      : null;
+    const depensesTrend = previousMonth.reel > 0 
+      ? ((depensesReelles - previousMonth.reel) / previousMonth.reel) * 100 
+      : null;
+    const soldePrecedent = previousMonth.revenus - previousMonth.reel;
+    const soldeTrend = soldePrecedent !== 0 
+      ? ((solde - soldePrecedent) / Math.abs(soldePrecedent)) * 100 
+      : null;
+
+    // Calculer le taux d'épargne avec protection contre les erreurs de précision
+    const tauxEpargne = revenusMois > 0 
+      ? Math.round(((revenusMois - depensesReelles) / revenusMois) * 100 * 100) / 100 // Arrondir à 2 décimales puis multiplier par 100 pour le pourcentage
+      : 0;
 
     return {
       lineChartData,
@@ -155,8 +296,13 @@ export default function FinanceGraphiquesComponent() {
       depensesTotal,
       revenusTotal,
       soldeTotal,
+      revenusTrend,
+      depensesTrend,
+      soldeTrend,
+      tauxEpargne: Math.max(0, Math.min(100, tauxEpargne)), // S'assurer que le taux est entre 0 et 100
+      currentMonthName: format(now, 'MMMM yyyy', { locale: fr }),
     };
-  }, [chargesFixes, depensesPonctuelles, revenus, colors]);
+  }, [chargesFixes, depensesPonctuelles, revenus]);
 
   const chartConfig = useMemo(() => ({
     backgroundColor: colors.background,
@@ -219,24 +365,171 @@ export default function FinanceGraphiquesComponent() {
       <View style={styles.content}>
         <Text style={[styles.title, { color: colors.text }]}>Vue d'ensemble financière</Text>
 
-        {/* Indicateurs clés */}
-        <View style={styles.statsContainer}>
-          <StatCard
-            value={formatAmount(graphData.revenusMois)}
-            label="Revenus du mois"
-            valueColor={colors.success || colors.primary}
-          />
-          <StatCard
-            value={formatAmount(graphData.depensesReelles)}
-            label="Dépenses du mois"
-            valueColor={colors.accent}
-          />
-          <StatCard
-            value={formatAmount(graphData.solde)}
-            label={graphData.solde >= 0 ? 'Solde (bénéfice)' : 'Solde (perte)'}
-            valueColor={graphData.solde >= 0 ? colors.success : colors.error}
-          />
+        {/* Carte financière unique */}
+        <Animated.View 
+          style={[
+            styles.financialCard, 
+            { 
+              backgroundColor: colors.surface,
+              opacity: fadeAnim,
+            }
+          ]}
+          accessible={true}
+          accessibilityLabel={`Aperçu financier pour ${graphData.currentMonthName}`}
+          accessibilityRole="summary"
+        >
+          {/* Header */}
+          <View style={styles.financialCardHeader}>
+            <Text style={[styles.financialCardTitle, { color: colors.text }]}>
+              💰 Aperçu Financier
+            </Text>
+            <Text style={[styles.financialCardSubtitle, { color: colors.textSecondary }]}>
+              {graphData.currentMonthName}
+            </Text>
+          </View>
+
+          {/* 3 colonnes */}
+          <View style={styles.columnsContainer}>
+            {/* Revenus */}
+            <View 
+              style={styles.column}
+              accessible={true}
+              accessibilityLabel={`Revenus: ${formatAmount(graphData.revenusMois)}${graphData.revenusTrend !== null ? `, ${graphData.revenusTrend >= 0 ? 'augmentation' : 'diminution'} de ${Math.abs(graphData.revenusTrend).toFixed(1)}%` : ''}`}
+              accessibilityRole="text"
+            >
+              <Text style={styles.columnIcon}>💰</Text>
+              <Text style={[styles.columnLabel, { color: colors.textSecondary }]}>Revenus</Text>
+              <Text style={[styles.columnAmount, { color: colors.success || '#10B981' }]}>
+                {formatAmount(graphData.revenusMois)}
+              </Text>
+              {graphData.revenusTrend !== null && (
+                <Text style={[
+                  styles.columnTrend,
+                  { 
+                    color: graphData.revenusTrend >= 0 
+                      ? colors.success || '#10B981' 
+                      : colors.error || '#EF4444' 
+                  }
+                ]}>
+                  {graphData.revenusTrend >= 0 ? '↗' : '↘'} {Math.abs(graphData.revenusTrend).toFixed(1)}%
+                </Text>
+              )}
+            </View>
+
+            {/* Séparateur vertical */}
+            <View style={[styles.verticalDivider, { backgroundColor: colors.border }]} />
+
+            {/* Dépenses */}
+            <View 
+              style={styles.column}
+              accessible={true}
+              accessibilityLabel={`Dépenses: ${formatAmount(graphData.depensesReelles)}${graphData.depensesTrend !== null ? `, ${graphData.depensesTrend >= 0 ? 'augmentation' : 'diminution'} de ${Math.abs(graphData.depensesTrend).toFixed(1)}%` : ''}`}
+              accessibilityRole="text"
+            >
+              <Text style={styles.columnIcon}>💸</Text>
+              <Text style={[styles.columnLabel, { color: colors.textSecondary }]}>Dépenses</Text>
+              <Text style={[styles.columnAmount, { color: colors.warning || '#F59E0B' }]}>
+                {formatAmount(graphData.depensesReelles)}
+              </Text>
+              {graphData.depensesTrend !== null && (
+                <Text style={[
+                  styles.columnTrend,
+                  { 
+                    color: graphData.depensesTrend >= 0 
+                      ? colors.error || '#EF4444' 
+                      : colors.success || '#10B981' 
+                  }
+                ]}>
+                  {graphData.depensesTrend >= 0 ? '↗' : '↘'} {Math.abs(graphData.depensesTrend).toFixed(1)}%
+                </Text>
+              )}
+            </View>
+
+            {/* Séparateur vertical */}
+            <View style={[styles.verticalDivider, { backgroundColor: colors.border }]} />
+
+            {/* Solde */}
+            <View 
+              style={styles.column}
+              accessible={true}
+              accessibilityLabel={`Solde: ${formatAmount(graphData.solde)}, ${graphData.solde >= 0 ? 'positif' : 'négatif'}`}
+              accessibilityRole="text"
+            >
+              <Text style={styles.columnIcon}>💳</Text>
+              <Text style={[styles.columnLabel, { color: colors.textSecondary }]}>Solde</Text>
+              <Text style={[
+                styles.columnAmount,
+                { 
+                  color: graphData.solde >= 0 
+                    ? colors.primary || '#3B82F6' 
+                    : colors.error || '#EF4444' 
+                }
+              ]}>
+                {formatAmount(graphData.solde)}
+              </Text>
+              <Text style={[
+                styles.columnStatus,
+                { 
+                  color: graphData.solde >= 0 
+                    ? colors.success || '#10B981' 
+                    : colors.error || '#EF4444' 
+                }
+              ]}>
+                {graphData.solde >= 0 ? 'Positif' : 'Négatif'}
+              </Text>
+            </View>
+          </View>
+
+          {/* Divider horizontal */}
+          <View style={[styles.horizontalDivider, { backgroundColor: colors.border }]} />
+
+          {/* Taux d'épargne */}
+          <View 
+            style={styles.savingsRateContainer}
+            accessible={true}
+            accessibilityLabel={`Taux d'épargne: ${Math.round(graphData.tauxEpargne)}%`}
+            accessibilityRole="progressbar"
+            accessibilityValue={{
+              min: 0,
+              max: 100,
+              now: Math.round(graphData.tauxEpargne),
+            }}
+          >
+            <View style={styles.savingsRateHeader}>
+              <Text style={[styles.savingsRateLabel, { color: colors.text }]}>
+                Taux d'épargne: {Math.round(graphData.tauxEpargne)}%
+              </Text>
+            </View>
+            <View style={[styles.progressBarContainer, { backgroundColor: colors.borderLight || colors.border + '40' }]}>
+              <View 
+                style={[
+                  styles.progressBarFill,
+                  { 
+                    width: `${Math.round(graphData.tauxEpargne)}%`,
+                    backgroundColor: graphData.tauxEpargne >= 0 
+                      ? colors.success || '#10B981' 
+                      : colors.error || '#EF4444'
+                  }
+                ]} 
+              />
+            </View>
+          </View>
+        </Animated.View>
+
+        {/* Configuration des prix de vente */}
+        <PriceConfigCard onPriceUpdate={handlePriceUpdate} />
+
+        {/* Statistiques du cheptel actif */}
+        <LivestockStatsCard />
+
+        {/* Revenus prévisionnels */}
+        <View style={styles.previsionnelsContainer}>
+          <ProjectedRevenueCard type="vif" />
+          <ProjectedRevenueCard type="carcasse" />
         </View>
+
+        {/* Comparaison des options et recommandations */}
+        <ComparisonCard />
 
         {/* Graphique Planifié vs Réel */}
         <View style={[styles.chartSection, { backgroundColor: colors.surface }]}>
@@ -389,15 +682,127 @@ const styles = StyleSheet.create({
     padding: SPACING.xl,
     paddingTop: SPACING.lg + 10,
   },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.lg,
+  },
   title: {
     fontSize: FONT_SIZES.xxl,
     fontWeight: 'bold',
-    marginBottom: SPACING.lg,
+    flex: 1,
+  },
+  exportButton: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 80,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  exportButtonText: {
+    color: '#FFFFFF',
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
   },
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: SPACING.xl,
+  },
+  financialCard: {
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.lg,
+    marginBottom: SPACING.lg,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  financialCardHeader: {
+    marginBottom: SPACING.lg,
+    alignItems: 'center',
+  },
+  financialCardTitle: {
+    fontSize: FONT_SIZES.xl,
+    fontWeight: 'bold',
+    marginBottom: SPACING.xs,
+  },
+  financialCardSubtitle: {
+    fontSize: FONT_SIZES.md,
+  },
+  columnsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'stretch',
+  },
+  column: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  columnIcon: {
+    fontSize: 32,
+    marginBottom: SPACING.xs,
+  },
+  columnLabel: {
+    fontSize: FONT_SIZES.sm,
+    marginBottom: SPACING.xs,
+    fontWeight: '500',
+  },
+  columnAmount: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: 'bold',
+    marginBottom: SPACING.xs,
+    textAlign: 'center',
+  },
+  columnTrend: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '600',
+    marginTop: SPACING.xs / 2,
+  },
+  columnStatus: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '600',
+    marginTop: SPACING.xs / 2,
+  },
+  verticalDivider: {
+    width: 1,
+    marginHorizontal: SPACING.sm,
+    alignSelf: 'stretch',
+  },
+  horizontalDivider: {
+    height: 1,
+    marginVertical: SPACING.lg,
+    marginHorizontal: -SPACING.lg,
+  },
+  savingsRateContainer: {
+    marginTop: SPACING.md,
+  },
+  savingsRateHeader: {
+    marginBottom: SPACING.sm,
+  },
+  savingsRateLabel: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+  },
+  progressBarContainer: {
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginTop: SPACING.xs,
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 4,
   },
   chartSection: {
     marginBottom: SPACING.xl,
@@ -450,6 +855,169 @@ const styles = StyleSheet.create({
   summaryValue: {
     fontSize: FONT_SIZES.md,
     fontWeight: 'bold',
+  },
+  configCard: {
+    marginBottom: SPACING.xl,
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  configHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  configTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: 'bold',
+  },
+  editButton: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+  },
+  configForm: {
+    marginTop: SPACING.sm,
+  },
+  configButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: SPACING.md,
+    gap: SPACING.sm,
+  },
+  configButton: {
+    flex: 1,
+    maxWidth: 150,
+  },
+  configDisplay: {
+    marginTop: SPACING.sm,
+  },
+  configRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+  },
+  configLabel: {
+    fontSize: FONT_SIZES.md,
+  },
+  configValue: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+  },
+  statsCard: {
+    marginBottom: SPACING.xl,
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  sectionTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: 'bold',
+    marginBottom: SPACING.md,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  statItem: {
+    width: '48%',
+    marginBottom: SPACING.md,
+    padding: SPACING.sm,
+    borderRadius: BORDER_RADIUS.sm,
+  },
+  statLabel: {
+    fontSize: FONT_SIZES.sm,
+    marginBottom: SPACING.xs,
+  },
+  statValue: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: 'bold',
+  },
+  previsionnelsContainer: {
+    marginBottom: SPACING.xl,
+  },
+  previsionnelCard: {
+    marginBottom: SPACING.md,
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  previsionnelHeader: {
+    marginBottom: SPACING.md,
+  },
+  previsionnelLabel: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: 'bold',
+  },
+  previsionnelContent: {
+    marginTop: SPACING.sm,
+  },
+  previsionnelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+  },
+  previsionnelRowHighlight: {
+    borderTopWidth: 1,
+    paddingTop: SPACING.sm,
+    marginTop: SPACING.sm,
+  },
+  previsionnelText: {
+    fontSize: FONT_SIZES.md,
+  },
+  previsionnelValue: {
+    fontSize: FONT_SIZES.md,
+  },
+  progressContainer: {
+    marginVertical: SPACING.md,
+  },
+  progressBar: {
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: SPACING.xs,
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  progressText: {
+    fontSize: FONT_SIZES.sm,
+    textAlign: 'right',
+  },
+  comparisonCard: {
+    marginBottom: SPACING.xl,
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  comparisonContent: {
+    marginTop: SPACING.sm,
+  },
+  comparisonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  comparisonLabel: {
+    fontSize: FONT_SIZES.md,
+  },
+  comparisonValue: {
+    fontSize: FONT_SIZES.md,
+  },
+  recommendationBox: {
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.sm,
+    marginTop: SPACING.sm,
+  },
+  recommendationTitle: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: 'bold',
+    marginBottom: SPACING.xs,
+  },
+  recommendationText: {
+    fontSize: FONT_SIZES.md,
+    lineHeight: 20,
   },
 });
 

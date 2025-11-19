@@ -51,7 +51,7 @@ export default function NutritionStockComponent() {
   // Ne plus charger automatiquement tous les mouvements - c'est maintenant dans un onglet séparé
   // Charger uniquement les mouvements du stock sélectionné si nécessaire
 
-  const alertes = useMemo(() => stocks.filter((stock) => stock.alerte_active), [stocks]);
+  const alertes = useMemo(() => (stocks || []).filter((stock) => stock.alerte_active), [stocks]);
 
   // Mouvements du stock sélectionné (pour l'affichage détaillé si nécessaire)
   const mouvementsStockSelectionne: StockMouvement[] = useMemo(() => {
@@ -64,7 +64,7 @@ export default function NutritionStockComponent() {
   // Synchroniser selectedStock avec les stocks Redux (pour mettre à jour après un mouvement)
   useEffect(() => {
     if (selectedStock) {
-      const updatedStock = stocks.find((s) => s.id === selectedStock.id);
+      const updatedStock = (stocks || []).find((s) => s.id === selectedStock.id);
       if (updatedStock && updatedStock.quantite_actuelle !== selectedStock.quantite_actuelle) {
         setSelectedStock(updatedStock);
       }
@@ -74,26 +74,26 @@ export default function NutritionStockComponent() {
   // Pagination: mettre à jour displayedStocks quand stocks change (pas seulement la longueur)
   // Créer une clé basée sur les IDs et quantités pour détecter les changements
   const stocksKey = useMemo(() => {
-    return stocks.map(s => `${s.id}:${s.quantite_actuelle}`).join(',');
+    return (stocks || []).map(s => `${s.id}:${s.quantite_actuelle}`).join(',');
   }, [stocks]);
   
   // Synchroniser displayedStocks quand stocks change (détecté via la clé)
   useEffect(() => {
-    const initial = stocks.slice(0, ITEMS_PER_PAGE);
+    const initial = (stocks || []).slice(0, ITEMS_PER_PAGE);
     setDisplayedStocks(initial);
     setPageStocks(1);
   }, [stocksKey]);
 
   // Charger plus de stocks
   const loadMoreStocks = useCallback(() => {
-    if (displayedStocks.length >= stocks.length) {
+    if (displayedStocks.length >= (stocks || []).length) {
       return;
     }
 
     const nextPage = pageStocks + 1;
     const start = pageStocks * ITEMS_PER_PAGE;
     const end = start + ITEMS_PER_PAGE;
-    const newItems = stocks.slice(start, end);
+    const newItems = (stocks || []).slice(start, end);
 
     if (newItems.length > 0) {
       setDisplayedStocks((prev) => [...prev, ...newItems]);
@@ -134,7 +134,7 @@ export default function NutritionStockComponent() {
     );
   }
 
-  if (loading && stocks.length === 0) {
+  if (loading && (stocks || []).length === 0) {
     return <LoadingSpinner message="Chargement des stocks d'aliments..." />;
   }
 
@@ -157,7 +157,7 @@ export default function NutritionStockComponent() {
         </View>
         <View style={styles.summaryStats}>
           <View style={styles.summaryItem}>
-            <Text style={[styles.summaryValue, { color: colors.text }]}>{stocks.length}</Text>
+            <Text style={[styles.summaryValue, { color: colors.text }]}>{(stocks || []).length}</Text>
             <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Aliments suivis</Text>
           </View>
           <View style={[styles.dividerVertical, { backgroundColor: colors.border }]} />
@@ -186,7 +186,7 @@ export default function NutritionStockComponent() {
     </View>
   );
 
-  if (stocks.length === 0) {
+  if ((stocks || []).length === 0) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <ListHeader />
@@ -283,7 +283,7 @@ export default function NutritionStockComponent() {
                         <View style={[styles.progressBar, { backgroundColor: colors.border }]}>
                           <View
                             style={[styles.progressFill, {
-                              width: `${Math.min(100, pourcentage)}%`,
+                              width: `${Math.round(Math.min(100, pourcentage))}%`,
                               backgroundColor: stock.alerte_active ? colors.error : colors.primary,
                             }]}
                           />
@@ -352,7 +352,7 @@ export default function NutritionStockComponent() {
         initialNumToRender={10}
         updateCellsBatchingPeriod={50}
         ListFooterComponent={
-          displayedStocks.length < stocks.length ? (
+          displayedStocks.length < (stocks || []).length ? (
             <LoadingSpinner message="Chargement..." />
           ) : null
         }

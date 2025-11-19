@@ -12,6 +12,7 @@ export type CategorieChargeFixe =
 
 export type CategorieDepense = 
   | 'vaccins' 
+  | 'medicaments'
   | 'alimentation' 
   | 'veterinaire' 
   | 'entretien' 
@@ -116,4 +117,17 @@ export interface UpdateRevenuInput {
   commentaire?: string;
   photos?: string[];
 }
+
+/**
+ * Labels pour les catégories de dépenses
+ */
+export const CATEGORIE_DEPENSE_LABELS: Record<CategorieDepense, string> = {
+  vaccins: 'Vaccins & Prophylaxie',
+  medicaments: 'Médicaments',
+  alimentation: 'Alimentation',
+  veterinaire: 'Services vétérinaires',
+  entretien: 'Entretien & Maintenance',
+  equipements: 'Équipements',
+  autre: 'Autre',
+};
 

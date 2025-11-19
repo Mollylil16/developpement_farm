@@ -1,11 +1,12 @@
 /**
- * Composant modal personnalisé avec animations fluides
+ * Composant modal personnalisé avec animations fluides et shake-to-cancel
  */
 
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, Animated, Alert } from 'react-native';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { useShakeToCancel } from '../hooks/useShakeToCancel';
 
 interface CustomModalProps {
   visible: boolean;
@@ -17,6 +18,8 @@ interface CustomModalProps {
   cancelText?: string;
   showButtons?: boolean;
   loading?: boolean;
+  enableShakeToCancel?: boolean; // Activer le shake-to-cancel (par défaut: true)
+  shakeThreshold?: number; // Sensibilité de la détection (par défaut: 15)
 }
 
 export default function CustomModal({
@@ -29,10 +32,32 @@ export default function CustomModal({
   cancelText = 'Annuler',
   showButtons = true,
   loading = false,
+  enableShakeToCancel = true,
+  shakeThreshold = 15,
 }: CustomModalProps) {
   const { colors } = useTheme();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
+  
+  // Activer le shake-to-cancel si autorisé et modal visible
+  useShakeToCancel({
+    enabled: visible && enableShakeToCancel && !loading,
+    threshold: shakeThreshold,
+    onShake: () => {
+      Alert.alert(
+        '🔔 Secousse détectée',
+        'Voulez-vous annuler cette action ?',
+        [
+          { text: 'Non', style: 'cancel' },
+          { 
+            text: 'Oui, annuler', 
+            style: 'destructive',
+            onPress: onClose
+          }
+        ]
+      );
+    },
+  });
 
   useEffect(() => {
     if (visible) {
@@ -53,7 +78,7 @@ export default function CustomModal({
       fadeAnim.setValue(0);
       slideAnim.setValue(50);
     }
-  }, [visible]);
+  }, [visible, fadeAnim, slideAnim]);
 
   return (
     <Modal
@@ -154,7 +179,7 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.xl,
     width: '100%',
     maxWidth: 500,
-    maxHeight: '85%',
+    maxHeight: '80%',
     flexDirection: 'column',
   },
   header: {
@@ -180,7 +205,6 @@ const styles = StyleSheet.create({
   content: {
     padding: SPACING.lg,
     flexShrink: 1,
-    maxHeight: 500,
   },
   footer: {
     flexDirection: 'row',

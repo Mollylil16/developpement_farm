@@ -8,16 +8,17 @@ import { useAppDispatch } from '../store/hooks';
 import { signOut } from '../store/slices/authSlice';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import { databaseService } from '../services/database';
 import { getAllScheduledNotifications, cancelAllNotifications, configureNotifications } from '../services/notificationsService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ThemeSelector from './ThemeSelector';
-
-const NOTIFICATIONS_ENABLED_KEY = 'notifications_enabled';
+import { NOTIFICATIONS_ENABLED_KEY } from '../constants/notifications';
 
 export default function ParametresAppComponent() {
   const dispatch = useAppDispatch();
   const { colors } = useTheme();
+  const { language, setLanguage, t } = useLanguage();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [scheduledCount, setScheduledCount] = useState(0);
 
@@ -39,6 +40,21 @@ export default function ParametresAppComponent() {
       setScheduledCount(notifications.length);
     } catch (error) {
       console.error('Erreur lors du chargement des notifications:', error);
+    }
+  };
+
+  const handleChangeLanguage = async (lang: 'fr' | 'en') => {
+    try {
+      await setLanguage(lang);
+      Alert.alert(
+        t('settings.language_changed'),
+        t('settings.language_changed_message')
+      );
+    } catch (error: any) {
+      Alert.alert(
+        t('common.error'),
+        error.message || 'Erreur lors du changement de langue'
+      );
     }
   };
 
@@ -169,6 +185,63 @@ export default function ParametresAppComponent() {
             <Text style={[styles.actionCardArrow, { color: colors.error }]}>›</Text>
           </View>
         </TouchableOpacity>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Langue</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small }]}>
+          <View style={styles.languageContainer}>
+            <TouchableOpacity
+              style={[
+                styles.languageOption,
+                language === 'fr' && { backgroundColor: colors.primary + '15', borderColor: colors.primary },
+                { borderColor: colors.border }
+              ]}
+              onPress={() => handleChangeLanguage('fr')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.languageContent}>
+                <Text style={[styles.languageFlag]}>🇫🇷</Text>
+                <Text style={[
+                  styles.languageLabel,
+                  { color: language === 'fr' ? colors.primary : colors.text }
+                ]}>
+                  Français
+                </Text>
+              </View>
+              {language === 'fr' && (
+                <View style={[styles.checkMark, { backgroundColor: colors.primary }]}>
+                  <Text style={styles.checkMarkText}>✓</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.languageOption,
+                language === 'en' && { backgroundColor: colors.primary + '15', borderColor: colors.primary },
+                { borderColor: colors.border }
+              ]}
+              onPress={() => handleChangeLanguage('en')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.languageContent}>
+                <Text style={[styles.languageFlag]}>🇬🇧</Text>
+                <Text style={[
+                  styles.languageLabel,
+                  { color: language === 'en' ? colors.primary : colors.text }
+                ]}>
+                  English
+                </Text>
+              </View>
+              {language === 'en' && (
+                <View style={[styles.checkMark, { backgroundColor: colors.primary }]}>
+                  <Text style={styles.checkMarkText}>✓</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
 
       <View style={styles.section}>
@@ -359,6 +432,41 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.xs,
     marginTop: SPACING.xs,
     fontWeight: '500',
+  },
+  languageContainer: {
+    gap: SPACING.md,
+  },
+  languageOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 2,
+  },
+  languageContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  languageFlag: {
+    fontSize: 32,
+  },
+  languageLabel: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+  },
+  checkMark: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkMarkText: {
+    color: '#FFFFFF',
+    fontSize: FONT_SIZES.sm,
+    fontWeight: 'bold',
   },
 });
 

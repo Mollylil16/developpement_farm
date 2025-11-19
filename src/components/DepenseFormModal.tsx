@@ -35,6 +35,7 @@ export default function DepenseFormModal({
   const { canCreate, canUpdate } = useActionPermissions();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateDepensePonctuelleInput & { photos: string[] }>({
+    projet_id: projetActif?.id || '',
     montant: 0,
     categorie: 'autre',
     libelle_categorie: '',
@@ -46,6 +47,7 @@ export default function DepenseFormModal({
   useEffect(() => {
     if (depense && isEditing) {
       setFormData({
+        projet_id: depense.projet_id,
         montant: depense.montant,
         categorie: depense.categorie,
         libelle_categorie: depense.libelle_categorie || '',
@@ -56,6 +58,7 @@ export default function DepenseFormModal({
     } else {
       // Reset form
       setFormData({
+        projet_id: projetActif?.id || '',
         montant: 0,
         categorie: 'autre',
         libelle_categorie: '',
@@ -64,7 +67,7 @@ export default function DepenseFormModal({
         photos: [],
       });
     }
-  }, [depense, isEditing, visible]);
+  }, [depense, isEditing, visible, projetActif?.id]);
 
   const requestImagePermission = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();

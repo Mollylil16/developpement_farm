@@ -3,7 +3,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Animated, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Animated, TouchableOpacity, RefreshControl, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { useFocusEffect } from '@react-navigation/native';
@@ -13,6 +13,7 @@ import { SPACING, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS, BORDER_RADIUS } from '..
 import { useTheme } from '../contexts/ThemeContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import EmptyState from '../components/EmptyState';
+import { SkeletonWidget } from '../components/SkeletonLoader';
 import OverviewWidget from '../components/widgets/OverviewWidget';
 import ReproductionWidget from '../components/widgets/ReproductionWidget';
 import FinanceWidget from '../components/widgets/FinanceWidget';
@@ -25,6 +26,10 @@ import { useNavigation } from '@react-navigation/native';
 import { SCREENS } from '../navigation/types';
 import { format } from 'date-fns';
 import { usePermissions } from '../hooks/usePermissions';
+import { exportDashboardPDF } from '../services/pdf/dashboardPDF';
+import { selectAllAnimaux, selectPeseesParAnimal } from '../store/selectors/productionSelectors';
+import { selectAllChargesFixes, selectAllDepensesPonctuelles, selectAllRevenus } from '../store/selectors/financeSelectors';
+import { selectAllGestations, selectAllSevrages } from '../store/selectors/reproductionSelectors';
 
 export default function DashboardScreen() {
   const { colors, isDark } = useTheme();
@@ -35,6 +40,9 @@ export default function DashboardScreen() {
   const { hasPermission, isProprietaire } = usePermissions();
   const [searchModalVisible, setSearchModalVisible] = useState(false);
   const [invitationsModalVisible, setInvitationsModalVisible] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [exportingPDF, setExportingPDF] = useState(false);
   const hasShownInvitationsRef = useRef(false);
   const [greeting, setGreeting] = useState(() => {
     const hour = new Date().getHours();
@@ -49,22 +57,23 @@ export default function DashboardScreen() {
 
   // Animations pour les widgets
   const headerAnim = useRef(new Animated.Value(0)).current;
-  const mainWidgetsAnim = useRef([
+  const mainWidgetsAnim = React.useMemo(() => [
     new Animated.Value(0),
     new Animated.Value(0),
     new Animated.Value(0),
     new Animated.Value(0),
-  ]).current;
-  const secondaryWidgetsAnim = useRef([
+  ], []);
+  const secondaryWidgetsAnim = React.useMemo(() => [
     new Animated.Value(0),
     new Animated.Value(0),
     new Animated.Value(0),
     new Animated.Value(0),
     new Animated.Value(0),
-  ]).current;
+    new Animated.Value(0), // Extra pour le widget Santé ajouté
+  ], []);
 
   // Fonction pour mettre à jour le message de salutation
-  const updateGreeting = () => {
+  const updateGreeting = React.useCallback(() => {
     const hour = new Date().getHours();
     if (hour >= 5 && hour < 12) {
       setGreeting('Bonjour 👋');
@@ -73,7 +82,7 @@ export default function DashboardScreen() {
     } else {
       setGreeting('Bonsoir 👋');
     }
-  };
+  }, []);
 
   useEffect(() => {
     // Animation du header
@@ -114,7 +123,9 @@ export default function DashboardScreen() {
     updateGreeting();
     const interval = setInterval(updateGreeting, 60000); // Mise à jour toutes les minutes
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+    };
   }, []);
 
   // Recharger les données quand l'écran revient au focus (après création/modification de mortalité)
@@ -124,24 +135,159 @@ export default function DashboardScreen() {
     timestamp: 0,
   });
 
+  // ✅ MÉMOÏSER invitationsEnAttente.length pour éviter les boucles
+  const invitationsLength = Array.isArray(invitationsEnAttente) ? invitationsEnAttente.length : 0;
+  
+  // Fonction pour rafraîchir les données (pull-to-refresh)
+  const onRefresh = React.useCallback(async () => {
+    if (!projetActif?.id) return;
+    
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        dispatch(loadMortalitesParProjet(projetActif.id)).unwrap(),
+        dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: true })).unwrap(),
+        dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 })).unwrap(),
+      ]);
+    } catch (error) {
+      console.error('Erreur lors du rafraîchissement:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [projetActif?.id, dispatch]);
+
+  // Récupérer les données depuis le store pour l'export PDF
+  const animaux = useAppSelector(selectAllAnimaux);
+  const peseesParAnimal = useAppSelector(selectPeseesParAnimal);
+  const chargesFixes = useAppSelector(selectAllChargesFixes);
+  const depensesPonctuelles = useAppSelector(selectAllDepensesPonctuelles);
+  const revenus = useAppSelector(selectAllRevenus);
+  const gestations = useAppSelector(selectAllGestations);
+  const sevrages = useAppSelector(selectAllSevrages);
+
+  // Fonction pour exporter le dashboard en PDF
+  const handleExportPDF = React.useCallback(async () => {
+    if (!projetActif) return;
+    
+    setExportingPDF(true);
+    try {
+      
+      // Calculer les totaux financiers
+      const totalCharges = chargesFixes.reduce((sum, c) => sum + c.montant, 0);
+      const totalDepenses = depensesPonctuelles.reduce((sum, d) => sum + d.montant, 0);
+      const totalRevenus = revenus.reduce((sum, r) => sum + r.montant, 0);
+      const solde = totalRevenus - (totalCharges + totalDepenses);
+      
+      // Calculer les stats de production
+      const animauxActifs = animaux.filter((a) => a.statut?.toLowerCase() === 'actif');
+      
+      // Récupérer toutes les pesées
+      const toutesPesees = Object.values(peseesParAnimal).flat();
+      const peseesRecentes = toutesPesees.slice(0, 20);
+      
+      // Calculer le poids total basé sur la dernière pesée de chaque animal
+      const poidsTotal = animauxActifs.reduce((sum: number, animal) => {
+        const pesees = peseesParAnimal[animal.id];
+        if (pesees && pesees.length > 0) {
+          return sum + pesees[0].poids_kg;
+        }
+        return sum;
+      }, 0);
+      
+      // Calculer le GMQ moyen
+      const gmqValues = toutesPesees
+        .filter((p) => p.gmq)
+        .map((p) => p.gmq as number);
+      const gmqMoyen = gmqValues.length > 0 
+        ? gmqValues.reduce((sum: number, val: number) => sum + val, 0) / gmqValues.length 
+        : 0;
+      
+      // Stats de reproduction
+      const gestationsEnCours = gestations.filter((g) => g.statut === 'en_cours').length;
+      const sevragesRecents = sevrages.filter((s) => {
+        const dateS = new Date(s.date_sevrage);
+        const now = new Date();
+        const diffDays = (now.getTime() - dateS.getTime()) / (1000 * 60 * 60 * 24);
+        return diffDays <= 30;
+      }).length;
+      
+      // Trouver la prochaine mise bas
+      const gestationsAvecDatePrevue = gestations
+        .filter((g) => g.statut === 'en_cours' && g.date_mise_bas_prevue)
+        .sort((a, b) => new Date(a.date_mise_bas_prevue!).getTime() - new Date(b.date_mise_bas_prevue!).getTime());
+      const prochaineMiseBas = gestationsAvecDatePrevue.length > 0 
+        ? gestationsAvecDatePrevue[0].date_mise_bas_prevue 
+        : null;
+      
+      // Préparer les données pour le PDF
+      const dashboardData = {
+        projet: projetActif,
+        animaux: animaux,
+        finances: {
+          totalDepenses: totalCharges + totalDepenses,
+          totalRevenus: totalRevenus,
+          solde: solde,
+          chargesFixes: totalCharges,
+          depensesPonctuelles: totalDepenses,
+        },
+        production: {
+          animauxActifs: animauxActifs.length,
+          peseesRecentes: peseesRecentes.length,
+          poidsTotal: poidsTotal,
+          gmqMoyen: gmqMoyen,
+        },
+        reproduction: {
+          gestationsEnCours: gestationsEnCours,
+          prochaineMiseBas: prochaineMiseBas,
+          sevragesRecents: sevragesRecents,
+        },
+        alertes: [], // Vous pouvez ajouter les alertes ici si nécessaire
+      };
+      
+      // Générer et partager le PDF
+      await exportDashboardPDF(dashboardData);
+      
+      Alert.alert(
+        'PDF généré avec succès',
+        'Le rapport dashboard a été généré et est prêt à être partagé.',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('Erreur lors de l\'export PDF:', error);
+      Alert.alert(
+        'Erreur',
+        'Impossible de générer le PDF. Vérifiez vos données et réessayez.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setExportingPDF(false);
+    }
+  }, [projetActif, animaux, chargesFixes, depensesPonctuelles, revenus, gestations, sevrages, peseesParAnimal]);
+  
+  // ❌ CORRECTION CRITIQUE : Ce useEffect se déclenche trop souvent ! Supprimer pour tester
   // Afficher automatiquement le modal des invitations si elles existent et qu'on ne l'a pas encore montré
-  useEffect(() => {
-    if (invitationsEnAttente.length > 0 && !hasShownInvitationsRef.current && projetActif) {
+  /* useEffect(() => {
+    console.log('  🔍 [useEffect invitations] invitationsLength:', invitationsLength);
+    if (invitationsLength > 0 && !hasShownInvitationsRef.current && projetActif) {
       hasShownInvitationsRef.current = true;
       // Délai pour laisser le temps à l'écran de se charger
       setTimeout(() => {
         setInvitationsModalVisible(true);
       }, 1000);
     }
-  }, [invitationsEnAttente.length, projetActif]);
+  }, [invitationsLength, projetActif?.id]); */
   
-  useFocusEffect(
+  // ❌ CORRECTION CRITIQUE: useFocusEffect cause des re-renders en boucle !
+  // Désactiver temporairement pour tester
+  /* useFocusEffect(
     React.useCallback(() => {
+      console.log('  🔍 [useFocusEffect] TRIGGERED');
       // Mettre à jour le message de salutation quand l'écran revient au focus
       updateGreeting();
 
       if (!projetActif) {
         dernierChargementRef.current = { projetId: null, timestamp: 0 };
+        setIsInitialLoading(false);
         return;
       }
       
@@ -159,14 +305,49 @@ export default function DashboardScreen() {
           timestamp: maintenant,
         };
         
+        // Afficher le skeleton pendant le chargement initial
+        if (!memeProjet) {
+          setIsInitialLoading(true);
+        }
+        
         // Recharger les mortalités et les animaux pour mettre à jour les widgets
         dispatch(loadMortalitesParProjet(projetActif.id));
         dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: true }));
         // Recharger les pesées récentes pour exclure celles des animaux retirés
         dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 }));
+        
+        // Masquer le skeleton après un court délai (les données sont chargées de manière asynchrone)
+        setTimeout(() => {
+          setIsInitialLoading(false);
+        }, 500);
+      } else {
+        setIsInitialLoading(false);
       }
-    }, [projetActif?.id, dispatch])
-  );
+    }, [projetActif?.id, dispatch, updateGreeting])
+  ); */
+  
+  // ✅ REMPLACEMENT TEMPORAIRE: useEffect simple pour le chargement initial
+  React.useEffect(() => {
+    if (!projetActif?.id) return;
+    
+    const memeProjet = dernierChargementRef.current.projetId === projetActif.id;
+    if (memeProjet) {
+      return;
+    }
+    
+    dernierChargementRef.current = {
+      projetId: projetActif.id,
+      timestamp: Date.now(),
+    };
+    
+    dispatch(loadMortalitesParProjet(projetActif.id));
+    dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: true }));
+    dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 }));
+    
+    setTimeout(() => {
+      setIsInitialLoading(false);
+    }, 500);
+  }, [projetActif?.id, dispatch]);
 
   // Ne pas recharger le projet ici - il est déjà chargé dans AppNavigator
   // Cela évite les conflits de navigation après création
@@ -174,6 +355,19 @@ export default function DashboardScreen() {
   if (loading && !projetActif) {
     return <LoadingSpinner message="Chargement du projet..." />;
   }
+
+  // Formater la date en toute sécurité
+  let currentDate = '';
+  try {
+    currentDate = format(new Date(), 'EEEE d MMMM yyyy');
+    console.log('[DEBUG Dashboard] currentDate après format:', currentDate, 'type:', typeof currentDate);
+  } catch (error) {
+    console.error('Erreur lors du formatage de la date:', error);
+    currentDate = new Date().toLocaleDateString('fr-FR');
+  }
+  
+  console.log('[DEBUG Dashboard] greeting:', greeting, 'type:', typeof greeting);
+  console.log('[DEBUG Dashboard] projetActif?.nom:', projetActif?.nom, 'type:', typeof projetActif?.nom);
 
   if (!projetActif) {
     return (
@@ -186,11 +380,21 @@ export default function DashboardScreen() {
     );
   }
 
-  const currentDate = format(new Date(), 'EEEE d MMMM yyyy');
-
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+            title="Actualisation..."
+            titleColor={colors.textSecondary}
+          />
+        }
+      >
         <View style={styles.content}>
           {/* Header amélioré avec date et badge */}
           <Animated.View
@@ -211,12 +415,14 @@ export default function DashboardScreen() {
           >
             <View style={styles.headerTop}>
               <View style={styles.headerLeft}>
-                <Text style={[styles.greeting, { color: colors.textSecondary }]}>{greeting}</Text>
-                <Text style={[styles.title, { color: isDark ? '#FFFFFF' : colors.text }]}>{projetActif.nom}</Text>
-                <Text style={[styles.date, { color: colors.textSecondary }]}>{currentDate}</Text>
+                <Text style={[styles.greeting, { color: colors.textSecondary }]}>{greeting || 'Bonjour 👋'}</Text>
+                <Text style={[styles.title, { color: isDark ? '#FFFFFF' : colors.text }]}>{projetActif?.nom || 'Projet'}</Text>
+                {currentDate ? (
+                  <Text style={[styles.date, { color: colors.textSecondary }]}>{currentDate}</Text>
+                ) : null}
               </View>
               <View style={styles.headerRight}>
-                {invitationsEnAttente.length > 0 && (
+                {Array.isArray(invitationsEnAttente) && invitationsEnAttente.length > 0 && (
                   <TouchableOpacity
                     style={[styles.invitationBadge, { backgroundColor: colors.warning, ...colors.shadow.small }]}
                     onPress={() => setInvitationsModalVisible(true)}
@@ -239,34 +445,38 @@ export default function DashboardScreen() {
           </Animated.View>
 
           {/* Widget d'alertes */}
-          <View style={styles.alertesContainer}>
+          {/* <View style={styles.alertesContainer}>
             <AlertesWidget />
-          </View>
+            </View> */}
 
           {/* Widgets principaux avec animations */}
           <View style={styles.mainWidgetsContainer}>
-            <Animated.View
-              style={[
-                styles.widgetWrapper,
-                {
-                  opacity: mainWidgetsAnim[0],
-                  transform: [
-                    {
-                      scale: mainWidgetsAnim[0].interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.9, 1],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            >
-              <OverviewWidget
-                onPress={() => {
-                  // Rester sur Dashboard
-                }}
-              />
-            </Animated.View>
+            {isInitialLoading ? (
+              <SkeletonWidget showStats={true} />
+            ) : (
+              <Animated.View
+                style={[
+                  styles.widgetWrapper,
+                  {
+                    opacity: mainWidgetsAnim[0],
+                    transform: [
+                      {
+                        scale: mainWidgetsAnim[0].interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.9, 1],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <OverviewWidget
+                  onPress={() => {
+                    // Rester sur Dashboard
+                  }}
+                />
+              </Animated.View>
+            )}
 
             {/* Widget Reproduction - Visible si permission reproduction */}
             {hasPermission('reproduction') && (
@@ -326,6 +536,7 @@ export default function DashboardScreen() {
             {hasPermission('rapports') && (
               <Animated.View
                 style={[
+                  styles.widgetWrapper,
                   {
                     opacity: mainWidgetsAnim[3],
                     transform: [
@@ -354,7 +565,12 @@ export default function DashboardScreen() {
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Modules complémentaires</Text>
             <View style={styles.secondaryWidgetsContainer}>
               {(() => {
-                const widgets: Array<{ type: 'nutrition' | 'planning' | 'collaboration' | 'mortalites' | 'production'; screen: string }> = [];
+                const widgets: Array<{ type: 'nutrition' | 'planning' | 'collaboration' | 'mortalites' | 'production' | 'sante'; screen: string }> = [];
+                
+                // Santé - Visible si permission sante
+                if (hasPermission('sante')) {
+                  widgets.push({ type: 'sante', screen: SCREENS.SANTE });
+                }
                 
                 // Nutrition - Visible si permission nutrition
                 if (hasPermission('nutrition')) {
@@ -371,42 +587,41 @@ export default function DashboardScreen() {
                   widgets.push({ type: 'collaboration', screen: SCREENS.COLLABORATION });
                 }
                 
-                // Mortalités - Visible si permission mortalites
-                if (hasPermission('mortalites')) {
-                  widgets.push({ type: 'mortalites', screen: SCREENS.MORTALITES });
-                }
+                // Mortalités - Redirige vers Santé (intégré dans le module Santé)
+                // Note: Mortalité est maintenant accessible via Santé > Mortalités
+                // Pas besoin d'afficher un widget séparé si Santé est déjà affiché
                 
                 // Production - Toujours visible (pas de permission spécifique pour l'instant)
                 widgets.push({ type: 'production', screen: SCREENS.PRODUCTION });
                 
                 return widgets;
               })().map((widget, index) => (
-                <Animated.View
-                  key={index}
-                  style={[
-                    styles.secondaryWidgetWrapper,
-                    {
-                      opacity: secondaryWidgetsAnim[index],
-                      transform: [
-                        {
-                          translateY: secondaryWidgetsAnim[index].interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [20, 0],
-                          }),
-                        },
-                      ],
-                    },
-                  ]}
-                >
-                  <SecondaryWidget
-                    type={widget.type}
-                    onPress={() => {
-                      // @ts-ignore - navigation typée
-                      navigation.navigate('Main', { screen: widget.screen });
-                    }}
-                  />
-                </Animated.View>
-              ))}
+                  <Animated.View
+                    key={index}
+                    style={[
+                      styles.secondaryWidgetWrapper,
+                      {
+                        opacity: secondaryWidgetsAnim[index],
+                        transform: [
+                          {
+                            translateY: secondaryWidgetsAnim[index].interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [20, 0],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  >
+                    <SecondaryWidget
+                      type={widget.type}
+                      onPress={() => {
+                        // @ts-ignore - navigation typée
+                        navigation.navigate('Main', { screen: widget.screen });
+                      }}
+                    />
+                  </Animated.View>
+                ))}
             </View>
           </View>
         </View>
@@ -432,7 +647,7 @@ const styles = StyleSheet.create({
   content: {
     padding: SPACING.xl,
     paddingTop: SPACING.lg + 10,
-    paddingBottom: SPACING.xxl + 85, // 85px pour la barre de navigation + espace
+    paddingBottom: SPACING.xxl + 120, // 120px pour la barre de navigation + espace supplémentaire
   },
   header: {
     marginBottom: SPACING.xl + 10,
@@ -459,6 +674,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   searchButtonIcon: {
+    fontSize: FONT_SIZES.lg,
+  },
+  exportButton: {
+    width: 40,
+    height: 40,
+    borderRadius: BORDER_RADIUS.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SPACING.sm,
+  },
+  exportButtonIcon: {
     fontSize: FONT_SIZES.lg,
   },
   invitationBadge: {

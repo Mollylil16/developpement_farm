@@ -15,6 +15,8 @@ import { doitGenererAlerte } from '../types/reproduction';
 import { loadStocks } from '../store/slices/stocksSlice';
 import { loadPlanificationsParProjet } from '../store/slices/planificationSlice';
 import { loadSevrages } from '../store/slices/reproductionSlice';
+import { Gestation, Sevrage } from '../types';
+import { selectAllGestations, selectAllSevrages } from '../store/selectors/reproductionSelectors';
 
 export interface Alerte {
   id: string;
@@ -30,42 +32,59 @@ export default function AlertesWidget() {
   const navigation = useNavigation();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
-  const { gestations, sevrages } = useAppSelector((state) => state.reproduction);
+  const gestations: Gestation[] = useAppSelector(selectAllGestations);
+  const sevrages: Sevrage[] = useAppSelector(selectAllSevrages);
   const { stocks } = useAppSelector((state) => state.stocks);
   const { planifications } = useAppSelector((state) => state.planification);
 
   // Charger les données nécessaires
+  // Utiliser useRef pour éviter les chargements multiples (boucle infinie)
+  const dataChargeesRef = React.useRef<string | null>(null);
+
   useEffect(() => {
-    if (projetActif) {
-      dispatch(loadStocks(projetActif.id));
-      dispatch(loadPlanificationsParProjet(projetActif.id));
-      dispatch(loadSevrages(projetActif.id));
+    if (!projetActif) {
+      dataChargeesRef.current = null;
+      return;
     }
-  }, [dispatch, projetActif]);
+    
+    if (dataChargeesRef.current === projetActif.id) return; // Déjà chargé !
+    
+    dataChargeesRef.current = projetActif.id;
+    dispatch(loadStocks(projetActif.id));
+    dispatch(loadPlanificationsParProjet(projetActif.id));
+    dispatch(loadSevrages(projetActif.id));
+  }, [dispatch, projetActif?.id]);  // ✅ Correction: projetActif?.id au lieu de projetActif
+
+  // ✅ MÉMOÏSER les lengths pour éviter les boucles infinies
+  const stocksLength = stocks.length;
+  const gestationsLength = gestations.length;
+  const planificationsLength = planifications.length;
 
   // Filtrer les stocks en alerte
   const stocksEnAlerte = useMemo(() => {
     return stocks.filter((stock) => stock.alerte_active);
-  }, [stocks]);
+  }, [stocksLength, stocks]);
 
   const alertes = useMemo(() => {
     const alerts: Alerte[] = [];
 
     // 1. Gestations proches (calcul local)
     gestations
-      .filter((g) => g.statut === 'en_cours')
-      .forEach((g) => {
+      .filter((g: Gestation) => g.statut === 'en_cours')
+      .forEach((g: Gestation) => {
         if (doitGenererAlerte(g.date_mise_bas_prevue)) {
           const daysUntil = differenceInDays(
             parseISO(g.date_mise_bas_prevue),
             new Date()
           );
           
+          const nomTruie = g.truie_nom || 'truie';
+          const jourSuffix = daysUntil > 1 ? 's' : '';
           alerts.push({
             id: `gestation_${g.id}`,
             type: daysUntil <= 3 ? 'error' : 'warning',
             icon: '🐷',
-            message: `Mise bas prévue pour ${g.truie_nom || 'truie'} dans ${daysUntil} jour${daysUntil > 1 ? 's' : ''}`,
+            message: `Mise bas prévue pour ${nomTruie} dans ${daysUntil} jour${jourSuffix}`,
             action: () => {
               // @ts-ignore - navigation typée
               navigation.navigate('Main', { screen: SCREENS.REPRODUCTION });
@@ -77,11 +96,15 @@ export default function AlertesWidget() {
 
     // 2. Stocks faibles (déjà calculé dans la base de données)
     stocksEnAlerte.forEach((stock) => {
+      const nomStock = stock.nom || 'Stock';
+      const quantiteActuelle = stock.quantite_actuelle?.toFixed(1) || '0';
+      const unite = stock.unite || '';
+      const seuilAlerte = stock.seuil_alerte || 0;
       alerts.push({
         id: `stock_${stock.id}`,
         type: 'error',
         icon: '⚠️',
-        message: `Stock faible : ${stock.nom} (${stock.quantite_actuelle.toFixed(1)} ${stock.unite} / seuil ${stock.seuil_alerte} ${stock.unite})`,
+        message: `Stock faible : ${nomStock} (${quantiteActuelle} ${unite} / seuil ${seuilAlerte} ${unite})`,
         action: () => {
           // @ts-ignore - navigation typée
           navigation.navigate('Main', { 
@@ -89,20 +112,21 @@ export default function AlertesWidget() {
             params: { initialScreen: 'Stocks' }
           });
         },
-        priority: stock.seuil_alerte && stock.quantite_actuelle <= stock.seuil_alerte * 0.5 ? 1 : 2,
+        priority: seuilAlerte && stock.quantite_actuelle <= seuilAlerte * 0.5 ? 1 : 2,
       });
     });
 
     // 3. Sevrages proches (calcul local)
     // Détecter les gestations terminées sans sevrage qui approchent de la date de sevrage prévisionnelle
     gestations
-      .filter((g) => g.statut === 'terminee' && g.date_mise_bas_reelle)
-      .forEach((g) => {
+      .filter((g: Gestation) => g.statut === 'terminee' && g.date_mise_bas_reelle)
+      .forEach((g: Gestation) => {
         // Vérifier si un sevrage existe déjà pour cette gestation
-        const hasSevrage = sevrages.some((s) => s.gestation_id === g.id);
+        const hasSevrage = sevrages.some((s: Sevrage) => s.gestation_id === g.id);
         if (hasSevrage) return;
 
         // Calculer la date prévisionnelle de sevrage (28 jours après la mise bas)
+        if (!g.date_mise_bas_reelle) return;
         try {
           const dateMiseBas = parseISO(g.date_mise_bas_reelle);
           const dateSevragePrevue = addDays(dateMiseBas, 28);
@@ -110,11 +134,12 @@ export default function AlertesWidget() {
 
           // Générer une alerte si le sevrage est prévu dans les 7 prochains jours
           if (joursRestants <= 7 && joursRestants >= 0) {
+            const nombrePorcelets = g.nombre_porcelets_reel ?? g.nombre_porcelets_prevu ?? 0;
             alerts.push({
               id: `sevrage_${g.id}`,
               type: joursRestants <= 3 ? 'error' : 'warning',
               icon: '🍼',
-              message: `Sevrage prévu dans ${joursRestants} jour${joursRestants > 1 ? 's' : ''} pour ${g.truie_nom || 'truie'} (${g.nombre_porcelets_reel || g.nombre_porcelets_prevu} porcelets). Pensez aux aliments adaptés !`,
+              message: `Sevrage prévu dans ${joursRestants} jour${joursRestants > 1 ? 's' : ''} pour ${g.truie_nom || 'truie'} (${nombrePorcelets} porcelet${nombrePorcelets > 1 ? 's' : ''}). Pensez aux aliments adaptés !`,
               action: () => {
                 // @ts-ignore - navigation typée
                 navigation.navigate('Main', { 
@@ -140,11 +165,13 @@ export default function AlertesWidget() {
           parseISO(p.date_echeance)
         );
         
+        const titreTache = p.titre || 'Tâche sans titre';
+        const jourSuffix = daysOverdue > 1 ? 's' : '';
         alerts.push({
           id: `planification_${p.id}`,
           type: 'error',
           icon: '📅',
-          message: `Tâche en retard : ${p.titre} (${daysOverdue} jour${daysOverdue > 1 ? 's' : ''} de retard)`,
+          message: `Tâche en retard : ${titreTache} (${daysOverdue} jour${jourSuffix} de retard)`,
           action: () => {
             // @ts-ignore - navigation typée
             navigation.navigate('Main', { screen: SCREENS.PLANIFICATION });
@@ -166,11 +193,12 @@ export default function AlertesWidget() {
         return dateEcheance >= aujourdhui && dateEcheance < demain;
       })
       .forEach((p) => {
+        const titreTache = p.titre || 'Tâche sans titre';
         alerts.push({
           id: `planification_today_${p.id}`,
           type: 'info',
           icon: '📋',
-          message: `Tâche à faire aujourd'hui : ${p.titre}`,
+          message: `Tâche à faire aujourd'hui : ${titreTache}`,
           action: () => {
             // @ts-ignore - navigation typée
             navigation.navigate('Main', { screen: SCREENS.PLANIFICATION });
@@ -181,9 +209,12 @@ export default function AlertesWidget() {
 
     // Trier par priorité (1 = haute priorité en premier)
     return alerts.sort((a, b) => a.priority - b.priority);
-  }, [gestations, stocksEnAlerte, planifications, navigation]);
+  }, [gestationsLength, stocksEnAlerte.length, planificationsLength, gestations, stocksEnAlerte, planifications]);
 
-  if (alertes.length === 0) {
+  // Sécuriser alertes pour éviter les erreurs
+  const alertesLength = Array.isArray(alertes) ? alertes.length : 0;
+  
+  if (alertesLength === 0) {
     return null; // Ne rien afficher s'il n'y a pas d'alertes
   }
 
@@ -191,11 +222,11 @@ export default function AlertesWidget() {
     <View style={[styles.container, { backgroundColor: colors.surface, borderColor: colors.warning + '30', ...colors.shadow.medium }]}>
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>
-          ⚠️ {alertes.length} alerte{alertes.length > 1 ? 's' : ''}
+          ⚠️ {alertesLength} alerte{alertesLength > 1 ? 's' : ''}
         </Text>
-        {alertes.length > 3 && (
+        {alertesLength > 3 && (
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            {alertes.length - 3} autre{alertes.length - 3 > 1 ? 's' : ''} non affichée{alertes.length - 3 > 1 ? 's' : ''}
+            {alertesLength - 3} autre{alertesLength - 3 > 1 ? 's' : ''} non affichée{alertesLength - 3 > 1 ? 's' : ''}
           </Text>
         )}
       </View>
@@ -238,7 +269,7 @@ export default function AlertesWidget() {
         ))}
       </ScrollView>
 
-      {alertes.length > 3 && (
+      {alertesLength > 3 && (
         <TouchableOpacity
           style={[styles.voirToutButton, { borderTopColor: colors.border }]}
           onPress={() => {
@@ -251,7 +282,7 @@ export default function AlertesWidget() {
           }}
         >
           <Text style={[styles.voirToutText, { color: colors.primary }]}>
-            Voir toutes les alertes ({alertes.length})
+            Voir toutes les alertes ({alertesLength})
           </Text>
         </TouchableOpacity>
       )}
@@ -263,10 +294,10 @@ const styles = StyleSheet.create({
   container: {
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.xl,
-    marginHorizontal: SPACING.xl,
     marginBottom: SPACING.lg,
     borderWidth: 2,
     minHeight: 140,
+    width: '100%', // Prendre toute la largeur disponible comme les autres widgets
   },
   header: {
     flexDirection: 'row',

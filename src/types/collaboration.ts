@@ -22,6 +22,7 @@ export interface Collaborateur {
     rapports: boolean;
     planification: boolean;
     mortalites: boolean;
+    sante: boolean;
   };
   date_invitation: string; // Date ISO
   date_acceptation?: string; // Date ISO
@@ -45,6 +46,7 @@ export interface CreateCollaborateurInput {
     rapports?: boolean;
     planification?: boolean;
     mortalites?: boolean;
+    sante?: boolean;
   };
   notes?: string;
 }
@@ -64,6 +66,7 @@ export interface UpdateCollaborateurInput {
     rapports?: boolean;
     planification?: boolean;
     mortalites?: boolean;
+    sante?: boolean;
   };
   date_acceptation?: string;
   notes?: string;
@@ -91,6 +94,7 @@ export const DEFAULT_PERMISSIONS: Record<RoleCollaborateur, Collaborateur['permi
     rapports: true,
     planification: true,
     mortalites: true,
+    sante: true,
   },
   gestionnaire: {
     reproduction: true,
@@ -99,6 +103,7 @@ export const DEFAULT_PERMISSIONS: Record<RoleCollaborateur, Collaborateur['permi
     rapports: true,
     planification: true,
     mortalites: true,
+    sante: true,
   },
   veterinaire: {
     reproduction: true,
@@ -107,6 +112,7 @@ export const DEFAULT_PERMISSIONS: Record<RoleCollaborateur, Collaborateur['permi
     rapports: true,
     planification: true,
     mortalites: true,
+    sante: true,
   },
   ouvrier: {
     reproduction: true,
@@ -115,6 +121,7 @@ export const DEFAULT_PERMISSIONS: Record<RoleCollaborateur, Collaborateur['permi
     rapports: false,
     planification: true,
     mortalites: true,
+    sante: false,
   },
   observateur: {
     reproduction: false,
@@ -123,6 +130,7 @@ export const DEFAULT_PERMISSIONS: Record<RoleCollaborateur, Collaborateur['permi
     rapports: true,
     planification: false,
     mortalites: false,
+    sante: false,
   },
 };
 

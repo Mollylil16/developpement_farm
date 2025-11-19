@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { View, StyleSheet, ViewStyle, TouchableOpacity } from 'react-native';
-import { SPACING, BORDER_RADIUS, TRANSITIONS } from '../constants/theme';
+import { SPACING, TRANSITIONS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { getNeomorphismRaised, neomorphismToStyle } from '../utils/neomorphism';
 
@@ -79,7 +79,7 @@ export default function Card({
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: BORDER_RADIUS.lg,
+    borderRadius: 16, // BORDER_RADIUS.lg - valeur directe pour éviter les problèmes de chargement
     borderWidth: 1,
   },
   paddingNone: {

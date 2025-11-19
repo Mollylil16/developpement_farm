@@ -7,6 +7,8 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppSelector } from '../store/hooks';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { ChargeFixe, DepensePonctuelle } from '../types';
+import { selectAllChargesFixes, selectAllDepensesPonctuelles } from '../store/selectors/financeSelectors';
 
 interface WidgetFinanceProps {
   onPress?: () => void;
@@ -14,12 +16,13 @@ interface WidgetFinanceProps {
 
 export default function WidgetFinance({ onPress }: WidgetFinanceProps) {
   const { colors } = useTheme();
-  const { chargesFixes, depensesPonctuelles } = useAppSelector((state) => state.finance);
+  const chargesFixes: ChargeFixe[] = useAppSelector(selectAllChargesFixes);
+  const depensesPonctuelles: DepensePonctuelle[] = useAppSelector(selectAllDepensesPonctuelles);
 
   // Calculer le budget mensuel et les dépenses
   const budgetInfo = useMemo(() => {
-    const chargesFixesActives = chargesFixes.filter((cf) => cf.statut === 'actif');
-    const chargesFixesMensuelles = chargesFixesActives.reduce((sum, cf) => {
+    const chargesFixesActives = chargesFixes.filter((cf: ChargeFixe) => cf.statut === 'actif');
+    const chargesFixesMensuelles = chargesFixesActives.reduce((sum: number, cf: ChargeFixe) => {
       if (cf.frequence === 'mensuel') return sum + cf.montant;
       if (cf.frequence === 'trimestriel') return sum + cf.montant / 3;
       if (cf.frequence === 'annuel') return sum + cf.montant / 12;
@@ -27,7 +30,7 @@ export default function WidgetFinance({ onPress }: WidgetFinanceProps) {
     }, 0);
 
     const maintenant = new Date();
-    const depensesMois = depensesPonctuelles.reduce((sum, dp) => {
+    const depensesMois = depensesPonctuelles.reduce((sum: number, dp: DepensePonctuelle) => {
       const dateDepense = new Date(dp.date);
       if (
         dateDepense.getMonth() === maintenant.getMonth() &&
@@ -41,7 +44,7 @@ export default function WidgetFinance({ onPress }: WidgetFinanceProps) {
     // Calculer les dépenses du mois précédent pour l'évolution
     const moisPrecedent = new Date();
     moisPrecedent.setMonth(moisPrecedent.getMonth() - 1);
-    const depensesMoisPrecedent = depensesPonctuelles.reduce((sum, dp) => {
+    const depensesMoisPrecedent = depensesPonctuelles.reduce((sum: number, dp: DepensePonctuelle) => {
       const dateDepense = new Date(dp.date);
       if (
         dateDepense.getMonth() === moisPrecedent.getMonth() &&
@@ -127,7 +130,7 @@ export default function WidgetFinance({ onPress }: WidgetFinanceProps) {
               style={[
                 styles.progressFill, 
                 { 
-                  width: `${Math.min(100, budgetInfo.pourcentageUtilise)}%`,
+                  width: `${Math.round(Math.min(100, budgetInfo.pourcentageUtilise))}%`,
                   backgroundColor: budgetInfo.pourcentageUtilise > 80 
                     ? colors.error 
                     : budgetInfo.pourcentageUtilise > 60 

@@ -30,6 +30,7 @@ export default function StockMovementFormModal({ visible, onClose, onSuccess, al
   const [loading, setLoading] = useState(false);
   const [type, setType] = useState<TypeMouvementStock>('entree');
   const [quantite, setQuantite] = useState<number>(0);
+  const [stockRestant, setStockRestant] = useState<number>(aliment.quantite_actuelle); // Pour les sorties
   const [unite, setUnite] = useState<UniteStock>(aliment.unite);
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [origine, setOrigine] = useState<string>('');
@@ -39,6 +40,7 @@ export default function StockMovementFormModal({ visible, onClose, onSuccess, al
     if (visible) {
       setType('entree');
       setQuantite(0);
+      setStockRestant(aliment.quantite_actuelle);
       setUnite(aliment.unite);
       setDate(new Date().toISOString().split('T')[0]);
       setOrigine('');
@@ -54,7 +56,7 @@ export default function StockMovementFormModal({ visible, onClose, onSuccess, al
         setQuantite(0);
         break;
       case 'sortie':
-        setQuantite(0); // Pour une sortie, on entre la quantité à sortir (pas le stock restant)
+        setStockRestant(aliment.quantite_actuelle); // Pour une sortie, on entre le stock restant actuel
         break;
       case 'ajustement':
         setQuantite(aliment.quantite_actuelle);
@@ -64,9 +66,8 @@ export default function StockMovementFormModal({ visible, onClose, onSuccess, al
     }
   };
 
-  // Calculer le stock restant après sortie (pour affichage)
-  const stockRestantApresSortie =
-    type === 'sortie' ? Math.max(0, aliment.quantite_actuelle - quantite) : aliment.quantite_actuelle;
+  // Calculer la quantité sortie automatiquement (stock actuel - stock restant)
+  const quantiteSortie = type === 'sortie' ? Math.max(0, aliment.quantite_actuelle - stockRestant) : 0;
 
   const handleSubmit = async () => {
     // Vérifier les permissions
@@ -81,16 +82,21 @@ export default function StockMovementFormModal({ visible, onClose, onSuccess, al
     }
 
     if (type === 'sortie') {
-      if (quantite <= 0) {
-        Alert.alert('Valeur invalide', 'La quantité à sortir doit être supérieure à 0');
+      if (stockRestant < 0) {
+        Alert.alert('Valeur invalide', 'Le stock restant ne peut pas être négatif');
         return;
       }
       
-      if (quantite > aliment.quantite_actuelle) {
+      if (stockRestant > aliment.quantite_actuelle) {
         Alert.alert(
           'Valeur invalide',
-          `La quantité à sortir (${quantite}) ne peut pas être supérieure au stock actuel (${aliment.quantite_actuelle} ${aliment.unite})`
+          `Le stock restant (${stockRestant}) ne peut pas être supérieur au stock actuel (${aliment.quantite_actuelle} ${aliment.unite})`
         );
+        return;
+      }
+      
+      if (quantiteSortie <= 0) {
+        Alert.alert('Valeur invalide', 'Aucune sortie détectée. Le stock restant est identique au stock actuel.');
         return;
       }
     }
@@ -100,9 +106,8 @@ export default function StockMovementFormModal({ visible, onClose, onSuccess, al
       return;
     }
 
-    // Pour une sortie, la quantité du mouvement est directement la quantité à sortir
-    // La base de données calculera automatiquement le stock restant
-    const quantiteMouvement = quantite;
+    // Déterminer la quantité du mouvement selon le type
+    const quantiteMouvement = type === 'sortie' ? quantiteSortie : quantite;
 
     setLoading(true);
     try {
@@ -190,26 +195,33 @@ export default function StockMovementFormModal({ visible, onClose, onSuccess, al
           </View>
         </View>
 
-        <FormField
-          label={
-            type === 'ajustement'
-              ? 'Nouvelle quantité'
-              : type === 'sortie'
-              ? 'Quantité à sortir'
-              : 'Quantité'
-          }
-          value={quantite.toString()}
-          onChangeText={(text) => setQuantite(text ? parseFloat(text) : 0)}
-          keyboardType="numeric"
-          placeholder={
-            type === 'sortie'
-              ? '0'
-              : type === 'ajustement'
-              ? aliment.quantite_actuelle.toString()
-              : '0'
-          }
-          required
-        />
+        {type === 'sortie' ? (
+          <FormField
+            label={`Stock restant actuel (${aliment.unite})`}
+            value={stockRestant.toString()}
+            onChangeText={(text) => setStockRestant(text ? parseFloat(text) : 0)}
+            keyboardType="numeric"
+            placeholder={aliment.quantite_actuelle.toString()}
+            required
+          />
+        ) : (
+          <FormField
+            label={
+              type === 'ajustement'
+                ? 'Nouvelle quantité'
+                : 'Quantité'
+            }
+            value={quantite.toString()}
+            onChangeText={(text) => setQuantite(text ? parseFloat(text) : 0)}
+            keyboardType="numeric"
+            placeholder={
+              type === 'ajustement'
+                ? aliment.quantite_actuelle.toString()
+                : '0'
+            }
+            required
+          />
+        )}
 
         <FormField
           label="Unité"
@@ -242,27 +254,53 @@ export default function StockMovementFormModal({ visible, onClose, onSuccess, al
         />
 
         <View style={[styles.summaryBox, { backgroundColor: colors.primary + '10' }]}>
-          <Text style={[styles.summaryTitle, { color: colors.primary }]}>Stock actuel</Text>
-          <Text style={[styles.summaryValue, { color: colors.text }]}>
-            {aliment.quantite_actuelle} {aliment.unite}
+          <Text style={[styles.summaryTitle, { color: colors.primary }]}>
+            {type === 'sortie' ? '📊 Calcul automatique' : 'Stock actuel'}
           </Text>
-          <Text style={[styles.summaryInfo, { color: colors.textSecondary }]}>
-            {aliment.seuil_alerte !== undefined && aliment.seuil_alerte !== null
-              ? `Seuil d'alerte: ${aliment.seuil_alerte} ${aliment.unite}`
-              : 'Aucun seuil défini'}
-          </Text>
-          {type === 'sortie' && quantite > 0 && (
+          
+          {type === 'sortie' ? (
             <>
-              <Text style={[styles.summaryInfo, { color: colors.text }]}>
-                Stock après sortie : {stockRestantApresSortie} {aliment.unite}
+              <View style={styles.calculRow}>
+                <Text style={[styles.calculLabel, { color: colors.text }]}>Stock avant contrôle:</Text>
+                <Text style={[styles.calculValue, { color: colors.text }]}>
+                  {aliment.quantite_actuelle} {aliment.unite}
+                </Text>
+              </View>
+              <View style={styles.calculRow}>
+                <Text style={[styles.calculLabel, { color: colors.text }]}>Stock restant constaté:</Text>
+                <Text style={[styles.calculValue, { color: colors.text }]}>
+                  {stockRestant} {aliment.unite}
+                </Text>
+              </View>
+              <View style={[styles.calculRow, styles.calculHighlight, { backgroundColor: colors.error + '15' }]}>
+                <Text style={[styles.calculLabel, { color: colors.error, fontWeight: '700' }]}>Quantité sortie:</Text>
+                <Text style={[styles.calculValue, { color: colors.error, fontWeight: '700', fontSize: FONT_SIZES.lg }]}>
+                  {quantiteSortie.toFixed(2)} {aliment.unite}
+                </Text>
+              </View>
+              <Text style={[styles.summaryInfo, { color: colors.textSecondary, marginTop: SPACING.sm }]}>
+                {aliment.seuil_alerte !== undefined && aliment.seuil_alerte !== null
+                  ? `Seuil d'alerte: ${aliment.seuil_alerte} ${aliment.unite}`
+                  : 'Aucun seuil défini'}
               </Text>
               {aliment.seuil_alerte !== undefined &&
                 aliment.seuil_alerte !== null &&
-                stockRestantApresSortie <= aliment.seuil_alerte && (
-                  <Text style={[styles.summaryInfo, { color: colors.error, fontWeight: '600' }]}>
-                    ⚠️ Stock sous le seuil d'alerte après cette sortie
+                stockRestant <= aliment.seuil_alerte && (
+                  <Text style={[styles.summaryInfo, { color: colors.error, fontWeight: '600', marginTop: SPACING.xs }]}>
+                    ⚠️ Stock sous le seuil d'alerte
                   </Text>
                 )}
+            </>
+          ) : (
+            <>
+              <Text style={[styles.summaryValue, { color: colors.text }]}>
+                {aliment.quantite_actuelle} {aliment.unite}
+              </Text>
+              <Text style={[styles.summaryInfo, { color: colors.textSecondary }]}>
+                {aliment.seuil_alerte !== undefined && aliment.seuil_alerte !== null
+                  ? `Seuil d'alerte: ${aliment.seuil_alerte} ${aliment.unite}`
+                  : 'Aucun seuil défini'}
+              </Text>
             </>
           )}
         </View>
@@ -323,6 +361,25 @@ const styles = StyleSheet.create({
   summaryInfo: {
     fontSize: FONT_SIZES.sm,
     marginTop: SPACING.xs,
+  },
+  calculRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.xs,
+  },
+  calculLabel: {
+    fontSize: FONT_SIZES.sm,
+  },
+  calculValue: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+  },
+  calculHighlight: {
+    padding: SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.xs,
   },
 });
 

@@ -3,35 +3,60 @@
  * Affiche les gestations actives et prochaines mises bas
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
+import { selectAllGestations } from '../../store/selectors/reproductionSelectors';
 import { loadGestations, loadGestationsEnCours } from '../../store/slices/reproductionSlice';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
-import { useEffect } from 'react';
 import { differenceInDays, parseISO, isAfter, isBefore } from 'date-fns';
 
 interface ReproductionWidgetProps {
   onPress?: () => void;
 }
 
-export default function ReproductionWidget({ onPress }: ReproductionWidgetProps) {
+function ReproductionWidget({ onPress }: ReproductionWidgetProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { gestations } = useAppSelector((state) => state.reproduction);
+  const gestations = useAppSelector(selectAllGestations);
 
   const { projetActif } = useAppSelector((state) => state.projet);
 
+  // Utiliser useRef pour éviter les chargements multiples (boucle infinie)
+  // ❌ CORRECTION CRITIQUE: Ne PAS charger les gestations dans le widget !
+  // Les gestations sont déjà chargées par GestationsListComponent
+  // Charger ici cause des dispatches multiples et des boucles infinies
+  
+  /* const dataChargeesRef = React.useRef<string | null>(null);
+
   useEffect(() => {
-    if (projetActif) {
-      dispatch(loadGestations(projetActif.id));
-      dispatch(loadGestationsEnCours(projetActif.id));
+    if (!projetActif) {
+      dataChargeesRef.current = null;
+      return;
     }
-  }, [dispatch, projetActif?.id]);
+    
+    if (dataChargeesRef.current === projetActif.id) return; // Déjà chargé !
+    
+    dataChargeesRef.current = projetActif.id;
+    dispatch(loadGestations(projetActif.id));
+    dispatch(loadGestationsEnCours(projetActif.id));
+  }, [dispatch, projetActif?.id]); */
+
+  // ✅ MÉMOÏSER la length pour éviter les boucles infinies
+  const gestationsLength = Array.isArray(gestations) ? gestations.length : 0;
 
   const reproductionData = useMemo(() => {
+    if (!Array.isArray(gestations)) {
+      return {
+        gestationsActives: 0,
+        prochainesMisesBas: 0,
+        prochaineMiseBas: null,
+        progressionMoyenne: 0,
+      };
+    }
+
     const gestationsEnCours = gestations.filter((g) => g.statut === 'en_cours');
     const maintenant = new Date();
 
@@ -65,7 +90,7 @@ export default function ReproductionWidget({ onPress }: ReproductionWidgetProps)
       prochaineMiseBas,
       progressionMoyenne: Math.min(100, Math.max(0, progressionMoyenne)),
     };
-  }, [gestations]);
+  }, [gestationsLength, gestations]);
 
   const WidgetContent = (
     <View style={styles.container}>
@@ -79,13 +104,13 @@ export default function ReproductionWidget({ onPress }: ReproductionWidgetProps)
       <View style={styles.content}>
         <View style={styles.statRow}>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Gestations actives:</Text>
-          <Text style={[styles.statValue, { color: colors.text }]}>{reproductionData.gestationsActives}</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>{reproductionData.gestationsActives ?? 0}</Text>
         </View>
 
         <View style={styles.statRow}>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Mises bas prévues:</Text>
-          <Text style={[styles.statValue, { color: reproductionData.prochainesMisesBas > 0 ? colors.warning : colors.text }]}>
-            {reproductionData.prochainesMisesBas} (dans 7 jours)
+          <Text style={[styles.statValue, { color: (reproductionData.prochainesMisesBas ?? 0) > 0 ? colors.warning : colors.text }]}>
+            {reproductionData.prochainesMisesBas ?? 0} (dans 7 jours)
           </Text>
         </View>
 
@@ -93,10 +118,10 @@ export default function ReproductionWidget({ onPress }: ReproductionWidgetProps)
           <View style={[styles.nextBirthContainer, { backgroundColor: colors.primaryLight + '20' }]}>
             <Text style={[styles.nextBirthLabel, { color: colors.textSecondary }]}>Prochaine:</Text>
             <Text style={[styles.nextBirthValue, { color: colors.primary }]}>
-              {reproductionData.prochaineMiseBas.truie_nom || `Truie ${reproductionData.prochaineMiseBas.truie_id}`}
+              {reproductionData.prochaineMiseBas.truie_nom || (reproductionData.prochaineMiseBas.truie_id ? `Truie ${reproductionData.prochaineMiseBas.truie_id}` : 'Truie N/A')}
             </Text>
             <Text style={[styles.nextBirthDays, { color: colors.textSecondary }]}>
-              dans {reproductionData.prochaineMiseBas.joursRestants} jour{reproductionData.prochaineMiseBas.joursRestants > 1 ? 's' : ''}
+              {`dans ${reproductionData.prochaineMiseBas.joursRestants ?? 0} jour${(reproductionData.prochaineMiseBas.joursRestants ?? 0) > 1 ? 's' : ''}`}
             </Text>
           </View>
         )}
@@ -107,7 +132,7 @@ export default function ReproductionWidget({ onPress }: ReproductionWidgetProps)
               <View
                 style={[
                   styles.progressFill,
-                  { width: `${reproductionData.progressionMoyenne}%`, backgroundColor: colors.primary },
+                  { width: `${Math.round(reproductionData.progressionMoyenne)}%`, backgroundColor: colors.primary },
                 ]}
               />
             </View>
@@ -208,3 +233,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+export default memo(ReproductionWidget);

@@ -3,7 +3,7 @@
  * Affiche le budget, dépenses et progression
  */
 
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { loadChargesFixes, loadDepensesPonctuelles } from '../../store/slices/financeSlice';
@@ -11,29 +11,45 @@ import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constant
 import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
 import { startOfMonth, endOfMonth, parseISO, isWithinInterval } from 'date-fns';
+import { ChargeFixe, DepensePonctuelle } from '../../types';
+import { selectAllChargesFixes, selectAllDepensesPonctuelles } from '../../store/selectors/financeSelectors';
 
 interface FinanceWidgetProps {
   onPress?: () => void;
 }
 
-export default function FinanceWidget({ onPress }: FinanceWidgetProps) {
+function FinanceWidget({ onPress }: FinanceWidgetProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { chargesFixes, depensesPonctuelles } = useAppSelector((state) => state.finance);
+  const chargesFixes: ChargeFixe[] = useAppSelector(selectAllChargesFixes);
+  const depensesPonctuelles: DepensePonctuelle[] = useAppSelector(selectAllDepensesPonctuelles);
 
   const { projetActif } = useAppSelector((state) => state.projet);
 
+  // Utiliser useRef pour éviter les chargements multiples (boucle infinie)
+  const dataChargeesRef = React.useRef<string | null>(null);
+
   useEffect(() => {
-    if (projetActif) {
-      dispatch(loadChargesFixes(projetActif.id));
-      dispatch(loadDepensesPonctuelles(projetActif.id));
+    if (!projetActif) {
+      dataChargeesRef.current = null;
+      return;
     }
+    
+    if (dataChargeesRef.current === projetActif.id) return; // Déjà chargé !
+    
+    dataChargeesRef.current = projetActif.id;
+    dispatch(loadChargesFixes(projetActif.id));
+    dispatch(loadDepensesPonctuelles(projetActif.id));
   }, [dispatch, projetActif?.id]);
+
+  // ✅ MÉMOÏSER les lengths pour éviter les boucles infinies
+  const chargesFixesLength = chargesFixes.length;
+  const depensesPonctuellesLength = depensesPonctuelles.length;
 
   const financeData = useMemo(() => {
     // Calculer le budget mensuel (charges fixes actives)
-    const chargesFixesActives = chargesFixes.filter((cf) => cf.statut === 'actif');
-    const budgetMensuel = chargesFixesActives.reduce((sum, cf) => {
+    const chargesFixesActives = chargesFixes.filter((cf: ChargeFixe) => cf.statut === 'actif');
+    const budgetMensuel = chargesFixesActives.reduce((sum: number, cf: ChargeFixe) => {
       if (cf.frequence === 'mensuel') return sum + cf.montant;
       if (cf.frequence === 'trimestriel') return sum + cf.montant / 3;
       if (cf.frequence === 'annuel') return sum + cf.montant / 12;
@@ -46,11 +62,11 @@ export default function FinanceWidget({ onPress }: FinanceWidgetProps) {
     const finMois = endOfMonth(maintenant);
 
     const depensesDuMois = depensesPonctuelles
-      .filter((dp) => {
+      .filter((dp: DepensePonctuelle) => {
         const dateDepense = parseISO(dp.date);
         return isWithinInterval(dateDepense, { start: debutMois, end: finMois });
       })
-      .reduce((sum, dp) => sum + dp.montant, 0);
+      .reduce((sum: number, dp: DepensePonctuelle) => sum + dp.montant, 0);
 
     const pourcentageUtilise = budgetMensuel > 0 ? (depensesDuMois / budgetMensuel) * 100 : 0;
     const restant = budgetMensuel - depensesDuMois;
@@ -61,14 +77,16 @@ export default function FinanceWidget({ onPress }: FinanceWidgetProps) {
       restant,
       pourcentageUtilise: Math.min(100, Math.max(0, pourcentageUtilise)),
     };
-  }, [chargesFixes, depensesPonctuelles]);
+  }, [chargesFixesLength, depensesPonctuellesLength, chargesFixes, depensesPonctuelles]);
 
-  const formatMontant = (montant: number) => {
+  const formatMontant = (montant: number | undefined) => {
+    const montantSafe = montant ?? 0;
+    // Format compact pour économiser de l'espace
     return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
+      style: 'decimal',
       minimumFractionDigits: 0,
-    }).format(montant);
+      maximumFractionDigits: 0,
+    }).format(montantSafe) + ' F';
   };
 
   const WidgetContent = (
@@ -89,7 +107,7 @@ export default function FinanceWidget({ onPress }: FinanceWidgetProps) {
         <View style={styles.statRow}>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Dépenses:</Text>
           <Text style={[styles.statValue, { color: colors.error }]}>
-            {formatMontant(financeData.depensesDuMois)} ({Math.round(financeData.pourcentageUtilise)}%)
+            {formatMontant(financeData.depensesDuMois)} ({Math.round(financeData.pourcentageUtilise ?? 0)}%)
           </Text>
         </View>
 
@@ -106,7 +124,7 @@ export default function FinanceWidget({ onPress }: FinanceWidgetProps) {
               style={[
                 styles.progressFill,
                 {
-                  width: `${financeData.pourcentageUtilise}%`,
+                  width: `${Math.round(financeData.pourcentageUtilise)}%`,
                   backgroundColor: financeData.pourcentageUtilise > 80 ? colors.error : financeData.pourcentageUtilise > 60 ? colors.warning : colors.primary,
                 },
               ]}
@@ -167,11 +185,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statLabel: {
-    fontSize: FONT_SIZES.md,
+    fontSize: FONT_SIZES.sm,
+    flex: 1,
   },
   statValue: {
-    fontSize: FONT_SIZES.md,
+    fontSize: FONT_SIZES.sm,
     fontWeight: FONT_WEIGHTS.semiBold,
+    flexShrink: 1,
+    textAlign: 'right',
   },
   progressContainer: {
     marginTop: SPACING.md,
@@ -191,3 +212,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+export default memo(FinanceWidget);

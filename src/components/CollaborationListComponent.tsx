@@ -5,6 +5,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import {
   loadCollaborateursParProjet,
@@ -193,7 +194,7 @@ export default function CollaborationListComponent() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.divider, paddingTop: insets.top + SPACING.lg }]}>
+      <View style={[styles.header, { backgroundColor: colors.surface, paddingTop: insets.top + SPACING.lg, ...colors.shadow.medium }]}>
         <Text style={[styles.title, { color: colors.text }]}>Collaboration</Text>
         {isProprietaire && (
           <TouchableOpacity
@@ -204,7 +205,8 @@ export default function CollaborationListComponent() {
               setModalVisible(true);
             }}
           >
-            <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Inviter</Text>
+            <Ionicons name="person-add" size={20} color={colors.textOnPrimary} />
+            <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>Inviter</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -216,19 +218,19 @@ export default function CollaborationListComponent() {
             value={statistiques.actifs}
             label="Actifs"
             valueColor={colors.success}
-            style={{ marginRight: SPACING.sm }}
+            style={{ flex: 1, marginRight: SPACING.sm }}
           />
           <StatCard
             value={statistiques.enAttente}
             label="En attente"
             valueColor={colors.warning}
-            style={{ marginLeft: SPACING.sm }}
+            style={{ flex: 1, marginLeft: SPACING.sm }}
           />
         </View>
       )}
 
       {/* Filtres */}
-      <View style={[styles.filtersContainer, { borderBottomColor: colors.divider }]}>
+      <View style={styles.filtersContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {(['tous', 'actif', 'en_attente', 'inactif'] as const).map((statut) => (
             <TouchableOpacity
@@ -239,6 +241,7 @@ export default function CollaborationListComponent() {
                   backgroundColor: filterStatut === statut ? colors.primary : colors.surface,
                   borderColor: filterStatut === statut ? colors.primary : colors.border,
                 },
+                filterStatut === statut && colors.shadow.small,
               ]}
               onPress={() => setFilterStatut(statut)}
             >
@@ -247,7 +250,7 @@ export default function CollaborationListComponent() {
                   styles.filterButtonText,
                   {
                     color: filterStatut === statut ? colors.textOnPrimary : colors.text,
-                    fontWeight: filterStatut === statut ? '600' : 'normal',
+                    fontWeight: filterStatut === statut ? FONT_WEIGHTS.semiBold : FONT_WEIGHTS.medium,
                   },
                 ]}
               >
@@ -270,11 +273,11 @@ export default function CollaborationListComponent() {
         <FlatList
           data={displayedCollaborateurs}
           renderItem={({ item: collaborateur }) => (
-            <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderLight, ...colors.shadow.medium }]}>
+            <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.medium }]}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderLeft}>
-                  <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-                    <Text style={[styles.avatarText, { color: colors.textOnPrimary }]}>
+                  <View style={[styles.avatar, { backgroundColor: `${colors.primary}15`, borderColor: `${colors.primary}30`, borderWidth: 2 }]}>
+                    <Text style={[styles.avatarText, { color: colors.primary }]}>
                       {collaborateur.prenom.charAt(0).toUpperCase()}
                       {collaborateur.nom.charAt(0).toUpperCase()}
                     </Text>
@@ -289,10 +292,10 @@ export default function CollaborationListComponent() {
                 <View style={styles.cardActions}>
                   {collaborateur.statut === 'en_attente' && isProprietaire && (
                     <TouchableOpacity
-                      style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
+                      style={[styles.actionButton, { backgroundColor: `${colors.success}15` }]}
                       onPress={() => handleAccepterInvitation(collaborateur.id)}
                     >
-                      <Text style={styles.actionButtonText}>✓</Text>
+                      <Ionicons name="checkmark" size={18} color={colors.success} />
                     </TouchableOpacity>
                   )}
                   {isProprietaire && (
@@ -301,13 +304,13 @@ export default function CollaborationListComponent() {
                         style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
                         onPress={() => handleEdit(collaborateur)}
                       >
-                        <Text style={styles.actionButtonText}>✏️</Text>
+                        <Ionicons name="create-outline" size={18} color={colors.text} />
                       </TouchableOpacity>
                       <TouchableOpacity
-                        style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
+                        style={[styles.actionButton, { backgroundColor: `${colors.error}15` }]}
                         onPress={() => handleDelete(collaborateur.id)}
                       >
-                        <Text style={styles.actionButtonText}>🗑️</Text>
+                        <Ionicons name="trash-outline" size={18} color={colors.error} />
                       </TouchableOpacity>
                     </>
                   )}
@@ -318,34 +321,37 @@ export default function CollaborationListComponent() {
                   <View
                     style={[
                       styles.roleBadge,
-                      { backgroundColor: getRoleColor(collaborateur.role) },
+                      { backgroundColor: `${getRoleColor(collaborateur.role)}20`, borderColor: `${getRoleColor(collaborateur.role)}40`, borderWidth: 1 },
                     ]}
                   >
-                    <Text style={[styles.roleBadgeText, { color: colors.textOnPrimary }]}>
+                    <Text style={[styles.roleBadgeText, { color: getRoleColor(collaborateur.role) }]}>
                       {ROLE_LABELS[collaborateur.role as RoleCollaborateur]}
                     </Text>
                   </View>
                   <View
                     style={[
                       styles.statutBadge,
-                      { backgroundColor: getStatutColor(collaborateur.statut) },
+                      { backgroundColor: `${getStatutColor(collaborateur.statut)}20`, borderColor: `${getStatutColor(collaborateur.statut)}40`, borderWidth: 1 },
                     ]}
                   >
-                    <Text style={[styles.statutBadgeText, { color: colors.textOnPrimary }]}>
+                    <Text style={[styles.statutBadgeText, { color: getStatutColor(collaborateur.statut) }]}>
                       {STATUT_LABELS[collaborateur.statut as StatutCollaborateur]}
                     </Text>
                   </View>
                 </View>
                 {collaborateur.telephone && (
-                  <Text style={[styles.telephoneText, { color: colors.textSecondary }]}>📞 {collaborateur.telephone}</Text>
+                  <View style={styles.infoRow}>
+                    <Ionicons name="call-outline" size={16} color={colors.textSecondary} />
+                    <Text style={[styles.infoText, { color: colors.textSecondary }]}>{collaborateur.telephone}</Text>
+                  </View>
                 )}
                 <View style={styles.permissionsContainer}>
-                  <Text style={[styles.permissionsTitle, { color: colors.text }]}>Permissions:</Text>
+                  <Text style={[styles.permissionsTitle, { color: colors.text }]}>Permissions :</Text>
                   <View style={styles.permissionsList}>
                     {Object.entries(collaborateur.permissions).map(([key, value]) =>
                       value ? (
-                        <View key={key} style={[styles.permissionBadge, { backgroundColor: colors.surfaceVariant }]}>
-                          <Text style={[styles.permissionBadgeText, { color: colors.text }]}>
+                        <View key={key} style={[styles.permissionBadge, { backgroundColor: `${colors.primary}10`, borderColor: `${colors.primary}20`, borderWidth: 1 }]}>
+                          <Text style={[styles.permissionBadgeText, { color: colors.primary }]}>
                             {key.charAt(0).toUpperCase() + key.slice(1)}
                           </Text>
                         </View>
@@ -354,7 +360,9 @@ export default function CollaborationListComponent() {
                   </View>
                 </View>
                 {collaborateur.notes && (
-                  <Text style={[styles.notesText, { color: colors.textSecondary }]}>{collaborateur.notes}</Text>
+                  <View style={[styles.notesContainer, { backgroundColor: colors.surfaceVariant, borderColor: colors.border }]}>
+                    <Text style={[styles.notesText, { color: colors.textSecondary }]}>{collaborateur.notes}</Text>
+                  </View>
                 )}
               </View>
             </View>
@@ -401,39 +409,44 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.xl,
-    borderBottomWidth: 1,
+    paddingBottom: SPACING.lg,
   },
   title: {
     fontSize: FONT_SIZES.xxl,
     fontWeight: FONT_WEIGHTS.bold,
   },
   addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
+    borderRadius: BORDER_RADIUS.lg,
     minHeight: 44,
   },
   addButtonText: {
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.semiBold,
+    marginLeft: SPACING.xs,
   },
   statsContainer: {
     flexDirection: 'row',
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
+    gap: SPACING.md,
   },
   filtersContainer: {
-    paddingVertical: SPACING.lg,
+    paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.lg,
-    borderBottomWidth: 1,
   },
   filterButton: {
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    marginRight: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.lg,
+    marginRight: SPACING.sm,
     borderWidth: 1.5,
     minHeight: 40,
+    justifyContent: 'center',
   },
   filterButtonText: {
     fontSize: FONT_SIZES.sm,
@@ -444,12 +457,12 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
-    paddingBottom: SPACING.xxl + 85, // 85px pour la barre de navigation + espace
+    paddingBottom: SPACING.xxl + 85,
   },
   card: {
-    borderRadius: BORDER_RADIUS.lg,
+    borderRadius: BORDER_RADIUS.xl,
     padding: SPACING.lg,
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
     borderWidth: 1,
   },
   cardHeader: {
@@ -464,15 +477,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: SPACING.md,
   },
   avatarText: {
-    fontSize: FONT_SIZES.md,
+    fontSize: FONT_SIZES.lg,
     fontWeight: FONT_WEIGHTS.bold,
   },
   infoContainer: {
@@ -481,7 +494,7 @@ const styles = StyleSheet.create({
   nomText: {
     fontSize: FONT_SIZES.lg,
     fontWeight: FONT_WEIGHTS.bold,
-    marginBottom: SPACING.xs,
+    marginBottom: SPACING.xs / 2,
   },
   emailText: {
     fontSize: FONT_SIZES.sm,
@@ -489,33 +502,29 @@ const styles = StyleSheet.create({
   cardActions: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: SPACING.xs,
   },
   actionButton: {
     padding: SPACING.sm,
-    marginLeft: SPACING.sm,
-    borderRadius: BORDER_RADIUS.sm,
-    minWidth: 40,
-    minHeight: 40,
+    borderRadius: BORDER_RADIUS.md,
+    minWidth: 36,
+    minHeight: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  actionButtonText: {
-    fontSize: FONT_SIZES.md,
-  },
   cardContent: {
-    marginTop: SPACING.sm,
+    marginTop: SPACING.xs,
   },
   badgesContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: SPACING.sm,
+    gap: SPACING.xs,
+    marginBottom: SPACING.md,
   },
   roleBadge: {
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.md,
-    marginRight: SPACING.sm,
-    marginBottom: SPACING.xs,
+    borderRadius: BORDER_RADIUS.lg,
   },
   roleBadgeText: {
     fontSize: FONT_SIZES.xs,
@@ -524,44 +533,53 @@ const styles = StyleSheet.create({
   statutBadge: {
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.md,
-    marginBottom: SPACING.xs,
+    borderRadius: BORDER_RADIUS.lg,
   },
   statutBadgeText: {
     fontSize: FONT_SIZES.xs,
     fontWeight: FONT_WEIGHTS.semiBold,
   },
-  telephoneText: {
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    marginBottom: SPACING.md,
+  },
+  infoText: {
     fontSize: FONT_SIZES.sm,
-    marginBottom: SPACING.sm,
   },
   permissionsContainer: {
-    marginTop: SPACING.sm,
+    marginTop: SPACING.xs,
   },
   permissionsTitle: {
     fontSize: FONT_SIZES.sm,
     fontWeight: FONT_WEIGHTS.semiBold,
-    marginBottom: SPACING.xs,
+    marginBottom: SPACING.sm,
   },
   permissionsList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    gap: SPACING.xs,
   },
   permissionBadge: {
-    paddingHorizontal: SPACING.sm,
+    paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.xs,
-    borderRadius: BORDER_RADIUS.sm,
-    marginRight: SPACING.xs,
-    marginBottom: SPACING.xs,
+    borderRadius: BORDER_RADIUS.md,
   },
   permissionBadgeText: {
     fontSize: FONT_SIZES.xs,
     fontWeight: FONT_WEIGHTS.medium,
   },
+  notesContainer: {
+    marginTop: SPACING.md,
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+  },
   notesText: {
     fontSize: FONT_SIZES.sm,
     fontStyle: 'italic',
-    marginTop: SPACING.sm,
+    lineHeight: FONT_SIZES.sm * 1.4,
   },
 });
 

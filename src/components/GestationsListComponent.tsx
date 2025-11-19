@@ -5,12 +5,14 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { selectAllGestations } from '../store/selectors/reproductionSelectors';
 import {
   loadGestations,
   loadGestationsEnCours,
   deleteGestation,
   updateGestation,
 } from '../store/slices/reproductionSlice';
+import { loadProductionAnimaux } from '../store/slices/productionSlice';
 import { Gestation } from '../types';
 import { doitGenererAlerte, joursRestantsAvantMiseBas } from '../types/reproduction';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
@@ -28,7 +30,8 @@ export default function GestationsListComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
-  const { gestations, loading } = useAppSelector((state) => state.reproduction);
+  const gestations = useAppSelector(selectAllGestations);
+  const { loading } = useAppSelector((state) => state.reproduction);
   const [selectedGestation, setSelectedGestation] = useState<Gestation | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -42,25 +45,51 @@ export default function GestationsListComponent() {
 
   const { projetActif } = useAppSelector((state) => state.projet);
 
+  // ✅ MÉMOÏSER la length pour éviter les boucles infinies
+  const gestationsLength = Array.isArray(gestations) ? gestations.length : 0;
+
+  // Utiliser useRef pour éviter les chargements multiples
+  const gestationsChargeesRef = React.useRef<string | null>(null);
+  
+  // ✅ CORRECTION CRITIQUE: Utiliser useRef pour éviter les mises à jour inutiles (pagination)
+  const lastGestationsLengthRef = React.useRef<number>(gestationsLength);
+  const displayedGestationsLength = displayedGestations.length;
+
   useEffect(() => {
-    if (projetActif?.id) {
-      try {
-        dispatch(loadGestations(projetActif.id));
-        dispatch(loadGestationsEnCours(projetActif.id));
-      } catch (error) {
-        console.error('Erreur lors du chargement des gestations:', error);
-      }
+    if (!projetActif?.id) {
+      gestationsChargeesRef.current = null;
+      return;
+    }
+    
+    if (gestationsChargeesRef.current === projetActif.id) {
+      return; // Déjà chargé !
+    }
+    
+    try {
+      gestationsChargeesRef.current = projetActif.id;
+      dispatch(loadGestations(projetActif.id));
+      dispatch(loadGestationsEnCours(projetActif.id));
+    } catch (error) {
+      console.error('Erreur lors du chargement des gestations:', error);
     }
   }, [dispatch, projetActif?.id]);
+
+  // ✅ MÉMOÏSER gestationsEnCours.length pour éviter les re-calculs inutiles
+  const gestationsEnCoursLength = React.useMemo(() => {
+    if (!projetActif?.id) return 0;
+    if (!Array.isArray(gestations)) return 0;
+    return gestations.filter((g) => g.projet_id === projetActif.id && g.statut === 'en_cours').length;
+  }, [gestationsLength, projetActif?.id]);
 
   const gestationsEnCours = useMemo(
     () => {
       if (!projetActif?.id) return [];
+      if (!Array.isArray(gestations)) return [];
       return gestations.filter(
         (g) => g.projet_id === projetActif.id && g.statut === 'en_cours'
       );
     },
-    [gestations, projetActif?.id]
+    [gestationsLength, gestations, projetActif?.id]  // ✅ GARDER gestations (utilisé dans le corps)
   );
 
   const alertes = useMemo(() => {
@@ -73,30 +102,47 @@ export default function GestationsListComponent() {
         return false;
       }
     });
-  }, [gestationsEnCours]);
+  }, [gestationsEnCoursLength, gestationsEnCours]);  // ✅ GARDER gestationsEnCours (utilisé dans le corps)
 
-  // Pagination: charger les premières gestations
+  // ✅ CORRECTION CRITIQUE: Ne mettre à jour que si gestationsLength a vraiment changé
   useEffect(() => {
     if (!projetActif?.id) {
-      setDisplayedGestations([]);
+      if (displayedGestations.length > 0) {
+        setDisplayedGestations([]);
+        lastGestationsLengthRef.current = 0;
+      }
       return;
     }
     
-    // Filtrer les gestations du projet actif
-    const gestationsProjet = gestations.filter((g) => g.projet_id === projetActif.id);
-    const initial = gestationsProjet.slice(0, ITEMS_PER_PAGE);
-    setDisplayedGestations(initial);
-    setPage(1);
-  }, [gestations, projetActif?.id]);
+    if (!Array.isArray(gestations)) {
+      if (displayedGestations.length > 0) {
+        setDisplayedGestations([]);
+        lastGestationsLengthRef.current = 0;
+      }
+      return;
+    }
+    
+    // ✅ NE METTRE À JOUR QUE SI LA LENGTH A CHANGÉ (évite la boucle infinie)
+    if (lastGestationsLengthRef.current !== gestationsLength) {
+      lastGestationsLengthRef.current = gestationsLength;
+      
+      // Filtrer les gestations du projet actif
+      const gestationsProjet = gestations.filter((g) => g.projet_id === projetActif.id);
+      const initial = gestationsProjet.slice(0, ITEMS_PER_PAGE);
+      setDisplayedGestations(initial);
+      setPage(1);
+    }
+  }, [gestationsLength, gestations, projetActif?.id]);  // ✅ Besoin de gestations pour le filtrage
 
-  // Charger plus de gestations
+  // ✅ CORRECTION CRITIQUE: Utiliser displayedGestationsLength au lieu de displayedGestations.length
   const loadMore = useCallback(() => {
     if (!projetActif?.id) return;
+    if (!Array.isArray(gestations)) return;
     
     // Filtrer les gestations du projet actif
     const gestationsProjet = gestations.filter((g) => g.projet_id === projetActif.id);
     
-    if (displayedGestations.length >= gestationsProjet.length) {
+    if (displayedGestationsLength >= gestationsProjet.length) {
       return;
     }
 
@@ -109,7 +155,7 @@ export default function GestationsListComponent() {
       setDisplayedGestations((prev) => [...prev, ...newItems]);
       setPage(nextPage);
     }
-  }, [page, displayedGestations.length, gestations, projetActif?.id]);
+  }, [page, displayedGestationsLength, gestationsLength, projetActif?.id]);  // ✅ Utiliser gestationsLength au lieu de gestations
 
   const handleEdit = (gestation: Gestation) => {
     if (!canUpdate('reproduction')) {
@@ -175,7 +221,16 @@ export default function GestationsListComponent() {
       if (projetActif) {
         dispatch(loadGestations(projetActif.id));
         dispatch(loadGestationsEnCours(projetActif.id));
+        // Recharger les animaux pour afficher les porcelets créés automatiquement
+        dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
       }
+
+      // Message de confirmation avec information sur la création automatique des porcelets
+      Alert.alert(
+        '✅ Gestation terminée',
+        `La mise bas a été enregistrée avec succès.\n\n🐷 ${nombreReel} porcelet${nombreReel > 1 ? 's ont' : ' a'} été ${nombreReel > 1 ? 'créés' : 'créé'} automatiquement dans votre cheptel.\n\nVous pouvez les retrouver dans l'onglet "Cheptel" de la section Production.`,
+        [{ text: 'OK' }]
+      );
     } catch (error: any) {
       Alert.alert('Erreur', error?.message || 'Une erreur est survenue lors de la mise à jour');
     }
@@ -273,7 +328,7 @@ export default function GestationsListComponent() {
         />
         <StatCard
           value={
-            projetActif?.id
+            projetActif?.id && Array.isArray(gestations)
               ? gestations.filter((g) => g.projet_id === projetActif.id && g.statut === 'terminee').length
               : 0
           }
@@ -309,7 +364,7 @@ export default function GestationsListComponent() {
         </View>
       )}
 
-      {(!projetActif?.id || gestations.filter((g) => g.projet_id === projetActif.id).length === 0) ? (
+      {(!projetActif?.id || !Array.isArray(gestations) || gestations.filter((g) => g.projet_id === projetActif.id).length === 0) ? (
         <EmptyState
           title="Aucune gestation enregistrée"
           message="Ajoutez votre première gestation pour commencer"
@@ -443,7 +498,7 @@ export default function GestationsListComponent() {
           initialNumToRender={10}
           updateCellsBatchingPeriod={50}
           ListFooterComponent={
-            displayedGestations.length < gestations.length ? (
+            Array.isArray(gestations) && displayedGestations.length < gestations.length ? (
               <LoadingSpinner message="Chargement..." />
             ) : null
           }

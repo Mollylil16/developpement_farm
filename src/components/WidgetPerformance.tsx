@@ -7,6 +7,9 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppSelector } from '../store/hooks';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { denormalize } from 'normalizr';
+import { gestationsSchema } from '../store/normalization/schemas';
+import { Gestation } from '../types';
 
 interface WidgetPerformanceProps {
   onPress?: () => void;
@@ -16,7 +19,11 @@ export default function WidgetPerformance({ onPress }: WidgetPerformanceProps) {
   const { colors } = useTheme();
   const { indicateursPerformance } = useAppSelector((state) => state.reports);
   const { projetActif } = useAppSelector((state) => state.projet);
-  const { gestations } = useAppSelector((state) => state.reproduction);
+  const gestations: Gestation[] = useAppSelector((state) => {
+    const { entities, ids } = state.reproduction;
+    const result = denormalize(ids.gestations, gestationsSchema, { gestations: entities.gestations });
+    return Array.isArray(result) ? result : [];
+  });
 
   // Calculer la performance globale à partir des indicateurs
   const performanceGlobale = useMemo(() => {
@@ -40,7 +47,7 @@ export default function WidgetPerformance({ onPress }: WidgetPerformanceProps) {
   const tendance = useMemo(() => {
     if (!gestations || gestations.length === 0) return { icon: '→', color: colors.textSecondary };
     
-    const gestationsTerminees = gestations.filter((g) => g.statut === 'terminee');
+    const gestationsTerminees = gestations.filter((g: Gestation) => g.statut === 'terminee');
     if (gestationsTerminees.length === 0) return { icon: '→', color: colors.textSecondary };
 
     // Comparer les dernières gestations avec les précédentes
@@ -49,11 +56,11 @@ export default function WidgetPerformance({ onPress }: WidgetPerformanceProps) {
 
     if (precedentes.length === 0) return { icon: '→', color: colors.textSecondary };
 
-    const moyenneRecentes = recentes.reduce((sum, g) => 
+    const moyenneRecentes = recentes.reduce((sum: number, g: Gestation) => 
       sum + (g.nombre_porcelets_reel || g.nombre_porcelets_prevu || 0), 0
     ) / recentes.length;
 
-    const moyennePrecedentes = precedentes.reduce((sum, g) => 
+    const moyennePrecedentes = precedentes.reduce((sum: number, g: Gestation) => 
       sum + (g.nombre_porcelets_reel || g.nombre_porcelets_prevu || 0), 0
     ) / precedentes.length;
 

@@ -4,6 +4,7 @@
  */
 
 import * as Notifications from 'expo-notifications';
+import { NotificationAction, NotificationType, GESTATION_ALERT_DAYS, TASK_REMINDER_HOURS } from '../constants/notifications';
 
 export interface NotificationConfig {
   title: string;
@@ -120,9 +121,9 @@ export async function scheduleGestationAlert(
       title: '🐷 Mise bas proche !',
       body: `La truie ${truieNom} devrait mettre bas dans ${daysUntil} jour${daysUntil > 1 ? 's' : ''}`,
       data: {
-        type: 'gestation',
+        type: NotificationType.GESTATION,
         gestationId,
-        action: 'open_gestation',
+        action: NotificationAction.OPEN_GESTATION,
       },
       priority: daysUntil <= 3 ? 'high' : 'default',
     });
@@ -142,7 +143,7 @@ export async function scheduleGestationAlerts(gestations: any[]): Promise<void> 
     // Annuler les anciennes notifications de gestations
     const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
     const gestationNotifications = allNotifications.filter(
-      (n: any) => n.content?.data?.type === 'gestation'
+      (n: any) => n.content?.data?.type === NotificationType.GESTATION
     );
     
     for (const notification of gestationNotifications) {
@@ -160,8 +161,8 @@ export async function scheduleGestationAlerts(gestations: any[]): Promise<void> 
         (dateMiseBas.getTime() - maintenant.getTime()) / (1000 * 60 * 60 * 24)
       );
 
-      // Planifier pour les gestations dans les 7 prochains jours
-      if (daysUntil > 0 && daysUntil <= 7) {
+      // Planifier pour les gestations dans les X prochains jours (configurable)
+      if (daysUntil > 0 && daysUntil <= GESTATION_ALERT_DAYS) {
         await scheduleGestationAlert(
           gestation.id,
           gestation.truie_nom || 'truie',
@@ -185,6 +186,18 @@ export async function scheduleStockAlert(
   seuil: number
 ): Promise<string | null> {
   try {
+    // Ne planifier qu'une seule fois par stock pour éviter les doublons
+    // Vérifier si une notification existe déjà pour ce stock
+    const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
+    const existingNotification = allNotifications.find(
+      (n: any) => n.content?.data?.type === NotificationType.STOCK && n.content?.data?.stockId === stockId
+    );
+
+    // Si une notification existe déjà, ne pas en créer une nouvelle
+    if (existingNotification) {
+      return existingNotification.identifier;
+    }
+
     // Planifier une notification immédiate pour les stocks critiques
     const notificationDate = new Date();
     notificationDate.setMinutes(notificationDate.getMinutes() + 1); // Dans 1 minute
@@ -193,9 +206,9 @@ export async function scheduleStockAlert(
       title: '⚠️ Stock faible !',
       body: `Le stock de ${stockNom} est faible : ${quantite} (seuil: ${seuil})`,
       data: {
-        type: 'stock',
+        type: NotificationType.STOCK,
         stockId,
-        action: 'open_stocks',
+        action: NotificationAction.OPEN_STOCKS,
       },
       priority: 'high',
     });
@@ -204,6 +217,45 @@ export async function scheduleStockAlert(
   } catch (error: any) {
     console.error('Erreur lors de la planification de l\'alerte de stock:', error);
     return null;
+  }
+}
+
+/**
+ * Planifie des notifications pour tous les stocks en alerte
+ */
+export async function scheduleStockAlerts(stocks: any[]): Promise<void> {
+  try {
+    // Annuler les notifications pour les stocks qui ne sont plus en alerte
+    const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
+    const stockNotifications = allNotifications.filter(
+      (n: any) => n.content?.data?.type === NotificationType.STOCK
+    );
+
+    const stocksEnAlerteIds = new Set(
+      stocks.filter((s) => s.alerte_active).map((s) => s.id)
+    );
+
+    // Annuler les notifications pour les stocks qui ne sont plus en alerte
+    for (const notification of stockNotifications) {
+      const stockId = notification.content?.data?.stockId;
+      if (stockId && !stocksEnAlerteIds.has(stockId)) {
+        await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+      }
+    }
+
+    // Planifier les notifications pour les nouveaux stocks en alerte
+    for (const stock of stocks) {
+      if (stock.alerte_active && stock.seuil_alerte !== undefined && stock.seuil_alerte !== null) {
+        await scheduleStockAlert(
+          stock.id,
+          stock.nom,
+          stock.quantite_actuelle,
+          stock.seuil_alerte
+        );
+      }
+    }
+  } catch (error: any) {
+    console.error('Erreur lors de la planification des alertes de stocks:', error);
   }
 }
 
@@ -230,9 +282,9 @@ export async function scheduleTaskReminder(
       title: '📅 Rappel de tâche',
       body: `La tâche "${taskTitle}" est prévue pour ${reminderHours}h`,
       data: {
-        type: 'task',
+        type: NotificationType.TASK,
         taskId,
-        action: 'open_planification',
+        action: NotificationAction.OPEN_PLANIFICATION,
       },
       priority: 'default',
     });
@@ -252,7 +304,7 @@ export async function scheduleTaskReminders(tasks: any[]): Promise<void> {
     // Annuler les anciennes notifications de tâches
     const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
     const taskNotifications = allNotifications.filter(
-      (n: any) => n.content?.data?.type === 'task'
+      (n: any) => n.content?.data?.type === NotificationType.TASK
     );
     
     for (const notification of taskNotifications) {
@@ -270,12 +322,12 @@ export async function scheduleTaskReminders(tasks: any[]): Promise<void> {
       // Ne planifier que pour les tâches futures
       if (dueDate <= maintenant) continue;
 
-      // Planifier un rappel 24h avant
-      await scheduleTaskReminder(task.id, task.titre, dueDate, 24);
+      // Planifier un rappel par défaut (24h avant)
+      await scheduleTaskReminder(task.id, task.titre, dueDate, TASK_REMINDER_HOURS.DEFAULT);
       
-      // Planifier un rappel 1h avant si la tâche est importante
+      // Planifier un rappel urgent (1h avant) si la tâche est importante
       if (task.priorite === 'haute' || task.type === 'urgent') {
-        await scheduleTaskReminder(task.id, task.titre, dueDate, 1);
+        await scheduleTaskReminder(task.id, task.titre, dueDate, TASK_REMINDER_HOURS.URGENT);
       }
     }
   } catch (error: any) {
@@ -292,6 +344,58 @@ export async function getAllScheduledNotifications(): Promise<any[]> {
   } catch (error: any) {
     console.error('Erreur lors de la récupération des notifications:', error);
     return [];
+  }
+}
+
+/**
+ * Nettoie les notifications obsolètes (gestations terminées, tâches complétées, etc.)
+ */
+export async function cleanupObsoleteNotifications(
+  gestations: any[],
+  tasks: any[]
+): Promise<void> {
+  try {
+    const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
+    const maintenant = new Date();
+
+    for (const notification of allNotifications) {
+      const data = notification.content?.data;
+      if (!data) continue;
+
+      // Nettoyer les notifications de gestations terminées ou passées
+      if (data.type === NotificationType.GESTATION) {
+        const gestation = gestations.find((g) => g.id === data.gestationId);
+        if (!gestation || gestation.statut !== 'en_cours') {
+          await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+          continue;
+        }
+
+        // Vérifier si la date de mise bas est passée
+        const dateMiseBas = new Date(gestation.date_mise_bas_prevue);
+        if (dateMiseBas < maintenant) {
+          await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+        }
+      }
+
+      // Nettoyer les notifications de tâches complétées ou passées
+      if (data.type === NotificationType.TASK) {
+        const task = tasks.find((t) => t.id === data.taskId);
+        if (!task || task.statut !== 'a_faire') {
+          await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+          continue;
+        }
+
+        // Vérifier si la date d'échéance est passée
+        if (task.date_echeance) {
+          const dueDate = new Date(task.date_echeance);
+          if (dueDate < maintenant) {
+            await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+          }
+        }
+      }
+    }
+  } catch (error: any) {
+    console.error('Erreur lors du nettoyage des notifications obsolètes:', error);
   }
 }
 

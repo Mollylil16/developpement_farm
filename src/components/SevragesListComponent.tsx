@@ -21,7 +21,9 @@ export default function SevragesListComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canDelete } = useActionPermissions();
-  const { sevrages, gestations } = useAppSelector((state) => state.reproduction);
+  const { sevrages = [], gestations = [] } = useAppSelector(
+    (state) => state.reproduction || { sevrages: [], gestations: [] }
+  );
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedGestation, setSelectedGestation] = useState<Gestation | null>(null);
@@ -38,20 +40,37 @@ export default function SevragesListComponent() {
 
   const { projetActif } = useAppSelector((state) => state.projet);
 
+  // ✅ MÉMOÏSER les lengths pour éviter les boucles infinies
+  const gestationsLength = Array.isArray(gestations) ? gestations.length : 0;
+  const sevragesLength = Array.isArray(sevrages) ? sevrages.length : 0;
+
+  // Utiliser useRef pour éviter les chargements multiples (boucle infinie)
+  const sevragesChargesRef = React.useRef<string | null>(null);
+  
+  // ✅ CORRECTION CRITIQUE: Utiliser useRef pour éviter les mises à jour inutiles
+  const lastSevragesLengthRef = React.useRef<number>(sevragesLength);
+  const displayedSevragesLength = displayedSevrages.length;
+
   useEffect(() => {
-    if (projetActif?.id) {
-      try {
-        dispatch(loadSevrages(projetActif.id));
-      } catch (error) {
-        console.error('Erreur lors du chargement des sevrages:', error);
-      }
+    if (!projetActif?.id) {
+      sevragesChargesRef.current = null;
+      return;
+    }
+    
+    if (sevragesChargesRef.current === projetActif.id) return; // Déjà chargé !
+    
+    try {
+      sevragesChargesRef.current = projetActif.id;
+      dispatch(loadSevrages(projetActif.id));
+    } catch (error) {
+      console.error('Erreur lors du chargement des sevrages:', error);
     }
   }, [dispatch, projetActif?.id]);
 
   const gestationsTerminees = useMemo(() => {
     if (!projetActif?.id) return [];
     return gestations.filter((g) => g.projet_id === projetActif.id && g.statut === 'terminee');
-  }, [gestations, projetActif?.id]);
+  }, [gestationsLength, gestations, projetActif?.id]);  // ✅ Ajout de gestationsLength
 
   // Fonction pour calculer la date prévisionnelle de sevrage (28 jours après la mise bas)
   const calculerDateSevragePrevue = (dateMiseBas: string | undefined): string | null => {
@@ -179,30 +198,38 @@ export default function SevragesListComponent() {
         return false;
       }
     });
-  }, [sevrages, projetActif?.id, currentMonth, currentYear]);
+  }, [sevragesLength, sevrages, projetActif?.id, currentMonth, currentYear]);  // ✅ Ajout de sevragesLength
 
-  // Pagination: charger les premiers sevrages
+  // ✅ CORRECTION CRITIQUE: Ne mettre à jour que si sevragesLength a vraiment changé
   useEffect(() => {
     if (!projetActif?.id) {
-      setDisplayedSevrages([]);
+      if (displayedSevrages.length > 0) {
+        setDisplayedSevrages([]);
+        lastSevragesLengthRef.current = 0;
+      }
       return;
     }
     
-    // Filtrer les sevrages du projet actif
-    const sevragesProjet = sevrages.filter((s) => s.projet_id === projetActif.id);
-    const initial = sevragesProjet.slice(0, ITEMS_PER_PAGE);
-    setDisplayedSevrages(initial);
-    setPage(1);
-  }, [sevrages, projetActif?.id]);
+    // ✅ NE METTRE À JOUR QUE SI LA LENGTH A CHANGÉ (évite la boucle infinie)
+    if (lastSevragesLengthRef.current !== sevragesLength) {
+      lastSevragesLengthRef.current = sevragesLength;
+      
+      // Filtrer les sevrages du projet actif
+      const sevragesProjet = sevrages.filter((s) => s.projet_id === projetActif.id);
+      const initial = sevragesProjet.slice(0, ITEMS_PER_PAGE);
+      setDisplayedSevrages(initial);
+      setPage(1);
+    }
+  }, [sevragesLength, sevrages, projetActif?.id]);  // ✅ Besoin de sevrages pour le filtrage
 
-  // Charger plus de sevrages
+  // ✅ CORRECTION CRITIQUE: Utiliser displayedSevragesLength au lieu de displayedSevrages.length
   const loadMore = useCallback(() => {
     if (!projetActif?.id) return;
     
     // Filtrer les sevrages du projet actif
     const sevragesProjet = sevrages.filter((s) => s.projet_id === projetActif.id);
     
-    if (displayedSevrages.length >= sevragesProjet.length) {
+    if (displayedSevragesLength >= sevragesProjet.length) {
       return;
     }
 
@@ -215,12 +242,12 @@ export default function SevragesListComponent() {
       setDisplayedSevrages((prev) => [...prev, ...newItems]);
       setPage(nextPage);
     }
-  }, [page, displayedSevrages.length, sevrages, projetActif?.id]);
+  }, [page, displayedSevragesLength, sevragesLength, projetActif?.id]);  // ✅ Utiliser sevragesLength au lieu de sevrages
 
   const sevragesProjet = useMemo(() => {
     if (!projetActif?.id) return [];
     return sevrages.filter((s) => s.projet_id === projetActif.id);
-  }, [sevrages, projetActif?.id]);
+  }, [sevragesLength, sevrages, projetActif?.id]);  // ✅ Ajout de sevragesLength
 
   if (loading) {
     return <LoadingSpinner message="Chargement des sevrages..." />;

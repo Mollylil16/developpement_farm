@@ -11,6 +11,8 @@ export interface Projet {
   nombre_porcelets: number;
   poids_moyen_actuel: number;
   age_moyen_actuel: number;
+  prix_kg_vif?: number;
+  prix_kg_carcasse?: number;
   notes?: string;
   statut: 'actif' | 'archive' | 'suspendu';
   proprietaire_id: string;
@@ -28,6 +30,8 @@ export interface CreateProjetInput {
   nombre_porcelets: number;
   poids_moyen_actuel: number;
   age_moyen_actuel: number;
+  prix_kg_vif?: number;
+  prix_kg_carcasse?: number;
   notes?: string;
 }
 

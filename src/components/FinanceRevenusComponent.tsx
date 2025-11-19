@@ -2,10 +2,13 @@
  * Composant liste des revenus
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, ScrollView, TouchableOpacity, Alert, Image } from 'react-native';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import * as Haptics from 'expo-haptics';
+import { View, Text, StyleSheet, FlatList, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { Image } from 'expo-image';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadRevenus, deleteRevenu } from '../store/slices/financeSlice';
+import { selectAllRevenus } from '../store/selectors/financeSelectors';
 import { Revenu } from '../types';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -18,7 +21,8 @@ export default function FinanceRevenusComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
-  const { revenus, loading } = useAppSelector((state) => state.finance);
+  const revenus = useAppSelector(selectAllRevenus);
+  const loading = useAppSelector((state) => state.finance.loading);
   const [selectedRevenu, setSelectedRevenu] = useState<Revenu | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -60,21 +64,23 @@ export default function FinanceRevenusComponent() {
     }
   }, [page, displayedDepenses.length, revenus]);
 
-  const handleEdit = (revenu: Revenu) => {
+  const handleEdit = useCallback((revenu: Revenu) => {
     if (!canUpdate('finance')) {
       Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les revenus.');
       return;
     }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedRevenu(revenu);
     setIsEditing(true);
     setModalVisible(true);
-  };
+  }, [canUpdate]);
 
-  const handleDelete = (id: string) => {
+  const handleDelete = useCallback((id: string) => {
     if (!canDelete('finance')) {
       Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de supprimer les revenus.');
       return;
     }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       'Supprimer le revenu',
       'Êtes-vous sûr de vouloir supprimer ce revenu ?',
@@ -87,25 +93,26 @@ export default function FinanceRevenusComponent() {
         },
       ]
     );
-  };
+  }, [canDelete, dispatch]);
 
-  const handleViewPhotos = (photos: string[]) => {
+  const handleViewPhotos = useCallback((photos: string[]) => {
     setViewingPhotos(photos);
     setPhotoModalVisible(true);
-  };
+  }, []);
 
-  const handleCloseModal = () => {
+  const handleCloseModal = useCallback(() => {
     setModalVisible(false);
     setSelectedRevenu(null);
     setIsEditing(false);
-  };
+  }, []);
 
-  const handleSuccess = () => {
+  const handleSuccess = useCallback(() => {
     handleCloseModal();
     if (projetActif) {
       dispatch(loadRevenus(projetActif.id));
     }
-  };
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [handleCloseModal, projetActif?.id, dispatch]);
 
   const getCategoryLabel = (categorie: string): string => {
     const labels: Record<string, string> = {
@@ -153,8 +160,13 @@ export default function FinanceRevenusComponent() {
         <Text style={[styles.title, { color: colors.text }]}>Revenus</Text>
         {canCreate('finance') && (
           <TouchableOpacity
-            style={[styles.addButton, { backgroundColor: colors.primary }]}
+            accessible={true}
+            accessibilityLabel="Ajouter un revenu"
+            accessibilityRole="button"
+            accessibilityHint="Ouvre le formulaire pour ajouter un nouveau revenu"
+            style={[styles.addButton, { backgroundColor: colors.primary, minHeight: 44, minWidth: 44 }]}
             onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setSelectedRevenu(null);
               setIsEditing(false);
               setModalVisible(true);
@@ -184,8 +196,12 @@ export default function FinanceRevenusComponent() {
           action={
             canCreate('finance') ? (
               <TouchableOpacity
-                style={[styles.addButton, { backgroundColor: colors.primary }]}
+                accessible={true}
+                accessibilityLabel="Ajouter un revenu"
+                accessibilityRole="button"
+                style={[styles.addButton, { backgroundColor: colors.primary, minHeight: 44, minWidth: 44 }]}
                 onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setSelectedRevenu(null);
                   setIsEditing(false);
                   setModalVisible(true);
@@ -209,15 +225,24 @@ export default function FinanceRevenusComponent() {
                 <View style={styles.cardActions}>
                   {revenu.photos && revenu.photos.length > 0 && (
                     <TouchableOpacity
-                      style={styles.actionButton}
-                      onPress={() => handleViewPhotos(revenu.photos!)}
+                      accessible={true}
+                      accessibilityLabel="Voir les photos de la facture"
+                      accessibilityRole="button"
+                      style={[styles.actionButton, { minHeight: 44, minWidth: 44 }]}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        handleViewPhotos(revenu.photos!);
+                      }}
                     >
                       <Text style={styles.actionButtonText}>📷</Text>
                     </TouchableOpacity>
                   )}
                   {canUpdate('finance') && (
                     <TouchableOpacity
-                      style={styles.actionButton}
+                      accessible={true}
+                      accessibilityLabel="Modifier ce revenu"
+                      accessibilityRole="button"
+                      style={[styles.actionButton, { minHeight: 44, minWidth: 44 }]}
                       onPress={() => handleEdit(revenu)}
                     >
                       <Text style={styles.actionButtonText}>✏️</Text>
@@ -225,7 +250,10 @@ export default function FinanceRevenusComponent() {
                   )}
                   {canDelete('finance') && (
                     <TouchableOpacity
-                      style={styles.actionButton}
+                      accessible={true}
+                      accessibilityLabel="Supprimer ce revenu"
+                      accessibilityRole="button"
+                      style={[styles.actionButton, { minHeight: 44, minWidth: 44 }]}
                       onPress={() => handleDelete(revenu.id)}
                     >
                       <Text style={styles.actionButtonText}>🗑️</Text>
@@ -309,7 +337,9 @@ export default function FinanceRevenusComponent() {
                   key={index}
                   source={{ uri: photo }}
                   style={styles.photoImage}
-                  resizeMode="contain"
+                  contentFit="contain"
+                  transition={200}
+                  cachePolicy="memory-disk"
                 />
               ))}
             </ScrollView>
@@ -477,6 +507,43 @@ const styles = StyleSheet.create({
   photoImage: {
     width: 300,
     height: 400,
+  },
+  previsionnelsContainer: {
+    padding: SPACING.md,
+    paddingBottom: SPACING.sm,
+  },
+  previsionnelsTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: 'bold',
+    marginBottom: SPACING.md,
+  },
+  previsionnelCard: {
+    marginBottom: SPACING.md,
+    padding: SPACING.md,
+  },
+  previsionnelHeader: {
+    marginBottom: SPACING.sm,
+  },
+  previsionnelLabel: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+  },
+  previsionnelContent: {
+    marginTop: SPACING.sm,
+  },
+  previsionnelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.xs,
+  },
+  previsionnelText: {
+    fontSize: FONT_SIZES.sm,
+    flex: 1,
+  },
+  previsionnelValue: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '500',
   },
 });
 

@@ -1,8 +1,7 @@
-import { registerRootComponent } from 'expo';
+// Polyfill pour Buffer (requis par react-native-svg)
+import { Buffer } from 'buffer';
+global.Buffer = Buffer;
 
-import App from './App';
-
-// registerRootComponent calls AppRegistry.registerComponent('main', () => App);
-// It also ensures that whether you load the app in Expo Go or in a native build,
-// the environment is set up appropriately
-registerRootComponent(App);
+// L'enregistrement de l'application est maintenant fait directement dans App.tsx
+// Ce fichier est conservé pour la compatibilité avec package.json qui pointe vers index.ts
+import './App';

@@ -8,7 +8,7 @@ import { createMaterialTopTabNavigator } from '@react-navigation/material-top-ta
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ParametresProjetComponent from '../components/ParametresProjetComponent';
 import ParametresAppComponent from '../components/ParametresAppComponent';
-import ExportImportComponent from '../components/ExportImportComponent';
+import TrainingScreen from './TrainingScreen';
 import { FONT_SIZES, SPACING, ANIMATIONS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -97,10 +97,10 @@ export default function ParametresScreen() {
           }}
         />
         <Tab.Screen
-          name="ExportImport"
-          component={ExportImportComponent}
+          name="Formation"
+          component={TrainingScreen}
           options={{
-            title: 'Export/Import',
+            title: 'Formation',
           }}
         />
       </Tab.Navigator>

@@ -44,14 +44,14 @@ export default function GlobalSearchComponent({
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
 
   // Récupérer toutes les données depuis Redux
-  const { animaux, peseesRecents } = useAppSelector((state) => state.production);
-  const { gestations, sevrages } = useAppSelector((state) => state.reproduction);
-  const { stocks } = useAppSelector((state) => state.stocks);
-  const { ingredients, rations } = useAppSelector((state) => state.nutrition);
-  const { depensesPonctuelles, chargesFixes } = useAppSelector((state) => state.finance);
-  const { planifications } = useAppSelector((state) => state.planification);
-  const { collaborateurs } = useAppSelector((state) => state.collaboration);
-  const { mortalites } = useAppSelector((state) => state.mortalites);
+  const { animaux = [], peseesRecents = [] } = useAppSelector((state) => state.production || {});
+  const { gestations = [], sevrages = [] } = useAppSelector((state) => state.reproduction || {});
+  const { stocks = [] } = useAppSelector((state) => state.stocks || {});
+  const { ingredients = [], rations = [] } = useAppSelector((state) => state.nutrition || {});
+  const { depensesPonctuelles = [], chargesFixes = [] } = useAppSelector((state) => state.finance || {});
+  const { planifications = [] } = useAppSelector((state) => state.planification || {});
+  const { collaborateurs = [] } = useAppSelector((state) => state.collaboration || {});
+  const { mortalites = [] } = useAppSelector((state) => state.mortalites || {});
 
   // Charger l'historique de recherche
   useEffect(() => {

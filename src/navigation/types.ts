@@ -10,6 +10,7 @@ export const SCREENS = {
   REPRODUCTION: 'Reproduction',
   NUTRITION: 'Nutrition',
   PRODUCTION: 'Production',
+  SANTE: 'Sante',
   FINANCE: 'Finance',
   REPORTS: 'Reports',
   PLANIFICATION: 'Planification',

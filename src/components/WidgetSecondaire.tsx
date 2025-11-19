@@ -24,6 +24,11 @@ export default function WidgetSecondaire({
 }: WidgetSecondaireProps) {
   const { colors } = useTheme();
   
+  // Sécuriser la valeur pour éviter l'erreur "Text strings must be rendered within a <Text> component"
+  const safeValue = value !== undefined && value !== null ? value : 0;
+  const safeIcon = icon || '📊';
+  const safeTitle = title || 'Widget';
+  
   return (
     <TouchableOpacity 
       style={[
@@ -37,9 +42,9 @@ export default function WidgetSecondaire({
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <Text style={styles.icon}>{icon}</Text>
-      <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>{title}</Text>
-      <Text style={[styles.value, { color: colors.primary }]}>{value}</Text>
+      <Text style={styles.icon}>{safeIcon}</Text>
+      <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>{safeTitle}</Text>
+      <Text style={[styles.value, { color: colors.primary }]}>{safeValue}</Text>
       {subtitle && (
         <Text style={[styles.subtitle, { color: colors.textSecondary }]} numberOfLines={1}>{subtitle}</Text>
       )}

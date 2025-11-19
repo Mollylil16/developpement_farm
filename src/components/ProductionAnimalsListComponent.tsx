@@ -10,13 +10,24 @@ import {
   FlatList,
   TouchableOpacity,
   Alert,
+  Image,
+  TextInput,
+  Dimensions,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
+import {
+  selectAllAnimaux,
+  selectPeseesParAnimal,
+  selectPeseesRecents,
+  selectProductionLoading,
+} from '../store/selectors/productionSelectors';
 import {
   loadProductionAnimaux,
   deleteProductionAnimal,
   loadPeseesParAnimal,
   loadPeseesRecents,
+  deletePesee,
 } from '../store/slices/productionSlice';
 import { ProductionAnimal, ProductionPesee } from '../types';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
@@ -26,26 +37,32 @@ import EmptyState from './EmptyState';
 import Button from './Button';
 import ProductionAnimalFormModal from './ProductionAnimalFormModal';
 import ProductionPeseeFormModal from './ProductionPeseeFormModal';
-import { format } from 'date-fns';
+import WeightEvolutionChart from './WeightEvolutionChart';
+import { format, startOfDay, subDays, eachDayOfInterval, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useFocusEffect } from '@react-navigation/native';
 import { useActionPermissions } from '../hooks/useActionPermissions';
+import { LineChart } from 'react-native-chart-kit';
 
 export default function ProductionAnimalsListComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const { projetActif } = useAppSelector((state) => state.projet);
-  const { animaux, peseesParAnimal, peseesRecents, loading } = useAppSelector(
-    (state) => state.production
-  );
+  const animaux = useAppSelector(selectAllAnimaux);
+  const peseesParAnimal = useAppSelector(selectPeseesParAnimal);
+  const peseesRecents = useAppSelector(selectPeseesRecents);
+  const loading = useAppSelector(selectProductionLoading);
 
   const [showAnimalModal, setShowAnimalModal] = useState(false);
   const [showPeseeModal, setShowPeseeModal] = useState(false);
   const [selectedAnimal, setSelectedAnimal] = useState<ProductionAnimal | null>(null);
+  const [selectedPesee, setSelectedPesee] = useState<ProductionPesee | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [isEditingPesee, setIsEditingPesee] = useState(false);
   const [displayedAnimals, setDisplayedAnimals] = useState<typeof animauxAvecStats>([]);
   const [page, setPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
   const ITEMS_PER_PAGE = 50;
 
   // Utiliser useRef pour tracker les chargements et éviter les boucles
@@ -75,8 +92,8 @@ export default function ProductionAnimalsListComponent() {
   }, [dispatch, selectedAnimal]);
 
   const animauxAvecStats = useMemo(() => {
-    // Filtrer uniquement les animaux actifs du cheptel
-    const animauxActifs = animaux.filter((animal) => animal.statut === 'actif');
+    // Filtrer uniquement les animaux actifs du cheptel (avec protection contre undefined)
+    const animauxActifs = (animaux || []).filter((animal) => animal.statut?.toLowerCase() === 'actif');
     
     return animauxActifs.map((animal) => {
       const pesees = peseesParAnimal[animal.id] || [];
@@ -112,29 +129,43 @@ export default function ProductionAnimalsListComponent() {
     });
   }, [animaux, peseesParAnimal]);
 
+  // Filtrer les animaux selon la recherche
+  const animauxFiltres = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return animauxAvecStats;
+    }
+
+    const query = searchQuery.toLowerCase().trim();
+    return animauxAvecStats.filter((item) => {
+      const code = item.animal.code?.toLowerCase() || '';
+      const nom = item.animal.nom?.toLowerCase() || '';
+      return code.includes(query) || nom.includes(query);
+    });
+  }, [animauxAvecStats, searchQuery]);
+
   // Pagination: charger les premiers animaux
   useEffect(() => {
-    const initial = animauxAvecStats.slice(0, ITEMS_PER_PAGE);
+    const initial = animauxFiltres.slice(0, ITEMS_PER_PAGE);
     setDisplayedAnimals(initial);
     setPage(1);
-  }, [animaux.length]); // Reset quand le nombre total d'animaux change
+  }, [animauxFiltres.length]); // Reset quand le nombre total d'animaux filtrés change
 
   // Charger plus d'animaux
   const loadMore = useCallback(() => {
-    if (displayedAnimals.length >= animauxAvecStats.length) {
+    if (displayedAnimals.length >= animauxFiltres.length) {
       return; // Tout est déjà chargé
     }
 
     const nextPage = page + 1;
     const start = page * ITEMS_PER_PAGE;
     const end = start + ITEMS_PER_PAGE;
-    const newItems = animauxAvecStats.slice(start, end);
+    const newItems = animauxFiltres.slice(start, end);
 
     if (newItems.length > 0) {
       setDisplayedAnimals((prev) => [...prev, ...newItems]);
       setPage(nextPage);
     }
-  }, [page, displayedAnimals.length, animauxAvecStats]);
+  }, [page, displayedAnimals.length, animauxFiltres]);
 
   const handleDelete = useCallback((animal: ProductionAnimal) => {
     if (!canDelete('reproduction')) {
@@ -160,6 +191,44 @@ export default function ProductionAnimalsListComponent() {
     );
   }, [dispatch, selectedAnimal, setSelectedAnimal, canDelete]);
 
+  const handleEditPesee = useCallback((pesee: ProductionPesee) => {
+    if (!canUpdate('reproduction')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les pesées.');
+      return;
+    }
+    setSelectedPesee(pesee);
+    setIsEditingPesee(true);
+    setShowPeseeModal(true);
+  }, [canUpdate]);
+
+  const handleDeletePesee = useCallback((pesee: ProductionPesee) => {
+    if (!canDelete('reproduction')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de supprimer les pesées.');
+      return;
+    }
+    Alert.alert(
+      'Supprimer la pesée',
+      `Voulez-vous supprimer cette pesée du ${format(new Date(pesee.date), 'dd/MM/yyyy')} (${pesee.poids_kg.toFixed(1)} kg) ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await dispatch(deletePesee({ id: pesee.id, animalId: pesee.animal_id })).unwrap();
+              if (selectedAnimal) {
+                dispatch(loadPeseesParAnimal(selectedAnimal.id));
+              }
+            } catch (error: any) {
+              Alert.alert('Erreur', error || 'Erreur lors de la suppression de la pesée.');
+            }
+          },
+        },
+      ]
+    );
+  }, [dispatch, selectedAnimal, canDelete]);
+
   // Composant mémorisé pour chaque carte d'animal - défini AVANT les retours anticipés pour éviter les problèmes de hooks
   const AnimalCard = React.memo(({ item, isSelected, pesees, onSelect, onPesee, onEdit, onDelete }: {
     item: typeof animauxAvecStats[0];
@@ -172,6 +241,11 @@ export default function ProductionAnimalsListComponent() {
   }) => {
     const { colors } = useTheme();
     const { animal, dernierePesee, gmqMoyen, nombrePesees } = item;
+    
+    // Debug: Vérifier si photo_uri est présent
+    if (animal.photo_uri) {
+      console.log(`Animal ${animal.code} a une photo:`, animal.photo_uri);
+    }
 
     return (
       <TouchableOpacity
@@ -188,42 +262,55 @@ export default function ProductionAnimalsListComponent() {
         activeOpacity={0.7}
       >
         <View style={styles.cardHeader}>
-          <View style={styles.cardHeaderLeft}>
-            <Text style={[styles.cardCode, { color: colors.text }]}>{animal.code}</Text>
-            {animal.nom && (
-              <Text style={[styles.cardNom, { color: colors.textSecondary }]}>({animal.nom})</Text>
-            )}
-            {!animal.actif && (
+          {animal.photo_uri ? (
+            <Image 
+              source={{ uri: animal.photo_uri }} 
+              style={styles.animalPhoto}
+              onError={(error) => console.log('Erreur chargement photo:', error.nativeEvent.error)}
+            />
+          ) : (
+            <View style={[styles.animalPhoto, styles.animalPhotoPlaceholder, { backgroundColor: colors.primaryLight + '15', borderColor: colors.primary + '30' }]}>
+              <Text style={{ fontSize: 40 }}>🐷</Text>
+            </View>
+          )}
+          <View style={styles.cardHeaderRight}>
+            <View style={styles.titleRow}>
+              <Text style={[styles.cardCode, { color: colors.text }]}>{animal.code}</Text>
+              {animal.nom && (
+                <Text style={[styles.cardNom, { color: colors.textSecondary }]}>• {animal.nom}</Text>
+              )}
+            </View>
+            {animal.statut?.toLowerCase() !== 'actif' && (
               <View style={[styles.inactiveBadge, { backgroundColor: colors.textSecondary + '20' }]}>
                 <Text style={[styles.inactiveBadgeText, { color: colors.textSecondary }]}>Inactif</Text>
               </View>
             )}
-          </View>
-          <View style={styles.cardActions}>
-            {canCreate('reproduction') && (
-              <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: colors.primaryLight + '15' }]}
-                onPress={() => onPesee(animal)}
-              >
-                <Text style={[styles.actionButtonText, { color: colors.primaryDark }]}>Pesée</Text>
-              </TouchableOpacity>
-            )}
-            {canUpdate('reproduction') && (
-              <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: colors.primaryLight + '15' }]}
-                onPress={() => onEdit(animal)}
-              >
-                <Text style={[styles.actionButtonText, { color: colors.primaryDark }]}>Modifier</Text>
-              </TouchableOpacity>
-            )}
-            {canDelete('reproduction') && (
-              <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: colors.error + '15' }]}
-                onPress={() => onDelete(animal)}
-              >
-                <Text style={[styles.actionButtonText, { color: colors.error }]}>Supprimer</Text>
-              </TouchableOpacity>
-            )}
+            <View style={styles.cardActions}>
+              {canCreate('reproduction') && (
+                <TouchableOpacity
+                  style={[styles.actionButton, { backgroundColor: colors.primaryLight + '15' }]}
+                  onPress={() => onPesee(animal)}
+                >
+                  <Text style={[styles.actionButtonText, { color: colors.primaryDark }]}>Pesée</Text>
+                </TouchableOpacity>
+              )}
+              {canUpdate('reproduction') && (
+                <TouchableOpacity
+                  style={[styles.actionButton, { backgroundColor: colors.primaryLight + '15' }]}
+                  onPress={() => onEdit(animal)}
+                >
+                  <Text style={[styles.actionButtonText, { color: colors.primaryDark }]}>Modifier</Text>
+                </TouchableOpacity>
+              )}
+              {canDelete('reproduction') && (
+                <TouchableOpacity
+                  style={[styles.actionButton, { backgroundColor: colors.error + '15' }]}
+                  onPress={() => onDelete(animal)}
+                >
+                  <Text style={[styles.actionButtonText, { color: colors.error }]}>Supprimer</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
         </View>
 
@@ -269,6 +356,13 @@ export default function ProductionAnimalsListComponent() {
 
         {isSelected && (
           <View style={[styles.historyContainer, { borderTopColor: colors.border }]}>
+            {/* Graphique d'évolution */}
+            {pesees.length > 0 && (
+              <View style={styles.chartContainer}>
+                <WeightEvolutionChart pesees={pesees} animalName={animal.nom || animal.code} />
+              </View>
+            )}
+
             <Text style={[styles.historyTitle, { color: colors.text }]}>Historique des pesées</Text>
             {pesees.length === 0 ? (
               <Text style={[styles.noHistoryText, { color: colors.textSecondary }]}>
@@ -277,7 +371,33 @@ export default function ProductionAnimalsListComponent() {
             ) : (
               <View style={[styles.historyList, { backgroundColor: colors.background }]}>
                 {[...pesees].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((pesee) => (
-                  <View key={pesee.id} style={[styles.historyItem, { borderBottomColor: colors.divider }]}>
+                  <TouchableOpacity 
+                    key={pesee.id} 
+                    style={[styles.historyItem, { borderBottomColor: colors.divider }]}
+                    onPress={() => handleEditPesee(pesee)}
+                    onLongPress={() => {
+                      Alert.alert(
+                        'Options',
+                        `Pesée du ${format(new Date(pesee.date), 'dd/MM/yyyy')}`,
+                        [
+                          {
+                            text: 'Modifier',
+                            onPress: () => handleEditPesee(pesee),
+                          },
+                          {
+                            text: 'Supprimer',
+                            style: 'destructive',
+                            onPress: () => handleDeletePesee(pesee),
+                          },
+                          {
+                            text: 'Annuler',
+                            style: 'cancel',
+                          },
+                        ]
+                      );
+                    }}
+                    activeOpacity={0.7}
+                  >
                     <View style={styles.historyItemHeader}>
                       <Text style={[styles.historyDate, { color: colors.textSecondary }]}>
                         {format(new Date(pesee.date), 'dd MMM yyyy', { locale: fr })}
@@ -294,7 +414,7 @@ export default function ProductionAnimalsListComponent() {
                     {pesee.commentaire && (
                       <Text style={[styles.historyComment, { color: colors.textTertiary }]}>{pesee.commentaire}</Text>
                     )}
-                  </View>
+                  </TouchableOpacity>
                 ))}
               </View>
             )}
@@ -337,27 +457,114 @@ export default function ProductionAnimalsListComponent() {
     );
   }, [selectedAnimal, peseesParAnimal, handleDelete, setSelectedAnimal, setShowPeseeModal, setIsEditing, setShowAnimalModal, canCreate, canUpdate]);
 
+  // Calculer le poids total du cheptel basé sur les dernières pesées
+  const poidsTotalCheptel = useMemo(() => {
+    const animauxActifs = animaux.filter((a) => a.statut?.toLowerCase() === 'actif');
+    let poidsTotal = 0;
+    let animauxAvecPesee = 0;
+
+    animauxActifs.forEach((animal) => {
+      const pesees = peseesParAnimal[animal.id] || [];
+      if (pesees.length > 0) {
+        // Prendre la pesée la plus récente (déjà triée DESC)
+        poidsTotal += pesees[0].poids_kg;
+        animauxAvecPesee++;
+      }
+    });
+
+    return { poidsTotal, animauxAvecPesee, animauxActifs: animauxActifs.length };
+  }, [animaux, peseesParAnimal]);
+
+  // État pour la période du graphe de poids total
+  const [periodePoidsFerme, setPeriodePoidsFerme] = useState<7 | 30 | 90>(30);
+  const [showGraphPoidsFerme, setShowGraphPoidsFerme] = useState(true);
+
+  // Calculer l'évolution du poids total de la ferme dans le temps
+  const evolutionPoidsFerme = useMemo(() => {
+    const animauxActifs = animaux.filter((a) => a.statut?.toLowerCase() === 'actif');
+    
+    // Collecter toutes les pesées des animaux actifs
+    const toutesLesPesees: (ProductionPesee & { animalId: string })[] = [];
+    animauxActifs.forEach((animal) => {
+      const pesees = peseesParAnimal[animal.id] || [];
+      pesees.forEach((pesee) => {
+        toutesLesPesees.push({ ...pesee, animalId: animal.id });
+      });
+    });
+
+    if (toutesLesPesees.length === 0) {
+      return null;
+    }
+
+    // Déterminer la plage de dates
+    const maintenant = startOfDay(new Date());
+    const dateDebut = subDays(maintenant, periodePoidsFerme);
+    const datesFiltrees = eachDayOfInterval({ start: dateDebut, end: maintenant });
+
+    // Grouper les pesées par date et animal (prendre la plus récente par animal par jour)
+    const peseesParDateEtAnimal: { [date: string]: { [animalId: string]: number } } = {};
+    
+    toutesLesPesees.forEach((pesee) => {
+      const dateStr = format(startOfDay(parseISO(pesee.date)), 'yyyy-MM-dd');
+      if (!peseesParDateEtAnimal[dateStr]) {
+        peseesParDateEtAnimal[dateStr] = {};
+      }
+      // Si plusieurs pesées le même jour pour le même animal, garder la plus récente
+      if (!peseesParDateEtAnimal[dateStr][pesee.animalId] || 
+          new Date(pesee.date).getTime() > new Date(peseesParDateEtAnimal[dateStr][pesee.animalId]).getTime()) {
+        peseesParDateEtAnimal[dateStr][pesee.animalId] = pesee.poids_kg;
+      }
+    });
+
+    // Pour chaque date, calculer le poids total en utilisant le dernier poids connu de chaque animal
+    const derniersPoidsConnus: { [animalId: string]: number } = {};
+    const donnees: { date: string; poidsTotal: number }[] = [];
+
+    datesFiltrees.forEach((date) => {
+      const dateStr = format(date, 'yyyy-MM-dd');
+      
+      // Mettre à jour les derniers poids connus avec les pesées du jour
+      if (peseesParDateEtAnimal[dateStr]) {
+        Object.entries(peseesParDateEtAnimal[dateStr]).forEach(([animalId, poids]) => {
+          derniersPoidsConnus[animalId] = poids;
+        });
+      }
+
+      // Calculer le poids total à cette date
+      const poidsTotal = Object.values(derniersPoidsConnus).reduce((sum, poids) => sum + poids, 0);
+      
+      // Ajouter uniquement si on a au moins un poids connu
+      if (Object.keys(derniersPoidsConnus).length > 0) {
+        donnees.push({ date: dateStr, poidsTotal });
+      }
+    });
+
+    if (donnees.length === 0) {
+      return null;
+    }
+
+    return donnees;
+  }, [animaux, peseesParAnimal, periodePoidsFerme]);
+
   const ListHeader = React.useCallback(() => (
     <>
       {/* Carte récapitulative */}
-      <View style={[styles.summaryCard, { backgroundColor: colors.surface, ...colors.shadow.medium }]}>
+      <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={styles.summaryHeader}>
-          <Text style={[styles.summaryTitle, { color: colors.text }]}>Suivi des pesées</Text>
-          {canCreate('reproduction') && (
-            <Button
-              title="+ Animal"
-              onPress={() => {
-                setSelectedAnimal(null);
-                setIsEditing(false);
-                setShowAnimalModal(true);
-              }}
-              size="small"
-            />
-          )}
+          <TouchableOpacity
+            style={styles.summaryToggle}
+            onPress={() => {}}
+          >
+            <Text style={[styles.summaryTitle, { color: colors.text }]}>
+              📊 Suivi des pesées
+            </Text>
+          </TouchableOpacity>
         </View>
         <View style={styles.summaryStats}>
           <View style={styles.summaryItem}>
-            <Text style={[styles.summaryValue, { color: colors.text }]}>{animaux.filter((a) => a.actif).length}</Text>
+            <Text style={[styles.summaryValue, { color: colors.text }]}>
+              {poidsTotalCheptel.animauxActifs}
+            </Text>
             <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Animaux actifs</Text>
           </View>
           <View style={[styles.dividerVertical, { backgroundColor: colors.border }]} />
@@ -365,18 +572,177 @@ export default function ProductionAnimalsListComponent() {
             <Text style={[styles.summaryValue, { color: colors.text }]}>{peseesRecents.length}</Text>
             <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Pesées récentes</Text>
           </View>
+          <View style={[styles.dividerVertical, { backgroundColor: colors.border }]} />
+          <View style={styles.summaryItem}>
+            <Text style={[styles.summaryValue, { color: colors.primary }]}>
+              {poidsTotalCheptel.poidsTotal.toFixed(0)} kg
+            </Text>
+            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Poids total</Text>
+          </View>
         </View>
+        {poidsTotalCheptel.animauxAvecPesee < poidsTotalCheptel.animauxActifs && (
+          <View style={[styles.disclaimerContainer, { backgroundColor: `${colors.info}10`, borderColor: `${colors.info}30` }]}>
+            <Text style={[styles.disclaimerText, { color: colors.text }]}>
+              ℹ️ Poids approximatif basé sur les dernières pesées de {poidsTotalCheptel.animauxAvecPesee}/{poidsTotalCheptel.animauxActifs} animaux.
+              {poidsTotalCheptel.animauxAvecPesee < poidsTotalCheptel.animauxActifs && ' Certains animaux n\'ont pas encore été pesés.'}
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* Graphe d'évolution du poids total de la ferme */}
+      {evolutionPoidsFerme && evolutionPoidsFerme.length > 0 && (
+        <View style={[styles.graphCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.graphHeader}>
+            <TouchableOpacity
+              style={styles.graphToggle}
+              onPress={() => setShowGraphPoidsFerme(!showGraphPoidsFerme)}
+            >
+              <Text style={[styles.graphTitle, { color: colors.text }]}>
+                📈 Évolution du poids total
+              </Text>
+              <Text style={[styles.graphToggleIcon, { color: colors.primary }]}>
+                {showGraphPoidsFerme ? '▼' : '▶'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {showGraphPoidsFerme && (
+            <>
+              {/* Sélecteur de période */}
+              <View style={styles.periodSelector}>
+                {([7, 30, 90] as const).map((jours) => (
+                  <TouchableOpacity
+                    key={jours}
+                    style={[
+                      styles.periodButton,
+                      {
+                        backgroundColor: periodePoidsFerme === jours ? colors.primary : colors.background,
+                        borderColor: periodePoidsFerme === jours ? colors.primary : colors.border,
+                      },
+                    ]}
+                    onPress={() => setPeriodePoidsFerme(jours)}
+                  >
+                    <Text
+                      style={[
+                        styles.periodButtonText,
+                        { color: periodePoidsFerme === jours ? colors.textOnPrimary : colors.text },
+                      ]}
+                    >
+                      {jours}j
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Graphe */}
+              <LineChart
+                data={{
+                  labels: evolutionPoidsFerme.map((d, idx) => {
+                    // Afficher seulement quelques labels pour éviter la surcharge
+                    if (evolutionPoidsFerme.length <= 7) {
+                      return format(parseISO(d.date), 'dd/MM');
+                    } else if (evolutionPoidsFerme.length <= 30) {
+                      return idx % 5 === 0 ? format(parseISO(d.date), 'dd/MM') : '';
+                    } else {
+                      return idx % 15 === 0 ? format(parseISO(d.date), 'dd/MM') : '';
+                    }
+                  }),
+                  datasets: [
+                    {
+                      data: evolutionPoidsFerme.map((d) => d.poidsTotal),
+                      color: () => colors.primary,
+                      strokeWidth: 3,
+                    },
+                  ],
+                }}
+                width={Dimensions.get('window').width - SPACING.lg * 4 - SPACING.md * 2}
+                height={220}
+                chartConfig={{
+                  backgroundColor: colors.surface,
+                  backgroundGradientFrom: colors.surface,
+                  backgroundGradientTo: colors.surface,
+                  decimalPlaces: 0,
+                  color: (opacity = 1) => colors.text + Math.round(opacity * 255).toString(16).padStart(2, '0'),
+                  labelColor: (opacity = 1) => colors.textSecondary + Math.round(opacity * 255).toString(16).padStart(2, '0'),
+                  style: {
+                    borderRadius: BORDER_RADIUS.lg,
+                  },
+                  propsForDots: {
+                    r: '4',
+                    strokeWidth: '2',
+                    stroke: colors.surface,
+                  },
+                  propsForBackgroundLines: {
+                    strokeDasharray: '',
+                    stroke: colors.border,
+                    strokeWidth: 1,
+                  },
+                  fillShadowGradient: colors.primary,
+                  fillShadowGradientOpacity: 0.3,
+                }}
+                bezier
+                style={styles.chart}
+                withInnerLines={true}
+                withOuterLines={true}
+                withVerticalLines={false}
+                withHorizontalLines={true}
+                withVerticalLabels={true}
+                withHorizontalLabels={true}
+                fromZero={true}
+              />
+
+              {/* Légende */}
+              <View style={styles.legend}>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: colors.primary }]} />
+                  <Text style={[styles.legendText, { color: colors.text }]}>
+                    Poids total (kg)
+                  </Text>
+                </View>
+              </View>
+
+              {/* Info */}
+              <View style={[styles.infoBox, { backgroundColor: `${colors.info}10`, borderColor: `${colors.info}30` }]}>
+                <Text style={[styles.infoText, { color: colors.text }]}>
+                  💡 Ce graphe montre l'évolution du poids cumulé de tous les animaux actifs
+                </Text>
+              </View>
+            </>
+          )}
+        </View>
+      )}
+
+      {/* Barre de recherche */}
+      <View style={[styles.searchContainer, { backgroundColor: colors.surface, ...colors.shadow.small }]}>
+        <Ionicons name="search" size={20} color={colors.textSecondary} style={styles.searchIcon} />
+        <TextInput
+          style={[styles.searchInput, { color: colors.text }]}
+          placeholder="Rechercher par code ou nom..."
+          placeholderTextColor={colors.textSecondary}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
+            <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Titre de la liste */}
       <View style={styles.listContainer}>
-        <Text style={[styles.listTitle, { color: colors.text }]}>Mes animaux ({animaux.length})</Text>
+        <Text style={[styles.listTitle, { color: colors.text }]}>
+          {searchQuery ? `Résultats (${animauxFiltres.length})` : `Mes animaux (${animaux.length})`}
+        </Text>
       </View>
     </>
-  ), [colors, animaux, peseesRecents.length, setSelectedAnimal, setIsEditing, setShowAnimalModal, canCreate]);
+  ), [colors, animaux, peseesRecents.length, poidsTotalCheptel, searchQuery, animauxFiltres.length, evolutionPoidsFerme, periodePoidsFerme, showGraphPoidsFerme]);
 
   const ListFooter = React.useCallback(() => {
-    if (displayedAnimals.length >= animauxAvecStats.length) {
+    if (displayedAnimals.length >= animauxFiltres.length) {
       return null;
     }
     return (
@@ -384,7 +750,7 @@ export default function ProductionAnimalsListComponent() {
         <LoadingSpinner message="Chargement..." />
       </View>
     );
-  }, [displayedAnimals.length, animauxAvecStats.length]);
+  }, [displayedAnimals.length, animauxFiltres.length]);
 
   // Retours anticipés APRÈS toutes les définitions de hooks/composants
   if (!projetActif) {
@@ -460,9 +826,15 @@ export default function ProductionAnimalsListComponent() {
       {selectedAnimal && (
         <ProductionPeseeFormModal
           visible={showPeseeModal}
-          onClose={() => setShowPeseeModal(false)}
+          onClose={() => {
+            setShowPeseeModal(false);
+            setIsEditingPesee(false);
+            setSelectedPesee(null);
+          }}
           onSuccess={() => {
             setShowPeseeModal(false);
+            setIsEditingPesee(false);
+            setSelectedPesee(null);
             if (projetActif) {
               dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 }));
               dispatch(loadPeseesParAnimal(selectedAnimal.id));
@@ -470,6 +842,8 @@ export default function ProductionAnimalsListComponent() {
           }}
           projetId={projetActif?.id || ''}
           animal={selectedAnimal}
+          pesee={isEditingPesee ? selectedPesee : null}
+          isEditing={isEditingPesee}
         />
       )}
     </View>
@@ -482,7 +856,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: SPACING.xxl + 85,
-    paddingHorizontal: SPACING.xl,
   },
   emptyContainer: {
     flex: 1,
@@ -492,18 +865,22 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.xl,
-    margin: SPACING.xl,
+    padding: SPACING.md,
+    marginHorizontal: SPACING.md,
+    marginTop: SPACING.md,
+    borderWidth: 1,
   },
   summaryHeader: {
+    marginBottom: SPACING.md,
+  },
+  summaryToggle: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.lg,
   },
   summaryTitle: {
-    fontSize: FONT_SIZES.xl,
-    fontWeight: 'bold',
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
   },
   summaryStats: {
     flexDirection: 'row',
@@ -522,13 +899,43 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
     marginTop: SPACING.xs,
   },
+  disclaimerContainer: {
+    marginTop: SPACING.md,
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+  },
+  disclaimerText: {
+    fontSize: FONT_SIZES.sm,
+    lineHeight: FONT_SIZES.sm * 1.5,
+  },
   dividerVertical: {
     width: 1,
     height: '100%',
     marginHorizontal: SPACING.lg,
   },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: SPACING.md,
+    marginVertical: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.lg,
+  },
+  searchIcon: {
+    marginRight: SPACING.sm,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: FONT_SIZES.md,
+    paddingVertical: SPACING.xs,
+  },
+  clearButton: {
+    padding: SPACING.xs,
+  },
   listContainer: {
-    paddingHorizontal: SPACING.xl,
+    paddingHorizontal: SPACING.md,
   },
   listTitle: {
     fontSize: FONT_SIZES.lg,
@@ -537,29 +944,44 @@ const styles = StyleSheet.create({
   },
   card: {
     borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.lg,
-    marginBottom: SPACING.lg,
+    padding: SPACING.sm,
+    marginBottom: SPACING.sm,
+    marginHorizontal: SPACING.md,
   },
   cardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    gap: SPACING.sm,
     marginBottom: SPACING.sm,
   },
-  cardHeaderLeft: {
+  animalPhoto: {
+    width: 70,
+    height: 70,
+    borderRadius: BORDER_RADIUS.lg,
+    resizeMode: 'cover',
+  },
+  animalPhotoPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderStyle: 'dashed',
+  },
+  cardHeaderRight: {
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
     flexWrap: 'wrap',
+    marginBottom: SPACING.xs,
   },
   cardCode: {
-    fontSize: FONT_SIZES.lg,
+    fontSize: FONT_SIZES.xl,
     fontWeight: 'bold',
-    marginRight: SPACING.xs,
   },
   cardNom: {
-    fontSize: FONT_SIZES.md,
-    marginRight: SPACING.xs,
+    fontSize: FONT_SIZES.lg,
+    marginLeft: SPACING.xs,
   },
   inactiveBadge: {
     paddingHorizontal: SPACING.sm,
@@ -572,21 +994,22 @@ const styles = StyleSheet.create({
   },
   cardActions: {
     flexDirection: 'row',
-    marginLeft: SPACING.sm,
+    gap: SPACING.xs,
+    flexWrap: 'wrap',
+    marginTop: SPACING.xs,
   },
   actionButton: {
     paddingHorizontal: SPACING.sm,
     paddingVertical: SPACING.xs,
     borderRadius: BORDER_RADIUS.sm,
-    marginLeft: SPACING.xs,
   },
   actionButtonText: {
-    fontSize: FONT_SIZES.sm,
+    fontSize: FONT_SIZES.xs,
     fontWeight: '600',
   },
   cardStats: {
-    marginTop: SPACING.md,
-    paddingTop: SPACING.md,
+    marginTop: SPACING.sm,
+    paddingTop: SPACING.sm,
     borderTopWidth: 1,
   },
   statItem: {
@@ -605,6 +1028,9 @@ const styles = StyleSheet.create({
     marginTop: SPACING.md,
     paddingTop: SPACING.md,
     borderTopWidth: 1,
+  },
+  chartContainer: {
+    marginBottom: SPACING.md,
   },
   historyTitle: {
     fontSize: FONT_SIZES.md,
@@ -642,6 +1068,80 @@ const styles = StyleSheet.create({
   historyComment: {
     fontSize: FONT_SIZES.xs,
     fontStyle: 'italic',
+  },
+  graphCard: {
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.md,
+    marginHorizontal: SPACING.md,
+    marginTop: SPACING.md,
+    borderWidth: 1,
+  },
+  graphHeader: {
+    marginBottom: SPACING.md,
+  },
+  graphToggle: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  graphTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
+  },
+  graphToggleIcon: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '700',
+  },
+  periodSelector: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  periodButton: {
+    flex: 1,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1.5,
+    alignItems: 'center',
+  },
+  periodButtonText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+  },
+  chart: {
+    marginVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.lg,
+  },
+  legend: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: SPACING.xl,
+    marginTop: SPACING.md,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  legendDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  legendText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+  },
+  infoBox: {
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    marginTop: SPACING.md,
+  },
+  infoText: {
+    fontSize: FONT_SIZES.sm,
+    lineHeight: FONT_SIZES.sm * 1.5,
   },
 });
 

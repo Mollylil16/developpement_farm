@@ -6,13 +6,15 @@ import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import { Text, TouchableOpacity, Dimensions } from 'react-native';
+import { Text, TouchableOpacity, Dimensions, ActivityIndicator, View } from 'react-native';
 import { SCREENS } from './types';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadProjetActif } from '../store/slices/projetSlice';
 import { loadCollaborateurActuel, clearCollaborateurActuel, loadInvitationsEnAttente } from '../store/slices/collaborationSlice';
 import { loadUserFromStorageThunk } from '../store/slices/authSlice';
 import { usePermissions } from '../hooks/usePermissions';
+import LoadingSpinner from '../components/LoadingSpinner';
+import NotificationsManager from '../components/NotificationsManager';
 
 // Import des écrans
 import WelcomeScreen from '../screens/WelcomeScreen';
@@ -22,13 +24,15 @@ import DashboardScreen from '../screens/DashboardScreen';
 import ReproductionScreen from '../screens/ReproductionScreen';
 import NutritionScreen from '../screens/NutritionScreen';
 import FinanceScreen from '../screens/FinanceScreen';
-import ReportsScreen from '../screens/ReportsScreen';
-import PlanificationScreen from '../screens/PlanificationScreen';
+import PlanningProductionScreen from '../screens/PlanningProductionScreen'; // Nouveau module
 import ParametresScreen from '../screens/ParametresScreen';
 import CollaborationScreen from '../screens/CollaborationScreen';
 import MortalitesScreen from '../screens/MortalitesScreen';
 import ProductionScreen from '../screens/ProductionScreen';
+import ReportsScreen from '../screens/ReportsScreen';
 import AdminScreen from '../screens/AdminScreen';
+import SanteScreen from '../screens/SanteScreen';
+
 import { COLORS } from '../constants/theme';
 
 const Tab = createBottomTabNavigator();
@@ -128,12 +132,13 @@ function MainTabs() {
       {hasPermission('rapports') && (
         <Tab.Screen
           name={SCREENS.REPORTS}
-          component={ReportsScreen}
           options={{
             tabBarLabel: 'Rapports',
             tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>📊</Text>,
           }}
-        />
+        >
+          {() => <ReportsScreen />}
+        </Tab.Screen>
       )}
       
       {/* Paramètres - Toujours visible */}
@@ -154,18 +159,18 @@ function MainTabs() {
           name={SCREENS.NUTRITION}
           component={NutritionScreen}
           options={{
-            tabBarButton: () => null, // Caché de la barre mais accessible via navigation
+            tabBarButton: () => <></>, // Caché de la barre mais accessible via navigation
           }}
         />
       )}
       
-      {/* Planification - Accessible si permission planification */}
+      {/* Planning Production - Accessible si permission planification */}
       {hasPermission('planification') && (
         <Tab.Screen
           name={SCREENS.PLANIFICATION}
-          component={PlanificationScreen}
+          component={PlanningProductionScreen}
           options={{
-            tabBarButton: () => null,
+            tabBarButton: () => <></>,
           }}
         />
       )}
@@ -176,7 +181,7 @@ function MainTabs() {
           name={SCREENS.COLLABORATION}
           component={CollaborationScreen}
           options={{
-            tabBarButton: () => null,
+            tabBarButton: () => <></>,
           }}
         />
       )}
@@ -187,7 +192,7 @@ function MainTabs() {
           name={SCREENS.MORTALITES}
           component={MortalitesScreen}
           options={{
-            tabBarButton: () => null,
+            tabBarButton: () => <></>,
           }}
         />
       )}
@@ -197,9 +202,20 @@ function MainTabs() {
         name={SCREENS.PRODUCTION}
         component={ProductionScreen}
         options={{
-          tabBarButton: () => null,
+          tabBarButton: () => <></>,
         }}
       />
+      
+      {/* Santé - Accessible si permission sante */}
+      {hasPermission('sante') && (
+        <Tab.Screen
+          name={SCREENS.SANTE}
+          component={SanteScreen}
+          options={{
+            tabBarButton: () => <></>,
+          }}
+        />
+      )}
     </Tab.Navigator>
   );
 }
@@ -226,25 +242,42 @@ export default function AppNavigator() {
     }
   }, [dispatch, isAuthenticated, authLoading]);
 
+  // Utiliser useRef pour éviter de charger plusieurs fois le collaborateur
+  const collaborateurChargeRef = React.useRef<string | null>(null);
+  
   useEffect(() => {
     // Charger le collaborateur actuel quand le projet actif change
     if (isAuthenticated && user && projetActif) {
-      console.log('🔄 Chargement du collaborateur actuel pour le projet:', projetActif.id);
-      dispatch(loadCollaborateurActuel({ userId: user.id, projetId: projetActif.id }));
+      const cle = `${user.id}-${projetActif.id}`;
+      if (collaborateurChargeRef.current !== cle) {
+        console.log('🔄 Chargement du collaborateur actuel pour le projet:', projetActif.id);
+        dispatch(loadCollaborateurActuel({ userId: user.id, projetId: projetActif.id }));
+        collaborateurChargeRef.current = cle;
+      }
     } else if (!projetActif) {
       // Si pas de projet actif, effacer le collaborateur actuel
       dispatch(clearCollaborateurActuel());
+      collaborateurChargeRef.current = null;
     }
   }, [dispatch, isAuthenticated, user?.id, projetActif?.id]);
 
+  // Utiliser useRef pour éviter de charger plusieurs fois les invitations
+  const invitationsChargeesRef = React.useRef<string | null>(null);
+  
   useEffect(() => {
     // Charger les invitations en attente quand l'utilisateur est authentifié
     if (isAuthenticated && user) {
-      console.log('🔄 Chargement des invitations en attente pour:', user.id);
-      dispatch(loadInvitationsEnAttente({ 
-        userId: user.id, 
-        email: user.email || undefined 
-      }));
+      const cle = `${user.id}-${user.email || ''}`;
+      if (invitationsChargeesRef.current !== cle) {
+        console.log('🔄 Chargement des invitations en attente pour:', user.id);
+        dispatch(loadInvitationsEnAttente({ 
+          userId: user.id, 
+          email: user.email || undefined 
+        }));
+        invitationsChargeesRef.current = cle;
+      }
+    } else {
+      invitationsChargeesRef.current = null;
     }
   }, [dispatch, isAuthenticated, user?.id, user?.email]);
 
@@ -297,10 +330,11 @@ export default function AppNavigator() {
     } else {
       console.log('⏸️ Pas de changement de route nécessaire');
     }
-  }, [isAuthenticated, projetActif, authLoading, invitationsEnAttente.length]);
+  }, [isAuthenticated, projetActif?.id, authLoading, invitationsEnAttente.length]);
 
   return (
     <NavigationContainer ref={navigationRef}>
+      <NotificationsManager />
       <Stack.Navigator
         screenOptions={{
           headerShown: false,
@@ -351,7 +385,12 @@ export default function AppNavigator() {
         <Stack.Screen name={SCREENS.WELCOME} component={WelcomeScreen} />
         <Stack.Screen name={SCREENS.AUTH} component={AuthScreen} />
         <Stack.Screen name={SCREENS.CREATE_PROJECT} component={CreateProjectScreen} />
-        <Stack.Screen name={SCREENS.ADMIN} component={AdminScreen} />
+        <Stack.Screen
+          name={SCREENS.ADMIN}
+          options={{ headerShown: false }}
+        >
+          {() => <AdminScreen />}
+        </Stack.Screen>
         <Stack.Screen name="Main" component={MainTabs} />
       </Stack.Navigator>
     </NavigationContainer>

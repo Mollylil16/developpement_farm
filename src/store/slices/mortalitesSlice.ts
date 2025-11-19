@@ -1,24 +1,44 @@
 /**
  * Slice Redux pour la gestion des mortalités
+ * Utilise normalizr pour stocker les données de manière normalisée
  */
 
-import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { normalize } from 'normalizr';
 import { Mortalite, CreateMortaliteInput, UpdateMortaliteInput, StatistiquesMortalite } from '../../types';
 import { databaseService } from '../../services/database';
+import { mortalitesSchema, mortaliteSchema } from '../normalization/schemas';
+
+// Structure normalisée de l'état
+interface NormalizedEntities {
+  mortalites: Record<string, Mortalite>;
+}
 
 interface MortalitesState {
-  mortalites: Mortalite[];
+  entities: NormalizedEntities;
+  ids: {
+    mortalites: string[];
+  };
   statistiques: StatistiquesMortalite | null;
   loading: boolean;
   error: string | null;
 }
 
 const initialState: MortalitesState = {
-  mortalites: [],
+  entities: {
+    mortalites: {},
+  },
+  ids: {
+    mortalites: [],
+  },
   statistiques: null,
   loading: false,
   error: null,
 };
+
+// Helpers pour normaliser
+const normalizeMortalites = (mortalites: Mortalite[]) => normalize(mortalites, mortalitesSchema);
+const normalizeMortalite = (mortalite: Mortalite) => normalize([mortalite], mortalitesSchema);
 
 // Thunks pour Mortalités
 export const createMortalite = createAsyncThunk(
@@ -103,46 +123,48 @@ const mortalitesSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // createMortalite
       .addCase(createMortalite.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(createMortalite.fulfilled, (state, action) => {
         state.loading = false;
-        state.mortalites.unshift(action.payload);
+        const normalized = normalizeMortalite(action.payload);
+        state.entities.mortalites = { ...state.entities.mortalites, ...normalized.entities.mortalites };
+        state.ids.mortalites = [normalized.result[0], ...state.ids.mortalites];
       })
       .addCase(createMortalite.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })
-      // loadMortalites
       .addCase(loadMortalites.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(loadMortalites.fulfilled, (state, action) => {
         state.loading = false;
-        state.mortalites = action.payload;
+        const normalized = normalizeMortalites(action.payload);
+        state.entities.mortalites = { ...state.entities.mortalites, ...normalized.entities.mortalites };
+        state.ids.mortalites = normalized.result;
       })
       .addCase(loadMortalites.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })
-      // loadMortalitesParProjet
       .addCase(loadMortalitesParProjet.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(loadMortalitesParProjet.fulfilled, (state, action) => {
         state.loading = false;
-        state.mortalites = action.payload;
+        const normalized = normalizeMortalites(action.payload);
+        state.entities.mortalites = { ...state.entities.mortalites, ...normalized.entities.mortalites };
+        state.ids.mortalites = normalized.result;
       })
       .addCase(loadMortalitesParProjet.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })
-      // loadStatistiquesMortalite
       .addCase(loadStatistiquesMortalite.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -155,33 +177,19 @@ const mortalitesSlice = createSlice({
         state.loading = false;
         state.error = action.payload as string;
       })
-      // updateMortalite
-      .addCase(updateMortalite.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
       .addCase(updateMortalite.fulfilled, (state, action) => {
-        state.loading = false;
-        const index = state.mortalites.findIndex((m: Mortalite) => m.id === action.payload.id);
-        if (index !== -1) {
-          state.mortalites[index] = action.payload;
-        }
+        const normalized = normalizeMortalite(action.payload);
+        state.entities.mortalites = { ...state.entities.mortalites, ...normalized.entities.mortalites };
       })
       .addCase(updateMortalite.rejected, (state, action) => {
-        state.loading = false;
         state.error = action.payload as string;
       })
-      // deleteMortalite
-      .addCase(deleteMortalite.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
       .addCase(deleteMortalite.fulfilled, (state, action) => {
-        state.loading = false;
-        state.mortalites = state.mortalites.filter((m: Mortalite) => m.id !== action.payload);
+        const mortaliteId = action.payload;
+        state.ids.mortalites = state.ids.mortalites.filter((id) => id !== mortaliteId);
+        delete state.entities.mortalites[mortaliteId];
       })
       .addCase(deleteMortalite.rejected, (state, action) => {
-        state.loading = false;
         state.error = action.payload as string;
       });
   },
@@ -189,4 +197,3 @@ const mortalitesSlice = createSlice({
 
 export const { clearError } = mortalitesSlice.actions;
 export default mortalitesSlice.reducer;
-

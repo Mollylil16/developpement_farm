@@ -80,15 +80,8 @@ export default function CreateProjectScreen() {
     ]).start();
   }, []);
 
-  // Charger les invitations en attente au montage
-  useEffect(() => {
-    if (user) {
-      dispatch(loadInvitationsEnAttente({ 
-        userId: user.id, 
-        email: user.email || undefined 
-      }));
-    }
-  }, [dispatch, user?.id, user?.email]);
+  // Les invitations sont déjà chargées dans AppNavigator, pas besoin de les recharger ici
+  // Évite une boucle infinie de rechargements
 
   // Afficher automatiquement le modal des invitations si elles existent
   useEffect(() => {
@@ -99,7 +92,7 @@ export default function CreateProjectScreen() {
         setInvitationsModalVisible(true);
       }, 1000);
     }
-  }, [invitationsEnAttente.length, projetActif]);
+  }, [invitationsEnAttente.length, projetActif?.id]);  // ✅ projetActif?.id au lieu de projetActif (objet)
 
   const handleSubmit = async () => {
     // Validation
@@ -123,6 +116,8 @@ export default function CreateProjectScreen() {
         return;
       }
 
+      const totalAnimaux = formData.nombre_truies + formData.nombre_verrats + formData.nombre_porcelets;
+      
       await dispatch(
         createProjet({
           ...formData,
@@ -133,9 +128,13 @@ export default function CreateProjectScreen() {
       // Si l'utilisateur a déjà un projet actif, il vient probablement des paramètres
       // Dans ce cas, on revient aux paramètres pour qu'il puisse voir son nouveau projet
       if (projetActif) {
+        const message = totalAnimaux > 0
+          ? `Votre nouveau projet a été créé avec ${totalAnimaux} animal${totalAnimaux > 1 ? 'x' : ''} dans votre cheptel. Vous pouvez basculer entre vos projets dans les paramètres.`
+          : 'Votre nouveau projet a été créé et est maintenant actif. Vous pouvez basculer entre vos projets dans les paramètres.';
+        
         Alert.alert(
           'Projet créé',
-          'Votre nouveau projet a été créé et est maintenant actif. Vous pouvez basculer entre vos projets dans les paramètres.',
+          message,
           [
             {
               text: 'OK',
@@ -147,6 +146,16 @@ export default function CreateProjectScreen() {
         );
       } else {
         // Pas de projet actif = premier projet, la navigation sera gérée automatiquement par AppNavigator
+        if (totalAnimaux > 0) {
+          // Afficher un message informatif après la navigation automatique
+          setTimeout(() => {
+            Alert.alert(
+              'Projet créé',
+              `✓ Projet créé avec ${totalAnimaux} animal${totalAnimaux > 1 ? 'x' : ''} dans votre cheptel. Vous pouvez compléter les informations des animaux dans le module Cheptel.`,
+              [{ text: 'OK' }]
+            );
+          }, 1000);
+        }
       }
     } catch (error: any) {
       Alert.alert('Erreur', error || 'Erreur lors de la création du projet');

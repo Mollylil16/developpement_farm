@@ -12,3 +12,4 @@ export * from './mortalites';
 export * from './planification';
 export * from './collaboration';
 export * from './production';
+export * from './sante';

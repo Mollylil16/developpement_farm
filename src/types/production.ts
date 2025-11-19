@@ -22,6 +22,7 @@ export interface ProductionAnimal {
   pere_id?: string | null;
   mere_id?: string | null;
   notes?: string;
+  photo_uri?: string;
   date_creation: string;
   derniere_modification: string;
 }
@@ -49,6 +50,7 @@ export interface CreateProductionAnimalInput {
   pere_id?: string | null;
   mere_id?: string | null;
   notes?: string;
+  photo_uri?: string;
 }
 
 export interface UpdateProductionAnimalInput {
@@ -66,6 +68,7 @@ export interface UpdateProductionAnimalInput {
   pere_id?: string | null;
   mere_id?: string | null;
   notes?: string | null;
+  photo_uri?: string | null;
 }
 
 export interface ProductionPesee {

@@ -3,9 +3,12 @@
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, ScrollView, TouchableOpacity, Alert, Image } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { Image } from 'expo-image';
+import * as Haptics from 'expo-haptics';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadDepensesPonctuelles, deleteDepensePonctuelle } from '../store/slices/financeSlice';
+import { selectAllDepensesPonctuelles, selectAllChargesFixes } from '../store/selectors/financeSelectors';
 import { DepensePonctuelle } from '../types';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -18,7 +21,8 @@ export default function FinanceDepensesComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
-  const { depensesPonctuelles, loading } = useAppSelector((state) => state.finance);
+  const depensesPonctuelles = useAppSelector(selectAllDepensesPonctuelles);
+  const loading = useAppSelector((state) => state.finance.loading);
   const [selectedDepense, setSelectedDepense] = useState<DepensePonctuelle | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -60,21 +64,23 @@ export default function FinanceDepensesComponent() {
     }
   }, [page, displayedDepenses.length, depensesPonctuelles]);
 
-  const handleEdit = (depense: DepensePonctuelle) => {
+  const handleEdit = useCallback((depense: DepensePonctuelle) => {
     if (!canUpdate('finance')) {
       Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les dépenses.');
       return;
     }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedDepense(depense);
     setIsEditing(true);
     setModalVisible(true);
-  };
+  }, [canUpdate]);
 
-  const handleDelete = (id: string) => {
+  const handleDelete = useCallback((id: string) => {
     if (!canDelete('finance')) {
       Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de supprimer les dépenses.');
       return;
     }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       'Supprimer la dépense',
       'Êtes-vous sûr de vouloir supprimer cette dépense ?',
@@ -87,25 +93,26 @@ export default function FinanceDepensesComponent() {
         },
       ]
     );
-  };
+  }, [canDelete, dispatch]);
 
-  const handleViewPhotos = (photos: string[]) => {
+  const handleViewPhotos = useCallback((photos: string[]) => {
     setViewingPhotos(photos);
     setPhotoModalVisible(true);
-  };
+  }, []);
 
-  const handleCloseModal = () => {
+  const handleCloseModal = useCallback(() => {
     setModalVisible(false);
     setSelectedDepense(null);
     setIsEditing(false);
-  };
+  }, []);
 
-  const handleSuccess = () => {
+  const handleSuccess = useCallback(() => {
     handleCloseModal();
     if (projetActif) {
       dispatch(loadDepensesPonctuelles(projetActif.id));
     }
-  };
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [handleCloseModal, projetActif?.id, dispatch]);
 
   const getCategoryLabel = (categorie: string): string => {
     const labels: Record<string, string> = {
@@ -155,8 +162,13 @@ export default function FinanceDepensesComponent() {
         <Text style={[styles.title, { color: colors.text }]}>Dépenses Ponctuelles</Text>
         {canCreate('finance') && (
           <TouchableOpacity
-            style={[styles.addButton, { backgroundColor: colors.primary }]}
+            accessible={true}
+            accessibilityLabel="Ajouter une dépense"
+            accessibilityRole="button"
+            accessibilityHint="Ouvre le formulaire pour ajouter une nouvelle dépense"
+            style={[styles.addButton, { backgroundColor: colors.primary, minHeight: 44, minWidth: 44 }]}
             onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setSelectedDepense(null);
               setIsEditing(false);
               setModalVisible(true);
@@ -305,7 +317,9 @@ export default function FinanceDepensesComponent() {
                   key={index}
                   source={{ uri: photo }}
                   style={styles.photoImage}
-                  resizeMode="contain"
+                  contentFit="contain"
+                  transition={200}
+                  cachePolicy="memory-disk"
                 />
               ))}
             </ScrollView>

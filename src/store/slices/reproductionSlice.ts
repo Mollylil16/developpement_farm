@@ -1,8 +1,10 @@
 /**
  * Slice Redux pour la gestion de la reproduction
+ * Utilise normalizr pour stocker les données de manière normalisée
  */
 
-import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { normalize } from 'normalizr';
 import {
   Gestation,
   Sevrage,
@@ -10,20 +12,44 @@ import {
   CreateSevrageInput,
 } from '../../types';
 import { databaseService } from '../../services/database';
+import { gestationsSchema, sevragesSchema, gestationSchema, sevrageSchema } from '../normalization/schemas';
+
+// Structure normalisée de l'état
+interface NormalizedEntities {
+  gestations: Record<string, Gestation>;
+  sevrages: Record<string, Sevrage>;
+}
 
 interface ReproductionState {
-  gestations: Gestation[];
-  sevrages: Sevrage[];
+  entities: NormalizedEntities;
+  ids: {
+    gestations: string[];
+    sevrages: string[];
+  };
+  sevragesParGestation: Record<string, string[]>; // IDs des sevrages par gestation
   loading: boolean;
   error: string | null;
 }
 
 const initialState: ReproductionState = {
-  gestations: [],
-  sevrages: [],
+  entities: {
+    gestations: {},
+    sevrages: {},
+  },
+  ids: {
+    gestations: [],
+    sevrages: [],
+  },
+  sevragesParGestation: {},
   loading: false,
   error: null,
 };
+
+// Helpers pour normaliser
+const normalizeGestations = (gestations: Gestation[]) => normalize(gestations, gestationsSchema);
+const normalizeSevrages = (sevrages: Sevrage[]) => normalize(sevrages, sevragesSchema);
+const normalizeGestation = (gestation: Gestation) => normalize([gestation], gestationsSchema);
+const normalizeSevrage = (sevrage: Sevrage) => normalize([sevrage], sevragesSchema);
 
 // Thunks pour Gestations
 export const createGestation = createAsyncThunk(
@@ -119,7 +145,7 @@ export const loadSevragesParGestation = createAsyncThunk(
   async (gestationId: string, { rejectWithValue }) => {
     try {
       const sevrages = await databaseService.getSevragesParGestation(gestationId);
-      return sevrages;
+      return { gestationId, sevrages };
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des sevrages');
     }
@@ -148,133 +174,155 @@ const reproductionSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // createGestation
+      // Gestations
       .addCase(createGestation.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(createGestation.fulfilled, (state, action) => {
         state.loading = false;
-        state.gestations.unshift(action.payload);
+        const normalized = normalizeGestation(action.payload);
+        state.entities.gestations = { ...state.entities.gestations, ...normalized.entities.gestations };
+        state.ids.gestations = [normalized.result[0], ...state.ids.gestations];
       })
       .addCase(createGestation.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })
-      // loadGestations
       .addCase(loadGestations.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(loadGestations.fulfilled, (state, action) => {
         state.loading = false;
-        state.gestations = action.payload;
+        const normalized = normalizeGestations(action.payload);
+        state.entities.gestations = { ...state.entities.gestations, ...normalized.entities.gestations };
+        state.ids.gestations = normalized.result;
       })
       .addCase(loadGestations.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })
-      // loadGestationsEnCours
       .addCase(loadGestationsEnCours.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(loadGestationsEnCours.fulfilled, (state, action) => {
         state.loading = false;
-        // On met à jour uniquement les gestations en cours, mais on garde les autres
-        const enCoursIds = action.payload.map((g) => g.id);
-        state.gestations = [
-          ...action.payload,
-          ...state.gestations.filter((g: Gestation) => !enCoursIds.includes(g.id) && g.statut === 'en_cours'),
+        const normalized = normalizeGestations(action.payload);
+        state.entities.gestations = { ...state.entities.gestations, ...normalized.entities.gestations };
+        // Mettre à jour uniquement les IDs des gestations en cours
+        const enCoursIds = normalized.result;
+        state.ids.gestations = [
+          ...enCoursIds,
+          ...state.ids.gestations.filter((id) => {
+            const g = state.entities.gestations[id];
+            return g && g.statut === 'en_cours' && !enCoursIds.includes(id);
+          }),
         ];
       })
       .addCase(loadGestationsEnCours.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })
-      // updateGestation
-      .addCase(updateGestation.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
       .addCase(updateGestation.fulfilled, (state, action) => {
-        state.loading = false;
-        const index = state.gestations.findIndex((g: Gestation) => g.id === action.payload.id);
-        if (index !== -1) {
-          state.gestations[index] = action.payload;
-        }
+        const normalized = normalizeGestation(action.payload);
+        state.entities.gestations = { ...state.entities.gestations, ...normalized.entities.gestations };
       })
       .addCase(updateGestation.rejected, (state, action) => {
-        state.loading = false;
         state.error = action.payload as string;
-      })
-      // deleteGestation
-      .addCase(deleteGestation.pending, (state) => {
-        state.loading = true;
-        state.error = null;
       })
       .addCase(deleteGestation.fulfilled, (state, action) => {
-        state.loading = false;
-        state.gestations = state.gestations.filter((g: Gestation) => g.id !== action.payload);
+        const gestationId = action.payload;
+        state.ids.gestations = state.ids.gestations.filter((id) => id !== gestationId);
+        delete state.entities.gestations[gestationId];
+        delete state.sevragesParGestation[gestationId];
       })
       .addCase(deleteGestation.rejected, (state, action) => {
-        state.loading = false;
         state.error = action.payload as string;
       })
-      // createSevrage
+      // Sevrages
       .addCase(createSevrage.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(createSevrage.fulfilled, (state, action) => {
         state.loading = false;
-        state.sevrages.unshift(action.payload);
+        const normalized = normalizeSevrage(action.payload);
+        state.entities.sevrages = { ...state.entities.sevrages, ...normalized.entities.sevrages };
+        const sevrageId = normalized.result[0];
+        state.ids.sevrages = [sevrageId, ...state.ids.sevrages];
+        
+        // Ajouter le sevrage à la gestation
+        if (action.payload.gestation_id) {
+          if (!state.sevragesParGestation[action.payload.gestation_id]) {
+            state.sevragesParGestation[action.payload.gestation_id] = [];
+          }
+          state.sevragesParGestation[action.payload.gestation_id] = [sevrageId, ...state.sevragesParGestation[action.payload.gestation_id]];
+        }
       })
       .addCase(createSevrage.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })
-      // loadSevrages
       .addCase(loadSevrages.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(loadSevrages.fulfilled, (state, action) => {
         state.loading = false;
-        state.sevrages = action.payload;
+        const normalized = normalizeSevrages(action.payload);
+        state.entities.sevrages = { ...state.entities.sevrages, ...normalized.entities.sevrages };
+        state.ids.sevrages = normalized.result;
+        // Mettre à jour sevragesParGestation
+        action.payload.forEach((sevrage) => {
+          if (sevrage.gestation_id) {
+            if (!state.sevragesParGestation[sevrage.gestation_id]) {
+              state.sevragesParGestation[sevrage.gestation_id] = [];
+            }
+            if (!state.sevragesParGestation[sevrage.gestation_id].includes(sevrage.id)) {
+              state.sevragesParGestation[sevrage.gestation_id].push(sevrage.id);
+            }
+          }
+        });
       })
       .addCase(loadSevrages.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })
-      // loadSevragesParGestation
       .addCase(loadSevragesParGestation.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(loadSevragesParGestation.fulfilled, (state, action) => {
         state.loading = false;
-        // On remplace les sevrages pour cette gestation
-        const autresSevrages = state.sevrages.filter(
-          (s: Sevrage) => s.gestation_id !== action.meta.arg
-        );
-        state.sevrages = [...action.payload, ...autresSevrages];
+        const { gestationId, sevrages } = action.payload;
+        const normalized = normalizeSevrages(sevrages);
+        state.entities.sevrages = { ...state.entities.sevrages, ...normalized.entities.sevrages };
+        state.sevragesParGestation[gestationId] = normalized.result;
+        // Ajouter les IDs de sevrages à la liste globale si pas déjà présents
+        normalized.result.forEach((sevrageId) => {
+          if (!state.ids.sevrages.includes(sevrageId)) {
+            state.ids.sevrages.push(sevrageId);
+          }
+        });
       })
       .addCase(loadSevragesParGestation.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })
-      // deleteSevrage
-      .addCase(deleteSevrage.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
       .addCase(deleteSevrage.fulfilled, (state, action) => {
-        state.loading = false;
-        state.sevrages = state.sevrages.filter((s: Sevrage) => s.id !== action.payload);
+        const sevrageId = action.payload;
+        state.ids.sevrages = state.ids.sevrages.filter((id) => id !== sevrageId);
+        delete state.entities.sevrages[sevrageId];
+        // Retirer de sevragesParGestation
+        Object.keys(state.sevragesParGestation).forEach((gestationId) => {
+          state.sevragesParGestation[gestationId] = state.sevragesParGestation[gestationId].filter(
+            (id) => id !== sevrageId
+          );
+        });
       })
       .addCase(deleteSevrage.rejected, (state, action) => {
-        state.loading = false;
         state.error = action.payload as string;
       });
   },
@@ -282,4 +330,3 @@ const reproductionSlice = createSlice({
 
 export const { clearError } = reproductionSlice.actions;
 export default reproductionSlice.reducer;
-

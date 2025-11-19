@@ -3,39 +3,55 @@
  * Affiche les statistiques principales avec indicateurs de tendance
  */
 
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { loadProductionAnimaux } from '../../store/slices/productionSlice';
-import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constants/theme';
+import { selectAllAnimaux } from '../../store/selectors/productionSelectors';
+import { selectAllMortalites } from '../../store/selectors/mortalitesSelectors';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
 import { differenceInMonths, parseISO } from 'date-fns';
+import { countAnimalsByCategory } from '../../utils/animalUtils';
 
 interface OverviewWidgetProps {
   onPress?: () => void;
 }
 
-export default function OverviewWidget({ onPress }: OverviewWidgetProps) {
+function OverviewWidget({ onPress }: OverviewWidgetProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
-  const { animaux } = useAppSelector((state) => state.production);
-  const { mortalites } = useAppSelector((state) => state.mortalites);
+  const animaux = useAppSelector(selectAllAnimaux);
+  const mortalites = useAppSelector(selectAllMortalites);
 
-  // Charger les animaux du cheptel
+  // Utiliser useRef pour éviter les chargements multiples (boucle infinie)
+  const dataChargeesRef = React.useRef<string | null>(null);
+
+  // Charger les animaux du cheptel (une seule fois par projet)
   useEffect(() => {
-    if (projetActif) {
-      dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
+    if (!projetActif) {
+      dataChargeesRef.current = null;
+      return;
     }
+    
+    if (dataChargeesRef.current === projetActif.id) return; // Déjà chargé !
+    
+    dataChargeesRef.current = projetActif.id;
+    dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
   }, [dispatch, projetActif?.id]);
+
+  // ✅ MÉMOÏSER les lengths pour éviter les boucles infinies
+  const animauxLength = animaux.length;
+  const mortalitesLength = mortalites.length;
 
   const stats = useMemo(() => {
     if (!projetActif) return null;
 
-    // Filtrer les animaux actifs du projet
+    // Filtrer les animaux actifs du projet (insensible à la casse)
     const animauxActifs = animaux.filter(
-      (animal) => animal.projet_id === projetActif.id && animal.statut === 'actif'
+      (animal) => animal.projet_id === projetActif.id && animal.statut?.toLowerCase() === 'actif'
     );
 
     const hasAnimauxActifs = animauxActifs.length > 0;
@@ -68,43 +84,9 @@ export default function OverviewWidget({ onPress }: OverviewWidgetProps) {
       return fallbackCounts;
     }
 
-    // Compter les truies (femelles actives)
-    const truies = animauxActifs.filter((animal) => animal.sexe === 'femelle').length;
-
-    // Compter les verrats (mâles actifs)
-    const verrats = animauxActifs.filter((animal) => animal.sexe === 'male').length;
-
-    // Compter les porcelets (animaux actifs qui ne sont pas des reproducteurs adultes)
-    // Un porcelet est un animal actif qui :
-    // - N'est pas marqué comme reproducteur, OU
-    // - A moins de 6 mois (si date_naissance disponible)
-    const porcelets = animauxActifs.filter((animal) => {
-      // Si l'animal est marqué comme reproducteur, ce n'est pas un porcelet
-      if (animal.reproducteur) return false;
-
-      // Si on a une date de naissance, vérifier l'âge
-      if (animal.date_naissance) {
-        try {
-          const dateNaissance = parseISO(animal.date_naissance);
-          const ageMois = differenceInMonths(new Date(), dateNaissance);
-          // Un porcelet a généralement moins de 6 mois
-          return ageMois < 6;
-        } catch {
-          // Si la date est invalide, considérer comme porcelet si pas reproducteur
-          return true;
-        }
-      }
-
-      // Si pas de date de naissance et pas reproducteur, considérer comme porcelet
-      return true;
-    }).length;
-
-    return {
-      truies,
-      verrats,
-      porcelets,
-    };
-  }, [projetActif, animaux, mortalites]);
+    // Utiliser la fonction utilitaire pour compter les animaux par catégorie
+    return countAnimalsByCategory(animauxActifs);
+  }, [projetActif?.id, animauxLength, mortalitesLength, animaux, mortalites]);
 
   if (!stats || !projetActif) {
     return null;
@@ -124,7 +106,7 @@ export default function OverviewWidget({ onPress }: OverviewWidgetProps) {
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Truies</Text>
           <View style={styles.statValueRow}>
             <Text style={[styles.statValue, { color: colors.primary }]}>
-              {stats.truies}
+              {stats.truies ?? 0}
             </Text>
             <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
           </View>
@@ -134,7 +116,7 @@ export default function OverviewWidget({ onPress }: OverviewWidgetProps) {
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Verrats</Text>
           <View style={styles.statValueRow}>
             <Text style={[styles.statValue, { color: colors.secondary }]}>
-              {stats.verrats}
+              {stats.verrats ?? 0}
             </Text>
             <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
           </View>
@@ -144,7 +126,7 @@ export default function OverviewWidget({ onPress }: OverviewWidgetProps) {
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Porcelets</Text>
           <View style={styles.statValueRow}>
             <Text style={[styles.statValue, { color: colors.accent }]}>
-              {stats.porcelets}
+              {stats.porcelets ?? 0}
             </Text>
             <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
           </View>
@@ -218,3 +200,5 @@ const styles = StyleSheet.create({
     marginLeft: SPACING.xs,
   },
 });
+
+export default memo(OverviewWidget);

@@ -4,7 +4,7 @@
 
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle, ActivityIndicator } from 'react-native';
-import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, TRANSITIONS } from '../constants/theme';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, TRANSITIONS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
 interface ButtonProps {
@@ -95,6 +95,10 @@ export default function Button({
 
   return (
     <TouchableOpacity
+      accessible={true}
+      accessibilityLabel={title}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: disabled || loading }}
       style={[...getButtonStyle(), { ...colors.shadow.small }, style]}
       onPress={onPress}
       disabled={disabled || loading}
@@ -120,7 +124,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: BORDER_RADIUS.md,
+    borderRadius: 12, // BORDER_RADIUS.md
   },
   // Tailles
   small: {

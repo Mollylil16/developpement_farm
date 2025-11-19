@@ -12,12 +12,16 @@ import { SPACING, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { format, addMonths, subMonths, parseISO, isAfter } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { selectAllGestations } from '../store/selectors/reproductionSelectors';
 
 export default function GestationsCalendarComponent() {
   const { colors } = useTheme();
-  const { gestations } = useAppSelector((state) => state.reproduction);
+  const gestations: Gestation[] = useAppSelector(selectAllGestations);
   const { projetActif } = useAppSelector((state) => state.projet);
   const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  // ✅ MÉMOÏSER la length pour éviter les boucles infinies
+  const gestationsLength = Array.isArray(gestations) ? gestations.length : 0;
 
   // Préparer les dates marquées pour le calendrier
   const markedDates = useMemo(() => {
@@ -26,9 +30,9 @@ export default function GestationsCalendarComponent() {
     if (!projetActif?.id) return marked;
     
     // Filtrer les gestations du projet actif
-    const gestationsProjet = gestations.filter((g) => g.projet_id === projetActif.id);
+    const gestationsProjet = gestations.filter((g: Gestation) => g.projet_id === projetActif.id);
     
-    gestationsProjet.forEach((gestation) => {
+    gestationsProjet.forEach((gestation: Gestation) => {
       try {
         if (!gestation.date_mise_bas_prevue || !gestation.date_sautage) return;
         
@@ -77,7 +81,7 @@ export default function GestationsCalendarComponent() {
     });
     
     return marked;
-  }, [gestations, projetActif?.id, colors]);
+  }, [gestationsLength, gestations, projetActif?.id, colors]);  // ✅ Ajout de gestationsLength
 
   const onDayPress = (day: DateData) => {
     // Peut être utilisé pour afficher les détails d'une journée
@@ -109,11 +113,11 @@ export default function GestationsCalendarComponent() {
     aujourdhui.setHours(0, 0, 0, 0);
     
     // Filtrer les gestations du projet actif
-    const gestationsProjet = gestations.filter((g) => g.projet_id === projetActif.id);
+    const gestationsProjet = gestations.filter((g: Gestation) => g.projet_id === projetActif.id);
     
     const evenementsFuturs = gestationsProjet
-      .filter((g) => g.statut === 'en_cours' && g.date_mise_bas_prevue)
-      .map((g) => {
+      .filter((g: Gestation) => g.statut === 'en_cours' && g.date_mise_bas_prevue)
+      .map((g: Gestation) => {
         try {
           const date = parseISO(g.date_mise_bas_prevue);
           if (isNaN(date.getTime())) return null;

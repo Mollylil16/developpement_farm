@@ -1,15 +1,16 @@
 /**
  * Composant formulaire modal pour ingrédient
+ * Permet de créer ou modifier un ingrédient avec auto-remplissage des valeurs nutritionnelles
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useAppDispatch } from '../store/hooks';
-import { createIngredient } from '../store/slices/nutritionSlice';
-import { CreateIngredientInput } from '../types';
+import { createIngredient, updateIngredient } from '../store/slices/nutritionSlice';
+import { CreateIngredientInput, Ingredient, getValeursNutritionnelles } from '../types';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
-import { SPACING } from '../constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 
@@ -17,16 +18,20 @@ interface IngredientFormModalProps {
   visible: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  ingredient?: Ingredient | null; // Pour la modification
+  isEditing?: boolean;
 }
 
 export default function IngredientFormModal({
   visible,
   onClose,
   onSuccess,
+  ingredient,
+  isEditing = false,
 }: IngredientFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { canCreate } = useActionPermissions();
+  const { canCreate, canUpdate } = useActionPermissions();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateIngredientInput>({
     nom: '',
@@ -35,10 +40,57 @@ export default function IngredientFormModal({
     proteine_pourcent: undefined,
     energie_kcal: undefined,
   });
+  const [equivalentsSuggeres, setEquivalentsSuggeres] = useState<string[]>([]);
+  const [autoFilled, setAutoFilled] = useState(false);
+
+  // Remplir le formulaire si en mode édition
+  useEffect(() => {
+    if (ingredient && isEditing) {
+      setFormData({
+        nom: ingredient.nom,
+        unite: ingredient.unite,
+        prix_unitaire: ingredient.prix_unitaire,
+        proteine_pourcent: ingredient.proteine_pourcent,
+        energie_kcal: ingredient.energie_kcal,
+      });
+      setAutoFilled(true);
+    } else {
+      // Reset si nouveau
+      setFormData({
+        nom: '',
+        unite: 'kg',
+        prix_unitaire: 0,
+        proteine_pourcent: undefined,
+        energie_kcal: undefined,
+      });
+      setEquivalentsSuggeres([]);
+      setAutoFilled(false);
+    }
+  }, [ingredient, isEditing, visible]);
+
+  // Auto-remplir les valeurs nutritionnelles quand le nom change
+  useEffect(() => {
+    if (formData.nom.trim().length > 2 && !autoFilled && !isEditing) {
+      const valeurs = getValeursNutritionnelles(formData.nom);
+      if (valeurs) {
+        setFormData(prev => ({
+          ...prev,
+          proteine_pourcent: valeurs.proteine_pourcent,
+          energie_kcal: valeurs.energie_kcal,
+        }));
+        setEquivalentsSuggeres(valeurs.equivalents || []);
+        setAutoFilled(true);
+      }
+    }
+  }, [formData.nom, autoFilled, isEditing]);
 
   const handleSubmit = async () => {
     // Vérifier les permissions
-    if (!canCreate('nutrition')) {
+    if (isEditing && !canUpdate('nutrition')) {
+      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier des ingrédients.');
+      return;
+    }
+    if (!isEditing && !canCreate('nutrition')) {
       Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de créer des ingrédients.');
       return;
     }
@@ -55,31 +107,39 @@ export default function IngredientFormModal({
 
     setLoading(true);
     try {
-      await dispatch(createIngredient(formData)).unwrap();
+      if (isEditing && ingredient) {
+        // Mise à jour
+        await dispatch(updateIngredient({ 
+          id: ingredient.id, 
+          updates: formData 
+        })).unwrap();
+        Alert.alert('Succès', 'Ingrédient modifié avec succès');
+      } else {
+        // Création
+        await dispatch(createIngredient(formData)).unwrap();
+        Alert.alert('Succès', 'Ingrédient créé avec succès');
+      }
       onSuccess();
-      // Reset form
-      setFormData({
-        nom: '',
-        unite: 'kg',
-        prix_unitaire: 0,
-        proteine_pourcent: undefined,
-        energie_kcal: undefined,
-      });
     } catch (error: any) {
-      Alert.alert('Erreur', error || 'Erreur lors de la création de l\'ingrédient');
+      Alert.alert('Erreur', error || `Erreur lors de ${isEditing ? 'la modification' : 'la création'} de l\'ingrédient`);
     } finally {
       setLoading(false);
     }
   };
 
-  const unites: ('kg' | 'g' | 'l' | 'ml')[] = ['kg', 'g', 'l', 'ml'];
+  const unites: ('kg' | 'g' | 'l' | 'ml' | 'sac')[] = ['kg', 'sac', 'g', 'l', 'ml'];
+
+  const getUniteLabel = (unite: string) => {
+    if (unite === 'sac') return 'Sac (50kg)';
+    return unite.toUpperCase();
+  };
 
   return (
     <CustomModal
       visible={visible}
       onClose={onClose}
-      title="Nouvel ingrédient"
-      confirmText="Créer"
+      title={isEditing ? 'Modifier l\'ingrédient' : 'Nouvel ingrédient'}
+      confirmText={isEditing ? 'Modifier' : 'Créer'}
       onConfirm={handleSubmit}
       showButtons={true}
     >
@@ -87,10 +147,22 @@ export default function IngredientFormModal({
         <FormField
           label="Nom de l'ingrédient *"
           value={formData.nom}
-          onChangeText={(text) => setFormData({ ...formData, nom: text })}
-          placeholder="Ex: Maïs"
+          onChangeText={(text) => {
+            setFormData({ ...formData, nom: text });
+            setAutoFilled(false); // Reset pour permettre le re-remplissage
+          }}
+          placeholder="Ex: Maïs grain"
           required
         />
+
+        {/* Afficher un message si auto-rempli */}
+        {autoFilled && !isEditing && (
+          <View style={[styles.infoBox, { backgroundColor: colors.success + '15', borderColor: colors.success + '30' }]}>
+            <Text style={[styles.infoText, { color: colors.success }]}>
+              ✅ Valeurs nutritionnelles remplies automatiquement
+            </Text>
+          </View>
+        )}
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Unité *</Text>
@@ -121,7 +193,7 @@ export default function IngredientFormModal({
                     },
                   ]}
                 >
-                  {unite.toUpperCase()}
+                  {getUniteLabel(unite)}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -164,6 +236,29 @@ export default function IngredientFormModal({
           placeholder="Ex: 3500"
           keyboardType="numeric"
         />
+
+        {/* Afficher les équivalents suggérés */}
+        {equivalentsSuggeres.length > 0 && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              💡 Ingrédients équivalents
+            </Text>
+            <View style={[styles.equivalentsContainer, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' }]}>
+              <Text style={[styles.equivalentsLabel, { color: colors.textSecondary }]}>
+                Vous pouvez remplacer cet ingrédient par :
+              </Text>
+              <View style={styles.equivalentsList}>
+                {equivalentsSuggeres.map((equiv, index) => (
+                  <View key={index} style={[styles.equivalentBadge, { backgroundColor: colors.primary + '20' }]}>
+                    <Text style={[styles.equivalentText, { color: colors.primary }]}>
+                      {equiv}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </View>
+        )}
       </ScrollView>
     </CustomModal>
   );
@@ -177,7 +272,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: FONT_SIZES.md,
     fontWeight: '600',
     marginBottom: SPACING.sm,
   },
@@ -189,11 +284,45 @@ const styles = StyleSheet.create({
   option: {
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
-    borderRadius: 8,
-    borderWidth: 1,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 2,
   },
   optionText: {
-    fontSize: 14,
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '500',
+  },
+  infoBox: {
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    marginBottom: SPACING.md,
+  },
+  infoText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+  },
+  equivalentsContainer: {
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+  },
+  equivalentsLabel: {
+    fontSize: FONT_SIZES.sm,
+    marginBottom: SPACING.sm,
+  },
+  equivalentsList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.sm,
+  },
+  equivalentBadge: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  equivalentText: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '600',
   },
 });
 

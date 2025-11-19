@@ -17,12 +17,14 @@ import EmptyState from './EmptyState';
 import LoadingSpinner from './LoadingSpinner';
 import ChargeFixeFormModal from './ChargeFixeFormModal';
 import { useActionPermissions } from '../hooks/useActionPermissions';
+import { selectAllChargesFixes } from '../store/selectors/financeSelectors';
 
 export default function FinanceChargesFixesComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
-  const { chargesFixes, loading } = useAppSelector((state) => state.finance);
+  const chargesFixes: ChargeFixe[] = useAppSelector(selectAllChargesFixes);
+  const loading = useAppSelector((state) => state.finance.loading);
   const [selectedCharge, setSelectedCharge] = useState<ChargeFixe | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);

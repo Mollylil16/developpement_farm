@@ -4,6 +4,7 @@
  */
 
 import * as SQLite from 'expo-sqlite';
+import uuid from 'react-native-uuid';
 import {
   Projet,
   ChargeFixe,
@@ -35,6 +36,7 @@ import {
   User,
 } from '../types';
 import { calculerDateMiseBasPrevue } from '../types/reproduction';
+import { genererPlusieursNomsAleatoires } from '../utils/nameGenerator';
 
 class DatabaseService {
   private db: SQLite.SQLiteDatabase | null = null;
@@ -256,6 +258,39 @@ class DatabaseService {
           ALTER TABLE production_animaux ADD COLUMN race TEXT;
         `);
         console.log('Migration: Colonne race ajoutée à la table production_animaux');
+      }
+
+      // Migration: Ajouter prix_kg_vif et prix_kg_carcasse à la table projets si elles n'existent pas
+      try {
+        const projetsTableExists = await this.db.getFirstAsync<{ name: string } | null>(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='projets'"
+        );
+
+        if (projetsTableExists) {
+          const prixVifInfo = await this.db.getFirstAsync<{ name: string } | null>(
+            "SELECT name FROM pragma_table_info('projets') WHERE name = 'prix_kg_vif'"
+          );
+          
+          if (!prixVifInfo) {
+            await this.db.execAsync(`
+              ALTER TABLE projets ADD COLUMN prix_kg_vif REAL;
+            `);
+            console.log('Migration: Colonne prix_kg_vif ajoutée à la table projets');
+          }
+
+          const prixCarcasseInfo = await this.db.getFirstAsync<{ name: string } | null>(
+            "SELECT name FROM pragma_table_info('projets') WHERE name = 'prix_kg_carcasse'"
+          );
+          
+          if (!prixCarcasseInfo) {
+            await this.db.execAsync(`
+              ALTER TABLE projets ADD COLUMN prix_kg_carcasse REAL;
+            `);
+            console.log('Migration: Colonne prix_kg_carcasse ajoutée à la table projets');
+          }
+        }
+      } catch (error: any) {
+        console.warn('Erreur lors de la migration prix_kg pour projets:', error?.message || error);
       }
 
       // Migration: Ajouter reproducteur (booléen) si absent
@@ -555,6 +590,87 @@ class DatabaseService {
         console.warn('Erreur lors de la migration projet_id pour depenses_ponctuelles:', error?.message || error);
       }
 
+      // Migration: Mettre à jour la contrainte CHECK de la table ingredients pour supporter 'sac'
+      try {
+        const ingredientsTableExists = await this.db.getFirstAsync<{ name: string } | null>(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='ingredients'"
+        );
+
+        if (ingredientsTableExists) {
+          // Vérifier si la migration a déjà été effectuée
+          const migrationCheck = await this.db.getFirstAsync<{ name: string } | null>(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='_migrations'"
+          );
+
+          let migrationEffectuee = false;
+          if (migrationCheck) {
+            const uniteSacMigration = await this.db.getFirstAsync<{ done: number } | null>(
+              "SELECT done FROM _migrations WHERE migration = 'ingredients_unite_sac'"
+            );
+            migrationEffectuee = uniteSacMigration?.done === 1;
+          } else {
+            // Créer la table de migrations si elle n'existe pas
+            await this.db.execAsync(`
+              CREATE TABLE IF NOT EXISTS _migrations (
+                migration TEXT PRIMARY KEY,
+                done INTEGER DEFAULT 0,
+                date TEXT DEFAULT CURRENT_TIMESTAMP
+              );
+            `);
+          }
+
+          if (!migrationEffectuee) {
+            // Récupérer les données existantes
+            const existingIngredients = await this.db.getAllAsync<any>(
+              'SELECT * FROM ingredients'
+            );
+
+            // Supprimer l'ancienne table
+            await this.db.execAsync('DROP TABLE IF EXISTS ingredients');
+
+            // Recréer la table avec la nouvelle contrainte
+            await this.db.execAsync(`
+              CREATE TABLE IF NOT EXISTS ingredients (
+                id TEXT PRIMARY KEY,
+                nom TEXT NOT NULL,
+                unite TEXT NOT NULL CHECK (unite IN ('kg', 'g', 'l', 'ml', 'sac')),
+                prix_unitaire REAL NOT NULL,
+                proteine_pourcent REAL,
+                energie_kcal REAL,
+                date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+              );
+            `);
+
+            // Réinsérer les données
+            for (const ing of existingIngredients) {
+              await this.db.runAsync(
+                `INSERT INTO ingredients (id, nom, unite, prix_unitaire, proteine_pourcent, energie_kcal, date_creation)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [
+                  ing.id,
+                  ing.nom,
+                  ing.unite,
+                  ing.prix_unitaire,
+                  ing.proteine_pourcent || null,
+                  ing.energie_kcal || null,
+                  ing.date_creation,
+                ]
+              );
+            }
+
+            // Marquer la migration comme effectuée
+            await this.db.runAsync(
+              'INSERT OR REPLACE INTO _migrations (migration, done) VALUES (?, ?)',
+              ['ingredients_unite_sac', 1]
+            );
+
+            console.log('Migration: Table ingredients recréée avec support de l\'unité "sac"');
+          }
+        }
+      } catch (error: any) {
+        console.warn('Erreur lors de la migration de la contrainte unite pour ingredients:', error?.message || error);
+      }
+
       // Migration: Recalculer les GMQ des pesées existantes avec la nouvelle fonction de calcul
       // Cette migration ne s'exécute qu'une seule fois (vérification via une table de migrations)
       try {
@@ -635,6 +751,328 @@ class DatabaseService {
       } catch (error) {
         // Si le recalcul échoue, on continue quand même
         console.warn('Erreur lors du recalcul des GMQ:', error);
+      }
+
+      // Migration: Ajouter permission_sante à la table collaborations si elle n'existe pas
+      try {
+        const collaborationsTableExists = await this.db.getFirstAsync<{ name: string } | null>(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='collaborations'"
+        );
+
+        if (collaborationsTableExists) {
+          const permissionSanteInfo = await this.db.getFirstAsync<{ name: string } | null>(
+            "SELECT name FROM pragma_table_info('collaborations') WHERE name = 'permission_sante'"
+          );
+
+          if (!permissionSanteInfo) {
+            await this.db.execAsync(`
+              ALTER TABLE collaborations ADD COLUMN permission_sante INTEGER DEFAULT 0;
+            `);
+            console.log('Migration: Colonne permission_sante ajoutée à la table collaborations');
+          }
+        } else {
+          console.log('Migration: Table collaborations n\'existe pas encore, sera créée avec permission_sante');
+        }
+      } catch (error: any) {
+        console.warn('Erreur lors de la migration permission_sante pour collaborations:', error?.message || error);
+      }
+
+      // Migration: Ajouter nouvelles colonnes à la table vaccinations pour prophylaxie améliorée
+      try {
+        const vaccinationsTableExists = await this.db.getFirstAsync<{ name: string } | null>(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='vaccinations'"
+        );
+
+        if (vaccinationsTableExists) {
+          // Vérifier et ajouter chaque nouvelle colonne si elle n'existe pas
+          const colonnesAAjouter = [
+            { nom: 'animal_ids', type: 'TEXT', default: null }, // JSON array
+            { nom: 'type_prophylaxie', type: 'TEXT', default: "'vitamine'" },
+            { nom: 'produit_administre', type: 'TEXT', default: null },
+            { nom: 'photo_flacon', type: 'TEXT', default: null },
+            { nom: 'dosage', type: 'TEXT', default: null },
+            { nom: 'unite_dosage', type: 'TEXT', default: "'ml'" },
+            { nom: 'raison_traitement', type: 'TEXT', default: "'suivi_normal'" },
+            { nom: 'raison_autre', type: 'TEXT', default: null },
+          ];
+
+          for (const colonne of colonnesAAjouter) {
+            try {
+              const colonneInfo = await this.db.getFirstAsync<{ name: string } | null>(
+                `SELECT name FROM pragma_table_info('vaccinations') WHERE name = '${colonne.nom}'`
+              );
+
+              if (!colonneInfo) {
+                const defaultValue = colonne.default || 'NULL';
+                await this.db.execAsync(`
+                  ALTER TABLE vaccinations ADD COLUMN ${colonne.nom} ${colonne.type} DEFAULT ${defaultValue};
+                `);
+                console.log(`Migration: Colonne ${colonne.nom} ajoutée à la table vaccinations`);
+              }
+            } catch (error: any) {
+              console.warn(`Erreur lors de l'ajout de la colonne ${colonne.nom}:`, error?.message || error);
+            }
+          }
+        } else {
+          console.log('Migration: Table vaccinations n\'existe pas encore, sera créée avec les nouvelles colonnes');
+        }
+      } catch (error: any) {
+        console.warn('Erreur lors de la migration des colonnes prophylaxie pour vaccinations:', error?.message || error);
+      }
+
+      // Migration: Mettre à jour table visites_veterinaires
+      try {
+        const visitesVetTable = await this.db.getFirstAsync<{ name: string } | null>(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='visites_veterinaires'"
+        );
+
+        if (visitesVetTable) {
+          // Vérifier si la colonne prochaine_visite_prevue existe
+          const colonneExists = await this.db.getFirstAsync<{ name: string } | null>(
+            "SELECT name FROM pragma_table_info('visites_veterinaires') WHERE name = 'prochaine_visite_prevue'"
+          );
+
+          if (!colonneExists) {
+            console.log('Migration: Mise à jour de la table visites_veterinaires');
+
+            await this.db.execAsync(`ALTER TABLE visites_veterinaires RENAME TO visites_veterinaires_old;`);
+
+            await this.db.execAsync(`
+              CREATE TABLE visites_veterinaires (
+                id TEXT PRIMARY KEY,
+                projet_id TEXT NOT NULL,
+                date_visite TEXT NOT NULL,
+                veterinaire TEXT,
+                motif TEXT NOT NULL,
+                animaux_examines TEXT,
+                diagnostic TEXT,
+                prescriptions TEXT,
+                recommandations TEXT,
+                traitement TEXT,
+                cout REAL,
+                prochaine_visite_prevue TEXT,
+                notes TEXT,
+                date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+                derniere_modification TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (projet_id) REFERENCES projets(id)
+              );
+            `);
+
+            // Copier avec mapping de colonnes
+            await this.db.execAsync(`
+              INSERT INTO visites_veterinaires 
+                (id, projet_id, date_visite, veterinaire, motif, animaux_examines, 
+                 diagnostic, prescriptions, recommandations, cout, notes, date_creation, derniere_modification)
+              SELECT 
+                id, projet_id, date_visite, veterinaire, motif, animaux_examines,
+                diagnostic, prescriptions, recommandations, cout, notes, date_creation, derniere_modification
+              FROM visites_veterinaires_old;
+            `);
+
+            await this.db.execAsync(`DROP TABLE visites_veterinaires_old;`);
+
+            console.log('Migration: Table visites_veterinaires mise à jour avec succès');
+          }
+        }
+      } catch (error: any) {
+        console.warn('Erreur lors de la migration visites_veterinaires:', error?.message || error);
+      }
+
+      // Migration: Ajouter la colonne photo_uri dans production_animaux
+      try {
+        const hasPhotoUri = await this.db.getFirstAsync<{ count: number }>(
+          "SELECT COUNT(*) as count FROM pragma_table_info('production_animaux') WHERE name='photo_uri'"
+        );
+
+        if (hasPhotoUri && hasPhotoUri.count === 0) {
+          console.log('Migration: Ajout de la colonne photo_uri dans production_animaux');
+          await this.db.execAsync(`ALTER TABLE production_animaux ADD COLUMN photo_uri TEXT;`);
+          console.log('Migration: Colonne photo_uri ajoutée avec succès');
+        }
+      } catch (error: any) {
+        console.warn('Erreur lors de l\'ajout de photo_uri:', error?.message || error);
+      }
+
+      // Migration: Mettre à jour CHECK constraint statut dans production_animaux
+      try {
+        const productionAnimauxTable = await this.db.getFirstAsync<{ name: string } | null>(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='production_animaux'"
+        );
+
+        if (productionAnimauxTable) {
+          console.log('Migration: Mise à jour du constraint statut dans production_animaux');
+
+          await this.db.execAsync(`ALTER TABLE production_animaux RENAME TO production_animaux_old;`);
+
+          await this.db.execAsync(`
+            CREATE TABLE production_animaux (
+              id TEXT PRIMARY KEY,
+              projet_id TEXT NOT NULL,
+              code TEXT NOT NULL,
+              nom TEXT,
+              origine TEXT,
+              sexe TEXT NOT NULL CHECK (sexe IN ('male', 'femelle', 'indetermine')) DEFAULT 'indetermine',
+              date_naissance TEXT,
+              poids_initial REAL,
+              date_entree TEXT,
+              actif INTEGER DEFAULT 1,
+              statut TEXT DEFAULT 'actif' CHECK (statut IN ('actif', 'inactif', 'mort', 'vendu', 'offert', 'autre')),
+              race TEXT,
+              reproducteur INTEGER DEFAULT 0 CHECK (reproducteur IN (0, 1)),
+              pere_id TEXT,
+              mere_id TEXT,
+              notes TEXT,
+              photo_uri TEXT,
+              date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+              derniere_modification TEXT DEFAULT CURRENT_TIMESTAMP,
+              FOREIGN KEY (projet_id) REFERENCES projets(id),
+              FOREIGN KEY (pere_id) REFERENCES production_animaux(id),
+              FOREIGN KEY (mere_id) REFERENCES production_animaux(id)
+            );
+          `);
+
+          await this.db.execAsync(`
+            INSERT INTO production_animaux (
+              id, projet_id, code, nom, origine, sexe, date_naissance, poids_initial, 
+              date_entree, actif, statut, race, reproducteur, pere_id, mere_id, notes,
+              date_creation, derniere_modification
+            )
+            SELECT 
+              id, projet_id, code, nom, origine, sexe, date_naissance, poids_initial,
+              date_entree, actif, statut, race, reproducteur, pere_id, mere_id, notes,
+              date_creation, derniere_modification
+            FROM production_animaux_old;
+          `);
+
+          await this.db.execAsync(`DROP TABLE production_animaux_old;`);
+
+          console.log('Migration: Table production_animaux mise à jour avec succès');
+        }
+      } catch (error: any) {
+        console.warn('Erreur lors de la migration production_animaux statut:', error?.message || error);
+      }
+
+      // Migration: Rendre la colonne vaccin nullable dans vaccinations (pour type_prophylaxie)
+      try {
+        const vaccinationsCheckTable = await this.db.getFirstAsync<{ name: string } | null>(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='vaccinations'"
+        );
+
+        if (vaccinationsCheckTable) {
+          // Vérifier si type_prophylaxie existe (signe de la nouvelle structure)
+          const typeProphylaxieExists = await this.db.getFirstAsync<{ name: string } | null>(
+            "SELECT name FROM pragma_table_info('vaccinations') WHERE name = 'type_prophylaxie'"
+          );
+
+          if (typeProphylaxieExists) {
+            console.log('Migration: Mise à jour de la table vaccinations pour rendre vaccin nullable');
+
+            // Recréer la table avec vaccin nullable
+            await this.db.execAsync(`ALTER TABLE vaccinations RENAME TO vaccinations_old;`);
+
+            await this.db.execAsync(`
+              CREATE TABLE vaccinations (
+                id TEXT PRIMARY KEY,
+                projet_id TEXT NOT NULL,
+                calendrier_id TEXT,
+                animal_id TEXT,
+                lot_id TEXT,
+                vaccin TEXT,
+                nom_vaccin TEXT,
+                date_vaccination TEXT NOT NULL,
+                date_rappel TEXT,
+                numero_lot_vaccin TEXT,
+                veterinaire TEXT,
+                cout REAL,
+                statut TEXT NOT NULL CHECK (statut IN ('planifie', 'effectue', 'en_retard', 'annule')) DEFAULT 'effectue',
+                effets_secondaires TEXT,
+                notes TEXT,
+                date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+                derniere_modification TEXT DEFAULT CURRENT_TIMESTAMP,
+                animal_ids TEXT,
+                type_prophylaxie TEXT DEFAULT 'vitamine',
+                produit_administre TEXT,
+                photo_flacon TEXT,
+                dosage TEXT,
+                unite_dosage TEXT DEFAULT 'ml',
+                raison_traitement TEXT DEFAULT 'suivi_normal',
+                raison_autre TEXT,
+                FOREIGN KEY (projet_id) REFERENCES projets(id),
+                FOREIGN KEY (calendrier_id) REFERENCES calendrier_vaccinations(id),
+                FOREIGN KEY (animal_id) REFERENCES production_animaux(id)
+              );
+            `);
+
+            // Copier les données
+            await this.db.execAsync(`
+              INSERT INTO vaccinations SELECT * FROM vaccinations_old;
+            `);
+
+            // Supprimer l'ancienne table
+            await this.db.execAsync(`DROP TABLE vaccinations_old;`);
+
+            console.log('Migration: Table vaccinations mise à jour avec succès');
+          }
+        }
+      } catch (error: any) {
+        console.warn('Erreur lors de la migration vaccinations nullable:', error?.message || error);
+      }
+
+      // Migration: Mettre à jour le constraint de la table maladies pour nouveaux types
+      try {
+        const maladiesTableExists = await this.db.getFirstAsync<{ name: string } | null>(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='maladies'"
+        );
+
+        if (maladiesTableExists) {
+          // SQLite ne supporte pas ALTER COLUMN, donc on doit recréer la table
+          console.log('Migration: Mise à jour de la table maladies pour nouveaux types de maladies');
+
+          // Renommer l'ancienne table
+          await this.db.execAsync(`ALTER TABLE maladies RENAME TO maladies_old;`);
+
+          // Recréer la table avec le nouveau constraint
+          await this.db.execAsync(`
+            CREATE TABLE maladies (
+              id TEXT PRIMARY KEY,
+              projet_id TEXT NOT NULL,
+              animal_id TEXT,
+              lot_id TEXT,
+              type TEXT NOT NULL CHECK (type IN ('diarrhee', 'respiratoire', 'gale_parasites', 'fievre', 'boiterie', 'digestive', 'cutanee', 'reproduction', 'neurologique', 'autre')),
+              nom_maladie TEXT NOT NULL,
+              gravite TEXT NOT NULL CHECK (gravite IN ('faible', 'moderee', 'grave', 'critique')),
+              date_debut TEXT NOT NULL,
+              date_fin TEXT,
+              symptomes TEXT NOT NULL,
+              diagnostic TEXT,
+              contagieux INTEGER DEFAULT 0 CHECK (contagieux IN (0, 1)),
+              nombre_animaux_affectes INTEGER,
+              nombre_deces INTEGER,
+              veterinaire TEXT,
+              cout_traitement REAL,
+              gueri INTEGER DEFAULT 0 CHECK (gueri IN (0, 1)),
+              notes TEXT,
+              date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+              derniere_modification TEXT DEFAULT CURRENT_TIMESTAMP,
+              FOREIGN KEY (projet_id) REFERENCES projets(id),
+              FOREIGN KEY (animal_id) REFERENCES production_animaux(id)
+            );
+          `);
+
+          // Copier les données existantes
+          await this.db.execAsync(`
+            INSERT INTO maladies SELECT * FROM maladies_old;
+          `);
+
+          // Supprimer l'ancienne table
+          await this.db.execAsync(`DROP TABLE maladies_old;`);
+
+          console.log('Migration: Table maladies mise à jour avec succès');
+        } else {
+          console.log('Migration: Table maladies n\'existe pas encore, sera créée avec les nouveaux types');
+        }
+      } catch (error: any) {
+        console.warn('Erreur lors de la migration des types de maladies:', error?.message || error);
       }
     } catch (error) {
       // Si la migration échoue, on continue quand même
@@ -802,6 +1240,30 @@ class DatabaseService {
       console.warn('Erreur lors de la création de idx_production_animaux_reproducteur:', error?.message || error);
     }
 
+    // Index sur collaborations(user_id) - colonne ajoutée par migration
+    try {
+      const tableExists = await this.db.getFirstAsync<{ name: string } | null>(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='collaborations'"
+      );
+      
+      if (tableExists) {
+        const columnExists = await this.db.getFirstAsync<{ name: string } | null>(
+          "SELECT name FROM pragma_table_info('collaborations') WHERE name = 'user_id'"
+        );
+
+        if (columnExists) {
+          if (!(await indexExists('idx_collaborations_user_id'))) {
+            await this.db.execAsync(`
+              CREATE INDEX IF NOT EXISTS idx_collaborations_user_id ON collaborations(user_id);
+            `);
+            console.log('✓ Index idx_collaborations_user_id créé avec succès');
+          }
+        }
+      }
+    } catch (error: any) {
+      console.warn('Erreur lors de la création de idx_collaborations_user_id:', error?.message || error);
+    }
+
     // Résumé et vérification critique
     const successCount = results.filter(r => r).length;
     const failCount = results.filter(r => !r).length;
@@ -841,6 +1303,7 @@ class DatabaseService {
       'idx_stocks_aliments_projet',
       'idx_production_animaux_code',
       'idx_production_animaux_reproducteur',
+      'idx_collaborations_user_id',
     ];
 
     let repaired = 0;
@@ -1005,7 +1468,7 @@ class DatabaseService {
       CREATE TABLE IF NOT EXISTS ingredients (
         id TEXT PRIMARY KEY,
         nom TEXT NOT NULL,
-        unite TEXT NOT NULL CHECK (unite IN ('kg', 'g', 'l', 'ml')),
+        unite TEXT NOT NULL CHECK (unite IN ('kg', 'g', 'l', 'ml', 'sac')),
         prix_unitaire REAL NOT NULL,
         proteine_pourcent REAL,
         energie_kcal REAL,
@@ -1065,12 +1528,13 @@ class DatabaseService {
         poids_initial REAL,
         date_entree TEXT,
         actif INTEGER DEFAULT 1,
-        statut TEXT DEFAULT 'actif' CHECK (statut IN ('actif', 'mort', 'vendu', 'offert', 'autre')),
+          statut TEXT DEFAULT 'actif' CHECK (statut IN ('actif', 'inactif', 'mort', 'vendu', 'offert', 'autre')),
         race TEXT,
         reproducteur INTEGER DEFAULT 0 CHECK (reproducteur IN (0, 1)),
         pere_id TEXT,
         mere_id TEXT,
         notes TEXT,
+        photo_uri TEXT,
         date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
         derniere_modification TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (projet_id) REFERENCES projets(id),
@@ -1122,6 +1586,29 @@ class DatabaseService {
         quantite REAL NOT NULL,
         FOREIGN KEY (ration_id) REFERENCES rations(id),
         FOREIGN KEY (ingredient_id) REFERENCES ingredients(id)
+      );
+    `);
+
+    // Table rations_budget (budgétisation d'aliment)
+    await this.db.execAsync(`
+      CREATE TABLE IF NOT EXISTS rations_budget (
+        id TEXT PRIMARY KEY,
+        projet_id TEXT NOT NULL,
+        nom TEXT NOT NULL,
+        type_porc TEXT NOT NULL CHECK (type_porc IN ('porcelet', 'truie_gestante', 'truie_allaitante', 'verrat', 'porc_croissance')),
+        poids_moyen_kg REAL NOT NULL,
+        nombre_porcs INTEGER NOT NULL,
+        duree_jours INTEGER NOT NULL,
+        ration_journaliere_par_porc REAL NOT NULL,
+        quantite_totale_kg REAL NOT NULL,
+        cout_total REAL NOT NULL,
+        cout_par_kg REAL NOT NULL,
+        cout_par_porc REAL NOT NULL,
+        ingredients TEXT NOT NULL,
+        notes TEXT,
+        date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+        derniere_modification TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (projet_id) REFERENCES projets(id)
       );
     `);
 
@@ -1197,6 +1684,7 @@ class DatabaseService {
         permission_rapports INTEGER DEFAULT 0,
         permission_planification INTEGER DEFAULT 0,
         permission_mortalites INTEGER DEFAULT 0,
+        permission_sante INTEGER DEFAULT 0,
         date_invitation TEXT NOT NULL,
         date_acceptation TEXT,
         notes TEXT,
@@ -1204,6 +1692,155 @@ class DatabaseService {
         derniere_modification TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (projet_id) REFERENCES projets(id),
         FOREIGN KEY (user_id) REFERENCES users(id)
+      );
+    `);
+
+    // ============================================
+    // MODULE SANTÉ
+    // ============================================
+
+    // Table calendrier_vaccinations (protocoles de vaccination)
+    await this.db.execAsync(`
+      CREATE TABLE IF NOT EXISTS calendrier_vaccinations (
+        id TEXT PRIMARY KEY,
+        projet_id TEXT NOT NULL,
+        vaccin TEXT NOT NULL CHECK (vaccin IN ('rouget', 'parvovirose', 'mal_rouge', 'circovirus', 'mycoplasme', 'grippe', 'autre')),
+        nom_vaccin TEXT,
+        categorie TEXT NOT NULL CHECK (categorie IN ('porcelet', 'truie', 'verrat', 'porc_croissance', 'tous')),
+        age_jours INTEGER,
+        date_planifiee TEXT,
+        frequence_jours INTEGER,
+        obligatoire INTEGER DEFAULT 0 CHECK (obligatoire IN (0, 1)),
+        notes TEXT,
+        date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (projet_id) REFERENCES projets(id)
+      );
+    `);
+
+    // Table vaccinations (vaccinations effectuées)
+    await this.db.execAsync(`
+      CREATE TABLE IF NOT EXISTS vaccinations (
+        id TEXT PRIMARY KEY,
+        projet_id TEXT NOT NULL,
+        calendrier_id TEXT,
+        animal_id TEXT,
+        lot_id TEXT,
+        vaccin TEXT,
+        nom_vaccin TEXT,
+        date_vaccination TEXT NOT NULL,
+        date_rappel TEXT,
+        numero_lot_vaccin TEXT,
+        veterinaire TEXT,
+        cout REAL,
+        statut TEXT NOT NULL CHECK (statut IN ('planifie', 'effectue', 'en_retard', 'annule')) DEFAULT 'effectue',
+        effets_secondaires TEXT,
+        notes TEXT,
+        date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+        derniere_modification TEXT DEFAULT CURRENT_TIMESTAMP,
+        animal_ids TEXT,
+        type_prophylaxie TEXT DEFAULT 'vitamine',
+        produit_administre TEXT,
+        photo_flacon TEXT,
+        dosage TEXT,
+        unite_dosage TEXT DEFAULT 'ml',
+        raison_traitement TEXT DEFAULT 'suivi_normal',
+        raison_autre TEXT,
+        FOREIGN KEY (projet_id) REFERENCES projets(id),
+        FOREIGN KEY (calendrier_id) REFERENCES calendrier_vaccinations(id),
+        FOREIGN KEY (animal_id) REFERENCES production_animaux(id)
+      );
+    `);
+
+    // Table maladies (journal des maladies)
+    await this.db.execAsync(`
+      CREATE TABLE IF NOT EXISTS maladies (
+        id TEXT PRIMARY KEY,
+        projet_id TEXT NOT NULL,
+        animal_id TEXT,
+        lot_id TEXT,
+        type TEXT NOT NULL CHECK (type IN ('diarrhee', 'respiratoire', 'gale_parasites', 'fievre', 'boiterie', 'digestive', 'cutanee', 'reproduction', 'neurologique', 'autre')),
+        nom_maladie TEXT NOT NULL,
+        gravite TEXT NOT NULL CHECK (gravite IN ('faible', 'moderee', 'grave', 'critique')),
+        date_debut TEXT NOT NULL,
+        date_fin TEXT,
+        symptomes TEXT NOT NULL,
+        diagnostic TEXT,
+        contagieux INTEGER DEFAULT 0 CHECK (contagieux IN (0, 1)),
+        nombre_animaux_affectes INTEGER,
+        nombre_deces INTEGER,
+        veterinaire TEXT,
+        cout_traitement REAL,
+        gueri INTEGER DEFAULT 0 CHECK (gueri IN (0, 1)),
+        notes TEXT,
+        date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+        derniere_modification TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (projet_id) REFERENCES projets(id),
+        FOREIGN KEY (animal_id) REFERENCES production_animaux(id)
+      );
+    `);
+
+    // Table traitements (traitements médicaux)
+    await this.db.execAsync(`
+      CREATE TABLE IF NOT EXISTS traitements (
+        id TEXT PRIMARY KEY,
+        projet_id TEXT NOT NULL,
+        maladie_id TEXT,
+        animal_id TEXT,
+        lot_id TEXT,
+        type TEXT NOT NULL CHECK (type IN ('antibiotique', 'antiparasitaire', 'anti_inflammatoire', 'vitamine', 'vaccin', 'autre')),
+        nom_medicament TEXT NOT NULL,
+        voie_administration TEXT NOT NULL CHECK (voie_administration IN ('orale', 'injectable', 'topique', 'alimentaire')),
+        dosage TEXT NOT NULL,
+        frequence TEXT NOT NULL,
+        date_debut TEXT NOT NULL,
+        date_fin TEXT,
+        duree_jours INTEGER,
+        temps_attente_jours INTEGER,
+        veterinaire TEXT,
+        cout REAL,
+        termine INTEGER DEFAULT 0 CHECK (termine IN (0, 1)),
+        efficace INTEGER,
+        effets_secondaires TEXT,
+        notes TEXT,
+        date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+        derniere_modification TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (projet_id) REFERENCES projets(id),
+        FOREIGN KEY (maladie_id) REFERENCES maladies(id),
+        FOREIGN KEY (animal_id) REFERENCES production_animaux(id)
+      );
+    `);
+
+    // Table visites_veterinaires (historique des visites vétérinaires)
+    await this.db.execAsync(`
+      CREATE TABLE IF NOT EXISTS visites_veterinaires (
+        id TEXT PRIMARY KEY,
+        projet_id TEXT NOT NULL,
+        date_visite TEXT NOT NULL,
+        veterinaire TEXT,
+        motif TEXT NOT NULL,
+        animaux_examines TEXT,
+        diagnostic TEXT,
+        prescriptions TEXT,
+        recommandations TEXT,
+        traitement TEXT,
+        cout REAL,
+        prochaine_visite_prevue TEXT,
+        notes TEXT,
+        date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+        derniere_modification TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (projet_id) REFERENCES projets(id)
+      );
+    `);
+
+    // Table rappels_vaccinations (rappels automatiques)
+    await this.db.execAsync(`
+      CREATE TABLE IF NOT EXISTS rappels_vaccinations (
+        id TEXT PRIMARY KEY,
+        vaccination_id TEXT NOT NULL,
+        date_rappel TEXT NOT NULL,
+        envoi INTEGER DEFAULT 0 CHECK (envoi IN (0, 1)),
+        date_envoi TEXT,
+        FOREIGN KEY (vaccination_id) REFERENCES vaccinations(id)
       );
     `);
 
@@ -1229,14 +1866,2221 @@ class DatabaseService {
       CREATE INDEX IF NOT EXISTS idx_collaborations_statut ON collaborations(statut);
       CREATE INDEX IF NOT EXISTS idx_collaborations_role ON collaborations(role);
       CREATE INDEX IF NOT EXISTS idx_collaborations_email ON collaborations(email);
-      CREATE INDEX IF NOT EXISTS idx_collaborations_user_id ON collaborations(user_id);
+      -- Note: idx_collaborations_user_id est créé dans createIndexesWithProjetId() après la migration
       CREATE INDEX IF NOT EXISTS idx_stocks_aliments_alerte ON stocks_aliments(alerte_active);
       CREATE INDEX IF NOT EXISTS idx_stocks_mouvements_aliment ON stocks_mouvements(aliment_id);
       CREATE INDEX IF NOT EXISTS idx_stocks_mouvements_date ON stocks_mouvements(date);
       CREATE INDEX IF NOT EXISTS idx_production_animaux_actif ON production_animaux(actif);
       CREATE INDEX IF NOT EXISTS idx_production_pesees_animal ON production_pesees(animal_id);
       CREATE INDEX IF NOT EXISTS idx_production_pesees_date ON production_pesees(date);
+      CREATE INDEX IF NOT EXISTS idx_calendrier_vaccinations_categorie ON calendrier_vaccinations(categorie);
+      CREATE INDEX IF NOT EXISTS idx_vaccinations_statut ON vaccinations(statut);
+      CREATE INDEX IF NOT EXISTS idx_vaccinations_date_rappel ON vaccinations(date_rappel);
+      CREATE INDEX IF NOT EXISTS idx_vaccinations_animal ON vaccinations(animal_id);
+      CREATE INDEX IF NOT EXISTS idx_maladies_type ON maladies(type);
+      CREATE INDEX IF NOT EXISTS idx_maladies_gravite ON maladies(gravite);
+      CREATE INDEX IF NOT EXISTS idx_maladies_gueri ON maladies(gueri);
+      CREATE INDEX IF NOT EXISTS idx_maladies_date_debut ON maladies(date_debut);
+      CREATE INDEX IF NOT EXISTS idx_traitements_termine ON traitements(termine);
+      CREATE INDEX IF NOT EXISTS idx_traitements_maladie ON traitements(maladie_id);
+      CREATE INDEX IF NOT EXISTS idx_traitements_animal ON traitements(animal_id);
+      CREATE INDEX IF NOT EXISTS idx_visites_veterinaires_date ON visites_veterinaires(date_visite);
+      CREATE INDEX IF NOT EXISTS idx_rappels_vaccinations_date ON rappels_vaccinations(date_rappel);
+      CREATE INDEX IF NOT EXISTS idx_rappels_vaccinations_vaccination ON rappels_vaccinations(vaccination_id);
     `);
+  }
+
+  /**
+   * ============================================
+   * MODULE SANTÉ - CALENDRIER DE VACCINATIONS
+   * ============================================
+   */
+
+  /**
+   * Créer un protocole de vaccination dans le calendrier
+   */
+  async createCalendrierVaccination(
+    input: CreateCalendrierVaccinationInput
+  ): Promise<CalendrierVaccination> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const id = uuid.v4() as string;
+    const now = new Date().toISOString();
+
+    await this.db.runAsync(
+      `INSERT INTO calendrier_vaccinations (
+        id, projet_id, vaccin, nom_vaccin, categorie_animal, age_min_jours,
+        age_max_jours, frequence_jours, obligatoire, notes, date_creation, derniere_modification
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        input.projet_id,
+        input.vaccin,
+        input.nom_vaccin || null,
+        input.categorie_animal,
+        input.age_min_jours || null,
+        input.age_max_jours || null,
+        input.frequence_jours || null,
+        input.obligatoire ? 1 : 0,
+        input.notes || null,
+        now,
+        now,
+      ]
+    );
+
+    return {
+      id,
+      projet_id: input.projet_id,
+      vaccin: input.vaccin,
+      nom_vaccin: input.nom_vaccin,
+      categorie_animal: input.categorie_animal,
+      age_min_jours: input.age_min_jours,
+      age_max_jours: input.age_max_jours,
+      frequence_jours: input.frequence_jours,
+      obligatoire: input.obligatoire || false,
+      notes: input.notes,
+      date_creation: now,
+      derniere_modification: now,
+    };
+  }
+
+  /**
+   * Récupérer tous les protocoles de vaccination d'un projet
+   */
+  async getCalendrierVaccinationsByProjet(
+    projetId: string
+  ): Promise<CalendrierVaccination[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const rows = await this.db.getAllAsync<any>(
+      `SELECT * FROM calendrier_vaccinations 
+       WHERE projet_id = ? 
+       ORDER BY categorie_animal, age_min_jours`,
+      [projetId]
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      projet_id: row.projet_id,
+      vaccin: row.vaccin,
+      nom_vaccin: row.nom_vaccin,
+      categorie_animal: row.categorie_animal,
+      age_min_jours: row.age_min_jours,
+      age_max_jours: row.age_max_jours,
+      frequence_jours: row.frequence_jours,
+      obligatoire: Boolean(row.obligatoire),
+      notes: row.notes,
+      date_creation: row.date_creation,
+      derniere_modification: row.derniere_modification,
+    }));
+  }
+
+  /**
+   * Récupérer un protocole de vaccination par ID
+   */
+  async getCalendrierVaccinationById(id: string): Promise<CalendrierVaccination | null> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const row = await this.db.getFirstAsync<any>(
+      'SELECT * FROM calendrier_vaccinations WHERE id = ?',
+      [id]
+    );
+
+    if (!row) return null;
+
+    return {
+      id: row.id,
+      projet_id: row.projet_id,
+      vaccin: row.vaccin,
+      nom_vaccin: row.nom_vaccin,
+      categorie_animal: row.categorie_animal,
+      age_min_jours: row.age_min_jours,
+      age_max_jours: row.age_max_jours,
+      frequence_jours: row.frequence_jours,
+      obligatoire: Boolean(row.obligatoire),
+      notes: row.notes,
+      date_creation: row.date_creation,
+      derniere_modification: row.derniere_modification,
+    };
+  }
+
+  /**
+   * Mettre à jour un protocole de vaccination
+   */
+  async updateCalendrierVaccination(
+    id: string,
+    updates: Partial<CreateCalendrierVaccinationInput>
+  ): Promise<void> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (updates.vaccin !== undefined) {
+      fields.push('vaccin = ?');
+      values.push(updates.vaccin);
+    }
+    if (updates.nom_vaccin !== undefined) {
+      fields.push('nom_vaccin = ?');
+      values.push(updates.nom_vaccin);
+    }
+    if (updates.categorie_animal !== undefined) {
+      fields.push('categorie_animal = ?');
+      values.push(updates.categorie_animal);
+    }
+    if (updates.age_min_jours !== undefined) {
+      fields.push('age_min_jours = ?');
+      values.push(updates.age_min_jours);
+    }
+    if (updates.age_max_jours !== undefined) {
+      fields.push('age_max_jours = ?');
+      values.push(updates.age_max_jours);
+    }
+    if (updates.frequence_jours !== undefined) {
+      fields.push('frequence_jours = ?');
+      values.push(updates.frequence_jours);
+    }
+    if (updates.obligatoire !== undefined) {
+      fields.push('obligatoire = ?');
+      values.push(updates.obligatoire ? 1 : 0);
+    }
+    if (updates.notes !== undefined) {
+      fields.push('notes = ?');
+      values.push(updates.notes);
+    }
+
+    if (fields.length === 0) return;
+
+    fields.push('derniere_modification = ?');
+    values.push(new Date().toISOString());
+    values.push(id);
+
+    await this.db.runAsync(
+      `UPDATE calendrier_vaccinations SET ${fields.join(', ')} WHERE id = ?`,
+      values
+    );
+  }
+
+  /**
+   * Supprimer un protocole de vaccination
+   */
+  async deleteCalendrierVaccination(id: string): Promise<void> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    await this.db.runAsync('DELETE FROM calendrier_vaccinations WHERE id = ?', [id]);
+  }
+
+  /**
+   * Initialiser les protocoles de vaccination standard pour un projet
+   */
+  async initProtocolesVaccinationStandard(projetId: string): Promise<void> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const { PROTOCOLES_VACCINATION_STANDARD } = await import('../types/sante');
+
+    for (const protocole of PROTOCOLES_VACCINATION_STANDARD) {
+      await this.createCalendrierVaccination({
+        projet_id: projetId,
+        ...protocole,
+      });
+    }
+  }
+
+  /**
+   * ============================================
+   * MODULE SANTÉ - VACCINATIONS
+   * ============================================
+   */
+
+  /**
+   * Créer une vaccination
+   */
+  async createVaccination(input: CreateVaccinationInput): Promise<Vaccination> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const id = uuid.v4() as string;
+    const now = new Date().toISOString();
+
+    // Convertir animal_ids en JSON string si présent
+    const animalIdsJson = input.animal_ids ? JSON.stringify(input.animal_ids) : null;
+
+    await this.db.runAsync(
+      `INSERT INTO vaccinations (
+        id, projet_id, calendrier_id, animal_id, lot_id, vaccin, nom_vaccin,
+        date_vaccination, date_rappel, numero_lot_vaccin, veterinaire, cout,
+        statut, effets_secondaires, notes, date_creation, derniere_modification,
+        animal_ids, type_prophylaxie, produit_administre, photo_flacon, dosage,
+        unite_dosage, raison_traitement, raison_autre
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        input.projet_id,
+        input.calendrier_id || null,
+        input.animal_ids && input.animal_ids.length > 0 ? input.animal_ids[0] : null, // Compat: premier animal
+        input.lot_id || null,
+        input.vaccin || null, // Plus obligatoire avec type_prophylaxie
+        input.nom_vaccin || null,
+        input.date_vaccination,
+        input.date_rappel || null,
+        input.numero_lot_vaccin || null,
+        input.veterinaire || null,
+        input.cout || null,
+        input.statut || 'effectue',
+        input.effets_secondaires || null,
+        input.notes || null,
+        now,
+        now,
+        // Nouveaux champs
+        animalIdsJson,
+        input.type_prophylaxie,
+        input.produit_administre,
+        input.photo_flacon || null,
+        input.dosage,
+        input.unite_dosage || 'ml',
+        input.raison_traitement,
+        input.raison_autre || null,
+      ]
+    );
+
+    // Créer un rappel si date_rappel est fournie
+    if (input.date_rappel) {
+      await this.createRappelVaccination({
+        projet_id: input.projet_id,
+        vaccination_id: id,
+        date_rappel: input.date_rappel,
+        statut: 'en_attente',
+      });
+    }
+
+    return {
+      id,
+      projet_id: input.projet_id,
+      calendrier_id: input.calendrier_id,
+      animal_ids: input.animal_ids,
+      lot_id: input.lot_id,
+      type_prophylaxie: input.type_prophylaxie,
+      vaccin: input.vaccin,
+      nom_vaccin: input.nom_vaccin,
+      produit_administre: input.produit_administre,
+      photo_flacon: input.photo_flacon,
+      date_vaccination: input.date_vaccination,
+      date_rappel: input.date_rappel,
+      numero_lot_vaccin: input.numero_lot_vaccin,
+      dosage: input.dosage,
+      unite_dosage: input.unite_dosage,
+      raison_traitement: input.raison_traitement,
+      raison_autre: input.raison_autre,
+      veterinaire: input.veterinaire,
+      cout: input.cout,
+      statut: input.statut || 'effectue',
+      effets_secondaires: input.effets_secondaires,
+      notes: input.notes,
+      date_creation: now,
+      derniere_modification: now,
+    };
+  }
+
+  /**
+   * Récupérer toutes les vaccinations d'un projet
+   */
+  async getVaccinationsByProjet(projetId: string): Promise<Vaccination[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const rows = await this.db.getAllAsync<any>(
+      `SELECT * FROM vaccinations 
+       WHERE projet_id = ? 
+       ORDER BY date_vaccination DESC`,
+      [projetId]
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      projet_id: row.projet_id,
+      calendrier_id: row.calendrier_id,
+      animal_ids: row.animal_ids ? JSON.parse(row.animal_ids) : undefined,
+      lot_id: row.lot_id,
+      type_prophylaxie: row.type_prophylaxie || 'vitamine',
+      vaccin: row.vaccin,
+      nom_vaccin: row.nom_vaccin,
+      produit_administre: row.produit_administre || '',
+      photo_flacon: row.photo_flacon,
+      date_vaccination: row.date_vaccination,
+      date_rappel: row.date_rappel,
+      numero_lot_vaccin: row.numero_lot_vaccin,
+      dosage: row.dosage || '',
+      unite_dosage: row.unite_dosage || 'ml',
+      raison_traitement: row.raison_traitement || 'suivi_normal',
+      raison_autre: row.raison_autre,
+      veterinaire: row.veterinaire,
+      cout: row.cout,
+      statut: row.statut,
+      effets_secondaires: row.effets_secondaires,
+      notes: row.notes,
+      date_creation: row.date_creation,
+      derniere_modification: row.derniere_modification,
+    }));
+  }
+
+  /**
+   * Récupérer une vaccination par ID
+   */
+  async getVaccinationById(id: string): Promise<Vaccination | null> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const row = await this.db.getFirstAsync<any>('SELECT * FROM vaccinations WHERE id = ?', [id]);
+
+    if (!row) return null;
+
+    return {
+      id: row.id,
+      projet_id: row.projet_id,
+      calendrier_id: row.calendrier_id,
+      animal_id: row.animal_id,
+      lot_id: row.lot_id,
+      vaccin: row.vaccin,
+      nom_vaccin: row.nom_vaccin,
+      date_vaccination: row.date_vaccination,
+      date_rappel: row.date_rappel,
+      numero_lot_vaccin: row.numero_lot_vaccin,
+      veterinaire: row.veterinaire,
+      cout: row.cout,
+      statut: row.statut,
+      effets_secondaires: row.effets_secondaires,
+      notes: row.notes,
+      date_creation: row.date_creation,
+      derniere_modification: row.derniere_modification,
+    };
+  }
+
+  /**
+   * Récupérer les vaccinations d'un animal
+   */
+  async getVaccinationsByAnimal(animalId: string): Promise<Vaccination[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const rows = await this.db.getAllAsync<any>(
+      `SELECT * FROM vaccinations 
+       WHERE animal_id = ? 
+       ORDER BY date_vaccination DESC`,
+      [animalId]
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      projet_id: row.projet_id,
+      calendrier_id: row.calendrier_id,
+      animal_id: row.animal_id,
+      lot_id: row.lot_id,
+      vaccin: row.vaccin,
+      nom_vaccin: row.nom_vaccin,
+      date_vaccination: row.date_vaccination,
+      date_rappel: row.date_rappel,
+      numero_lot_vaccin: row.numero_lot_vaccin,
+      veterinaire: row.veterinaire,
+      cout: row.cout,
+      statut: row.statut,
+      effets_secondaires: row.effets_secondaires,
+      notes: row.notes,
+      date_creation: row.date_creation,
+      derniere_modification: row.derniere_modification,
+    }));
+  }
+
+  /**
+   * Récupérer les vaccinations en retard
+   */
+  async getVaccinationsEnRetard(projetId: string): Promise<Vaccination[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+
+    const rows = await this.db.getAllAsync<any>(
+      `SELECT * FROM vaccinations 
+       WHERE projet_id = ? 
+       AND date_rappel IS NOT NULL 
+       AND date_rappel < ? 
+       AND statut != 'annulee'
+       ORDER BY date_rappel ASC`,
+      [projetId, today]
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      projet_id: row.projet_id,
+      calendrier_id: row.calendrier_id,
+      animal_id: row.animal_id,
+      lot_id: row.lot_id,
+      vaccin: row.vaccin,
+      nom_vaccin: row.nom_vaccin,
+      date_vaccination: row.date_vaccination,
+      date_rappel: row.date_rappel,
+      numero_lot_vaccin: row.numero_lot_vaccin,
+      veterinaire: row.veterinaire,
+      cout: row.cout,
+      statut: row.statut,
+      effets_secondaires: row.effets_secondaires,
+      notes: row.notes,
+      date_creation: row.date_creation,
+      derniere_modification: row.derniere_modification,
+    }));
+  }
+
+  /**
+   * Récupérer les vaccinations à venir (dans les 7 prochains jours)
+   */
+  async getVaccinationsAVenir(projetId: string, joursAvance: number = 7): Promise<Vaccination[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + joursAvance);
+    const futureDateStr = futureDate.toISOString().split('T')[0];
+
+    const rows = await this.db.getAllAsync<any>(
+      `SELECT * FROM vaccinations 
+       WHERE projet_id = ? 
+       AND date_rappel IS NOT NULL 
+       AND date_rappel >= ? 
+       AND date_rappel <= ?
+       AND statut != 'annulee'
+       ORDER BY date_rappel ASC`,
+      [projetId, today, futureDateStr]
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      projet_id: row.projet_id,
+      calendrier_id: row.calendrier_id,
+      animal_id: row.animal_id,
+      lot_id: row.lot_id,
+      vaccin: row.vaccin,
+      nom_vaccin: row.nom_vaccin,
+      date_vaccination: row.date_vaccination,
+      date_rappel: row.date_rappel,
+      numero_lot_vaccin: row.numero_lot_vaccin,
+      veterinaire: row.veterinaire,
+      cout: row.cout,
+      statut: row.statut,
+      effets_secondaires: row.effets_secondaires,
+      notes: row.notes,
+      date_creation: row.date_creation,
+      derniere_modification: row.derniere_modification,
+    }));
+  }
+
+  /**
+   * Mettre à jour une vaccination
+   */
+  async updateVaccination(id: string, updates: Partial<CreateVaccinationInput>): Promise<void> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (updates.calendrier_id !== undefined) {
+      fields.push('calendrier_id = ?');
+      values.push(updates.calendrier_id);
+    }
+    if (updates.animal_id !== undefined) {
+      fields.push('animal_id = ?');
+      values.push(updates.animal_id);
+    }
+    if (updates.lot_id !== undefined) {
+      fields.push('lot_id = ?');
+      values.push(updates.lot_id);
+    }
+    if (updates.vaccin !== undefined) {
+      fields.push('vaccin = ?');
+      values.push(updates.vaccin);
+    }
+    if (updates.nom_vaccin !== undefined) {
+      fields.push('nom_vaccin = ?');
+      values.push(updates.nom_vaccin);
+    }
+    if (updates.date_vaccination !== undefined) {
+      fields.push('date_vaccination = ?');
+      values.push(updates.date_vaccination);
+    }
+    if (updates.date_rappel !== undefined) {
+      fields.push('date_rappel = ?');
+      values.push(updates.date_rappel);
+    }
+    if (updates.numero_lot_vaccin !== undefined) {
+      fields.push('numero_lot_vaccin = ?');
+      values.push(updates.numero_lot_vaccin);
+    }
+    if (updates.veterinaire !== undefined) {
+      fields.push('veterinaire = ?');
+      values.push(updates.veterinaire);
+    }
+    if (updates.cout !== undefined) {
+      fields.push('cout = ?');
+      values.push(updates.cout);
+    }
+    if (updates.statut !== undefined) {
+      fields.push('statut = ?');
+      values.push(updates.statut);
+    }
+    if (updates.effets_secondaires !== undefined) {
+      fields.push('effets_secondaires = ?');
+      values.push(updates.effets_secondaires);
+    }
+    if (updates.notes !== undefined) {
+      fields.push('notes = ?');
+      values.push(updates.notes);
+    }
+
+    if (fields.length === 0) return;
+
+    fields.push('derniere_modification = ?');
+    values.push(new Date().toISOString());
+    values.push(id);
+
+    await this.db.runAsync(`UPDATE vaccinations SET ${fields.join(', ')} WHERE id = ?`, values);
+  }
+
+  /**
+   * Supprimer une vaccination
+   */
+  async deleteVaccination(id: string): Promise<void> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    await this.db.runAsync('DELETE FROM vaccinations WHERE id = ?', [id]);
+  }
+
+  /**
+   * ============================================
+   * MODULE SANTÉ - MALADIES
+   * ============================================
+   */
+
+  /**
+   * Créer une maladie
+   */
+  async createMaladie(input: CreateMaladieInput): Promise<Maladie> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const id = uuid.v4() as string;
+    const now = new Date().toISOString();
+
+    await this.db.runAsync(
+      `INSERT INTO maladies (
+        id, projet_id, animal_id, lot_id, type, nom_maladie, gravite,
+        symptomes, date_debut, date_fin, gueri, contagieux, notes,
+        date_creation, derniere_modification
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        input.projet_id,
+        input.animal_id || null,
+        input.lot_id || null,
+        input.type,
+        input.nom_maladie || null,
+        input.gravite,
+        input.symptomes || null,
+        input.date_debut,
+        input.date_fin || null,
+        input.gueri ? 1 : 0,
+        input.contagieux ? 1 : 0,
+        input.notes || null,
+        now,
+        now,
+      ]
+    );
+
+    return {
+      id,
+      projet_id: input.projet_id,
+      animal_id: input.animal_id,
+      lot_id: input.lot_id,
+      type: input.type,
+      nom_maladie: input.nom_maladie,
+      gravite: input.gravite,
+      symptomes: input.symptomes,
+      date_debut: input.date_debut,
+      date_fin: input.date_fin,
+      gueri: input.gueri || false,
+      contagieux: input.contagieux || false,
+      notes: input.notes,
+      date_creation: now,
+      derniere_modification: now,
+    };
+  }
+
+  /**
+   * Récupérer toutes les maladies d'un projet
+   */
+  async getMaladiesByProjet(projetId: string): Promise<Maladie[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const rows = await this.db.getAllAsync<any>(
+      'SELECT * FROM maladies WHERE projet_id = ? ORDER BY date_debut DESC',
+      [projetId]
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      projet_id: row.projet_id,
+      animal_id: row.animal_id || undefined,
+      lot_id: row.lot_id || undefined,
+      type: row.type,
+      nom_maladie: row.nom_maladie || undefined,
+      gravite: row.gravite,
+      symptomes: row.symptomes || undefined,
+      date_debut: row.date_debut,
+      date_fin: row.date_fin || undefined,
+      gueri: row.gueri === 1,
+      contagieux: row.contagieux === 1,
+      notes: row.notes || undefined,
+      date_creation: row.date_creation,
+      derniere_modification: row.derniere_modification,
+    }));
+  }
+
+  /**
+   * Récupérer une maladie par ID
+   */
+  async getMaladieById(id: string): Promise<Maladie | null> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const row = await this.db.getFirstAsync<any>(
+      'SELECT * FROM maladies WHERE id = ?',
+      [id]
+    );
+
+    if (!row) return null;
+
+    return {
+      id: row.id,
+      projet_id: row.projet_id,
+      animal_id: row.animal_id || undefined,
+      lot_id: row.lot_id || undefined,
+      type: row.type,
+      nom_maladie: row.nom_maladie || undefined,
+      gravite: row.gravite,
+      symptomes: row.symptomes || undefined,
+      date_debut: row.date_debut,
+      date_fin: row.date_fin || undefined,
+      gueri: row.gueri === 1,
+      contagieux: row.contagieux === 1,
+      notes: row.notes || undefined,
+      date_creation: row.date_creation,
+      derniere_modification: row.derniere_modification,
+    };
+  }
+
+  /**
+   * Récupérer toutes les maladies d'un animal
+   */
+  async getMaladiesByAnimal(animalId: string): Promise<Maladie[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const rows = await this.db.getAllAsync<any>(
+      'SELECT * FROM maladies WHERE animal_id = ? ORDER BY date_debut DESC',
+      [animalId]
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      projet_id: row.projet_id,
+      animal_id: row.animal_id || undefined,
+      lot_id: row.lot_id || undefined,
+      type: row.type,
+      nom_maladie: row.nom_maladie || undefined,
+      gravite: row.gravite,
+      symptomes: row.symptomes || undefined,
+      date_debut: row.date_debut,
+      date_fin: row.date_fin || undefined,
+      gueri: row.gueri === 1,
+      contagieux: row.contagieux === 1,
+      notes: row.notes || undefined,
+      date_creation: row.date_creation,
+      derniere_modification: row.derniere_modification,
+    }));
+  }
+
+  /**
+   * Récupérer les maladies en cours (non guéries)
+   */
+  async getMaladiesEnCours(projetId: string): Promise<Maladie[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const rows = await this.db.getAllAsync<any>(
+      'SELECT * FROM maladies WHERE projet_id = ? AND gueri = 0 ORDER BY date_debut DESC',
+      [projetId]
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      projet_id: row.projet_id,
+      animal_id: row.animal_id || undefined,
+      lot_id: row.lot_id || undefined,
+      type: row.type,
+      nom_maladie: row.nom_maladie || undefined,
+      gravite: row.gravite,
+      symptomes: row.symptomes || undefined,
+      date_debut: row.date_debut,
+      date_fin: row.date_fin || undefined,
+      gueri: false,
+      contagieux: row.contagieux === 1,
+      notes: row.notes || undefined,
+      date_creation: row.date_creation,
+      derniere_modification: row.derniere_modification,
+    }));
+  }
+
+  /**
+   * Mettre à jour une maladie
+   */
+  async updateMaladie(id: string, updates: Partial<CreateMaladieInput>): Promise<void> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (updates.animal_id !== undefined) {
+      fields.push('animal_id = ?');
+      values.push(updates.animal_id || null);
+    }
+    if (updates.lot_id !== undefined) {
+      fields.push('lot_id = ?');
+      values.push(updates.lot_id || null);
+    }
+    if (updates.type !== undefined) {
+      fields.push('type = ?');
+      values.push(updates.type);
+    }
+    if (updates.nom_maladie !== undefined) {
+      fields.push('nom_maladie = ?');
+      values.push(updates.nom_maladie || null);
+    }
+    if (updates.gravite !== undefined) {
+      fields.push('gravite = ?');
+      values.push(updates.gravite);
+    }
+    if (updates.symptomes !== undefined) {
+      fields.push('symptomes = ?');
+      values.push(updates.symptomes || null);
+    }
+    if (updates.date_debut !== undefined) {
+      fields.push('date_debut = ?');
+      values.push(updates.date_debut);
+    }
+    if (updates.date_fin !== undefined) {
+      fields.push('date_fin = ?');
+      values.push(updates.date_fin || null);
+    }
+    if (updates.gueri !== undefined) {
+      fields.push('gueri = ?');
+      values.push(updates.gueri ? 1 : 0);
+    }
+    if (updates.contagieux !== undefined) {
+      fields.push('contagieux = ?');
+      values.push(updates.contagieux ? 1 : 0);
+    }
+    if (updates.notes !== undefined) {
+      fields.push('notes = ?');
+      values.push(updates.notes || null);
+    }
+
+    if (fields.length === 0) return;
+
+    fields.push('derniere_modification = ?');
+    values.push(new Date().toISOString());
+    values.push(id);
+
+    await this.db.runAsync(`UPDATE maladies SET ${fields.join(', ')} WHERE id = ?`, values);
+  }
+
+  /**
+   * Supprimer une maladie
+   */
+  async deleteMaladie(id: string): Promise<void> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    // Supprimer aussi les traitements associés
+    await this.db.runAsync('DELETE FROM traitements WHERE maladie_id = ?', [id]);
+    await this.db.runAsync('DELETE FROM maladies WHERE id = ?', [id]);
+  }
+
+  /**
+   * ============================================
+   * MODULE SANTÉ - TRAITEMENTS
+   * ============================================
+   */
+
+  /**
+   * Créer un traitement
+   */
+  async createTraitement(input: CreateTraitementInput): Promise<Traitement> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const id = uuid.v4() as string;
+    const now = new Date().toISOString();
+
+    await this.db.runAsync(
+      `INSERT INTO traitements (
+        id, projet_id, maladie_id, animal_id, lot_id, medicament,
+        dosage, frequence, voie_administration, date_debut, date_fin,
+        duree_jours, temps_attente_abattage_jours, cout, efficacite,
+        effets_secondaires, termine, notes, date_creation, derniere_modification
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        input.projet_id,
+        input.maladie_id || null,
+        input.animal_id || null,
+        input.lot_id || null,
+        input.medicament,
+        input.dosage || null,
+        input.frequence || null,
+        input.voie_administration || null,
+        input.date_debut,
+        input.date_fin || null,
+        input.duree_jours || null,
+        input.temps_attente_abattage_jours || null,
+        input.cout || null,
+        input.efficacite || null,
+        input.effets_secondaires || null,
+        input.termine ? 1 : 0,
+        input.notes || null,
+        now,
+        now,
+      ]
+    );
+
+    return {
+      id,
+      projet_id: input.projet_id,
+      maladie_id: input.maladie_id,
+      animal_id: input.animal_id,
+      lot_id: input.lot_id,
+      medicament: input.medicament,
+      dosage: input.dosage,
+      frequence: input.frequence,
+      voie_administration: input.voie_administration,
+      date_debut: input.date_debut,
+      date_fin: input.date_fin,
+      duree_jours: input.duree_jours,
+      temps_attente_abattage_jours: input.temps_attente_abattage_jours,
+      cout: input.cout,
+      efficacite: input.efficacite,
+      effets_secondaires: input.effets_secondaires,
+      termine: input.termine || false,
+      notes: input.notes,
+      date_creation: now,
+      derniere_modification: now,
+    };
+  }
+
+  /**
+   * Récupérer tous les traitements d'un projet
+   */
+  async getTraitementsByProjet(projetId: string): Promise<Traitement[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const rows = await this.db.getAllAsync<any>(
+      'SELECT * FROM traitements WHERE projet_id = ? ORDER BY date_debut DESC',
+      [projetId]
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      projet_id: row.projet_id,
+      maladie_id: row.maladie_id || undefined,
+      animal_id: row.animal_id || undefined,
+      lot_id: row.lot_id || undefined,
+      medicament: row.medicament,
+      dosage: row.dosage || undefined,
+      frequence: row.frequence || undefined,
+      voie_administration: row.voie_administration || undefined,
+      date_debut: row.date_debut,
+      date_fin: row.date_fin || undefined,
+      duree_jours: row.duree_jours || undefined,
+      temps_attente_abattage_jours: row.temps_attente_abattage_jours || undefined,
+      cout: row.cout || undefined,
+      efficacite: row.efficacite || undefined,
+      effets_secondaires: row.effets_secondaires || undefined,
+      termine: row.termine === 1,
+      notes: row.notes || undefined,
+      date_creation: row.date_creation,
+      derniere_modification: row.derniere_modification,
+    }));
+  }
+
+  /**
+   * Récupérer un traitement par ID
+   */
+  async getTraitementById(id: string): Promise<Traitement | null> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const row = await this.db.getFirstAsync<any>(
+      'SELECT * FROM traitements WHERE id = ?',
+      [id]
+    );
+
+    if (!row) return null;
+
+    return {
+      id: row.id,
+      projet_id: row.projet_id,
+      maladie_id: row.maladie_id || undefined,
+      animal_id: row.animal_id || undefined,
+      lot_id: row.lot_id || undefined,
+      medicament: row.medicament,
+      dosage: row.dosage || undefined,
+      frequence: row.frequence || undefined,
+      voie_administration: row.voie_administration || undefined,
+      date_debut: row.date_debut,
+      date_fin: row.date_fin || undefined,
+      duree_jours: row.duree_jours || undefined,
+      temps_attente_abattage_jours: row.temps_attente_abattage_jours || undefined,
+      cout: row.cout || undefined,
+      efficacite: row.efficacite || undefined,
+      effets_secondaires: row.effets_secondaires || undefined,
+      termine: row.termine === 1,
+      notes: row.notes || undefined,
+      date_creation: row.date_creation,
+      derniere_modification: row.derniere_modification,
+    };
+  }
+
+  /**
+   * Récupérer les traitements d'une maladie
+   */
+  async getTraitementsByMaladie(maladieId: string): Promise<Traitement[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const rows = await this.db.getAllAsync<any>(
+      'SELECT * FROM traitements WHERE maladie_id = ? ORDER BY date_debut DESC',
+      [maladieId]
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      projet_id: row.projet_id,
+      maladie_id: row.maladie_id || undefined,
+      animal_id: row.animal_id || undefined,
+      lot_id: row.lot_id || undefined,
+      medicament: row.medicament,
+      dosage: row.dosage || undefined,
+      frequence: row.frequence || undefined,
+      voie_administration: row.voie_administration || undefined,
+      date_debut: row.date_debut,
+      date_fin: row.date_fin || undefined,
+      duree_jours: row.duree_jours || undefined,
+      temps_attente_abattage_jours: row.temps_attente_abattage_jours || undefined,
+      cout: row.cout || undefined,
+      efficacite: row.efficacite || undefined,
+      effets_secondaires: row.effets_secondaires || undefined,
+      termine: row.termine === 1,
+      notes: row.notes || undefined,
+      date_creation: row.date_creation,
+      derniere_modification: row.derniere_modification,
+    }));
+  }
+
+  /**
+   * Récupérer les traitements d'un animal
+   */
+  async getTraitementsByAnimal(animalId: string): Promise<Traitement[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const rows = await this.db.getAllAsync<any>(
+      'SELECT * FROM traitements WHERE animal_id = ? ORDER BY date_debut DESC',
+      [animalId]
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      projet_id: row.projet_id,
+      maladie_id: row.maladie_id || undefined,
+      animal_id: row.animal_id || undefined,
+      lot_id: row.lot_id || undefined,
+      medicament: row.medicament,
+      dosage: row.dosage || undefined,
+      frequence: row.frequence || undefined,
+      voie_administration: row.voie_administration || undefined,
+      date_debut: row.date_debut,
+      date_fin: row.date_fin || undefined,
+      duree_jours: row.duree_jours || undefined,
+      temps_attente_abattage_jours: row.temps_attente_abattage_jours || undefined,
+      cout: row.cout || undefined,
+      efficacite: row.efficacite || undefined,
+      effets_secondaires: row.effets_secondaires || undefined,
+      termine: row.termine === 1,
+      notes: row.notes || undefined,
+      date_creation: row.date_creation,
+      derniere_modification: row.derniere_modification,
+    }));
+  }
+
+  /**
+   * Récupérer les traitements en cours (non terminés)
+   */
+  async getTraitementsEnCours(projetId: string): Promise<Traitement[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const rows = await this.db.getAllAsync<any>(
+      'SELECT * FROM traitements WHERE projet_id = ? AND termine = 0 ORDER BY date_debut DESC',
+      [projetId]
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      projet_id: row.projet_id,
+      maladie_id: row.maladie_id || undefined,
+      animal_id: row.animal_id || undefined,
+      lot_id: row.lot_id || undefined,
+      medicament: row.medicament,
+      dosage: row.dosage || undefined,
+      frequence: row.frequence || undefined,
+      voie_administration: row.voie_administration || undefined,
+      date_debut: row.date_debut,
+      date_fin: row.date_fin || undefined,
+      duree_jours: row.duree_jours || undefined,
+      temps_attente_abattage_jours: row.temps_attente_abattage_jours || undefined,
+      cout: row.cout || undefined,
+      efficacite: row.efficacite || undefined,
+      effets_secondaires: row.effets_secondaires || undefined,
+      termine: false,
+      notes: row.notes || undefined,
+      date_creation: row.date_creation,
+      derniere_modification: row.derniere_modification,
+    }));
+  }
+
+  /**
+   * Mettre à jour un traitement
+   */
+  async updateTraitement(id: string, updates: Partial<CreateTraitementInput>): Promise<void> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (updates.maladie_id !== undefined) {
+      fields.push('maladie_id = ?');
+      values.push(updates.maladie_id || null);
+    }
+    if (updates.animal_id !== undefined) {
+      fields.push('animal_id = ?');
+      values.push(updates.animal_id || null);
+    }
+    if (updates.lot_id !== undefined) {
+      fields.push('lot_id = ?');
+      values.push(updates.lot_id || null);
+    }
+    if (updates.medicament !== undefined) {
+      fields.push('medicament = ?');
+      values.push(updates.medicament);
+    }
+    if (updates.dosage !== undefined) {
+      fields.push('dosage = ?');
+      values.push(updates.dosage || null);
+    }
+    if (updates.frequence !== undefined) {
+      fields.push('frequence = ?');
+      values.push(updates.frequence || null);
+    }
+    if (updates.voie_administration !== undefined) {
+      fields.push('voie_administration = ?');
+      values.push(updates.voie_administration || null);
+    }
+    if (updates.date_debut !== undefined) {
+      fields.push('date_debut = ?');
+      values.push(updates.date_debut);
+    }
+    if (updates.date_fin !== undefined) {
+      fields.push('date_fin = ?');
+      values.push(updates.date_fin || null);
+    }
+    if (updates.duree_jours !== undefined) {
+      fields.push('duree_jours = ?');
+      values.push(updates.duree_jours || null);
+    }
+    if (updates.temps_attente_abattage_jours !== undefined) {
+      fields.push('temps_attente_abattage_jours = ?');
+      values.push(updates.temps_attente_abattage_jours || null);
+    }
+    if (updates.cout !== undefined) {
+      fields.push('cout = ?');
+      values.push(updates.cout || null);
+    }
+    if (updates.efficacite !== undefined) {
+      fields.push('efficacite = ?');
+      values.push(updates.efficacite || null);
+    }
+    if (updates.effets_secondaires !== undefined) {
+      fields.push('effets_secondaires = ?');
+      values.push(updates.effets_secondaires || null);
+    }
+    if (updates.termine !== undefined) {
+      fields.push('termine = ?');
+      values.push(updates.termine ? 1 : 0);
+    }
+    if (updates.notes !== undefined) {
+      fields.push('notes = ?');
+      values.push(updates.notes || null);
+    }
+
+    if (fields.length === 0) return;
+
+    fields.push('derniere_modification = ?');
+    values.push(new Date().toISOString());
+    values.push(id);
+
+    await this.db.runAsync(`UPDATE traitements SET ${fields.join(', ')} WHERE id = ?`, values);
+  }
+
+  /**
+   * Supprimer un traitement
+   */
+  async deleteTraitement(id: string): Promise<void> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    await this.db.runAsync('DELETE FROM traitements WHERE id = ?', [id]);
+  }
+
+  /**
+   * ============================================
+   * MODULE SANTÉ - VISITES VÉTÉRINAIRES
+   * ============================================
+   */
+
+  /**
+   * Créer une visite vétérinaire
+   */
+  async createVisiteVeterinaire(input: CreateVisiteVeterinaireInput): Promise<VisiteVeterinaire> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const id = uuid.v4() as string;
+    const now = new Date().toISOString();
+
+    await this.db.runAsync(
+      `INSERT INTO visites_veterinaires (
+        id, projet_id, date_visite, motif, veterinaire, diagnostic,
+        prescriptions, cout, animaux_examines, prochaine_visite_prevue,
+        notes, date_creation, derniere_modification
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        input.projet_id,
+        input.date_visite,
+        input.motif,
+        input.veterinaire || null,
+        input.diagnostic || null,
+        input.prescriptions || null,
+        input.cout || null,
+        input.animaux_examines ? JSON.stringify(input.animaux_examines) : null,
+        input.prochaine_visite_prevue || null,
+        input.notes || null,
+        now,
+        now,
+      ]
+    );
+
+    return {
+      id,
+      projet_id: input.projet_id,
+      date_visite: input.date_visite,
+      motif: input.motif,
+      veterinaire: input.veterinaire,
+      diagnostic: input.diagnostic,
+      prescriptions: input.prescriptions,
+      cout: input.cout,
+      animaux_examines: input.animaux_examines,
+      prochaine_visite_prevue: input.prochaine_visite_prevue,
+      notes: input.notes,
+      date_creation: now,
+      derniere_modification: now,
+    };
+  }
+
+  /**
+   * Récupérer toutes les visites vétérinaires d'un projet
+   */
+  async getVisitesVeterinairesByProjet(projetId: string): Promise<VisiteVeterinaire[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const rows = await this.db.getAllAsync<any>(
+      'SELECT * FROM visites_veterinaires WHERE projet_id = ? ORDER BY date_visite DESC',
+      [projetId]
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      projet_id: row.projet_id,
+      date_visite: row.date_visite,
+      motif: row.motif,
+      veterinaire: row.veterinaire || undefined,
+      diagnostic: row.diagnostic || undefined,
+      prescriptions: row.prescriptions || undefined,
+      cout: row.cout || undefined,
+      animaux_examines: row.animaux_examines ? JSON.parse(row.animaux_examines) : undefined,
+      prochaine_visite_prevue: row.prochaine_visite_prevue || undefined,
+      notes: row.notes || undefined,
+      date_creation: row.date_creation,
+      derniere_modification: row.derniere_modification,
+    }));
+  }
+
+  /**
+   * Récupérer une visite vétérinaire par ID
+   */
+  async getVisiteVeterinaireById(id: string): Promise<VisiteVeterinaire | null> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const row = await this.db.getFirstAsync<any>(
+      'SELECT * FROM visites_veterinaires WHERE id = ?',
+      [id]
+    );
+
+    if (!row) return null;
+
+    return {
+      id: row.id,
+      projet_id: row.projet_id,
+      date_visite: row.date_visite,
+      motif: row.motif,
+      veterinaire: row.veterinaire || undefined,
+      diagnostic: row.diagnostic || undefined,
+      prescriptions: row.prescriptions || undefined,
+      cout: row.cout || undefined,
+      animaux_examines: row.animaux_examines ? JSON.parse(row.animaux_examines) : undefined,
+      prochaine_visite_prevue: row.prochaine_visite_prevue || undefined,
+      notes: row.notes || undefined,
+      date_creation: row.date_creation,
+      derniere_modification: row.derniere_modification,
+    };
+  }
+
+  /**
+   * Récupérer la prochaine visite prévue
+   */
+  async getProchainVisitePrevue(projetId: string): Promise<VisiteVeterinaire | null> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const row = await this.db.getFirstAsync<any>(
+      `SELECT * FROM visites_veterinaires 
+       WHERE projet_id = ? AND prochaine_visite_prevue IS NOT NULL AND prochaine_visite_prevue > ?
+       ORDER BY prochaine_visite_prevue ASC LIMIT 1`,
+      [projetId, new Date().toISOString()]
+    );
+
+    if (!row) return null;
+
+    return {
+      id: row.id,
+      projet_id: row.projet_id,
+      date_visite: row.date_visite,
+      motif: row.motif,
+      veterinaire: row.veterinaire || undefined,
+      diagnostic: row.diagnostic || undefined,
+      prescriptions: row.prescriptions || undefined,
+      cout: row.cout || undefined,
+      animaux_examines: row.animaux_examines ? JSON.parse(row.animaux_examines) : undefined,
+      prochaine_visite_prevue: row.prochaine_visite_prevue || undefined,
+      notes: row.notes || undefined,
+      date_creation: row.date_creation,
+      derniere_modification: row.derniere_modification,
+    };
+  }
+
+  /**
+   * Mettre à jour une visite vétérinaire
+   */
+  async updateVisiteVeterinaire(id: string, updates: Partial<CreateVisiteVeterinaireInput>): Promise<void> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (updates.date_visite !== undefined) {
+      fields.push('date_visite = ?');
+      values.push(updates.date_visite);
+    }
+    if (updates.motif !== undefined) {
+      fields.push('motif = ?');
+      values.push(updates.motif);
+    }
+    if (updates.veterinaire !== undefined) {
+      fields.push('veterinaire = ?');
+      values.push(updates.veterinaire || null);
+    }
+    if (updates.diagnostic !== undefined) {
+      fields.push('diagnostic = ?');
+      values.push(updates.diagnostic || null);
+    }
+    if (updates.prescriptions !== undefined) {
+      fields.push('prescriptions = ?');
+      values.push(updates.prescriptions || null);
+    }
+    if (updates.cout !== undefined) {
+      fields.push('cout = ?');
+      values.push(updates.cout || null);
+    }
+    if (updates.animaux_examines !== undefined) {
+      fields.push('animaux_examines = ?');
+      values.push(updates.animaux_examines ? JSON.stringify(updates.animaux_examines) : null);
+    }
+    if (updates.prochaine_visite_prevue !== undefined) {
+      fields.push('prochaine_visite_prevue = ?');
+      values.push(updates.prochaine_visite_prevue || null);
+    }
+    if (updates.notes !== undefined) {
+      fields.push('notes = ?');
+      values.push(updates.notes || null);
+    }
+
+    if (fields.length === 0) return;
+
+    fields.push('derniere_modification = ?');
+    values.push(new Date().toISOString());
+    values.push(id);
+
+    await this.db.runAsync(`UPDATE visites_veterinaires SET ${fields.join(', ')} WHERE id = ?`, values);
+  }
+
+  /**
+   * Supprimer une visite vétérinaire
+   */
+  async deleteVisiteVeterinaire(id: string): Promise<void> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    await this.db.runAsync('DELETE FROM visites_veterinaires WHERE id = ?', [id]);
+  }
+
+  /**
+   * ============================================
+   * MODULE SANTÉ - RAPPELS VACCINATIONS
+   * ============================================
+   */
+
+  /**
+   * Créer un rappel de vaccination (automatique lors d'une vaccination)
+   */
+  async createRappelVaccination(input: CreateRappelVaccinationInput): Promise<RappelVaccination> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const id = uuid.v4() as string;
+    const now = new Date().toISOString();
+
+    await this.db.runAsync(
+      `INSERT INTO rappels_vaccinations (
+        id, projet_id, vaccination_id, date_rappel, statut_envoi,
+        date_envoi, date_creation
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        input.projet_id,
+        input.vaccination_id,
+        input.date_rappel,
+        input.statut_envoi || 'en_attente',
+        input.date_envoi || null,
+        now,
+      ]
+    );
+
+    return {
+      id,
+      projet_id: input.projet_id,
+      vaccination_id: input.vaccination_id,
+      date_rappel: input.date_rappel,
+      statut_envoi: input.statut_envoi || 'en_attente',
+      date_envoi: input.date_envoi,
+      date_creation: now,
+    };
+  }
+
+  /**
+   * Récupérer tous les rappels d'un projet
+   */
+  async getRappelsByProjet(projetId: string): Promise<RappelVaccination[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const rows = await this.db.getAllAsync<any>(
+      'SELECT * FROM rappels_vaccinations WHERE projet_id = ? ORDER BY date_rappel ASC',
+      [projetId]
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      projet_id: row.projet_id,
+      vaccination_id: row.vaccination_id,
+      date_rappel: row.date_rappel,
+      statut_envoi: row.statut_envoi,
+      date_envoi: row.date_envoi || undefined,
+      date_creation: row.date_creation,
+    }));
+  }
+
+  /**
+   * Récupérer les rappels à venir (dans les X jours)
+   */
+  async getRappelsAVenir(projetId: string, joursAvance: number = 7): Promise<RappelVaccination[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const now = new Date();
+    const dateMax = new Date(now.getTime() + joursAvance * 24 * 60 * 60 * 1000);
+
+    const rows = await this.db.getAllAsync<any>(
+      `SELECT * FROM rappels_vaccinations 
+       WHERE projet_id = ? AND date_rappel BETWEEN ? AND ? AND statut_envoi = 'en_attente'
+       ORDER BY date_rappel ASC`,
+      [projetId, now.toISOString(), dateMax.toISOString()]
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      projet_id: row.projet_id,
+      vaccination_id: row.vaccination_id,
+      date_rappel: row.date_rappel,
+      statut_envoi: row.statut_envoi,
+      date_envoi: row.date_envoi || undefined,
+      date_creation: row.date_creation,
+    }));
+  }
+
+  /**
+   * Récupérer les rappels en retard
+   */
+  async getRappelsEnRetard(projetId: string): Promise<RappelVaccination[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const now = new Date().toISOString();
+
+    const rows = await this.db.getAllAsync<any>(
+      `SELECT * FROM rappels_vaccinations 
+       WHERE projet_id = ? AND date_rappel < ? AND statut_envoi = 'en_attente'
+       ORDER BY date_rappel ASC`,
+      [projetId, now]
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      projet_id: row.projet_id,
+      vaccination_id: row.vaccination_id,
+      date_rappel: row.date_rappel,
+      statut_envoi: row.statut_envoi,
+      date_envoi: row.date_envoi || undefined,
+      date_creation: row.date_creation,
+    }));
+  }
+
+  /**
+   * Marquer un rappel comme envoyé
+   */
+  async marquerRappelEnvoye(id: string): Promise<void> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    await this.db.runAsync(
+      `UPDATE rappels_vaccinations SET statut_envoi = 'envoye', date_envoi = ? WHERE id = ?`,
+      [new Date().toISOString(), id]
+    );
+  }
+
+  /**
+   * ============================================
+   * MODULE SANTÉ - STATISTIQUES ET RAPPORTS
+   * ============================================
+   */
+
+  /**
+   * Obtenir les statistiques de vaccinations
+   */
+  async getStatistiquesVaccinations(projetId: string): Promise<{
+    total: number;
+    effectuees: number;
+    enAttente: number;
+    enRetard: number;
+    tauxCouverture: number;
+    coutTotal: number;
+  }> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const total = await this.db.getFirstAsync<{ count: number }>(
+      'SELECT COUNT(*) as count FROM vaccinations WHERE projet_id = ?',
+      [projetId]
+    );
+
+    const effectuees = await this.db.getFirstAsync<{ count: number }>(
+      "SELECT COUNT(*) as count FROM vaccinations WHERE projet_id = ? AND statut = 'effectuee'",
+      [projetId]
+    );
+
+    const enAttente = await this.db.getFirstAsync<{ count: number }>(
+      "SELECT COUNT(*) as count FROM vaccinations WHERE projet_id = ? AND statut = 'planifiee'",
+      [projetId]
+    );
+
+    const now = new Date().toISOString();
+    const enRetard = await this.db.getFirstAsync<{ count: number }>(
+      `SELECT COUNT(*) as count FROM vaccinations 
+       WHERE projet_id = ? AND statut = 'planifiee' AND date_vaccination < ?`,
+      [projetId, now]
+    );
+
+    const cout = await this.db.getFirstAsync<{ total: number }>(
+      'SELECT COALESCE(SUM(cout), 0) as total FROM vaccinations WHERE projet_id = ?',
+      [projetId]
+    );
+
+    return {
+      total: total?.count || 0,
+      effectuees: effectuees?.count || 0,
+      enAttente: enAttente?.count || 0,
+      enRetard: enRetard?.count || 0,
+      tauxCouverture: total?.count ? ((effectuees?.count || 0) / total.count) * 100 : 0,
+      coutTotal: cout?.total || 0,
+    };
+  }
+
+  /**
+   * Obtenir les statistiques de maladies
+   */
+  async getStatistiquesMaladies(projetId: string): Promise<{
+    total: number;
+    enCours: number;
+    gueries: number;
+    parType: { [key: string]: number };
+    parGravite: { [key: string]: number };
+    tauxGuerison: number;
+  }> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const total = await this.db.getFirstAsync<{ count: number }>(
+      'SELECT COUNT(*) as count FROM maladies WHERE projet_id = ?',
+      [projetId]
+    );
+
+    const enCours = await this.db.getFirstAsync<{ count: number }>(
+      'SELECT COUNT(*) as count FROM maladies WHERE projet_id = ? AND gueri = 0',
+      [projetId]
+    );
+
+    const gueries = await this.db.getFirstAsync<{ count: number }>(
+      'SELECT COUNT(*) as count FROM maladies WHERE projet_id = ? AND gueri = 1',
+      [projetId]
+    );
+
+    const parType = await this.db.getAllAsync<{ type: string; count: number }>(
+      'SELECT type, COUNT(*) as count FROM maladies WHERE projet_id = ? GROUP BY type',
+      [projetId]
+    );
+
+    const parGravite = await this.db.getAllAsync<{ gravite: string; count: number }>(
+      'SELECT gravite, COUNT(*) as count FROM maladies WHERE projet_id = ? GROUP BY gravite',
+      [projetId]
+    );
+
+    return {
+      total: total?.count || 0,
+      enCours: enCours?.count || 0,
+      gueries: gueries?.count || 0,
+      parType: parType.reduce((acc, item) => ({ ...acc, [item.type]: item.count }), {}),
+      parGravite: parGravite.reduce((acc, item) => ({ ...acc, [item.gravite]: item.count }), {}),
+      tauxGuerison: total?.count ? ((gueries?.count || 0) / total.count) * 100 : 0,
+    };
+  }
+
+  /**
+   * Obtenir les statistiques de traitements
+   */
+  async getStatistiquesTraitements(projetId: string): Promise<{
+    total: number;
+    enCours: number;
+    termines: number;
+    coutTotal: number;
+    efficaciteMoyenne: number;
+  }> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const total = await this.db.getFirstAsync<{ count: number }>(
+      'SELECT COUNT(*) as count FROM traitements WHERE projet_id = ?',
+      [projetId]
+    );
+
+    const enCours = await this.db.getFirstAsync<{ count: number }>(
+      'SELECT COUNT(*) as count FROM traitements WHERE projet_id = ? AND termine = 0',
+      [projetId]
+    );
+
+    const termines = await this.db.getFirstAsync<{ count: number }>(
+      'SELECT COUNT(*) as count FROM traitements WHERE projet_id = ? AND termine = 1',
+      [projetId]
+    );
+
+    const cout = await this.db.getFirstAsync<{ total: number }>(
+      'SELECT COALESCE(SUM(cout), 0) as total FROM traitements WHERE projet_id = ?',
+      [projetId]
+    );
+
+    const efficacite = await this.db.getFirstAsync<{ avg: number }>(
+      'SELECT COALESCE(AVG(efficacite), 0) as avg FROM traitements WHERE projet_id = ? AND efficacite IS NOT NULL',
+      [projetId]
+    );
+
+    return {
+      total: total?.count || 0,
+      enCours: enCours?.count || 0,
+      termines: termines?.count || 0,
+      coutTotal: cout?.total || 0,
+      efficaciteMoyenne: efficacite?.avg || 0,
+    };
+  }
+
+  /**
+   * Obtenir les coûts vétérinaires totaux
+   */
+  async getCoutsVeterinaires(projetId: string): Promise<{
+    vaccinations: number;
+    traitements: number;
+    visites: number;
+    total: number;
+  }> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const coutVaccinations = await this.db.getFirstAsync<{ total: number }>(
+      'SELECT COALESCE(SUM(cout), 0) as total FROM vaccinations WHERE projet_id = ?',
+      [projetId]
+    );
+
+    const coutTraitements = await this.db.getFirstAsync<{ total: number }>(
+      'SELECT COALESCE(SUM(cout), 0) as total FROM traitements WHERE projet_id = ?',
+      [projetId]
+    );
+
+    const coutVisites = await this.db.getFirstAsync<{ total: number }>(
+      'SELECT COALESCE(SUM(cout), 0) as total FROM visites_veterinaires WHERE projet_id = ?',
+      [projetId]
+    );
+
+    const totalVaccinations = coutVaccinations?.total || 0;
+    const totalTraitements = coutTraitements?.total || 0;
+    const totalVisites = coutVisites?.total || 0;
+
+    return {
+      vaccinations: totalVaccinations,
+      traitements: totalTraitements,
+      visites: totalVisites,
+      total: totalVaccinations + totalTraitements + totalVisites,
+    };
+  }
+
+  /**
+   * Obtenir le taux de mortalité par cause
+   */
+  async getTauxMortaliteParCause(projetId: string): Promise<Array<{
+    cause: string;
+    nombre: number;
+    pourcentage: number;
+  }>> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const total = await this.db.getFirstAsync<{ count: number }>(
+      'SELECT COUNT(*) as count FROM mortalites WHERE projet_id = ?',
+      [projetId]
+    );
+
+    const parCause = await this.db.getAllAsync<{ cause: string; count: number }>(
+      'SELECT cause, COUNT(*) as count FROM mortalites WHERE projet_id = ? GROUP BY cause ORDER BY count DESC',
+      [projetId]
+    );
+
+    return parCause.map((item) => ({
+      cause: item.cause,
+      nombre: item.count,
+      pourcentage: total?.count ? (item.count / total.count) * 100 : 0,
+    }));
+  }
+
+  /**
+   * Obtenir des recommandations sanitaires basées sur l'historique
+   */
+  async getRecommandationsSanitaires(projetId: string): Promise<Array<{
+    type: 'vaccination' | 'traitement' | 'visite' | 'alerte';
+    priorite: 'haute' | 'moyenne' | 'basse';
+    message: string;
+    data?: any;
+  }>> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const recommendations: Array<{
+      type: 'vaccination' | 'traitement' | 'visite' | 'alerte';
+      priorite: 'haute' | 'moyenne' | 'basse';
+      message: string;
+      data?: any;
+    }> = [];
+
+    // Vérifier les rappels en retard
+    const rappelsEnRetard = await this.getRappelsEnRetard(projetId);
+    if (rappelsEnRetard.length > 0) {
+      recommendations.push({
+        type: 'vaccination',
+        priorite: 'haute',
+        message: `${rappelsEnRetard.length} rappel(s) de vaccination en retard`,
+        data: { rappels: rappelsEnRetard },
+      });
+    }
+
+    // Vérifier les rappels à venir
+    const rappelsAVenir = await this.getRappelsAVenir(projetId, 7);
+    if (rappelsAVenir.length > 0) {
+      recommendations.push({
+        type: 'vaccination',
+        priorite: 'moyenne',
+        message: `${rappelsAVenir.length} vaccination(s) prévue(s) cette semaine`,
+        data: { rappels: rappelsAVenir },
+      });
+    }
+
+    // Vérifier les maladies en cours
+    const maladiesEnCours = await this.getMaladiesEnCours(projetId);
+    if (maladiesEnCours.length > 0) {
+      const critiques = maladiesEnCours.filter((m) => m.gravite === 'critique');
+      if (critiques.length > 0) {
+        recommendations.push({
+          type: 'alerte',
+          priorite: 'haute',
+          message: `${critiques.length} maladie(s) critique(s) en cours`,
+          data: { maladies: critiques },
+        });
+      }
+    }
+
+    // Vérifier les traitements en cours
+    const traitementsEnCours = await this.getTraitementsEnCours(projetId);
+    if (traitementsEnCours.length > 0) {
+      recommendations.push({
+        type: 'traitement',
+        priorite: 'moyenne',
+        message: `${traitementsEnCours.length} traitement(s) en cours`,
+        data: { traitements: traitementsEnCours },
+      });
+    }
+
+    // Vérifier si une visite vétérinaire est prévue
+    const prochaineVisite = await this.getProchainVisitePrevue(projetId);
+    if (prochaineVisite) {
+      recommendations.push({
+        type: 'visite',
+        priorite: 'basse',
+        message: `Visite vétérinaire prévue le ${new Date(prochaineVisite.prochaine_visite_prevue!).toLocaleDateString()}`,
+        data: { visite: prochaineVisite },
+      });
+    }
+
+    return recommendations;
+  }
+
+  /**
+   * Obtenir les alertes sanitaires urgentes
+   */
+  async getAlertesSanitaires(projetId: string): Promise<Array<{
+    type: 'rappel_retard' | 'maladie_critique' | 'epidemie' | 'mortalite_elevee';
+    gravite: 'critique' | 'elevee' | 'moyenne';
+    message: string;
+    date: string;
+    data?: any;
+  }>> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const alertes: Array<{
+      type: 'rappel_retard' | 'maladie_critique' | 'epidemie' | 'mortalite_elevee';
+      gravite: 'critique' | 'elevee' | 'moyenne';
+      message: string;
+      date: string;
+      data?: any;
+    }> = [];
+
+    // Rappels en retard
+    const rappelsEnRetard = await this.getRappelsEnRetard(projetId);
+    if (rappelsEnRetard.length > 0) {
+      alertes.push({
+        type: 'rappel_retard',
+        gravite: 'elevee',
+        message: `${rappelsEnRetard.length} rappel(s) de vaccination en retard`,
+        date: new Date().toISOString(),
+        data: { rappels: rappelsEnRetard },
+      });
+    }
+
+    // Maladies critiques
+    const maladiesCritiques = await this.db.getAllAsync<any>(
+      "SELECT * FROM maladies WHERE projet_id = ? AND gravite = 'critique' AND gueri = 0",
+      [projetId]
+    );
+    if (maladiesCritiques.length > 0) {
+      alertes.push({
+        type: 'maladie_critique',
+        gravite: 'critique',
+        message: `${maladiesCritiques.length} maladie(s) critique(s) nécessitant une attention immédiate`,
+        date: new Date().toISOString(),
+        data: { maladies: maladiesCritiques },
+      });
+    }
+
+    // Détection d'épidémie (maladies contagieuses multiples)
+    const maladiesContagieuses = await this.db.getFirstAsync<{ count: number }>(
+      'SELECT COUNT(*) as count FROM maladies WHERE projet_id = ? AND contagieux = 1 AND gueri = 0',
+      [projetId]
+    );
+    if (maladiesContagieuses && maladiesContagieuses.count >= 3) {
+      alertes.push({
+        type: 'epidemie',
+        gravite: 'critique',
+        message: `Risque d'épidémie détecté : ${maladiesContagieuses.count} cas de maladies contagieuses actives`,
+        date: new Date().toISOString(),
+        data: { nombre: maladiesContagieuses.count },
+      });
+    }
+
+    // Mortalité élevée (derniers 30 jours)
+    const date30JoursAvant = new Date();
+    date30JoursAvant.setDate(date30JoursAvant.getDate() - 30);
+    const mortalitesRecentes = await this.db.getFirstAsync<{ count: number }>(
+      'SELECT COUNT(*) as count FROM mortalites WHERE projet_id = ? AND date > ?',
+      [projetId, date30JoursAvant.toISOString()]
+    );
+    if (mortalitesRecentes && mortalitesRecentes.count >= 5) {
+      alertes.push({
+        type: 'mortalite_elevee',
+        gravite: 'elevee',
+        message: `Taux de mortalité élevé : ${mortalitesRecentes.count} décès dans les 30 derniers jours`,
+        date: new Date().toISOString(),
+        data: { nombre: mortalitesRecentes.count },
+      });
+    }
+
+    return alertes;
+  }
+
+  /**
+   * Obtenir l'historique médical complet d'un animal
+   */
+  async getHistoriqueMedicalAnimal(animalId: string): Promise<{
+    vaccinations: Vaccination[];
+    maladies: Maladie[];
+    traitements: Traitement[];
+    visites: VisiteVeterinaire[];
+  }> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const vaccinations = await this.getVaccinationsByAnimal(animalId);
+    const maladies = await this.getMaladiesByAnimal(animalId);
+    const traitements = await this.getTraitementsByAnimal(animalId);
+
+    // Récupérer les visites vétérinaires qui ont examiné cet animal
+    const visites = await this.db.getAllAsync<any>(
+      `SELECT * FROM visites_veterinaires 
+       WHERE animaux_examines LIKE ?
+       ORDER BY date_visite DESC`,
+      [`%${animalId}%`]
+    );
+
+    return {
+      vaccinations,
+      maladies,
+      traitements,
+      visites: visites.map((row) => ({
+        id: row.id,
+        projet_id: row.projet_id,
+        date_visite: row.date_visite,
+        motif: row.motif,
+        veterinaire: row.veterinaire || undefined,
+        diagnostic: row.diagnostic || undefined,
+        prescriptions: row.prescriptions || undefined,
+        cout: row.cout || undefined,
+        animaux_examines: row.animaux_examines ? JSON.parse(row.animaux_examines) : undefined,
+        prochaine_visite_prevue: row.prochaine_visite_prevue || undefined,
+        notes: row.notes || undefined,
+        date_creation: row.date_creation,
+        derniere_modification: row.derniere_modification,
+      })),
+    };
+  }
+
+  /**
+   * Obtenir les animaux avec temps d'attente actif (avant abattage)
+   */
+  async getAnimauxTempsAttente(projetId: string): Promise<Array<{
+    animal_id: string;
+    traitement: Traitement;
+    date_fin_attente: string;
+    jours_restants: number;
+  }>> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const now = new Date();
+
+    const traitements = await this.db.getAllAsync<any>(
+      `SELECT * FROM traitements 
+       WHERE projet_id = ? 
+       AND temps_attente_abattage_jours IS NOT NULL 
+       AND animal_id IS NOT NULL
+       ORDER BY date_debut DESC`,
+      [projetId]
+    );
+
+    const animauxAvecAttente: Array<{
+      animal_id: string;
+      traitement: Traitement;
+      date_fin_attente: string;
+      jours_restants: number;
+    }> = [];
+
+    for (const row of traitements) {
+      const dateDebut = new Date(row.date_debut);
+      const tempsAttente = row.temps_attente_abattage_jours;
+      const dateFinAttente = new Date(dateDebut.getTime() + tempsAttente * 24 * 60 * 60 * 1000);
+
+      // Vérifier si le temps d'attente est toujours actif
+      if (dateFinAttente > now) {
+        const joursRestants = Math.ceil((dateFinAttente.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+
+        animauxAvecAttente.push({
+          animal_id: row.animal_id,
+          traitement: {
+            id: row.id,
+            projet_id: row.projet_id,
+            maladie_id: row.maladie_id || undefined,
+            animal_id: row.animal_id || undefined,
+            lot_id: row.lot_id || undefined,
+            medicament: row.medicament,
+            dosage: row.dosage || undefined,
+            frequence: row.frequence || undefined,
+            voie_administration: row.voie_administration || undefined,
+            date_debut: row.date_debut,
+            date_fin: row.date_fin || undefined,
+            duree_jours: row.duree_jours || undefined,
+            temps_attente_abattage_jours: row.temps_attente_abattage_jours || undefined,
+            cout: row.cout || undefined,
+            efficacite: row.efficacite || undefined,
+            effets_secondaires: row.effets_secondaires || undefined,
+            termine: row.termine === 1,
+            notes: row.notes || undefined,
+            date_creation: row.date_creation,
+            derniere_modification: row.derniere_modification,
+          },
+          date_fin_attente: dateFinAttente.toISOString(),
+          jours_restants: joursRestants,
+        });
+      }
+    }
+
+    return animauxAvecAttente;
+  }
+
+  /**
+   * Obtenir les coûts vétérinaires sur une période donnée
+   */
+  async getCoutsVeterinairesPeriode(
+    projetId: string,
+    dateDebut: string,
+    dateFin: string
+  ): Promise<{
+    vaccinations: number;
+    traitements: number;
+    visites: number;
+    total: number;
+    details: {
+      vaccinations: Vaccination[];
+      traitements: Traitement[];
+      visites: VisiteVeterinaire[];
+    };
+  }> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    // Vaccinations
+    const vaccinations = await this.db.getAllAsync<any>(
+      `SELECT * FROM vaccinations 
+       WHERE projet_id = ? AND date_vaccination BETWEEN ? AND ? AND cout IS NOT NULL`,
+      [projetId, dateDebut, dateFin]
+    );
+
+    // Traitements
+    const traitements = await this.db.getAllAsync<any>(
+      `SELECT * FROM traitements 
+       WHERE projet_id = ? AND date_debut BETWEEN ? AND ? AND cout IS NOT NULL`,
+      [projetId, dateDebut, dateFin]
+    );
+
+    // Visites
+    const visites = await this.db.getAllAsync<any>(
+      `SELECT * FROM visites_veterinaires 
+       WHERE projet_id = ? AND date_visite BETWEEN ? AND ? AND cout IS NOT NULL`,
+      [projetId, dateDebut, dateFin]
+    );
+
+    const coutVaccinations = vaccinations.reduce((sum, v) => sum + (v.cout || 0), 0);
+    const coutTraitements = traitements.reduce((sum, t) => sum + (t.cout || 0), 0);
+    const coutVisites = visites.reduce((sum, v) => sum + (v.cout || 0), 0);
+
+    return {
+      vaccinations: coutVaccinations,
+      traitements: coutTraitements,
+      visites: coutVisites,
+      total: coutVaccinations + coutTraitements + coutVisites,
+      details: {
+        vaccinations: vaccinations.map((row) => ({
+          id: row.id,
+          projet_id: row.projet_id,
+          calendrier_id: row.calendrier_id || undefined,
+          animal_id: row.animal_id || undefined,
+          lot_id: row.lot_id || undefined,
+          vaccin: row.vaccin,
+          nom_vaccin: row.nom_vaccin || undefined,
+          date_vaccination: row.date_vaccination,
+          date_rappel: row.date_rappel || undefined,
+          numero_lot_vaccin: row.numero_lot_vaccin || undefined,
+          veterinaire: row.veterinaire || undefined,
+          cout: row.cout || undefined,
+          statut: row.statut,
+          effets_secondaires: row.effets_secondaires || undefined,
+          notes: row.notes || undefined,
+          date_creation: row.date_creation,
+          derniere_modification: row.derniere_modification,
+        })),
+        traitements: traitements.map((row) => ({
+          id: row.id,
+          projet_id: row.projet_id,
+          maladie_id: row.maladie_id || undefined,
+          animal_id: row.animal_id || undefined,
+          lot_id: row.lot_id || undefined,
+          medicament: row.medicament,
+          dosage: row.dosage || undefined,
+          frequence: row.frequence || undefined,
+          voie_administration: row.voie_administration || undefined,
+          date_debut: row.date_debut,
+          date_fin: row.date_fin || undefined,
+          duree_jours: row.duree_jours || undefined,
+          temps_attente_abattage_jours: row.temps_attente_abattage_jours || undefined,
+          cout: row.cout || undefined,
+          efficacite: row.efficacite || undefined,
+          effets_secondaires: row.effets_secondaires || undefined,
+          termine: row.termine === 1,
+          notes: row.notes || undefined,
+          date_creation: row.date_creation,
+          derniere_modification: row.derniere_modification,
+        })),
+        visites: visites.map((row) => ({
+          id: row.id,
+          projet_id: row.projet_id,
+          date_visite: row.date_visite,
+          motif: row.motif,
+          veterinaire: row.veterinaire || undefined,
+          diagnostic: row.diagnostic || undefined,
+          prescriptions: row.prescriptions || undefined,
+          cout: row.cout || undefined,
+          animaux_examines: row.animaux_examines ? JSON.parse(row.animaux_examines) : undefined,
+          prochaine_visite_prevue: row.prochaine_visite_prevue || undefined,
+          notes: row.notes || undefined,
+          date_creation: row.date_creation,
+          derniere_modification: row.derniere_modification,
+        })),
+      },
+    };
   }
 
   /**
@@ -1492,9 +4336,9 @@ class DatabaseService {
     await this.db.runAsync(
       `INSERT INTO projets (
         id, nom, localisation, nombre_truies, nombre_verrats, nombre_porcelets,
-        poids_moyen_actuel, age_moyen_actuel, notes, statut, proprietaire_id,
+        poids_moyen_actuel, age_moyen_actuel, prix_kg_vif, prix_kg_carcasse, notes, statut, proprietaire_id,
         date_creation, derniere_modification
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         projet.nom,
@@ -1504,6 +4348,8 @@ class DatabaseService {
         projet.nombre_porcelets,
         projet.poids_moyen_actuel,
         projet.age_moyen_actuel,
+        projet.prix_kg_vif || null,
+        projet.prix_kg_carcasse || null,
         projet.notes || null,
         projet.statut,
         projet.proprietaire_id,
@@ -1512,7 +4358,150 @@ class DatabaseService {
       ]
     );
 
-    return this.getProjetById(id);
+    const projetCree = await this.getProjetById(id);
+
+    // Créer automatiquement les animaux dans le cheptel
+    if (projetCree.nombre_truies > 0 || projetCree.nombre_verrats > 0 || projetCree.nombre_porcelets > 0) {
+      await this.createAnimauxInitials(projetCree.id, {
+        nombre_truies: projetCree.nombre_truies,
+        nombre_verrats: projetCree.nombre_verrats,
+        nombre_porcelets: projetCree.nombre_porcelets,
+      });
+    }
+
+    return projetCree;
+  }
+
+  /**
+   * Crée automatiquement les animaux initiaux lors de la création d'un projet
+   */
+  private async createAnimauxInitials(
+    projetId: string,
+    effectifs: { nombre_truies: number; nombre_verrats: number; nombre_porcelets: number }
+  ): Promise<void> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    // Récupérer les codes existants pour éviter les doublons
+    const animauxExistants = await this.getProductionAnimaux(projetId, true);
+    const codesExistants = new Set(animauxExistants.map((a) => a.code.toUpperCase()));
+    
+    // Récupérer les noms déjà utilisés pour générer des noms uniques
+    const nomsDejaUtilises = animauxExistants
+      .map(a => a.nom)
+      .filter((nom): nom is string => nom !== undefined && nom !== null && nom !== '');
+
+    // Fonction helper pour générer un code unique
+    const generateUniqueCode = (prefix: string, count: number): string => {
+      let num = count;
+      let code = `${prefix}${String(num).padStart(3, '0')}`;
+      
+      // Si le code existe déjà, incrémenter jusqu'à trouver un code libre
+      while (codesExistants.has(code.toUpperCase())) {
+        num++;
+        code = `${prefix}${String(num).padStart(3, '0')}`;
+      }
+      
+      codesExistants.add(code.toUpperCase());
+      return code;
+    };
+
+    let truieCount = 0;
+    let verratCount = 0;
+    let porceletCount = 0;
+
+    // Compter les animaux existants par type pour la numérotation
+    animauxExistants.forEach((animal) => {
+      const codeUpper = animal.code.toUpperCase();
+      if (codeUpper.startsWith('T')) {
+        const num = parseInt(codeUpper.substring(1));
+        if (!isNaN(num) && num > truieCount) truieCount = num;
+      } else if (codeUpper.startsWith('V')) {
+        const num = parseInt(codeUpper.substring(1));
+        if (!isNaN(num) && num > verratCount) verratCount = num;
+      } else if (codeUpper.startsWith('P')) {
+        const num = parseInt(codeUpper.substring(1));
+        if (!isNaN(num) && num > porceletCount) porceletCount = num;
+      }
+    });
+
+    // Générer des noms uniques pour tous les animaux à créer
+    const totalAnimaux = effectifs.nombre_truies + effectifs.nombre_verrats + effectifs.nombre_porcelets;
+    const nomsAleatoires = genererPlusieursNomsAleatoires(totalAnimaux, nomsDejaUtilises, 'tous');
+    let nomIndex = 0;
+
+    // Créer les truies
+    for (let i = 0; i < effectifs.nombre_truies; i++) {
+      truieCount++;
+      const code = generateUniqueCode('T', truieCount);
+      const nom = nomsAleatoires[nomIndex++];
+      
+      await this.createProductionAnimal({
+        projet_id: projetId,
+        code,
+        nom,
+        sexe: 'femelle',
+        reproducteur: true,
+        statut: 'actif',
+        date_naissance: undefined,
+        poids_initial: undefined,
+        date_entree: undefined,
+        race: undefined,
+        origine: undefined,
+        notes: 'Créé lors de l\'initialisation du projet',
+        pere_id: null,  // Inconnu par défaut, modifiable par l'utilisateur
+        mere_id: null,  // Inconnu par défaut, modifiable par l'utilisateur
+      });
+    }
+
+    // Créer les verrats
+    for (let i = 0; i < effectifs.nombre_verrats; i++) {
+      verratCount++;
+      const code = generateUniqueCode('V', verratCount);
+      const nom = nomsAleatoires[nomIndex++];
+      
+      await this.createProductionAnimal({
+        projet_id: projetId,
+        code,
+        nom,
+        sexe: 'male',
+        reproducteur: true,
+        statut: 'actif',
+        date_naissance: undefined,
+        poids_initial: undefined,
+        date_entree: undefined,
+        race: undefined,
+        origine: undefined,
+        notes: 'Créé lors de l\'initialisation du projet',
+        pere_id: null,  // Inconnu par défaut, modifiable par l'utilisateur
+        mere_id: null,  // Inconnu par défaut, modifiable par l'utilisateur
+      });
+    }
+
+    // Créer les porcelets
+    for (let i = 0; i < effectifs.nombre_porcelets; i++) {
+      porceletCount++;
+      const code = generateUniqueCode('P', porceletCount);
+      const nom = nomsAleatoires[nomIndex++];
+      
+      await this.createProductionAnimal({
+        projet_id: projetId,
+        code,
+        nom,
+        sexe: 'indetermine',
+        reproducteur: false,
+        statut: 'actif',
+        date_naissance: undefined,
+        poids_initial: undefined,
+        date_entree: undefined,
+        race: undefined,
+        origine: undefined,
+        notes: 'Créé lors de l\'initialisation du projet',
+        pere_id: null,  // Inconnu par défaut, modifiable par l'utilisateur
+        mere_id: null,  // Inconnu par défaut, modifiable par l'utilisateur
+      });
+    }
   }
 
   async getProjetById(id: string): Promise<Projet> {
@@ -2115,6 +5104,12 @@ class DatabaseService {
       values
     );
 
+    // ✅ AUTOMATISATION : Créer les porcelets automatiquement si la gestation est terminée
+    if (updates.statut === 'terminee' && updates.nombre_porcelets_reel && updates.nombre_porcelets_reel > 0) {
+      const gestation = await this.getGestationById(id);
+      await this.creerPorceletsDepuisGestation(gestation);
+    }
+
     return this.getGestationById(id);
   }
 
@@ -2124,6 +5119,120 @@ class DatabaseService {
     }
 
     await this.db.runAsync('DELETE FROM gestations WHERE id = ?', [id]);
+  }
+
+  /**
+   * Crée automatiquement les porcelets dans la table production_animaux
+   * lorsqu'une gestation est terminée
+   */
+  private async creerPorceletsDepuisGestation(gestation: Gestation): Promise<void> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    // Vérifier que la gestation est bien terminée
+    if (gestation.statut !== 'terminee' || !gestation.nombre_porcelets_reel || gestation.nombre_porcelets_reel <= 0) {
+      return;
+    }
+
+    // Vérifier si les porcelets n'ont pas déjà été créés pour cette gestation
+    // On vérifie s'il existe déjà des porcelets avec cette truie comme mère et nés à la date de mise bas réelle
+    const dateMiseBas = gestation.date_mise_bas_reelle || gestation.date_mise_bas_prevue;
+    const porceletsExistants = await this.db.getAllAsync<ProductionAnimal>(
+      `SELECT * FROM production_animaux 
+       WHERE projet_id = ? 
+       AND mere_id = ? 
+       AND date_naissance = ? 
+       AND reproducteur = 0`,
+      [gestation.projet_id, gestation.truie_id, dateMiseBas]
+    );
+
+    if (porceletsExistants && porceletsExistants.length > 0) {
+      console.log(`Les porcelets pour la gestation ${gestation.id} ont déjà été créés.`);
+      return;
+    }
+
+    // Récupérer tous les animaux du projet pour générer des codes uniques
+    const animauxExistants = await this.getProductionAnimaux(gestation.projet_id, true);
+    
+    // ✅ CORRECTION : Trouver les vrais IDs des parents dans production_animaux
+    // truie_id et verrat_id dans gestations peuvent être des codes ou des IDs
+    let mereIdReel: string | null = null;
+    let pereIdReel: string | null = null;
+
+    // Chercher la truie par ID ou par code
+    const truieTrouvee = animauxExistants.find(a => 
+      a.id === gestation.truie_id || a.code === gestation.truie_id
+    );
+    if (truieTrouvee) {
+      mereIdReel = truieTrouvee.id;
+    }
+
+    // Chercher le verrat par ID ou par code (si renseigné)
+    if (gestation.verrat_id) {
+      const verratTrouve = animauxExistants.find(a => 
+        a.id === gestation.verrat_id || a.code === gestation.verrat_id
+      );
+      if (verratTrouve) {
+        pereIdReel = verratTrouve.id;
+      }
+    }
+    
+    // Trouver le prochain numéro de porcelet disponible
+    const codesPorcelets = animauxExistants
+      .map(a => a.code)
+      .filter(code => code.startsWith('P'))
+      .map(code => {
+        const match = code.match(/P(\d+)/);
+        return match ? parseInt(match[1], 10) : 0;
+      })
+      .filter(num => !isNaN(num));
+    
+    const maxNumero = codesPorcelets.length > 0 ? Math.max(...codesPorcelets) : 0;
+    let prochainNumero = maxNumero + 1;
+
+    // Générer des noms uniques et aléatoires pour les porcelets
+    const nomsDejaUtilises = animauxExistants
+      .map(a => a.nom)
+      .filter((nom): nom is string => nom !== undefined && nom !== null && nom !== '');
+    
+    const nombrePorcelets = gestation.nombre_porcelets_reel;
+    const nomsAleatoires = genererPlusieursNomsAleatoires(nombrePorcelets, nomsDejaUtilises, 'tous');
+
+    // Créer les porcelets
+    const porceletsCreees: ProductionAnimal[] = [];
+
+    for (let i = 0; i < nombrePorcelets; i++) {
+      const codePorcelet = `P${String(prochainNumero).padStart(3, '0')}`;
+      const nomPorcelet = nomsAleatoires[i];
+      
+      try {
+        const porcelet = await this.createProductionAnimal({
+          projet_id: gestation.projet_id,
+          code: codePorcelet,
+          nom: nomPorcelet,
+          origine: 'Naissance',
+          sexe: 'indetermine',
+          date_naissance: dateMiseBas,
+          poids_initial: undefined,
+          date_entree: dateMiseBas,
+          statut: 'actif',
+          race: undefined,
+          reproducteur: false,
+          pere_id: pereIdReel,  // ✅ Utiliser le vrai ID trouvé
+          mere_id: mereIdReel,  // ✅ Utiliser le vrai ID trouvé
+          notes: `Né de la gestation ${gestation.truie_nom || gestation.truie_id}${gestation.verrat_nom ? ` x ${gestation.verrat_nom}` : ''}`,
+        });
+        
+        porceletsCreees.push(porcelet);
+        prochainNumero++;
+      } catch (error) {
+        console.error(`Erreur lors de la création du porcelet ${codePorcelet}:`, error);
+        // Continuer avec les autres porcelets même en cas d'erreur
+      }
+    }
+
+    console.log(`✅ ${porceletsCreees.length} porcelet(s) créé(s) automatiquement pour la gestation ${gestation.id}`);
   }
 
   /**
@@ -2319,6 +5428,146 @@ class DatabaseService {
     }
 
     await this.db.runAsync('DELETE FROM ingredients WHERE id = ?', [id]);
+  }
+
+  /**
+   * ============================================
+   * GESTION DES RATIONS BUDGET (BUDGÉTISATION ALIMENT)
+   * ============================================
+   */
+
+  async createRationBudget(input: import('../types/nutrition').CreateRationBudgetInput): Promise<import('../types/nutrition').RationBudget> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const id = `ration_budget_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const date_creation = new Date().toISOString();
+    const ingredients_json = JSON.stringify(input.ingredients);
+
+    await this.db.runAsync(
+      `INSERT INTO rations_budget (
+        id, projet_id, nom, type_porc, poids_moyen_kg, nombre_porcs,
+        duree_jours, ration_journaliere_par_porc, quantite_totale_kg,
+        cout_total, cout_par_kg, cout_par_porc, ingredients, notes,
+        date_creation, derniere_modification
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        input.projet_id,
+        input.nom,
+        input.type_porc,
+        input.poids_moyen_kg,
+        input.nombre_porcs,
+        input.duree_jours,
+        input.ration_journaliere_par_porc,
+        input.quantite_totale_kg,
+        input.cout_total,
+        input.cout_par_kg,
+        input.cout_par_porc,
+        ingredients_json,
+        input.notes || null,
+        date_creation,
+        date_creation,
+      ]
+    );
+
+    const ration = await this.getRationBudgetById(id);
+    if (!ration) {
+      throw new Error('Erreur lors de la création de la ration budget');
+    }
+    return ration;
+  }
+
+  async getRationBudgetById(id: string): Promise<import('../types/nutrition').RationBudget | null> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const result = await this.db.getFirstAsync<any>(
+      'SELECT * FROM rations_budget WHERE id = ?',
+      [id]
+    );
+
+    if (!result) {
+      return null;
+    }
+
+    return {
+      ...result,
+      ingredients: JSON.parse(result.ingredients || '[]'),
+    };
+  }
+
+  async getRationsBudgetByProjet(projetId: string): Promise<import('../types/nutrition').RationBudget[]> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const results = await this.db.getAllAsync<any>(
+      'SELECT * FROM rations_budget WHERE projet_id = ? ORDER BY date_creation DESC',
+      [projetId]
+    );
+
+    return results.map(row => ({
+      ...row,
+      ingredients: JSON.parse(row.ingredients || '[]'),
+    }));
+  }
+
+  async updateRationBudget(
+    id: string,
+    updates: import('../types/nutrition').UpdateRationBudgetInput
+  ): Promise<import('../types/nutrition').RationBudget | null> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const derniere_modification = new Date().toISOString();
+    const setClauses: string[] = ['derniere_modification = ?'];
+    const values: any[] = [derniere_modification];
+
+    if (updates.nom !== undefined) {
+      setClauses.push('nom = ?');
+      values.push(updates.nom);
+    }
+    if (updates.type_porc !== undefined) {
+      setClauses.push('type_porc = ?');
+      values.push(updates.type_porc);
+    }
+    if (updates.poids_moyen_kg !== undefined) {
+      setClauses.push('poids_moyen_kg = ?');
+      values.push(updates.poids_moyen_kg);
+    }
+    if (updates.nombre_porcs !== undefined) {
+      setClauses.push('nombre_porcs = ?');
+      values.push(updates.nombre_porcs);
+    }
+    if (updates.duree_jours !== undefined) {
+      setClauses.push('duree_jours = ?');
+      values.push(updates.duree_jours);
+    }
+    if (updates.notes !== undefined) {
+      setClauses.push('notes = ?');
+      values.push(updates.notes);
+    }
+
+    values.push(id);
+
+    await this.db.runAsync(
+      `UPDATE rations_budget SET ${setClauses.join(', ')} WHERE id = ?`,
+      values
+    );
+
+    return this.getRationBudgetById(id);
+  }
+
+  async deleteRationBudget(id: string): Promise<void> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    await this.db.runAsync('DELETE FROM rations_budget WHERE id = ?', [id]);
   }
 
   /**
@@ -2671,8 +5920,8 @@ class DatabaseService {
       `INSERT INTO production_animaux (
         id, projet_id, code, nom, origine, sexe, date_naissance, poids_initial,
         date_entree, actif, statut, race, reproducteur, pere_id, mere_id, notes,
-        date_creation, derniere_modification
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        photo_uri, date_creation, derniere_modification
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ,[
         id,
         input.projet_id,
@@ -2690,6 +5939,7 @@ class DatabaseService {
         input.pere_id ?? null,
         input.mere_id ?? null,
         input.notes || null,
+        input.photo_uri || null,
         date_creation,
         derniere_modification,
       ]
@@ -2848,6 +6098,142 @@ class DatabaseService {
     }
 
     return this.mapRowToProductionPesee(result);
+  }
+
+  /**
+   * Met à jour une pesée et recalcule le GMQ
+   */
+  async updatePesee(id: string, updates: Partial<CreatePeseeInput>): Promise<ProductionPesee> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    // Récupérer la pesée existante
+    const peseeExistante = await this.getPeseeById(id);
+    
+    // Fusionner les données
+    const dataMerged = {
+      projet_id: peseeExistante.projet_id,
+      animal_id: peseeExistante.animal_id,
+      date: updates.date ?? peseeExistante.date,
+      poids_kg: updates.poids_kg ?? peseeExistante.poids_kg,
+      commentaire: updates.commentaire !== undefined ? updates.commentaire : peseeExistante.commentaire,
+      cree_par: peseeExistante.cree_par,
+    };
+
+    // Recalculer le GMQ avec les nouvelles données
+    const animal = await this.getProductionAnimalById(dataMerged.animal_id);
+    const previous = await this.getDernierePeseeAvantDate(dataMerged.animal_id, dataMerged.date);
+
+    let gmq: number | null = null;
+    let difference_standard: number | null = null;
+
+    let poidsReference = animal.poids_initial ?? null;
+    let dateReference = animal.date_entree ?? null;
+
+    if (previous && previous.id !== id) { // Exclure la pesée qu'on est en train de modifier
+      poidsReference = previous.poids_kg;
+      dateReference = previous.date;
+    }
+
+    if (poidsReference !== null && dateReference) {
+      const diffJours = this.calculateDayDifference(dateReference, dataMerged.date);
+      if (diffJours > 0) {
+        gmq = ((dataMerged.poids_kg - poidsReference) * 1000) / diffJours;
+        const standard = getStandardGMQ(dataMerged.poids_kg);
+        if (standard) {
+          difference_standard = gmq - standard.gmq_cible;
+        }
+      }
+    }
+
+    // Mettre à jour la pesée
+    await this.db.runAsync(
+      `UPDATE production_pesees 
+       SET date = ?, poids_kg = ?, gmq = ?, difference_standard = ?, commentaire = ?
+       WHERE id = ?`,
+      [
+        dataMerged.date,
+        dataMerged.poids_kg,
+        gmq ?? null,
+        difference_standard ?? null,
+        dataMerged.commentaire || null,
+        id,
+      ]
+    );
+
+    // Recalculer les GMQ des pesées suivantes
+    await this.recalculerGMQSuivants(dataMerged.animal_id, dataMerged.date);
+
+    return this.getPeseeById(id);
+  }
+
+  /**
+   * Supprime une pesée et recalcule les GMQ suivants
+   */
+  async deletePesee(id: string): Promise<void> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    // Récupérer la pesée avant de la supprimer pour savoir quel animal et quelle date
+    const pesee = await this.getPeseeById(id);
+    
+    // Supprimer la pesée
+    await this.db.runAsync('DELETE FROM production_pesees WHERE id = ?', [id]);
+    
+    // Recalculer les GMQ des pesées suivantes
+    await this.recalculerGMQSuivants(pesee.animal_id, pesee.date);
+  }
+
+  /**
+   * Recalcule les GMQ de toutes les pesées suivant une date donnée pour un animal
+   */
+  private async recalculerGMQSuivants(animalId: string, dateModifiee: string): Promise<void> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    // Récupérer toutes les pesées après la date modifiée
+    const peseesASuivantes = await this.db.getAllAsync<any>(
+      'SELECT * FROM production_pesees WHERE animal_id = ? AND date > ? ORDER BY date ASC',
+      [animalId, dateModifiee]
+    );
+
+    const animal = await this.getProductionAnimalById(animalId);
+
+    // Recalculer le GMQ pour chaque pesée suivante
+    for (const peseeSuivante of peseesASuivantes) {
+      const previous = await this.getDernierePeseeAvantDate(animalId, peseeSuivante.date);
+
+      let gmq: number | null = null;
+      let difference_standard: number | null = null;
+
+      let poidsReference = animal.poids_initial ?? null;
+      let dateReference = animal.date_entree ?? null;
+
+      if (previous && previous.id !== peseeSuivante.id) {
+        poidsReference = previous.poids_kg;
+        dateReference = previous.date;
+      }
+
+      if (poidsReference !== null && dateReference) {
+        const diffJours = this.calculateDayDifference(dateReference, peseeSuivante.date);
+        if (diffJours > 0) {
+          gmq = ((peseeSuivante.poids_kg - poidsReference) * 1000) / diffJours;
+          const standard = getStandardGMQ(peseeSuivante.poids_kg);
+          if (standard) {
+            difference_standard = gmq - standard.gmq_cible;
+          }
+        }
+      }
+
+      // Mettre à jour le GMQ de cette pesée
+      await this.db.runAsync(
+        'UPDATE production_pesees SET gmq = ?, difference_standard = ? WHERE id = ?',
+        [gmq ?? null, difference_standard ?? null, peseeSuivante.id]
+      );
+    }
   }
 
   async getDernierePeseeAvantDate(animalId: string, date: string): Promise<ProductionPesee | null> {
@@ -3159,7 +6545,46 @@ class DatabaseService {
 
     const id = `mortalite_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const date_creation = new Date().toISOString();
+    const derniere_modification = date_creation;
 
+    // Récupérer tous les animaux actifs du projet pour validation et mise à jour
+    const animauxProjet = await this.getProductionAnimaux(mortalite.projet_id, true);
+    const animauxActifs = animauxProjet.filter((a) => a.statut?.toLowerCase() === 'actif');
+
+    // Fonction helper pour déterminer si un animal correspond à la catégorie
+    const animalCorrespondCategorie = (animal: ProductionAnimal, categorie: string): boolean => {
+      if (categorie === 'autre') return true; // Catégorie "autre" accepte tous les animaux
+      
+      const isReproducteur = animal.reproducteur === true;
+      const isMale = animal.sexe === 'male';
+      const isFemelle = animal.sexe === 'femelle';
+
+      switch (categorie) {
+        case 'truie':
+          return isFemelle && isReproducteur;
+        case 'verrat':
+          return isMale && isReproducteur;
+        case 'porcelet':
+          return (isMale && !isReproducteur) || (isFemelle && !isReproducteur) || animal.sexe === 'indetermine';
+        default:
+          return true;
+      }
+    };
+
+    // Filtrer les animaux actifs correspondant à la catégorie
+    const animauxCorrespondants = animauxActifs.filter((a) => 
+      animalCorrespondCategorie(a, mortalite.categorie)
+    );
+
+    // Validation : vérifier qu'il y a assez d'animaux actifs disponibles
+    if (mortalite.nombre_porcs > animauxCorrespondants.length) {
+      throw new Error(
+        `Impossible d'enregistrer ${mortalite.nombre_porcs} mortalité(s) de ${mortalite.categorie}(s). ` +
+        `Il n'y a que ${animauxCorrespondants.length} ${mortalite.categorie}(s) actif(s) disponible(s).`
+      );
+    }
+
+    // Insérer la mortalité dans la base de données
     await this.db.runAsync(
       `INSERT INTO mortalites (
         id, projet_id, nombre_porcs, date, cause, categorie, animal_code, notes, date_creation
@@ -3177,24 +6602,35 @@ class DatabaseService {
       ]
     );
 
-    // Si un code d'animal est renseigné, changer le statut de l'animal en "mort"
+    // Mettre à jour le statut des animaux concernés
     if (mortalite.animal_code) {
+      // Cas 1 : Code d'animal spécifique renseigné
       try {
         const animal = await this.db.getFirstAsync<any>(
           'SELECT * FROM production_animaux WHERE projet_id = ? AND code = ?',
           [mortalite.projet_id, mortalite.animal_code]
         );
         
-        if (animal) {
+        if (animal && animal.statut?.toLowerCase() === 'actif') {
           // Changer le statut en "mort"
           await this.db.runAsync(
             'UPDATE production_animaux SET statut = ?, actif = 0, derniere_modification = ? WHERE id = ?',
-            ['mort', new Date().toISOString(), animal.id]
+            ['mort', derniere_modification, animal.id]
           );
         }
       } catch (error) {
-        // Si l'animal n'est pas trouvé, on continue quand même (peut-être que le code est incorrect)
         console.warn(`Animal avec le code ${mortalite.animal_code} non trouvé lors de la création de la mortalité`);
+      }
+    } else {
+      // Cas 2 : Mortalité générique (sans code spécifique)
+      // Mettre à jour automatiquement les N premiers animaux actifs correspondant à la catégorie
+      const animauxAMarquer = animauxCorrespondants.slice(0, mortalite.nombre_porcs);
+      
+      for (const animal of animauxAMarquer) {
+        await this.db.runAsync(
+          'UPDATE production_animaux SET statut = ?, actif = 0, derniere_modification = ? WHERE id = ?',
+          ['mort', derniere_modification, animal.id]
+        );
       }
     }
 
@@ -3320,14 +6756,29 @@ class DatabaseService {
     // Récupérer toutes les mortalités du projet
     const mortalites = await this.getMortalitesParProjet(projetId);
 
-    // Calculer le total
-    const total_morts = mortalites.reduce((sum, m) => sum + m.nombre_porcs, 0);
+    // Récupérer les animaux du projet pour calculer le taux basé sur les données réelles du cheptel
+    const animauxProjet = await this.getProductionAnimaux(projetId, true);
+    
+    // Calculer le nombre d'animaux morts : UNIQUEMENT depuis les animaux avec statut "mort" dans le cheptel
+    // C'est la source de vérité car les animaux sont automatiquement mis à jour lors de l'enregistrement d'une mortalité
+    const nombrePorcsMorts = animauxProjet.filter((animal) => 
+      animal.statut?.toLowerCase() === 'mort'
+    ).length;
 
-    // Récupérer le projet pour calculer le taux
-    const projet = await this.getProjetById(projetId);
-    const nombrePorcsTotal =
-      projet.nombre_truies + projet.nombre_verrats + projet.nombre_porcelets;
-    const taux_mortalite = nombrePorcsTotal > 0 ? (total_morts / nombrePorcsTotal) * 100 : 0;
+    // Calculer aussi le total des morts depuis la table mortalites (pour référence)
+    // On utilise le maximum entre les deux sources pour plus de précision
+    const total_morts_depuis_table = mortalites.reduce((sum, m) => sum + m.nombre_porcs, 0);
+    const total_morts = Math.max(nombrePorcsMorts, total_morts_depuis_table);
+
+    // Population totale = tous les animaux du projet (actifs + morts + vendus + autres)
+    // C'est la population initiale qui a existé dans le projet
+    const nombrePorcsTotal = animauxProjet.length;
+
+    // Calculer le taux de mortalité
+    // Taux = (nombre de morts / population totale) * 100
+    // Population totale = tous les animaux du projet (actifs + morts + vendus + autres)
+    const taux_mortalite =
+      nombrePorcsTotal > 0 ? (nombrePorcsMorts / nombrePorcsTotal) * 100 : 0;
 
     // Compter par catégorie
     const mortalites_par_categorie = {
@@ -3542,9 +6993,9 @@ class DatabaseService {
       `INSERT INTO collaborations (
         id, projet_id, user_id, nom, prenom, email, telephone, role, statut,
         permission_reproduction, permission_nutrition, permission_finance,
-        permission_rapports, permission_planification, permission_mortalites,
+        permission_rapports, permission_planification, permission_mortalites, permission_sante,
         date_invitation, date_acceptation, notes, date_creation, derniere_modification
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         collaborateur.projet_id,
@@ -3561,6 +7012,7 @@ class DatabaseService {
         collaborateur.permissions.rapports ? 1 : 0,
         collaborateur.permissions.planification ? 1 : 0,
         collaborateur.permissions.mortalites ? 1 : 0,
+        collaborateur.permissions.sante ? 1 : 0,
         collaborateur.date_invitation,
         collaborateur.date_acceptation || null,
         collaborateur.notes || null,
@@ -3803,6 +7255,7 @@ class DatabaseService {
             rapports: perms?.rapports ?? currentCollaborateur!.permissions.rapports,
             planification: perms?.planification ?? currentCollaborateur!.permissions.planification,
             mortalites: perms?.mortalites ?? currentCollaborateur!.permissions.mortalites,
+            sante: perms?.sante ?? currentCollaborateur!.permissions.sante,
           };
           fields.push('permission_reproduction = ?');
           values.push(mergedPerms.reproduction ? 1 : 0);
@@ -3816,6 +7269,8 @@ class DatabaseService {
           values.push(mergedPerms.planification ? 1 : 0);
           fields.push('permission_mortalites = ?');
           values.push(mergedPerms.mortalites ? 1 : 0);
+          fields.push('permission_sante = ?');
+          values.push(mergedPerms.sante ? 1 : 0);
         } else if (key === 'date_acceptation') {
           fields.push(`${key} = ?`);
           values.push(value);
@@ -3912,6 +7367,7 @@ class DatabaseService {
       pere_id: row.pere_id || undefined,
       mere_id: row.mere_id || undefined,
       notes: row.notes || undefined,
+      photo_uri: row.photo_uri || undefined,
       date_creation: row.date_creation,
       derniere_modification: row.derniere_modification,
     };
@@ -3951,6 +7407,7 @@ class DatabaseService {
         rapports: row.permission_rapports === 1,
         planification: row.permission_planification === 1,
         mortalites: row.permission_mortalites === 1,
+        sante: row.permission_sante === 1,
       },
       date_invitation: row.date_invitation,
       date_acceptation: row.date_acceptation || undefined,

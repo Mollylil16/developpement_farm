@@ -9,6 +9,7 @@ import { Platform } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { createMortalite, updateMortalite } from '../store/slices/mortalitesSlice';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
+import { selectAllAnimaux } from '../store/selectors/productionSelectors';
 import { Mortalite, CreateMortaliteInput, CategorieMortalite } from '../types';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
@@ -49,7 +50,7 @@ export default function MortalitesFormModal({
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
-  const { animaux } = useAppSelector((state) => state.production);
+  const animaux = useAppSelector(selectAllAnimaux);
   const { canCreate, canUpdate } = useActionPermissions();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateMortaliteInput>({
@@ -75,13 +76,16 @@ export default function MortalitesFormModal({
 
   // Filtrer les animaux actifs par code
   const animauxFiltres = useMemo(() => {
+    if (!Array.isArray(animaux)) {
+      return [];
+    }
     if (!animalSearchQuery.trim()) {
-      return animaux.filter((a) => a.statut === 'actif');
+      return animaux.filter((a) => a.statut?.toLowerCase() === 'actif');
     }
     const query = animalSearchQuery.toLowerCase().trim();
     return animaux.filter(
       (a) =>
-        a.statut === 'actif' &&
+        a.statut?.toLowerCase() === 'actif' &&
         (a.code?.toLowerCase().includes(query) || a.nom?.toLowerCase().includes(query))
     );
   }, [animaux, animalSearchQuery]);
@@ -89,6 +93,7 @@ export default function MortalitesFormModal({
   // Obtenir le label de l'animal sélectionné
   const getAnimalLabel = (code?: string) => {
     if (!code) return 'Non renseigné';
+    if (!Array.isArray(animaux)) return code;
     const animal = animaux.find((a) => a.code === code);
     if (animal) {
       return `${animal.code}${animal.nom ? ` (${animal.nom})` : ''}`;

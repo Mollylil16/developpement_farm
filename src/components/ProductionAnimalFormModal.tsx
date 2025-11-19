@@ -3,9 +3,12 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { selectAllAnimaux } from '../store/selectors/productionSelectors';
 import { createProductionAnimal, updateProductionAnimal } from '../store/slices/productionSlice';
 import { ProductionAnimal, CreateProductionAnimalInput, SexeAnimal, StatutAnimal, STATUT_ANIMAL_LABELS } from '../types';
 import CustomModal from './CustomModal';
@@ -48,7 +51,8 @@ export default function ProductionAnimalFormModal({
 }: ProductionAnimalFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { animaux, loading: productionLoading } = useAppSelector((state) => state.production);
+  const animaux = useAppSelector(selectAllAnimaux);
+  const { loading: productionLoading } = useAppSelector((state) => state.production);
   const { canCreate, canUpdate } = useActionPermissions();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateProductionAnimalInput>({
@@ -71,10 +75,14 @@ export default function ProductionAnimalFormModal({
   const [showDateEntreePicker, setShowDateEntreePicker] = useState(false);
   const [showPereModal, setShowPereModal] = useState(false);
   const [showMereModal, setShowMereModal] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   // Filtrer les animaux du projet actif
   const animauxProjet = useMemo(
-    () => animaux.filter((a) => a.projet_id === projetId),
+    () => {
+      if (!Array.isArray(animaux)) return [];
+      return animaux.filter((a) => a.projet_id === projetId);
+    },
     [animaux, projetId]
   );
   
@@ -86,22 +94,30 @@ export default function ProductionAnimalFormModal({
   // Pour les parents, on permet de sélectionner tous les animaux actifs du projet
   // (pas seulement ceux marqués comme reproducteurs, pour plus de flexibilité)
   const animauxParents = useMemo(
-    () =>
-      animauxProjet.filter(
+    () => {
+      if (!Array.isArray(animauxProjet)) return [];
+      return animauxProjet.filter(
         (a) =>
           a.id !== animal?.id && // Exclure l'animal lui-même
-          (a.statut === 'actif' || a.id === animal?.pere_id || a.id === animal?.mere_id)
-      ),
+          (a.statut?.toLowerCase() === 'actif' || a.id === animal?.pere_id || a.id === animal?.mere_id)
+      );
+    },
     [animauxProjet, animal?.id, animal?.pere_id, animal?.mere_id]
   );
 
   const reproducteursMales = useMemo(
-    () => animauxParents.filter((a) => a.sexe === 'male'),
+    () => {
+      if (!Array.isArray(animauxParents)) return [];
+      return animauxParents.filter((a) => a.sexe === 'male');
+    },
     [animauxParents]
   );
 
   const reproducteursFemelles = useMemo(
-    () => animauxParents.filter((a) => a.sexe === 'femelle'),
+    () => {
+      if (!Array.isArray(animauxParents)) return [];
+      return animauxParents.filter((a) => a.sexe === 'femelle');
+    },
     [animauxParents]
   );
 
@@ -132,6 +148,68 @@ export default function ProductionAnimalFormModal({
     setShowMereModal(false);
   };
 
+  const handlePickImage = async () => {
+    // Demander la permission
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission requise', 'Nous avons besoin de votre permission pour accéder aux photos.');
+      return;
+    }
+
+    // Ouvrir la galerie
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setPhotoUri(result.assets[0].uri);
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    // Demander la permission
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission requise', 'Nous avons besoin de votre permission pour accéder à la caméra.');
+      return;
+    }
+
+    // Ouvrir la caméra
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setPhotoUri(result.assets[0].uri);
+    }
+  };
+
+  const showImagePickerOptions = () => {
+    Alert.alert(
+      'Ajouter une photo',
+      'Choisissez une option',
+      [
+        {
+          text: 'Prendre une photo',
+          onPress: handleTakePhoto,
+        },
+        {
+          text: 'Choisir dans la galerie',
+          onPress: handlePickImage,
+        },
+        {
+          text: 'Annuler',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
   useEffect(() => {
     if (animal && isEditing) {
       setFormData({
@@ -150,6 +228,7 @@ export default function ProductionAnimalFormModal({
         mere_id: animal.mere_id ?? null,
         notes: animal.notes || '',
       });
+      setPhotoUri(animal.photo_uri || null);
     } else {
       setFormData({
         projet_id: projetId,
@@ -167,6 +246,7 @@ export default function ProductionAnimalFormModal({
         mere_id: null,
         notes: '',
       });
+      setPhotoUri(null);
     }
   }, [animal, isEditing, visible, projetId]);
 
@@ -192,7 +272,12 @@ export default function ProductionAnimalFormModal({
       race: race ? race : undefined,
       pere_id: formData.pere_id ?? null,
       mere_id: formData.mere_id ?? null,
+      photo_uri: photoUri || undefined,
     };
+
+    console.log('=== SAUVEGARDE ANIMAL ===');
+    console.log('Photo URI:', photoUri);
+    console.log('Données complètes:', normalizedData);
 
     setLoading(true);
     try {
@@ -242,6 +327,42 @@ export default function ProductionAnimalFormModal({
           onChangeText={(text) => setFormData({ ...formData, nom: text })}
           placeholder="Ex: Gros Cochon"
         />
+
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Photo (optionnelle)</Text>
+          {photoUri ? (
+            <View style={styles.photoContainer}>
+              <Image source={{ uri: photoUri }} style={styles.photoPreview} />
+              <View style={styles.photoActions}>
+                <TouchableOpacity
+                  style={[styles.photoButton, { backgroundColor: colors.primary }]}
+                  onPress={showImagePickerOptions}
+                >
+                  <Ionicons name="camera" size={20} color={colors.textOnPrimary} />
+                  <Text style={[styles.photoButtonText, { color: colors.textOnPrimary }]}>Changer</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.photoButton, { backgroundColor: colors.error }]}
+                  onPress={() => setPhotoUri(null)}
+                >
+                  <Ionicons name="trash" size={20} color={colors.textOnPrimary} />
+                  <Text style={[styles.photoButtonText, { color: colors.textOnPrimary }]}>Supprimer</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[styles.photoPlaceholder, { borderColor: colors.border, backgroundColor: colors.surface }]}
+              onPress={showImagePickerOptions}
+            >
+              <Ionicons name="camera-outline" size={48} color={colors.textSecondary} />
+              <Text style={[styles.photoPlaceholderText, { color: colors.textSecondary }]}>
+                Ajouter une photo
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
         <FormField
           label="Origine"
           value={formData.origine || ''}
@@ -662,6 +783,45 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
     textAlign: 'center',
     marginTop: SPACING.md,
+  },
+  photoPlaceholder: {
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 150,
+  },
+  photoPlaceholderText: {
+    fontSize: FONT_SIZES.md,
+    marginTop: SPACING.sm,
+  },
+  photoContainer: {
+    gap: SPACING.sm,
+  },
+  photoPreview: {
+    width: '100%',
+    height: 200,
+    borderRadius: BORDER_RADIUS.md,
+    resizeMode: 'cover',
+  },
+  photoActions: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  photoButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.xs,
+    padding: SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  photoButtonText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
   },
 });
 
