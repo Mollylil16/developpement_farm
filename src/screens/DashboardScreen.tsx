@@ -3,8 +3,10 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Animated, TouchableOpacity, RefreshControl, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Animated, TouchableOpacity, RefreshControl, Alert, ActivityIndicator, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { useFocusEffect } from '@react-navigation/native';
 import { loadMortalitesParProjet } from '../store/slices/mortalitesSlice';
@@ -43,6 +45,9 @@ export default function DashboardScreen() {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [exportingPDF, setExportingPDF] = useState(false);
+  const [profilPhotoUri, setProfilPhotoUri] = useState<string | null>(null);
+  const [profilInitiales, setProfilInitiales] = useState<string>('');
+  const [profilPrenom, setProfilPrenom] = useState<string>('');
   const hasShownInvitationsRef = useRef(false);
   const [greeting, setGreeting] = useState(() => {
     const hour = new Date().getHours();
@@ -138,6 +143,35 @@ export default function DashboardScreen() {
   // ✅ MÉMOÏSER invitationsEnAttente.length pour éviter les boucles
   const invitationsLength = Array.isArray(invitationsEnAttente) ? invitationsEnAttente.length : 0;
   
+  // Charger la photo de profil
+  const loadProfilPhoto = React.useCallback(async () => {
+    try {
+      const stored = await AsyncStorage.getItem('@profil_fermier');
+      if (stored) {
+        const profil = JSON.parse(stored);
+        setProfilPhotoUri(profil.photo_uri || null);
+        setProfilPrenom(profil.prenom || '');
+        
+        // Générer les initiales
+        if (profil.prenom && profil.nom) {
+          const initiales = `${profil.prenom.charAt(0).toUpperCase()}${profil.nom.charAt(0).toUpperCase()}`;
+          setProfilInitiales(initiales);
+        } else {
+          setProfilInitiales('');
+        }
+      }
+    } catch (error) {
+      console.error('Erreur chargement photo profil:', error);
+    }
+  }, []);
+
+  // Charger la photo au montage et à chaque fois que l'écran revient au focus
+  useFocusEffect(
+    React.useCallback(() => {
+      loadProfilPhoto();
+    }, [loadProfilPhoto])
+  );
+
   // Fonction pour rafraîchir les données (pull-to-refresh)
   const onRefresh = React.useCallback(async () => {
     if (!projetActif?.id) return;
@@ -149,12 +183,14 @@ export default function DashboardScreen() {
         dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: true })).unwrap(),
         dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 })).unwrap(),
       ]);
+      // Recharger aussi la photo de profil
+      await loadProfilPhoto();
     } catch (error) {
       console.error('Erreur lors du rafraîchissement:', error);
     } finally {
       setRefreshing(false);
     }
-  }, [projetActif?.id, dispatch]);
+  }, [projetActif?.id, dispatch, loadProfilPhoto]);
 
   // Récupérer les données depuis le store pour l'export PDF
   const animaux = useAppSelector(selectAllAnimaux);
@@ -371,7 +407,7 @@ export default function DashboardScreen() {
 
   if (!projetActif) {
     return (
-      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.container} edges={['top']}>
         <EmptyState
           title="Aucun projet actif"
           message="Créez un projet pour commencer à gérer votre élevage"
@@ -381,7 +417,7 @@ export default function DashboardScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView 
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -413,33 +449,62 @@ export default function DashboardScreen() {
               },
             ]}
           >
-            <View style={styles.headerTop}>
-              <View style={styles.headerLeft}>
-                <Text style={[styles.greeting, { color: colors.textSecondary }]}>{greeting || 'Bonjour 👋'}</Text>
-                <Text style={[styles.title, { color: isDark ? '#FFFFFF' : colors.text }]}>{projetActif?.nom || 'Projet'}</Text>
-                {currentDate ? (
-                  <Text style={[styles.date, { color: colors.textSecondary }]}>{currentDate}</Text>
-                ) : null}
-              </View>
-              <View style={styles.headerRight}>
-                {Array.isArray(invitationsEnAttente) && invitationsEnAttente.length > 0 && (
-                  <TouchableOpacity
-                    style={[styles.invitationBadge, { backgroundColor: colors.warning, ...colors.shadow.small }]}
-                    onPress={() => setInvitationsModalVisible(true)}
-                  >
-                    <Text style={styles.invitationBadgeText}>📬 {invitationsEnAttente.length}</Text>
-                  </TouchableOpacity>
+            {/* Header principal avec photo et infos */}
+            <View style={styles.headerMain}>
+              {/* Photo de profil à gauche */}
+              <TouchableOpacity
+                style={[styles.profilPhotoButton, { borderColor: colors.primary, ...colors.shadow.medium }]}
+                onPress={() => navigation.navigate(SCREENS.PROFIL as any)}
+                activeOpacity={0.8}
+              >
+                {profilPhotoUri ? (
+                  <Image source={{ uri: profilPhotoUri }} style={styles.profilPhoto} />
+                ) : (
+                  <View style={[styles.profilPhotoPlaceholder, { backgroundColor: colors.primary + '15' }]}>
+                    {profilInitiales ? (
+                      <Text style={[styles.initialesText, { color: colors.primary }]}>
+                        {profilInitiales}
+                      </Text>
+                    ) : (
+                      <Ionicons name="person" size={28} color={colors.primary} />
+                    )}
+                  </View>
                 )}
-                <TouchableOpacity
-                  style={[styles.searchButton, { backgroundColor: colors.primary, ...colors.shadow.small }]}
-                  onPress={() => setSearchModalVisible(true)}
-                >
-                  <Text style={styles.searchButtonIcon}>🔍</Text>
-                </TouchableOpacity>
-                <View style={[styles.headerBadge, { backgroundColor: colors.success + '20', borderColor: colors.success + '40' }]}>
-                  <Text style={[styles.badgeText, { color: colors.success }]}>Actif</Text>
+                <View style={[styles.profilPhotoBadge, { backgroundColor: colors.primary }]}>
+                  <Ionicons name="camera" size={10} color="#FFF" />
                 </View>
+              </TouchableOpacity>
+
+              {/* Texte au centre */}
+              <View style={styles.headerTextContainer}>
+                <View style={styles.headerFirstLine}>
+                  <Text style={[styles.greeting, { color: colors.textSecondary }]}>{greeting || 'Bonjour 👋'}</Text>
+                  <View style={[styles.headerBadge, { backgroundColor: colors.success + '20', borderColor: colors.success + '40' }]}>
+                    <Text style={[styles.badgeText, { color: colors.success }]}>Actif</Text>
+                  </View>
+                </View>
+                <Text style={[styles.title, { color: isDark ? '#FFFFFF' : colors.text }]}>
+                  {profilPrenom || 'Utilisateur'}
+                </Text>
+                {currentDate && (
+                  <Text style={[styles.date, { color: colors.textSecondary }]}>{currentDate}</Text>
+                )}
+                {projetActif?.nom && (
+                  <Text style={[styles.projetNom, { color: colors.textSecondary }]}>
+                    Projet {projetActif.nom}
+                  </Text>
+                )}
               </View>
+
+              {/* Invitations à droite */}
+              {Array.isArray(invitationsEnAttente) && invitationsEnAttente.length > 0 && (
+                <TouchableOpacity
+                  style={[styles.invitationBadge, { backgroundColor: colors.warning, ...colors.shadow.small }]}
+                  onPress={() => setInvitationsModalVisible(true)}
+                >
+                  <Text style={styles.invitationBadgeText}>📬 {invitationsEnAttente.length}</Text>
+                </TouchableOpacity>
+              )}
             </View>
                 <View style={[styles.headerDivider, { backgroundColor: colors.primaryLight + '30' }]} />
           </Animated.View>
@@ -647,34 +712,64 @@ const styles = StyleSheet.create({
   content: {
     padding: SPACING.xl,
     paddingTop: SPACING.lg + 10,
-    paddingBottom: SPACING.xxl + 120, // 120px pour la barre de navigation + espace supplémentaire
+    paddingBottom: 100, // Espace pour la barre de navigation
   },
   header: {
-    marginBottom: SPACING.xl + 10,
+    marginBottom: SPACING.lg,
   },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: SPACING.md,
-  },
-  headerLeft: {
-    flex: 1,
-  },
-  headerRight: {
+  headerMain: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
   },
-  searchButton: {
-    width: 40,
-    height: 40,
-    borderRadius: BORDER_RADIUS.md,
+  profilPhotoButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 2.5,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  profilPhoto: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  profilPhotoPlaceholder: {
+    width: '100%',
+    height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  searchButtonIcon: {
-    fontSize: FONT_SIZES.lg,
+  profilPhotoBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFF',
+  },
+  initialesText: {
+    fontSize: FONT_SIZES.xl,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  headerTextContainer: {
+    flex: 1,
+  },
+  headerFirstLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: SPACING.xs / 2,
+  },
+  projetNom: {
+    fontSize: FONT_SIZES.sm,
+    marginTop: SPACING.xs / 2,
   },
   exportButton: {
     width: 40,

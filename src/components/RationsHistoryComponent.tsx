@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    paddingBottom: SPACING.xxl + 85, // 85px pour la barre de navigation + espace
+    paddingBottom: 100, // Espace pour la barre de navigation
   },
   card: {
     marginHorizontal: SPACING.xl,

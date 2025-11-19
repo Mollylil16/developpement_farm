@@ -409,7 +409,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: SPACING.xxl + 85, // 85px pour la barre de navigation + espace
+    paddingBottom: 100, // Espace pour la barre de navigation
   },
   summaryCard: {
     borderRadius: BORDER_RADIUS.lg,
@@ -471,7 +471,7 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     paddingHorizontal: SPACING.xl,
-    paddingBottom: SPACING.xxl + 85, // 85px pour la barre de navigation + espace
+    paddingBottom: 100, // Espace pour la barre de navigation
   },
   card: {
     borderRadius: BORDER_RADIUS.lg,

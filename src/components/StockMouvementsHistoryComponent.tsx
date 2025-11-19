@@ -912,7 +912,7 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     padding: SPACING.md,
-    paddingBottom: SPACING.xxl + 100, // Espace pour la barre de navigation + marge
+    paddingBottom: 100, // Espace pour la barre de navigation
   },
   mouvementCard: {
     padding: SPACING.md,

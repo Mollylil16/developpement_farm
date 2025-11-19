@@ -342,27 +342,27 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
             const detailsOuverts = visiteDetailsOuverte === visite.id;
             
             return (
-              <View key={visite.id} style={styles.timelineItem}>
-                <View style={[styles.timelineDot, { backgroundColor: colors.primary }]} />
-                {index < visitesHistorique.length - 1 && (
-                  <View style={[styles.timelineLine, { backgroundColor: colors.border }]} />
-                )}
-                <View style={[styles.visiteCard, { backgroundColor: colors.surface, borderColor: colors.borderLight, ...colors.shadow.small }]}>
+            <View key={visite.id} style={styles.timelineItem}>
+              <View style={[styles.timelineDot, { backgroundColor: colors.primary }]} />
+              {index < visitesHistorique.length - 1 && (
+                <View style={[styles.timelineLine, { backgroundColor: colors.border }]} />
+              )}
+              <View style={[styles.visiteCard, { backgroundColor: colors.surface, borderColor: colors.borderLight, ...colors.shadow.small }]}>
                   {/* En-tête avec date, vétérinaire et actions */}
-                  <View style={styles.visiteHeader}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.visiteDate, { color: colors.text }]}>
-                        {formatDisplayDate(visite.date_visite)}
-                      </Text>
-                      <Text style={[styles.visiteVeto, { color: colors.textSecondary }]}>
-                        👨‍⚕️ Dr. {visite.veterinaire}
-                      </Text>
-                    </View>
+                <View style={styles.visiteHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.visiteDate, { color: colors.text }]}>
+                      {formatDisplayDate(visite.date_visite)}
+                    </Text>
+                    <Text style={[styles.visiteVeto, { color: colors.textSecondary }]}>
+                      👨‍⚕️ Dr. {visite.veterinaire}
+                    </Text>
+                  </View>
                     <View style={styles.visiteHeaderRight}>
-                      <View style={[styles.visiteTypeBadge, { backgroundColor: colors.primary + '20' }]}>
-                        <Text style={[styles.visiteTypeText, { color: colors.primary }]}>
-                          {visite.motif || 'Consultation'}
-                        </Text>
+                  <View style={[styles.visiteTypeBadge, { backgroundColor: colors.primary + '20' }]}>
+                    <Text style={[styles.visiteTypeText, { color: colors.primary }]}>
+                      {visite.motif || 'Consultation'}
+                    </Text>
                       </View>
                       <View style={styles.visiteActions}>
                         <TouchableOpacity
@@ -378,23 +378,23 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
                           <Ionicons name="trash-outline" size={16} color={colors.error} />
                         </TouchableOpacity>
                       </View>
-                    </View>
                   </View>
+                </View>
 
                   {/* Animaux examinés - Toujours visible */}
-                  {visite.animaux_examines && (
-                    <View style={styles.visiteSection}>
-                      <View style={styles.visiteSectionHeader}>
-                        <Ionicons name="paw" size={14} color={colors.info} />
-                        <Text style={[styles.visiteSectionTitle, { color: colors.info }]}>
+                {visite.animaux_examines && (
+                  <View style={styles.visiteSection}>
+                    <View style={styles.visiteSectionHeader}>
+                      <Ionicons name="paw" size={14} color={colors.info} />
+                      <Text style={[styles.visiteSectionTitle, { color: colors.info }]}>
                           Sujet(s) examiné(s)
-                        </Text>
-                      </View>
-                      <Text style={[styles.visiteSectionText, { color: colors.text }]}>
-                        {visite.animaux_examines}
                       </Text>
                     </View>
-                  )}
+                    <Text style={[styles.visiteSectionText, { color: colors.text }]}>
+                      {visite.animaux_examines}
+                    </Text>
+                  </View>
+                )}
 
                   {/* Bouton Voir détails / Masquer détails */}
                   <TouchableOpacity
@@ -415,88 +415,88 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
                   {detailsOuverts && (
                     <View style={styles.detailsContainer}>
 
-                      {/* Diagnostic */}
-                      {visite.diagnostic && (
-                        <View style={styles.visiteSection}>
-                          <View style={styles.visiteSectionHeader}>
-                            <Ionicons name="medical" size={14} color={colors.warning} />
-                            <Text style={[styles.visiteSectionTitle, { color: colors.warning }]}>
+                {/* Diagnostic */}
+                {visite.diagnostic && (
+                  <View style={styles.visiteSection}>
+                    <View style={styles.visiteSectionHeader}>
+                      <Ionicons name="medical" size={14} color={colors.warning} />
+                      <Text style={[styles.visiteSectionTitle, { color: colors.warning }]}>
                               Diagnostic du vétérinaire
-                            </Text>
-                          </View>
-                          <Text style={[styles.visiteSectionText, { color: colors.text }]}>
-                            {visite.diagnostic}
-                          </Text>
-                        </View>
-                      )}
+                      </Text>
+                    </View>
+                    <Text style={[styles.visiteSectionText, { color: colors.text }]}>
+                      {visite.diagnostic}
+                    </Text>
+                  </View>
+                )}
 
-                      {/* Prescriptions / Produits administrés */}
-                      {visite.prescriptions && (
-                        <View style={styles.visiteSection}>
-                          <View style={styles.visiteSectionHeader}>
-                            <Ionicons name="flask" size={14} color={colors.success} />
-                            <Text style={[styles.visiteSectionTitle, { color: colors.success }]}>
-                              Produits administrés
-                            </Text>
-                          </View>
-                          <Text style={[styles.visiteSectionText, { color: colors.text }]}>
-                            {visite.prescriptions}
-                          </Text>
-                        </View>
-                      )}
+                {/* Prescriptions / Produits administrés */}
+                {visite.prescriptions && (
+                  <View style={styles.visiteSection}>
+                    <View style={styles.visiteSectionHeader}>
+                      <Ionicons name="flask" size={14} color={colors.success} />
+                      <Text style={[styles.visiteSectionTitle, { color: colors.success }]}>
+                        Produits administrés
+                      </Text>
+                    </View>
+                    <Text style={[styles.visiteSectionText, { color: colors.text }]}>
+                      {visite.prescriptions}
+                    </Text>
+                  </View>
+                )}
 
-                      {/* Recommandations du vétérinaire */}
-                      {visite.recommandations && (
-                        <View style={[styles.visiteSection, styles.recommandationsSection, { backgroundColor: colors.primary + '08' }]}>
-                          <View style={styles.visiteSectionHeader}>
-                            <Ionicons name="bulb" size={14} color={colors.primary} />
-                            <Text style={[styles.visiteSectionTitle, { color: colors.primary }]}>
+                {/* Recommandations du vétérinaire */}
+                {visite.recommandations && (
+                  <View style={[styles.visiteSection, styles.recommandationsSection, { backgroundColor: colors.primary + '08' }]}>
+                    <View style={styles.visiteSectionHeader}>
+                      <Ionicons name="bulb" size={14} color={colors.primary} />
+                      <Text style={[styles.visiteSectionTitle, { color: colors.primary }]}>
                               Recommandations & Feedback
-                            </Text>
-                          </View>
-                          <Text style={[styles.visiteSectionText, { color: colors.text }]}>
-                            {visite.recommandations}
-                          </Text>
-                        </View>
-                      )}
+                      </Text>
+                    </View>
+                    <Text style={[styles.visiteSectionText, { color: colors.text }]}>
+                      {visite.recommandations}
+                    </Text>
+                  </View>
+                )}
 
-                      {/* Notes supplémentaires */}
-                      {visite.notes && (
-                        <View style={styles.visiteSection}>
+                {/* Notes supplémentaires */}
+                {visite.notes && (
+                  <View style={styles.visiteSection}>
                           <View style={styles.visiteSectionHeader}>
                             <Ionicons name="chatbox-ellipses-outline" size={14} color={colors.textSecondary} />
                             <Text style={[styles.visiteSectionTitle, { color: colors.textSecondary }]}>
                               Notes additionnelles
                             </Text>
                           </View>
-                          <Text style={[styles.visiteNotes, { color: colors.textSecondary }]}>
+                    <Text style={[styles.visiteNotes, { color: colors.textSecondary }]}>
                             {visite.notes}
-                          </Text>
-                        </View>
-                      )}
+                    </Text>
+                  </View>
+                )}
 
-                      {/* Footer: Coût et prochaine visite */}
-                      <View style={styles.visiteFooter}>
-                        {visite.cout && (
-                          <View style={styles.visiteCout}>
-                            <Ionicons name="cash-outline" size={16} color={colors.success} />
-                            <Text style={[styles.visiteCoutText, { color: colors.success }]}>
-                              {visite.cout.toLocaleString()} F CFA
-                            </Text>
-                          </View>
-                        )}
-                        {visite.prochaine_visite && (
-                          <View style={[styles.prochainVisiteBadge, { backgroundColor: colors.info + '15' }]}>
-                            <Ionicons name="calendar" size={14} color={colors.info} />
-                            <Text style={[styles.prochainVisiteText, { color: colors.info }]}>
-                              Prochaine: {formatDisplayDate(visite.prochaine_visite)}
-                            </Text>
-                          </View>
-                        )}
-                      </View>
+                {/* Footer: Coût et prochaine visite */}
+                <View style={styles.visiteFooter}>
+                  {visite.cout && (
+                    <View style={styles.visiteCout}>
+                      <Ionicons name="cash-outline" size={16} color={colors.success} />
+                      <Text style={[styles.visiteCoutText, { color: colors.success }]}>
+                        {visite.cout.toLocaleString()} F CFA
+                      </Text>
+                    </View>
+                  )}
+                  {visite.prochaine_visite && (
+                    <View style={[styles.prochainVisiteBadge, { backgroundColor: colors.info + '15' }]}>
+                      <Ionicons name="calendar" size={14} color={colors.info} />
+                      <Text style={[styles.prochainVisiteText, { color: colors.info }]}>
+                        Prochaine: {formatDisplayDate(visite.prochaine_visite)}
+                      </Text>
                     </View>
                   )}
                 </View>
+              </View>
+                  )}
+            </View>
               </View>
             );
           })}
@@ -721,7 +721,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: SPACING.md,
-    paddingBottom: 120,
+    paddingBottom: 100,
   },
 
   // Carte Vétérinaire

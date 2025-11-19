@@ -21,6 +21,7 @@ import WelcomeScreen from '../screens/WelcomeScreen';
 import AuthScreen from '../screens/AuthScreen';
 import CreateProjectScreen from '../screens/CreateProjectScreen';
 import DashboardScreen from '../screens/DashboardScreen';
+import ProfilScreen from '../screens/ProfilScreen';
 import ReproductionScreen from '../screens/ReproductionScreen';
 import NutritionScreen from '../screens/NutritionScreen';
 import FinanceScreen from '../screens/FinanceScreen';
@@ -385,6 +386,7 @@ export default function AppNavigator() {
         <Stack.Screen name={SCREENS.WELCOME} component={WelcomeScreen} />
         <Stack.Screen name={SCREENS.AUTH} component={AuthScreen} />
         <Stack.Screen name={SCREENS.CREATE_PROJECT} component={CreateProjectScreen} />
+        <Stack.Screen name={SCREENS.PROFIL} component={ProfilScreen} />
         <Stack.Screen
           name={SCREENS.ADMIN}
           options={{ headerShown: false }}

@@ -415,7 +415,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: SPACING.md,
-    paddingBottom: SPACING.xxl + 85,
+    paddingBottom: 100,
   },
   header: {
     marginBottom: SPACING.lg,

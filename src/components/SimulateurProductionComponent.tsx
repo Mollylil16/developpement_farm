@@ -575,7 +575,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
-    paddingBottom: 120, // Augmenté pour que le dernier champ soit visible avec le clavier
+    paddingBottom: 100, // Espace pour la barre de navigation
   },
   card: {
     borderRadius: 12,

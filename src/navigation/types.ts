@@ -7,6 +7,7 @@ export const SCREENS = {
   AUTH: 'Auth',
   CREATE_PROJECT: 'CreateProject',
   DASHBOARD: 'Dashboard',
+  PROFIL: 'Profil',
   REPRODUCTION: 'Reproduction',
   NUTRITION: 'Nutrition',
   PRODUCTION: 'Production',

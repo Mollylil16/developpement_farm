@@ -402,17 +402,17 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
                     ID: {animal?.code || maladie.animal_id?.slice(0, 12)}
                   </Text>
                   <View style={[styles.graviteBadge, {
-                    backgroundColor:
-                      maladie.gravite === 'critique' ? colors.error :
-                      maladie.gravite === 'grave' ? '#FF6B6B' :
-                      maladie.gravite === 'moderee' ? colors.warning :
-                      colors.success
-                  }]}>
-                    <Text style={styles.graviteBadgeText}>
-                      {maladie.gravite.toUpperCase()}
-                    </Text>
-                  </View>
+                  backgroundColor:
+                    maladie.gravite === 'critique' ? colors.error :
+                    maladie.gravite === 'grave' ? '#FF6B6B' :
+                    maladie.gravite === 'moderee' ? colors.warning :
+                    colors.success
+                }]}>
+                  <Text style={styles.graviteBadgeText}>
+                    {maladie.gravite.toUpperCase()}
+                  </Text>
                 </View>
+              </View>
                 <View style={styles.maladeActions}>
                   <TouchableOpacity
                     style={[styles.actionButton, { backgroundColor: colors.warning + '15' }]}
@@ -534,7 +534,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: SPACING.md,
-    paddingBottom: 120,
+    paddingBottom: 100,
   },
   
   // Navigation sections

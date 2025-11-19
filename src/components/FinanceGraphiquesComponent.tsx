@@ -357,6 +357,14 @@ export default function FinanceGraphiquesComponent() {
     }).format(amount);
   };
 
+  const formatAmountParts = (amount: number) => {
+    const formatted = new Intl.NumberFormat('fr-FR', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+    return { number: formatted, currency: 'F' };
+  };
+
   return (
     <ScrollView 
       style={[styles.container, { backgroundColor: colors.background }]}
@@ -399,9 +407,14 @@ export default function FinanceGraphiquesComponent() {
             >
               <Text style={styles.columnIcon}>💰</Text>
               <Text style={[styles.columnLabel, { color: colors.textSecondary }]}>Revenus</Text>
-              <Text style={[styles.columnAmount, { color: colors.success || '#10B981' }]}>
-                {formatAmount(graphData.revenusMois)}
-              </Text>
+              <View style={styles.amountContainer}>
+                <Text style={[styles.columnAmount, { color: colors.success || '#10B981' }]} numberOfLines={1} adjustsFontSizeToFit>
+                  {formatAmountParts(graphData.revenusMois).number}
+                </Text>
+                <Text style={[styles.columnCurrency, { color: colors.success || '#10B981' }]}>
+                  {formatAmountParts(graphData.revenusMois).currency}
+                </Text>
+              </View>
               {graphData.revenusTrend !== null && (
                 <Text style={[
                   styles.columnTrend,
@@ -428,9 +441,14 @@ export default function FinanceGraphiquesComponent() {
             >
               <Text style={styles.columnIcon}>💸</Text>
               <Text style={[styles.columnLabel, { color: colors.textSecondary }]}>Dépenses</Text>
-              <Text style={[styles.columnAmount, { color: colors.warning || '#F59E0B' }]}>
-                {formatAmount(graphData.depensesReelles)}
-              </Text>
+              <View style={styles.amountContainer}>
+                <Text style={[styles.columnAmount, { color: colors.warning || '#F59E0B' }]} numberOfLines={1} adjustsFontSizeToFit>
+                  {formatAmountParts(graphData.depensesReelles).number}
+                </Text>
+                <Text style={[styles.columnCurrency, { color: colors.warning || '#F59E0B' }]}>
+                  {formatAmountParts(graphData.depensesReelles).currency}
+                </Text>
+              </View>
               {graphData.depensesTrend !== null && (
                 <Text style={[
                   styles.columnTrend,
@@ -457,16 +475,28 @@ export default function FinanceGraphiquesComponent() {
             >
               <Text style={styles.columnIcon}>💳</Text>
               <Text style={[styles.columnLabel, { color: colors.textSecondary }]}>Solde</Text>
-              <Text style={[
-                styles.columnAmount,
-                { 
-                  color: graphData.solde >= 0 
-                    ? colors.primary || '#3B82F6' 
-                    : colors.error || '#EF4444' 
-                }
-              ]}>
-                {formatAmount(graphData.solde)}
-              </Text>
+              <View style={styles.amountContainer}>
+                <Text style={[
+                  styles.columnAmount,
+                  { 
+                    color: graphData.solde >= 0 
+                      ? colors.primary || '#3B82F6' 
+                      : colors.error || '#EF4444' 
+                  }
+                ]} numberOfLines={1} adjustsFontSizeToFit>
+                  {formatAmountParts(graphData.solde).number}
+                </Text>
+                <Text style={[
+                  styles.columnCurrency,
+                  { 
+                    color: graphData.solde >= 0 
+                      ? colors.primary || '#3B82F6' 
+                      : colors.error || '#EF4444' 
+                  }
+                ]}>
+                  {formatAmountParts(graphData.solde).currency}
+                </Text>
+              </View>
               <Text style={[
                 styles.columnStatus,
                 { 
@@ -480,40 +510,50 @@ export default function FinanceGraphiquesComponent() {
             </View>
           </View>
 
-          {/* Divider horizontal */}
-          <View style={[styles.horizontalDivider, { backgroundColor: colors.border }]} />
+          {/* Recommandation */}
+          {(() => {
+            const pourcentageDepenses = graphData.revenusMois > 0 
+              ? (graphData.depensesReelles / graphData.revenusMois) * 100 
+              : 0;
+            
+            let recommandation = '';
+            let icon = '';
+            let color = colors.primary;
 
-          {/* Taux d'épargne */}
-          <View 
-            style={styles.savingsRateContainer}
-            accessible={true}
-            accessibilityLabel={`Taux d'épargne: ${Math.round(graphData.tauxEpargne)}%`}
-            accessibilityRole="progressbar"
-            accessibilityValue={{
-              min: 0,
-              max: 100,
-              now: Math.round(graphData.tauxEpargne),
-            }}
-          >
-            <View style={styles.savingsRateHeader}>
-              <Text style={[styles.savingsRateLabel, { color: colors.text }]}>
-                Taux d'épargne: {Math.round(graphData.tauxEpargne)}%
-              </Text>
-            </View>
-            <View style={[styles.progressBarContainer, { backgroundColor: colors.borderLight || colors.border + '40' }]}>
-              <View 
-                style={[
-                  styles.progressBarFill,
-                  { 
-                    width: `${Math.round(graphData.tauxEpargne)}%`,
-                    backgroundColor: graphData.tauxEpargne >= 0 
-                      ? colors.success || '#10B981' 
-                      : colors.error || '#EF4444'
-                  }
-                ]} 
-              />
-            </View>
-          </View>
+            if (graphData.solde < 0) {
+              icon = '⚠️';
+              color = colors.error;
+              recommandation = "Attention : Vos dépenses dépassent vos revenus. Réduisez les dépenses ou augmentez vos revenus.";
+            } else if (graphData.solde === 0) {
+              icon = '⚖️';
+              color = colors.warning;
+              recommandation = "Équilibre atteint, mais sans marge de sécurité. Essayez de générer plus de revenus.";
+            } else if (pourcentageDepenses > 80) {
+              icon = '💡';
+              color = colors.warning;
+              recommandation = "Solde positif mais dépenses élevées (>80%). Surveillez vos coûts.";
+            } else if (pourcentageDepenses > 60) {
+              icon = '👍';
+              color = colors.success;
+              recommandation = "Bonne gestion ! Continuez à optimiser vos dépenses.";
+            } else {
+              icon = '🎉';
+              color = colors.success;
+              recommandation = "Excellente santé financière ! Envisagez d'investir dans votre croissance.";
+            }
+
+            return (
+              <>
+                <View style={[styles.horizontalDivider, { backgroundColor: colors.border }]} />
+                <View style={[styles.recommendationContainer, { backgroundColor: color + '10', borderColor: color + '30' }]}>
+                  <Text style={styles.recommendationIcon}>{icon}</Text>
+                  <Text style={[styles.recommendationText, { color: color }]}>
+                    {recommandation}
+                  </Text>
+                </View>
+              </>
+            );
+          })()}
         </Animated.View>
 
         {/* Configuration des prix de vente */}
@@ -676,7 +716,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: SPACING.xxl + 85, // 85px pour la barre de navigation + espace
+    paddingBottom: 100, // Espace pour la barre de navigation
   },
   content: {
     padding: SPACING.xl,
@@ -719,7 +759,7 @@ const styles = StyleSheet.create({
   },
   financialCard: {
     borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.lg,
+    padding: SPACING.md,
     marginBottom: SPACING.lg,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -728,7 +768,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   financialCardHeader: {
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.sm,
     alignItems: 'center',
   },
   financialCardTitle: {
@@ -750,18 +790,27 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
   },
   columnIcon: {
-    fontSize: 32,
-    marginBottom: SPACING.xs,
+    fontSize: 24,
+    marginBottom: SPACING.xs / 2,
   },
   columnLabel: {
     fontSize: FONT_SIZES.sm,
     marginBottom: SPACING.xs,
     fontWeight: '500',
   },
+  amountContainer: {
+    alignItems: 'center',
+    marginBottom: SPACING.xs / 2,
+  },
   columnAmount: {
-    fontSize: FONT_SIZES.lg,
+    fontSize: FONT_SIZES.xl,
     fontWeight: 'bold',
-    marginBottom: SPACING.xs,
+    textAlign: 'center',
+  },
+  columnCurrency: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '600',
+    marginTop: 2,
     textAlign: 'center',
   },
   columnTrend: {
@@ -781,8 +830,25 @@ const styles = StyleSheet.create({
   },
   horizontalDivider: {
     height: 1,
-    marginVertical: SPACING.lg,
-    marginHorizontal: -SPACING.lg,
+    marginVertical: SPACING.sm,
+    marginHorizontal: -SPACING.md,
+  },
+  recommendationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: SPACING.sm,
+    borderRadius: BORDER_RADIUS.sm,
+    borderWidth: 1,
+    gap: SPACING.sm,
+  },
+  recommendationIcon: {
+    fontSize: 20,
+  },
+  recommendationText: {
+    flex: 1,
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+    lineHeight: 18,
   },
   savingsRateContainer: {
     marginTop: SPACING.md,

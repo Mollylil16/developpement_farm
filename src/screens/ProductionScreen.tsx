@@ -17,7 +17,7 @@ export default function ProductionScreen() {
   const { colors } = useTheme();
   
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'bottom']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
       <Tab.Navigator
         lazy={true}
         screenOptions={{

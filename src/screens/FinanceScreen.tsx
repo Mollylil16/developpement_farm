@@ -19,7 +19,7 @@ function FinanceScreenContent() {
   const { colors } = useTheme();
   
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'bottom']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
       <Tab.Navigator
         screenOptions={{
           tabBarActiveTintColor: colors.primary,

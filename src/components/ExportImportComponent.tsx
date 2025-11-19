@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: SPACING.xxl + 85,
+    paddingBottom: 100,
   },
   section: {
     padding: SPACING.xl,

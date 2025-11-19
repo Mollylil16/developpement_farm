@@ -142,7 +142,7 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
           if (isTop) {
             suggestions.push('🌬️ Infections respiratoires dominantes - Vérifier ventilation et taux d\'ammoniac');
             suggestions.push('🌡️ Maintenir température stable (18-22°C) et éviter les courants d\'air');
-          }
+    }
           if (maladie.count >= 3) {
             suggestions.push('💉 Envisager vaccination préventive contre les pathogènes respiratoires');
           }
@@ -152,7 +152,7 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
           if (isTop) {
             suggestions.push('💧 Diarrhées récurrentes - Analyser la qualité de l\'eau (pH, bactéries)');
             suggestions.push('🌾 Vérifier composition alimentaire et fraîcheur des aliments');
-          }
+    }
           if (maladie.count >= 3) {
             suggestions.push('🦠 Risque parasitaire - Planifier déparasitage tous les porcs');
           }
@@ -426,11 +426,11 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
                     <View style={[styles.legendeDot, { backgroundColor: couleur }]} />
                     <Text style={[styles.legendeNom, { color: colors.text }]}>
                       {maladie.nom}
-                    </Text>
+                </Text>
                     <Text style={[styles.legendeCount, { color: colors.textSecondary }]}>
-                      {maladie.count} cas ({maladie.pourcentage.toFixed(0)}%)
-                    </Text>
-                  </View>
+                  {maladie.count} cas ({maladie.pourcentage.toFixed(0)}%)
+                </Text>
+              </View>
                 );
               })}
             </View>
@@ -695,7 +695,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: SPACING.md,
-    paddingBottom: 120,
+    paddingBottom: 100,
   },
 
   // Carte overview

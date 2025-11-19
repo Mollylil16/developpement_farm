@@ -150,7 +150,7 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
 
       if (aAuMoinsUnTraitementManquant) {
         porcsEnRetardSet.add(animal.id);
-      }
+        }
     });
 
     const porcsEnRetard = porcsEnRetardSet.size;
@@ -223,7 +223,7 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
 
         if (aAuMoinsUnTraitementManquant) {
           porcsEnRetardSet.add(animal.id);
-        }
+          }
       });
 
       const enRetard = porcsEnRetardSet.size;

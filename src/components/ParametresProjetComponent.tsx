@@ -437,7 +437,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: SPACING.xxl + 85, // 85px pour la barre de navigation + espace
+    paddingBottom: 100, // Espace pour la barre de navigation
   },
   section: {
     padding: SPACING.xl,

@@ -457,7 +457,7 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
-    paddingBottom: SPACING.xxl + 85,
+    paddingBottom: 100,
   },
   card: {
     borderRadius: BORDER_RADIUS.xl,
