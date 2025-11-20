@@ -80,22 +80,7 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
     }
   }, [projetActif?.id, dispatch]);
 
-  // Debug: afficher les animaux
-  useEffect(() => {
-    console.log('=== DEBUG ANIMAUX ===');
-    console.log('Animaux chargés:', animaux?.length || 0);
-    if (animaux && animaux.length > 0) {
-      console.log('Premier animal:');
-      console.log('- id:', animaux[0].id);
-      console.log('- nom:', animaux[0].nom);
-      console.log('- code:', animaux[0].code);
-      console.log('- sexe:', animaux[0].sexe);
-      console.log('- statut:', animaux[0].statut);
-    } else {
-      console.log('Aucun animal dans le state Redux');
-    }
-    console.log('===================');
-  }, [animaux]);
+  // Debug removed to prevent "Text must be rendered" errors
 
   // Récupérer les dépenses pour le calcul automatique du coût
   const depensesPonctuelles = useAppSelector((state) => {
@@ -354,14 +339,7 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
         statut: 'effectue',
       };
 
-      console.log('=== TENTATIVE ENREGISTREMENT ===');
-      console.log('Input:', JSON.stringify(input, null, 2));
-      console.log('Projet ID:', projetActif.id);
-      console.log('Date vaccination:', dateVaccination);
-      console.log('Animaux sélectionnés:', animauxSelectionnes);
-
       const result = await dispatch(createVaccination(input)).unwrap();
-      console.log('Vaccination créée avec succès:', result);
 
       const messageSucces = coutFinal && !cout
         ? `Vaccination enregistrée pour ${animauxSelectionnes.length} animal(aux)\n💡 Coût calculé automatiquement: ${coutFinal} FCFA`
@@ -466,18 +444,7 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
 
     const animauxActifs = (animaux || []).filter((a) => a.statut === 'actif');
     
-    // Debug dans le formulaire
-    console.log('=== DEBUG FORMULAIRE ===');
-    console.log('Tous les animaux:', animaux?.length || 0);
-    console.log('Animaux actifs filtrés:', animauxActifs.length);
-    if (animauxActifs.length > 0) {
-      console.log('Premier animal actif:', {
-        id: animauxActifs[0].id,
-        nom: animauxActifs[0].nom,
-        code: animauxActifs[0].code,
-        statut: animauxActifs[0].statut,
-      });
-    }
+    // Debug removed
 
     return (
       <View style={[styles.formulaire, { backgroundColor: colors.background }]}>

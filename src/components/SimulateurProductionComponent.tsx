@@ -36,8 +36,6 @@ interface Props {
 }
 
 export default function SimulateurProductionComponent({ refreshControl }: Props) {
-  console.log('🟦 [COMPONENT] SimulateurProductionComponent - Render');
-
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
 
@@ -46,12 +44,6 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
     (state) => state.planningProduction
   );
   const animaux = useAppSelector(selectAllAnimaux);
-  
-  console.log('📊 [COMPONENT] État:', {
-    loading,
-    hasSimulation: !!simulationResultat,
-    hasRecommendations: recommendations?.length || 0,
-  });
   
   // Utiliser useRef pour éviter de recharger à chaque render
   const animauxChargesRef = useRef<string | null>(null);
@@ -119,38 +111,24 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
   }, [truiesDisponibles, moyennePorceletsSelonRaces]);
 
   const handleSimuler = () => {
-    console.log('🔵 [SIMULATION] Début handleSimuler');
-    console.log('📊 Valeurs du formulaire:', {
-      objectifTonnes,
-      periodeMois,
-      poidsMoyenVente,
-      porceletsParPortee,
-    });
-
     const objectif = parseFloat(objectifTonnes);
     const periode = parseInt(periodeMois);
     const poidsMoyen = parseFloat(poidsMoyenVente);
     const porcelets = parseFloat(porceletsParPortee);
 
-    console.log('📊 Valeurs converties:', { objectif, periode, poidsMoyen, porcelets });
-
     if (isNaN(objectif) || objectif <= 0) {
-      console.log('❌ Erreur: Objectif invalide');
       Alert.alert('Erreur', 'Objectif de production invalide');
       return;
     }
     if (isNaN(periode) || periode <= 0) {
-      console.log('❌ Erreur: Période invalide');
       Alert.alert('Erreur', 'Période invalide');
       return;
     }
     if (isNaN(poidsMoyen) || poidsMoyen <= 0) {
-      console.log('❌ Erreur: Poids moyen invalide');
       Alert.alert('Erreur', 'Poids moyen invalide');
       return;
     }
     if (isNaN(porcelets) || porcelets <= 0) {
-      console.log('❌ Erreur: Porcelets invalide');
       Alert.alert('Erreur', 'Nombre de porcelets par portée invalide');
       return;
     }
@@ -164,8 +142,6 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
       ).toISOString(),
     };
 
-    console.log('📋 Objectif créé:', nouvelObjectif);
-
     dispatch(setObjectifProduction(nouvelObjectif));
 
     const parametres: ParametresProduction = {
@@ -174,10 +150,6 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
       porcelets_par_portee_moyen: porcelets,
     };
 
-    console.log('⚙️ Paramètres:', parametres);
-    console.log('🐷 Cheptel actuel:', { truies: truiesActuelles, verrats: verratsActuels });
-
-    console.log('🚀 Dispatch simulerProduction...');
     dispatch(
       simulerProduction({
         objectif: nouvelObjectif,
@@ -188,7 +160,6 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
         },
       })
     );
-    console.log('✅ Dispatch terminé');
   };
 
   const renderFormulaire = () => (
@@ -284,10 +255,7 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
 
       <TouchableOpacity
         style={[styles.button, { backgroundColor: colors.primary, opacity: loading ? 0.6 : 1 }]}
-        onPress={() => {
-          console.log('🔴 [BOUTON] onPress appelé!');
-          handleSimuler();
-        }}
+        onPress={handleSimuler}
         disabled={loading}
         activeOpacity={0.7}
       >

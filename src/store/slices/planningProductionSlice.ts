@@ -60,9 +60,6 @@ export const simulerProduction = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      console.log('🟢 [REDUX] simulerProduction - Début');
-      console.log('📦 Payload reçu:', JSON.stringify(payload, null, 2));
-
       const { objectif, parametres, cheptelActuel } = payload;
 
       const inputSimulation = {
@@ -72,9 +69,6 @@ export const simulerProduction = createAsyncThunk(
         porcelets_par_portee_moyen: parametres.porcelets_par_portee_moyen,
       };
 
-      console.log('🔧 Input simulation:', inputSimulation);
-      console.log('🐷 Cheptel:', cheptelActuel);
-
       const simulation = calculerSimulation(
         inputSimulation,
         cheptelActuel.truies,
@@ -83,11 +77,7 @@ export const simulerProduction = createAsyncThunk(
         cheptelActuel.verrats || 0
       );
 
-      console.log('📊 Simulation calculée:', simulation);
-
       const recommendations = calculerRecommandations(simulation, cheptelActuel.truies);
-
-      console.log('💡 Recommandations:', recommendations);
 
       const result = {
         objectif,
@@ -96,7 +86,6 @@ export const simulerProduction = createAsyncThunk(
         recommendations,
       };
 
-      console.log('✅ [REDUX] simulerProduction - Succès');
       return result;
     } catch (error: any) {
       console.error('❌ [REDUX] simulerProduction - Erreur:', error);
@@ -171,17 +160,6 @@ export const genererPlanSaillies = createAsyncThunk(
       // Fenêtre de temps pour toutes les saillies
       const fenetreSailliesJours = differenceInDays(dateDerniereSaillie, dateDebut);
       
-      console.log('📅 [SAILLIES] Contraintes temporelles:', {
-        cycleReproduction: cycleReproductionJours,
-        dureeEngraissement: dureeEngraissementJours,
-        cycleTotalJours,
-        periodeJours,
-        fenetreSailliesJours,
-        dateDebut: format(dateDebut, 'dd/MM/yyyy'),
-        dateLimite: format(dateLimite, 'dd/MM/yyyy'),
-        dateDerniereSaillie: format(dateDerniereSaillie, 'dd/MM/yyyy'),
-      });
-      
       if (fenetreSailliesJours < 0) {
         throw new Error(`Période trop courte ! Il faut au moins ${Math.ceil(cycleTotalJours / 30)} mois pour produire.`);
       }
@@ -197,14 +175,6 @@ export const genererPlanSaillies = createAsyncThunk(
       
       // Intervalle entre les vagues
       const intervalleVaguesJours = cycleReproductionJours; // Une vague par cycle de reproduction
-      
-      console.log('🐷 [SAILLIES] Stratégie:', {
-        nombreTruies,
-        portéesNécessaires: nombrePorteesNecessaires,
-        cyclesMaxParTruie,
-        nombreVagues,
-        intervalleVaguesJours,
-      });
 
       // Récupérer les verrats disponibles
       const verratsDisponibles = Object.values(animaux).filter((animal: any) => {
@@ -307,8 +277,6 @@ export const genererPlanSaillies = createAsyncThunk(
           
           // Mettre à jour la disponibilité du verrat
           derniereSaillieVerrat[verratChoisi.id] = dateSaillie;
-          
-          console.log(`✅ Saillie ${saillieIndex + 1}: ${truie.code || truie.nom} + ${verratInfo} le ${format(dateSaillie, 'dd/MM/yy')} → Vente ${format(dateVente, 'dd/MM/yy')}`);
           
           saillieIndex++;
           jourActuel++; // Incrémenter pour espacer dans la vague si nécessaire
@@ -449,7 +417,6 @@ export const validerPlanningSaillies = createAsyncThunk(
     { dispatch, rejectWithValue }
   ) => {
     try {
-      console.log(`🔄 [VALIDATION] Début validation de ${payload.saillies.length} saillie(s)...`);
       
       // Importer dynamiquement pour éviter les dépendances circulaires
       const { genererTachesDepuisSaillie } = await import('../../utils/planningProductionCalculs');
@@ -491,8 +458,6 @@ export const validerPlanningSaillies = createAsyncThunk(
         });
       }
       
-      console.log(`📋 [VALIDATION] ${toutesLesTaches.length} tâches à créer`);
-      
       // Créer toutes les tâches en batch
       const resultBatch = await dispatch(createPlanificationsBatch(toutesLesTaches));
       
@@ -508,8 +473,6 @@ export const validerPlanningSaillies = createAsyncThunk(
           
           sailliesValidees[i].taches_creees = tachesIds;
         }
-        
-        console.log(`✅ [VALIDATION] ${tachesCrees.length} tâches créées avec succès`);
         
         return {
           sailliesValidees,

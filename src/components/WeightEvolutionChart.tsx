@@ -24,14 +24,8 @@ export default function WeightEvolutionChart({ pesees, animalName }: Props) {
   // Trier les pesées par date et calculer les données du graphique
   const chartData = useMemo(() => {
     if (!pesees || pesees.length === 0) {
-      console.log('WeightEvolutionChart: Aucune pesée reçue');
       return null;
     }
-
-    console.log('===== WeightEvolutionChart DEBUG =====');
-    console.log('Nombre de pesées:', pesees.length);
-    console.log('Première pesée:', JSON.stringify(pesees[0]));
-    console.log('Clés de la première pesée:', Object.keys(pesees[0]));
 
     // Trier par date
     const sortedPesees = [...pesees].sort(
@@ -40,17 +34,10 @@ export default function WeightEvolutionChart({ pesees, animalName }: Props) {
 
     // Extraire les poids et dates (filtrer les valeurs invalides)
     const weights = sortedPesees
-      .map((p) => {
-        const poidsKg = p.poids_kg;
-        console.log(`Pesée ${p.id}: poids_kg=${poidsKg}, type=${typeof poidsKg}, valid=${typeof poidsKg === 'number' && !isNaN(poidsKg) && isFinite(poidsKg)}`);
-        return poidsKg;
-      })
+      .map((p) => p.poids_kg)
       .filter((w) => typeof w === 'number' && !isNaN(w) && isFinite(w));
     
-    console.log('WeightEvolutionChart: Poids filtrés:', weights.length, weights);
-    
     if (weights.length === 0) {
-      console.log('WeightEvolutionChart: Aucun poids valide après filtrage');
       return null;
     }
 

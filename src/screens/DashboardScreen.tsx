@@ -396,14 +396,13 @@ export default function DashboardScreen() {
   let currentDate = '';
   try {
     currentDate = format(new Date(), 'EEEE d MMMM yyyy');
-    console.log('[DEBUG Dashboard] currentDate après format:', currentDate, 'type:', typeof currentDate);
+    // Debug log removed to prevent potential errors
   } catch (error) {
     console.error('Erreur lors du formatage de la date:', error);
     currentDate = new Date().toLocaleDateString('fr-FR');
   }
   
-  console.log('[DEBUG Dashboard] greeting:', greeting, 'type:', typeof greeting);
-  console.log('[DEBUG Dashboard] projetActif?.nom:', projetActif?.nom, 'type:', typeof projetActif?.nom);
+  // Debug logs removed to prevent "Text must be rendered" errors
 
   if (!projetActif) {
     return (

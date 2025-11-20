@@ -176,15 +176,6 @@ function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
   if (!widgetData) {
     return null;
   }
-  
-  console.log('[DEBUG SecondaryWidget]', type, {
-    emoji: widgetData.emoji,
-    title: widgetData.title,
-    labelPrimary: widgetData.labelPrimary,
-    labelSecondary: widgetData.labelSecondary,
-    primary: widgetData.primary,
-    secondary: widgetData.secondary
-  });
 
   const WidgetContent = (
     <View style={styles.container}>

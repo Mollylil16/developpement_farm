@@ -84,7 +84,7 @@ class DatabaseService {
             await this.db.execAsync(`
               ALTER TABLE users ADD COLUMN telephone TEXT;
             `);
-            console.log('Migration: Colonne telephone ajoutée à la table users');
+            // Migration: Colonne telephone ajoutée
           }
 
           // Vérifier si la colonne email est encore NOT NULL (anciennes installations)
@@ -150,7 +150,7 @@ class DatabaseService {
             // Supprimer l'ancienne table
             await this.db.execAsync(`DROP TABLE users_old;`);
 
-            console.log('Migration: Table users recréée avec succès');
+            // Migration: Table users recréée
           }
         }
       } catch (error: any) {
@@ -177,11 +177,11 @@ class DatabaseService {
             
             // Pour les rations existantes sans projet_id, on peut les associer au premier projet actif
             // ou les laisser NULL (selon votre logique métier)
-            console.log('Migration: Colonne projet_id ajoutée à la table rations');
+            // Migration: Colonne projet_id ajoutée à rations
           }
         } else {
           // Table n'existe pas encore, elle sera créée avec projet_id dans createTables
-          console.log('Migration: Table rations n\'existe pas encore, sera créée avec projet_id');
+          // Migration: Table rations sera créée avec projet_id
         }
       } catch (error: any) {
         console.warn('Erreur lors de la migration projet_id pour rations:', error?.message || error);
@@ -208,7 +208,7 @@ class DatabaseService {
           WHERE statut IS NULL;
         `);
         
-        console.log('Migration: Colonne statut ajoutée à la table production_animaux');
+        // Migration: Colonne statut ajoutée
       }
 
       // Migration: Ajouter user_id à la table collaborations si elle n'existe pas
@@ -223,7 +223,7 @@ class DatabaseService {
           );
           
           if (!userIdInfo) {
-            console.log('🔄 Migration: Ajout de la colonne user_id à la table collaborations...');
+            // Migration: Ajout colonne user_id à collaborations
             
             // Ajouter la colonne user_id (nullable car les anciens collaborateurs n'ont pas encore de user_id)
             await this.db.execAsync(`
@@ -235,12 +235,12 @@ class DatabaseService {
               CREATE INDEX IF NOT EXISTS idx_collaborations_user_id ON collaborations(user_id);
             `);
             
-            console.log('✅ Migration: Colonne user_id ajoutée à la table collaborations avec succès');
+            // Migration: Colonne user_id ajoutée
           } else {
-            console.log('✅ Migration: Colonne user_id existe déjà dans la table collaborations');
+            // Migration: Colonne user_id existe déjà
           }
         } else {
-          console.log('ℹ️ Migration: Table collaborations n\'existe pas encore, sera créée avec user_id');
+          // Migration: Table collaborations sera créée avec user_id
         }
       } catch (error: any) {
         console.error('❌ Erreur lors de la migration user_id pour collaborations:', error?.message || error);
@@ -257,7 +257,7 @@ class DatabaseService {
         await this.db.execAsync(`
           ALTER TABLE production_animaux ADD COLUMN race TEXT;
         `);
-        console.log('Migration: Colonne race ajoutée à la table production_animaux');
+        // Migration: Colonne race ajoutée
       }
 
       // Migration: Ajouter prix_kg_vif et prix_kg_carcasse à la table projets si elles n'existent pas
@@ -275,7 +275,7 @@ class DatabaseService {
             await this.db.execAsync(`
               ALTER TABLE projets ADD COLUMN prix_kg_vif REAL;
             `);
-            console.log('Migration: Colonne prix_kg_vif ajoutée à la table projets');
+            // Migration: Colonne prix_kg_vif ajoutée à la table projets');
           }
 
           const prixCarcasseInfo = await this.db.getFirstAsync<{ name: string } | null>(
@@ -286,7 +286,7 @@ class DatabaseService {
             await this.db.execAsync(`
               ALTER TABLE projets ADD COLUMN prix_kg_carcasse REAL;
             `);
-            console.log('Migration: Colonne prix_kg_carcasse ajoutée à la table projets');
+            // Migration: Colonne prix_kg_carcasse ajoutée à la table projets');
           }
         }
       } catch (error: any) {
@@ -305,7 +305,7 @@ class DatabaseService {
         await this.db.execAsync(`
           UPDATE production_animaux SET reproducteur = 0 WHERE reproducteur IS NULL;
         `);
-        console.log('Migration: Colonne reproducteur ajoutée à la table production_animaux');
+        // Migration: Colonne reproducteur ajoutée à la table production_animaux');
       }
 
       // Migration: Ajouter pere_id si absent
@@ -317,7 +317,7 @@ class DatabaseService {
         await this.db.execAsync(`
           ALTER TABLE production_animaux ADD COLUMN pere_id TEXT;
         `);
-        console.log('Migration: Colonne pere_id ajoutée à la table production_animaux');
+        // Migration: Colonne pere_id ajoutée à la table production_animaux');
       }
 
       // Migration: Ajouter mere_id si absent
@@ -329,7 +329,7 @@ class DatabaseService {
         await this.db.execAsync(`
           ALTER TABLE production_animaux ADD COLUMN mere_id TEXT;
         `);
-        console.log('Migration: Colonne mere_id ajoutée à la table production_animaux');
+        // Migration: Colonne mere_id ajoutée à la table production_animaux');
       }
 
       // Migration: Ajouter verrat_id à la table gestations si elle n'existe pas
@@ -348,7 +348,7 @@ class DatabaseService {
             await this.db.execAsync(`
               ALTER TABLE gestations ADD COLUMN verrat_id TEXT;
             `);
-            console.log('Migration: Colonne verrat_id ajoutée à la table gestations');
+            // Migration: Colonne verrat_id ajoutée à la table gestations');
           }
         }
       } catch (error: any) {
@@ -371,7 +371,7 @@ class DatabaseService {
             await this.db.execAsync(`
               ALTER TABLE gestations ADD COLUMN verrat_nom TEXT;
             `);
-            console.log('Migration: Colonne verrat_nom ajoutée à la table gestations');
+            // Migration: Colonne verrat_nom ajoutée à la table gestations');
           }
         }
       } catch (error: any) {
@@ -404,11 +404,11 @@ class DatabaseService {
                 [premierProjet.id]
               );
             }
-            console.log('Migration: Colonne projet_id ajoutée à la table gestations');
+            // Migration: Colonne projet_id ajoutée à la table gestations');
           }
         } else {
           // Table n'existe pas encore, elle sera créée avec projet_id dans createTables
-          console.log('Migration: Table gestations n\'existe pas encore, sera créée avec projet_id');
+          // Migration: Table gestations n\'existe pas encore, sera créée avec projet_id');
         }
       } catch (error: any) {
         console.warn('Erreur lors de la migration projet_id pour gestations:', error?.message || error);
@@ -430,11 +430,11 @@ class DatabaseService {
             await this.db.execAsync(`
               ALTER TABLE mortalites ADD COLUMN animal_code TEXT;
             `);
-            console.log('Migration: Colonne animal_code ajoutée à la table mortalites');
+            // Migration: Colonne animal_code ajoutée à la table mortalites');
           }
         } else {
           // Table n'existe pas encore, elle sera créée avec animal_code dans createTables
-          console.log('Migration: Table mortalites n\'existe pas encore, sera créée avec animal_code');
+          // Migration: Table mortalites n\'existe pas encore, sera créée avec animal_code');
         }
       } catch (error: any) {
         console.warn('Erreur lors de la migration animal_code pour mortalites:', error?.message || error);
@@ -450,7 +450,7 @@ class DatabaseService {
 
         if (!sevragesTableExists) {
           // Table n'existe pas encore, elle sera créée avec projet_id dans createTables
-          console.log('Migration: Table sevrages n\'existe pas encore, sera créée avec projet_id');
+          // Migration: Table sevrages n\'existe pas encore, sera créée avec projet_id');
         } else {
           const sevragesProjetIdInfo = await this.db.getFirstAsync<{ name: string } | null>(
             "SELECT name FROM pragma_table_info('sevrages') WHERE name = 'projet_id'"
@@ -547,7 +547,7 @@ class DatabaseService {
                 );
               }
             }
-            console.log('Migration: Colonne projet_id ajoutée à la table sevrages');
+            // Migration: Colonne projet_id ajoutée à la table sevrages');
           }
         }
       } catch (error: any) {
@@ -580,11 +580,11 @@ class DatabaseService {
                 [premierProjet.id]
               );
             }
-            console.log('Migration: Colonne projet_id ajoutée à la table depenses_ponctuelles');
+            // Migration: Colonne projet_id ajoutée à la table depenses_ponctuelles');
           }
         } else {
           // Table n'existe pas encore, elle sera créée avec projet_id dans createTables
-          console.log('Migration: Table depenses_ponctuelles n\'existe pas encore, sera créée avec projet_id');
+          // Migration: Table depenses_ponctuelles n\'existe pas encore, sera créée avec projet_id');
         }
       } catch (error: any) {
         console.warn('Erreur lors de la migration projet_id pour depenses_ponctuelles:', error?.message || error);
@@ -664,7 +664,7 @@ class DatabaseService {
               ['ingredients_unite_sac', 1]
             );
 
-            console.log('Migration: Table ingredients recréée avec support de l\'unité "sac"');
+            // Migration: Table ingredients recréée avec support de l\'unité "sac"');
           }
         }
       } catch (error: any) {
@@ -768,10 +768,10 @@ class DatabaseService {
             await this.db.execAsync(`
               ALTER TABLE collaborations ADD COLUMN permission_sante INTEGER DEFAULT 0;
             `);
-            console.log('Migration: Colonne permission_sante ajoutée à la table collaborations');
+            // Migration: Colonne permission_sante ajoutée à la table collaborations');
           }
         } else {
-          console.log('Migration: Table collaborations n\'existe pas encore, sera créée avec permission_sante');
+          // Migration: Table collaborations n\'existe pas encore, sera créée avec permission_sante');
         }
       } catch (error: any) {
         console.warn('Erreur lors de la migration permission_sante pour collaborations:', error?.message || error);
@@ -814,7 +814,7 @@ class DatabaseService {
             }
           }
         } else {
-          console.log('Migration: Table vaccinations n\'existe pas encore, sera créée avec les nouvelles colonnes');
+          // Migration: Table vaccinations n\'existe pas encore, sera créée avec les nouvelles colonnes');
         }
       } catch (error: any) {
         console.warn('Erreur lors de la migration des colonnes prophylaxie pour vaccinations:', error?.message || error);
@@ -833,7 +833,7 @@ class DatabaseService {
           );
 
           if (!colonneExists) {
-            console.log('Migration: Mise à jour de la table visites_veterinaires');
+            // Migration: Mise à jour de la table visites_veterinaires');
 
             await this.db.execAsync(`ALTER TABLE visites_veterinaires RENAME TO visites_veterinaires_old;`);
 
@@ -871,7 +871,7 @@ class DatabaseService {
 
             await this.db.execAsync(`DROP TABLE visites_veterinaires_old;`);
 
-            console.log('Migration: Table visites_veterinaires mise à jour avec succès');
+            // Migration: Table visites_veterinaires mise à jour avec succès');
           }
         }
       } catch (error: any) {
@@ -885,9 +885,9 @@ class DatabaseService {
         );
 
         if (hasPhotoUri && hasPhotoUri.count === 0) {
-          console.log('Migration: Ajout de la colonne photo_uri dans production_animaux');
+          // Migration: Ajout de la colonne photo_uri dans production_animaux');
           await this.db.execAsync(`ALTER TABLE production_animaux ADD COLUMN photo_uri TEXT;`);
-          console.log('Migration: Colonne photo_uri ajoutée avec succès');
+          // Migration: Colonne photo_uri ajoutée avec succès');
         }
       } catch (error: any) {
         console.warn('Erreur lors de l\'ajout de photo_uri:', error?.message || error);
@@ -900,7 +900,12 @@ class DatabaseService {
         );
 
         if (productionAnimauxTable) {
-          console.log('Migration: Mise à jour du constraint statut dans production_animaux');
+          // Supprimer l'ancienne table si elle existe (migration précédente incomplète)
+          try {
+            await this.db.execAsync(`DROP TABLE IF EXISTS production_animaux_old;`);
+          } catch (e) {
+            // Ignorer les erreurs
+          }
 
           await this.db.execAsync(`ALTER TABLE production_animaux RENAME TO production_animaux_old;`);
 
@@ -944,9 +949,7 @@ class DatabaseService {
             FROM production_animaux_old;
           `);
 
-          await this.db.execAsync(`DROP TABLE production_animaux_old;`);
-
-          console.log('Migration: Table production_animaux mise à jour avec succès');
+          await this.db.execAsync(`DROP TABLE IF EXISTS production_animaux_old;`);
         }
       } catch (error: any) {
         console.warn('Erreur lors de la migration production_animaux statut:', error?.message || error);
@@ -965,7 +968,7 @@ class DatabaseService {
           );
 
           if (typeProphylaxieExists) {
-            console.log('Migration: Mise à jour de la table vaccinations pour rendre vaccin nullable');
+            // Migration: Mise à jour de la table vaccinations pour rendre vaccin nullable');
 
             // Recréer la table avec vaccin nullable
             await this.db.execAsync(`ALTER TABLE vaccinations RENAME TO vaccinations_old;`);
@@ -1011,7 +1014,7 @@ class DatabaseService {
             // Supprimer l'ancienne table
             await this.db.execAsync(`DROP TABLE vaccinations_old;`);
 
-            console.log('Migration: Table vaccinations mise à jour avec succès');
+            // Migration: Table vaccinations mise à jour avec succès');
           }
         }
       } catch (error: any) {
@@ -1026,7 +1029,7 @@ class DatabaseService {
 
         if (maladiesTableExists) {
           // SQLite ne supporte pas ALTER COLUMN, donc on doit recréer la table
-          console.log('Migration: Mise à jour de la table maladies pour nouveaux types de maladies');
+          // Migration: Mise à jour de la table maladies pour nouveaux types de maladies');
 
           // Renommer l'ancienne table
           await this.db.execAsync(`ALTER TABLE maladies RENAME TO maladies_old;`);
@@ -1067,9 +1070,9 @@ class DatabaseService {
           // Supprimer l'ancienne table
           await this.db.execAsync(`DROP TABLE maladies_old;`);
 
-          console.log('Migration: Table maladies mise à jour avec succès');
+          // Migration: Table maladies mise à jour avec succès');
         } else {
-          console.log('Migration: Table maladies n\'existe pas encore, sera créée avec les nouveaux types');
+          // Migration: Table maladies n\'existe pas encore, sera créée avec les nouveaux types');
         }
       } catch (error: any) {
         console.warn('Erreur lors de la migration des types de maladies:', error?.message || error);
