@@ -1,66 +1,66 @@
 /**
- * Écran Rapports avec onglets : Performance et Tendances
+ * Écran Rapports - Design standardisé cohérent avec Planning Production
  */
 
-import React from 'react';
-import { StyleSheet } from 'react-native';
-import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
+import React, { useState } from 'react';
+import { View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import ProtectedScreen from '../components/ProtectedScreen';
+import StandardHeader from '../components/StandardHeader';
+import StandardTabs, { TabItem } from '../components/StandardTabs';
 import PerformanceIndicatorsComponent from '../components/PerformanceIndicatorsComponent';
 import TendancesChartsComponent from '../components/TendancesChartsComponent';
 
-const Tab = createMaterialTopTabNavigator();
+type TabType = 'performance' | 'tendances';
 
 function ReportsScreenContent() {
   const { colors } = useTheme();
-  
+  const [activeTab, setActiveTab] = useState<TabType>('performance');
+
+  const tabs: TabItem[] = [
+    {
+      id: 'performance',
+      label: 'Indicateurs',
+      icon: 'speedometer-outline',
+      description: 'KPIs clés',
+    },
+    {
+      id: 'tendances',
+      label: 'Tendances',
+      icon: 'trending-up-outline',
+      description: 'Évolution',
+    },
+  ];
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'performance':
+        return <PerformanceIndicatorsComponent />;
+      case 'tendances':
+        return <TendancesChartsComponent />;
+      default:
+        return null;
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <Tab.Navigator
-        screenOptions={{
-          tabBarActiveTintColor: colors.primary,
-          tabBarInactiveTintColor: colors.textSecondary,
-          tabBarIndicatorStyle: {
-            backgroundColor: colors.primary,
-            height: 3,
-            borderRadius: 2,
-          },
-          tabBarStyle: {
-            backgroundColor: colors.background,
-            elevation: 4,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 6,
-            borderBottomWidth: 0,
-          },
-          tabBarLabelStyle: {
-            fontSize: FONT_SIZES.md,
-            fontWeight: '600',
-            textTransform: 'none',
-            marginVertical: 0,
-          },
-          tabBarPressColor: colors.surface,
-        }}
-      >
-        <Tab.Screen
-          name="Performance"
-          component={PerformanceIndicatorsComponent}
-          options={{
-            title: 'Indicateurs',
-          }}
-        />
-        <Tab.Screen
-          name="Tendances"
-          component={TendancesChartsComponent}
-          options={{
-            title: 'Tendances',
-          }}
-        />
-      </Tab.Navigator>
+      <StandardHeader
+        icon="bar-chart"
+        title="Rapports"
+        subtitle="Indicateurs de performance et tendances"
+      />
+      
+      <StandardTabs
+        tabs={tabs}
+        activeTab={activeTab}
+        onTabChange={(tabId) => setActiveTab(tabId as TabType)}
+      />
+
+      <View style={styles.content}>
+        {renderContent()}
+      </View>
     </SafeAreaView>
   );
 }
@@ -75,6 +75,9 @@ export default function ReportsScreen() {
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  content: {
     flex: 1,
   },
 });

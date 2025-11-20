@@ -227,10 +227,11 @@ const styles = StyleSheet.create({
     paddingBottom: 100, // Espace pour la barre de navigation
   },
   card: {
-    marginHorizontal: SPACING.xl,
-    marginVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.lg,
+    marginHorizontal: SPACING.md,
+    marginVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.md,
+    borderWidth: 1,
   },
   cardHeader: {
     flexDirection: 'row',

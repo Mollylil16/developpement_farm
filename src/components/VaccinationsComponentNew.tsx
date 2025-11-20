@@ -13,6 +13,7 @@ import {
   RefreshControl,
   RefreshControlProps,
   Dimensions,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
@@ -50,6 +51,7 @@ export default function VaccinationsComponentNew({ refreshControl }: Props) {
   const [modalAddVisible, setModalAddVisible] = useState(false);
   const [modalCalendrierVisible, setModalCalendrierVisible] = useState(false);
   const [typeSelectionne, setTypeSelectionne] = useState<TypeProphylaxie | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Charger les données au montage
   useEffect(() => {
@@ -179,6 +181,17 @@ export default function VaccinationsComponentNew({ refreshControl }: Props) {
       };
     });
   }, [vaccinations, animaux, statsGlobales.totalAnimaux]);
+
+  // Filtrer les types selon la recherche
+  const statParTypeFiltres = useMemo(() => {
+    if (!searchQuery.trim()) return statParType;
+    
+    const query = searchQuery.toLowerCase();
+    return statParType.filter((stat) =>
+      stat.nom_type.toLowerCase().includes(query) ||
+      stat.type_prophylaxie.toLowerCase().includes(query)
+    );
+  }, [statParType, searchQuery]);
 
   const getIconeType = (type: TypeProphylaxie): keyof typeof Ionicons.glyphMap => {
     switch (type) {
@@ -410,7 +423,24 @@ export default function VaccinationsComponentNew({ refreshControl }: Props) {
     >
       {renderCarteRecapitulative()}
 
-      {statParType.map((stat) => renderCarteType(stat))}
+      {/* Barre de recherche */}
+      <View style={[styles.searchContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Ionicons name="search" size={20} color={colors.textSecondary} />
+        <TextInput
+          style={[styles.searchInput, { color: colors.text }]}
+          placeholder="Rechercher un type de vaccination..."
+          placeholderTextColor={colors.textSecondary}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')}>
+            <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {statParTypeFiltres.map((stat) => renderCarteType(stat))}
 
       <View style={styles.bottomSpacer} />
 
@@ -445,6 +475,22 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
+  },
+
+  // Barre de recherche
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    padding: 0,
   },
 
   // Carte récap
@@ -513,13 +559,13 @@ const styles = StyleSheet.create({
   // Carte type
   carteType: {
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    elevation: 2,
+    padding: 12,
+    marginBottom: 12,
+    elevation: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
   carteHeader: {
     flexDirection: 'row',
@@ -533,20 +579,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   iconeBadge: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
   carteTitreContainer: {
-    marginLeft: 12,
+    marginLeft: 10,
     flex: 1,
   },
   carteTypeTitre: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   badgeRetard: {
     alignSelf: 'flex-start',
@@ -572,15 +618,15 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   carteStats: {
-    marginBottom: 12,
+    marginBottom: 8,
   },
   carteStatRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   carteStatTexte: {
-    fontSize: 13,
+    fontSize: 12,
     marginLeft: 8,
   },
   carteProgressContainer: {

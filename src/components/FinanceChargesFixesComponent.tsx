@@ -173,7 +173,7 @@ export default function FinanceChargesFixesComponent() {
           />
         ) : (
           chargesFixes.map((charge) => (
-            <View key={charge.id} style={[styles.card, { backgroundColor: colors.surface, ...colors.shadow.small }]}>
+            <View key={charge.id} style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small }]}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderLeft}>
                   <Text style={[styles.cardTitle, { color: colors.text }]}>{charge.libelle}</Text>
@@ -288,8 +288,9 @@ const styles = StyleSheet.create({
   },
   card: {
     margin: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.sm,
+    borderWidth: 1,
   },
   cardHeader: {
     flexDirection: 'row',

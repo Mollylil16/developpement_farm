@@ -456,28 +456,28 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   card: {
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.lg,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.md,
     marginBottom: SPACING.md,
     borderWidth: 1,
   },
   cardHeader: {
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
   },
   cardHeaderContent: {
     flex: 1,
   },
   cardTitle: {
-    fontSize: FONT_SIZES.xl,
+    fontSize: FONT_SIZES.lg,
     fontWeight: 'bold',
-    marginBottom: SPACING.xs,
+    marginBottom: SPACING.xs / 2,
   },
   cardSubtitle: {
-    fontSize: FONT_SIZES.sm,
+    fontSize: FONT_SIZES.xs,
   },
   divider: {
     height: 1,
-    marginVertical: SPACING.lg,
+    marginVertical: SPACING.sm,
   },
   infoRow: {
     flexDirection: 'row',
@@ -495,26 +495,26 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: SPACING.lg,
-    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
+    gap: SPACING.xs,
   },
   statCard: {
     flex: 1,
     borderRadius: BORDER_RADIUS.sm,
-    padding: SPACING.md,
+    padding: SPACING.sm,
     alignItems: 'center',
     borderWidth: 1,
   },
   statValue: {
-    fontSize: FONT_SIZES.xl,
+    fontSize: FONT_SIZES.lg,
     fontWeight: '700',
-    marginBottom: SPACING.xs / 2,
+    marginBottom: 2,
   },
   statLabel: {
-    fontSize: FONT_SIZES.xs,
+    fontSize: 10,
     fontWeight: '500',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   statSubtext: {
     fontSize: FONT_SIZES.xs - 2,
@@ -522,12 +522,12 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   editButton: {
-    paddingVertical: SPACING.md,
-    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: SPACING.sm,
+    marginTop: SPACING.xs,
   },
   editButtonText: {
     fontSize: FONT_SIZES.md,

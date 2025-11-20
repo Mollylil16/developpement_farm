@@ -580,7 +580,7 @@ export default function FinanceGraphiquesComponent() {
                 <Text style={[styles.chartSubtitle, { color: colors.text }]}>Planifié</Text>
                 <LineChart
                   data={graphData.lineChartData}
-                  width={screenWidth - SPACING.lg * 2}
+                  width={screenWidth - SPACING.lg * 4}
                   height={200}
                   chartConfig={{
                     ...chartConfig,
@@ -601,7 +601,7 @@ export default function FinanceGraphiquesComponent() {
                       },
                     ],
                   }}
-                  width={screenWidth - SPACING.lg * 2}
+                  width={screenWidth - SPACING.lg * 4}
                   height={200}
                   chartConfig={{
                     ...chartConfig,
@@ -622,7 +622,7 @@ export default function FinanceGraphiquesComponent() {
                       },
                     ],
                   }}
-                  width={screenWidth - SPACING.lg * 2}
+                  width={screenWidth - SPACING.lg * 4}
                   height={200}
                   chartConfig={{
                     ...chartConfig,

@@ -387,7 +387,7 @@ export default function GestationsListComponent() {
         <FlatList
           data={displayedGestations}
           renderItem={({ item: gestation }) => (
-            <View style={[styles.card, { backgroundColor: colors.surface, ...colors.shadow.small }]}>
+            <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small }]}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderLeft}>
                   <Text style={[styles.cardTitle, { color: colors.text }]}>
@@ -627,8 +627,9 @@ const styles = StyleSheet.create({
   },
   card: {
     margin: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.sm,
+    borderWidth: 1,
   },
   cardHeader: {
     flexDirection: 'row',

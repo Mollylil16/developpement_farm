@@ -200,6 +200,7 @@ export default function GestationsCalendarComponent() {
         </TouchableOpacity>
       </View>
       <Calendar
+        key={currentMonthString}
         current={currentMonthString}
         markedDates={markedDates}
         markingType="multi-dot"

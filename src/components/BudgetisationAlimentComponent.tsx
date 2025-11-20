@@ -800,7 +800,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   modalContent: {
-    flex: 1,
+    maxHeight: 500,
   },
   modalContentContainer: {
     paddingBottom: SPACING.lg,

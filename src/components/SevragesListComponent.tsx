@@ -317,7 +317,7 @@ export default function SevragesListComponent() {
       <FlatList
               data={displayedSevrages}
               renderItem={({ item: sevrage }) => (
-                <View style={[styles.card, { backgroundColor: colors.surface, ...colors.shadow.small }]}>
+                <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small }]}>
                 <View style={styles.cardHeader}>
                   <Text style={[styles.cardTitle, { color: colors.text }]}>
                     {getGestationNom(sevrage.gestation_id)}
@@ -548,8 +548,9 @@ const styles = StyleSheet.create({
   },
   card: {
     margin: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.sm,
+    borderWidth: 1,
   },
   cardHeader: {
     flexDirection: 'row',

@@ -54,27 +54,28 @@ export default function StatCard({
 
 const styles = StyleSheet.create({
   container: {
-    padding: SPACING.lg,
+    padding: SPACING.sm,
     borderRadius: BORDER_RADIUS.lg,
     alignItems: 'center',
     flex: 1,
     marginHorizontal: SPACING.xs,
     borderWidth: 1,
+    minWidth: 90,
   },
   iconContainer: {
-    marginBottom: SPACING.sm,
-  },
-  value: {
-    fontSize: FONT_SIZES.xxl,
-    fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.xs,
   },
+  value: {
+    fontSize: FONT_SIZES.xl,
+    fontWeight: FONT_WEIGHTS.bold,
+    marginBottom: SPACING.xs / 2,
+  },
   unit: {
-    fontSize: FONT_SIZES.md,
+    fontSize: FONT_SIZES.sm,
     fontWeight: FONT_WEIGHTS.regular,
   },
   label: {
-    fontSize: FONT_SIZES.sm,
+    fontSize: FONT_SIZES.xs,
     textAlign: 'center',
     fontWeight: FONT_WEIGHTS.medium,
   },

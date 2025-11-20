@@ -388,10 +388,10 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
   },
   card: {
-    padding: SPACING.lg,
+    padding: SPACING.md,
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
   },
   cardTitle: {
     fontSize: FONT_SIZES.lg,

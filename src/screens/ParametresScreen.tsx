@@ -1,109 +1,74 @@
 /**
- * Écran Paramètres avec onglets - Design moderne et amélioré
+ * Écran Paramètres - Design standardisé cohérent avec Planning Production
  */
 
-import React, { useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
-import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
+import React, { useState } from 'react';
+import { View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTheme } from '../contexts/ThemeContext';
+import StandardHeader from '../components/StandardHeader';
+import StandardTabs, { TabItem } from '../components/StandardTabs';
 import ParametresProjetComponent from '../components/ParametresProjetComponent';
 import ParametresAppComponent from '../components/ParametresAppComponent';
 import TrainingScreen from './TrainingScreen';
-import { FONT_SIZES, SPACING, ANIMATIONS } from '../constants/theme';
-import { useTheme } from '../contexts/ThemeContext';
 
-const Tab = createMaterialTopTabNavigator();
+type TabType = 'projet' | 'application' | 'formation';
 
 export default function ParametresScreen() {
   const { colors } = useTheme();
-  const headerFadeAnim = useRef(new Animated.Value(0)).current;
-  const headerSlideAnim = useRef(new Animated.Value(-20)).current;
+  const [activeTab, setActiveTab] = useState<TabType>('projet');
 
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(headerFadeAnim, {
-        toValue: 1,
-        duration: ANIMATIONS.duration.normal,
-        useNativeDriver: true,
-      }),
-      Animated.spring(headerSlideAnim, {
-        toValue: 0,
-        tension: 50,
-        friction: 7,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
+  const tabs: TabItem[] = [
+    {
+      id: 'projet',
+      label: 'Projet',
+      icon: 'folder-outline',
+      description: 'Configuration',
+    },
+    {
+      id: 'application',
+      label: 'Application',
+      icon: 'settings-outline',
+      description: 'Préférences',
+    },
+    {
+      id: 'formation',
+      label: 'Formation',
+      icon: 'school-outline',
+      description: 'Tutoriels',
+    },
+  ];
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'projet':
+        return <ParametresProjetComponent />;
+      case 'application':
+        return <ParametresAppComponent />;
+      case 'formation':
+        return <TrainingScreen />;
+      default:
+        return null;
+    }
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <Animated.View
-        style={[
-          styles.header,
-          {
-            opacity: headerFadeAnim,
-            transform: [{ translateY: headerSlideAnim }],
-            backgroundColor: colors.background,
-            borderBottomColor: colors.border,
-          },
-        ]}
-      >
-        <View style={styles.headerContent}>
-          <View style={styles.headerText}>
-            <Text style={[styles.headerTitle, { color: colors.text }]}>Paramètres</Text>
-            <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>Gérez votre projet et l'application</Text>
-          </View>
-        </View>
-      </Animated.View>
-      <Tab.Navigator
-        screenOptions={{
-          tabBarActiveTintColor: colors.primary,
-          tabBarInactiveTintColor: colors.textSecondary,
-          tabBarIndicatorStyle: {
-            backgroundColor: colors.primary,
-            height: 3,
-            borderRadius: 2,
-          },
-          tabBarStyle: {
-            backgroundColor: colors.background,
-            elevation: 4,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 6,
-            borderBottomWidth: 0,
-          },
-          tabBarLabelStyle: {
-            fontSize: FONT_SIZES.md,
-            fontWeight: '600',
-            textTransform: 'none',
-            marginVertical: SPACING.xs,
-          },
-          tabBarPressColor: colors.surface,
-        }}
-      >
-        <Tab.Screen
-          name="Projet"
-          component={ParametresProjetComponent}
-          options={{
-            title: 'Projet',
-          }}
-        />
-        <Tab.Screen
-          name="Application"
-          component={ParametresAppComponent}
-          options={{
-            title: 'Application',
-          }}
-        />
-        <Tab.Screen
-          name="Formation"
-          component={TrainingScreen}
-          options={{
-            title: 'Formation',
-          }}
-        />
-      </Tab.Navigator>
+      <StandardHeader
+        icon="settings"
+        title="Paramètres"
+        subtitle="Configuration de votre projet et application"
+      />
+      
+      <StandardTabs
+        tabs={tabs}
+        activeTab={activeTab}
+        onTabChange={(tabId) => setActiveTab(tabId as TabType)}
+      />
+
+      <View style={styles.content}>
+        {renderContent()}
+      </View>
     </SafeAreaView>
   );
 }
@@ -112,28 +77,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    paddingHorizontal: SPACING.xl,
-    paddingTop: SPACING.lg,
-    paddingBottom: SPACING.md,
-    borderBottomWidth: 1,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  headerText: {
+  content: {
     flex: 1,
-  },
-  headerTitle: {
-    fontSize: FONT_SIZES.xxl,
-    fontWeight: '700',
-    marginBottom: SPACING.xs / 2,
-    letterSpacing: -0.5,
-  },
-  headerSubtitle: {
-    fontSize: FONT_SIZES.sm,
-    marginTop: SPACING.xs / 2,
   },
 });
 

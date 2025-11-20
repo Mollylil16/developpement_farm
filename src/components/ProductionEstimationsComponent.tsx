@@ -9,7 +9,9 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Platform,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import {
   loadProductionAnimaux,
@@ -42,6 +44,7 @@ export default function ProductionEstimationsComponent() {
   const [dateCible, setDateCible] = useState<string>(
     format(new Date(), 'yyyy-MM-dd')
   );
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   // Charger les animaux uniquement quand l'onglet est visible
   useFocusEffect(
@@ -471,12 +474,36 @@ export default function ProductionEstimationsComponent() {
                     keyboardType="numeric"
                     placeholder="Ex: 100"
                   />
-                  <FormField
-                    label="Date cible *"
-                    value={dateCible}
-                    onChangeText={setDateCible}
-                    placeholder="YYYY-MM-DD"
-                  />
+                  <View style={styles.section}>
+                    <Text style={[styles.sectionTitle, { color: colors.text }]}>Date cible *</Text>
+                    <TouchableOpacity
+                      style={[styles.dateButton, { borderColor: colors.border, backgroundColor: colors.background }]}
+                      onPress={() => setShowDatePicker(true)}
+                    >
+                      <Text style={[styles.dateButtonText, { color: colors.text }]}>
+                        {dateCible
+                          ? new Date(dateCible).toLocaleDateString('fr-FR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                            })
+                          : 'Sélectionner une date'}
+                      </Text>
+                    </TouchableOpacity>
+                    {showDatePicker && (
+                      <DateTimePicker
+                        value={dateCible ? new Date(dateCible) : new Date()}
+                        mode="date"
+                        display="default"
+                        onChange={(event, selectedDate) => {
+                          setShowDatePicker(false);
+                          if (selectedDate && event.type !== 'dismissed') {
+                            setDateCible(format(selectedDate, 'yyyy-MM-dd'));
+                          }
+                        }}
+                      />
+                    )}
+                  </View>
 
                   {(!poidsCible || !dateCible) && (
                     <View style={[styles.warningBox, { backgroundColor: colors.warning + '15' }]}>
@@ -725,6 +752,23 @@ const styles = StyleSheet.create({
   helperText: {
     fontSize: FONT_SIZES.xs,
     marginBottom: SPACING.sm,
+  },
+  section: {
+    marginBottom: SPACING.md,
+  },
+  sectionTitle: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+    marginBottom: SPACING.xs,
+  },
+  dateButton: {
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  dateButtonText: {
+    fontSize: FONT_SIZES.md,
   },
   emptyStateContainer: {
     padding: SPACING.lg,

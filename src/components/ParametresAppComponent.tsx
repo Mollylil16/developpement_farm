@@ -344,8 +344,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   card: {
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.lg,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.md,
     marginBottom: SPACING.md,
     borderWidth: 1,
   },

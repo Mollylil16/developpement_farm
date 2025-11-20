@@ -479,8 +479,8 @@ const styles = StyleSheet.create({
   },
   card: {
     borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.lg,
-    marginBottom: SPACING.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
     borderWidth: 1,
   },
   cardHeader: {

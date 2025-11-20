@@ -231,7 +231,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   card: {
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
   },
   cardTitle: {
     fontSize: FONT_SIZES.lg,

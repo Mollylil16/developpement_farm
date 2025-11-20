@@ -9,6 +9,7 @@ import { LineChart } from 'react-native-chart-kit';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { ProductionPesee } from '../types/production';
+import { SPACING } from '../constants/theme';
 
 interface Props {
   pesees: ProductionPesee[];
@@ -168,7 +169,7 @@ export default function WeightEvolutionChart({ pesees, animalName }: Props) {
               },
             ],
           }}
-          width={Math.max(SCREEN_WIDTH - 40, chartData.dates.length * 60)}
+          width={Math.max(SCREEN_WIDTH - SPACING.lg * 6, chartData.dates.length * 60)}
           height={220}
           yAxisSuffix=" kg"
           yAxisInterval={1}
@@ -225,13 +226,13 @@ export default function WeightEvolutionChart({ pesees, animalName }: Props) {
 const styles = StyleSheet.create({
   container: {
     borderRadius: 12,
-    padding: 16,
+    padding: 12,
     marginVertical: 8,
-    elevation: 2,
+    elevation: 1,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
   header: {
     flexDirection: 'row',
@@ -262,10 +263,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   chartScroll: {
-    marginHorizontal: -16,
+    marginHorizontal: -12,
   },
   chartScrollContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
   },
   chart: {
     marginVertical: 8,

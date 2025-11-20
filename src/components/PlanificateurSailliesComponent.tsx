@@ -212,7 +212,7 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
   };
 
   const renderHeader = () => (
-    <View style={[styles.card, { backgroundColor: colors.surface }]}>
+    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <View style={styles.cardHeader}>
         <Ionicons name="calendar" size={24} color={colors.primary} />
         <Text style={[styles.cardTitle, { color: colors.text }]}>Planning des saillies</Text>
@@ -279,7 +279,7 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
   );
 
   const renderCalendrier = () => (
-    <View style={[styles.card, { backgroundColor: colors.surface }]}>
+    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <Calendar
         onDayPress={(day: DateData) => setSelectedDate(day.dateString)}
         markedDates={getMarkedDates()}
@@ -426,9 +426,10 @@ const styles = StyleSheet.create({
   },
   card: {
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    elevation: 2,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    elevation: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,

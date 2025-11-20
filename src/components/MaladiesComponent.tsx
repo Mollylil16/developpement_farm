@@ -305,7 +305,7 @@ const styles = StyleSheet.create({
   },
   card: {
     borderRadius: 12,
-    padding: 16,
+    padding: 12,
     borderWidth: 1,
   },
   cardHeader: {
