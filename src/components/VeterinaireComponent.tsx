@@ -171,10 +171,9 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
         const input: CreateVisiteVeterinaireInput = {
           projet_id: projetActif.id,
           date_visite: dateVisite.toISOString(),
-          type_intervention: item.type,
-          veterinaire_id: veterinaire?.user_id,
-          veterinaire_nom: veterinaire ? `${veterinaire.prenom} ${veterinaire.nom}` : undefined,
-          statut: 'planifiee',
+          veterinaire: veterinaire ? `${veterinaire.prenom} ${veterinaire.nom}` : 'Vétérinaire',
+          motif: TYPE_INTERVENTION_LABELS[item.type] || 'Consultation générale',
+          cout: 0,
           notes: `Visite ${PERIODICITE_LABELS[periodicite].toLowerCase()} générée automatiquement`,
         };
 
