@@ -509,9 +509,9 @@ export default function DashboardScreen() {
           </Animated.View>
 
           {/* Widget d'alertes */}
-          {/* <View style={styles.alertesContainer}>
+          <View style={styles.alertesContainer}>
             <AlertesWidget />
-            </View> */}
+          </View>
 
           {/* Widgets principaux avec animations */}
           <View style={styles.mainWidgetsContainer}>

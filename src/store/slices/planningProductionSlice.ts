@@ -111,12 +111,25 @@ export const genererPlanSaillies = createAsyncThunk(
 
       // Récupérer les truies disponibles du cheptel
       const animaux = state.production?.entities?.animaux || {};
+      
+      // Récupérer les gestations en cours pour exclure les truies déjà en gestation
+      const gestations = state.reproduction?.entities?.gestations || {};
+      const gestationsEnCours = Object.values(gestations).filter((g: any) => 
+        g && g.statut === 'en_cours'
+      );
+      const truiesEnGestationIds = new Set(
+        gestationsEnCours.map((g: any) => g.truie_id).filter(Boolean)
+      );
+      
       const truiesDisponibles = Object.values(animaux).filter((animal: any) => {
         if (!animal) return false;
         const isFemelle = animal.sexe === 'femelle';
         const isReproductrice = animal.reproducteur === true;
         const isActive = animal.statut === 'actif';
-        return isFemelle && isReproductrice && isActive;
+        const estEnGestation = truiesEnGestationIds.has(animal.id);
+        
+        // Exclure les truies déjà en gestation
+        return isFemelle && isReproductrice && isActive && !estEnGestation;
       });
 
       const nombreTruies = truiesDisponibles.length;

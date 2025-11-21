@@ -36,6 +36,7 @@ export default function AlertesWidget() {
   const sevrages: Sevrage[] = useAppSelector(selectAllSevrages);
   const { stocks } = useAppSelector((state) => state.stocks);
   const { planifications } = useAppSelector((state) => state.planification);
+  const { alertes: alertesPlanning, simulationResultat, sailliesPlanifiees } = useAppSelector((state) => state.planningProduction);
 
   // Charger les données nécessaires
   // Utiliser useRef pour éviter les chargements multiples (boucle infinie)
@@ -207,9 +208,49 @@ export default function AlertesWidget() {
         });
       });
 
+    // 5. Alertes critiques du Planning Production
+    if (alertesPlanning && Array.isArray(alertesPlanning)) {
+      alertesPlanning
+        .filter((alerte) => alerte.gravite === 'critique' || alerte.gravite === 'elevee')
+        .forEach((alerte) => {
+          alerts.push({
+            id: `planning_prod_${alerte.type}`,
+            type: alerte.gravite === 'critique' ? 'error' : 'warning',
+            icon: '📊',
+            message: alerte.message,
+            action: () => {
+              // @ts-ignore - navigation typée
+              navigation.navigate('Main', { screen: 'PlanningProduction' });
+            },
+            priority: alerte.gravite === 'critique' ? 1 : 2,
+          });
+        });
+    }
+
+    // 6. Saillies insuffisantes
+    if (simulationResultat && sailliesPlanifiees) {
+      const nombrePorteesNecessaires = Math.ceil(simulationResultat.nombre_portees_necessaires || 0);
+      const nombreSaillies = sailliesPlanifiees.length;
+      
+      if (nombreSaillies < nombrePorteesNecessaires) {
+        const manquant = nombrePorteesNecessaires - nombreSaillies;
+        alerts.push({
+          id: 'saillies_insuffisantes',
+          type: 'warning',
+          icon: '🐗',
+          message: `Planning saillies incomplet : ${manquant} saillie(s) manquante(s)`,
+          action: () => {
+            // @ts-ignore - navigation typée
+            navigation.navigate('Main', { screen: 'PlanningProduction' });
+          },
+          priority: 2,
+        });
+      }
+    }
+
     // Trier par priorité (1 = haute priorité en premier)
     return alerts.sort((a, b) => a.priority - b.priority);
-  }, [gestationsLength, stocksEnAlerte.length, planificationsLength, gestations, stocksEnAlerte, planifications]);
+  }, [gestationsLength, stocksEnAlerte.length, planificationsLength, gestations, stocksEnAlerte, planifications, alertesPlanning, simulationResultat, sailliesPlanifiees]);
 
   // Sécuriser alertes pour éviter les erreurs
   const alertesLength = Array.isArray(alertes) ? alertes.length : 0;
