@@ -208,23 +208,27 @@ export default function AlertesWidget() {
         });
       });
 
-    // 5. Alertes critiques du Planning Production
+    // 5. Alertes du Planning Production (simples strings)
     if (alertesPlanning && Array.isArray(alertesPlanning)) {
-      alertesPlanning
-        .filter((alerte) => alerte.gravite === 'critique' || alerte.gravite === 'elevee')
-        .forEach((alerte) => {
-          alerts.push({
-            id: `planning_prod_${alerte.type}`,
-            type: alerte.gravite === 'critique' ? 'error' : 'warning',
-            icon: '📊',
-            message: alerte.message,
-            action: () => {
-              // @ts-ignore - navigation typée
-              navigation.navigate('Main', { screen: 'PlanningProduction' });
-            },
-            priority: alerte.gravite === 'critique' ? 1 : 2,
-          });
+      alertesPlanning.forEach((message, index) => {
+        // Les alertes du planning production sont des strings
+        // On détermine la gravité selon les mots-clés dans le message
+        const isCritique = message.toLowerCase().includes('critique') || 
+                          message.toLowerCase().includes('impossible') ||
+                          message.toLowerCase().includes('erreur');
+        
+        alerts.push({
+          id: `planning_prod_${index}_${Date.now()}`, // ID unique avec index et timestamp
+          type: isCritique ? 'error' : 'warning',
+          icon: '📊',
+          message: message,
+          action: () => {
+            // @ts-ignore - navigation typée
+            navigation.navigate('Main', { screen: 'PlanningProduction' });
+          },
+          priority: isCritique ? 1 : 2,
         });
+      });
     }
 
     // 6. Saillies insuffisantes
