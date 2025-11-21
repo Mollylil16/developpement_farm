@@ -3,11 +3,11 @@
  */
 
 import React, { useMemo, useEffect, useCallback, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Dimensions, Animated, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Dimensions, Animated, TouchableOpacity, ActivityIndicator, Alert, RefreshControl } from 'react-native';
 import { LineChart, PieChart } from 'react-native-chart-kit';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadProductionAnimaux, loadPeseesParAnimal } from '../store/slices/productionSlice';
-import { loadRevenus } from '../store/slices/financeSlice';
+import { loadRevenus, loadChargesFixes, loadDepensesPonctuelles } from '../store/slices/financeSlice';
 import { selectAllAnimaux, selectPeseesParAnimal } from '../store/selectors/productionSelectors';
 import { selectAllChargesFixes, selectAllDepensesPonctuelles, selectAllRevenus } from '../store/selectors/financeSelectors';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../constants/theme';
@@ -27,6 +27,7 @@ export default function FinanceGraphiquesComponent() {
   const dispatch = useAppDispatch();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const [exportingPDF, setExportingPDF] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const chargesFixes = useAppSelector(selectAllChargesFixes);
   const depensesPonctuelles = useAppSelector(selectAllDepensesPonctuelles);
   const revenus = useAppSelector(selectAllRevenus);
@@ -39,9 +40,36 @@ export default function FinanceGraphiquesComponent() {
   useEffect(() => {
     if (projetActif) {
       dispatch(loadRevenus(projetActif.id));
+      dispatch(loadChargesFixes(projetActif.id));
+      dispatch(loadDepensesPonctuelles(projetActif.id));
       dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
     }
   }, [dispatch, projetActif?.id]);
+
+  // Fonction de rafraîchissement
+  const onRefresh = useCallback(async () => {
+    if (!projetActif) return;
+    
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        dispatch(loadRevenus(projetActif.id)).unwrap(),
+        dispatch(loadChargesFixes(projetActif.id)).unwrap(),
+        dispatch(loadDepensesPonctuelles(projetActif.id)).unwrap(),
+        dispatch(loadProductionAnimaux({ projetId: projetActif.id })).unwrap(),
+      ]);
+      
+      // Recharger les pesées pour tous les animaux actifs
+      const animauxActifs = animaux.filter(
+        (a) => a.projet_id === projetActif.id && a.statut?.toLowerCase() === 'actif'
+      );
+      await Promise.all(animauxActifs.map(a => dispatch(loadPeseesParAnimal(a.id)).unwrap()));
+    } catch (error) {
+      // Erreur silencieuse
+    } finally {
+      setRefreshing(false);
+    }
+  }, [projetActif, dispatch, animaux]);
 
   // Animation fade-in au chargement
   useEffect(() => {
@@ -369,6 +397,14 @@ export default function FinanceGraphiquesComponent() {
     <ScrollView 
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.scrollContent}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={[colors.primary]}
+          tintColor={colors.primary}
+        />
+      }
     >
       <View style={styles.content}>
         <Text style={[styles.title, { color: colors.text }]}>Vue d'ensemble financière</Text>

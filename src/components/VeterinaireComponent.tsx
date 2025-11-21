@@ -133,9 +133,14 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
   }, [planningGenere]);
 
   // Générer le planning
-  const handleGenererPlanning = useCallback(() => {
+  const handleGenererPlanning = useCallback(async () => {
     if (periodicite === 'personnalise') {
       Alert.alert('Info', 'La périodicité personnalisée nécessite de configurer les dates manuellement.');
+      return;
+    }
+
+    if (!projetActif) {
+      Alert.alert('Erreur', 'Aucun projet actif');
       return;
     }
 
@@ -155,12 +160,46 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
       dateActuelle = new Date(dateActuelle.getTime() + joursIntervalle * 24 * 60 * 60 * 1000);
     }
 
-    setPlanningGenere(planning);
-    Alert.alert(
-      'Succès',
-      `Planning généré avec succès !\n\n${planning.length} visites planifiées sur 6 mois.`
-    );
-  }, [periodicite, dateDebut, typeInterventionDefaut]);
+    // Créer les visites vétérinaires dans la base de données
+    try {
+      for (const item of planning) {
+        // Combiner date et heure
+        const [heures, minutes] = heureVisite.split(':').map(Number);
+        const dateVisite = new Date(item.date);
+        dateVisite.setHours(heures, minutes, 0, 0);
+
+        const input: CreateVisiteVeterinaireInput = {
+          projet_id: projetActif.id,
+          date_visite: dateVisite.toISOString(),
+          type_intervention: item.type,
+          veterinaire_id: veterinaire?.user_id,
+          veterinaire_nom: veterinaire ? `${veterinaire.prenom} ${veterinaire.nom}` : undefined,
+          statut: 'planifiee',
+          notes: `Visite ${PERIODICITE_LABELS[periodicite].toLowerCase()} générée automatiquement`,
+        };
+
+        await dispatch(createVisiteVeterinaire(input)).unwrap();
+      }
+
+      setPlanningGenere(planning);
+      
+      // Réinitialiser les champs après succès
+      setDateDebut(new Date());
+      setHeureVisite('09:00');
+      setPeriodicite('mensuel');
+      setShowModalPlanning(false);
+      
+      Alert.alert(
+        'Succès',
+        `Planning créé avec succès !\n\n${planning.length} visites vétérinaires ont été créées sur 6 mois.`
+      );
+    } catch (error: any) {
+      Alert.alert(
+        'Erreur',
+        error?.message || 'Impossible de créer le planning. Vérifiez vos données et réessayez.'
+      );
+    }
+  }, [periodicite, dateDebut, typeInterventionDefaut, heureVisite, projetActif, veterinaire, dispatch]);
 
   // Modifier une visite
   const handleModifierVisite = useCallback((visite: VisiteVeterinaire) => {

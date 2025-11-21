@@ -17,12 +17,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 
-// Composants (à créer)
+// Composants
 import SimulateurProductionComponent from '../components/SimulateurProductionComponent';
 import PlanificateurSailliesComponent from '../components/PlanificateurSailliesComponent';
 import PrevisionVentesComponent from '../components/PrevisionVentesComponent';
+import PlanificationListComponent from '../components/PlanificationListComponent';
 
-type OngletType = 'simulation' | 'saillies' | 'ventes';
+type OngletType = 'simulation' | 'saillies' | 'ventes' | 'taches';
 
 export default function PlanningProductionScreen() {
   const { colors } = useTheme();
@@ -58,6 +59,12 @@ export default function PlanningProductionScreen() {
       label: 'Ventes',
       icon: 'cash-outline',
       description: 'Prévision des ventes',
+    },
+    {
+      id: 'taches' as OngletType,
+      label: 'Tâches',
+      icon: 'checkmark-circle-outline',
+      description: 'Tâches créées',
     },
   ];
 
@@ -123,6 +130,15 @@ export default function PlanningProductionScreen() {
         return <PlanificateurSailliesComponent refreshControl={refreshControl} />;
       case 'ventes':
         return <PrevisionVentesComponent refreshControl={refreshControl} />;
+      case 'taches':
+        return (
+          <ScrollView 
+            contentContainerStyle={{ paddingBottom: 100 }}
+            refreshControl={refreshControl}
+          >
+            <PlanificationListComponent />
+          </ScrollView>
+        );
       default:
         return null;
     }
