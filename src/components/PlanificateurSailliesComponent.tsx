@@ -232,6 +232,26 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
           <Text style={[styles.infoText, { color: colors.textSecondary }]}>
             🐗 Verrats disponibles : {verratsDisponibles.length}
           </Text>
+          
+          {/* Message d'avertissement si saillies insuffisantes */}
+          {(sailliesPlanifiees || []).length < Math.ceil(simulationResultat.nombre_portees_necessaires || 0) && (
+            <View style={[styles.warningBox, { backgroundColor: colors.warning + '15', borderColor: colors.warning }]}>
+              <Ionicons name="warning" size={20} color={colors.warning} />
+              <View style={styles.warningContent}>
+                <Text style={[styles.warningTitle, { color: colors.warning }]}>
+                  Saillies insuffisantes
+                </Text>
+                <Text style={[styles.warningText, { color: colors.text }]}>
+                  Il manque {Math.ceil(simulationResultat.nombre_portees_necessaires || 0) - (sailliesPlanifiees || []).length} saillie(s) pour atteindre l'objectif de production.
+                  {'\n\n'}
+                  💡 <Text style={{ fontWeight: '600' }}>Que faire ?</Text>
+                  {'\n'}• Cliquez sur "Générer automatiquement" pour créer un plan complet
+                  {'\n'}• Ou ajoutez manuellement les saillies manquantes
+                  {'\n'}• Vérifiez que vous avez assez de truies reproductrices dans votre cheptel
+                </Text>
+              </View>
+            </View>
+          )}
         </View>
       )}
 
@@ -451,6 +471,26 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 14,
+  },
+  warningBox: {
+    flexDirection: 'row',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 12,
+    gap: 12,
+  },
+  warningContent: {
+    flex: 1,
+  },
+  warningTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  warningText: {
+    fontSize: 13,
+    lineHeight: 20,
   },
   buttonRow: {
     flexDirection: 'row',
