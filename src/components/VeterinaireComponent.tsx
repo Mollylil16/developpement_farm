@@ -587,25 +587,62 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
 
           <Text style={[styles.configLabel, { color: colors.text }]}>Date de début</Text>
           <TouchableOpacity
-            style={[styles.dateInput, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}
+            style={[styles.datePickerButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={() => setShowDatePicker(true)}
           >
-            <Ionicons name="calendar-outline" size={20} color={colors.textSecondary} />
-            <Text style={[styles.dateInputText, { color: colors.text }]}>
-              {formatDisplayDate(dateDebut.toISOString().split('T')[0])}
+            <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+            <Text style={[styles.datePickerText, { color: colors.text }]}>
+              {dateDebut.toLocaleDateString('fr-FR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+              })}
             </Text>
           </TouchableOpacity>
+          {showDatePicker && (
+            <DateTimePicker
+              value={dateDebut}
+              mode="date"
+              display="default"
+              onChange={(event: DateTimePickerEvent, date?: Date) => {
+                setShowDatePicker(false);
+                if (date && event.type !== 'dismissed') {
+                  setDateDebut(date);
+                }
+              }}
+            />
+          )}
 
           <Text style={[styles.configLabel, { color: colors.text }]}>Heure prévue</Text>
           <TouchableOpacity
-            style={[styles.dateInput, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}
+            style={[styles.datePickerButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={() => setShowTimePicker(true)}
           >
-            <Ionicons name="time-outline" size={20} color={colors.textSecondary} />
-            <Text style={[styles.dateInputText, { color: colors.text }]}>
+            <Ionicons name="time-outline" size={20} color={colors.primary} />
+            <Text style={[styles.datePickerText, { color: colors.text }]}>
               {heureVisite}
             </Text>
           </TouchableOpacity>
+          {showTimePicker && (
+            <DateTimePicker
+              value={(() => {
+                const [heures, minutes] = heureVisite.split(':').map(Number);
+                const date = new Date();
+                date.setHours(heures, minutes, 0, 0);
+                return date;
+              })()}
+              mode="time"
+              display="default"
+              onChange={(event: DateTimePickerEvent, date?: Date) => {
+                setShowTimePicker(false);
+                if (date && event.type !== 'dismissed') {
+                  const hours = date.getHours().toString().padStart(2, '0');
+                  const minutes = date.getMinutes().toString().padStart(2, '0');
+                  setHeureVisite(`${hours}:${minutes}`);
+                }
+              }}
+            />
+          )}
 
           <Text style={[styles.configLabel, { color: colors.text }]}>Type d'intervention par défaut</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeScroll}>
@@ -708,33 +745,6 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
         </View>
       )}
 
-      {/* DatePickers */}
-      {showDatePicker && (
-        <DateTimePicker
-          value={dateDebut}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(event: DateTimePickerEvent, date?: Date) => {
-            setShowDatePicker(Platform.OS === 'ios');
-            if (date) setDateDebut(date);
-          }}
-        />
-      )}
-      {showTimePicker && (
-        <DateTimePicker
-          value={new Date()}
-          mode="time"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(event: DateTimePickerEvent, date?: Date) => {
-            setShowTimePicker(Platform.OS === 'ios');
-            if (date) {
-              const hours = date.getHours().toString().padStart(2, '0');
-              const minutes = date.getMinutes().toString().padStart(2, '0');
-              setHeureVisite(`${hours}:${minutes}`);
-            }
-          }}
-        />
-      )}
     </View>
   );
 
@@ -1118,16 +1128,18 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
     fontWeight: '500',
   },
-  dateInput: {
+  datePickerButton: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
     gap: SPACING.sm,
+    marginBottom: SPACING.md,
   },
-  dateInputText: {
+  datePickerText: {
     fontSize: FONT_SIZES.md,
+    flex: 1,
   },
   typeScroll: {
     marginBottom: SPACING.sm,
