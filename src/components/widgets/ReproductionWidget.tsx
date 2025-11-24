@@ -28,7 +28,7 @@ function ReproductionWidget({ onPress }: ReproductionWidgetProps) {
   // ❌ CORRECTION CRITIQUE: Ne PAS charger les gestations dans le widget !
   // Les gestations sont déjà chargées par GestationsListComponent
   // Charger ici cause des dispatches multiples et des boucles infinies
-  
+
   /* const dataChargeesRef = React.useRef<string | null>(null);
 
   useEffect(() => {
@@ -74,15 +74,16 @@ function ReproductionWidget({ onPress }: ReproductionWidgetProps) {
     const prochaineMiseBas = prochainesMisesBas.length > 0 ? prochainesMisesBas[0] : null;
 
     // Calcul du pourcentage de progression (approximation basée sur la durée moyenne de gestation de 114 jours)
-    const progressionMoyenne = gestationsEnCours.length > 0
-      ? gestationsEnCours.reduce((sum, g) => {
-          const dateSautage = parseISO(g.date_sautage);
-          const dateMiseBas = parseISO(g.date_mise_bas_prevue);
-          const duree = differenceInDays(dateMiseBas, dateSautage);
-          const joursEcoules = differenceInDays(maintenant, dateSautage);
-          return sum + (joursEcoules / duree) * 100;
-        }, 0) / gestationsEnCours.length
-      : 0;
+    const progressionMoyenne =
+      gestationsEnCours.length > 0
+        ? gestationsEnCours.reduce((sum, g) => {
+            const dateSautage = parseISO(g.date_sautage);
+            const dateMiseBas = parseISO(g.date_mise_bas_prevue);
+            const duree = differenceInDays(dateMiseBas, dateSautage);
+            const joursEcoules = differenceInDays(maintenant, dateSautage);
+            return sum + (joursEcoules / duree) * 100;
+          }, 0) / gestationsEnCours.length
+        : 0;
 
     return {
       gestationsActives: gestationsEnCours.length,
@@ -103,22 +104,41 @@ function ReproductionWidget({ onPress }: ReproductionWidgetProps) {
 
       <View style={styles.content}>
         <View style={styles.statRow}>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Gestations actives:</Text>
-          <Text style={[styles.statValue, { color: colors.text }]}>{reproductionData.gestationsActives ?? 0}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+            Gestations actives:
+          </Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>
+            {reproductionData.gestationsActives ?? 0}
+          </Text>
         </View>
 
         <View style={styles.statRow}>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Mises bas prévues:</Text>
-          <Text style={[styles.statValue, { color: (reproductionData.prochainesMisesBas ?? 0) > 0 ? colors.warning : colors.text }]}>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+            Mises bas prévues:
+          </Text>
+          <Text
+            style={[
+              styles.statValue,
+              {
+                color:
+                  (reproductionData.prochainesMisesBas ?? 0) > 0 ? colors.warning : colors.text,
+              },
+            ]}
+          >
             {reproductionData.prochainesMisesBas ?? 0} (dans 7 jours)
           </Text>
         </View>
 
         {reproductionData.prochaineMiseBas && (
-          <View style={[styles.nextBirthContainer, { backgroundColor: colors.primaryLight + '20' }]}>
+          <View
+            style={[styles.nextBirthContainer, { backgroundColor: colors.primaryLight + '20' }]}
+          >
             <Text style={[styles.nextBirthLabel, { color: colors.textSecondary }]}>Prochaine:</Text>
             <Text style={[styles.nextBirthValue, { color: colors.primary }]}>
-              {reproductionData.prochaineMiseBas.truie_nom || (reproductionData.prochaineMiseBas.truie_id ? `Truie ${reproductionData.prochaineMiseBas.truie_id}` : 'Truie N/A')}
+              {reproductionData.prochaineMiseBas.truie_nom ||
+                (reproductionData.prochaineMiseBas.truie_id
+                  ? `Truie ${reproductionData.prochaineMiseBas.truie_id}`
+                  : 'Truie N/A')}
             </Text>
             <Text style={[styles.nextBirthDays, { color: colors.textSecondary }]}>
               {`dans ${reproductionData.prochaineMiseBas.joursRestants ?? 0} jour${(reproductionData.prochaineMiseBas.joursRestants ?? 0) > 1 ? 's' : ''}`}
@@ -132,7 +152,10 @@ function ReproductionWidget({ onPress }: ReproductionWidgetProps) {
               <View
                 style={[
                   styles.progressFill,
-                  { width: `${Math.round(reproductionData.progressionMoyenne)}%`, backgroundColor: colors.primary },
+                  {
+                    width: `${Math.round(reproductionData.progressionMoyenne)}%`,
+                    backgroundColor: colors.primary,
+                  },
                 ]}
               />
             </View>

@@ -5,8 +5,14 @@
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { normalize } from 'normalizr';
-import { Mortalite, CreateMortaliteInput, UpdateMortaliteInput, StatistiquesMortalite } from '../../types';
-import { databaseService } from '../../services/database';
+import {
+  Mortalite,
+  CreateMortaliteInput,
+  UpdateMortaliteInput,
+  StatistiquesMortalite,
+} from '../../types';
+import { getDatabase } from '../../services/database';
+import { MortaliteRepository } from '../../database/repositories';
 import { mortalitesSchema, mortaliteSchema } from '../normalization/schemas';
 
 // Structure normalisée de l'état
@@ -45,7 +51,9 @@ export const createMortalite = createAsyncThunk(
   'mortalites/createMortalite',
   async (input: CreateMortaliteInput, { rejectWithValue }) => {
     try {
-      const mortalite = await databaseService.createMortalite(input);
+      const db = await getDatabase();
+      const mortaliteRepo = new MortaliteRepository(db);
+      const mortalite = await mortaliteRepo.create(input);
       return mortalite;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la création de la mortalité');
@@ -57,7 +65,9 @@ export const loadMortalites = createAsyncThunk(
   'mortalites/loadMortalites',
   async (projetId: string, { rejectWithValue }) => {
     try {
-      const mortalites = await databaseService.getAllMortalites(projetId);
+      const db = await getDatabase();
+      const mortaliteRepo = new MortaliteRepository(db);
+      const mortalites = await mortaliteRepo.findByProjet(projetId);
       return mortalites;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des mortalités');
@@ -69,7 +79,9 @@ export const loadMortalitesParProjet = createAsyncThunk(
   'mortalites/loadMortalitesParProjet',
   async (projetId: string, { rejectWithValue }) => {
     try {
-      const mortalites = await databaseService.getMortalitesParProjet(projetId);
+      const db = await getDatabase();
+      const mortaliteRepo = new MortaliteRepository(db);
+      const mortalites = await mortaliteRepo.findByProjet(projetId);
       return mortalites;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des mortalités');
@@ -81,8 +93,10 @@ export const loadStatistiquesMortalite = createAsyncThunk(
   'mortalites/loadStatistiquesMortalite',
   async (projetId: string, { rejectWithValue }) => {
     try {
-      const statistiques = await databaseService.getStatistiquesMortalite(projetId);
-      return statistiques;
+      const db = await getDatabase();
+      const databaseService = (await import('../../services/database')).default;
+      const stats = await databaseService.getStatistiquesMortalite(projetId);
+      return stats;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des statistiques');
     }
@@ -93,7 +107,9 @@ export const updateMortalite = createAsyncThunk(
   'mortalites/updateMortalite',
   async ({ id, updates }: { id: string; updates: UpdateMortaliteInput }, { rejectWithValue }) => {
     try {
-      const mortalite = await databaseService.updateMortalite(id, updates);
+      const db = await getDatabase();
+      const mortaliteRepo = new MortaliteRepository(db);
+      const mortalite = await mortaliteRepo.update(id, updates);
       return mortalite;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la mise à jour de la mortalité');
@@ -105,7 +121,9 @@ export const deleteMortalite = createAsyncThunk(
   'mortalites/deleteMortalite',
   async (id: string, { rejectWithValue }) => {
     try {
-      await databaseService.deleteMortalite(id);
+      const db = await getDatabase();
+      const mortaliteRepo = new MortaliteRepository(db);
+      await mortaliteRepo.delete(id);
       return id;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la suppression de la mortalité');
@@ -130,7 +148,10 @@ const mortalitesSlice = createSlice({
       .addCase(createMortalite.fulfilled, (state, action) => {
         state.loading = false;
         const normalized = normalizeMortalite(action.payload);
-        state.entities.mortalites = { ...state.entities.mortalites, ...normalized.entities.mortalites };
+        state.entities.mortalites = {
+          ...state.entities.mortalites,
+          ...normalized.entities.mortalites,
+        };
         state.ids.mortalites = [normalized.result[0], ...state.ids.mortalites];
       })
       .addCase(createMortalite.rejected, (state, action) => {
@@ -144,7 +165,10 @@ const mortalitesSlice = createSlice({
       .addCase(loadMortalites.fulfilled, (state, action) => {
         state.loading = false;
         const normalized = normalizeMortalites(action.payload);
-        state.entities.mortalites = { ...state.entities.mortalites, ...normalized.entities.mortalites };
+        state.entities.mortalites = {
+          ...state.entities.mortalites,
+          ...normalized.entities.mortalites,
+        };
         state.ids.mortalites = normalized.result;
       })
       .addCase(loadMortalites.rejected, (state, action) => {
@@ -158,7 +182,10 @@ const mortalitesSlice = createSlice({
       .addCase(loadMortalitesParProjet.fulfilled, (state, action) => {
         state.loading = false;
         const normalized = normalizeMortalites(action.payload);
-        state.entities.mortalites = { ...state.entities.mortalites, ...normalized.entities.mortalites };
+        state.entities.mortalites = {
+          ...state.entities.mortalites,
+          ...normalized.entities.mortalites,
+        };
         state.ids.mortalites = normalized.result;
       })
       .addCase(loadMortalitesParProjet.rejected, (state, action) => {
@@ -179,7 +206,10 @@ const mortalitesSlice = createSlice({
       })
       .addCase(updateMortalite.fulfilled, (state, action) => {
         const normalized = normalizeMortalite(action.payload);
-        state.entities.mortalites = { ...state.entities.mortalites, ...normalized.entities.mortalites };
+        state.entities.mortalites = {
+          ...state.entities.mortalites,
+          ...normalized.entities.mortalites,
+        };
       })
       .addCase(updateMortalite.rejected, (state, action) => {
         state.error = action.payload as string;

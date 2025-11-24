@@ -10,7 +10,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { selectAllAnimaux } from '../store/selectors/productionSelectors';
 import { createProductionAnimal, updateProductionAnimal } from '../store/slices/productionSlice';
-import { ProductionAnimal, CreateProductionAnimalInput, SexeAnimal, StatutAnimal, STATUT_ANIMAL_LABELS } from '../types';
+import {
+  ProductionAnimal,
+  CreateProductionAnimalInput,
+  SexeAnimal,
+  StatutAnimal,
+  STATUT_ANIMAL_LABELS,
+} from '../types';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
@@ -78,14 +84,11 @@ export default function ProductionAnimalFormModal({
   const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   // Filtrer les animaux du projet actif
-  const animauxProjet = useMemo(
-    () => {
-      if (!Array.isArray(animaux)) return [];
-      return animaux.filter((a) => a.projet_id === projetId);
-    },
-    [animaux, projetId]
-  );
-  
+  const animauxProjet = useMemo(() => {
+    if (!Array.isArray(animaux)) return [];
+    return animaux.filter((a) => a.projet_id === projetId);
+  }, [animaux, projetId]);
+
   // Ne PAS charger automatiquement les animaux - utiliser ceux déjà en cache
   // Cela évite de bloquer l'interface quand on ouvre le modal
   // Les animaux sont déjà chargés par ProductionCheptelComponent
@@ -93,33 +96,26 @@ export default function ProductionAnimalFormModal({
 
   // Pour les parents, on permet de sélectionner tous les animaux actifs du projet
   // (pas seulement ceux marqués comme reproducteurs, pour plus de flexibilité)
-  const animauxParents = useMemo(
-    () => {
-      if (!Array.isArray(animauxProjet)) return [];
-      return animauxProjet.filter(
-        (a) =>
-          a.id !== animal?.id && // Exclure l'animal lui-même
-          (a.statut?.toLowerCase() === 'actif' || a.id === animal?.pere_id || a.id === animal?.mere_id)
-      );
-    },
-    [animauxProjet, animal?.id, animal?.pere_id, animal?.mere_id]
-  );
+  const animauxParents = useMemo(() => {
+    if (!Array.isArray(animauxProjet)) return [];
+    return animauxProjet.filter(
+      (a) =>
+        a.id !== animal?.id && // Exclure l'animal lui-même
+        (a.statut?.toLowerCase() === 'actif' ||
+          a.id === animal?.pere_id ||
+          a.id === animal?.mere_id)
+    );
+  }, [animauxProjet, animal?.id, animal?.pere_id, animal?.mere_id]);
 
-  const reproducteursMales = useMemo(
-    () => {
-      if (!Array.isArray(animauxParents)) return [];
-      return animauxParents.filter((a) => a.sexe === 'male');
-    },
-    [animauxParents]
-  );
+  const reproducteursMales = useMemo(() => {
+    if (!Array.isArray(animauxParents)) return [];
+    return animauxParents.filter((a) => a.sexe === 'male');
+  }, [animauxParents]);
 
-  const reproducteursFemelles = useMemo(
-    () => {
-      if (!Array.isArray(animauxParents)) return [];
-      return animauxParents.filter((a) => a.sexe === 'femelle');
-    },
-    [animauxParents]
-  );
+  const reproducteursFemelles = useMemo(() => {
+    if (!Array.isArray(animauxParents)) return [];
+    return animauxParents.filter((a) => a.sexe === 'femelle');
+  }, [animauxParents]);
 
   const getAnimalLabel = (id?: string | null) => {
     if (!id) {
@@ -152,7 +148,10 @@ export default function ProductionAnimalFormModal({
     // Demander la permission
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission requise', 'Nous avons besoin de votre permission pour accéder aux photos.');
+      Alert.alert(
+        'Permission requise',
+        'Nous avons besoin de votre permission pour accéder aux photos.'
+      );
       return;
     }
 
@@ -173,7 +172,10 @@ export default function ProductionAnimalFormModal({
     // Demander la permission
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission requise', 'Nous avons besoin de votre permission pour accéder à la caméra.');
+      Alert.alert(
+        'Permission requise',
+        'Nous avons besoin de votre permission pour accéder à la caméra.'
+      );
       return;
     }
 
@@ -190,24 +192,20 @@ export default function ProductionAnimalFormModal({
   };
 
   const showImagePickerOptions = () => {
-    Alert.alert(
-      'Ajouter une photo',
-      'Choisissez une option',
-      [
-        {
-          text: 'Prendre une photo',
-          onPress: handleTakePhoto,
-        },
-        {
-          text: 'Choisir dans la galerie',
-          onPress: handlePickImage,
-        },
-        {
-          text: 'Annuler',
-          style: 'cancel',
-        },
-      ]
-    );
+    Alert.alert('Ajouter une photo', 'Choisissez une option', [
+      {
+        text: 'Prendre une photo',
+        onPress: handleTakePhoto,
+      },
+      {
+        text: 'Choisir dans la galerie',
+        onPress: handlePickImage,
+      },
+      {
+        text: 'Annuler',
+        style: 'cancel',
+      },
+    ]);
   };
 
   useEffect(() => {
@@ -253,16 +251,16 @@ export default function ProductionAnimalFormModal({
   const handleSubmit = async () => {
     // Vérifier les permissions
     if (isEditing && !canUpdate('reproduction')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les animaux.');
+      Alert.alert('Permission refusée', "Vous n'avez pas la permission de modifier les animaux.");
       return;
     }
     if (!isEditing && !canCreate('reproduction')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de créer des animaux.');
+      Alert.alert('Permission refusée', "Vous n'avez pas la permission de créer des animaux.");
       return;
     }
 
     if (!formData.code.trim()) {
-      Alert.alert('Erreur', 'Le code de l\'animal est requis.');
+      Alert.alert('Erreur', "Le code de l'animal est requis.");
       return;
     }
 
@@ -294,7 +292,7 @@ export default function ProductionAnimalFormModal({
       }
       onSuccess();
     } catch (error: any) {
-      Alert.alert('Erreur', error || 'Erreur lors de l\'enregistrement.');
+      Alert.alert('Erreur', error || "Erreur lors de l'enregistrement.");
     } finally {
       setLoading(false);
     }
@@ -307,279 +305,312 @@ export default function ProductionAnimalFormModal({
       <CustomModal
         visible={visible}
         onClose={onClose}
-        title={isEditing ? 'Modifier l\'animal' : 'Nouvel animal'}
+        title={isEditing ? "Modifier l'animal" : 'Nouvel animal'}
         confirmText={isEditing ? 'Modifier' : 'Ajouter'}
         onConfirm={handleSubmit}
         showButtons={true}
         loading={loading}
       >
         <ScrollView style={styles.scrollView}>
-        <FormField
-          label="Code de l'animal *"
-          value={formData.code}
-          onChangeText={(text) => setFormData({ ...formData, code: text.toUpperCase() })}
-          placeholder="Ex: PORC001"
-          required
-        />
-        <FormField
-          label="Nom (optionnel)"
-          value={formData.nom || ''}
-          onChangeText={(text) => setFormData({ ...formData, nom: text })}
-          placeholder="Ex: Gros Cochon"
-        />
+          <FormField
+            label="Code de l'animal *"
+            value={formData.code}
+            onChangeText={(text) => setFormData({ ...formData, code: text.toUpperCase() })}
+            placeholder="Ex: PORC001"
+            required
+          />
+          <FormField
+            label="Nom (optionnel)"
+            value={formData.nom || ''}
+            onChangeText={(text) => setFormData({ ...formData, nom: text })}
+            placeholder="Ex: Gros Cochon"
+          />
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Photo (optionnelle)</Text>
-          {photoUri ? (
-            <View style={styles.photoContainer}>
-              <Image source={{ uri: photoUri }} style={styles.photoPreview} />
-              <View style={styles.photoActions}>
-                <TouchableOpacity
-                  style={[styles.photoButton, { backgroundColor: colors.primary }]}
-                  onPress={showImagePickerOptions}
-                >
-                  <Ionicons name="camera" size={20} color={colors.textOnPrimary} />
-                  <Text style={[styles.photoButtonText, { color: colors.textOnPrimary }]}>Changer</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.photoButton, { backgroundColor: colors.error }]}
-                  onPress={() => setPhotoUri(null)}
-                >
-                  <Ionicons name="trash" size={20} color={colors.textOnPrimary} />
-                  <Text style={[styles.photoButtonText, { color: colors.textOnPrimary }]}>Supprimer</Text>
-                </TouchableOpacity>
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Photo (optionnelle)</Text>
+            {photoUri ? (
+              <View style={styles.photoContainer}>
+                <Image source={{ uri: photoUri }} style={styles.photoPreview} />
+                <View style={styles.photoActions}>
+                  <TouchableOpacity
+                    style={[styles.photoButton, { backgroundColor: colors.primary }]}
+                    onPress={showImagePickerOptions}
+                  >
+                    <Ionicons name="camera" size={20} color={colors.textOnPrimary} />
+                    <Text style={[styles.photoButtonText, { color: colors.textOnPrimary }]}>
+                      Changer
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.photoButton, { backgroundColor: colors.error }]}
+                    onPress={() => setPhotoUri(null)}
+                  >
+                    <Ionicons name="trash" size={20} color={colors.textOnPrimary} />
+                    <Text style={[styles.photoButtonText, { color: colors.textOnPrimary }]}>
+                      Supprimer
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
+            ) : (
+              <TouchableOpacity
+                style={[
+                  styles.photoPlaceholder,
+                  { borderColor: colors.border, backgroundColor: colors.surface },
+                ]}
+                onPress={showImagePickerOptions}
+              >
+                <Ionicons name="camera-outline" size={48} color={colors.textSecondary} />
+                <Text style={[styles.photoPlaceholderText, { color: colors.textSecondary }]}>
+                  Ajouter une photo
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <FormField
+            label="Origine"
+            value={formData.origine || ''}
+            onChangeText={(text) => setFormData({ ...formData, origine: text })}
+            placeholder="Ex: Élevage X, Achat Y"
+          />
+          <FormField
+            label="Race"
+            value={formData.race || ''}
+            onChangeText={(text) => setFormData({ ...formData, race: text })}
+            placeholder="Ex: Large White, Landrace..."
+          />
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Sexe *</Text>
+            <View style={styles.optionsContainer}>
+              {sexes.map((sexe) => (
+                <TouchableOpacity
+                  key={sexe}
+                  style={[
+                    styles.option,
+                    {
+                      borderColor: formData.sexe === sexe ? colors.primary : colors.border,
+                      backgroundColor: formData.sexe === sexe ? colors.primary : colors.background,
+                    },
+                  ]}
+                  onPress={() => {
+                    // Si le sexe est "femelle" ou "male", définir automatiquement reproducteur à true
+                    const nouveauReproducteur = sexe === 'femelle' || sexe === 'male' ? true : formData.reproducteur;
+                    setFormData({ ...formData, sexe, reproducteur: nouveauReproducteur });
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.optionText,
+                      {
+                        color: formData.sexe === sexe ? colors.textOnPrimary : colors.text,
+                        fontWeight: formData.sexe === sexe ? '600' : 'normal',
+                      },
+                    ]}
+                  >
+                    {sexe === 'male' ? 'Mâle' : sexe === 'femelle' ? 'Femelle' : 'Indéterminé'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
-          ) : (
+          </View>
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Reproducteur ?</Text>
+            <View style={styles.optionsContainer}>
+              {[true, false].map((value) => (
+                <TouchableOpacity
+                  key={value ? 'oui' : 'non'}
+                  style={[
+                    styles.option,
+                    {
+                      borderColor: formData.reproducteur === value ? colors.primary : colors.border,
+                      backgroundColor:
+                        formData.reproducteur === value ? colors.primary : colors.background,
+                    },
+                  ]}
+                  onPress={() => setFormData({ ...formData, reproducteur: value })}
+                >
+                  <Text
+                    style={[
+                      styles.optionText,
+                      {
+                        color: formData.reproducteur === value ? colors.textOnPrimary : colors.text,
+                        fontWeight: formData.reproducteur === value ? '600' : 'normal',
+                      },
+                    ]}
+                  >
+                    {value ? 'Oui' : 'Non'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Date de naissance</Text>
             <TouchableOpacity
-              style={[styles.photoPlaceholder, { borderColor: colors.border, backgroundColor: colors.surface }]}
-              onPress={showImagePickerOptions}
+              style={[
+                styles.dateButton,
+                { borderColor: colors.border, backgroundColor: colors.background },
+              ]}
+              onPress={() => setShowDateNaissancePicker(true)}
             >
-              <Ionicons name="camera-outline" size={48} color={colors.textSecondary} />
-              <Text style={[styles.photoPlaceholderText, { color: colors.textSecondary }]}>
-                Ajouter une photo
+              <Text style={[styles.dateButtonText, { color: colors.text }]}>
+                {formData.date_naissance
+                  ? parseLocalDate(formData.date_naissance).toLocaleDateString('fr-FR', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                    })
+                  : 'Sélectionner une date'}
               </Text>
             </TouchableOpacity>
-          )}
-        </View>
-
-        <FormField
-          label="Origine"
-          value={formData.origine || ''}
-          onChangeText={(text) => setFormData({ ...formData, origine: text })}
-          placeholder="Ex: Élevage X, Achat Y"
-        />
-        <FormField
-          label="Race"
-          value={formData.race || ''}
-          onChangeText={(text) => setFormData({ ...formData, race: text })}
-          placeholder="Ex: Large White, Landrace..."
-        />
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Sexe *</Text>
-          <View style={styles.optionsContainer}>
-            {sexes.map((sexe) => (
-              <TouchableOpacity
-                key={sexe}
-                style={[
-                  styles.option,
-                  {
-                    borderColor: formData.sexe === sexe ? colors.primary : colors.border,
-                    backgroundColor: formData.sexe === sexe ? colors.primary : colors.background,
-                  },
-                ]}
-                onPress={() => setFormData({ ...formData, sexe })}
-              >
-                <Text
-                  style={[
-                    styles.optionText,
-                    {
-                      color: formData.sexe === sexe ? colors.textOnPrimary : colors.text,
-                      fontWeight: formData.sexe === sexe ? '600' : 'normal',
-                    },
-                  ]}
-                >
-                  {sexe === 'male' ? 'Mâle' : sexe === 'femelle' ? 'Femelle' : 'Indéterminé'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Reproducteur ?</Text>
-          <View style={styles.optionsContainer}>
-            {[true, false].map((value) => (
-              <TouchableOpacity
-                key={value ? 'oui' : 'non'}
-                style={[
-                  styles.option,
-                  {
-                    borderColor: formData.reproducteur === value ? colors.primary : colors.border,
-                    backgroundColor: formData.reproducteur === value ? colors.primary : colors.background,
-                  },
-                ]}
-                onPress={() => setFormData({ ...formData, reproducteur: value })}
-              >
-                <Text
-                  style={[
-                    styles.optionText,
-                    {
-                      color: formData.reproducteur === value ? colors.textOnPrimary : colors.text,
-                      fontWeight: formData.reproducteur === value ? '600' : 'normal',
-                    },
-                  ]}
-                >
-                  {value ? 'Oui' : 'Non'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Date de naissance</Text>
-          <TouchableOpacity
-            style={[styles.dateButton, { borderColor: colors.border, backgroundColor: colors.background }]}
-            onPress={() => setShowDateNaissancePicker(true)}
-          >
-            <Text style={[styles.dateButtonText, { color: colors.text }]}>
-              {formData.date_naissance
-                ? parseLocalDate(formData.date_naissance).toLocaleDateString('fr-FR', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric',
-                  })
-                : 'Sélectionner une date'}
-            </Text>
-          </TouchableOpacity>
-          {showDateNaissancePicker && (
-            <DateTimePicker
-              value={formData.date_naissance ? parseLocalDate(formData.date_naissance) : new Date()}
-              mode="date"
-              display="default"
-              onChange={(event, selectedDate) => {
-                setShowDateNaissancePicker(false);
-                if (selectedDate && event.type !== 'dismissed') {
-                  setFormData({
-                    ...formData,
-                    date_naissance: formatDateToLocal(selectedDate),
-                  });
+            {showDateNaissancePicker && (
+              <DateTimePicker
+                value={
+                  formData.date_naissance ? parseLocalDate(formData.date_naissance) : new Date()
                 }
-              }}
-            />
-          )}
-        </View>
-
-        <FormField
-          label="Poids à l'arrivée (kg)"
-          value={formData.poids_initial?.toString() || ''}
-          onChangeText={(text) => setFormData({ ...formData, poids_initial: text ? parseFloat(text) : undefined })}
-          keyboardType="numeric"
-          placeholder="Ex: 25.5"
-        />
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Date d'entrée</Text>
-          <TouchableOpacity
-            style={[styles.dateButton, { borderColor: colors.border, backgroundColor: colors.background }]}
-            onPress={() => setShowDateEntreePicker(true)}
-          >
-            <Text style={[styles.dateButtonText, { color: colors.text }]}>
-              {formData.date_entree
-                ? parseLocalDate(formData.date_entree).toLocaleDateString('fr-FR', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric',
-                  })
-                : 'Sélectionner une date'}
-            </Text>
-          </TouchableOpacity>
-          {showDateEntreePicker && (
-            <DateTimePicker
-              value={formData.date_entree ? parseLocalDate(formData.date_entree) : new Date()}
-              mode="date"
-              display="default"
-              onChange={(event, selectedDate) => {
-                setShowDateEntreePicker(false);
-                if (selectedDate && event.type !== 'dismissed') {
-                  setFormData({
-                    ...formData,
-                    date_entree: formatDateToLocal(selectedDate),
-                  });
-                }
-              }}
-            />
-          )}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Parents (facultatif)</Text>
-          <Text style={[styles.helperText, { color: colors.textSecondary }]}>
-            Sélectionnez les reproducteurs enregistrés dans le cheptel ou choisissez « Inconnu ».
-          </Text>
-          <View style={styles.parentButtonsContainer}>
-            <TouchableOpacity
-              style={[styles.selectButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
-              onPress={() => setShowPereModal(true)}
-            >
-              <Text style={[styles.selectButtonLabel, { color: colors.textSecondary }]}>Père</Text>
-              <Text style={[styles.selectButtonValue, { color: colors.text }]}>
-                {getAnimalLabel(formData.pere_id)}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.selectButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
-              onPress={() => setShowMereModal(true)}
-            >
-              <Text style={[styles.selectButtonLabel, { color: colors.textSecondary }]}>Mère</Text>
-              <Text style={[styles.selectButtonValue, { color: colors.text }]}>
-                {getAnimalLabel(formData.mere_id)}
-              </Text>
-            </TouchableOpacity>
+                mode="date"
+                display="default"
+                onChange={(event, selectedDate) => {
+                  setShowDateNaissancePicker(false);
+                  if (selectedDate && event.type !== 'dismissed') {
+                    setFormData({
+                      ...formData,
+                      date_naissance: formatDateToLocal(selectedDate),
+                    });
+                  }
+                }}
+              />
+            )}
           </View>
-        </View>
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Statut *</Text>
-          <View style={styles.optionsContainer}>
-            {(['actif', 'mort', 'vendu', 'offert', 'autre'] as StatutAnimal[]).map((statut) => (
+          <FormField
+            label="Poids à l'arrivée (kg)"
+            value={formData.poids_initial?.toString() || ''}
+            onChangeText={(text) =>
+              setFormData({ ...formData, poids_initial: text ? parseFloat(text) : undefined })
+            }
+            keyboardType="numeric"
+            placeholder="Ex: 25.5"
+          />
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Date d'entrée</Text>
+            <TouchableOpacity
+              style={[
+                styles.dateButton,
+                { borderColor: colors.border, backgroundColor: colors.background },
+              ]}
+              onPress={() => setShowDateEntreePicker(true)}
+            >
+              <Text style={[styles.dateButtonText, { color: colors.text }]}>
+                {formData.date_entree
+                  ? parseLocalDate(formData.date_entree).toLocaleDateString('fr-FR', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                    })
+                  : 'Sélectionner une date'}
+              </Text>
+            </TouchableOpacity>
+            {showDateEntreePicker && (
+              <DateTimePicker
+                value={formData.date_entree ? parseLocalDate(formData.date_entree) : new Date()}
+                mode="date"
+                display="default"
+                onChange={(event, selectedDate) => {
+                  setShowDateEntreePicker(false);
+                  if (selectedDate && event.type !== 'dismissed') {
+                    setFormData({
+                      ...formData,
+                      date_entree: formatDateToLocal(selectedDate),
+                    });
+                  }
+                }}
+              />
+            )}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Parents (facultatif)</Text>
+            <Text style={[styles.helperText, { color: colors.textSecondary }]}>
+              Sélectionnez les reproducteurs enregistrés dans le cheptel ou choisissez « Inconnu ».
+            </Text>
+            <View style={styles.parentButtonsContainer}>
               <TouchableOpacity
-                key={statut}
                 style={[
-                  styles.option,
-                  {
-                    borderColor: formData.statut === statut ? colors.primary : colors.border,
-                    backgroundColor: formData.statut === statut ? colors.primary : colors.background,
-                  },
+                  styles.selectButton,
+                  { borderColor: colors.border, backgroundColor: colors.surface },
                 ]}
-                onPress={() => setFormData({ ...formData, statut })}
+                onPress={() => setShowPereModal(true)}
               >
-                <Text
-                  style={[
-                    styles.optionText,
-                    {
-                      color: formData.statut === statut ? colors.textOnPrimary : colors.text,
-                      fontWeight: formData.statut === statut ? '600' : 'normal',
-                    },
-                  ]}
-                >
-                  {STATUT_ANIMAL_LABELS[statut]}
+                <Text style={[styles.selectButtonLabel, { color: colors.textSecondary }]}>
+                  Père
+                </Text>
+                <Text style={[styles.selectButtonValue, { color: colors.text }]}>
+                  {getAnimalLabel(formData.pere_id)}
                 </Text>
               </TouchableOpacity>
-            ))}
+              <TouchableOpacity
+                style={[
+                  styles.selectButton,
+                  { borderColor: colors.border, backgroundColor: colors.surface },
+                ]}
+                onPress={() => setShowMereModal(true)}
+              >
+                <Text style={[styles.selectButtonLabel, { color: colors.textSecondary }]}>
+                  Mère
+                </Text>
+                <Text style={[styles.selectButtonValue, { color: colors.text }]}>
+                  {getAnimalLabel(formData.mere_id)}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
 
-        <FormField
-          label="Notes (vaccins, dates, etc.)"
-          value={formData.notes || ''}
-          onChangeText={(text) => setFormData({ ...formData, notes: text })}
-          placeholder="Notes supplémentaires sur cet animal (vaccins, dates, etc.)..."
-          multiline
-          numberOfLines={3}
-        />
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Statut *</Text>
+            <View style={styles.optionsContainer}>
+              {(['actif', 'mort', 'vendu', 'offert', 'autre'] as StatutAnimal[]).map((statut) => (
+                <TouchableOpacity
+                  key={statut}
+                  style={[
+                    styles.option,
+                    {
+                      borderColor: formData.statut === statut ? colors.primary : colors.border,
+                      backgroundColor:
+                        formData.statut === statut ? colors.primary : colors.background,
+                    },
+                  ]}
+                  onPress={() => setFormData({ ...formData, statut })}
+                >
+                  <Text
+                    style={[
+                      styles.optionText,
+                      {
+                        color: formData.statut === statut ? colors.textOnPrimary : colors.text,
+                        fontWeight: formData.statut === statut ? '600' : 'normal',
+                      },
+                    ]}
+                  >
+                    {STATUT_ANIMAL_LABELS[statut]}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          <FormField
+            label="Notes (vaccins, dates, etc.)"
+            value={formData.notes || ''}
+            onChangeText={(text) => setFormData({ ...formData, notes: text })}
+            placeholder="Notes supplémentaires sur cet animal (vaccins, dates, etc.)..."
+            multiline
+            numberOfLines={3}
+          />
         </ScrollView>
       </CustomModal>
 
@@ -594,7 +625,10 @@ export default function ProductionAnimalFormModal({
             style={[
               styles.modalOption,
               { borderColor: colors.border, backgroundColor: colors.surface },
-              formData.pere_id === null && { borderColor: colors.primary, backgroundColor: colors.primary + '12' },
+              formData.pere_id === null && {
+                borderColor: colors.primary,
+                backgroundColor: colors.primary + '12',
+              },
             ]}
             onPress={() => handleSelectPere(null)}
           >
@@ -607,7 +641,7 @@ export default function ProductionAnimalFormModal({
           {reproducteursMales.length === 0 ? (
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
               {animauxProjet.length === 0
-                ? 'Aucun animal enregistré dans le cheptel. Ajoutez d\'abord des animaux pour les sélectionner comme parents.'
+                ? "Aucun animal enregistré dans le cheptel. Ajoutez d'abord des animaux pour les sélectionner comme parents."
                 : 'Aucun mâle actif disponible. Ajoutez des animaux mâles dans le cheptel pour les sélectionner comme père.'}
             </Text>
           ) : (
@@ -651,7 +685,10 @@ export default function ProductionAnimalFormModal({
             style={[
               styles.modalOption,
               { borderColor: colors.border, backgroundColor: colors.surface },
-              formData.mere_id === null && { borderColor: colors.primary, backgroundColor: colors.primary + '12' },
+              formData.mere_id === null && {
+                borderColor: colors.primary,
+                backgroundColor: colors.primary + '12',
+              },
             ]}
             onPress={() => handleSelectMere(null)}
           >
@@ -664,7 +701,7 @@ export default function ProductionAnimalFormModal({
           {reproducteursFemelles.length === 0 ? (
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
               {animauxProjet.length === 0
-                ? 'Aucun animal enregistré dans le cheptel. Ajoutez d\'abord des animaux pour les sélectionner comme parents.'
+                ? "Aucun animal enregistré dans le cheptel. Ajoutez d'abord des animaux pour les sélectionner comme parents."
                 : 'Aucune femelle active disponible. Ajoutez des animaux femelles dans le cheptel pour les sélectionner comme mère.'}
             </Text>
           ) : (
@@ -824,4 +861,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

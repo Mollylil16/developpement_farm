@@ -47,11 +47,7 @@ export function generateDashboardHTML(data: DashboardData): string {
   const { projet, finances, production, reproduction, alertes } = data;
 
   const content = `
-    ${generatePDFHeader(
-      'Vue d\'ensemble',
-      'Rapport complet de votre exploitation',
-      projet.nom
-    )}
+    ${generatePDFHeader("Vue d'ensemble", 'Rapport complet de votre exploitation', projet.nom)}
 
     <!-- Informations du projet -->
     <div class="section">
@@ -126,14 +122,18 @@ export function generateDashboardHTML(data: DashboardData): string {
         </div>
       </div>
       
-      ${production.gmqMoyen > 0 ? `
+      ${
+        production.gmqMoyen > 0
+          ? `
       <div class="card">
         <p><strong>GMQ Moyen :</strong> ${formatNumber(production.gmqMoyen, 0)} g/jour</p>
         <p style="font-size: 10px; color: #666;">
           ℹ️ Basé sur les dernières pesées des animaux actifs
         </p>
       </div>
-      ` : ''}
+      `
+          : ''
+      }
     </div>
 
     <!-- Reproduction -->
@@ -160,28 +160,43 @@ export function generateDashboardHTML(data: DashboardData): string {
     </div>
 
     <!-- Alertes -->
-    ${alertes.length > 0 ? `
+    ${
+      alertes.length > 0
+        ? `
     <div class="section">
       <h2>⚠️ Alertes Actives (${alertes.length})</h2>
       <div class="card">
-        ${alertes.slice(0, 10).map((alerte, index) => `
+        ${alertes
+          .slice(0, 10)
+          .map(
+            (alerte, index) => `
           <div style="padding: 8px 0; ${index < alertes.length - 1 ? 'border-bottom: 1px dashed #ddd;' : ''}">
             <span class="badge ${
-              alerte.type === 'error' ? 'badge-danger' : 
-              alerte.type === 'warning' ? 'badge-warning' : 
-              'badge-info'
+              alerte.type === 'error'
+                ? 'badge-danger'
+                : alerte.type === 'warning'
+                  ? 'badge-warning'
+                  : 'badge-info'
             }">${alerte.type.toUpperCase()}</span>
             <p style="margin-top: 5px; font-size: 11px;">${alerte.message}</p>
           </div>
-        `).join('')}
-        ${alertes.length > 10 ? `
+        `
+          )
+          .join('')}
+        ${
+          alertes.length > 10
+            ? `
           <p style="margin-top: 10px; font-size: 10px; color: #999;">
             ... et ${alertes.length - 10} autre(s) alerte(s)
           </p>
-        ` : ''}
+        `
+            : ''
+        }
       </div>
     </div>
-    ` : ''}
+    `
+        : ''
+    }
 
     ${generatePDFFooter()}
   `;
@@ -195,7 +210,6 @@ export function generateDashboardHTML(data: DashboardData): string {
 export async function exportDashboardPDF(data: DashboardData): Promise<void> {
   const html = generateDashboardHTML(data);
   const fileName = `Dashboard_${data.projet.nom}_${new Date().toISOString().split('T')[0]}.pdf`;
-  
+
   await generateAndSharePDF(html, fileName);
 }
-

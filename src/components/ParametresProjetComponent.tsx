@@ -3,7 +3,15 @@
  */
 
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  TextInput,
+} from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import {
@@ -38,7 +46,7 @@ export default function ParametresProjetComponent() {
 
   // Utiliser useRef pour tracker les chargements et éviter les boucles
   const aChargeRef = useRef<string | null>(null);
-  
+
   // Charger les données uniquement quand l'écran est en focus
   useFocusEffect(
     React.useCallback(() => {
@@ -54,7 +62,7 @@ export default function ParametresProjetComponent() {
         aChargeRef.current = null;
         return;
       }
-      
+
       // Charger uniquement si le projet a changé
       if (aChargeRef.current !== projetActif.id) {
         aChargeRef.current = projetActif.id;
@@ -76,6 +84,7 @@ export default function ParametresProjetComponent() {
         age_moyen_actuel: projetActif.age_moyen_actuel,
         prix_kg_vif: projetActif.prix_kg_vif,
         prix_kg_carcasse: projetActif.prix_kg_carcasse,
+        duree_amortissement_par_defaut_mois: projetActif.duree_amortissement_par_defaut_mois || 36,
         notes: projetActif.notes || '',
       });
     }
@@ -174,7 +183,7 @@ export default function ParametresProjetComponent() {
   }
 
   return (
-    <ScrollView 
+    <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
@@ -183,32 +192,40 @@ export default function ParametresProjetComponent() {
       {projetActif && (
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Projet Actif</Text>
-          <View style={[
-            styles.card,
-            {
-              backgroundColor: colors.surface,
-              borderColor: colors.border,
-              ...colors.shadow.small,
-            },
-          ]}>
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                ...colors.shadow.small,
+              },
+            ]}
+          >
             <View style={styles.cardHeader}>
               <View style={styles.cardHeaderContent}>
                 <Text style={[styles.cardTitle, { color: colors.text }]}>{projetActif.nom}</Text>
-                <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>{projetActif.localisation}</Text>
+                <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
+                  {projetActif.localisation}
+                </Text>
               </View>
             </View>
             {!isEditing ? (
               <>
                 <View style={[styles.divider, { backgroundColor: colors.border }]} />
                 <View style={styles.statsRow}>
-                  <View style={[
-                    styles.statCard,
-                    {
-                      backgroundColor: colors.background,
-                      borderColor: colors.border,
-                    },
-                  ]}>
-                    <Text style={[styles.statValue, { color: colors.text }]}>{effectifsReels.truies}</Text>
+                  <View
+                    style={[
+                      styles.statCard,
+                      {
+                        backgroundColor: colors.background,
+                        borderColor: colors.border,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.statValue, { color: colors.text }]}>
+                      {effectifsReels.truies}
+                    </Text>
                     <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Truies</Text>
                     {projetActif.nombre_truies !== effectifsReels.truies && (
                       <Text style={[styles.statSubtext, { color: colors.textSecondary }]}>
@@ -216,14 +233,18 @@ export default function ParametresProjetComponent() {
                       </Text>
                     )}
                   </View>
-                  <View style={[
-                    styles.statCard,
-                    {
-                      backgroundColor: colors.background,
-                      borderColor: colors.border,
-                    },
-                  ]}>
-                    <Text style={[styles.statValue, { color: colors.text }]}>{effectifsReels.verrats}</Text>
+                  <View
+                    style={[
+                      styles.statCard,
+                      {
+                        backgroundColor: colors.background,
+                        borderColor: colors.border,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.statValue, { color: colors.text }]}>
+                      {effectifsReels.verrats}
+                    </Text>
                     <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Verrats</Text>
                     {projetActif.nombre_verrats !== effectifsReels.verrats && (
                       <Text style={[styles.statSubtext, { color: colors.textSecondary }]}>
@@ -231,15 +252,21 @@ export default function ParametresProjetComponent() {
                       </Text>
                     )}
                   </View>
-                  <View style={[
-                    styles.statCard,
-                    {
-                      backgroundColor: colors.background,
-                      borderColor: colors.border,
-                    },
-                  ]}>
-                    <Text style={[styles.statValue, { color: colors.text }]}>{effectifsReels.porcelets}</Text>
-                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Porcelets</Text>
+                  <View
+                    style={[
+                      styles.statCard,
+                      {
+                        backgroundColor: colors.background,
+                        borderColor: colors.border,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.statValue, { color: colors.text }]}>
+                      {effectifsReels.porcelets}
+                    </Text>
+                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                      Porcelets
+                    </Text>
                     {projetActif.nombre_porcelets !== effectifsReels.porcelets && (
                       <Text style={[styles.statSubtext, { color: colors.textSecondary }]}>
                         (Initial: {projetActif.nombre_porcelets})
@@ -257,7 +284,9 @@ export default function ParametresProjetComponent() {
                   onPress={() => setIsEditing(true)}
                   activeOpacity={0.8}
                 >
-                  <Text style={[styles.editButtonText, { color: colors.textOnPrimary }]}>Modifier</Text>
+                  <Text style={[styles.editButtonText, { color: colors.textOnPrimary }]}>
+                    Modifier
+                  </Text>
                 </TouchableOpacity>
               </>
             ) : (
@@ -273,7 +302,7 @@ export default function ParametresProjetComponent() {
                   onChangeText={(text) => setEditData({ ...editData, localisation: text })}
                 />
                 <FormField
-                  label="Nombre de truies"
+                  label="Nombre de truies reproductrices"
                   value={editData.nombre_truies?.toString() || '0'}
                   onChangeText={(text) =>
                     setEditData({ ...editData, nombre_truies: parseInt(text) || 0 })
@@ -281,7 +310,7 @@ export default function ParametresProjetComponent() {
                   keyboardType="numeric"
                 />
                 <FormField
-                  label="Nombre de verrats"
+                  label="Nombre de verrats reproducteurs"
                   value={editData.nombre_verrats?.toString() || '0'}
                   onChangeText={(text) =>
                     setEditData({ ...editData, nombre_verrats: parseInt(text) || 0 })
@@ -325,11 +354,39 @@ export default function ParametresProjetComponent() {
                   label="Prix/kg carcasse (XOF)"
                   value={editData.prix_kg_carcasse?.toString() || ''}
                   onChangeText={(text) =>
-                    setEditData({ ...editData, prix_kg_carcasse: text ? parseFloat(text) : undefined })
+                    setEditData({
+                      ...editData,
+                      prix_kg_carcasse: text ? parseFloat(text) : undefined,
+                    })
                   }
                   keyboardType="numeric"
                   placeholder="Ex: 1300"
                 />
+                
+                <View style={{ marginTop: 16, marginBottom: 8 }}>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                    💰 Gestion OPEX / CAPEX
+                  </Text>
+                </View>
+                
+                <FormField
+                  label="Durée d'amortissement (mois)"
+                  value={editData.duree_amortissement_par_defaut_mois?.toString() || '36'}
+                  onChangeText={(text) =>
+                    setEditData({
+                      ...editData,
+                      duree_amortissement_par_defaut_mois: text ? parseInt(text) : 36,
+                    })
+                  }
+                  keyboardType="numeric"
+                  placeholder="36"
+                  helper="Durée sur laquelle les investissements (CAPEX) sont amortis. Défaut: 36 mois (3 ans)"
+                />
+                
+                <Text style={[styles.helperText, { color: colors.textSecondary, marginTop: 8, marginBottom: 16 }]}>
+                  Les investissements (équipements lourds, aménagements, etc.) seront automatiquement amortis sur cette durée dans le calcul des coûts de production.
+                </Text>
+                
                 <FormField
                   label="Notes"
                   value={editData.notes || ''}
@@ -338,22 +395,20 @@ export default function ParametresProjetComponent() {
                 />
                 <View style={styles.editActions}>
                   <TouchableOpacity
-                    style={[
-                      styles.actionButton,
-                      { backgroundColor: colors.textSecondary },
-                    ]}
+                    style={[styles.actionButton, { backgroundColor: colors.textSecondary }]}
                     onPress={() => setIsEditing(false)}
                   >
-                    <Text style={[styles.cancelButtonText, { color: colors.textOnPrimary }]}>Annuler</Text>
+                    <Text style={[styles.cancelButtonText, { color: colors.textOnPrimary }]}>
+                      Annuler
+                    </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[
-                      styles.actionButton,
-                      { backgroundColor: colors.primary },
-                    ]}
+                    style={[styles.actionButton, { backgroundColor: colors.primary }]}
                     onPress={handleSaveEdit}
                   >
-                    <Text style={[styles.saveButtonText, { color: colors.textOnPrimary }]}>Enregistrer</Text>
+                    <Text style={[styles.saveButtonText, { color: colors.textOnPrimary }]}>
+                      Enregistrer
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </>
@@ -373,8 +428,8 @@ export default function ParametresProjetComponent() {
           />
         </View>
         {projets.filter((p) => p.id !== projetActif?.id).length === 0 ? (
-          <EmptyState 
-            title="Aucun autre projet" 
+          <EmptyState
+            title="Aucun autre projet"
             message="Créez d'autres projets pour gérer plusieurs fermes"
             action={
               <Button
@@ -402,26 +457,37 @@ export default function ParametresProjetComponent() {
               >
                 <View style={styles.projetCardContent}>
                   <View style={styles.projetCardHeader}>
-                    <Text style={[styles.projetCardTitle, { color: colors.text }]}>{projet.nom}</Text>
-                    <View style={[
-                      styles.badge,
-                      projet.statut === 'actif' 
-                        ? { backgroundColor: colors.success + '15' }
-                        : { backgroundColor: colors.textSecondary + '15' }
-                    ]}>
-                      <Text style={[
-                        styles.badgeText, 
-                        { 
-                          color: projet.statut === 'actif' ? colors.success : colors.textSecondary 
-                        }
-                      ]}>
+                    <Text style={[styles.projetCardTitle, { color: colors.text }]}>
+                      {projet.nom}
+                    </Text>
+                    <View
+                      style={[
+                        styles.badge,
+                        projet.statut === 'actif'
+                          ? { backgroundColor: colors.success + '15' }
+                          : { backgroundColor: colors.textSecondary + '15' },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.badgeText,
+                          {
+                            color:
+                              projet.statut === 'actif' ? colors.success : colors.textSecondary,
+                          },
+                        ]}
+                      >
                         {projet.statut === 'actif' ? 'Actif' : 'Archivé'}
                       </Text>
                     </View>
                   </View>
-                  <Text style={[styles.projetCardLocation, { color: colors.textSecondary }]}>{projet.localisation}</Text>
+                  <Text style={[styles.projetCardLocation, { color: colors.textSecondary }]}>
+                    {projet.localisation}
+                  </Text>
                 </View>
-                <View style={[styles.switchIconContainer, { backgroundColor: colors.primary + '10' }]}>
+                <View
+                  style={[styles.switchIconContainer, { backgroundColor: colors.primary + '10' }]}
+                >
                   <Text style={[styles.switchIcon, { color: colors.primary }]}>›</Text>
                 </View>
               </TouchableOpacity>
@@ -599,5 +665,8 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.xl,
     fontWeight: '300',
   },
+  helperText: {
+    fontSize: FONT_SIZES.xs,
+    lineHeight: 16,
+  },
 });
-

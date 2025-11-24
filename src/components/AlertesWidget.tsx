@@ -17,6 +17,7 @@ import { loadPlanificationsParProjet } from '../store/slices/planificationSlice'
 import { loadSevrages } from '../store/slices/reproductionSlice';
 import { Gestation, Sevrage } from '../types';
 import { selectAllGestations, selectAllSevrages } from '../store/selectors/reproductionSelectors';
+import { AlertePlanningProduction } from '../types/planningProduction';
 
 export interface Alerte {
   id: string;
@@ -36,7 +37,12 @@ export default function AlertesWidget() {
   const sevrages: Sevrage[] = useAppSelector(selectAllSevrages);
   const { stocks } = useAppSelector((state) => state.stocks);
   const { planifications } = useAppSelector((state) => state.planification);
-  const { alertes: alertesPlanning, simulationResultat, sailliesPlanifiees } = useAppSelector((state) => state.planningProduction);
+  const {
+    alertes: alertesPlanning,
+    simulationResultat,
+    sailliesPlanifiees,
+  } = useAppSelector((state) => state.planningProduction);
+  const alertesPlanningTyped: AlertePlanningProduction[] = alertesPlanning || [];
 
   // Charger les données nécessaires
   // Utiliser useRef pour éviter les chargements multiples (boucle infinie)
@@ -47,14 +53,14 @@ export default function AlertesWidget() {
       dataChargeesRef.current = null;
       return;
     }
-    
+
     if (dataChargeesRef.current === projetActif.id) return; // Déjà chargé !
-    
+
     dataChargeesRef.current = projetActif.id;
     dispatch(loadStocks(projetActif.id));
     dispatch(loadPlanificationsParProjet(projetActif.id));
     dispatch(loadSevrages(projetActif.id));
-  }, [dispatch, projetActif?.id]);  // ✅ Correction: projetActif?.id au lieu de projetActif
+  }, [dispatch, projetActif?.id]); // ✅ Correction: projetActif?.id au lieu de projetActif
 
   // ✅ MÉMOÏSER les lengths pour éviter les boucles infinies
   const stocksLength = stocks.length;
@@ -74,11 +80,8 @@ export default function AlertesWidget() {
       .filter((g: Gestation) => g.statut === 'en_cours')
       .forEach((g: Gestation) => {
         if (doitGenererAlerte(g.date_mise_bas_prevue)) {
-          const daysUntil = differenceInDays(
-            parseISO(g.date_mise_bas_prevue),
-            new Date()
-          );
-          
+          const daysUntil = differenceInDays(parseISO(g.date_mise_bas_prevue), new Date());
+
           const nomTruie = g.truie_nom || 'truie';
           const jourSuffix = daysUntil > 1 ? 's' : '';
           alerts.push({
@@ -108,9 +111,9 @@ export default function AlertesWidget() {
         message: `Stock faible : ${nomStock} (${quantiteActuelle} ${unite} / seuil ${seuilAlerte} ${unite})`,
         action: () => {
           // @ts-ignore - navigation typée
-          navigation.navigate('Main', { 
+          navigation.navigate('Main', {
             screen: SCREENS.NUTRITION,
-            params: { initialScreen: 'Stocks' }
+            params: { initialScreen: 'Stocks' },
           });
         },
         priority: seuilAlerte && stock.quantite_actuelle <= seuilAlerte * 0.5 ? 1 : 2,
@@ -143,9 +146,9 @@ export default function AlertesWidget() {
               message: `Sevrage prévu dans ${joursRestants} jour${joursRestants > 1 ? 's' : ''} pour ${g.truie_nom || 'truie'} (${nombrePorcelets} porcelet${nombrePorcelets > 1 ? 's' : ''}). Pensez aux aliments adaptés !`,
               action: () => {
                 // @ts-ignore - navigation typée
-                navigation.navigate('Main', { 
+                navigation.navigate('Main', {
                   screen: SCREENS.REPRODUCTION,
-                  params: { initialScreen: 'Sevrages' }
+                  params: { initialScreen: 'Sevrages' },
                 });
               },
               priority: joursRestants <= 3 ? 1 : joursRestants <= 5 ? 2 : 3,
@@ -161,11 +164,8 @@ export default function AlertesWidget() {
       .filter((p) => p.statut === 'a_faire' && p.date_echeance && isPast(parseISO(p.date_echeance)))
       .forEach((p) => {
         if (!p.date_echeance) return;
-        const daysOverdue = differenceInDays(
-          new Date(),
-          parseISO(p.date_echeance)
-        );
-        
+        const daysOverdue = differenceInDays(new Date(), parseISO(p.date_echeance));
+
         const titreTache = p.titre || 'Tâche sans titre';
         const jourSuffix = daysOverdue > 1 ? 's' : '';
         alerts.push({
@@ -208,34 +208,32 @@ export default function AlertesWidget() {
         });
       });
 
-    // 5. Alertes du Planning Production (simples strings)
-    if (alertesPlanning && Array.isArray(alertesPlanning)) {
-      alertesPlanning.forEach((message, index) => {
-        // Les alertes du planning production sont des strings
-        // On détermine la gravité selon les mots-clés dans le message
-        const isCritique = message.toLowerCase().includes('critique') || 
-                          message.toLowerCase().includes('impossible') ||
-                          message.toLowerCase().includes('erreur');
-        
-        alerts.push({
-          id: `planning_prod_${index}_${Date.now()}`, // ID unique avec index et timestamp
-          type: isCritique ? 'error' : 'warning',
-          icon: '📊',
-          message: message,
-          action: () => {
-            // @ts-ignore - navigation typée
-            navigation.navigate('Main', { screen: 'PlanningProduction' });
-          },
-          priority: isCritique ? 1 : 2,
+    // 5. Alertes critiques du Planning Production
+    if (alertesPlanningTyped && Array.isArray(alertesPlanningTyped)) {
+      alertesPlanningTyped
+        .filter((alerte) => alerte.gravite === 'critique' || alerte.gravite === 'elevee')
+        .forEach((alerte) => {
+          alerts.push({
+            id: `planning_prod_${alerte.type}`,
+            type: alerte.gravite === 'critique' ? 'error' : 'warning',
+            icon: '📊',
+            message: alerte.message,
+            action: () => {
+              // @ts-ignore - navigation typée
+              navigation.navigate('Main', { screen: 'PlanningProduction' });
+            },
+            priority: alerte.gravite === 'critique' ? 1 : 2,
+          });
         });
-      });
     }
 
     // 6. Saillies insuffisantes
     if (simulationResultat && sailliesPlanifiees) {
-      const nombrePorteesNecessaires = Math.ceil(simulationResultat.nombre_portees_necessaires || 0);
+      const nombrePorteesNecessaires = Math.ceil(
+        simulationResultat.nombre_portees_necessaires || 0
+      );
       const nombreSaillies = sailliesPlanifiees.length;
-      
+
       if (nombreSaillies < nombrePorteesNecessaires) {
         const manquant = nombrePorteesNecessaires - nombreSaillies;
         alerts.push({
@@ -254,24 +252,44 @@ export default function AlertesWidget() {
 
     // Trier par priorité (1 = haute priorité en premier)
     return alerts.sort((a, b) => a.priority - b.priority);
-  }, [gestationsLength, stocksEnAlerte.length, planificationsLength, gestations, stocksEnAlerte, planifications, alertesPlanning, simulationResultat, sailliesPlanifiees]);
+  }, [
+    gestationsLength,
+    stocksEnAlerte.length,
+    planificationsLength,
+    gestations,
+    stocksEnAlerte,
+    planifications,
+    alertesPlanning,
+    simulationResultat,
+    sailliesPlanifiees,
+  ]);
 
   // Sécuriser alertes pour éviter les erreurs
   const alertesLength = Array.isArray(alertes) ? alertes.length : 0;
-  
+
   if (alertesLength === 0) {
     return null; // Ne rien afficher s'il n'y a pas d'alertes
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.surface, borderColor: colors.warning + '30', ...colors.shadow.medium }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: colors.surface,
+          borderColor: colors.warning + '30',
+          ...colors.shadow.medium,
+        },
+      ]}
+    >
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>
           ⚠️ {alertesLength} alerte{alertesLength > 1 ? 's' : ''}
         </Text>
         {alertesLength > 3 && (
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            {alertesLength - 3} autre{alertesLength - 3 > 1 ? 's' : ''} non affichée{alertesLength - 3 > 1 ? 's' : ''}
+            {alertesLength - 3} autre{alertesLength - 3 > 1 ? 's' : ''} non affichée
+            {alertesLength - 3 > 1 ? 's' : ''}
           </Text>
         )}
       </View>
@@ -390,4 +408,3 @@ const styles = StyleSheet.create({
     fontWeight: FONT_WEIGHTS.semiBold,
   },
 });
-

@@ -18,10 +18,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { createVisiteVeterinaire, updateVisiteVeterinaire } from '../store/slices/santeSlice';
 import CustomModal from './CustomModal';
-import {
-  VisiteVeterinaire,
-  CreateVisiteVeterinaireInput,
-} from '../types/sante';
+import { VisiteVeterinaire, CreateVisiteVeterinaireInput } from '../types/sante';
 import { formatLocalDate, parseLocalDate } from '../utils/dateUtils';
 
 interface Props {
@@ -117,7 +114,10 @@ export default function VisiteVeterinaireFormModal({ visible, onClose, visite }:
     try {
       // Convertir la liste d'animaux (séparés par virgules) en tableau
       const animauxArray = formData.animaux_examines
-        ? formData.animaux_examines.split(',').map((id) => id.trim()).filter(Boolean)
+        ? formData.animaux_examines
+            .split(',')
+            .map((id) => id.trim())
+            .filter(Boolean)
         : undefined;
 
       if (isEditing && visite) {
@@ -337,7 +337,9 @@ export default function VisiteVeterinaireFormModal({ visible, onClose, visite }:
 
         {/* Prochaine visite */}
         <View style={styles.section}>
-          <Text style={[styles.label, { color: colors.text }]}>Prochaine visite prévue (optionnel)</Text>
+          <Text style={[styles.label, { color: colors.text }]}>
+            Prochaine visite prévue (optionnel)
+          </Text>
           <TouchableOpacity
             style={[
               styles.dateButton,
@@ -501,4 +503,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

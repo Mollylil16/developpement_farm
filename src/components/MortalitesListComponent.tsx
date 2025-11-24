@@ -3,10 +3,26 @@
  */
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, RefreshControlProps } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  Alert,
+  RefreshControlProps,
+  RefreshControl,
+  ScrollView,
+  Dimensions,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { PieChart, BarChart } from 'react-native-chart-kit';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { selectAllMortalites, selectStatistiquesMortalite, selectMortalitesLoading } from '../store/selectors/mortalitesSelectors';
+import {
+  selectAllMortalites,
+  selectStatistiquesMortalite,
+  selectMortalitesLoading,
+} from '../store/selectors/mortalitesSelectors';
 import {
   loadMortalitesParProjet,
   loadStatistiquesMortalite,
@@ -21,14 +37,16 @@ import LoadingSpinner from './LoadingSpinner';
 import MortalitesFormModal from './MortalitesFormModal';
 import StatCard from './StatCard';
 import { useActionPermissions } from '../hooks/useActionPermissions';
+import Card from './Card';
 
 interface Props {
   refreshControl?: React.ReactElement<RefreshControlProps>;
 }
 
+const screenWidth = Dimensions.get('window').width;
+
 export default function MortalitesListComponent({ refreshControl }: Props) {
-  const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
+  const { colors, isDark } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const { projetActif } = useAppSelector((state) => state.projet);
@@ -40,12 +58,29 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
   const [isEditing, setIsEditing] = useState(false);
   const [displayedMortalites, setDisplayedMortalites] = useState<Mortalite[]>([]);
   const [page, setPage] = useState(1);
+  const [refreshing, setRefreshing] = useState(false);
   const ITEMS_PER_PAGE = 50;
 
   useEffect(() => {
     if (projetActif) {
       dispatch(loadMortalitesParProjet(projetActif.id));
       dispatch(loadStatistiquesMortalite(projetActif.id));
+    }
+  }, [dispatch, projetActif]);
+
+  // Pull-to-refresh
+  const onRefresh = useCallback(async () => {
+    if (!projetActif) return;
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        dispatch(loadMortalitesParProjet(projetActif.id)).unwrap(),
+        dispatch(loadStatistiquesMortalite(projetActif.id)).unwrap(),
+      ]);
+    } catch (error) {
+      console.error('Erreur lors du rafraîchissement:', error);
+    } finally {
+      setRefreshing(false);
     }
   }, [dispatch, projetActif]);
 
@@ -80,7 +115,10 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
 
   const handleEdit = (mortalite: Mortalite) => {
     if (!canUpdate('mortalites')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les mortalités.');
+      Alert.alert(
+        'Permission refusée',
+        "Vous n'avez pas la permission de modifier les mortalités."
+      );
       return;
     }
     setSelectedMortalite(mortalite);
@@ -90,27 +128,26 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
 
   const handleDelete = (id: string) => {
     if (!canDelete('mortalites')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de supprimer les mortalités.');
+      Alert.alert(
+        'Permission refusée',
+        "Vous n'avez pas la permission de supprimer les mortalités."
+      );
       return;
     }
-    Alert.alert(
-      'Supprimer la mortalité',
-      'Êtes-vous sûr de vouloir supprimer cette entrée ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            await dispatch(deleteMortalite(id));
-            if (projetActif) {
-              dispatch(loadMortalitesParProjet(projetActif.id));
-              dispatch(loadStatistiquesMortalite(projetActif.id));
-            }
-          },
+    Alert.alert('Supprimer la mortalité', 'Êtes-vous sûr de vouloir supprimer cette entrée ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Supprimer',
+        style: 'destructive',
+        onPress: async () => {
+          await dispatch(deleteMortalite(id));
+          if (projetActif) {
+            dispatch(loadMortalitesParProjet(projetActif.id));
+            dispatch(loadStatistiquesMortalite(projetActif.id));
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const handleCloseModal = () => {
@@ -170,6 +207,134 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
     }
   };
 
+  // Calculer les statistiques par cause
+  const mortalitesParCause = useMemo(() => {
+    if (!Array.isArray(mortalites)) return {};
+    const parCause: Record<string, number> = {};
+    mortalites.forEach((m) => {
+      const cause = m.cause || 'Non spécifiée';
+      parCause[cause] = (parCause[cause] || 0) + m.nombre_porcs;
+    });
+    return parCause;
+  }, [mortalites]);
+
+  // Données pour le PieChart des causes
+  const pieChartDataCauses = useMemo(() => {
+    const causes = Object.entries(mortalitesParCause)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5); // Top 5 causes
+
+    const colorsPalette = [
+      '#FF6B6B', // Rouge
+      '#4ECDC4', // Turquoise
+      '#FFE66D', // Jaune
+      '#95E1D3', // Vert clair
+      '#A8E6CF', // Vert menthe
+      '#FFA07A', // Saumon
+    ];
+
+    return causes.map(([cause, count], index) => ({
+      name: cause.length > 15 ? `${cause.substring(0, 15)}...` : cause,
+      population: count,
+      color: colorsPalette[index % colorsPalette.length],
+      legendFontColor: colors.text,
+      legendFontSize: 11,
+    }));
+  }, [mortalitesParCause, colors.text]);
+
+  // Données pour le PieChart des catégories (calculées directement depuis mortalites si pas de stats)
+  const pieChartDataCategories = useMemo(() => {
+    // Si on a des statistiques, les utiliser
+    if (statistiques && statistiques.mortalites_par_categorie) {
+      const { mortalites_par_categorie } = statistiques;
+      const categories: Array<{ key: CategorieMortalite; label: string; color: string }> = [
+        { key: 'porcelet', label: 'Porcelet', color: colors.warning },
+        { key: 'truie', label: 'Truie', color: colors.error },
+        { key: 'verrat', label: 'Verrat', color: '#FF4444' },
+        { key: 'autre', label: 'Autre', color: colors.textSecondary },
+      ];
+
+      return categories
+        .filter((cat) => mortalites_par_categorie[cat.key] > 0)
+        .map((cat) => ({
+          name: cat.label,
+          population: mortalites_par_categorie[cat.key],
+          color: cat.color,
+          legendFontColor: colors.text,
+          legendFontSize: 11,
+        }));
+    }
+
+    // Sinon, calculer depuis les mortalites directement
+    if (!Array.isArray(mortalites) || mortalites.length === 0) return [];
+    
+    const parCategorie: Record<CategorieMortalite, number> = {
+      porcelet: 0,
+      truie: 0,
+      verrat: 0,
+      autre: 0,
+    };
+
+    mortalites.forEach((m) => {
+      const cat = m.categorie || 'autre';
+      parCategorie[cat] = (parCategorie[cat] || 0) + m.nombre_porcs;
+    });
+
+    const categories: Array<{ key: CategorieMortalite; label: string; color: string }> = [
+      { key: 'porcelet', label: 'Porcelet', color: colors.warning },
+      { key: 'truie', label: 'Truie', color: colors.error },
+      { key: 'verrat', label: 'Verrat', color: '#FF4444' },
+      { key: 'autre', label: 'Autre', color: colors.textSecondary },
+    ];
+
+    return categories
+      .filter((cat) => parCategorie[cat.key] > 0)
+      .map((cat) => ({
+        name: cat.label,
+        population: parCategorie[cat.key],
+        color: cat.color,
+        legendFontColor: colors.text,
+        legendFontSize: 11,
+      }));
+  }, [statistiques, mortalites, colors]);
+
+  // Données pour le BarChart mensuel
+  const barChartData = useMemo(() => {
+    if (!statistiques || !statistiques.mortalites_par_mois || statistiques.mortalites_par_mois.length === 0) {
+      return null;
+    }
+
+    const last6Months = statistiques.mortalites_par_mois.slice(-6);
+    return {
+      labels: last6Months.map((m) => {
+        const [year, month] = m.mois.split('-');
+        const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+        return `${monthNames[parseInt(month) - 1]}`;
+      }),
+      datasets: [
+        {
+          data: last6Months.map((m) => m.nombre),
+        },
+      ],
+    };
+  }, [statistiques]);
+
+  // Configuration des graphiques
+  const chartConfig = useMemo(
+    () => ({
+      backgroundColor: colors.surface,
+      backgroundGradientFrom: colors.surface,
+      backgroundGradientTo: colors.surface,
+      decimalPlaces: 0,
+      color: (opacity = 1) => `rgba(244, 67, 54, ${opacity})`, // Rouge pour mortalité
+      labelColor: (opacity = 1) => `rgba(${isDark ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`,
+      style: {
+        borderRadius: BORDER_RADIUS.md,
+      },
+    }),
+    [colors, isDark]
+  );
+
   if (!projetActif) {
     return (
       <View style={styles.container}>
@@ -182,130 +347,394 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
     return <LoadingSpinner message="Chargement des mortalités..." />;
   }
 
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.divider, paddingTop: insets.top + SPACING.lg }]}>
-        <Text style={[styles.title, { color: colors.text }]}>Mortalités</Text>
-        {canCreate('mortalites') && (
-          <TouchableOpacity
-            style={[styles.addButton, { backgroundColor: colors.primary }]}
-            onPress={() => {
-              setSelectedMortalite(null);
-              setIsEditing(false);
-              setModalVisible(true);
-            }}
-          >
-            <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Ajouter</Text>
-          </TouchableOpacity>
+  // Rendre les cartes statistiques
+  const renderStatistiques = () => {
+    if (!statistiques) return null;
+
+    return (
+      <View
+        style={[
+          styles.section,
+          {
+            backgroundColor: colors.surface,
+            borderColor: colors.borderLight,
+          },
+        ]}
+      >
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>📊 Statistiques</Text>
+        </View>
+
+        {/* Cartes statistiques détaillées */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.statsScrollView}
+          contentContainerStyle={styles.statsScrollContent}
+        >
+          <Card elevation="medium" padding="large" style={styles.statCard}>
+            <StatCard
+              value={statistiques.total_morts || 0}
+              label="Total morts"
+              icon={<Text style={styles.iconEmoji}>💀</Text>}
+              valueColor={colors.error}
+            />
+          </Card>
+
+          <Card elevation="medium" padding="large" style={styles.statCard}>
+            <StatCard
+              value={(statistiques.taux_mortalite ?? 0).toFixed(1)}
+              label="Taux de mortalité"
+              unit="%"
+              icon={<Text style={styles.iconEmoji}>📊</Text>}
+              valueColor={(statistiques.taux_mortalite ?? 0) > 5 ? colors.error : colors.success}
+            />
+          </Card>
+
+          <Card elevation="medium" padding="large" style={styles.statCard}>
+            <StatCard
+              value={statistiques.mortalites_par_categorie?.porcelet || 0}
+              label="Porcelets"
+              icon={<Text style={styles.iconEmoji}>🐷</Text>}
+              valueColor={colors.warning}
+            />
+          </Card>
+
+          <Card elevation="medium" padding="large" style={styles.statCard}>
+            <StatCard
+              value={statistiques.mortalites_par_categorie?.truie || 0}
+              label="Truies"
+              icon={<Text style={styles.iconEmoji}>🐷</Text>}
+              valueColor={colors.error}
+            />
+          </Card>
+
+          <Card elevation="medium" padding="large" style={styles.statCard}>
+            <StatCard
+              value={statistiques.mortalites_par_categorie?.verrat || 0}
+              label="Verrats"
+              icon={<Text style={styles.iconEmoji}>🐷</Text>}
+              valueColor={colors.error}
+            />
+          </Card>
+
+          <Card elevation="medium" padding="large" style={styles.statCard}>
+            <StatCard
+              value={Object.keys(mortalitesParCause).length}
+              label="Causes différentes"
+              icon={<Text style={styles.iconEmoji}>📋</Text>}
+              valueColor={colors.primary}
+            />
+          </Card>
+        </ScrollView>
+      </View>
+    );
+  };
+
+  // Rendre les graphiques
+  const renderGraphiques = () => {
+    const hasData = Array.isArray(mortalites) && mortalites.length > 0;
+    const hasChartData = (pieChartDataCauses && pieChartDataCauses.length > 0) || 
+                         (pieChartDataCategories && pieChartDataCategories.length > 0) || 
+                         barChartData;
+
+    return (
+      <View
+        style={[
+          styles.section,
+          {
+            backgroundColor: colors.surface,
+            borderColor: colors.borderLight,
+          },
+        ]}
+      >
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>📈 Graphiques et Statistiques</Text>
+        </View>
+
+        {!hasData ? (
+          <View style={styles.emptySection}>
+            <Text style={[styles.emptySectionText, { color: colors.textSecondary }]}>
+              Aucune donnée disponible
+            </Text>
+            <Text style={[styles.emptySectionSubtext, { color: colors.textTertiary }]}>
+              Les graphiques apparaîtront une fois que des mortalités seront enregistrées
+            </Text>
+          </View>
+        ) : !hasChartData ? (
+          <View style={styles.emptySection}>
+            <Text style={[styles.emptySectionText, { color: colors.textSecondary }]}>
+              Aucun graphique disponible
+            </Text>
+            <Text style={[styles.emptySectionSubtext, { color: colors.textTertiary }]}>
+              Les graphiques nécessitent des données de mortalité avec causes et catégories
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.chartsContainer}>
+            {/* Graphique PieChart - Causes de mortalité */}
+            {pieChartDataCauses && pieChartDataCauses.length > 0 ? (
+              <Card elevation="medium" padding="large" style={styles.chartCard}>
+                <Text style={[styles.chartTitle, { color: colors.text }]}>📊 Causes de mortalité</Text>
+                <Text style={[styles.chartSubtitle, { color: colors.textSecondary }]}>
+                  Top 5 des causes principales
+                </Text>
+                <PieChart
+                  data={pieChartDataCauses}
+                  width={screenWidth - SPACING.xl * 2 - SPACING.lg * 2}
+                  height={200}
+                  chartConfig={chartConfig}
+                  accessor="population"
+                  backgroundColor="transparent"
+                  paddingLeft="15"
+                  absolute
+                  hasLegend={true}
+                />
+                <View style={styles.legendContainer}>
+                  {pieChartDataCauses.map((item, index) => (
+                    <View key={index} style={styles.legendItem}>
+                      <View style={[styles.legendColor, { backgroundColor: item.color }]} />
+                      <Text style={[styles.legendText, { color: colors.text }]} numberOfLines={1}>
+                        {item.name}: {item.population}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </Card>
+            ) : null}
+
+            {/* Graphique PieChart - Catégories */}
+            {pieChartDataCategories && pieChartDataCategories.length > 0 ? (
+              <Card elevation="medium" padding="large" style={styles.chartCard}>
+                <Text style={[styles.chartTitle, { color: colors.text }]}>📊 Répartition par catégorie</Text>
+                <Text style={[styles.chartSubtitle, { color: colors.textSecondary }]}>
+                  Porcelets, Truies, Verrats
+                </Text>
+                <PieChart
+                  data={pieChartDataCategories}
+                  width={screenWidth - SPACING.xl * 2 - SPACING.lg * 2}
+                  height={200}
+                  chartConfig={chartConfig}
+                  accessor="population"
+                  backgroundColor="transparent"
+                  paddingLeft="15"
+                  absolute
+                  hasLegend={true}
+                />
+                <View style={styles.legendContainer}>
+                  {pieChartDataCategories.map((item, index) => (
+                    <View key={index} style={styles.legendItem}>
+                      <View style={[styles.legendColor, { backgroundColor: item.color }]} />
+                      <Text style={[styles.legendText, { color: colors.text }]}>
+                        {item.name}: {item.population}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </Card>
+            ) : null}
+
+            {/* Graphique BarChart - Évolution mensuelle */}
+            {barChartData ? (
+              <Card elevation="medium" padding="large" style={styles.chartCard}>
+                <Text style={[styles.chartTitle, { color: colors.text }]}>📈 Évolution mensuelle</Text>
+                <Text style={[styles.chartSubtitle, { color: colors.textSecondary }]}>
+                  Derniers 6 mois
+                </Text>
+                <BarChart
+                  data={barChartData}
+                  width={screenWidth - SPACING.xl * 2 - SPACING.lg * 2}
+                  height={220}
+                  chartConfig={chartConfig}
+                  style={styles.barChart}
+                  yAxisLabel=""
+                  yAxisSuffix=" porcs"
+                  showValuesOnTopOfBars
+                />
+              </Card>
+            ) : null}
+
+            {/* Graphique BarChart - Causes détaillées */}
+            {pieChartDataCauses && pieChartDataCauses.length > 0 ? (
+              <Card elevation="medium" padding="large" style={styles.chartCard}>
+                <Text style={[styles.chartTitle, { color: colors.text }]}>📊 Causes détaillées</Text>
+                <Text style={[styles.chartSubtitle, { color: colors.textSecondary }]}>
+                  Comparaison par cause
+                </Text>
+                <BarChart
+                  data={{
+                    labels: pieChartDataCauses.map((item) =>
+                      item.name.length > 10 ? `${item.name.substring(0, 10)}...` : item.name
+                    ),
+                    datasets: [
+                      {
+                        data: pieChartDataCauses.map((item) => item.population),
+                      },
+                    ],
+                  }}
+                  width={screenWidth - SPACING.xl * 2 - SPACING.lg * 2}
+                  height={220}
+                  chartConfig={{
+                    ...chartConfig,
+                    color: (opacity = 1) => `rgba(244, 67, 54, ${opacity})`,
+                  }}
+                  style={styles.barChart}
+                  yAxisLabel=""
+                  yAxisSuffix=" porcs"
+                  showValuesOnTopOfBars
+                  fromZero
+                />
+              </Card>
+            ) : null}
+          </View>
         )}
       </View>
+    );
+  };
 
-      {/* Statistiques */}
-      {statistiques && (
-        <View style={styles.statsContainer}>
-          <StatCard
-            value={statistiques.total_morts}
-            label="Total morts"
-            valueColor={colors.error}
-            style={{ marginRight: SPACING.sm }}
-          />
-          <StatCard
-            value={statistiques.taux_mortalite.toFixed(1)}
-            label="Taux de mortalité"
-            unit="%"
-            valueColor={
-              statistiques.taux_mortalite > 5 ? colors.error : colors.success
-            }
-            style={{ marginLeft: SPACING.sm }}
-          />
+  // Rendre la liste des mortalités
+  const renderListeMortalites = () => {
+    return (
+      <View
+        style={[
+          styles.section,
+          {
+            backgroundColor: colors.surface,
+            borderColor: colors.borderLight,
+          },
+        ]}
+      >
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>📋 Liste des mortalités</Text>
+          {canCreate('mortalites') && (
+            <TouchableOpacity
+              style={[styles.btnAjouter, { backgroundColor: colors.primary }]}
+              onPress={() => {
+                setSelectedMortalite(null);
+                setIsEditing(false);
+                setModalVisible(true);
+              }}
+            >
+              <Ionicons name="add" size={18} color="#FFF" />
+              <Text style={styles.btnAjouterText}>Ajouter</Text>
+            </TouchableOpacity>
+          )}
         </View>
-      )}
 
-      {/* Liste des mortalités */}
-      {!Array.isArray(mortalites) || mortalites.length === 0 ? (
-        <View style={styles.listContainer}>
-          <EmptyState
-            title="Aucune mortalité enregistrée"
-            message="Ajoutez une mortalité pour commencer le suivi"
-          />
-        </View>
-      ) : (
-        <FlatList
-          data={displayedMortalites}
-          renderItem={({ item: mortalite }) => (
-            <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderLight, ...colors.shadow.medium }]}>
-              <View style={styles.cardHeader}>
-                <View style={styles.cardHeaderLeft}>
-                  <View
-                    style={[
-                      styles.categorieBadge,
-                      { backgroundColor: getCategorieColor(mortalite.categorie) },
-                    ]}
-                  >
-                    <Text style={[styles.categorieBadgeText, { color: colors.textOnPrimary }]}>
-                      {getCategorieLabel(mortalite.categorie)}
+        {!Array.isArray(mortalites) || mortalites.length === 0 ? (
+          <View style={styles.emptySection}>
+            <Text style={[styles.emptySectionText, { color: colors.textSecondary }]}>
+              Aucune mortalité enregistrée
+            </Text>
+            <Text style={[styles.emptySectionSubtext, { color: colors.textTertiary }]}>
+              Ajoutez une mortalité pour commencer le suivi
+            </Text>
+          </View>
+        ) : (
+          <View>
+            {displayedMortalites.map((mortalite) => (
+              <View
+                key={mortalite.id}
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: colors.background,
+                    borderColor: colors.borderLight,
+                    marginBottom: SPACING.sm,
+                  },
+                ]}
+              >
+                <View style={styles.cardHeader}>
+                  <View style={styles.cardHeaderLeft}>
+                    <View
+                      style={[
+                        styles.categorieBadge,
+                        { backgroundColor: getCategorieColor(mortalite.categorie) },
+                      ]}
+                    >
+                      <Text style={[styles.categorieBadgeText, { color: colors.textOnPrimary }]}>
+                        {getCategorieLabel(mortalite.categorie)}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.dateText,
+                        { marginLeft: SPACING.sm, color: colors.textSecondary },
+                      ]}
+                    >
+                      {formatDate(mortalite.date)}
                     </Text>
                   </View>
-                  <Text style={[styles.dateText, { marginLeft: SPACING.sm, color: colors.textSecondary }]}>
-                    {formatDate(mortalite.date)}
-                  </Text>
+                  <View style={styles.cardActions}>
+                    {canUpdate('mortalites') && (
+                      <TouchableOpacity
+                        style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
+                        onPress={() => handleEdit(mortalite)}
+                      >
+                        <Text style={styles.actionButtonText}>✏️</Text>
+                      </TouchableOpacity>
+                    )}
+                    {canDelete('mortalites') && (
+                      <TouchableOpacity
+                        style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
+                        onPress={() => handleDelete(mortalite.id)}
+                      >
+                        <Text style={styles.actionButtonText}>🗑️</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
-                <View style={styles.cardActions}>
-                  {canUpdate('mortalites') && (
-                    <TouchableOpacity
-                      style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
-                      onPress={() => handleEdit(mortalite)}
-                    >
-                      <Text style={styles.actionButtonText}>✏️</Text>
-                    </TouchableOpacity>
+                <View style={styles.cardContent}>
+                  <Text style={[styles.nombreText, { color: colors.text }]}>
+                    {mortalite.nombre_porcs} porc{mortalite.nombre_porcs > 1 ? 's' : ''}
+                  </Text>
+                  {mortalite.animal_code && (
+                    <Text style={[styles.animalCodeText, { color: colors.primary }]}>
+                      Sujet: {mortalite.animal_code}
+                    </Text>
                   )}
-                  {canDelete('mortalites') && (
-                    <TouchableOpacity
-                      style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
-                      onPress={() => handleDelete(mortalite.id)}
-                    >
-                      <Text style={styles.actionButtonText}>🗑️</Text>
-                    </TouchableOpacity>
+                  {mortalite.cause && (
+                    <Text style={[styles.causeText, { color: colors.textSecondary }]}>
+                      Cause: {mortalite.cause}
+                    </Text>
+                  )}
+                  {mortalite.notes && (
+                    <Text style={[styles.notesText, { color: colors.textSecondary }]}>
+                      {mortalite.notes}
+                    </Text>
                   )}
                 </View>
               </View>
-              <View style={styles.cardContent}>
-                <Text style={[styles.nombreText, { color: colors.text }]}>
-                  {mortalite.nombre_porcs} porc{mortalite.nombre_porcs > 1 ? 's' : ''}
-                </Text>
-                {mortalite.animal_code && (
-                  <Text style={[styles.animalCodeText, { color: colors.primary }]}>
-                    Sujet: {mortalite.animal_code}
-                  </Text>
-                )}
-                {mortalite.cause && (
-                  <Text style={[styles.causeText, { color: colors.textSecondary }]}>Cause: {mortalite.cause}</Text>
-                )}
-                {mortalite.notes && (
-                  <Text style={[styles.notesText, { color: colors.textSecondary }]}>{mortalite.notes}</Text>
-                )}
-              </View>
-            </View>
-          )}
-          keyExtractor={(item) => item.id}
-          onEndReached={loadMore}
-          onEndReachedThreshold={0.5}
-          contentContainerStyle={styles.listContainer}
-          showsVerticalScrollIndicator={false}
-          refreshControl={refreshControl}
-          // Optimisations de performance
-          removeClippedSubviews={true}
-          maxToRenderPerBatch={10}
-          windowSize={5}
-          initialNumToRender={10}
-          updateCellsBatchingPeriod={50}
-          ListFooterComponent={
-            Array.isArray(mortalites) && displayedMortalites.length < mortalites.length ? (
-              <LoadingSpinner message="Chargement..." />
-            ) : null
-          }
-        />
-      )}
+            ))}
+            {Array.isArray(mortalites) && displayedMortalites.length < mortalites.length && (
+              <TouchableOpacity
+                style={[styles.loadMoreButton, { backgroundColor: colors.surfaceVariant }]}
+                onPress={loadMore}
+              >
+                <Text style={[styles.loadMoreText, { color: colors.primary }]}>Charger plus</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  return (
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      contentContainerStyle={styles.content}
+      refreshControl={
+        refreshControl || (
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+        )
+      }
+      showsVerticalScrollIndicator={false}
+    >
+      {renderStatistiques()}
+      {renderGraphiques()}
+      {renderListeMortalites()}
+      <View style={styles.bottomSpacer} />
 
       {/* Modal de formulaire */}
       <MortalitesFormModal
@@ -315,7 +744,7 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
         mortalite={selectedMortalite}
         isEditing={isEditing}
       />
-    </View>
+    </ScrollView>
   );
 }
 
@@ -323,38 +752,79 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.xl,
-    borderBottomWidth: 1,
-  },
-  title: {
-    fontSize: FONT_SIZES.xxl,
-    fontWeight: 'bold',
-  },
-  addButton: {
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    minHeight: 44,
-  },
-  addButtonText: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semiBold,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-  },
-  listContainer: {
-    flex: 1,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+  content: {
+    padding: SPACING.md,
     paddingBottom: 100,
+  },
+  // Sections (style similaire à VeterinaireComponent)
+  section: {
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.md,
+    borderWidth: 1,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: SPACING.md,
+    gap: SPACING.sm,
+  },
+  sectionTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '600',
+    flex: 1,
+  },
+  btnAjouter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: SPACING.xs,
+    paddingHorizontal: SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+    gap: SPACING.xs,
+  },
+  btnAjouterText: {
+    color: '#FFF',
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+  },
+  emptySection: {
+    alignItems: 'center',
+    paddingVertical: SPACING.xl * 2,
+  },
+  emptySectionText: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '500',
+    marginTop: SPACING.md,
+  },
+  emptySectionSubtext: {
+    fontSize: FONT_SIZES.sm,
+    marginTop: SPACING.xs,
+    textAlign: 'center',
+  },
+  statsScrollView: {
+    marginVertical: SPACING.sm,
+  },
+  statsScrollContent: {
+    gap: SPACING.md,
+  },
+  statCard: {
+    minWidth: 140,
+    marginRight: SPACING.md,
+  },
+  loadMoreButton: {
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    borderRadius: BORDER_RADIUS.md,
+    alignItems: 'center',
+    marginTop: SPACING.md,
+  },
+  loadMoreText: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+  },
+  bottomSpacer: {
+    height: SPACING.xl,
   },
   card: {
     borderRadius: BORDER_RADIUS.lg,
@@ -421,5 +891,46 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
     fontStyle: 'italic',
   },
+  chartsContainer: {
+    gap: SPACING.md,
+  },
+  chartCard: {
+    marginBottom: SPACING.md,
+  },
+  chartTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: FONT_WEIGHTS.bold,
+    marginBottom: SPACING.xs,
+    textAlign: 'center',
+  },
+  chartSubtitle: {
+    fontSize: FONT_SIZES.sm,
+    marginBottom: SPACING.md,
+    textAlign: 'center',
+  },
+  barChart: {
+    marginVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  legendContainer: {
+    marginTop: SPACING.sm,
+    gap: SPACING.xs,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  legendColor: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  legendText: {
+    fontSize: FONT_SIZES.sm,
+    flex: 1,
+  },
+  iconEmoji: {
+    fontSize: 24,
+  },
 });
-

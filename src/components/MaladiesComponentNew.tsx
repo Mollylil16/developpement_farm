@@ -79,7 +79,7 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
 
     // Maladies en cours (non guéries)
     const maladiesEnCours = (maladies || []).filter((m) => !m.gueri);
-    
+
     // IDs uniques des animaux malades
     const animauxMaladesSet = new Set<string>();
     maladiesEnCours.forEach((m) => {
@@ -100,9 +100,7 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
     const troismoisAgo = new Date();
     troismoisAgo.setMonth(troismoisAgo.getMonth() - 3);
 
-    const maladiesRecentes = (maladies || []).filter(
-      (m) => new Date(m.date_debut) >= troismoisAgo
-    );
+    const maladiesRecentes = (maladies || []).filter((m) => new Date(m.date_debut) >= troismoisAgo);
 
     const countByType: Record<string, number> = {};
     maladiesRecentes.forEach((m) => {
@@ -121,14 +119,16 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
 
     // Recommandations pointues basées sur les maladies reportées
     const suggestions: string[] = [];
-    
+
     // Analyse du taux de maladie
     if (tauxMaladie > 15) {
-      suggestions.push('🚨 URGENT: Taux de maladie critique (>15%) - Isoler les sujets malades immédiatement');
-      suggestions.push('🔬 Faire appel au vétérinaire pour diagnostic approfondi et plan d\'action');
+      suggestions.push(
+        '🚨 URGENT: Taux de maladie critique (>15%) - Isoler les sujets malades immédiatement'
+      );
+      suggestions.push("🔬 Faire appel au vétérinaire pour diagnostic approfondi et plan d'action");
     } else if (tauxMaladie > 10) {
       suggestions.push('⚠️ Taux de maladie élevé - Renforcer désinfection quotidienne des loges');
-      suggestions.push('👥 Limiter les déplacements d\'animaux entre les zones');
+      suggestions.push("👥 Limiter les déplacements d'animaux entre les zones");
     } else if (tauxMaladie > 5) {
       suggestions.push('⚡ Surveillance accrue - Contrôler température et hygrométrie 2x/jour');
     }
@@ -136,72 +136,98 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
     // Analyse des maladies récurrentes (top 3)
     maladiesRecurrentes.slice(0, 3).forEach((maladie, index) => {
       const isTop = index === 0;
-      
+
       switch (maladie.type) {
         case 'respiratoire':
           if (isTop) {
-            suggestions.push('🌬️ Infections respiratoires dominantes - Vérifier ventilation et taux d\'ammoniac');
-            suggestions.push('🌡️ Maintenir température stable (18-22°C) et éviter les courants d\'air');
-    }
+            suggestions.push(
+              "🌬️ Infections respiratoires dominantes - Vérifier ventilation et taux d'ammoniac"
+            );
+            suggestions.push(
+              "🌡️ Maintenir température stable (18-22°C) et éviter les courants d'air"
+            );
+          }
           if (maladie.count >= 3) {
-            suggestions.push('💉 Envisager vaccination préventive contre les pathogènes respiratoires');
+            suggestions.push(
+              '💉 Envisager vaccination préventive contre les pathogènes respiratoires'
+            );
           }
           break;
-          
+
         case 'diarrhee':
           if (isTop) {
-            suggestions.push('💧 Diarrhées récurrentes - Analyser la qualité de l\'eau (pH, bactéries)');
+            suggestions.push(
+              "💧 Diarrhées récurrentes - Analyser la qualité de l'eau (pH, bactéries)"
+            );
             suggestions.push('🌾 Vérifier composition alimentaire et fraîcheur des aliments');
-    }
+          }
           if (maladie.count >= 3) {
             suggestions.push('🦠 Risque parasitaire - Planifier déparasitage tous les porcs');
           }
           break;
-          
+
         case 'cutanee':
           if (isTop) {
-            suggestions.push('🧴 Infections cutanées fréquentes - Augmenter fréquence de nettoyage des aires de repos');
-            suggestions.push('🛁 Traiter les surfaces avec désinfectant adapté (iode ou chlorhexidine)');
+            suggestions.push(
+              '🧴 Infections cutanées fréquentes - Augmenter fréquence de nettoyage des aires de repos'
+            );
+            suggestions.push(
+              '🛁 Traiter les surfaces avec désinfectant adapté (iode ou chlorhexidine)'
+            );
           }
           break;
-          
+
         case 'gale_parasites':
           if (isTop) {
-            suggestions.push('🪲 Parasites détectés - Traitement antiparasitaire OBLIGATOIRE de tout le cheptel');
+            suggestions.push(
+              '🪲 Parasites détectés - Traitement antiparasitaire OBLIGATOIRE de tout le cheptel'
+            );
             suggestions.push('🧹 Nettoyer et désinfecter toutes les installations à fond');
           }
           if (maladie.count >= 2) {
-            suggestions.push('🔄 Renouveler traitement antiparasitaire après 14 jours (cycle de vie parasites)');
+            suggestions.push(
+              '🔄 Renouveler traitement antiparasitaire après 14 jours (cycle de vie parasites)'
+            );
           }
           break;
-          
+
         case 'boiterie':
           if (isTop) {
-            suggestions.push('🦶 Boiteries récurrentes - Inspecter sols (arêtes vives, humidité excessive)');
+            suggestions.push(
+              '🦶 Boiteries récurrentes - Inspecter sols (arêtes vives, humidité excessive)'
+            );
             suggestions.push('🔧 Améliorer caillebotis et ajouter litière dans zones de repos');
           }
           break;
-          
+
         case 'autre':
           if (isTop && maladie.count >= 2) {
-            suggestions.push('🔍 Maladies non classifiées fréquentes - Consulter vétérinaire pour identification');
+            suggestions.push(
+              '🔍 Maladies non classifiées fréquentes - Consulter vétérinaire pour identification'
+            );
           }
           break;
       }
     });
 
     // Alerte contagion
-    const maladiesContagieuses = (maladies || []).filter(m => m.contagieux && !m.gueri);
+    const maladiesContagieuses = (maladies || []).filter((m) => m.contagieux && !m.gueri);
     if (maladiesContagieuses.length >= 3) {
-      suggestions.push('🔴 ALERTE CONTAGION: 3+ maladies contagieuses - Quarantaine stricte requise');
+      suggestions.push(
+        '🔴 ALERTE CONTAGION: 3+ maladies contagieuses - Quarantaine stricte requise'
+      );
     } else if (maladiesContagieuses.length >= 2) {
-      suggestions.push('🟡 Risque de propagation - Isoler sujets contagieux et désinfecter matériel');
+      suggestions.push(
+        '🟡 Risque de propagation - Isoler sujets contagieux et désinfecter matériel'
+      );
     }
 
     // Maladies critiques
-    const maladiesCritiques = (maladies || []).filter(m => m.gravite === 'critique' && !m.gueri);
+    const maladiesCritiques = (maladies || []).filter((m) => m.gravite === 'critique' && !m.gueri);
     if (maladiesCritiques.length > 0) {
-      suggestions.push(`⚠️ ${maladiesCritiques.length} cas critique(s) - Suivi quotidien et traitement intensif`);
+      suggestions.push(
+        `⚠️ ${maladiesCritiques.length} cas critique(s) - Suivi quotidien et traitement intensif`
+      );
     }
 
     // Situation saine
@@ -223,9 +249,12 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
   // Convertir badgeSeverity en couleur
   const getBadgeColor = (severity: 'success' | 'warning' | 'error') => {
     switch (severity) {
-      case 'success': return colors.success;
-      case 'warning': return colors.warning;
-      case 'error': return colors.error;
+      case 'success':
+        return colors.success;
+      case 'warning':
+        return colors.warning;
+      case 'error':
+        return colors.error;
     }
   };
 
@@ -233,7 +262,7 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
   const toggleFormulaire = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setFormulaireOuvert(!formulaireOuvert);
-    
+
     if (formulaireOuvert) {
       // Réinitialiser le formulaire
       setAnimalSelectionne('');
@@ -249,13 +278,13 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
   // Détecte si le traitement correspond à un type de prophylaxie
   const detecterTypeProphylaxie = useCallback((produit: string): TypeProphylaxie | null => {
     const produitLower = produit.toLowerCase();
-    
+
     for (const [keyword, type] of Object.entries(TRAITEMENT_TO_PROPHYLAXIE_MAPPING)) {
       if (produitLower.includes(keyword.toLowerCase())) {
         return type;
       }
     }
-    
+
     return null;
   }, []);
 
@@ -294,7 +323,7 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
       let vaccinationLiee = false;
       if (produitUtilise.trim()) {
         const typeProphylaxie = detecterTypeProphylaxie(produitUtilise);
-        
+
         if (typeProphylaxie) {
           try {
             const inputVaccination: CreateVaccinationInput = {
@@ -328,29 +357,43 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
       toggleFormulaire();
     } catch (error: any) {
       console.error('Erreur enregistrement:', error);
-      Alert.alert('Erreur', `Impossible d'enregistrer le cas de maladie:\n${error?.message || error}`);
+      Alert.alert(
+        'Erreur',
+        `Impossible d'enregistrer le cas de maladie:\n${error?.message || error}`
+      );
     }
   };
 
   // Filtrer les animaux selon la recherche
   const animauxFiltres = useMemo(() => {
     const actifs = (animaux || []).filter((a) => a.statut === 'actif');
-    
+
     if (!rechercheAnimal) return actifs;
-    
+
     const searchLower = rechercheAnimal.toLowerCase();
     return actifs.filter((animal) => {
       const nom = (animal.nom || '').toLowerCase();
       const code = (animal.code || '').toLowerCase();
       const categorie = getCategorieAnimal(animal).toLowerCase();
-      return nom.includes(searchLower) || code.includes(searchLower) || categorie.includes(searchLower);
+      return (
+        nom.includes(searchLower) || code.includes(searchLower) || categorie.includes(searchLower)
+      );
     });
   }, [animaux, rechercheAnimal]);
 
   // Render carte récapitulative
   const renderCarteOverview = () => {
     return (
-      <View style={[styles.carteOverview, { backgroundColor: colors.surface, borderColor: colors.borderLight, ...colors.shadow.medium }]}>
+      <View
+        style={[
+          styles.carteOverview,
+          {
+            backgroundColor: colors.surface,
+            borderColor: colors.borderLight,
+            ...colors.shadow.medium,
+          },
+        ]}
+      >
         <View style={styles.overviewHeader}>
           <Ionicons name="fitness" size={24} color={colors.primary} />
           <Text style={[styles.overviewTitre, { color: colors.text }]}>
@@ -379,7 +422,7 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
             <Text style={[styles.sectionTitre, { color: colors.text }]}>
               📊 Maladies récurrentes (3 derniers mois)
             </Text>
-            
+
             {/* Graphique en camembert */}
             <View style={styles.chartContainer}>
               <PieChart
@@ -413,24 +456,16 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
             {/* Liste avec légende colorée */}
             <View style={styles.legendeContainer}>
               {stats.maladiesRecurrentes.map((maladie, index) => {
-                const couleur = [
-                  '#FF6B6B',
-                  '#4ECDC4',
-                  '#FFE66D',
-                  '#95E1D3',
-                  '#A8E6CF',
-                ][index % 5];
-                
+                const couleur = ['#FF6B6B', '#4ECDC4', '#FFE66D', '#95E1D3', '#A8E6CF'][index % 5];
+
                 return (
                   <View key={maladie.type} style={styles.legendeItem}>
                     <View style={[styles.legendeDot, { backgroundColor: couleur }]} />
-                    <Text style={[styles.legendeNom, { color: colors.text }]}>
-                      {maladie.nom}
-                </Text>
+                    <Text style={[styles.legendeNom, { color: colors.text }]}>{maladie.nom}</Text>
                     <Text style={[styles.legendeCount, { color: colors.textSecondary }]}>
-                  {maladie.count} cas ({maladie.pourcentage.toFixed(0)}%)
-                </Text>
-              </View>
+                      {maladie.count} cas ({maladie.pourcentage.toFixed(0)}%)
+                    </Text>
+                  </View>
                 );
               })}
             </View>
@@ -439,9 +474,7 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
 
         {/* Suggestions */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitre, { color: colors.text }]}>
-            💡 Points d'attention
-          </Text>
+          <Text style={[styles.sectionTitre, { color: colors.text }]}>💡 Points d'attention</Text>
           {stats.suggestions.map((suggestion, index) => (
             <Text key={index} style={[styles.suggestion, { color: colors.textSecondary }]}>
               • {suggestion}
@@ -455,7 +488,16 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
   // Render carte formulaire
   const renderCarteFormulaire = () => {
     return (
-      <View style={[styles.carteFormulaire, { backgroundColor: colors.surface, borderColor: colors.borderLight, ...colors.shadow.small }]}>
+      <View
+        style={[
+          styles.carteFormulaire,
+          {
+            backgroundColor: colors.surface,
+            borderColor: colors.borderLight,
+            ...colors.shadow.small,
+          },
+        ]}
+      >
         <TouchableOpacity
           style={styles.formulaireHeader}
           onPress={toggleFormulaire}
@@ -493,7 +535,12 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
               </Text>
 
               {/* Barre de recherche */}
-              <View style={[styles.rechercheContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+              <View
+                style={[
+                  styles.rechercheContainer,
+                  { backgroundColor: colors.background, borderColor: colors.border },
+                ]}
+              >
                 <Ionicons name="search" size={20} color={colors.textSecondary} />
                 <TextInput
                   style={[styles.rechercheInput, { color: colors.text }]}
@@ -505,7 +552,13 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
               </View>
 
               {/* Liste des animaux */}
-              <ScrollView style={[styles.listeAnimaux, { backgroundColor: colors.surface, borderColor: colors.border }]} nestedScrollEnabled>
+              <ScrollView
+                style={[
+                  styles.listeAnimaux,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+                nestedScrollEnabled
+              >
                 {animauxFiltres.length === 0 ? (
                   <View style={styles.emptyState}>
                     <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
@@ -517,7 +570,7 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
                     const isSelected = animalSelectionne === animal.id;
                     const nom = animal.nom || animal.code || `Porc #${animal.id.slice(0, 8)}`;
                     const categorie = getCategorieAnimal(animal);
-                    
+
                     return (
                       <TouchableOpacity
                         key={animal.id}
@@ -531,11 +584,19 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
                         onPress={() => setAnimalSelectionne(animal.id)}
                       >
                         <View style={styles.animalItemLeft}>
-                          <View style={[styles.checkbox, isSelected && { backgroundColor: colors.primary }]}>
+                          <View
+                            style={[
+                              styles.checkbox,
+                              isSelected && { backgroundColor: colors.primary },
+                            ]}
+                          >
                             {isSelected && <Ionicons name="checkmark" size={14} color="#FFF" />}
                           </View>
                           <View style={{ flex: 1 }}>
-                            <Text style={[styles.animalNom, { color: colors.text }]} numberOfLines={1}>
+                            <Text
+                              style={[styles.animalNom, { color: colors.text }]}
+                              numberOfLines={1}
+                            >
                               {nom}
                             </Text>
                             <Text style={[styles.animalDetails, { color: colors.textSecondary }]}>
@@ -560,29 +621,36 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
               <Text style={[styles.formLabel, { color: colors.text }]}>
                 Type de maladie <Text style={{ color: colors.error }}>*</Text>
               </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typesList}>
-                {(Object.entries(TYPE_MALADIE_LABELS) as [TypeMaladie, string][]).map(([type, label]) => (
-                  <TouchableOpacity
-                    key={type}
-                    style={[
-                      styles.typeChip,
-                      {
-                        backgroundColor: typeMaladie === type ? colors.primary : colors.background,
-                        borderColor: colors.border,
-                      },
-                    ]}
-                    onPress={() => setTypeMaladie(type)}
-                  >
-                    <Text
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.typesList}
+              >
+                {(Object.entries(TYPE_MALADIE_LABELS) as [TypeMaladie, string][]).map(
+                  ([type, label]) => (
+                    <TouchableOpacity
+                      key={type}
                       style={[
-                        styles.typeChipText,
-                        { color: typeMaladie === type ? '#FFF' : colors.text },
+                        styles.typeChip,
+                        {
+                          backgroundColor:
+                            typeMaladie === type ? colors.primary : colors.background,
+                          borderColor: colors.border,
+                        },
                       ]}
+                      onPress={() => setTypeMaladie(type)}
                     >
-                      {label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                      <Text
+                        style={[
+                          styles.typeChipText,
+                          { color: typeMaladie === type ? '#FFF' : colors.text },
+                        ]}
+                      >
+                        {label}
+                      </Text>
+                    </TouchableOpacity>
+                  )
+                )}
               </ScrollView>
             </View>
 
@@ -592,7 +660,14 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
                 Symptômes <Text style={{ color: colors.error }}>*</Text>
               </Text>
               <TextInput
-                style={[styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                style={[
+                  styles.textArea,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    color: colors.text,
+                  },
+                ]}
                 value={symptomes}
                 onChangeText={setSymptomes}
                 placeholder="Décrire les symptômes observés..."
@@ -608,7 +683,14 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
                 Traitement administré (optionnel)
               </Text>
               <TextInput
-                style={[styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                style={[
+                  styles.textArea,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    color: colors.text,
+                  },
+                ]}
                 value={traitementAdministre}
                 onChangeText={setTraitementAdministre}
                 placeholder="Description du traitement..."
@@ -620,29 +702,40 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
 
             {/* Produit utilisé */}
             <View style={styles.formSection}>
-              <Text style={[styles.formLabel, { color: colors.text }]}>
-                Produit utilisé
-              </Text>
+              <Text style={[styles.formLabel, { color: colors.text }]}>Produit utilisé</Text>
               <TextInput
-                style={[styles.formInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                style={[
+                  styles.formInput,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    color: colors.text,
+                  },
+                ]}
                 value={produitUtilise}
                 onChangeText={setProduitUtilise}
                 placeholder="Ex: Antibiotique, Déparasitant..."
                 placeholderTextColor={colors.textSecondary}
               />
               <Text style={[styles.formHint, { color: colors.textSecondary }]}>
-                💡 Si le produit correspond à un type de vaccination, il sera automatiquement ajouté aux stats
+                💡 Si le produit correspond à un type de vaccination, il sera automatiquement ajouté
+                aux stats
               </Text>
             </View>
 
             {/* Dosage */}
             {produitUtilise.trim() !== '' && (
               <View style={styles.formSection}>
-                <Text style={[styles.formLabel, { color: colors.text }]}>
-                  Dosage
-                </Text>
+                <Text style={[styles.formLabel, { color: colors.text }]}>Dosage</Text>
                 <TextInput
-                  style={[styles.formInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                  style={[
+                    styles.formInput,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      color: colors.text,
+                    },
+                  ]}
                   value={dosage}
                   onChangeText={setDosage}
                   placeholder="Ex: 2ml, 1 comprimé..."
@@ -654,7 +747,10 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
             {/* Boutons */}
             <View style={styles.boutonsContainer}>
               <TouchableOpacity
-                style={[styles.boutonAnnuler, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                style={[
+                  styles.boutonAnnuler,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
                 onPress={toggleFormulaire}
               >
                 <Text style={[styles.boutonAnnulerTexte, { color: colors.text }]}>Annuler</Text>
@@ -765,7 +861,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
     lineHeight: 20,
   },
-  
+
   // Graphique et légende
   chartContainer: {
     alignItems: 'center',
@@ -966,4 +1062,3 @@ const styles = StyleSheet.create({
     height: SPACING.xl,
   },
 });
-

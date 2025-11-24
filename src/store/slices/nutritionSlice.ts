@@ -3,7 +3,15 @@
  */
 
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { Ingredient, Ration, CreateIngredientInput, CreateRationInput, RationBudget, CreateRationBudgetInput, UpdateRationBudgetInput } from '../../types';
+import {
+  Ingredient,
+  Ration,
+  CreateIngredientInput,
+  CreateRationInput,
+  RationBudget,
+  CreateRationBudgetInput,
+  UpdateRationBudgetInput,
+} from '../../types';
 import { databaseService } from '../../services/database';
 
 interface NutritionState {
@@ -30,7 +38,7 @@ export const createIngredient = createAsyncThunk(
       const ingredient = await databaseService.createIngredient(input);
       return ingredient;
     } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la création de l\'ingrédient');
+      return rejectWithValue(error.message || "Erreur lors de la création de l'ingrédient");
     }
   }
 );
@@ -54,7 +62,7 @@ export const updateIngredient = createAsyncThunk(
       const ingredient = await databaseService.updateIngredient(id, updates);
       return ingredient;
     } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la mise à jour de l\'ingrédient');
+      return rejectWithValue(error.message || "Erreur lors de la mise à jour de l'ingrédient");
     }
   }
 );
@@ -66,7 +74,7 @@ export const deleteIngredient = createAsyncThunk(
       await databaseService.deleteIngredient(id);
       return id;
     } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la suppression de l\'ingrédient');
+      return rejectWithValue(error.message || "Erreur lors de la suppression de l'ingrédient");
     }
   }
 );
@@ -79,7 +87,7 @@ export const createRation = createAsyncThunk(
       // Calculer le coût total
       const ingredients = await databaseService.getAllIngredients(input.projet_id);
       let coutTotal = 0;
-      
+
       input.ingredients.forEach((ing: { ingredient_id: string; quantite: number }) => {
         const ingredient = ingredients.find((i) => i.id === ing.ingredient_id);
         if (ingredient) {
@@ -152,7 +160,10 @@ export const loadRationsBudget = createAsyncThunk(
 
 export const updateRationBudget = createAsyncThunk(
   'nutrition/updateRationBudget',
-  async ({ id, updates }: { id: string; updates: UpdateRationBudgetInput }, { rejectWithValue }) => {
+  async (
+    { id, updates }: { id: string; updates: UpdateRationBudgetInput },
+    { rejectWithValue }
+  ) => {
     try {
       const rationBudget = await databaseService.updateRationBudget(id, updates);
       if (!rationBudget) {
@@ -314,7 +325,9 @@ const nutritionSlice = createSlice({
       })
       .addCase(updateRationBudget.fulfilled, (state, action) => {
         state.loading = false;
-        const index = state.rationsBudget.findIndex((r: RationBudget) => r.id === action.payload.id);
+        const index = state.rationsBudget.findIndex(
+          (r: RationBudget) => r.id === action.payload.id
+        );
         if (index !== -1) {
           state.rationsBudget[index] = action.payload;
         }
@@ -330,7 +343,9 @@ const nutritionSlice = createSlice({
       })
       .addCase(deleteRationBudget.fulfilled, (state, action) => {
         state.loading = false;
-        state.rationsBudget = state.rationsBudget.filter((r: RationBudget) => r.id !== action.payload);
+        state.rationsBudget = state.rationsBudget.filter(
+          (r: RationBudget) => r.id !== action.payload
+        );
       })
       .addCase(deleteRationBudget.rejected, (state, action) => {
         state.loading = false;
@@ -341,4 +356,3 @@ const nutritionSlice = createSlice({
 
 export const { clearError } = nutritionSlice.actions;
 export default nutritionSlice.reducer;
-

@@ -21,23 +21,28 @@ export default function WidgetPerformance({ onPress }: WidgetPerformanceProps) {
   const { projetActif } = useAppSelector((state) => state.projet);
   const gestations: Gestation[] = useAppSelector((state) => {
     const { entities, ids } = state.reproduction;
-    const result = denormalize(ids.gestations, gestationsSchema, { gestations: entities.gestations });
+    const result = denormalize(ids.gestations, gestationsSchema, {
+      gestations: entities.gestations,
+    });
     return Array.isArray(result) ? result : [];
   });
 
   // Calculer la performance globale à partir des indicateurs
   const performanceGlobale = useMemo(() => {
     if (!indicateursPerformance) return 0;
-    
+
     // Score basé sur plusieurs facteurs (0-100)
     // - Taux de croissance (0-50 points)
     // - Taux de mortalité inversé (0-30 points, plus bas = mieux)
     // - Efficacité alimentaire (0-20 points)
-    
+
     const scoreCroissance = Math.min(50, (indicateursPerformance.taux_croissance / 100) * 50);
-    const scoreMortalite = Math.min(30, (1 - Math.min(1, indicateursPerformance.taux_mortalite / 10)) * 30);
+    const scoreMortalite = Math.min(
+      30,
+      (1 - Math.min(1, indicateursPerformance.taux_mortalite / 10)) * 30
+    );
     const scoreEfficacite = Math.min(20, (indicateursPerformance.efficacite_alimentaire / 10) * 20);
-    
+
     return scoreCroissance + scoreMortalite + scoreEfficacite;
   }, [indicateursPerformance]);
   const tauxMortalite = indicateursPerformance?.taux_mortalite || 0;
@@ -46,7 +51,7 @@ export default function WidgetPerformance({ onPress }: WidgetPerformanceProps) {
   // Calculer la tendance (approximation basée sur les gestations)
   const tendance = useMemo(() => {
     if (!gestations || gestations.length === 0) return { icon: '→', color: colors.textSecondary };
-    
+
     const gestationsTerminees = gestations.filter((g: Gestation) => g.statut === 'terminee');
     if (gestationsTerminees.length === 0) return { icon: '→', color: colors.textSecondary };
 
@@ -56,13 +61,19 @@ export default function WidgetPerformance({ onPress }: WidgetPerformanceProps) {
 
     if (precedentes.length === 0) return { icon: '→', color: colors.textSecondary };
 
-    const moyenneRecentes = recentes.reduce((sum: number, g: Gestation) => 
-      sum + (g.nombre_porcelets_reel || g.nombre_porcelets_prevu || 0), 0
-    ) / recentes.length;
+    const moyenneRecentes =
+      recentes.reduce(
+        (sum: number, g: Gestation) =>
+          sum + (g.nombre_porcelets_reel || g.nombre_porcelets_prevu || 0),
+        0
+      ) / recentes.length;
 
-    const moyennePrecedentes = precedentes.reduce((sum: number, g: Gestation) => 
-      sum + (g.nombre_porcelets_reel || g.nombre_porcelets_prevu || 0), 0
-    ) / precedentes.length;
+    const moyennePrecedentes =
+      precedentes.reduce(
+        (sum: number, g: Gestation) =>
+          sum + (g.nombre_porcelets_reel || g.nombre_porcelets_prevu || 0),
+        0
+      ) / precedentes.length;
 
     if (moyenneRecentes > moyennePrecedentes) {
       return { icon: '↗️', color: colors.success };
@@ -74,7 +85,7 @@ export default function WidgetPerformance({ onPress }: WidgetPerformanceProps) {
   }, [gestations, colors]);
 
   return (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={[
         styles.container,
         {
@@ -82,7 +93,7 @@ export default function WidgetPerformance({ onPress }: WidgetPerformanceProps) {
           borderColor: colors.borderLight,
           ...colors.shadow.medium,
         },
-      ]} 
+      ]}
       onPress={onPress}
       activeOpacity={0.7}
     >
@@ -92,22 +103,39 @@ export default function WidgetPerformance({ onPress }: WidgetPerformanceProps) {
 
       <View style={styles.content}>
         <View style={styles.statRow}>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Performance globale:</Text>
-          <Text style={[styles.statValue, { color: colors.text }]}>{performanceGlobale.toFixed(0)}%</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+            Performance globale:
+          </Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>
+            {performanceGlobale.toFixed(0)}%
+          </Text>
         </View>
 
         <View style={styles.statRow}>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Taux de mortalité:</Text>
-          <Text style={[
-            styles.statValue,
-            { color: tauxMortalite > 5 ? colors.error : tauxMortalite > 3 ? colors.warning : colors.success }
-          ]}>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+            Taux de mortalité:
+          </Text>
+          <Text
+            style={[
+              styles.statValue,
+              {
+                color:
+                  tauxMortalite > 5
+                    ? colors.error
+                    : tauxMortalite > 3
+                      ? colors.warning
+                      : colors.success,
+              },
+            ]}
+          >
             {tauxMortalite.toFixed(1)}% {tauxMortalite <= 3 ? '✅' : '⚠️'}
           </Text>
         </View>
 
         <View style={styles.statRow}>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Coût de production:</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+            Coût de production:
+          </Text>
           <Text style={[styles.statValue, { color: colors.text }]}>
             {coutProductionKg.toLocaleString('fr-FR')} FCFA/kg
           </Text>
@@ -116,7 +144,12 @@ export default function WidgetPerformance({ onPress }: WidgetPerformanceProps) {
         <View style={[styles.tendanceContainer, { borderTopColor: colors.divider }]}>
           <Text style={[styles.tendanceLabel, { color: colors.textSecondary }]}>Tendance:</Text>
           <Text style={[styles.tendanceValue, { color: tendance.color }]}>
-            {tendance.icon} {tendance.icon === '↗️' ? 'Amélioration' : tendance.icon === '↘️' ? 'Diminution' : 'Stable'}
+            {tendance.icon}{' '}
+            {tendance.icon === '↗️'
+              ? 'Amélioration'
+              : tendance.icon === '↘️'
+                ? 'Diminution'
+                : 'Stable'}
           </Text>
         </View>
       </View>
@@ -169,4 +202,3 @@ const styles = StyleSheet.create({
     fontWeight: FONT_WEIGHTS.bold,
   },
 });
-

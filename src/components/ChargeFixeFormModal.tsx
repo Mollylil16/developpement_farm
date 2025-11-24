@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { useAppDispatch } from '../store/hooks';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { createChargeFixe, updateChargeFixe } from '../store/slices/financeSlice';
 import { ChargeFixe, CreateChargeFixeInput, CategorieChargeFixe, FrequenceCharge } from '../types';
 import CustomModal from './CustomModal';
@@ -32,6 +32,7 @@ export default function ChargeFixeFormModal({
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate } = useActionPermissions();
+  const { projetActif } = useAppSelector((state) => state.projet);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateChargeFixeInput>({
     categorie: 'autre',
@@ -71,11 +72,17 @@ export default function ChargeFixeFormModal({
   const handleSubmit = async () => {
     // Vérifier les permissions
     if (isEditing && !canUpdate('finance')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les charges fixes.');
+      Alert.alert(
+        'Permission refusée',
+        "Vous n'avez pas la permission de modifier les charges fixes."
+      );
       return;
     }
     if (!isEditing && !canCreate('finance')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de créer des charges fixes.');
+      Alert.alert(
+        'Permission refusée',
+        "Vous n'avez pas la permission de créer des charges fixes."
+      );
       return;
     }
 
@@ -100,7 +107,12 @@ export default function ChargeFixeFormModal({
           })
         ).unwrap();
       } else {
-        await dispatch(createChargeFixe(formData)).unwrap();
+        await dispatch(
+          createChargeFixe({
+            ...formData,
+            projet_id: projetActif?.id,
+          })
+        ).unwrap();
       }
       onSuccess();
     } catch (error: any) {
@@ -199,9 +211,7 @@ export default function ChargeFixeFormModal({
         <FormField
           label="Montant (CFA)"
           value={formData.montant.toString()}
-          onChangeText={(text) =>
-            setFormData({ ...formData, montant: parseFloat(text) || 0 })
-          }
+          onChangeText={(text) => setFormData({ ...formData, montant: parseFloat(text) || 0 })}
           placeholder="0"
           keyboardType="numeric"
           required
@@ -306,5 +316,3 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
-
-

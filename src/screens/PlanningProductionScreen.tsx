@@ -4,14 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
@@ -28,10 +21,10 @@ type OngletType = 'simulation' | 'saillies' | 'ventes' | 'taches';
 export default function PlanningProductionScreen() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  
+
   const { projetActif } = useAppSelector((state) => state.projet);
   const planningState = useAppSelector((state) => state.planningProduction);
-  
+
   const [ongletActif, setOngletActif] = useState<OngletType>('simulation');
   const [refreshing, setRefreshing] = useState(false);
 
@@ -70,8 +63,8 @@ export default function PlanningProductionScreen() {
 
   const renderOnglets = () => (
     <View style={[styles.ongletsContainer, { backgroundColor: colors.surface }]}>
-      <ScrollView 
-        horizontal 
+      <ScrollView
+        horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.ongletsContent}
       >
@@ -131,14 +124,8 @@ export default function PlanningProductionScreen() {
       case 'ventes':
         return <PrevisionVentesComponent refreshControl={refreshControl} />;
       case 'taches':
-        return (
-          <ScrollView 
-            contentContainerStyle={{ paddingBottom: 100 }}
-            refreshControl={refreshControl}
-          >
-            <PlanificationListComponent />
-          </ScrollView>
-        );
+        // PlanificationListComponent contient déjà un FlatList, ne pas l'envelopper dans un ScrollView
+        return <PlanificationListComponent />;
       default:
         return null;
     }
@@ -158,15 +145,16 @@ export default function PlanningProductionScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top']}
+    >
       {/* En-tête */}
       <View style={[styles.header, { backgroundColor: colors.surface }]}>
         <View style={styles.headerContent}>
           <View style={styles.headerTitleContainer}>
             <Ionicons name="trending-up" size={28} color={colors.primary} />
-            <Text style={[styles.headerTitle, { color: colors.text }]}>
-              Planning Production
-            </Text>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>Planning Production</Text>
           </View>
           {planningState.alertes.length > 0 && (
             <View style={[styles.alertBadge, { backgroundColor: colors.error }]}>
@@ -263,4 +251,3 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
-

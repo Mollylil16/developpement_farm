@@ -36,4 +36,3 @@ export const TASK_REMINDER_HOURS = {
  * Configuration des alertes de gestations
  */
 export const GESTATION_ALERT_DAYS = 7;
-

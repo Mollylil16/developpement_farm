@@ -45,14 +45,12 @@ export default function ComparisonCard() {
     const revenuCarcasseInitial = poidsCarcasse * prixKgCarcasse;
 
     const difference = revenuCarcasseInitial - revenuVifInitial;
-    const pourcentageDifference = revenuVifInitial > 0 
-      ? (difference / revenuVifInitial) * 100 
-      : 0;
+    const pourcentageDifference = revenuVifInitial > 0 ? (difference / revenuVifInitial) * 100 : 0;
 
     return {
       difference,
       pourcentageDifference,
-      meilleureOption: difference > 0 ? 'carcasse' as const : 'vif' as const,
+      meilleureOption: difference > 0 ? ('carcasse' as const) : ('vif' as const),
     };
   }, [animauxActifs, peseesParAnimal, projetActif]);
 
@@ -95,11 +93,24 @@ export default function ComparisonCard() {
             ]}
           >
             {comparaisonOptions.difference >= 0 ? '+' : ''}
-            {formatAmount(comparaisonOptions.difference)} ({comparaisonOptions.pourcentageDifference.toFixed(1)}%)
+            {formatAmount(comparaisonOptions.difference)} (
+            {comparaisonOptions.pourcentageDifference.toFixed(1)}%)
           </Text>
         </View>
-        <View style={[styles.recommendationBox, { backgroundColor: comparaisonOptions.meilleureOption === 'carcasse' ? colors.success + '20' : colors.accent + '20' }]}>
-          <Text style={[styles.recommendationTitle, { color: colors.text }]}>💡 Recommandation</Text>
+        <View
+          style={[
+            styles.recommendationBox,
+            {
+              backgroundColor:
+                comparaisonOptions.meilleureOption === 'carcasse'
+                  ? colors.success + '20'
+                  : colors.accent + '20',
+            },
+          ]}
+        >
+          <Text style={[styles.recommendationTitle, { color: colors.text }]}>
+            💡 Recommandation
+          </Text>
           <Text style={[styles.recommendationText, { color: colors.text }]}>
             {comparaisonOptions.meilleureOption === 'carcasse'
               ? `La vente en carcasse est plus avantageuse de ${formatAmount(Math.abs(comparaisonOptions.difference))} (${Math.abs(comparaisonOptions.pourcentageDifference).toFixed(1)}% de plus).`
@@ -151,4 +162,3 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 });
-

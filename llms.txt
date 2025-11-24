@@ -1,0 +1,80 @@
+# Fermier Pro - Context for AI Agents
+
+## Project Overview
+Mobile app (React Native + Expo) for pig farming management in West Africa.
+Currency: CFA. Language: French (with English support).
+
+## Tech Stack
+- React Native 0.81.5 + Expo 54
+- TypeScript 5.9
+- Redux Toolkit (normalized state with normalizr)
+- SQLite (expo-sqlite)
+- React Navigation 7
+
+## Critical Information
+
+### State Management
+**IMPORTANT:** State is NORMALIZED. Always use selectors:
+- ✅ `useAppSelector(selectAllAnimaux)` 
+- ❌ `state.production.entities.animaux` (returns object, not array)
+
+### Database
+**PROBLEM:** `src/services/database.ts` is 7500 lines (monolithic).
+**TODO:** Refactor into Repositories pattern.
+
+### Key Modules
+1. **Production** - Animal management (pigs, sows, boars)
+2. **Reproduction** - Gestation tracking (114-day cycle)
+3. **Finance** - Revenues, expenses, fixed charges
+4. **Nutrition** - Feed formulas, stock management
+5. **Health** - Vaccinations, treatments, mortality
+6. **Planning** - Production simulation & planning
+
+### Business Rules
+- **Gestation:** 114 days
+- **Lactation:** 21 days  
+- **Weaning:** At 21 days old
+- **GMQ:** (Final Weight - Initial Weight) × 1000 / Days
+- **Alerts:** 7 days before (warning), 3 days before (critical)
+
+### Code Conventions
+- **Components:** PascalCase, default export
+- **Hooks:** camelCase, prefix `use`
+- **Constants:** UPPERCASE_SNAKE_CASE
+- **Max file size:** 500 lines (ESLint warning)
+- **Max function size:** 100 lines (ESLint warning)
+
+### Key Files
+- `docs/CONTEXT.md` - Complete context (READ THIS FIRST)
+- `src/services/database.ts` - All SQL queries (needs refactoring)
+- `src/store/slices/*.ts` - Redux slices
+- `src/store/selectors/*.ts` - Reselect selectors
+- `src/types/*.ts` - TypeScript types
+
+### Quality Commands
+```bash
+npm run validate    # Lint + Type-check + Tests
+npm run lint:fix    # Auto-fix linting
+npm run type-check  # TypeScript validation
+npm test            # Run tests
+```
+
+### Common Pitfalls
+1. Don't access `state.entities` directly → use selectors
+2. Use ISO dates: `format(new Date(), 'yyyy-MM-dd')`
+3. Always use SQLite transactions for multiple operations
+4. Import from centralized constants, not hard-coded values
+
+### Before Making Changes
+1. Read `docs/CONTEXT.md`
+2. Use selectors for Redux state
+3. Check TypeScript types
+4. Run `npm run validate`
+5. Test on device/emulator
+
+---
+
+**Full Documentation:** See `docs/CONTEXT.md`
+**Test Guide:** See `docs/archive/README_TESTS.md`
+**Quality Guide:** See `docs/archive/QUALITE_CODE.md`
+

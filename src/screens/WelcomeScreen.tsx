@@ -3,15 +3,7 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Animated,
-  ScrollView,
-  Dimensions,
-  Image,
-} from 'react-native';
+import { View, Text, StyleSheet, Animated, ScrollView, Dimensions, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS } from '../constants/theme';
@@ -38,14 +30,14 @@ export default function WelcomeScreen() {
     new Animated.Value(0),
   ]).current;
   const buttonScaleAnim = useRef(new Animated.Value(0.9)).current;
-  
+
   // Animations pour le porc principal
   const pigScaleAnim = useRef(new Animated.Value(0.8)).current;
   const pigBounceAnim = useRef(new Animated.Value(0)).current;
   const pigWinkAnim = useRef(new Animated.Value(1)).current; // 1 = œil ouvert, 0 = œil fermé
   const pigMouthAnim = useRef(new Animated.Value(0)).current; // 0 = fermé, 1 = ouvert
   const pigSmileAnim = useRef(new Animated.Value(0)).current; // Rotation pour sourire
-  
+
   // Animations pour les petits porcs décoratifs
   const smallPigsAnimations = useRef([
     { scale: new Animated.Value(0), rotate: new Animated.Value(0), opacity: new Animated.Value(0) },
@@ -306,7 +298,10 @@ export default function WelcomeScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top', 'bottom']}
+    >
       {/* Gradient de fond */}
       <View style={styles.gradientBackground}>
         <View style={[styles.gradientTop, { backgroundColor: colors.primaryLight + '08' }]} />
@@ -323,10 +318,7 @@ export default function WelcomeScreen() {
             styles.animatedContent,
             {
               opacity: fadeAnim,
-              transform: [
-                { translateY: slideAnim },
-                { scale: scaleAnim },
-              ],
+              transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
             },
           ]}
         >
@@ -347,10 +339,7 @@ export default function WelcomeScreen() {
                     positions[index],
                     {
                       opacity: pigAnim.opacity,
-                      transform: [
-                        { scale: pigAnim.scale },
-                        { rotate: smallPigsRotations[index] },
-                      ],
+                      transform: [{ scale: pigAnim.scale }, { rotate: smallPigsRotations[index] }],
                     },
                   ]}
                 >
@@ -376,7 +365,7 @@ export default function WelcomeScreen() {
               <View style={styles.pigBody}>
                 {/* Porc principal */}
                 <Text style={styles.pigEmoji}>🐷</Text>
-                
+
                 {/* Overlay de clin d'œil (simule l'œil fermé) */}
                 <Animated.View
                   style={[
@@ -392,7 +381,7 @@ export default function WelcomeScreen() {
                   {/* Simule l'œil fermé avec un trait */}
                   <View style={[styles.winkLine, { backgroundColor: colors.text }]} />
                 </Animated.View>
-                
+
                 {/* Bouche animée (sourire qui apparaît) */}
                 <Animated.View
                   style={[
@@ -422,27 +411,20 @@ export default function WelcomeScreen() {
                 },
               ]}
             />
-            
+
             {/* Container du logo avec rotation douce */}
             <Animated.View
               style={[
                 styles.logoContainer,
                 {
-                  transform: [
-                    { scale: logoScaleAnim },
-                    { rotate: logoRotation },
-                  ],
+                  transform: [{ scale: logoScaleAnim }, { rotate: logoRotation }],
                   backgroundColor: colors.surface,
                   borderColor: colors.primaryLight + '50',
                   ...colors.shadow.large,
                 },
               ]}
             >
-              <Image
-                source={logoImage}
-                style={styles.logo}
-                resizeMode="contain"
-              />
+              <Image source={logoImage} style={styles.logo} resizeMode="contain" />
             </Animated.View>
           </View>
 
@@ -451,7 +433,7 @@ export default function WelcomeScreen() {
             <Text style={[styles.title, { color: colors.text }]}>Bienvenue sur</Text>
             <Text style={[styles.titleAccent, { color: colors.primary }]}>Fermier Pro</Text>
           </View>
-          
+
           {/* Sous-titre amélioré */}
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
             Votre assistant intelligent pour la gestion de votre élevage porcin
@@ -460,10 +442,30 @@ export default function WelcomeScreen() {
           {/* Fonctionnalités principales avec animations en cascade */}
           <View style={styles.featuresContainer}>
             {[
-              { icon: '🐷', title: 'Suivi Reproduction', desc: 'Gestion complète des gestations et sevrages', pigIcon: '🐽' },
-              { icon: '💰', title: 'Finances', desc: 'Suivi des dépenses et revenus en temps réel', pigIcon: '🐷' },
-              { icon: '📊', title: 'Analyses', desc: 'Rapports détaillés et indicateurs de performance', pigIcon: '🐖' },
-              { icon: '📅', title: 'Planification', desc: 'Organisation optimale de vos tâches quotidiennes', pigIcon: '🐽' },
+              {
+                icon: '🐷',
+                title: 'Suivi Reproduction',
+                desc: 'Gestion complète des gestations et sevrages',
+                pigIcon: '🐽',
+              },
+              {
+                icon: '💰',
+                title: 'Finances',
+                desc: 'Suivi des dépenses et revenus en temps réel',
+                pigIcon: '🐷',
+              },
+              {
+                icon: '📊',
+                title: 'Analyses',
+                desc: 'Rapports détaillés et indicateurs de performance',
+                pigIcon: '🐖',
+              },
+              {
+                icon: '📅',
+                title: 'Planification',
+                desc: 'Organisation optimale de vos tâches quotidiennes',
+                pigIcon: '🐽',
+              },
             ].map((feature, index) => (
               <Animated.View
                 key={index}
@@ -485,14 +487,35 @@ export default function WelcomeScreen() {
                   },
                 ]}
               >
-                <View style={[styles.feature, { backgroundColor: colors.surface, borderColor: colors.borderLight, ...colors.shadow.medium }]}>
-                  <View style={[styles.featureIconContainer, { backgroundColor: colors.primaryLight + '15', borderColor: colors.primaryLight + '30' }]}>
+                <View
+                  style={[
+                    styles.feature,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.borderLight,
+                      ...colors.shadow.medium,
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.featureIconContainer,
+                      {
+                        backgroundColor: colors.primaryLight + '15',
+                        borderColor: colors.primaryLight + '30',
+                      },
+                    ]}
+                  >
                     <Text style={styles.featureIcon}>{feature.icon}</Text>
                     <Text style={styles.featurePigIcon}>{feature.pigIcon}</Text>
                   </View>
                   <View style={styles.featureContent}>
-                    <Text style={[styles.featureTitle, { color: colors.text }]}>{feature.title}</Text>
-                    <Text style={[styles.featureDescription, { color: colors.textSecondary }]}>{feature.desc}</Text>
+                    <Text style={[styles.featureTitle, { color: colors.text }]}>
+                      {feature.title}
+                    </Text>
+                    <Text style={[styles.featureDescription, { color: colors.textSecondary }]}>
+                      {feature.desc}
+                    </Text>
                   </View>
                 </View>
               </Animated.View>
@@ -733,4 +756,3 @@ const styles = StyleSheet.create({
     right: -5,
   },
 });
-

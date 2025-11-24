@@ -23,7 +23,17 @@ const MAX_HISTORY_ITEMS = 10;
 
 export type SearchResult = {
   id: string;
-  type: 'animal' | 'gestation' | 'stock' | 'ingredient' | 'ration' | 'depense' | 'charge_fixe' | 'planification' | 'collaborateur' | 'mortalite';
+  type:
+    | 'animal'
+    | 'gestation'
+    | 'stock'
+    | 'ingredient'
+    | 'ration'
+    | 'depense'
+    | 'charge_fixe'
+    | 'planification'
+    | 'collaborateur'
+    | 'mortalite';
   title: string;
   subtitle?: string;
   data: any;
@@ -48,7 +58,9 @@ export default function GlobalSearchComponent({
   const { gestations = [], sevrages = [] } = useAppSelector((state) => state.reproduction || {});
   const { stocks = [] } = useAppSelector((state) => state.stocks || {});
   const { ingredients = [], rations = [] } = useAppSelector((state) => state.nutrition || {});
-  const { depensesPonctuelles = [], chargesFixes = [] } = useAppSelector((state) => state.finance || {});
+  const { depensesPonctuelles = [], chargesFixes = [] } = useAppSelector(
+    (state) => state.finance || {}
+  );
   const { planifications = [] } = useAppSelector((state) => state.planification || {});
   const { collaborateurs = [] } = useAppSelector((state) => state.collaboration || {});
   const { mortalites = [] } = useAppSelector((state) => state.mortalites || {});
@@ -62,7 +74,7 @@ export default function GlobalSearchComponent({
           setSearchHistory(JSON.parse(history));
         }
       } catch (error) {
-        console.error('Erreur lors du chargement de l\'historique:', error);
+        console.error("Erreur lors du chargement de l'historique:", error);
       }
     };
     loadHistory();
@@ -82,7 +94,7 @@ export default function GlobalSearchComponent({
       // Trouver la dernière pesée pour cet animal
       const dernierePesee = peseesRecents.find((p) => p.animal_id === animal.id);
       const poidsActuel = dernierePesee?.poids_kg || animal.poids_initial || null;
-      
+
       const matches =
         animal.code?.toLowerCase().includes(q) ||
         animal.nom?.toLowerCase().includes(q) ||
@@ -121,7 +133,8 @@ export default function GlobalSearchComponent({
 
     // Recherche dans les stocks
     stocks.forEach((stock) => {
-      const matches = stock.nom?.toLowerCase().includes(q) || stock.categorie?.toLowerCase().includes(q);
+      const matches =
+        stock.nom?.toLowerCase().includes(q) || stock.categorie?.toLowerCase().includes(q);
       if (matches) {
         results.push({
           id: stock.id,
@@ -294,7 +307,7 @@ export default function GlobalSearchComponent({
       setSearchHistory(updatedHistory);
       await AsyncStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(updatedHistory));
     } catch (error) {
-      console.error('Erreur lors de la sauvegarde de l\'historique:', error);
+      console.error("Erreur lors de la sauvegarde de l'historique:", error);
     }
   };
 
@@ -366,21 +379,27 @@ export default function GlobalSearchComponent({
             {item.title}
           </Text>
           {item.subtitle && (
-            <Text style={[styles.resultSubtitle, { color: colors.textSecondary }]} numberOfLines={2}>
+            <Text
+              style={[styles.resultSubtitle, { color: colors.textSecondary }]}
+              numberOfLines={2}
+            >
               {item.subtitle}
             </Text>
           )}
         </View>
-        <Text style={[styles.resultScreen, { color: colors.textSecondary }]}>
-          {item.screen}
-        </Text>
+        <Text style={[styles.resultScreen, { color: colors.textSecondary }]}>{item.screen}</Text>
       </View>
     </TouchableOpacity>
   );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.searchContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View
+        style={[
+          styles.searchContainer,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+        ]}
+      >
         <Text style={styles.searchIcon}>🔍</Text>
         <TextInput
           style={[styles.searchInput, { color: colors.text }]}
@@ -400,7 +419,8 @@ export default function GlobalSearchComponent({
       {query.trim() ? (
         <View style={styles.resultsContainer}>
           <Text style={[styles.resultsCount, { color: colors.textSecondary }]}>
-            {searchResults.length} résultat{searchResults.length > 1 ? 's' : ''} trouvé{searchResults.length > 1 ? 's' : ''}
+            {searchResults.length} résultat{searchResults.length > 1 ? 's' : ''} trouvé
+            {searchResults.length > 1 ? 's' : ''}
           </Text>
           {searchResults.length > 0 ? (
             <FlatList
@@ -427,7 +447,10 @@ export default function GlobalSearchComponent({
                 {searchHistory.map((item, index) => (
                   <TouchableOpacity
                     key={index}
-                    style={[styles.historyItem, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                    style={[
+                      styles.historyItem,
+                      { backgroundColor: colors.surface, borderColor: colors.border },
+                    ]}
                     onPress={() => handleHistoryPress(item)}
                   >
                     <Text style={styles.historyIcon}>🕐</Text>
@@ -441,25 +464,37 @@ export default function GlobalSearchComponent({
             <Text style={[styles.suggestionsTitle, { color: colors.text }]}>Suggestions</Text>
             <View style={styles.suggestionsGrid}>
               <TouchableOpacity
-                style={[styles.suggestionChip, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                style={[
+                  styles.suggestionChip,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
                 onPress={() => setQuery('truie')}
               >
                 <Text style={[styles.suggestionText, { color: colors.text }]}>🐷 Truies</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.suggestionChip, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                style={[
+                  styles.suggestionChip,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
                 onPress={() => setQuery('stock')}
               >
                 <Text style={[styles.suggestionText, { color: colors.text }]}>📦 Stocks</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.suggestionChip, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                style={[
+                  styles.suggestionChip,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
                 onPress={() => setQuery('dépense')}
               >
                 <Text style={[styles.suggestionText, { color: colors.text }]}>💰 Dépenses</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.suggestionChip, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                style={[
+                  styles.suggestionChip,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
                 onPress={() => setQuery('gestation')}
               >
                 <Text style={[styles.suggestionText, { color: colors.text }]}>🤰 Gestations</Text>
@@ -605,4 +640,3 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
   },
 });
-

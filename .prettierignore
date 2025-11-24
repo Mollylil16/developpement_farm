@@ -1,0 +1,12 @@
+node_modules/
+.expo/
+dist/
+coverage/
+build/
+admin-web/
+*.md
+package.json
+package-lock.json
+tsconfig.json
+
+

@@ -24,9 +24,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { selectAllCollaborateurs } from '../store/selectors/collaborationSelectors';
-import {
-  selectAllVisitesVeterinaires,
-} from '../store/selectors/santeSelectors';
+import { selectAllVisitesVeterinaires } from '../store/selectors/santeSelectors';
 import {
   loadVisitesVeterinaires,
   createVisiteVeterinaire,
@@ -42,7 +40,7 @@ interface VeterinaireComponentProps {
   refreshControl?: React.ReactElement<RefreshControlProps>;
 }
 
-type TypeIntervention = 
+type TypeIntervention =
   | 'traitement_vaccinal'
   | 'soin_malade'
   | 'consultation_generale'
@@ -95,12 +93,15 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
   const [periodicite, setPeriodicite] = useState<Periodicite>('mensuel');
   const [dateDebut, setDateDebut] = useState(new Date());
   const [heureVisite, setHeureVisite] = useState('09:00');
-  const [typeInterventionDefaut, setTypeInterventionDefaut] = useState<TypeIntervention>('consultation_generale');
-  const [planningGenere, setPlanningGenere] = useState<Array<{
-    date: Date;
-    type: TypeIntervention;
-    statut: 'a_venir' | 'confirmee' | 'reportee';
-  }>>([]);
+  const [typeInterventionDefaut, setTypeInterventionDefaut] =
+    useState<TypeIntervention>('consultation_generale');
+  const [planningGenere, setPlanningGenere] = useState<
+    Array<{
+      date: Date;
+      type: TypeIntervention;
+      statut: 'a_venir' | 'confirmee' | 'reportee';
+    }>
+  >([]);
 
   // Charger les données
   useEffect(() => {
@@ -117,25 +118,31 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
 
   // Historique des visites (triées par date décroissante)
   const visitesHistorique = useMemo(() => {
-    return [...(visites || [])]
-      .sort((a, b) => new Date(b.date_visite).getTime() - new Date(a.date_visite).getTime());
+    return [...(visites || [])].sort(
+      (a, b) => new Date(b.date_visite).getTime() - new Date(a.date_visite).getTime()
+    );
   }, [visites]);
 
   // Visites à venir (30 prochains jours)
   const visitesAVenir = useMemo(() => {
     const maintenant = new Date();
     const dans30Jours = new Date(maintenant.getTime() + 30 * 24 * 60 * 60 * 1000);
-    
-    return planningGenere.filter((v) => {
-      const dateVisite = v.date;
-      return dateVisite >= maintenant && dateVisite <= dans30Jours;
-    }).sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    return planningGenere
+      .filter((v) => {
+        const dateVisite = v.date;
+        return dateVisite >= maintenant && dateVisite <= dans30Jours;
+      })
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
   }, [planningGenere]);
 
   // Générer le planning
   const handleGenererPlanning = useCallback(async () => {
     if (periodicite === 'personnalise') {
-      Alert.alert('Info', 'La périodicité personnalisée nécessite de configurer les dates manuellement.');
+      Alert.alert(
+        'Info',
+        'La périodicité personnalisée nécessite de configurer les dates manuellement.'
+      );
       return;
     }
 
@@ -147,7 +154,7 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
     const joursIntervalle = PERIODICITE_JOURS[periodicite];
     const planning: typeof planningGenere = [];
     let dateActuelle = new Date(dateDebut);
-    
+
     // Générer pour les 6 prochains mois
     const dateFin = new Date(dateActuelle.getTime() + 180 * 24 * 60 * 60 * 1000);
 
@@ -181,13 +188,13 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
       }
 
       setPlanningGenere(planning);
-      
+
       // Réinitialiser les champs après succès
       setDateDebut(new Date());
       setHeureVisite('09:00');
       setPeriodicite('mensuel');
       setShowModalPlanning(false);
-      
+
       Alert.alert(
         'Succès',
         `Planning créé avec succès !\n\n${planning.length} visites vétérinaires ont été créées sur 6 mois.`
@@ -198,7 +205,15 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
         error?.message || 'Impossible de créer le planning. Vérifiez vos données et réessayez.'
       );
     }
-  }, [periodicite, dateDebut, typeInterventionDefaut, heureVisite, projetActif, veterinaire, dispatch]);
+  }, [
+    periodicite,
+    dateDebut,
+    typeInterventionDefaut,
+    heureVisite,
+    projetActif,
+    veterinaire,
+    dispatch,
+  ]);
 
   // Modifier une visite
   const handleModifierVisite = useCallback((visite: VisiteVeterinaire) => {
@@ -208,31 +223,34 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
   }, []);
 
   // Supprimer une visite
-  const handleSupprimerVisite = useCallback((visite: VisiteVeterinaire) => {
-    Alert.alert(
-      'Supprimer la visite',
-      `Êtes-vous sûr de vouloir supprimer la visite du ${formatDisplayDate(visite.date_visite)} ?\n\nCette action est irréversible.`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await dispatch(deleteVisiteVeterinaire(visite.id)).unwrap();
-              Alert.alert('Succès', 'Visite supprimée avec succès');
-            } catch (error: any) {
-              Alert.alert('Erreur', error || 'Erreur lors de la suppression de la visite');
-            }
+  const handleSupprimerVisite = useCallback(
+    (visite: VisiteVeterinaire) => {
+      Alert.alert(
+        'Supprimer la visite',
+        `Êtes-vous sûr de vouloir supprimer la visite du ${formatDisplayDate(visite.date_visite)} ?\n\nCette action est irréversible.`,
+        [
+          { text: 'Annuler', style: 'cancel' },
+          {
+            text: 'Supprimer',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await dispatch(deleteVisiteVeterinaire(visite.id)).unwrap();
+                Alert.alert('Succès', 'Visite supprimée avec succès');
+              } catch (error: any) {
+                Alert.alert('Erreur', error || 'Erreur lors de la suppression de la visite');
+              }
+            },
           },
-        },
-      ]
-    );
-  }, [dispatch]);
+        ]
+      );
+    },
+    [dispatch]
+  );
 
   // Toggle détails d'une visite
   const toggleDetailsVisite = useCallback((visiteId: string) => {
-    setVisiteDetailsOuverte(prev => prev === visiteId ? null : visiteId);
+    setVisiteDetailsOuverte((prev) => (prev === visiteId ? null : visiteId));
   }, []);
 
   // Retirer le vétérinaire
@@ -260,7 +278,17 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
   const renderCarteVeterinaire = () => {
     if (!veterinaire) {
       return (
-        <View style={[styles.carteVeto, styles.carteVetoEmpty, { backgroundColor: colors.surface, borderColor: colors.borderLight, ...colors.shadow.medium }]}>
+        <View
+          style={[
+            styles.carteVeto,
+            styles.carteVetoEmpty,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.borderLight,
+              ...colors.shadow.medium,
+            },
+          ]}
+        >
           <View style={styles.emptyVeto}>
             <Ionicons name="person-add-outline" size={48} color={colors.textSecondary} />
             <Text style={[styles.emptyVetoText, { color: colors.text }]}>
@@ -282,7 +310,16 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
     }
 
     return (
-      <View style={[styles.carteVeto, { backgroundColor: colors.surface, borderColor: colors.borderLight, ...colors.shadow.medium }]}>
+      <View
+        style={[
+          styles.carteVeto,
+          {
+            backgroundColor: colors.surface,
+            borderColor: colors.borderLight,
+            ...colors.shadow.medium,
+          },
+        ]}
+      >
         <View style={styles.vetoHeader}>
           <View style={styles.vetoAvatar}>
             {veterinaire.photo ? (
@@ -290,7 +327,8 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
             ) : (
               <View style={[styles.vetoAvatarPlaceholder, { backgroundColor: colors.primary }]}>
                 <Text style={styles.vetoAvatarInitiales}>
-                  {veterinaire.prenom[0]}{veterinaire.nom[0]}
+                  {veterinaire.prenom[0]}
+                  {veterinaire.nom[0]}
                 </Text>
               </View>
             )}
@@ -326,9 +364,7 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
           onPress={handleRetirerVeterinaire}
         >
           <Ionicons name="person-remove-outline" size={18} color={colors.error} />
-          <Text style={[styles.btnRetirerText, { color: colors.error }]}>
-            Retirer du projet
-          </Text>
+          <Text style={[styles.btnRetirerText, { color: colors.error }]}>Retirer du projet</Text>
         </TouchableOpacity>
       </View>
     );
@@ -336,12 +372,19 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
 
   // Render Historique
   const renderHistorique = () => (
-    <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.borderLight, ...colors.shadow.medium }]}>
+    <View
+      style={[
+        styles.section,
+        {
+          backgroundColor: colors.surface,
+          borderColor: colors.borderLight,
+          ...colors.shadow.medium,
+        },
+      ]}
+    >
       <View style={styles.sectionHeader}>
         <Ionicons name="time-outline" size={24} color={colors.primary} />
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          Historique des visites
-        </Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Historique des visites</Text>
         <TouchableOpacity
           style={[styles.btnAjouter, { backgroundColor: colors.primary }]}
           onPress={() => {
@@ -378,29 +421,40 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
         <View style={styles.timeline}>
           {visitesHistorique.map((visite, index) => {
             const detailsOuverts = visiteDetailsOuverte === visite.id;
-            
+
             return (
-            <View key={visite.id} style={styles.timelineItem}>
-              <View style={[styles.timelineDot, { backgroundColor: colors.primary }]} />
-              {index < visitesHistorique.length - 1 && (
-                <View style={[styles.timelineLine, { backgroundColor: colors.border }]} />
-              )}
-              <View style={[styles.visiteCard, { backgroundColor: colors.surface, borderColor: colors.borderLight, ...colors.shadow.small }]}>
+              <View key={visite.id} style={styles.timelineItem}>
+                <View style={[styles.timelineDot, { backgroundColor: colors.primary }]} />
+                {index < visitesHistorique.length - 1 && (
+                  <View style={[styles.timelineLine, { backgroundColor: colors.border }]} />
+                )}
+                <View
+                  style={[
+                    styles.visiteCard,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.borderLight,
+                      ...colors.shadow.small,
+                    },
+                  ]}
+                >
                   {/* En-tête avec date, vétérinaire et actions */}
-                <View style={styles.visiteHeader}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.visiteDate, { color: colors.text }]}>
-                      {formatDisplayDate(visite.date_visite)}
-                    </Text>
-                    <Text style={[styles.visiteVeto, { color: colors.textSecondary }]}>
-                      👨‍⚕️ Dr. {visite.veterinaire}
-                    </Text>
-                  </View>
+                  <View style={styles.visiteHeader}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.visiteDate, { color: colors.text }]}>
+                        {formatDisplayDate(visite.date_visite)}
+                      </Text>
+                      <Text style={[styles.visiteVeto, { color: colors.textSecondary }]}>
+                        👨‍⚕️ Dr. {visite.veterinaire}
+                      </Text>
+                    </View>
                     <View style={styles.visiteHeaderRight}>
-                  <View style={[styles.visiteTypeBadge, { backgroundColor: colors.primary + '20' }]}>
-                    <Text style={[styles.visiteTypeText, { color: colors.primary }]}>
-                      {visite.motif || 'Consultation'}
-                    </Text>
+                      <View
+                        style={[styles.visiteTypeBadge, { backgroundColor: colors.primary + '20' }]}
+                      >
+                        <Text style={[styles.visiteTypeText, { color: colors.primary }]}>
+                          {visite.motif || 'Consultation'}
+                        </Text>
                       </View>
                       <View style={styles.visiteActions}>
                         <TouchableOpacity
@@ -416,23 +470,23 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
                           <Ionicons name="trash-outline" size={16} color={colors.error} />
                         </TouchableOpacity>
                       </View>
+                    </View>
                   </View>
-                </View>
 
                   {/* Animaux examinés - Toujours visible */}
-                {visite.animaux_examines && (
-                  <View style={styles.visiteSection}>
-                    <View style={styles.visiteSectionHeader}>
-                      <Ionicons name="paw" size={14} color={colors.info} />
-                      <Text style={[styles.visiteSectionTitle, { color: colors.info }]}>
+                  {visite.animaux_examines && (
+                    <View style={styles.visiteSection}>
+                      <View style={styles.visiteSectionHeader}>
+                        <Ionicons name="paw" size={14} color={colors.info} />
+                        <Text style={[styles.visiteSectionTitle, { color: colors.info }]}>
                           Sujet(s) examiné(s)
+                        </Text>
+                      </View>
+                      <Text style={[styles.visiteSectionText, { color: colors.text }]}>
+                        {visite.animaux_examines}
                       </Text>
                     </View>
-                    <Text style={[styles.visiteSectionText, { color: colors.text }]}>
-                      {visite.animaux_examines}
-                    </Text>
-                  </View>
-                )}
+                  )}
 
                   {/* Bouton Voir détails / Masquer détails */}
                   <TouchableOpacity
@@ -452,89 +506,105 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
                   {/* Détails extensibles */}
                   {detailsOuverts && (
                     <View style={styles.detailsContainer}>
-
-                {/* Diagnostic */}
-                {visite.diagnostic && (
-                  <View style={styles.visiteSection}>
-                    <View style={styles.visiteSectionHeader}>
-                      <Ionicons name="medical" size={14} color={colors.warning} />
-                      <Text style={[styles.visiteSectionTitle, { color: colors.warning }]}>
-                              Diagnostic du vétérinaire
-                      </Text>
-                    </View>
-                    <Text style={[styles.visiteSectionText, { color: colors.text }]}>
-                      {visite.diagnostic}
-                    </Text>
-                  </View>
-                )}
-
-                {/* Prescriptions / Produits administrés */}
-                {visite.prescriptions && (
-                  <View style={styles.visiteSection}>
-                    <View style={styles.visiteSectionHeader}>
-                      <Ionicons name="flask" size={14} color={colors.success} />
-                      <Text style={[styles.visiteSectionTitle, { color: colors.success }]}>
-                        Produits administrés
-                      </Text>
-                    </View>
-                    <Text style={[styles.visiteSectionText, { color: colors.text }]}>
-                      {visite.prescriptions}
-                    </Text>
-                  </View>
-                )}
-
-                {/* Recommandations du vétérinaire */}
-                {visite.recommandations && (
-                  <View style={[styles.visiteSection, styles.recommandationsSection, { backgroundColor: colors.primary + '08' }]}>
-                    <View style={styles.visiteSectionHeader}>
-                      <Ionicons name="bulb" size={14} color={colors.primary} />
-                      <Text style={[styles.visiteSectionTitle, { color: colors.primary }]}>
-                              Recommandations & Feedback
-                      </Text>
-                    </View>
-                    <Text style={[styles.visiteSectionText, { color: colors.text }]}>
-                      {visite.recommandations}
-                    </Text>
-                  </View>
-                )}
-
-                {/* Notes supplémentaires */}
-                {visite.notes && (
-                  <View style={styles.visiteSection}>
+                      {/* Diagnostic */}
+                      {visite.diagnostic && (
+                        <View style={styles.visiteSection}>
                           <View style={styles.visiteSectionHeader}>
-                            <Ionicons name="chatbox-ellipses-outline" size={14} color={colors.textSecondary} />
-                            <Text style={[styles.visiteSectionTitle, { color: colors.textSecondary }]}>
+                            <Ionicons name="medical" size={14} color={colors.warning} />
+                            <Text style={[styles.visiteSectionTitle, { color: colors.warning }]}>
+                              Diagnostic du vétérinaire
+                            </Text>
+                          </View>
+                          <Text style={[styles.visiteSectionText, { color: colors.text }]}>
+                            {visite.diagnostic}
+                          </Text>
+                        </View>
+                      )}
+
+                      {/* Prescriptions / Produits administrés */}
+                      {visite.prescriptions && (
+                        <View style={styles.visiteSection}>
+                          <View style={styles.visiteSectionHeader}>
+                            <Ionicons name="flask" size={14} color={colors.success} />
+                            <Text style={[styles.visiteSectionTitle, { color: colors.success }]}>
+                              Produits administrés
+                            </Text>
+                          </View>
+                          <Text style={[styles.visiteSectionText, { color: colors.text }]}>
+                            {visite.prescriptions}
+                          </Text>
+                        </View>
+                      )}
+
+                      {/* Recommandations du vétérinaire */}
+                      {visite.recommandations && (
+                        <View
+                          style={[
+                            styles.visiteSection,
+                            styles.recommandationsSection,
+                            { backgroundColor: colors.primary + '08' },
+                          ]}
+                        >
+                          <View style={styles.visiteSectionHeader}>
+                            <Ionicons name="bulb" size={14} color={colors.primary} />
+                            <Text style={[styles.visiteSectionTitle, { color: colors.primary }]}>
+                              Recommandations & Feedback
+                            </Text>
+                          </View>
+                          <Text style={[styles.visiteSectionText, { color: colors.text }]}>
+                            {visite.recommandations}
+                          </Text>
+                        </View>
+                      )}
+
+                      {/* Notes supplémentaires */}
+                      {visite.notes && (
+                        <View style={styles.visiteSection}>
+                          <View style={styles.visiteSectionHeader}>
+                            <Ionicons
+                              name="chatbox-ellipses-outline"
+                              size={14}
+                              color={colors.textSecondary}
+                            />
+                            <Text
+                              style={[styles.visiteSectionTitle, { color: colors.textSecondary }]}
+                            >
                               Notes additionnelles
                             </Text>
                           </View>
-                    <Text style={[styles.visiteNotes, { color: colors.textSecondary }]}>
+                          <Text style={[styles.visiteNotes, { color: colors.textSecondary }]}>
                             {visite.notes}
-                    </Text>
-                  </View>
-                )}
+                          </Text>
+                        </View>
+                      )}
 
-                {/* Footer: Coût et prochaine visite */}
-                <View style={styles.visiteFooter}>
-                  {visite.cout && (
-                    <View style={styles.visiteCout}>
-                      <Ionicons name="cash-outline" size={16} color={colors.success} />
-                      <Text style={[styles.visiteCoutText, { color: colors.success }]}>
-                        {visite.cout.toLocaleString()} F CFA
-                      </Text>
-                    </View>
-                  )}
-                  {visite.prochaine_visite && (
-                    <View style={[styles.prochainVisiteBadge, { backgroundColor: colors.info + '15' }]}>
-                      <Ionicons name="calendar" size={14} color={colors.info} />
-                      <Text style={[styles.prochainVisiteText, { color: colors.info }]}>
-                        Prochaine: {formatDisplayDate(visite.prochaine_visite)}
-                      </Text>
+                      {/* Footer: Coût et prochaine visite */}
+                      <View style={styles.visiteFooter}>
+                        {visite.cout && (
+                          <View style={styles.visiteCout}>
+                            <Ionicons name="cash-outline" size={16} color={colors.success} />
+                            <Text style={[styles.visiteCoutText, { color: colors.success }]}>
+                              {visite.cout.toLocaleString()} F CFA
+                            </Text>
+                          </View>
+                        )}
+                        {visite.prochaine_visite && (
+                          <View
+                            style={[
+                              styles.prochainVisiteBadge,
+                              { backgroundColor: colors.info + '15' },
+                            ]}
+                          >
+                            <Ionicons name="calendar" size={14} color={colors.info} />
+                            <Text style={[styles.prochainVisiteText, { color: colors.info }]}>
+                              Prochaine: {formatDisplayDate(visite.prochaine_visite)}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
                     </View>
                   )}
                 </View>
-              </View>
-                  )}
-            </View>
               </View>
             );
           })}
@@ -545,12 +615,19 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
 
   // Render Planning
   const renderPlanning = () => (
-    <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.borderLight, ...colors.shadow.medium }]}>
+    <View
+      style={[
+        styles.section,
+        {
+          backgroundColor: colors.surface,
+          borderColor: colors.borderLight,
+          ...colors.shadow.medium,
+        },
+      ]}
+    >
       <View style={styles.sectionHeader}>
         <Ionicons name="calendar" size={24} color={colors.primary} />
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          Planning à venir
-        </Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Planning à venir</Text>
         <TouchableOpacity
           style={[styles.btnConfig, { backgroundColor: colors.primary }]}
           onPress={() => setShowModalPlanning(!showModalPlanning)}
@@ -562,23 +639,37 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
 
       {/* Configuration Planning (collapsible) */}
       {showModalPlanning && (
-        <View style={[styles.configPlanning, { backgroundColor: colors.background, borderColor: colors.border }]}>
+        <View
+          style={[
+            styles.configPlanning,
+            { backgroundColor: colors.background, borderColor: colors.border },
+          ]}
+        >
           <Text style={[styles.configLabel, { color: colors.text }]}>Périodicité</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.periodiciteScroll}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.periodiciteScroll}
+          >
             {(Object.keys(PERIODICITE_LABELS) as Periodicite[]).map((key) => (
               <TouchableOpacity
                 key={key}
                 style={[
                   styles.periodiciteChip,
                   { borderColor: colors.border },
-                  periodicite === key && { backgroundColor: colors.primary, borderColor: colors.primary },
+                  periodicite === key && {
+                    backgroundColor: colors.primary,
+                    borderColor: colors.primary,
+                  },
                 ]}
                 onPress={() => setPeriodicite(key)}
               >
-                <Text style={[
-                  styles.periodiciteChipText,
-                  { color: periodicite === key ? '#FFF' : colors.text },
-                ]}>
+                <Text
+                  style={[
+                    styles.periodiciteChipText,
+                    { color: periodicite === key ? '#FFF' : colors.text },
+                  ]}
+                >
                   {PERIODICITE_LABELS[key]}
                 </Text>
               </TouchableOpacity>
@@ -587,7 +678,10 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
 
           <Text style={[styles.configLabel, { color: colors.text }]}>Date de début</Text>
           <TouchableOpacity
-            style={[styles.datePickerButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            style={[
+              styles.datePickerButton,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
             onPress={() => setShowDatePicker(true)}
           >
             <Ionicons name="calendar-outline" size={20} color={colors.primary} />
@@ -615,13 +709,14 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
 
           <Text style={[styles.configLabel, { color: colors.text }]}>Heure prévue</Text>
           <TouchableOpacity
-            style={[styles.datePickerButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            style={[
+              styles.datePickerButton,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
             onPress={() => setShowTimePicker(true)}
           >
             <Ionicons name="time-outline" size={20} color={colors.primary} />
-            <Text style={[styles.datePickerText, { color: colors.text }]}>
-              {heureVisite}
-            </Text>
+            <Text style={[styles.datePickerText, { color: colors.text }]}>{heureVisite}</Text>
           </TouchableOpacity>
           {showTimePicker && (
             <DateTimePicker
@@ -644,7 +739,9 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
             />
           )}
 
-          <Text style={[styles.configLabel, { color: colors.text }]}>Type d'intervention par défaut</Text>
+          <Text style={[styles.configLabel, { color: colors.text }]}>
+            Type d'intervention par défaut
+          </Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeScroll}>
             {(Object.keys(TYPE_INTERVENTION_LABELS) as TypeIntervention[]).map((key) => (
               <TouchableOpacity
@@ -652,14 +749,19 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
                 style={[
                   styles.typeChip,
                   { borderColor: colors.border },
-                  typeInterventionDefaut === key && { backgroundColor: colors.primary, borderColor: colors.primary },
+                  typeInterventionDefaut === key && {
+                    backgroundColor: colors.primary,
+                    borderColor: colors.primary,
+                  },
                 ]}
                 onPress={() => setTypeInterventionDefaut(key)}
               >
-                <Text style={[
-                  styles.typeChipText,
-                  { color: typeInterventionDefaut === key ? '#FFF' : colors.text },
-                ]}>
+                <Text
+                  style={[
+                    styles.typeChipText,
+                    { color: typeInterventionDefaut === key ? '#FFF' : colors.text },
+                  ]}
+                >
                   {TYPE_INTERVENTION_LABELS[key]}
                 </Text>
               </TouchableOpacity>
@@ -691,7 +793,9 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
         <View style={styles.planningList}>
           {visitesAVenir.map((visite, index) => {
             const maintenant = new Date();
-            const joursRestants = Math.ceil((visite.date.getTime() - maintenant.getTime()) / (1000 * 60 * 60 * 24));
+            const joursRestants = Math.ceil(
+              (visite.date.getTime() - maintenant.getTime()) / (1000 * 60 * 60 * 24)
+            );
             const estProche = joursRestants <= 7;
 
             return (
@@ -699,7 +803,11 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
                 key={index}
                 style={[
                   styles.planningCard,
-                  { backgroundColor: colors.surface, borderColor: estProche ? colors.warning : colors.borderLight, ...colors.shadow.small },
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: estProche ? colors.warning : colors.borderLight,
+                    ...colors.shadow.small,
+                  },
                   estProche && { borderWidth: 2 },
                 ]}
               >
@@ -712,19 +820,25 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
                       {heureVisite}
                     </Text>
                   </View>
-                  <View style={[
-                    styles.planningStatutBadge,
-                    {
-                      backgroundColor:
-                        visite.statut === 'confirmee' ? colors.success :
-                        visite.statut === 'reportee' ? colors.warning :
-                        colors.primary,
-                    },
-                  ]}>
+                  <View
+                    style={[
+                      styles.planningStatutBadge,
+                      {
+                        backgroundColor:
+                          visite.statut === 'confirmee'
+                            ? colors.success
+                            : visite.statut === 'reportee'
+                              ? colors.warning
+                              : colors.primary,
+                      },
+                    ]}
+                  >
                     <Text style={styles.planningStatutText}>
-                      {visite.statut === 'confirmee' ? 'Confirmée' :
-                       visite.statut === 'reportee' ? 'Reportée' :
-                       'À venir'}
+                      {visite.statut === 'confirmee'
+                        ? 'Confirmée'
+                        : visite.statut === 'reportee'
+                          ? 'Reportée'
+                          : 'À venir'}
                     </Text>
                   </View>
                 </View>
@@ -744,7 +858,6 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
           })}
         </View>
       )}
-
     </View>
   );
 
@@ -1226,4 +1339,3 @@ const styles = StyleSheet.create({
     height: SPACING.xl,
   },
 });
-

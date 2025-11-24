@@ -36,7 +36,7 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
 
-  const { simulationResultat, sailliesPlanifiees, loading } = useAppSelector(
+  const { simulationResultat, sailliesPlanifiees, loading, error } = useAppSelector(
     (state) => state.planningProduction
   );
   const animaux = useAppSelector(selectAllAnimaux);
@@ -45,8 +45,17 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
   const [vueListe, setVueListe] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
+  // Afficher les erreurs du state
+  useEffect(() => {
+    if (error) {
+      Alert.alert('Erreur', error);
+    }
+  }, [error]);
+
   // Truies et verrats disponibles (avec vérification de sécurité)
-  const truiesDisponibles = (animaux || []).filter((a) => getCategorieAnimal(a) === 'truie' && a.statut === 'actif');
+  const truiesDisponibles = (animaux || []).filter(
+    (a) => getCategorieAnimal(a) === 'truie' && a.statut === 'actif'
+  );
   const verratsDisponibles = (animaux || []).filter(
     (a) => getCategorieAnimal(a) === 'verrat' && a.statut === 'actif'
   );
@@ -67,7 +76,7 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
 
     const nombrePortees = Math.ceil(simulationResultat.nombre_portees_necessaires || 0);
     const cyclesParTruie = Math.ceil(nombrePortees / truiesDisponibles.length);
-    
+
     let verratMessage = '';
     if (verratsDisponibles.length === 0) {
       verratMessage = '⚠️ Aucun verrat disponible (à ajouter manuellement)';
@@ -76,22 +85,30 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
     } else {
       verratMessage = `🐗 ${verratsDisponibles.length} verrats disponibles (alternance automatique)`;
     }
-    
+
     Alert.alert(
       'Générer le plan de saillies',
       `📊 Plan de reproduction :\n\n` +
-      `• ${nombrePortees} portées nécessaires\n` +
-      `• ${truiesDisponibles.length} truie(s) disponible(s)\n` +
-      `• ${verratMessage}\n` +
-      `• ~${cyclesParTruie} cycle(s) par truie\n` +
-      `• Période : ${simulationResultat.periode_mois} mois\n\n` +
-      `Les truies et verrats seront assignés automatiquement.`,
+        `• ${nombrePortees} portées nécessaires\n` +
+        `• ${truiesDisponibles.length} truie(s) disponible(s)\n` +
+        `• ${verratMessage}\n` +
+        `• ~${cyclesParTruie} cycle(s) par truie\n` +
+        `• Période : ${simulationResultat.periode_mois} mois\n\n` +
+        `Les truies et verrats seront assignés automatiquement.`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
           text: 'Générer',
-          onPress: () => {
-            dispatch(genererPlanSaillies());
+          onPress: async () => {
+            try {
+              await dispatch(genererPlanSaillies()).unwrap();
+              // Succès : les saillies sont automatiquement mises à jour dans le state
+            } catch (error: any) {
+              Alert.alert(
+                'Erreur lors de la génération',
+                error || 'Une erreur est survenue lors de la génération du plan de saillies.'
+              );
+            }
           },
         },
       ]
@@ -123,10 +140,13 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
     }
 
     // Vérifier combien de saillies sont déjà validées
-    const sailliesNonValidees = sailliesPlanifiees.filter(s => !s.validee);
-    
+    const sailliesNonValidees = sailliesPlanifiees.filter((s) => !s.validee);
+
     if (sailliesNonValidees.length === 0) {
-      Alert.alert('Info', 'Toutes les saillies ont déjà été validées et leurs tâches créées dans le planning.');
+      Alert.alert(
+        'Info',
+        'Toutes les saillies ont déjà été validées et leurs tâches créées dans le planning.'
+      );
       return;
     }
 
@@ -135,19 +155,19 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
     Alert.alert(
       '📋 Valider le planning de saillies',
       `Cette action va créer ${nombreTaches} tâche(s) dans le planning pour ${sailliesNonValidees.length} saillie(s) :\n\n` +
-      `✅ Tâches créées pour chaque saillie :\n` +
-      `• Saillie (J-0)\n` +
-      `• Contrôle post-saillie (J+7)\n` +
-      `• Contrôle gestation (J+30)\n` +
-      `• Vaccination pré-mise bas (J+100)\n` +
-      `• Préparation loge (J+110)\n` +
-      `• Mise bas (J+114)\n` +
-      `• Contrôle post-mise bas (J+116)\n` +
-      `• Sevrage (J+135)\n` +
-      `• Vaccination porcelets (J+145)\n` +
-      `• Vente prévue\n\n` +
-      `📅 Vous pourrez suivre et modifier ces tâches dans le widget Planning.\n\n` +
-      `Continuer ?`,
+        `✅ Tâches créées pour chaque saillie :\n` +
+        `• Saillie (J-0)\n` +
+        `• Contrôle post-saillie (J+7)\n` +
+        `• Contrôle gestation (J+30)\n` +
+        `• Vaccination pré-mise bas (J+100)\n` +
+        `• Préparation loge (J+110)\n` +
+        `• Mise bas (J+114)\n` +
+        `• Contrôle post-mise bas (J+116)\n` +
+        `• Sevrage (J+135)\n` +
+        `• Vaccination porcelets (J+145)\n` +
+        `• Vente prévue\n\n` +
+        `📅 Vous pourrez suivre et modifier ces tâches dans le widget Planning.\n\n` +
+        `Continuer ?`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
@@ -166,7 +186,7 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
               Alert.alert(
                 '✅ Planning validé',
                 `${result.nombreTachesCreees} tâche(s) créée(s) avec succès dans le planning !\n\n` +
-                `Rendez-vous dans le widget Planning pour voir les tâches.`,
+                  `Rendez-vous dans le widget Planning pour voir les tâches.`,
                 [{ text: 'OK' }]
               );
             } catch (error: any) {
@@ -232,17 +252,26 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
           <Text style={[styles.infoText, { color: colors.textSecondary }]}>
             🐗 Verrats disponibles : {verratsDisponibles.length}
           </Text>
-          
+
           {/* Message d'avertissement si saillies insuffisantes */}
-          {(sailliesPlanifiees || []).length < Math.ceil(simulationResultat.nombre_portees_necessaires || 0) && (
-            <View style={[styles.warningBox, { backgroundColor: colors.warning + '15', borderColor: colors.warning }]}>
+          {(sailliesPlanifiees || []).length <
+            Math.ceil(simulationResultat.nombre_portees_necessaires || 0) && (
+            <View
+              style={[
+                styles.warningBox,
+                { backgroundColor: colors.warning + '15', borderColor: colors.warning },
+              ]}
+            >
               <Ionicons name="warning" size={20} color={colors.warning} />
               <View style={styles.warningContent}>
                 <Text style={[styles.warningTitle, { color: colors.warning }]}>
                   Saillies insuffisantes
                 </Text>
                 <Text style={[styles.warningText, { color: colors.text }]}>
-                  Il manque {Math.ceil(simulationResultat.nombre_portees_necessaires || 0) - (sailliesPlanifiees || []).length} saillie(s) pour atteindre l'objectif de production.
+                  Il manque{' '}
+                  {Math.ceil(simulationResultat.nombre_portees_necessaires || 0) -
+                    (sailliesPlanifiees || []).length}{' '}
+                  saillie(s) pour atteindre l'objectif de production.
                   {'\n\n'}
                   💡 <Text style={{ fontWeight: '600' }}>Que faire ?</Text>
                   {'\n'}• Cliquez sur "Générer automatiquement" pour créer un plan complet
@@ -285,12 +314,10 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
           disabled={loading}
         >
           <Ionicons name="checkmark-circle" size={20} color="#fff" />
-          <Text style={styles.buttonText}>
-            ✅ Valider le planning - Créer les tâches
-          </Text>
+          <Text style={styles.buttonText}>✅ Valider le planning - Créer les tâches</Text>
           <View style={[styles.badge, { backgroundColor: 'rgba(255,255,255,0.3)' }]}>
             <Text style={styles.badgeText}>
-              {(sailliesPlanifiees || []).filter(s => !s.validee).length}
+              {(sailliesPlanifiees || []).filter((s) => !s.validee).length}
             </Text>
           </View>
         </TouchableOpacity>
@@ -353,7 +380,7 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
             </Text>
           </View>
         )}
-        
+
         <View style={styles.saillieHeader}>
           <View style={styles.saillieHeaderLeft}>
             <Ionicons name="heart-circle" size={24} color={colors.primary} />
@@ -375,13 +402,15 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
           <View style={styles.saillieRow}>
             <Text style={[styles.saillieLabel, { color: colors.textSecondary }]}>Truie :</Text>
             <Text style={[styles.saillieValue, { color: truie ? colors.text : colors.warning }]}>
-              {truie ? (truie.nom || truie.code || `Truie ${truie.id}`) : 'Non assignée'}
+              {truie ? truie.nom || truie.code || `Truie ${truie.id}` : 'Non assignée'}
             </Text>
           </View>
           <View style={styles.saillieRow}>
             <Text style={[styles.saillieLabel, { color: colors.textSecondary }]}>Verrat :</Text>
-            <Text style={[styles.saillieValue, { color: verrat ? colors.text : colors.textSecondary }]}>
-              {verrat ? (verrat.nom || verrat.code || `Verrat ${verrat.id}`) : 'À assigner'}
+            <Text
+              style={[styles.saillieValue, { color: verrat ? colors.text : colors.textSecondary }]}
+            >
+              {verrat ? verrat.nom || verrat.code || `Verrat ${verrat.id}` : 'À assigner'}
             </Text>
           </View>
           <View style={styles.saillieRow}>
@@ -424,10 +453,7 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
       {vueListe ? (
         renderListe()
       ) : (
-        <ScrollView
-          contentContainerStyle={styles.content}
-          refreshControl={refreshControl}
-        >
+        <ScrollView contentContainerStyle={styles.content} refreshControl={refreshControl}>
           {renderHeader()}
           {renderCalendrier()}
         </ScrollView>
@@ -627,4 +653,3 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 });
-

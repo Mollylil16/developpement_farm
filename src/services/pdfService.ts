@@ -51,11 +51,11 @@ export async function generatePDF(options: PDFOptions): Promise<PDFResult> {
 export async function sharePDF(uri: string, fileName: string = 'rapport.pdf'): Promise<void> {
   try {
     const isAvailable = await Sharing.isAvailableAsync();
-    
+
     if (!isAvailable) {
       Alert.alert(
         'Partage non disponible',
-        'Le partage de fichiers n\'est pas disponible sur cet appareil.'
+        "Le partage de fichiers n'est pas disponible sur cet appareil."
       );
       return;
     }
@@ -308,11 +308,7 @@ export const PDF_COMMON_STYLES = `
 /**
  * Génère l'en-tête HTML pour un rapport
  */
-export function generatePDFHeader(
-  title: string,
-  subtitle: string,
-  projetNom?: string
-): string {
+export function generatePDFHeader(title: string, subtitle: string, projetNom?: string): string {
   const now = new Date();
   const dateFormatted = now.toLocaleDateString('fr-FR', {
     day: '2-digit',
@@ -369,10 +365,12 @@ export function wrapHTMLContent(content: string): string {
  * Formate un nombre en devise (FCFA)
  */
 export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('fr-FR', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount) + ' FCFA';
+  return (
+    new Intl.NumberFormat('fr-FR', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount) + ' FCFA'
+  );
 }
 
 /**
@@ -400,4 +398,3 @@ export function formatDate(dateString: string): string {
     return dateString;
   }
 }
-

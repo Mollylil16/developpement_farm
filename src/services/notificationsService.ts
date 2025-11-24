@@ -4,7 +4,12 @@
  */
 
 import * as Notifications from 'expo-notifications';
-import { NotificationAction, NotificationType, GESTATION_ALERT_DAYS, TASK_REMINDER_HOURS } from '../constants/notifications';
+import {
+  NotificationAction,
+  NotificationType,
+  GESTATION_ALERT_DAYS,
+  TASK_REMINDER_HOURS,
+} from '../constants/notifications';
 
 export interface NotificationConfig {
   title: string;
@@ -21,7 +26,7 @@ export async function configureNotifications(): Promise<void> {
   try {
     // Vérifier si on est dans Expo Go (limitations connues)
     const isExpoGo = __DEV__ && !(global as any).expo?.modules?.expo?.modules?.ExpoModulesCore;
-    
+
     // Configurer le comportement des notifications
     await Notifications.setNotificationHandler({
       handleNotification: async () => ({
@@ -43,15 +48,20 @@ export async function configureNotifications(): Promise<void> {
     if (finalStatus !== 'granted') {
       // En mode développement avec Expo Go, on ne lance pas d'erreur
       if (isExpoGo) {
-        console.warn('Notifications: Les permissions ne sont pas accordées. Les notifications locales peuvent ne pas fonctionner dans Expo Go.');
+        console.warn(
+          'Notifications: Les permissions ne sont pas accordées. Les notifications locales peuvent ne pas fonctionner dans Expo Go.'
+        );
         return;
       }
-      throw new Error('Les permissions de notification n\'ont pas été accordées');
+      throw new Error("Les permissions de notification n'ont pas été accordées");
     }
   } catch (error: any) {
     // En mode développement, on log l'erreur sans la lancer
     if (__DEV__) {
-      console.warn('Notifications: Erreur lors de la configuration (peut être normal dans Expo Go):', error?.message || error);
+      console.warn(
+        'Notifications: Erreur lors de la configuration (peut être normal dans Expo Go):',
+        error?.message || error
+      );
       return;
     }
     console.error('Erreur lors de la configuration des notifications:', error);
@@ -66,7 +76,7 @@ export async function cancelAllNotifications(): Promise<void> {
   try {
     await Notifications.cancelAllScheduledNotificationsAsync();
   } catch (error: any) {
-    console.error('Erreur lors de l\'annulation des notifications:', error);
+    console.error("Erreur lors de l'annulation des notifications:", error);
   }
 }
 
@@ -130,7 +140,7 @@ export async function scheduleGestationAlert(
 
     return notificationId;
   } catch (error: any) {
-    console.error('Erreur lors de la planification de l\'alerte de gestation:', error);
+    console.error("Erreur lors de la planification de l'alerte de gestation:", error);
     return null;
   }
 }
@@ -145,14 +155,14 @@ export async function scheduleGestationAlerts(gestations: any[]): Promise<void> 
     const gestationNotifications = allNotifications.filter(
       (n: any) => n.content?.data?.type === NotificationType.GESTATION
     );
-    
+
     for (const notification of gestationNotifications) {
       await Notifications.cancelScheduledNotificationAsync(notification.identifier);
     }
 
     // Planifier les nouvelles notifications
     const maintenant = new Date();
-    
+
     for (const gestation of gestations) {
       if (gestation.statut !== 'en_cours') continue;
 
@@ -190,7 +200,8 @@ export async function scheduleStockAlert(
     // Vérifier si une notification existe déjà pour ce stock
     const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
     const existingNotification = allNotifications.find(
-      (n: any) => n.content?.data?.type === NotificationType.STOCK && n.content?.data?.stockId === stockId
+      (n: any) =>
+        n.content?.data?.type === NotificationType.STOCK && n.content?.data?.stockId === stockId
     );
 
     // Si une notification existe déjà, ne pas en créer une nouvelle
@@ -215,7 +226,7 @@ export async function scheduleStockAlert(
 
     return notificationId;
   } catch (error: any) {
-    console.error('Erreur lors de la planification de l\'alerte de stock:', error);
+    console.error("Erreur lors de la planification de l'alerte de stock:", error);
     return null;
   }
 }
@@ -231,9 +242,7 @@ export async function scheduleStockAlerts(stocks: any[]): Promise<void> {
       (n: any) => n.content?.data?.type === NotificationType.STOCK
     );
 
-    const stocksEnAlerteIds = new Set(
-      stocks.filter((s) => s.alerte_active).map((s) => s.id)
-    );
+    const stocksEnAlerteIds = new Set(stocks.filter((s) => s.alerte_active).map((s) => s.id));
 
     // Annuler les notifications pour les stocks qui ne sont plus en alerte
     for (const notification of stockNotifications) {
@@ -246,12 +255,7 @@ export async function scheduleStockAlerts(stocks: any[]): Promise<void> {
     // Planifier les notifications pour les nouveaux stocks en alerte
     for (const stock of stocks) {
       if (stock.alerte_active && stock.seuil_alerte !== undefined && stock.seuil_alerte !== null) {
-        await scheduleStockAlert(
-          stock.id,
-          stock.nom,
-          stock.quantite_actuelle,
-          stock.seuil_alerte
-        );
+        await scheduleStockAlert(stock.id, stock.nom, stock.quantite_actuelle, stock.seuil_alerte);
       }
     }
   } catch (error: any) {
@@ -306,25 +310,25 @@ export async function scheduleTaskReminders(tasks: any[]): Promise<void> {
     const taskNotifications = allNotifications.filter(
       (n: any) => n.content?.data?.type === NotificationType.TASK
     );
-    
+
     for (const notification of taskNotifications) {
       await Notifications.cancelScheduledNotificationAsync(notification.identifier);
     }
 
     // Planifier les nouvelles notifications
     const maintenant = new Date();
-    
+
     for (const task of tasks) {
       if (task.statut !== 'a_faire') continue;
 
       const dueDate = new Date(task.date_echeance);
-      
+
       // Ne planifier que pour les tâches futures
       if (dueDate <= maintenant) continue;
 
       // Planifier un rappel par défaut (24h avant)
       await scheduleTaskReminder(task.id, task.titre, dueDate, TASK_REMINDER_HOURS.DEFAULT);
-      
+
       // Planifier un rappel urgent (1h avant) si la tâche est importante
       if (task.priorite === 'haute' || task.type === 'urgent') {
         await scheduleTaskReminder(task.id, task.titre, dueDate, TASK_REMINDER_HOURS.URGENT);
@@ -350,10 +354,7 @@ export async function getAllScheduledNotifications(): Promise<any[]> {
 /**
  * Nettoie les notifications obsolètes (gestations terminées, tâches complétées, etc.)
  */
-export async function cleanupObsoleteNotifications(
-  gestations: any[],
-  tasks: any[]
-): Promise<void> {
+export async function cleanupObsoleteNotifications(gestations: any[], tasks: any[]): Promise<void> {
   try {
     const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
     const maintenant = new Date();
@@ -406,7 +407,6 @@ export async function cancelNotification(notificationId: string): Promise<void> 
   try {
     await Notifications.cancelScheduledNotificationAsync(notificationId);
   } catch (error: any) {
-    console.error('Erreur lors de l\'annulation de la notification:', error);
+    console.error("Erreur lors de l'annulation de la notification:", error);
   }
 }
-

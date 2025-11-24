@@ -33,4 +33,3 @@ export interface SignUpInput {
 export interface SignInInput {
   identifier: string; // email ou téléphone
 }
-

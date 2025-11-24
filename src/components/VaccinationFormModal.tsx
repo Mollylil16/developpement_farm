@@ -64,7 +64,8 @@ export default function VaccinationFormModal({ visible, onClose, vaccination, an
     lot_id: '',
     vaccin: 'autre',
     nom_vaccin: '',
-    date_vaccination: formatLocalDate(new Date().toISOString()) || new Date().toISOString().split('T')[0],
+    date_vaccination:
+      formatLocalDate(new Date().toISOString()) || new Date().toISOString().split('T')[0],
     date_rappel: '',
     numero_lot_vaccin: '',
     veterinaire: '',
@@ -162,7 +163,7 @@ export default function VaccinationFormModal({ visible, onClose, vaccination, an
           setLoading(false);
           return;
         }
-        
+
         const input: CreateVaccinationInput = {
           projet_id: projetActif.id,
           calendrier_id: formData.calendrier_id || undefined,
@@ -185,7 +186,7 @@ export default function VaccinationFormModal({ visible, onClose, vaccination, an
 
       onClose();
     } catch (err: any) {
-      setError(err.message || 'Erreur lors de l\'enregistrement');
+      setError(err.message || "Erreur lors de l'enregistrement");
     } finally {
       setLoading(false);
     }
@@ -299,7 +300,9 @@ export default function VaccinationFormModal({ visible, onClose, vaccination, an
           </TouchableOpacity>
           {showDatePicker && datePickerField === 'vaccination' && (
             <DateTimePicker
-              value={formData.date_vaccination ? parseLocalDate(formData.date_vaccination) : new Date()}
+              value={
+                formData.date_vaccination ? parseLocalDate(formData.date_vaccination) : new Date()
+              }
               mode="date"
               display="default"
               onChange={handleDatePickerChange}
@@ -592,4 +595,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

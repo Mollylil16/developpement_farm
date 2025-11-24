@@ -3,12 +3,24 @@
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  RefreshControl,
+} from 'react-native';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadDepensesPonctuelles, deleteDepensePonctuelle } from '../store/slices/financeSlice';
-import { selectAllDepensesPonctuelles, selectAllChargesFixes } from '../store/selectors/financeSelectors';
+import {
+  selectAllDepensesPonctuelles,
+  selectAllChargesFixes,
+} from '../store/selectors/financeSelectors';
 import { DepensePonctuelle } from '../types';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -31,6 +43,7 @@ export default function FinanceDepensesComponent() {
   const [displayedDepenses, setDisplayedDepenses] = useState<DepensePonctuelle[]>([]);
   const [page, setPage] = useState(1);
   const ITEMS_PER_PAGE = 50;
+  const [refreshing, setRefreshing] = useState(false);
 
   const { projetActif } = useAppSelector((state) => state.projet);
 
@@ -64,36 +77,44 @@ export default function FinanceDepensesComponent() {
     }
   }, [page, displayedDepenses.length, depensesPonctuelles]);
 
-  const handleEdit = useCallback((depense: DepensePonctuelle) => {
-    if (!canUpdate('finance')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les dépenses.');
-      return;
-    }
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSelectedDepense(depense);
-    setIsEditing(true);
-    setModalVisible(true);
-  }, [canUpdate]);
+  const handleEdit = useCallback(
+    (depense: DepensePonctuelle) => {
+      if (!canUpdate('finance')) {
+        Alert.alert(
+          'Permission refusée',
+          "Vous n'avez pas la permission de modifier les dépenses."
+        );
+        return;
+      }
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setSelectedDepense(depense);
+      setIsEditing(true);
+      setModalVisible(true);
+    },
+    [canUpdate]
+  );
 
-  const handleDelete = useCallback((id: string) => {
-    if (!canDelete('finance')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de supprimer les dépenses.');
-      return;
-    }
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert(
-      'Supprimer la dépense',
-      'Êtes-vous sûr de vouloir supprimer cette dépense ?',
-      [
+  const handleDelete = useCallback(
+    (id: string) => {
+      if (!canDelete('finance')) {
+        Alert.alert(
+          'Permission refusée',
+          "Vous n'avez pas la permission de supprimer les dépenses."
+        );
+        return;
+      }
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      Alert.alert('Supprimer la dépense', 'Êtes-vous sûr de vouloir supprimer cette dépense ?', [
         { text: 'Annuler', style: 'cancel' },
         {
           text: 'Supprimer',
           style: 'destructive',
           onPress: () => dispatch(deleteDepensePonctuelle(id)),
         },
-      ]
-    );
-  }, [canDelete, dispatch]);
+      ]);
+    },
+    [canDelete, dispatch]
+  );
 
   const handleViewPhotos = useCallback((photos: string[]) => {
     setViewingPhotos(photos);
@@ -113,6 +134,19 @@ export default function FinanceDepensesComponent() {
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [handleCloseModal, projetActif?.id, dispatch]);
+
+  const onRefresh = useCallback(async () => {
+    if (!projetActif?.id) return;
+    
+    setRefreshing(true);
+    try {
+      await dispatch(loadDepensesPonctuelles(projetActif.id)).unwrap();
+    } catch (error) {
+      console.error('Erreur lors du rafraîchissement:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [dispatch, projetActif?.id]);
 
   const getCategoryLabel = (categorie: string): string => {
     const labels: Record<string, string> = {
@@ -166,7 +200,10 @@ export default function FinanceDepensesComponent() {
             accessibilityLabel="Ajouter une dépense"
             accessibilityRole="button"
             accessibilityHint="Ouvre le formulaire pour ajouter une nouvelle dépense"
-            style={[styles.addButton, { backgroundColor: colors.primary, minHeight: 44, minWidth: 44 }]}
+            style={[
+              styles.addButton,
+              { backgroundColor: colors.primary, minHeight: 44, minWidth: 44 },
+            ]}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setSelectedDepense(null);
@@ -180,14 +217,27 @@ export default function FinanceDepensesComponent() {
       </View>
 
       {/* Résumé du mois */}
-      <View style={[styles.summary, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+      <View
+        style={[
+          styles.summary,
+          { backgroundColor: colors.surface, borderBottomColor: colors.border },
+        ]}
+      >
         <View style={styles.summaryItem}>
-          <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Dépenses ce mois</Text>
-          <Text style={[styles.summaryValue, { color: colors.primary }]}>{formatAmount(totalMois)}</Text>
+          <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+            Dépenses ce mois
+          </Text>
+          <Text style={[styles.summaryValue, { color: colors.primary }]}>
+            {formatAmount(totalMois)}
+          </Text>
         </View>
         <View style={styles.summaryItem}>
-          <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Nombre de dépenses</Text>
-          <Text style={[styles.summaryValue, { color: colors.primary }]}>{depensesCeMois.length}</Text>
+          <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+            Nombre de dépenses
+          </Text>
+          <Text style={[styles.summaryValue, { color: colors.primary }]}>
+            {depensesCeMois.length}
+          </Text>
         </View>
       </View>
 
@@ -205,7 +255,9 @@ export default function FinanceDepensesComponent() {
                   setModalVisible(true);
                 }}
               >
-                <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Ajouter une dépense</Text>
+                <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>
+                  + Ajouter une dépense
+                </Text>
               </TouchableOpacity>
             ) : null
           }
@@ -213,12 +265,33 @@ export default function FinanceDepensesComponent() {
       ) : (
         <FlatList
           data={displayedDepenses}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          }
           renderItem={({ item: depense }) => (
-            <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small }]}>
+            <View
+              style={[
+                styles.card,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  ...colors.shadow.small,
+                },
+              ]}
+            >
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderLeft}>
-                  <Text style={[styles.cardTitle, { color: colors.text }]}>{getCategoryLabel(depense.categorie)}</Text>
-                  <Text style={[styles.cardDate, { color: colors.textSecondary }]}>{formatDate(depense.date)}</Text>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>
+                    {getCategoryLabel(depense.categorie)}
+                  </Text>
+                  <Text style={[styles.cardDate, { color: colors.textSecondary }]}>
+                    {formatDate(depense.date)}
+                  </Text>
                 </View>
                 <View style={styles.cardActions}>
                   {depense.photos && depense.photos.length > 0 && (
@@ -250,18 +323,28 @@ export default function FinanceDepensesComponent() {
 
               <View style={styles.cardContent}>
                 <View style={styles.amountRow}>
-                  <Text style={[styles.amount, { color: colors.primary }]}>{formatAmount(depense.montant)}</Text>
+                  <Text style={[styles.amount, { color: colors.primary }]}>
+                    {formatAmount(depense.montant)}
+                  </Text>
                 </View>
                 {depense.libelle_categorie && (
                   <View style={styles.infoRow}>
-                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Libellé:</Text>
-                    <Text style={[styles.infoValue, { color: colors.text }]}>{depense.libelle_categorie}</Text>
+                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                      Libellé:
+                    </Text>
+                    <Text style={[styles.infoValue, { color: colors.text }]}>
+                      {depense.libelle_categorie}
+                    </Text>
                   </View>
                 )}
                 {depense.commentaire && (
                   <View style={[styles.commentContainer, { borderTopColor: colors.border }]}>
-                    <Text style={[styles.commentLabel, { color: colors.textSecondary }]}>Commentaire:</Text>
-                    <Text style={[styles.commentText, { color: colors.text }]}>{depense.commentaire}</Text>
+                    <Text style={[styles.commentLabel, { color: colors.textSecondary }]}>
+                      Commentaire:
+                    </Text>
+                    <Text style={[styles.commentText, { color: colors.text }]}>
+                      {depense.commentaire}
+                    </Text>
                   </View>
                 )}
                 {depense.photos && depense.photos.length > 0 && (
@@ -490,4 +573,3 @@ const styles = StyleSheet.create({
     height: 400,
   },
 });
-

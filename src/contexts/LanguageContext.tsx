@@ -4,7 +4,12 @@
  */
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { initLanguage, setLanguage as setI18nLanguage, getCurrentLanguage, t } from '../services/i18n';
+import {
+  initLanguage,
+  setLanguage as setI18nLanguage,
+  getCurrentLanguage,
+  t,
+} from '../services/i18n';
 
 interface LanguageContextType {
   language: 'fr' | 'en';
@@ -57,11 +62,7 @@ export function LanguageProvider({ children }: LanguageProviderProps) {
     isLoading,
   };
 
-  return (
-    <LanguageContext.Provider value={value}>
-      {children}
-    </LanguageContext.Provider>
-  );
+  return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 }
 
 /**
@@ -70,7 +71,7 @@ export function LanguageProvider({ children }: LanguageProviderProps) {
 export function useLanguage() {
   const context = useContext(LanguageContext);
   if (context === undefined) {
-    throw new Error('useLanguage doit être utilisé à l\'intérieur d\'un LanguageProvider');
+    throw new Error("useLanguage doit être utilisé à l'intérieur d'un LanguageProvider");
   }
   return context;
 }
@@ -82,4 +83,3 @@ export function useTranslation() {
   const { t, language } = useLanguage();
   return { t, language };
 }
-

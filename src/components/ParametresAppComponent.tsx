@@ -10,7 +10,11 @@ import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { databaseService } from '../services/database';
-import { getAllScheduledNotifications, cancelAllNotifications, configureNotifications } from '../services/notificationsService';
+import {
+  getAllScheduledNotifications,
+  cancelAllNotifications,
+  configureNotifications,
+} from '../services/notificationsService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ThemeSelector from './ThemeSelector';
 import { NOTIFICATIONS_ENABLED_KEY } from '../constants/notifications';
@@ -46,15 +50,9 @@ export default function ParametresAppComponent() {
   const handleChangeLanguage = async (lang: 'fr' | 'en') => {
     try {
       await setLanguage(lang);
-      Alert.alert(
-        t('settings.language_changed'),
-        t('settings.language_changed_message')
-      );
+      Alert.alert(t('settings.language_changed'), t('settings.language_changed_message'));
     } catch (error: any) {
-      Alert.alert(
-        t('common.error'),
-        error.message || 'Erreur lors du changement de langue'
-      );
+      Alert.alert(t('common.error'), error.message || 'Erreur lors du changement de langue');
     }
   };
 
@@ -81,21 +79,17 @@ export default function ParametresAppComponent() {
   };
 
   const handleSignOut = () => {
-    Alert.alert(
-      'Déconnexion',
-      'Êtes-vous sûr de vouloir vous déconnecter ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Déconnexion',
-          style: 'destructive',
-          onPress: async () => {
-            await dispatch(signOut());
-            // La navigation sera gérée automatiquement par AppNavigator
-          },
+    Alert.alert('Déconnexion', 'Êtes-vous sûr de vouloir vous déconnecter ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Déconnexion',
+        style: 'destructive',
+        onPress: async () => {
+          await dispatch(signOut());
+          // La navigation sera gérée automatiquement par AppNavigator
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const handleResetDatabase = () => {
@@ -113,7 +107,7 @@ export default function ParametresAppComponent() {
               // La réinitialisation complète nécessiterait de drop toutes les tables
               Alert.alert(
                 'Information',
-                'La réinitialisation complète de la base de données n\'est pas encore implémentée. Pour réinitialiser, supprimez et réinstallez l\'application.'
+                "La réinitialisation complète de la base de données n'est pas encore implémentée. Pour réinitialiser, supprimez et réinstallez l'application."
               );
             } catch (error: any) {
               Alert.alert('Erreur', error.message || 'Erreur lors de la réinitialisation');
@@ -127,7 +121,7 @@ export default function ParametresAppComponent() {
   const handleClearCache = () => {
     Alert.alert(
       'Vider le cache',
-      'Cette action va vider le cache de l\'application. Voulez-vous continuer ?',
+      "Cette action va vider le cache de l'application. Voulez-vous continuer ?",
       [
         { text: 'Annuler', style: 'cancel' },
         {
@@ -146,14 +140,19 @@ export default function ParametresAppComponent() {
   };
 
   return (
-    <ScrollView 
+    <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Informations</Text>
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small }]}>
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small },
+          ]}
+        >
           <View style={styles.infoRow}>
             <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Version</Text>
             <Text style={[styles.infoValue, { color: colors.text }]}>1.0.0</Text>
@@ -168,15 +167,16 @@ export default function ParametresAppComponent() {
 
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Compte</Text>
-        <TouchableOpacity 
-          style={[styles.actionCard, { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small }]} 
+        <TouchableOpacity
+          style={[
+            styles.actionCard,
+            { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small },
+          ]}
           onPress={handleSignOut}
           activeOpacity={0.7}
         >
           <View style={styles.actionCardContent}>
-            <Text style={[styles.actionCardTitle, { color: colors.error }]}>
-              Se déconnecter
-            </Text>
+            <Text style={[styles.actionCardTitle, { color: colors.error }]}>Se déconnecter</Text>
             <Text style={[styles.actionCardDescription, { color: colors.textSecondary }]}>
               Déconnectez-vous de votre compte
             </Text>
@@ -189,23 +189,33 @@ export default function ParametresAppComponent() {
 
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Langue</Text>
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small }]}>
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small },
+          ]}
+        >
           <View style={styles.languageContainer}>
             <TouchableOpacity
               style={[
                 styles.languageOption,
-                language === 'fr' && { backgroundColor: colors.primary + '15', borderColor: colors.primary },
-                { borderColor: colors.border }
+                language === 'fr' && {
+                  backgroundColor: colors.primary + '15',
+                  borderColor: colors.primary,
+                },
+                { borderColor: colors.border },
               ]}
               onPress={() => handleChangeLanguage('fr')}
               activeOpacity={0.7}
             >
               <View style={styles.languageContent}>
                 <Text style={[styles.languageFlag]}>🇫🇷</Text>
-                <Text style={[
-                  styles.languageLabel,
-                  { color: language === 'fr' ? colors.primary : colors.text }
-                ]}>
+                <Text
+                  style={[
+                    styles.languageLabel,
+                    { color: language === 'fr' ? colors.primary : colors.text },
+                  ]}
+                >
                   Français
                 </Text>
               </View>
@@ -219,18 +229,23 @@ export default function ParametresAppComponent() {
             <TouchableOpacity
               style={[
                 styles.languageOption,
-                language === 'en' && { backgroundColor: colors.primary + '15', borderColor: colors.primary },
-                { borderColor: colors.border }
+                language === 'en' && {
+                  backgroundColor: colors.primary + '15',
+                  borderColor: colors.primary,
+                },
+                { borderColor: colors.border },
               ]}
               onPress={() => handleChangeLanguage('en')}
               activeOpacity={0.7}
             >
               <View style={styles.languageContent}>
                 <Text style={[styles.languageFlag]}>🇬🇧</Text>
-                <Text style={[
-                  styles.languageLabel,
-                  { color: language === 'en' ? colors.primary : colors.text }
-                ]}>
+                <Text
+                  style={[
+                    styles.languageLabel,
+                    { color: language === 'en' ? colors.primary : colors.text },
+                  ]}
+                >
                   English
                 </Text>
               </View>
@@ -246,23 +261,37 @@ export default function ParametresAppComponent() {
 
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Apparence</Text>
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small }]}>
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small },
+          ]}
+        >
           <ThemeSelector />
         </View>
       </View>
 
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Notifications</Text>
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small }]}>
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small },
+          ]}
+        >
           <View style={styles.switchRow}>
             <View style={styles.switchContent}>
-              <Text style={[styles.switchLabel, { color: colors.text }]}>Activer les notifications</Text>
+              <Text style={[styles.switchLabel, { color: colors.text }]}>
+                Activer les notifications
+              </Text>
               <Text style={[styles.switchDescription, { color: colors.textSecondary }]}>
-                Recevez des alertes pour les gestations proches, stocks faibles, et tâches planifiées
+                Recevez des alertes pour les gestations proches, stocks faibles, et tâches
+                planifiées
               </Text>
               {scheduledCount > 0 && (
                 <Text style={[styles.scheduledCount, { color: colors.primary }]}>
-                  {scheduledCount} notification{scheduledCount > 1 ? 's' : ''} planifiée{scheduledCount > 1 ? 's' : ''}
+                  {scheduledCount} notification{scheduledCount > 1 ? 's' : ''} planifiée
+                  {scheduledCount > 1 ? 's' : ''}
                 </Text>
               )}
             </View>
@@ -278,8 +307,11 @@ export default function ParametresAppComponent() {
 
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Gestion des données</Text>
-        <TouchableOpacity 
-          style={[styles.actionCard, { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small }]} 
+        <TouchableOpacity
+          style={[
+            styles.actionCard,
+            { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small },
+          ]}
           onPress={handleClearCache}
           activeOpacity={0.7}
         >
@@ -289,13 +321,22 @@ export default function ParametresAppComponent() {
               Supprime les données temporaires
             </Text>
           </View>
-          <View style={[styles.actionCardArrowContainer, { backgroundColor: colors.primary + '10' }]}>
+          <View
+            style={[styles.actionCardArrowContainer, { backgroundColor: colors.primary + '10' }]}
+          >
             <Text style={[styles.actionCardArrow, { color: colors.primary }]}>›</Text>
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={[styles.actionCard, { backgroundColor: colors.surface, borderColor: colors.error + '30', ...colors.shadow.small }]} 
+        <TouchableOpacity
+          style={[
+            styles.actionCard,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.error + '30',
+              ...colors.shadow.small,
+            },
+          ]}
           onPress={handleResetDatabase}
           activeOpacity={0.7}
         >
@@ -315,10 +356,17 @@ export default function ParametresAppComponent() {
 
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>À propos</Text>
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small }]}>
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small },
+          ]}
+        >
           <Text style={[styles.aboutTitle, { color: colors.text }]}>Fermier Pro</Text>
           <Text style={[styles.aboutText, { color: colors.textSecondary }]}>
-            Application mobile conçue pour aider les éleveurs porcins à mieux gérer leur ferme. Outils avancés pour le planning de reproduction, la gestion nutritionnelle, le suivi financier et l'analyse de performance.
+            Application mobile conçue pour aider les éleveurs porcins à mieux gérer leur ferme.
+            Outils avancés pour le planning de reproduction, la gestion nutritionnelle, le suivi
+            financier et l'analyse de performance.
           </Text>
         </View>
       </View>
@@ -469,4 +517,3 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
-

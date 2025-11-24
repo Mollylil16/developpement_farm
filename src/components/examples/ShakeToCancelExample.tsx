@@ -23,10 +23,7 @@ export function BasicShakeExample() {
       <Text style={[styles.title, { color: colors.text }]}>
         Exemple 1 : Modal avec Shake-to-Cancel
       </Text>
-      <Button
-        title="Ouvrir le modal"
-        onPress={() => setModalVisible(true)}
-      />
+      <Button title="Ouvrir le modal" onPress={() => setModalVisible(true)} />
 
       <CustomModal
         visible={modalVisible}
@@ -61,10 +58,7 @@ export function DisabledShakeExample() {
       <Text style={[styles.title, { color: colors.text }]}>
         Exemple 2 : Shake-to-Cancel Désactivé
       </Text>
-      <Button
-        title="Ouvrir le modal"
-        onPress={() => setModalVisible(true)}
-      />
+      <Button title="Ouvrir le modal" onPress={() => setModalVisible(true)} />
 
       <CustomModal
         visible={modalVisible}
@@ -96,10 +90,7 @@ export function CustomSensitivityExample() {
       <Text style={[styles.title, { color: colors.text }]}>
         Exemple 3 : Sensibilité Personnalisée
       </Text>
-      <Button
-        title="Ouvrir le modal"
-        onPress={() => setModalVisible(true)}
-      />
+      <Button title="Ouvrir le modal" onPress={() => setModalVisible(true)} />
 
       <CustomModal
         visible={modalVisible}
@@ -138,15 +129,15 @@ export function CustomHookExample() {
         '🔔 Annuler les modifications ?',
         'Les changements non sauvegardés seront perdus',
         [
-          { text: 'Continuer l\'édition', style: 'cancel' },
+          { text: "Continuer l'édition", style: 'cancel' },
           {
             text: 'Annuler',
             style: 'destructive',
             onPress: () => {
               setIsEditing(false);
               setFormData({ name: '', email: '' });
-            }
-          }
+            },
+          },
         ]
       );
     },
@@ -156,20 +147,13 @@ export function CustomHookExample() {
 
   return (
     <View style={styles.container}>
-      <Text style={[styles.title, { color: colors.text }]}>
-        Exemple 4 : Hook Personnalisé
-      </Text>
-      
+      <Text style={[styles.title, { color: colors.text }]}>Exemple 4 : Hook Personnalisé</Text>
+
       {!isEditing ? (
-        <Button
-          title="Commencer l'édition"
-          onPress={() => setIsEditing(true)}
-        />
+        <Button title="Commencer l'édition" onPress={() => setIsEditing(true)} />
       ) : (
         <View>
-          <Text style={[styles.text, { color: colors.text }]}>
-            Mode édition activé
-          </Text>
+          <Text style={[styles.text, { color: colors.text }]}>Mode édition activé</Text>
           <Text style={[styles.hint, { color: colors.textSecondary }]}>
             💡 Secouez pour annuler l'édition
           </Text>
@@ -210,4 +194,3 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 165, 0, 0.1)',
   },
 });
-

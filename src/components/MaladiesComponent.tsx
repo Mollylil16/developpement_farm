@@ -29,15 +29,15 @@ interface Props {
 
 export default function MaladiesComponent({ refreshControl }: Props) {
   const { colors } = useTheme();
-  
+
   const maladies = useAppSelector(selectAllMaladies);
   const maladiesEnCours = useAppSelector(selectMaladiesEnCours);
   const maladiesCritiques = useAppSelector(selectMaladiesCritiques);
   const statistics = useAppSelector(selectSanteStatistics);
-  
+
   const [filtre, setFiltre] = useState<'toutes' | 'en_cours' | 'critiques'>('toutes');
   const [modalVisible, setModalVisible] = useState(false);
-  
+
   const maladiesFiltrees = useMemo(() => {
     switch (filtre) {
       case 'en_cours':
@@ -87,16 +87,16 @@ export default function MaladiesComponent({ refreshControl }: Props) {
 
   const renderMaladieCard = (maladie: any) => {
     const dateDebut = new Date(maladie.date_debut);
-    
+
     const graviteColor =
       maladie.gravite === 'critique'
         ? colors.error
         : maladie.gravite === 'grave'
-        ? colors.warning
-        : maladie.gravite === 'moderee'
-        ? colors.info
-        : colors.textSecondary;
-    
+          ? colors.warning
+          : maladie.gravite === 'moderee'
+            ? colors.info
+            : colors.textSecondary;
+
     return (
       <View
         key={maladie.id}
@@ -119,7 +119,8 @@ export default function MaladiesComponent({ refreshControl }: Props) {
           <View style={styles.cardRow}>
             <Ionicons name="medkit-outline" size={16} color={colors.textSecondary} />
             <Text style={[styles.cardText, { color: colors.textSecondary }]}>
-              {TYPE_MALADIE_LABELS[maladie.type as keyof typeof TYPE_MALADIE_LABELS] || maladie.type}
+              {TYPE_MALADIE_LABELS[maladie.type as keyof typeof TYPE_MALADIE_LABELS] ||
+                maladie.type}
             </Text>
           </View>
 
@@ -199,10 +200,7 @@ export default function MaladiesComponent({ refreshControl }: Props) {
           onPress={() => setFiltre('en_cours')}
         >
           <Text
-            style={[
-              styles.filtreText,
-              { color: filtre === 'en_cours' ? '#fff' : colors.text },
-            ]}
+            style={[styles.filtreText, { color: filtre === 'en_cours' ? '#fff' : colors.text }]}
           >
             En cours ({maladiesEnCours.length})
           </Text>
@@ -219,10 +217,7 @@ export default function MaladiesComponent({ refreshControl }: Props) {
           onPress={() => setFiltre('critiques')}
         >
           <Text
-            style={[
-              styles.filtreText,
-              { color: filtre === 'critiques' ? '#fff' : colors.text },
-            ]}
+            style={[styles.filtreText, { color: filtre === 'critiques' ? '#fff' : colors.text }]}
           >
             Critiques ({maladiesCritiques.length})
           </Text>
@@ -250,10 +245,7 @@ export default function MaladiesComponent({ refreshControl }: Props) {
       </TouchableOpacity>
 
       {/* Modal de formulaire */}
-      <MaladieFormModal
-        visible={modalVisible}
-        onClose={() => setModalVisible(false)}
-      />
+      <MaladieFormModal visible={modalVisible} onClose={() => setModalVisible(false)} />
     </ScrollView>
   );
 }
@@ -384,4 +376,3 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
 });
-

@@ -1,80 +1,51 @@
 /**
- * Écran Finance avec onglets - Design amélioré avec SafeAreaView
+ * Écran Finance avec onglets - Design harmonisé avec le menu Santé
  */
 
-import React from 'react';
-import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
+import React, { useState } from 'react';
+import { StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import FinanceGraphiquesComponent from '../components/FinanceGraphiquesComponent';
-import FinanceChargesFixesComponent from '../components/FinanceChargesFixesComponent';
-import FinanceDepensesComponent from '../components/FinanceDepensesComponent';
-import FinanceRevenusComponent from '../components/FinanceRevenusComponent';
-import ProtectedScreen from '../components/ProtectedScreen';
-import { FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import ProtectedScreen from '../components/ProtectedScreen';
+import FinanceHeader from '../components/FinanceHeader';
+import FinanceTabs, { FinanceOngletType } from '../components/FinanceTabs';
+import FinanceContent from '../components/FinanceContent';
 
-const Tab = createMaterialTopTabNavigator();
+const ONGLETS = [
+  { id: 'vue_ensemble' as FinanceOngletType, label: "Vue d'ensemble", icon: 'bar-chart-outline' },
+  { id: 'charges_fixes' as FinanceOngletType, label: 'Charges Fixes', icon: 'calendar-outline' },
+  { id: 'depenses' as FinanceOngletType, label: 'Dépenses', icon: 'trending-down-outline' },
+  { id: 'revenus' as FinanceOngletType, label: 'Revenus', icon: 'trending-up-outline' },
+  { id: 'bilan' as FinanceOngletType, label: 'Bilan', icon: 'calculator-outline' },
+];
 
 function FinanceScreenContent() {
   const { colors } = useTheme();
-  
+  const [ongletActif, setOngletActif] = useState<FinanceOngletType>('vue_ensemble');
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
-      <Tab.Navigator
-        screenOptions={{
-          tabBarActiveTintColor: colors.primary,
-          tabBarInactiveTintColor: colors.textSecondary,
-          tabBarIndicatorStyle: {
-            backgroundColor: colors.primary,
-            height: 3,
-          },
-          tabBarStyle: {
-            backgroundColor: colors.background,
-            elevation: 2,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-          },
-          tabBarLabelStyle: {
-            fontSize: FONT_SIZES.sm,
-            fontWeight: '600',
-            textTransform: 'none',
-          },
-        }}
-      >
-        <Tab.Screen
-          name="VueEnsemble"
-          component={FinanceGraphiquesComponent}
-          options={{
-            title: 'Vue d\'ensemble',
-          }}
-        />
-        <Tab.Screen
-          name="ChargesFixes"
-          component={FinanceChargesFixesComponent}
-          options={{
-            title: 'Charges Fixes',
-          }}
-        />
-        <Tab.Screen
-          name="Depenses"
-          component={FinanceDepensesComponent}
-          options={{
-            title: 'Dépenses',
-          }}
-        />
-        <Tab.Screen
-          name="Revenus"
-          component={FinanceRevenusComponent}
-          options={{
-            title: 'Revenus',
-          }}
-        />
-      </Tab.Navigator>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      {/* En-tête avec icône */}
+      <FinanceHeader />
+
+      {/* Onglets de navigation */}
+      <FinanceTabs
+        onglets={ONGLETS}
+        ongletActif={ongletActif}
+        onTabChange={setOngletActif}
+      />
+
+      {/* Contenu selon l'onglet actif */}
+      <FinanceContent ongletActif={ongletActif} />
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+});
 
 export default function FinanceScreen() {
   return (

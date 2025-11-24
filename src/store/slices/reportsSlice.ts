@@ -3,7 +3,12 @@
  */
 
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { RapportCroissance, CreateRapportCroissanceInput, IndicateursPerformance, Recommandation } from '../../types';
+import {
+  RapportCroissance,
+  CreateRapportCroissanceInput,
+  IndicateursPerformance,
+  Recommandation,
+} from '../../types';
 import { databaseService } from '../../services/database';
 
 interface ReportsState {
@@ -146,4 +151,3 @@ const reportsSlice = createSlice({
 
 export const { clearError, setIndicateursPerformance, setRecommandations } = reportsSlice.actions;
 export default reportsSlice.reducer;
-

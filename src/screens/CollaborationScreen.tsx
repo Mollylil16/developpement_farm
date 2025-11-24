@@ -17,9 +17,12 @@ function CollaborationScreenContent() {
   const invitationsEnAttente = Array.isArray(invitations)
     ? invitations.filter((inv: any) => inv.statut === 'en_attente').length
     : 0;
-  
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top']}
+    >
       <StandardHeader
         icon="people"
         title="Collaboration"
@@ -27,7 +30,7 @@ function CollaborationScreenContent() {
         badge={invitationsEnAttente}
         badgeColor={colors.warning}
       />
-      
+
       <View style={styles.content}>
         <CollaborationListComponent />
       </View>
@@ -51,4 +54,3 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
-

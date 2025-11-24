@@ -37,12 +37,12 @@ export default function AuthScreen() {
   const navigation = useNavigation<any>();
   const dispatch = useAppDispatch();
   const { isLoading, error, isAuthenticated } = useAppSelector((state) => state.auth);
-  
+
   const [isSignUp, setIsSignUp] = useState(false);
   const [identifier, setIdentifier] = useState(''); // email ou téléphone
   const [nom, setNom] = useState('');
   const [prenom, setPrenom] = useState('');
-  
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
@@ -90,7 +90,7 @@ export default function AuthScreen() {
 
       // Déterminer si c'est un email ou un téléphone
       const isEmail = identifier.includes('@');
-      
+
       if (isEmail) {
         // Validation de l'email
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -123,12 +123,15 @@ export default function AuthScreen() {
     if (Platform.OS === 'ios') {
       dispatch(signInWithApple());
     } else {
-      Alert.alert('Info', 'La connexion Apple n\'est disponible que sur iOS');
+      Alert.alert('Info', "La connexion Apple n'est disponible que sur iOS");
     }
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top', 'bottom']}
+    >
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -158,9 +161,16 @@ export default function AuthScreen() {
                   : 'Accédez à votre ferme en toute simplicité'}
               </Text>
               {isSignUp && (
-                <View style={[styles.infoBox, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '40' }]}>
+                <View
+                  style={[
+                    styles.infoBox,
+                    { backgroundColor: colors.primary + '15', borderColor: colors.primary + '40' },
+                  ]}
+                >
                   <Text style={[styles.infoText, { color: colors.primary }]}>
-                    💡 Si vous avez reçu une invitation, utilisez le même email que celui utilisé pour l'invitation. L'invitation sera automatiquement détectée après la création de votre compte.
+                    💡 Si vous avez reçu une invitation, utilisez le même email que celui utilisé
+                    pour l'invitation. L'invitation sera automatiquement détectée après la création
+                    de votre compte.
                   </Text>
                 </View>
               )}
@@ -169,8 +179,10 @@ export default function AuthScreen() {
             {/* Formulaire */}
             <View style={styles.form}>
               <FormField
-                label={isSignUp ? "Email ou Téléphone" : "Email ou Téléphone"}
-                placeholder={isSignUp ? "votre@email.com ou 0123456789" : "votre@email.com ou 0123456789"}
+                label={isSignUp ? 'Email ou Téléphone' : 'Email ou Téléphone'}
+                placeholder={
+                  isSignUp ? 'votre@email.com ou 0123456789' : 'votre@email.com ou 0123456789'
+                }
                 value={identifier}
                 onChangeText={setIdentifier}
                 keyboardType="default"
@@ -213,31 +225,51 @@ export default function AuthScreen() {
             {/* Séparateur */}
             <View style={styles.separator}>
               <View style={[styles.separatorLine, { backgroundColor: colors.border }]} />
-              <Text style={[styles.separatorText, { color: colors.textSecondary }]}>Ou continuez avec</Text>
+              <Text style={[styles.separatorText, { color: colors.textSecondary }]}>
+                Ou continuez avec
+              </Text>
               <View style={[styles.separatorLine, { backgroundColor: colors.border }]} />
             </View>
 
             {/* Boutons sociaux */}
             <View style={styles.socialContainer}>
               <TouchableOpacity
-                style={[styles.socialButton, { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small }]}
+                style={[
+                  styles.socialButton,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    ...colors.shadow.small,
+                  },
+                ]}
                 onPress={handleGoogleAuth}
                 disabled={isLoading}
                 activeOpacity={0.7}
               >
                 <GoogleLogo size={20} />
-                <Text style={[styles.socialText, { color: colors.text, marginLeft: SPACING.sm }]}>Google</Text>
+                <Text style={[styles.socialText, { color: colors.text, marginLeft: SPACING.sm }]}>
+                  Google
+                </Text>
               </TouchableOpacity>
 
               {Platform.OS === 'ios' && (
                 <TouchableOpacity
-                  style={[styles.socialButton, { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small }]}
+                  style={[
+                    styles.socialButton,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      ...colors.shadow.small,
+                    },
+                  ]}
                   onPress={handleAppleAuth}
                   disabled={isLoading}
                   activeOpacity={0.7}
                 >
                   <AppleLogo size={20} />
-                  <Text style={[styles.socialText, { color: colors.text, marginLeft: SPACING.sm }]}>Apple</Text>
+                  <Text style={[styles.socialText, { color: colors.text, marginLeft: SPACING.sm }]}>
+                    Apple
+                  </Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -257,7 +289,7 @@ export default function AuthScreen() {
                 disabled={isLoading}
               >
                 <Text style={[styles.switchLink, { color: colors.primary }]}>
-                  {isSignUp ? 'Se connecter' : 'S\'inscrire'}
+                  {isSignUp ? 'Se connecter' : "S'inscrire"}
                 </Text>
               </TouchableOpacity>
             </View>

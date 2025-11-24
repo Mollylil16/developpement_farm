@@ -20,8 +20,8 @@ function ReproductionScreenContent() {
   const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState<TabType>('gestations');
   const gestations = useAppSelector((state) => state.reproduction.gestations);
-  const gestationsEnCours = Array.isArray(gestations) 
-    ? gestations.filter((g: any) => g.statut === 'en_cours').length 
+  const gestationsEnCours = Array.isArray(gestations)
+    ? gestations.filter((g: any) => g.statut === 'en_cours').length
     : 0;
 
   const tabs: TabItem[] = [
@@ -59,7 +59,10 @@ function ReproductionScreenContent() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top']}
+    >
       <StandardHeader
         icon="heart"
         title="Reproduction"
@@ -67,16 +70,14 @@ function ReproductionScreenContent() {
         badge={gestationsEnCours}
         badgeColor={colors.success}
       />
-      
+
       <StandardTabs
         tabs={tabs}
         activeTab={activeTab}
         onTabChange={(tabId) => setActiveTab(tabId as TabType)}
       />
 
-      <View style={styles.content}>
-        {renderContent()}
-      </View>
+      <View style={styles.content}>{renderContent()}</View>
     </SafeAreaView>
   );
 }

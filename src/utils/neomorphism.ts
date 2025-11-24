@@ -138,4 +138,3 @@ export function neomorphismToStyle(neomorphism: NeomorphismStyle): ViewStyle {
     borderColor: neomorphism.borderColor,
   };
 }
-

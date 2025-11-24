@@ -52,4 +52,3 @@ export interface StatistiquesMortalite {
     nombre: number;
   }>;
 }
-

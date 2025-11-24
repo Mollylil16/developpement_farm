@@ -49,7 +49,7 @@ function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
 
     const cle = `${projetActif.id}-${type}`;
     if (dataChargeesRef.current === cle) return; // Déjà chargé !
-    
+
     dataChargeesRef.current = cle;
 
     switch (type) {
@@ -152,13 +152,18 @@ function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
           emoji: '💀',
           title: 'Mortalités',
           primary: mortalites.reduce((sum: number, m: Mortalite) => sum + m.nombre_porcs, 0),
-          secondary: mortalitesCeMois.reduce((sum: number, m: Mortalite) => sum + m.nombre_porcs, 0),
+          secondary: mortalitesCeMois.reduce(
+            (sum: number, m: Mortalite) => sum + m.nombre_porcs,
+            0
+          ),
           labelPrimary: 'Total',
           labelSecondary: 'Ce mois',
         };
 
       case 'production':
-        const animauxActifs = (animaux as any[]).filter((a: any) => a.statut?.toLowerCase() === 'actif');
+        const animauxActifs = (animaux as any[]).filter(
+          (a: any) => a.statut?.toLowerCase() === 'actif'
+        );
         return {
           emoji: '🐷',
           title: 'Production',
@@ -171,7 +176,28 @@ function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
       default:
         return null;
     }
-  }, [type, vaccinationsLength, maladiesLength, rationsLength, rationsBudgetLength, planificationsLength, collaborateursLength, mortalitesLength, animauxLength, peseesRecentsLength, projetActif?.id, vaccinations, maladies, rations, rationsBudget, planifications, collaborateurs, mortalites, animaux, peseesRecents]);
+  }, [
+    type,
+    vaccinationsLength,
+    maladiesLength,
+    rationsLength,
+    rationsBudgetLength,
+    planificationsLength,
+    collaborateursLength,
+    mortalitesLength,
+    animauxLength,
+    peseesRecentsLength,
+    projetActif?.id,
+    vaccinations,
+    maladies,
+    rations,
+    rationsBudget,
+    planifications,
+    collaborateurs,
+    mortalites,
+    animaux,
+    peseesRecents,
+  ]);
 
   if (!widgetData) {
     return null;
@@ -187,7 +213,9 @@ function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
       <View style={styles.statsRow}>
         <View style={styles.statItem}>
           <Text style={[styles.statValue, { color: colors.text }]}>
-            {widgetData.primary !== undefined && widgetData.primary !== null ? widgetData.primary : 0}
+            {widgetData.primary !== undefined && widgetData.primary !== null
+              ? widgetData.primary
+              : 0}
           </Text>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
             {widgetData.labelPrimary || 'Total'}
@@ -196,7 +224,9 @@ function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
         <View style={[styles.dividerVertical, { backgroundColor: colors.divider }]} />
         <View style={styles.statItem}>
           <Text style={[styles.statValue, { color: colors.text }]}>
-            {widgetData.secondary !== undefined && widgetData.secondary !== null ? widgetData.secondary : 0}
+            {widgetData.secondary !== undefined && widgetData.secondary !== null
+              ? widgetData.secondary
+              : 0}
           </Text>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
             {widgetData.labelSecondary || '-'}
@@ -265,4 +295,3 @@ const styles = StyleSheet.create({
 });
 
 export default memo(SecondaryWidget);
-

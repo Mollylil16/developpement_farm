@@ -26,22 +26,22 @@ export default function GestationsCalendarComponent() {
   // Préparer les dates marquées pour le calendrier
   const markedDates = useMemo(() => {
     const marked: any = {};
-    
+
     if (!projetActif?.id) return marked;
-    
+
     // Filtrer les gestations du projet actif
     const gestationsProjet = gestations.filter((g: Gestation) => g.projet_id === projetActif.id);
-    
+
     gestationsProjet.forEach((gestation: Gestation) => {
       try {
         if (!gestation.date_mise_bas_prevue || !gestation.date_sautage) return;
-        
+
         const dateMiseBas = gestation.date_mise_bas_prevue.split('T')[0];
         const dateSautage = gestation.date_sautage.split('T')[0];
-        
+
         // Vérifier que les dates sont valides
         if (!dateMiseBas || !dateSautage) return;
-        
+
         // Marquer la date de mise bas prévue
         if (!marked[dateMiseBas]) {
           marked[dateMiseBas] = {
@@ -49,7 +49,7 @@ export default function GestationsCalendarComponent() {
             selected: false,
           };
         }
-        
+
         try {
           const isAlerte = doitGenererAlerte(gestation.date_mise_bas_prevue);
           marked[dateMiseBas].dots.push({
@@ -57,13 +57,13 @@ export default function GestationsCalendarComponent() {
             selectedDotColor: colors.background,
           });
         } catch (error) {
-          console.error('Erreur lors de la vérification de l\'alerte:', error);
+          console.error("Erreur lors de la vérification de l'alerte:", error);
           marked[dateMiseBas].dots.push({
             color: colors.primary,
             selectedDotColor: colors.background,
           });
         }
-        
+
         // Marquer la date de sautage
         if (!marked[dateSautage]) {
           marked[dateSautage] = {
@@ -79,9 +79,9 @@ export default function GestationsCalendarComponent() {
         console.error('Erreur lors du traitement de la gestation:', error);
       }
     });
-    
+
     return marked;
-  }, [gestationsLength, gestations, projetActif?.id, colors]);  // ✅ Ajout de gestationsLength
+  }, [gestationsLength, gestations, projetActif?.id, colors]); // ✅ Ajout de gestationsLength
 
   const onDayPress = (day: DateData) => {
     // Peut être utilisé pour afficher les détails d'une journée
@@ -108,13 +108,13 @@ export default function GestationsCalendarComponent() {
   // Trouver le prochain événement futur (mise bas prévue)
   const prochainEvenement = useMemo(() => {
     if (!projetActif?.id) return null;
-    
+
     const aujourdhui = new Date();
     aujourdhui.setHours(0, 0, 0, 0);
-    
+
     // Filtrer les gestations du projet actif
     const gestationsProjet = gestations.filter((g: Gestation) => g.projet_id === projetActif.id);
-    
+
     const evenementsFuturs = gestationsProjet
       .filter((g: Gestation) => g.statut === 'en_cours' && g.date_mise_bas_prevue)
       .map((g: Gestation) => {
@@ -131,9 +131,12 @@ export default function GestationsCalendarComponent() {
           return null;
         }
       })
-      .filter((e): e is NonNullable<typeof e> => e !== null && (isAfter(e.date, aujourdhui) || e.date.getTime() === aujourdhui.getTime()))
+      .filter(
+        (e): e is NonNullable<typeof e> =>
+          e !== null && (isAfter(e.date, aujourdhui) || e.date.getTime() === aujourdhui.getTime())
+      )
       .sort((a, b) => a.date.getTime() - b.date.getTime());
-    
+
     return evenementsFuturs[0] || null;
   }, [gestations, projetActif?.id]);
 
@@ -165,7 +168,10 @@ export default function GestationsCalendarComponent() {
       <View style={[styles.calendarHeader, { backgroundColor: colors.surface }]}>
         <TouchableOpacity
           onPress={goToPreviousMonth}
-          style={[styles.navButton, { backgroundColor: colors.background, borderColor: colors.border }]}
+          style={[
+            styles.navButton,
+            { backgroundColor: colors.background, borderColor: colors.border },
+          ]}
         >
           <Text style={[styles.navButtonText, { color: colors.text }]}>‹</Text>
         </TouchableOpacity>
@@ -178,7 +184,9 @@ export default function GestationsCalendarComponent() {
               onPress={goToToday}
               style={[styles.todayButton, { backgroundColor: colors.primary }]}
             >
-              <Text style={[styles.todayButtonText, { color: colors.textOnPrimary }]}>Aujourd'hui</Text>
+              <Text style={[styles.todayButtonText, { color: colors.textOnPrimary }]}>
+                Aujourd'hui
+              </Text>
             </TouchableOpacity>
             {prochainEvenement && (
               <TouchableOpacity
@@ -194,7 +202,10 @@ export default function GestationsCalendarComponent() {
         </View>
         <TouchableOpacity
           onPress={goToNextMonth}
-          style={[styles.navButton, { backgroundColor: colors.background, borderColor: colors.border }]}
+          style={[
+            styles.navButton,
+            { backgroundColor: colors.background, borderColor: colors.border },
+          ]}
         >
           <Text style={[styles.navButtonText, { color: colors.text }]}>›</Text>
         </TouchableOpacity>
@@ -325,4 +336,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

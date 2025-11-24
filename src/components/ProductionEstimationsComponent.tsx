@@ -3,20 +3,10 @@
  */
 
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import {
-  loadProductionAnimaux,
-  loadPeseesParAnimal,
-} from '../store/slices/productionSlice';
+import { loadProductionAnimaux, loadPeseesParAnimal } from '../store/slices/productionSlice';
 import { selectAllAnimaux, selectPeseesParAnimal } from '../store/selectors/productionSelectors';
 import { ProductionAnimal, ProductionPesee, getStandardGMQ } from '../types';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
@@ -41,9 +31,7 @@ export default function ProductionEstimationsComponent() {
   const [mode, setMode] = useState<EstimationMode>('date');
   const [selectedAnimalId, setSelectedAnimalId] = useState<string>('');
   const [poidsCible, setPoidsCible] = useState<string>('');
-  const [dateCible, setDateCible] = useState<string>(
-    format(new Date(), 'yyyy-MM-dd')
-  );
+  const [dateCible, setDateCible] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [showDatePicker, setShowDatePicker] = useState(false);
 
   // Charger les animaux uniquement quand l'onglet est visible
@@ -59,13 +47,16 @@ export default function ProductionEstimationsComponent() {
   // On charge uniquement les pesées manquantes pour éviter les requêtes inutiles
   // Utiliser useRef pour éviter les boucles infinies
   const animauxChargesRef = useRef<Set<string>>(new Set());
-  
+
   useFocusEffect(
     React.useCallback(() => {
       if (projetActif && animaux.length > 0) {
         // Charger les pesées uniquement pour les animaux qui n'ont pas encore leurs pesées chargées
         const animauxSansPesees = animaux.filter(
-          (a) => a.statut?.toLowerCase() === 'actif' && !peseesParAnimal[a.id] && !animauxChargesRef.current.has(a.id)
+          (a) =>
+            a.statut?.toLowerCase() === 'actif' &&
+            !peseesParAnimal[a.id] &&
+            !animauxChargesRef.current.has(a.id)
         );
         // Limiter à 10 animaux à la fois pour éviter de surcharger
         animauxSansPesees.slice(0, 10).forEach((animal) => {
@@ -82,10 +73,26 @@ export default function ProductionEstimationsComponent() {
       .filter((a) => a.statut?.toLowerCase() === 'actif')
       .map((animal) => {
         const pesees = peseesParAnimal[animal.id] || [];
-        const dernierePesee = pesees[0];
-        if (!dernierePesee) return null;
+        if (pesees.length === 0) return null;
 
-        const gmq = dernierePesee.gmq || 0; // g/jour
+        // Les pesées sont triées par date ASC, donc la dernière est à la fin
+        const dernierePesee = pesees[pesees.length - 1];
+        
+        // Utiliser le GMQ de la dernière pesée (calculé automatiquement)
+        // Si pas de GMQ (première pesée), calculer le GMQ moyen de toutes les pesées
+        let gmq = dernierePesee.gmq || 0;
+        
+        // Si le GMQ est 0 et qu'il y a plus d'une pesée, calculer le GMQ moyen
+        if (gmq === 0 && pesees.length >= 2) {
+          const premiere = pesees[0];
+          const derniere = pesees[pesees.length - 1];
+          const gainTotal = derniere.poids_kg - premiere.poids_kg;
+          const dateInitiale = new Date(premiere.date);
+          const dateFinale = new Date(derniere.date);
+          const joursTotal = Math.max(1, Math.ceil((dateFinale.getTime() - dateInitiale.getTime()) / (1000 * 60 * 60 * 24)));
+          gmq = Math.round((gainTotal * 1000) / joursTotal);
+        }
+
         const poidsActuel = dernierePesee.poids_kg;
         const dateActuelle = new Date(dernierePesee.date);
 
@@ -104,9 +111,7 @@ export default function ProductionEstimationsComponent() {
   const estimationDate = useMemo(() => {
     if (!selectedAnimalId || !poidsCible) return null;
 
-    const animalStats = animauxAvecStats.find(
-      (s) => s.animal.id === selectedAnimalId
-    );
+    const animalStats = animauxAvecStats.find((s) => s.animal.id === selectedAnimalId);
     if (!animalStats || animalStats.gmq <= 0) return null;
 
     const poidsCibleNum = parseFloat(poidsCible);
@@ -170,12 +175,7 @@ export default function ProductionEstimationsComponent() {
           gmq: stats.gmq,
           gmqCible,
           ecartGmq,
-          statut:
-            Math.abs(ecart) < 2
-              ? 'atteint'
-              : ecart > 0
-              ? 'depasse'
-              : 'insuffisant',
+          statut: Math.abs(ecart) < 2 ? 'atteint' : ecart > 0 ? 'depasse' : 'insuffisant',
         };
       })
       .filter((item): item is NonNullable<typeof item> => item !== null)
@@ -209,11 +209,18 @@ export default function ProductionEstimationsComponent() {
         showsVerticalScrollIndicator={false}
       >
         {/* Message d'information */}
-        <View style={[styles.infoBox, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' }]}>
-          <Text style={[styles.infoTitle, { color: colors.primary }]}>ℹ️ Comment utiliser les estimations</Text>
+        <View
+          style={[
+            styles.infoBox,
+            { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' },
+          ]}
+        >
+          <Text style={[styles.infoTitle, { color: colors.primary }]}>
+            ℹ️ Comment utiliser les estimations
+          </Text>
           <Text style={[styles.infoText, { color: colors.text }]}>
-            {mode === 'date' 
-              ? 'Sélectionnez un animal et entrez un poids cible. Le système calculera la date à laquelle l\'animal atteindra ce poids.'
+            {mode === 'date'
+              ? "Sélectionnez un animal et entrez un poids cible. Le système calculera la date à laquelle l'animal atteindra ce poids."
               : 'Entrez un poids cible et une date. Le système trouvera tous les animaux qui atteindront ce poids à cette date.'}
           </Text>
           <Text style={[styles.infoNote, { color: colors.textSecondary }]}>
@@ -222,7 +229,9 @@ export default function ProductionEstimationsComponent() {
         </View>
 
         {/* Sélecteur de mode */}
-        <View style={[styles.modeSelector, { backgroundColor: colors.surface, ...colors.shadow.small }]}>
+        <View
+          style={[styles.modeSelector, { backgroundColor: colors.surface, ...colors.shadow.small }]}
+        >
           <TouchableOpacity
             style={[
               styles.modeButton,
@@ -282,19 +291,26 @@ export default function ProductionEstimationsComponent() {
               Quand cet animal atteindra-t-il un poids cible ?
             </Text>
 
-            <View style={[styles.formContainer, { backgroundColor: colors.surface, ...colors.shadow.small }]}>
+            <View
+              style={[
+                styles.formContainer,
+                { backgroundColor: colors.surface, ...colors.shadow.small },
+              ]}
+            >
               {animauxAvecStats.length === 0 ? (
                 <View style={styles.emptyStateContainer}>
                   <Text style={[styles.emptyStateTitle, { color: colors.text }]}>
                     Aucun animal avec pesées disponible
                   </Text>
                   <Text style={[styles.emptyStateMessage, { color: colors.textSecondary }]}>
-                    Pour utiliser les estimations, vous devez d'abord enregistrer au moins une pesée pour vos animaux.{'\n\n'}
+                    Pour utiliser les estimations, vous devez d'abord enregistrer au moins une pesée
+                    pour vos animaux.{'\n\n'}
                     Allez dans l'onglet "Suivi des pesées" pour ajouter des pesées.
                   </Text>
                   {animaux.length > 0 && (
                     <Text style={[styles.emptyStateStats, { color: colors.textSecondary }]}>
-                      {animaux.length} animal(s) enregistré(s), {animauxAvecPesees.length} avec pesées
+                      {animaux.length} animal(s) enregistré(s), {animauxAvecPesees.length} avec
+                      pesées
                     </Text>
                   )}
                 </View>
@@ -305,14 +321,22 @@ export default function ProductionEstimationsComponent() {
                     <Text style={[styles.helperText, { color: colors.textSecondary }]}>
                       {animauxAvecStats.length} animal(s) disponible(s) avec pesées
                     </Text>
-                    <ScrollView style={[styles.animalSelect, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                    <ScrollView
+                      style={[
+                        styles.animalSelect,
+                        { borderColor: colors.border, backgroundColor: colors.background },
+                      ]}
+                    >
                       {animauxAvecStats.map((stats) => (
                         <TouchableOpacity
                           key={stats.animal.id}
                           style={[
                             styles.animalOption,
                             {
-                              backgroundColor: selectedAnimalId === stats.animal.id ? colors.primary + '15' : 'transparent',
+                              backgroundColor:
+                                selectedAnimalId === stats.animal.id
+                                  ? colors.primary + '15'
+                                  : 'transparent',
                               borderBottomColor: colors.border,
                             },
                           ]}
@@ -322,7 +346,10 @@ export default function ProductionEstimationsComponent() {
                             style={[
                               styles.animalOptionText,
                               {
-                                color: selectedAnimalId === stats.animal.id ? colors.primary : colors.text,
+                                color:
+                                  selectedAnimalId === stats.animal.id
+                                    ? colors.primary
+                                    : colors.text,
                                 fontWeight: selectedAnimalId === stats.animal.id ? '600' : 'normal',
                               },
                             ]}
@@ -365,55 +392,81 @@ export default function ProductionEstimationsComponent() {
                     </View>
                   )}
 
-                  {selectedAnimalId && poidsCible && (
+                  {selectedAnimalId &&
+                    poidsCible &&
                     (() => {
-                      const animalStats = animauxAvecStats.find((s) => s.animal.id === selectedAnimalId);
+                      const animalStats = animauxAvecStats.find(
+                        (s) => s.animal.id === selectedAnimalId
+                      );
                       const poidsCibleNum = parseFloat(poidsCible);
-                      if (animalStats && !isNaN(poidsCibleNum) && poidsCibleNum <= animalStats.poidsActuel) {
+                      if (
+                        animalStats &&
+                        !isNaN(poidsCibleNum) &&
+                        poidsCibleNum <= animalStats.poidsActuel
+                      ) {
                         return (
-                          <View style={[styles.warningBox, { backgroundColor: colors.error + '15' }]}>
+                          <View
+                            style={[styles.warningBox, { backgroundColor: colors.error + '15' }]}
+                          >
                             <Text style={[styles.warningText, { color: colors.error }]}>
-                              ⚠️ Le poids cible doit être supérieur au poids actuel ({animalStats.poidsActuel.toFixed(1)} kg)
+                              ⚠️ Le poids cible doit être supérieur au poids actuel (
+                              {animalStats.poidsActuel.toFixed(1)} kg)
                             </Text>
                           </View>
                         );
                       }
                       return null;
-                    })()
-                  )}
+                    })()}
                 </>
               )}
 
               {estimationDate && (
-                <View style={[styles.resultCard, { backgroundColor: colors.surfaceVariant, borderColor: colors.primary + '30' }]}>
-                  <Text style={[styles.resultTitle, { color: colors.text }]}>Résultat de l'estimation</Text>
+                <View
+                  style={[
+                    styles.resultCard,
+                    { backgroundColor: colors.surfaceVariant, borderColor: colors.primary + '30' },
+                  ]}
+                >
+                  <Text style={[styles.resultTitle, { color: colors.text }]}>
+                    Résultat de l'estimation
+                  </Text>
                   <View style={styles.resultContent}>
                     <View style={styles.resultRow}>
-                      <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>Date estimée:</Text>
+                      <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>
+                        Date estimée:
+                      </Text>
                       <Text style={[styles.resultValue, { color: colors.text }]}>
                         {format(estimationDate.dateEstimee, 'dd MMMM yyyy', { locale: fr })}
                       </Text>
                     </View>
                     <View style={styles.resultRow}>
-                      <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>Jours nécessaires:</Text>
+                      <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>
+                        Jours nécessaires:
+                      </Text>
                       <Text style={[styles.resultValue, { color: colors.text }]}>
                         {estimationDate.joursNecessaires} jours
                       </Text>
                     </View>
                     <View style={styles.resultRow}>
-                      <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>GMQ actuel:</Text>
+                      <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>
+                        GMQ actuel:
+                      </Text>
                       <Text style={[styles.resultValue, { color: colors.text }]}>
                         {estimationDate.gmq.toFixed(0)} g/j
                       </Text>
                     </View>
                     <View style={styles.resultRow}>
-                      <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>GMQ cible (standard):</Text>
+                      <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>
+                        GMQ cible (standard):
+                      </Text>
                       <Text style={[styles.resultValue, { color: colors.text }]}>
                         {estimationDate.gmqCible.toFixed(0)} g/j
                       </Text>
                     </View>
                     <View style={styles.resultRow}>
-                      <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>Écart:</Text>
+                      <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>
+                        Écart:
+                      </Text>
                       <Text
                         style={[
                           styles.resultValue,
@@ -431,8 +484,8 @@ export default function ProductionEstimationsComponent() {
                         {estimationDate.statut === 'en_avance'
                           ? '✅ En avance sur le standard'
                           : estimationDate.statut === 'en_retard'
-                          ? '⚠️ En retard sur le standard'
-                          : '✓ Dans les normes'}
+                            ? '⚠️ En retard sur le standard'
+                            : '✓ Dans les normes'}
                       </Text>
                     </View>
                   </View>
@@ -449,19 +502,26 @@ export default function ProductionEstimationsComponent() {
               Quels animaux atteindront un poids cible à une date donnée ?
             </Text>
 
-            <View style={[styles.formContainer, { backgroundColor: colors.surface, ...colors.shadow.small }]}>
+            <View
+              style={[
+                styles.formContainer,
+                { backgroundColor: colors.surface, ...colors.shadow.small },
+              ]}
+            >
               {animauxAvecStats.length === 0 ? (
                 <View style={styles.emptyStateContainer}>
                   <Text style={[styles.emptyStateTitle, { color: colors.text }]}>
                     Aucun animal avec pesées disponible
                   </Text>
                   <Text style={[styles.emptyStateMessage, { color: colors.textSecondary }]}>
-                    Pour utiliser les estimations, vous devez d'abord enregistrer au moins une pesée pour vos animaux.{'\n\n'}
+                    Pour utiliser les estimations, vous devez d'abord enregistrer au moins une pesée
+                    pour vos animaux.{'\n\n'}
                     Allez dans l'onglet "Suivi des pesées" pour ajouter des pesées.
                   </Text>
                   {animaux.length > 0 && (
                     <Text style={[styles.emptyStateStats, { color: colors.textSecondary }]}>
-                      {animaux.length} animal(s) enregistré(s), {animauxAvecPesees.length} avec pesées
+                      {animaux.length} animal(s) enregistré(s), {animauxAvecPesees.length} avec
+                      pesées
                     </Text>
                   )}
                 </View>
@@ -477,7 +537,10 @@ export default function ProductionEstimationsComponent() {
                   <View style={styles.section}>
                     <Text style={[styles.sectionTitle, { color: colors.text }]}>Date cible *</Text>
                     <TouchableOpacity
-                      style={[styles.dateButton, { borderColor: colors.border, backgroundColor: colors.background }]}
+                      style={[
+                        styles.dateButton,
+                        { borderColor: colors.border, backgroundColor: colors.background },
+                      ]}
                       onPress={() => setShowDatePicker(true)}
                     >
                       <Text style={[styles.dateButtonText, { color: colors.text }]}>
@@ -514,7 +577,9 @@ export default function ProductionEstimationsComponent() {
                   )}
 
                   {poidsCible && dateCible && animauxAtteignantPoids.length === 0 && (
-                    <View style={[styles.warningBox, { backgroundColor: colors.textSecondary + '15' }]}>
+                    <View
+                      style={[styles.warningBox, { backgroundColor: colors.textSecondary + '15' }]}
+                    >
                       <Text style={[styles.warningText, { color: colors.textSecondary }]}>
                         ℹ️ Aucun animal n'atteindra ce poids à cette date avec les données actuelles
                       </Text>
@@ -529,7 +594,16 @@ export default function ProductionEstimationsComponent() {
                     {animauxAtteignantPoids.length} animal(s) trouvé(s)
                   </Text>
                   {animauxAtteignantPoids.map((result) => (
-                    <View key={result.animal.id} style={[styles.resultCard, { backgroundColor: colors.surfaceVariant, borderColor: colors.primary + '30' }]}>
+                    <View
+                      key={result.animal.id}
+                      style={[
+                        styles.resultCard,
+                        {
+                          backgroundColor: colors.surfaceVariant,
+                          borderColor: colors.primary + '30',
+                        },
+                      ]}
+                    >
                       <View style={styles.resultHeader}>
                         <Text style={[styles.resultAnimalCode, { color: colors.text }]}>
                           {result.animal.code}
@@ -543,8 +617,8 @@ export default function ProductionEstimationsComponent() {
                                 result.statut === 'atteint'
                                   ? colors.success + '20'
                                   : result.statut === 'depasse'
-                                  ? colors.warning + '20'
-                                  : colors.error + '20',
+                                    ? colors.warning + '20'
+                                    : colors.error + '20',
                             },
                           ]}
                         >
@@ -552,26 +626,32 @@ export default function ProductionEstimationsComponent() {
                             {result.statut === 'atteint'
                               ? '✓ Atteint'
                               : result.statut === 'depasse'
-                              ? '↑ Dépasse'
-                              : '↓ Insuffisant'}
+                                ? '↑ Dépasse'
+                                : '↓ Insuffisant'}
                           </Text>
                         </View>
                       </View>
                       <View style={styles.resultContent}>
                         <View style={styles.resultRow}>
-                          <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>Poids actuel:</Text>
+                          <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>
+                            Poids actuel:
+                          </Text>
                           <Text style={[styles.resultValue, { color: colors.text }]}>
                             {result.poidsActuel.toFixed(1)} kg
                           </Text>
                         </View>
                         <View style={styles.resultRow}>
-                          <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>Poids estimé:</Text>
+                          <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>
+                            Poids estimé:
+                          </Text>
                           <Text style={[styles.resultValue, { color: colors.text }]}>
                             {result.poidsEstime.toFixed(1)} kg
                           </Text>
                         </View>
                         <View style={styles.resultRow}>
-                          <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>Écart:</Text>
+                          <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>
+                            Écart:
+                          </Text>
                           <Text
                             style={[
                               styles.resultValue,
@@ -580,8 +660,8 @@ export default function ProductionEstimationsComponent() {
                                   Math.abs(result.ecart) < 2
                                     ? colors.primary
                                     : result.ecart > 0
-                                    ? colors.success
-                                    : colors.error,
+                                      ? colors.success
+                                      : colors.error,
                               },
                             ]}
                           >
@@ -590,13 +670,17 @@ export default function ProductionEstimationsComponent() {
                           </Text>
                         </View>
                         <View style={styles.resultRow}>
-                          <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>Jours restants:</Text>
+                          <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>
+                            Jours restants:
+                          </Text>
                           <Text style={[styles.resultValue, { color: colors.text }]}>
                             {result.joursRestants} jours
                           </Text>
                         </View>
                         <View style={styles.resultRow}>
-                          <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>GMQ:</Text>
+                          <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>
+                            GMQ:
+                          </Text>
                           <Text style={[styles.resultValue, { color: colors.text }]}>
                             {result.gmq.toFixed(0)} g/j
                           </Text>
@@ -753,10 +837,10 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.xs,
     marginBottom: SPACING.sm,
   },
-  section: {
+  formSection: {
     marginBottom: SPACING.md,
   },
-  sectionTitle: {
+  formSectionTitle: {
     fontSize: FONT_SIZES.sm,
     fontWeight: '600',
     marginBottom: SPACING.xs,
@@ -801,4 +885,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-

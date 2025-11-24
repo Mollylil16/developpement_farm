@@ -29,17 +29,17 @@ export default function PlanificationCalendarComponent() {
   // Préparer les dates marquées pour le calendrier
   const markedDates = useMemo(() => {
     const marked: any = {};
-    
+
     planifications.forEach((planification) => {
       const datePrevue = planification.date_prevue.split('T')[0];
-      
+
       if (!marked[datePrevue]) {
         marked[datePrevue] = {
           dots: [],
           selected: false,
         };
       }
-      
+
       // Couleur selon le type et le statut
       let dotColor = colors.primary;
       if (planification.statut === 'terminee') {
@@ -65,13 +65,13 @@ export default function PlanificationCalendarComponent() {
             dotColor = colors.textSecondary;
         }
       }
-      
+
       marked[datePrevue].dots.push({
         color: dotColor,
         selectedDotColor: colors.background,
       });
     });
-    
+
     return marked;
   }, [planifications, colors]);
 
@@ -106,7 +106,7 @@ export default function PlanificationCalendarComponent() {
   const prochainEvenement = useMemo(() => {
     const aujourdhui = new Date();
     aujourdhui.setHours(0, 0, 0, 0);
-    
+
     const evenementsFuturs = planifications
       .filter((p) => p.statut === 'a_faire' || p.statut === 'en_cours')
       .map((p) => ({
@@ -116,7 +116,7 @@ export default function PlanificationCalendarComponent() {
       }))
       .filter((e) => isAfter(e.date, aujourdhui) || e.date.getTime() === aujourdhui.getTime())
       .sort((a, b) => a.date.getTime() - b.date.getTime());
-    
+
     return evenementsFuturs[0] || null;
   }, [planifications]);
 
@@ -152,7 +152,10 @@ export default function PlanificationCalendarComponent() {
       <View style={[styles.calendarHeader, { backgroundColor: colors.surface }]}>
         <TouchableOpacity
           onPress={goToPreviousMonth}
-          style={[styles.navButton, { backgroundColor: colors.background, borderColor: colors.border }]}
+          style={[
+            styles.navButton,
+            { backgroundColor: colors.background, borderColor: colors.border },
+          ]}
         >
           <Text style={[styles.navButtonText, { color: colors.text }]}>‹</Text>
         </TouchableOpacity>
@@ -165,7 +168,9 @@ export default function PlanificationCalendarComponent() {
               onPress={goToToday}
               style={[styles.todayButton, { backgroundColor: colors.primary }]}
             >
-              <Text style={[styles.todayButtonText, { color: colors.textOnPrimary }]}>Aujourd'hui</Text>
+              <Text style={[styles.todayButtonText, { color: colors.textOnPrimary }]}>
+                Aujourd'hui
+              </Text>
             </TouchableOpacity>
             {prochainEvenement && (
               <TouchableOpacity
@@ -181,7 +186,10 @@ export default function PlanificationCalendarComponent() {
         </View>
         <TouchableOpacity
           onPress={goToNextMonth}
-          style={[styles.navButton, { backgroundColor: colors.background, borderColor: colors.border }]}
+          style={[
+            styles.navButton,
+            { backgroundColor: colors.background, borderColor: colors.border },
+          ]}
         >
           <Text style={[styles.navButtonText, { color: colors.text }]}>›</Text>
         </TouchableOpacity>
@@ -312,4 +320,3 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 });
-

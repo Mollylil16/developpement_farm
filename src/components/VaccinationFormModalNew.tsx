@@ -82,7 +82,7 @@ export default function VaccinationFormModalNew({
         if (status !== 'granted') {
           Alert.alert(
             'Permission requise',
-            'Nous avons besoin de la permission d\'accéder à vos photos pour ajouter une image du flacon.'
+            "Nous avons besoin de la permission d'accéder à vos photos pour ajouter une image du flacon."
           );
         }
       }
@@ -167,25 +167,21 @@ export default function VaccinationFormModalNew({
       }
     } catch (error) {
       console.error('Erreur lors de la prise de photo:', error);
-      Alert.alert('Erreur', 'Impossible d\'ajouter la photo');
+      Alert.alert('Erreur', "Impossible d'ajouter la photo");
     } finally {
       setPhotoLoading(false);
     }
   };
 
   const handleSupprimerPhoto = () => {
-    Alert.alert(
-      'Supprimer la photo',
-      'Êtes-vous sûr de vouloir supprimer cette photo ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: () => setPhotoFlacon(null),
-        },
-      ]
-    );
+    Alert.alert('Supprimer la photo', 'Êtes-vous sûr de vouloir supprimer cette photo ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Supprimer',
+        style: 'destructive',
+        onPress: () => setPhotoFlacon(null),
+      },
+    ]);
   };
 
   const toggleSelectionAnimal = (animalId: string) => {
@@ -258,8 +254,8 @@ export default function VaccinationFormModalNew({
         [{ text: 'OK', onPress: onClose }]
       );
     } catch (error) {
-      console.error('Erreur lors de l\'enregistrement:', error);
-      Alert.alert('Erreur', 'Impossible d\'enregistrer la vaccination');
+      console.error("Erreur lors de l'enregistrement:", error);
+      Alert.alert('Erreur', "Impossible d'enregistrer la vaccination");
     }
   };
 
@@ -303,7 +299,12 @@ export default function VaccinationFormModalNew({
   };
 
   return (
-    <CustomModal visible={visible} onClose={onClose} title="Ajouter une vaccination" showButtons={false}>
+    <CustomModal
+      visible={visible}
+      onClose={onClose}
+      title="Ajouter une vaccination"
+      showButtons={false}
+    >
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
@@ -312,7 +313,12 @@ export default function VaccinationFormModalNew({
         {/* Type de prophylaxie (lecture seule) */}
         <View style={styles.section}>
           <Text style={[styles.label, { color: colors.text }]}>Type de traitement</Text>
-          <View style={[styles.inputReadonly, { backgroundColor: `${colors.primary}15`, borderColor: colors.border }]}>
+          <View
+            style={[
+              styles.inputReadonly,
+              { backgroundColor: `${colors.primary}15`, borderColor: colors.border },
+            ]}
+          >
             <Text style={[styles.inputReadonlyText, { color: colors.primary }]}>
               {TYPE_PROPHYLAXIE_LABELS[typeProphylaxie]}
             </Text>
@@ -325,7 +331,10 @@ export default function VaccinationFormModalNew({
             Date d'administration <Text style={{ color: colors.error }}>*</Text>
           </Text>
           <TouchableOpacity
-            style={[styles.inputTouchable, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            style={[
+              styles.inputTouchable,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
             onPress={() => setShowDatePicker(true)}
           >
             <Ionicons name="calendar" size={20} color={colors.textSecondary} />
@@ -354,7 +363,10 @@ export default function VaccinationFormModalNew({
             Produit administré <Text style={{ color: colors.error }}>*</Text>
           </Text>
           <TextInput
-            style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+            style={[
+              styles.input,
+              { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+            ]}
             value={produitAdministre}
             onChangeText={setProduitAdministre}
             placeholder="Ex: Fer dextran, Vitamine AD3E..."
@@ -377,7 +389,10 @@ export default function VaccinationFormModalNew({
             </View>
           ) : (
             <TouchableOpacity
-              style={[styles.photoButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              style={[
+                styles.photoButton,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
               onPress={handlePrendrePhoto}
               disabled={photoLoading}
             >
@@ -402,7 +417,10 @@ export default function VaccinationFormModalNew({
           </Text>
           <View style={styles.dosageRow}>
             <TextInput
-              style={[styles.dosageInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+              style={[
+                styles.dosageInput,
+                { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+              ]}
               value={dosage}
               onChangeText={setDosage}
               placeholder="Ex: 2"
@@ -410,7 +428,10 @@ export default function VaccinationFormModalNew({
               keyboardType="numeric"
             />
             <TouchableOpacity
-              style={[styles.uniteDropdown, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              style={[
+                styles.uniteDropdown,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
               onPress={() => setShowUniteDropdown(!showUniteDropdown)}
             >
               <Text style={[styles.uniteTexte, { color: colors.text }]}>{uniteDosage}</Text>
@@ -418,7 +439,12 @@ export default function VaccinationFormModalNew({
             </TouchableOpacity>
           </View>
           {showUniteDropdown && (
-            <View style={[styles.dropdown, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View
+              style={[
+                styles.dropdown,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+            >
               {['ml', 'mg', 'cc', 'g', 'UI'].map((unite) => (
                 <TouchableOpacity
                   key={unite}
@@ -444,7 +470,10 @@ export default function VaccinationFormModalNew({
             Raison du traitement <Text style={{ color: colors.error }}>*</Text>
           </Text>
           <TouchableOpacity
-            style={[styles.inputTouchable, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            style={[
+              styles.inputTouchable,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
             onPress={() => setShowRaisonDropdown(!showRaisonDropdown)}
           >
             <Text style={[styles.inputTouchableText, { color: colors.text }]}>
@@ -453,7 +482,12 @@ export default function VaccinationFormModalNew({
             <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
           </TouchableOpacity>
           {showRaisonDropdown && (
-            <View style={[styles.dropdown, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View
+              style={[
+                styles.dropdown,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+            >
               {(Object.keys(RAISON_TRAITEMENT_LABELS) as RaisonTraitement[]).map((raison) => (
                 <TouchableOpacity
                   key={raison}
@@ -475,7 +509,15 @@ export default function VaccinationFormModalNew({
           )}
           {raisonTraitement === 'autre' && (
             <TextInput
-              style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text, marginTop: 8 }]}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  color: colors.text,
+                  marginTop: 8,
+                },
+              ]}
               value={raisonAutre}
               onChangeText={setRaisonAutre}
               placeholder="Précisez la raison..."
@@ -499,7 +541,10 @@ export default function VaccinationFormModalNew({
 
           {/* Barre de recherche */}
           <TextInput
-            style={[styles.rechercheInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+            style={[
+              styles.rechercheInput,
+              { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+            ]}
             value={rechercheTexte}
             onChangeText={setRechercheTexte}
             placeholder="Rechercher par nom ou code..."
@@ -507,38 +552,49 @@ export default function VaccinationFormModalNew({
           />
 
           {/* Filtres par catégorie */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtresContainer}>
-            {(['tous', 'porcelet', 'truie', 'verrat', 'porc_croissance'] as FiltreCategorie[]).map((cat) => (
-              <TouchableOpacity
-                key={cat}
-                style={[
-                  styles.filtreBouton,
-                  {
-                    backgroundColor: filtreCategorie === cat ? colors.primary : colors.surface,
-                    borderColor: colors.border,
-                  },
-                ]}
-                onPress={() => setFiltreCategorie(cat)}
-              >
-                <Text
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.filtresContainer}
+          >
+            {(['tous', 'porcelet', 'truie', 'verrat', 'porc_croissance'] as FiltreCategorie[]).map(
+              (cat) => (
+                <TouchableOpacity
+                  key={cat}
                   style={[
-                    styles.filtreBoutonTexte,
-                    { color: filtreCategorie === cat ? '#FFFFFF' : colors.text },
+                    styles.filtreBouton,
+                    {
+                      backgroundColor: filtreCategorie === cat ? colors.primary : colors.surface,
+                      borderColor: colors.border,
+                    },
                   ]}
+                  onPress={() => setFiltreCategorie(cat)}
                 >
-                  {cat === 'tous' ? 'Tous' : cat.replace('_', ' ')}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text
+                    style={[
+                      styles.filtreBoutonTexte,
+                      { color: filtreCategorie === cat ? '#FFFFFF' : colors.text },
+                    ]}
+                  >
+                    {cat === 'tous' ? 'Tous' : cat.replace('_', ' ')}
+                  </Text>
+                </TouchableOpacity>
+              )
+            )}
           </ScrollView>
 
           {/* Bouton Sélectionner tout */}
           <TouchableOpacity
-            style={[styles.selectionnerToutBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            style={[
+              styles.selectionnerToutBtn,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
             onPress={handleSelectionnerTous}
           >
             <Ionicons
-              name={animauxSelectionnes.length === animauxFiltres.length ? 'checkbox' : 'square-outline'}
+              name={
+                animauxSelectionnes.length === animauxFiltres.length ? 'checkbox' : 'square-outline'
+              }
               size={24}
               color={colors.primary}
             />
@@ -550,7 +606,12 @@ export default function VaccinationFormModalNew({
           </TouchableOpacity>
 
           {/* Liste des animaux */}
-          <View style={[styles.listeAnimaux, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View
+            style={[
+              styles.listeAnimaux,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
             {animauxFiltres.length === 0 ? (
               <View style={styles.emptyState}>
                 <Ionicons name="search" size={48} color={colors.textSecondary} />
@@ -573,7 +634,10 @@ export default function VaccinationFormModalNew({
         {/* Boutons d'action */}
         <View style={styles.boutonsContainer}>
           <TouchableOpacity
-            style={[styles.boutonAnnuler, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            style={[
+              styles.boutonAnnuler,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
             onPress={onClose}
             disabled={loading}
           >
@@ -840,4 +904,3 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 });
-

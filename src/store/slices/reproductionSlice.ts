@@ -5,14 +5,18 @@
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { normalize } from 'normalizr';
+import { Gestation, Sevrage, CreateGestationInput, CreateSevrageInput } from '../../types';
+import { getDatabase } from '../../services/database';
 import {
-  Gestation,
-  Sevrage,
-  CreateGestationInput,
-  CreateSevrageInput,
-} from '../../types';
-import { databaseService } from '../../services/database';
-import { gestationsSchema, sevragesSchema, gestationSchema, sevrageSchema } from '../normalization/schemas';
+  GestationRepository,
+  SevrageRepository,
+} from '../../database/repositories';
+import {
+  gestationsSchema,
+  sevragesSchema,
+  gestationSchema,
+  sevrageSchema,
+} from '../normalization/schemas';
 
 // Structure normalisée de l'état
 interface NormalizedEntities {
@@ -56,7 +60,9 @@ export const createGestation = createAsyncThunk(
   'reproduction/createGestation',
   async (input: CreateGestationInput, { rejectWithValue }) => {
     try {
-      const gestation = await databaseService.createGestation({
+      const db = await getDatabase();
+      const gestationRepo = new GestationRepository(db);
+      const gestation = await gestationRepo.create({
         ...input,
         statut: 'en_cours',
       });
@@ -71,7 +77,9 @@ export const loadGestations = createAsyncThunk(
   'reproduction/loadGestations',
   async (projetId: string, { rejectWithValue }) => {
     try {
-      const gestations = await databaseService.getAllGestations(projetId);
+      const db = await getDatabase();
+      const gestationRepo = new GestationRepository(db);
+      const gestations = await gestationRepo.findByProjet(projetId);
       return gestations;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des gestations');
@@ -83,7 +91,9 @@ export const loadGestationsEnCours = createAsyncThunk(
   'reproduction/loadGestationsEnCours',
   async (projetId: string, { rejectWithValue }) => {
     try {
-      const gestations = await databaseService.getGestationsEnCours(projetId);
+      const db = await getDatabase();
+      const gestationRepo = new GestationRepository(db);
+      const gestations = await gestationRepo.findEnCoursByProjet(projetId);
       return gestations;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des gestations en cours');
@@ -95,7 +105,9 @@ export const updateGestation = createAsyncThunk(
   'reproduction/updateGestation',
   async ({ id, updates }: { id: string; updates: Partial<Gestation> }, { rejectWithValue }) => {
     try {
-      const gestation = await databaseService.updateGestation(id, updates);
+      const db = await getDatabase();
+      const gestationRepo = new GestationRepository(db);
+      const gestation = await gestationRepo.update(id, updates);
       return gestation;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la mise à jour de la gestation');
@@ -107,7 +119,9 @@ export const deleteGestation = createAsyncThunk(
   'reproduction/deleteGestation',
   async (id: string, { rejectWithValue }) => {
     try {
-      await databaseService.deleteGestation(id);
+      const db = await getDatabase();
+      const gestationRepo = new GestationRepository(db);
+      await gestationRepo.delete(id);
       return id;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la suppression de la gestation');
@@ -120,7 +134,9 @@ export const createSevrage = createAsyncThunk(
   'reproduction/createSevrage',
   async (input: CreateSevrageInput, { rejectWithValue }) => {
     try {
-      const sevrage = await databaseService.createSevrage(input);
+      const db = await getDatabase();
+      const sevrageRepo = new SevrageRepository(db);
+      const sevrage = await sevrageRepo.create(input);
       return sevrage;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la création du sevrage');
@@ -132,7 +148,9 @@ export const loadSevrages = createAsyncThunk(
   'reproduction/loadSevrages',
   async (projetId: string, { rejectWithValue }) => {
     try {
-      const sevrages = await databaseService.getAllSevrages(projetId);
+      const db = await getDatabase();
+      const sevrageRepo = new SevrageRepository(db);
+      const sevrages = await sevrageRepo.findByProjet(projetId);
       return sevrages;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des sevrages');
@@ -144,10 +162,57 @@ export const loadSevragesParGestation = createAsyncThunk(
   'reproduction/loadSevragesParGestation',
   async (gestationId: string, { rejectWithValue }) => {
     try {
-      const sevrages = await databaseService.getSevragesParGestation(gestationId);
+      const db = await getDatabase();
+      const sevrageRepo = new SevrageRepository(db);
+      const sevrage = await sevrageRepo.findByGestation(gestationId);
+      // Retourner en array pour compatibilité avec l'ancien format
+      const sevrages = sevrage ? [sevrage] : [];
       return { gestationId, sevrages };
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des sevrages');
+    }
+  }
+);
+
+// Thunks pour Statistiques
+export const loadGestationStats = createAsyncThunk(
+  'reproduction/loadGestationStats',
+  async (projetId: string, { rejectWithValue }) => {
+    try {
+      const db = await getDatabase();
+      const gestationRepo = new GestationRepository(db);
+      const stats = await gestationRepo.getStats(projetId);
+      return stats;
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Erreur lors du chargement des statistiques');
+    }
+  }
+);
+
+export const loadSevrageStats = createAsyncThunk(
+  'reproduction/loadSevrageStats',
+  async (projetId: string, { rejectWithValue }) => {
+    try {
+      const db = await getDatabase();
+      const sevrageRepo = new SevrageRepository(db);
+      const stats = await sevrageRepo.getStats(projetId);
+      return stats;
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Erreur lors du chargement des statistiques');
+    }
+  }
+);
+
+export const loadTauxSurvie = createAsyncThunk(
+  'reproduction/loadTauxSurvie',
+  async (projetId: string, { rejectWithValue }) => {
+    try {
+      const db = await getDatabase();
+      const sevrageRepo = new SevrageRepository(db);
+      const tauxSurvie = await sevrageRepo.getTauxSurvie(projetId);
+      return tauxSurvie;
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Erreur lors du calcul du taux de survie');
     }
   }
 );
@@ -182,7 +247,10 @@ const reproductionSlice = createSlice({
       .addCase(createGestation.fulfilled, (state, action) => {
         state.loading = false;
         const normalized = normalizeGestation(action.payload);
-        state.entities.gestations = { ...state.entities.gestations, ...normalized.entities.gestations };
+        state.entities.gestations = {
+          ...state.entities.gestations,
+          ...normalized.entities.gestations,
+        };
         state.ids.gestations = [normalized.result[0], ...state.ids.gestations];
       })
       .addCase(createGestation.rejected, (state, action) => {
@@ -196,7 +264,10 @@ const reproductionSlice = createSlice({
       .addCase(loadGestations.fulfilled, (state, action) => {
         state.loading = false;
         const normalized = normalizeGestations(action.payload);
-        state.entities.gestations = { ...state.entities.gestations, ...normalized.entities.gestations };
+        state.entities.gestations = {
+          ...state.entities.gestations,
+          ...normalized.entities.gestations,
+        };
         state.ids.gestations = normalized.result;
       })
       .addCase(loadGestations.rejected, (state, action) => {
@@ -210,7 +281,10 @@ const reproductionSlice = createSlice({
       .addCase(loadGestationsEnCours.fulfilled, (state, action) => {
         state.loading = false;
         const normalized = normalizeGestations(action.payload);
-        state.entities.gestations = { ...state.entities.gestations, ...normalized.entities.gestations };
+        state.entities.gestations = {
+          ...state.entities.gestations,
+          ...normalized.entities.gestations,
+        };
         // Mettre à jour uniquement les IDs des gestations en cours
         const enCoursIds = normalized.result;
         state.ids.gestations = [
@@ -227,7 +301,10 @@ const reproductionSlice = createSlice({
       })
       .addCase(updateGestation.fulfilled, (state, action) => {
         const normalized = normalizeGestation(action.payload);
-        state.entities.gestations = { ...state.entities.gestations, ...normalized.entities.gestations };
+        state.entities.gestations = {
+          ...state.entities.gestations,
+          ...normalized.entities.gestations,
+        };
       })
       .addCase(updateGestation.rejected, (state, action) => {
         state.error = action.payload as string;
@@ -252,13 +329,16 @@ const reproductionSlice = createSlice({
         state.entities.sevrages = { ...state.entities.sevrages, ...normalized.entities.sevrages };
         const sevrageId = normalized.result[0];
         state.ids.sevrages = [sevrageId, ...state.ids.sevrages];
-        
+
         // Ajouter le sevrage à la gestation
         if (action.payload.gestation_id) {
           if (!state.sevragesParGestation[action.payload.gestation_id]) {
             state.sevragesParGestation[action.payload.gestation_id] = [];
           }
-          state.sevragesParGestation[action.payload.gestation_id] = [sevrageId, ...state.sevragesParGestation[action.payload.gestation_id]];
+          state.sevragesParGestation[action.payload.gestation_id] = [
+            sevrageId,
+            ...state.sevragesParGestation[action.payload.gestation_id],
+          ];
         }
       })
       .addCase(createSevrage.rejected, (state, action) => {

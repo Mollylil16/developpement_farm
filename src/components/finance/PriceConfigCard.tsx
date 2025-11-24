@@ -21,7 +21,7 @@ export default function PriceConfigCard({ onPriceUpdate }: PriceConfigCardProps)
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
-  
+
   const [isEditingPrix, setIsEditingPrix] = useState(false);
   const [prixVif, setPrixVif] = useState<string>('');
   const [prixCarcasse, setPrixCarcasse] = useState<string>('');
@@ -71,7 +71,7 @@ export default function PriceConfigCard({ onPriceUpdate }: PriceConfigCardProps)
           },
         })
       ).unwrap();
-      
+
       setIsEditingPrix(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onPriceUpdate?.();
@@ -85,7 +85,9 @@ export default function PriceConfigCard({ onPriceUpdate }: PriceConfigCardProps)
   return (
     <Card style={StyleSheet.flatten([styles.configCard, { backgroundColor: colors.surface }])}>
       <View style={styles.configHeader}>
-        <Text style={[styles.configTitle, { color: colors.text }]}>Configuration des prix de vente</Text>
+        <Text style={[styles.configTitle, { color: colors.text }]}>
+          Configuration des prix de vente
+        </Text>
         {!isEditingPrix && (
           <TouchableOpacity
             accessible={true}
@@ -124,23 +126,23 @@ export default function PriceConfigCard({ onPriceUpdate }: PriceConfigCardProps)
               variant="outline"
               style={styles.configButton}
             />
-            <Button
-              title="Enregistrer"
-              onPress={handleSavePrix}
-              style={styles.configButton}
-            />
+            <Button title="Enregistrer" onPress={handleSavePrix} style={styles.configButton} />
           </View>
         </View>
       ) : (
         <View style={styles.configDisplay}>
           <View style={styles.configRow}>
-            <Text style={[styles.configLabel, { color: colors.textSecondary }]}>Prix du kg vif:</Text>
+            <Text style={[styles.configLabel, { color: colors.textSecondary }]}>
+              Prix du kg vif:
+            </Text>
             <Text style={[styles.configValue, { color: colors.text }]}>
               {formatAmount(projetActif.prix_kg_vif || PRIX_KG_VIF_DEFAUT)}
             </Text>
           </View>
           <View style={styles.configRow}>
-            <Text style={[styles.configLabel, { color: colors.textSecondary }]}>Prix du kg carcasse:</Text>
+            <Text style={[styles.configLabel, { color: colors.textSecondary }]}>
+              Prix du kg carcasse:
+            </Text>
             <Text style={[styles.configValue, { color: colors.text }]}>
               {formatAmount(projetActif.prix_kg_carcasse || PRIX_KG_CARCASSE_DEFAUT)}
             </Text>
@@ -196,4 +198,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

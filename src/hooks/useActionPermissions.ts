@@ -14,17 +14,17 @@ interface UseActionPermissionsReturn {
    * @returns true si l'action est autorisée
    */
   canPerformAction: (module: PermissionType, action: ActionType) => boolean;
-  
+
   /**
    * Vérifie si l'utilisateur peut créer dans un module
    */
   canCreate: (module: PermissionType) => boolean;
-  
+
   /**
    * Vérifie si l'utilisateur peut modifier dans un module
    */
   canUpdate: (module: PermissionType) => boolean;
-  
+
   /**
    * Vérifie si l'utilisateur peut supprimer dans un module
    */
@@ -33,13 +33,13 @@ interface UseActionPermissionsReturn {
 
 /**
  * Hook pour vérifier les permissions d'action
- * 
+ *
  * Pour l'instant, si un utilisateur a accès à un module, il peut effectuer
  * toutes les actions (create, update, delete) dans ce module.
- * 
+ *
  * @example
  * const { canCreate, canUpdate, canDelete } = useActionPermissions();
- * 
+ *
  * if (canCreate('reproduction')) {
  *   // Afficher le bouton "Créer"
  * }
@@ -77,4 +77,3 @@ export function useActionPermissions(): UseActionPermissionsReturn {
     canDelete,
   };
 }
-

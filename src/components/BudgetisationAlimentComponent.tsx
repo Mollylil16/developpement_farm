@@ -4,22 +4,30 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, FlatList } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  FlatList,
+} from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { 
-  loadIngredients, 
-  loadRationsBudget, 
-  createRationBudget, 
-  deleteRationBudget 
+import {
+  loadIngredients,
+  loadRationsBudget,
+  createRationBudget,
+  deleteRationBudget,
 } from '../store/slices/nutritionSlice';
-import { 
-  TypePorc, 
-  getTypePorcLabel, 
+import {
+  TypePorc,
+  getTypePorcLabel,
   RECOMMANDATIONS_NUTRITION,
   FORMULES_RECOMMANDEES,
   RationBudget,
   CreateRationBudgetInput,
-  FormuleAlimentaire
+  FormuleAlimentaire,
 } from '../types';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -27,6 +35,7 @@ import FormField from './FormField';
 import LoadingSpinner from './LoadingSpinner';
 import EmptyState from './EmptyState';
 import CustomModal from './CustomModal';
+import ModifierIngredientsRationModal from './ModifierIngredientsRationModal';
 
 export default function BudgetisationAlimentComponent() {
   const { colors, isDark } = useTheme();
@@ -43,6 +52,10 @@ export default function BudgetisationAlimentComponent() {
   const [poidsMoyen, setPoidsMoyen] = useState('');
   const [nombrePorcs, setNombrePorcs] = useState('');
   const [dureeJours, setDureeJours] = useState('30');
+  
+  // État pour la modale de modification d'ingrédients
+  const [showModifierIngredientsModal, setShowModifierIngredientsModal] = useState(false);
+  const [rationAModifier, setRationAModifier] = useState<RationBudget | null>(null);
 
   useEffect(() => {
     if (projetActif) {
@@ -74,16 +87,17 @@ export default function BudgetisationAlimentComponent() {
 
     const nombreRations = rationsBudget.length;
     const coutTotal = rationsBudget.reduce((sum, r) => sum + r.cout_total, 0);
-    
+
     // Coût moyen par ration
     const coutMoyenRation = coutTotal / nombreRations;
-    
+
     // Coût moyen par kg (moyenne pondérée)
     const quantiteTotale = rationsBudget.reduce((sum, r) => sum + r.quantite_totale_kg, 0);
     const coutMoyenParKg = quantiteTotale > 0 ? coutTotal / quantiteTotale : 0;
-    
+
     // Coût moyen par porc (moyenne des coûts par porc)
-    const coutMoyenParPorc = rationsBudget.reduce((sum, r) => sum + r.cout_par_porc, 0) / nombreRations;
+    const coutMoyenParPorc =
+      rationsBudget.reduce((sum, r) => sum + r.cout_par_porc, 0) / nombreRations;
 
     return {
       nombreRations,
@@ -100,10 +114,11 @@ export default function BudgetisationAlimentComponent() {
    */
   const matcherIngredients = (formule: FormuleAlimentaire): FormuleAlimentaire => {
     const formuleAvecPrix = { ...formule };
-    formuleAvecPrix.composition = formule.composition.map(comp => {
-      const ingredientTrouve = ingredients.find(ing => 
-        ing.nom.toLowerCase().includes(comp.nom.toLowerCase()) ||
-        comp.nom.toLowerCase().includes(ing.nom.toLowerCase())
+    formuleAvecPrix.composition = formule.composition.map((comp) => {
+      const ingredientTrouve = ingredients.find(
+        (ing) =>
+          ing.nom.toLowerCase().includes(comp.nom.toLowerCase()) ||
+          comp.nom.toLowerCase().includes(ing.nom.toLowerCase())
       );
 
       // Convertir le prix si l'unité est "sac" (50kg)
@@ -167,7 +182,7 @@ export default function BudgetisationAlimentComponent() {
     const quantiteTotaleKg = rationJournaliere * nbPorcs * duree;
 
     // Calculer les quantités et coûts par ingrédient
-    const detailsIngredients = formuleAvecPrix.composition.map(comp => {
+    const detailsIngredients = formuleAvecPrix.composition.map((comp) => {
       const quantiteKg = (quantiteTotaleKg * comp.pourcentage) / 100;
       const coutTotal = quantiteKg * comp.prix_unitaire;
       return {
@@ -215,7 +230,10 @@ export default function BudgetisationAlimentComponent() {
       setShowModal(false);
       resetForm();
     } catch (error: any) {
-      Alert.alert('Erreur', error || isEditing ? 'Impossible de modifier la ration' : 'Impossible de créer la ration');
+      Alert.alert(
+        'Erreur',
+        error || isEditing ? 'Impossible de modifier la ration' : 'Impossible de créer la ration'
+      );
     }
   };
 
@@ -240,6 +258,61 @@ export default function BudgetisationAlimentComponent() {
     setShowModal(true);
   };
 
+  const handleModifierIngredients = (ration: RationBudget) => {
+    setRationAModifier(ration);
+    setShowModifierIngredientsModal(true);
+  };
+
+  const handleSauvegarderIngredientsModifies = async (ingredientsModifies: any[]) => {
+    if (!rationAModifier) return;
+
+    try {
+      // Recalculer les quantités et coûts avec les nouveaux ingrédients
+      const detailsIngredients = ingredientsModifies.map((ing) => {
+        const quantiteKg = (rationAModifier.quantite_totale_kg * ing.pourcentage) / 100;
+        const coutTotal = quantiteKg * ing.prix_unitaire;
+        return {
+          nom: ing.nom,
+          pourcentage: ing.pourcentage,
+          quantite_kg: quantiteKg,
+          prix_unitaire: ing.prix_unitaire,
+          cout_total: coutTotal,
+        };
+      });
+
+      // Calculer les nouveaux totaux
+      const coutTotal = detailsIngredients.reduce((sum, ing) => sum + ing.cout_total, 0);
+      const coutParKg =
+        rationAModifier.quantite_totale_kg > 0 ? coutTotal / rationAModifier.quantite_totale_kg : 0;
+      const coutParPorc = rationAModifier.nombre_porcs > 0 ? coutTotal / rationAModifier.nombre_porcs : 0;
+
+      // Créer l'input de mise à jour
+      const input: CreateRationBudgetInput = {
+        projet_id: rationAModifier.projet_id,
+        nom: rationAModifier.nom,
+        type_porc: rationAModifier.type_porc,
+        poids_moyen_kg: rationAModifier.poids_moyen_kg,
+        nombre_porcs: rationAModifier.nombre_porcs,
+        duree_jours: rationAModifier.duree_jours,
+        ration_journaliere_par_porc: rationAModifier.ration_journaliere_par_porc,
+        quantite_totale_kg: rationAModifier.quantite_totale_kg,
+        cout_total: coutTotal,
+        cout_par_kg: coutParKg,
+        cout_par_porc: coutParPorc,
+        ingredients: detailsIngredients,
+      };
+
+      // Supprimer l'ancienne et créer la nouvelle
+      await dispatch(deleteRationBudget(rationAModifier.id)).unwrap();
+      await dispatch(createRationBudget(input)).unwrap();
+
+      Alert.alert('✅ Succès', 'Ingrédients de la ration modifiés avec succès');
+      setRationAModifier(null);
+    } catch (error: any) {
+      Alert.alert('Erreur', error || 'Impossible de modifier les ingrédients');
+    }
+  };
+
   const handleRecalculerRation = async (ration: RationBudget) => {
     Alert.alert(
       'Recalculer la ration',
@@ -255,7 +328,7 @@ export default function BudgetisationAlimentComponent() {
               const formuleAvecPrix = matcherIngredients(formuleBase);
 
               // Recalculer les quantités et coûts avec les prix actuels
-              const detailsIngredients = formuleAvecPrix.composition.map(comp => {
+              const detailsIngredients = formuleAvecPrix.composition.map((comp) => {
                 const quantiteKg = (ration.quantite_totale_kg * comp.pourcentage) / 100;
                 const coutTotal = quantiteKg * comp.prix_unitaire;
                 return {
@@ -269,7 +342,8 @@ export default function BudgetisationAlimentComponent() {
 
               // Calculer les nouveaux totaux
               const coutTotal = detailsIngredients.reduce((sum, ing) => sum + ing.cout_total, 0);
-              const coutParKg = ration.quantite_totale_kg > 0 ? coutTotal / ration.quantite_totale_kg : 0;
+              const coutParKg =
+                ration.quantite_totale_kg > 0 ? coutTotal / ration.quantite_totale_kg : 0;
               const coutParPorc = ration.nombre_porcs > 0 ? coutTotal / ration.nombre_porcs : 0;
 
               // Créer l'input de mise à jour
@@ -333,7 +407,9 @@ export default function BudgetisationAlimentComponent() {
   };
 
   const renderRationCard = ({ item }: { item: RationBudget }) => (
-    <View style={[styles.rationCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+    <View
+      style={[styles.rationCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+    >
       {/* En-tête */}
       <View style={styles.rationHeader}>
         <View style={styles.rationHeaderLeft}>
@@ -346,18 +422,28 @@ export default function BudgetisationAlimentComponent() {
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: colors.success + '20' }]}
             onPress={() => handleModifierRation(item)}
+            activeOpacity={0.7}
           >
             <Text style={[styles.actionButtonText, { color: colors.success }]}>✏️</Text>
           </TouchableOpacity>
           <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: colors.info + '20' }]}
+            onPress={() => handleModifierIngredients(item)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.actionButtonText, { color: colors.info }]}>🥕</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: colors.primary + '20' }]}
             onPress={() => handleRecalculerRation(item)}
+            activeOpacity={0.7}
           >
             <Text style={[styles.actionButtonText, { color: colors.primary }]}>🔄</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: colors.error + '20' }]}
             onPress={() => handleSupprimerRation(item)}
+            activeOpacity={0.7}
           >
             <Text style={[styles.actionButtonText, { color: colors.error }]}>🗑️</Text>
           </TouchableOpacity>
@@ -376,17 +462,30 @@ export default function BudgetisationAlimentComponent() {
         </View>
         <View style={styles.infoRow}>
           <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Quantité totale:</Text>
-          <Text style={[styles.infoValue, { color: colors.text }]}>{item.quantite_totale_kg.toFixed(0)} kg</Text>
+          <Text style={[styles.infoValue, { color: colors.text }]}>
+            {item.quantite_totale_kg.toFixed(0)} kg
+          </Text>
         </View>
         <View style={styles.infoRow}>
-          <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Ration journalière:</Text>
-          <Text style={[styles.infoValue, { color: colors.text }]}>{item.ration_journaliere_par_porc.toFixed(1)} kg/jour/porc</Text>
+          <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+            Ration journalière:
+          </Text>
+          <Text style={[styles.infoValue, { color: colors.text }]}>
+            {item.ration_journaliere_par_porc.toFixed(1)} kg/jour/porc
+          </Text>
         </View>
       </View>
 
       {/* Composition alimentaire */}
-      <View style={[styles.compositionSection, { backgroundColor: colors.background, borderColor: colors.border }]}>
-        <Text style={[styles.compositionTitle, { color: colors.text }]}>🍽️ Composition alimentaire</Text>
+      <View
+        style={[
+          styles.compositionSection,
+          { backgroundColor: colors.background, borderColor: colors.border },
+        ]}
+      >
+        <Text style={[styles.compositionTitle, { color: colors.text }]}>
+          🍽️ Composition alimentaire
+        </Text>
         {item.ingredients.map((ing, index) => (
           <View key={index} style={styles.ingredientRow}>
             <View style={styles.ingredientLeft}>
@@ -408,7 +507,12 @@ export default function BudgetisationAlimentComponent() {
       </View>
 
       {/* Coûts */}
-      <View style={[styles.rationCouts, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' }]}>
+      <View
+        style={[
+          styles.rationCouts,
+          { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' },
+        ]}
+      >
         <View style={styles.coutItem}>
           <Text style={[styles.coutLabel, { color: colors.textSecondary }]}>Coût total</Text>
           <Text style={[styles.coutValue, { color: colors.primary }]}>
@@ -444,38 +548,53 @@ export default function BudgetisationAlimentComponent() {
         showsVerticalScrollIndicator={false}
       >
         {/* Carte récapitulative */}
-        <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View
+          style={[
+            styles.summaryCard,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
           <Text style={[styles.summaryTitle, { color: colors.text }]}>📊 Récapitulatif</Text>
-          
+
           <View style={styles.summaryGrid}>
             <View style={styles.summaryItem}>
-              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Nombre de rations</Text>
-              <Text style={[styles.summaryValue, { color: colors.text }]}>{statistiques.nombreRations}</Text>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+                Nombre de rations
+              </Text>
+              <Text style={[styles.summaryValue, { color: colors.text }]}>
+                {statistiques.nombreRations}
+              </Text>
             </View>
-            
+
             <View style={styles.summaryItem}>
               <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Coût total</Text>
               <Text style={[styles.summaryValue, { color: colors.primary }]}>
                 {formatMontant(statistiques.coutTotal)} F
               </Text>
             </View>
-            
+
             <View style={styles.summaryItem}>
-              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Coût moyen/ration</Text>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+                Coût moyen/ration
+              </Text>
               <Text style={[styles.summaryValue, { color: colors.text }]}>
                 {formatMontant(statistiques.coutMoyenRation || 0)} F
               </Text>
             </View>
-            
+
             <View style={styles.summaryItem}>
-              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Coût moyen/kg</Text>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+                Coût moyen/kg
+              </Text>
               <Text style={[styles.summaryValue, { color: colors.text }]}>
                 {formatMontant(statistiques.coutMoyenParKg)} F
               </Text>
             </View>
-            
+
             <View style={styles.summaryItem}>
-              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Coût moyen/porc</Text>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+                Coût moyen/porc
+              </Text>
               <Text style={[styles.summaryValue, { color: colors.text }]}>
                 {formatMontant(statistiques.coutMoyenParPorc)} F
               </Text>
@@ -491,13 +610,11 @@ export default function BudgetisationAlimentComponent() {
             message="Créez votre première ration pour commencer la budgétisation"
           />
         ) : (
-          <FlatList
-            data={rationsBudget}
-            renderItem={renderRationCard}
-            keyExtractor={(item) => item.id}
-            scrollEnabled={false}
-            contentContainerStyle={styles.listContainer}
-          />
+          <View style={styles.listContainer}>
+            {rationsBudget.map((item) => (
+              <View key={item.id}>{renderRationCard({ item })}</View>
+            ))}
+          </View>
         )}
       </ScrollView>
 
@@ -517,10 +634,10 @@ export default function BudgetisationAlimentComponent() {
           setShowModal(false);
           resetForm();
         }}
-        title={isEditing ? "✏️ Modifier la Ration" : "➕ Nouvelle Ration"}
+        title={isEditing ? '✏️ Modifier la Ration' : '➕ Nouvelle Ration'}
       >
-        <ScrollView 
-          style={styles.modalContent} 
+        <ScrollView
+          style={styles.modalContent}
           contentContainerStyle={styles.modalContentContainer}
           showsVerticalScrollIndicator={true}
           nestedScrollEnabled={true}
@@ -542,10 +659,10 @@ export default function BudgetisationAlimentComponent() {
                   key={type}
                   style={[
                     styles.typeButton,
-                    { 
+                    {
                       backgroundColor: typePorc === type ? colors.primary : colors.surface,
                       borderColor: typePorc === type ? colors.primary : colors.border,
-                    }
+                    },
                   ]}
                   onPress={() => setTypePorc(type)}
                   activeOpacity={0.7}
@@ -553,7 +670,7 @@ export default function BudgetisationAlimentComponent() {
                   <Text
                     style={[
                       styles.typeButtonText,
-                      { color: typePorc === type ? '#FFFFFF' : colors.text }
+                      { color: typePorc === type ? '#FFFFFF' : colors.text },
                     ]}
                   >
                     {getTypePorcLabel(type)}
@@ -603,7 +720,11 @@ export default function BudgetisationAlimentComponent() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.modalButton, styles.confirmButton, { backgroundColor: colors.primary }]}
+              style={[
+                styles.modalButton,
+                styles.confirmButton,
+                { backgroundColor: colors.primary },
+              ]}
               onPress={handleCreerRation}
             >
               <Text style={styles.confirmButtonText}>{isEditing ? 'Modifier' : 'Créer'}</Text>
@@ -611,6 +732,21 @@ export default function BudgetisationAlimentComponent() {
           </View>
         </ScrollView>
       </CustomModal>
+
+      {/* Modale de modification d'ingrédients */}
+      {rationAModifier && (
+        <ModifierIngredientsRationModal
+          visible={showModifierIngredientsModal}
+          onClose={() => {
+            setShowModifierIngredientsModal(false);
+            setRationAModifier(null);
+          }}
+          rationNom={rationAModifier.nom}
+          ingredients={rationAModifier.ingredients}
+          ingredientsDisponibles={ingredients}
+          onSave={handleSauvegarderIngredientsModifies}
+        />
+      )}
     </View>
   );
 }
@@ -855,5 +991,3 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 });
-
-

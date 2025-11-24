@@ -33,7 +33,7 @@ interface VisiteVeterinaireFormModalNewProps {
   visite?: VisiteVeterinaire; // Si fourni, mode édition
 }
 
-type TypeIntervention = 
+type TypeIntervention =
   | 'traitement_vaccinal'
   | 'soin_malade'
   | 'consultation_generale'
@@ -101,7 +101,9 @@ export default function VisiteVeterinaireFormModalNew({
     const nom = animal.nom?.toLowerCase() || '';
     const code = animal.code?.toLowerCase() || '';
     const categorie = getCategorieAnimal(animal).toLowerCase();
-    return nom.includes(searchLower) || code.includes(searchLower) || categorie.includes(searchLower);
+    return (
+      nom.includes(searchLower) || code.includes(searchLower) || categorie.includes(searchLower)
+    );
   });
 
   // Toggle sélection d'un animal
@@ -174,7 +176,7 @@ export default function VisiteVeterinaireFormModalNew({
       const nomsAnimaux = animauxSelectionnes
         .map((id) => {
           const animal = animaux.find((a) => a.id === id);
-          return animal ? (animal.nom || animal.code || `Porc #${id.slice(0, 8)}`) : null;
+          return animal ? animal.nom || animal.code || `Porc #${id.slice(0, 8)}` : null;
         })
         .filter(Boolean)
         .join(', ');
@@ -192,10 +194,12 @@ export default function VisiteVeterinaireFormModalNew({
 
       if (visite) {
         // Mode édition
-        await dispatch(updateVisiteVeterinaire({
-          id: visite.id,
-          updates: input,
-        })).unwrap();
+        await dispatch(
+          updateVisiteVeterinaire({
+            id: visite.id,
+            updates: input,
+          })
+        ).unwrap();
         Alert.alert('Succès', 'Visite vétérinaire mise à jour');
       } else {
         // Mode création
@@ -226,7 +230,10 @@ export default function VisiteVeterinaireFormModalNew({
         {/* Date de la visite */}
         <Text style={[styles.label, { color: colors.text }]}>Date de la visite *</Text>
         <TouchableOpacity
-          style={[styles.dateInput, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          style={[
+            styles.dateInput,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
           onPress={() => setShowDatePicker(true)}
         >
           <Ionicons name="calendar-outline" size={20} color={colors.textSecondary} />
@@ -262,10 +269,7 @@ export default function VisiteVeterinaireFormModalNew({
               ]}
               onPress={() => setMotif(key)}
             >
-              <Text style={[
-                styles.typeChipText,
-                { color: motif === key ? '#FFF' : colors.text },
-              ]}>
+              <Text style={[styles.typeChipText, { color: motif === key ? '#FFF' : colors.text }]}>
                 {TYPE_INTERVENTION_LABELS[key]}
               </Text>
             </TouchableOpacity>
@@ -279,7 +283,12 @@ export default function VisiteVeterinaireFormModalNew({
         </Text>
 
         {/* Barre de recherche */}
-        <View style={[styles.searchBar, { backgroundColor: colors.background, borderColor: colors.border }]}>
+        <View
+          style={[
+            styles.searchBar,
+            { backgroundColor: colors.background, borderColor: colors.border },
+          ]}
+        >
           <Ionicons name="search" size={20} color={colors.textSecondary} />
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
@@ -297,9 +306,15 @@ export default function VisiteVeterinaireFormModalNew({
 
         {/* Badge des animaux sélectionnés */}
         {animauxSelectionnes.length > 0 && (
-          <View style={[styles.selectedBadge, { backgroundColor: colors.primary + '15', borderColor: colors.primary }]}>
+          <View
+            style={[
+              styles.selectedBadge,
+              { backgroundColor: colors.primary + '15', borderColor: colors.primary },
+            ]}
+          >
             <Text style={[styles.selectedBadgeText, { color: colors.primary }]}>
-              {animauxSelectionnes.length} sujet{animauxSelectionnes.length > 1 ? 's' : ''} sélectionné{animauxSelectionnes.length > 1 ? 's' : ''}
+              {animauxSelectionnes.length} sujet{animauxSelectionnes.length > 1 ? 's' : ''}{' '}
+              sélectionné{animauxSelectionnes.length > 1 ? 's' : ''}
             </Text>
             <TouchableOpacity onPress={() => setAnimauxSelectionnes([])}>
               <Text style={[styles.clearSelectionText, { color: colors.primary }]}>
@@ -311,7 +326,10 @@ export default function VisiteVeterinaireFormModalNew({
 
         {/* Liste des animaux */}
         <ScrollView
-          style={[styles.animauxListe, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          style={[
+            styles.animauxListe,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
           nestedScrollEnabled
         >
           {animauxFiltres.length === 0 ? (
@@ -339,7 +357,15 @@ export default function VisiteVeterinaireFormModalNew({
                   onPress={() => toggleAnimalSelection(animal.id)}
                 >
                   <View style={styles.animalItemLeft}>
-                    <View style={[styles.checkbox, isSelected && { backgroundColor: colors.primary, borderColor: colors.primary }]}>
+                    <View
+                      style={[
+                        styles.checkbox,
+                        isSelected && {
+                          backgroundColor: colors.primary,
+                          borderColor: colors.primary,
+                        },
+                      ]}
+                    >
                       {isSelected && <Ionicons name="checkmark" size={14} color="#FFF" />}
                     </View>
                     <View style={{ flex: 1 }}>
@@ -365,7 +391,10 @@ export default function VisiteVeterinaireFormModalNew({
         {/* Diagnostic / Observations */}
         <Text style={[styles.label, { color: colors.text }]}>Diagnostic / Observations *</Text>
         <TextInput
-          style={[styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+          style={[
+            styles.textArea,
+            { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+          ]}
           placeholder="Décrivez les observations, le diagnostic..."
           placeholderTextColor={colors.textSecondary}
           value={diagnostic}
@@ -377,7 +406,10 @@ export default function VisiteVeterinaireFormModalNew({
         {/* Traitement administré */}
         <Text style={[styles.label, { color: colors.text }]}>Traitement administré</Text>
         <TextInput
-          style={[styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+          style={[
+            styles.textArea,
+            { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+          ]}
           placeholder="Médicaments, soins effectués..."
           placeholderTextColor={colors.textSecondary}
           value={traitement}
@@ -389,7 +421,10 @@ export default function VisiteVeterinaireFormModalNew({
         {/* Coût */}
         <Text style={[styles.label, { color: colors.text }]}>Coût de l'intervention (FCFA)</Text>
         <TextInput
-          style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+          style={[
+            styles.input,
+            { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+          ]}
           placeholder="Ex: 25000"
           placeholderTextColor={colors.textSecondary}
           value={cout}
@@ -401,7 +436,10 @@ export default function VisiteVeterinaireFormModalNew({
         <Text style={[styles.label, { color: colors.text }]}>Photos (optionnel)</Text>
         <View style={styles.photosContainer}>
           <TouchableOpacity
-            style={[styles.photoButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            style={[
+              styles.photoButton,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
             onPress={handlePickImage}
           >
             <Ionicons name="images-outline" size={24} color={colors.primary} />
@@ -409,7 +447,10 @@ export default function VisiteVeterinaireFormModalNew({
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.photoButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            style={[
+              styles.photoButton,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
             onPress={handleTakePhoto}
           >
             <Ionicons name="camera-outline" size={24} color={colors.primary} />
@@ -435,7 +476,10 @@ export default function VisiteVeterinaireFormModalNew({
         {/* Notes complémentaires */}
         <Text style={[styles.label, { color: colors.text }]}>Notes complémentaires</Text>
         <TextInput
-          style={[styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+          style={[
+            styles.textArea,
+            { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+          ]}
           placeholder="Remarques, recommandations..."
           placeholderTextColor={colors.textSecondary}
           value={notes}
@@ -669,4 +713,3 @@ const styles = StyleSheet.create({
     color: '#FFF',
   },
 });
-

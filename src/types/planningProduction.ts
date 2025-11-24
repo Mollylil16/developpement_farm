@@ -104,18 +104,9 @@ export interface SimulationProductionResultat {
 // RECOMMANDATIONS
 // ============================================
 
-export type TypeRecommandation = 
-  | 'faisable'
-  | 'alerte'
-  | 'truies'
-  | 'verrats'
-  | 'optimisation';
+export type TypeRecommandation = 'faisable' | 'alerte' | 'truies' | 'verrats' | 'optimisation';
 
-export type PrioriteRecommandation = 
-  | 'faible'
-  | 'moyenne'
-  | 'elevee'
-  | 'critique';
+export type PrioriteRecommandation = 'faible' | 'moyenne' | 'elevee' | 'critique';
 
 export interface ActionRecommandee {
   action: string;
@@ -222,6 +213,16 @@ export interface SynthesePrevisionVentes {
 }
 
 // ============================================
+// ALERTES
+// ============================================
+
+export interface AlertePlanningProduction {
+  type: string;
+  message: string;
+  gravite: 'critique' | 'elevee' | 'moyenne' | 'faible';
+}
+
+// ============================================
 // ETAT REDUX
 // ============================================
 
@@ -232,7 +233,7 @@ export interface PlanningProductionState {
   sailliesPlanifiees: SailliePlanifiee[];
   previsionsVentes: PrevisionVenteAnimal[];
   recommendations: RecommandationStrategique[];
-  alertes: string[];
+  alertes: AlertePlanningProduction[];
   loading: boolean;
   error: string | null;
 }

@@ -44,10 +44,10 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
     (state) => state.planningProduction
   );
   const animaux = useAppSelector(selectAllAnimaux);
-  
+
   // Utiliser useRef pour éviter de recharger à chaque render
   const animauxChargesRef = useRef<string | null>(null);
-  
+
   // Charger les animaux du cheptel au montage
   useEffect(() => {
     if (projetActif && animauxChargesRef.current !== projetActif.id) {
@@ -75,14 +75,14 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
     (a) => getCategorieAnimal(a) === 'truie' && a.statut === 'actif'
   );
   const truiesActuelles = truiesDisponibles.length;
-  
+
   const verratsActuels = (animaux || []).filter(
     (a) => getCategorieAnimal(a) === 'verrat' && a.statut === 'actif'
   ).length;
 
   // Calculer la moyenne des porcelets par portée basée sur les races des truies
   const moyennePorceletsSelonRaces = calculerMoyennePorceletsSelonRaces(truiesDisponibles);
-  
+
   // Construire le texte de suggestion basé sur les races présentes
   const racesSuggestion = React.useMemo(() => {
     const racesComptees: Record<string, number> = {};
@@ -102,11 +102,13 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
     if (racesTextes.length > 0) {
       return `🐷 Suggestion basée sur vos truies:\n${racesTextes.join('\n')}\n\n💡 Moyenne recommandée: ${moyennePorceletsSelonRaces} porcelets/portée`;
     } else {
-      return '💡 Suggestions par race:\n' + 
+      return (
+        '💡 Suggestions par race:\n' +
         Object.entries(RACES_PERFORMANCES)
           .slice(0, 5) // Top 5 races
           .map(([race, perf]) => `${race}: ${perf.porceletsParPorteeMoyen}`)
-          .join(' • ');
+          .join(' • ')
+      );
     }
   }, [truiesDisponibles, moyennePorceletsSelonRaces]);
 
@@ -137,9 +139,7 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
       objectif_tonnes: objectif,
       periode_mois: periode,
       date_debut: new Date().toISOString(),
-      date_fin: new Date(
-        new Date().setMonth(new Date().getMonth() + periode)
-      ).toISOString(),
+      date_fin: new Date(new Date().setMonth(new Date().getMonth() + periode)).toISOString(),
     };
 
     dispatch(setObjectifProduction(nouvelObjectif));
@@ -154,7 +154,7 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
       simulerProduction({
         objectif: nouvelObjectif,
         parametres,
-        cheptelActuel: { 
+        cheptelActuel: {
           truies: truiesActuelles,
           verrats: verratsActuels,
         },
@@ -166,9 +166,7 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
     <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <View style={styles.cardHeader}>
         <Ionicons name="calculator" size={24} color={colors.primary} />
-        <Text style={[styles.cardTitle, { color: colors.text }]}>
-          Paramètres de simulation
-        </Text>
+        <Text style={[styles.cardTitle, { color: colors.text }]}>Paramètres de simulation</Text>
       </View>
 
       <View style={styles.formGroup}>
@@ -204,9 +202,7 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
       </View>
 
       <View style={styles.formGroup}>
-        <Text style={[styles.label, { color: colors.text }]}>
-          Poids moyen de vente (kg) ⚖️
-        </Text>
+        <Text style={[styles.label, { color: colors.text }]}>Poids moyen de vente (kg) ⚖️</Text>
         <TextInput
           style={[
             styles.input,
@@ -235,21 +231,27 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
           placeholder="Ex: 12"
           placeholderTextColor={colors.textSecondary}
         />
-        <View style={[styles.suggestionBox, { backgroundColor: colors.info + '15', borderColor: colors.info + '40' }]}>
+        <View
+          style={[
+            styles.suggestionBox,
+            { backgroundColor: colors.info + '15', borderColor: colors.info + '40' },
+          ]}
+        >
           <Text style={[styles.suggestionText, { color: colors.textSecondary, fontSize: 12 }]}>
             {racesSuggestion}
           </Text>
-          {truiesDisponibles.length > 0 && moyennePorceletsSelonRaces !== parseFloat(porceletsParPortee) && (
-            <TouchableOpacity
-              style={[styles.applySuggestionButton, { backgroundColor: colors.info }]}
-              onPress={() => setPorceletsParPortee(moyennePorceletsSelonRaces.toString())}
-            >
-              <Ionicons name="flash" size={14} color="#fff" />
-              <Text style={styles.applySuggestionText}>
-                Appliquer ({moyennePorceletsSelonRaces})
-              </Text>
-            </TouchableOpacity>
-          )}
+          {truiesDisponibles.length > 0 &&
+            moyennePorceletsSelonRaces !== parseFloat(porceletsParPortee) && (
+              <TouchableOpacity
+                style={[styles.applySuggestionButton, { backgroundColor: colors.info }]}
+                onPress={() => setPorceletsParPortee(moyennePorceletsSelonRaces.toString())}
+              >
+                <Ionicons name="flash" size={14} color="#fff" />
+                <Text style={styles.applySuggestionText}>
+                  Appliquer ({moyennePorceletsSelonRaces})
+                </Text>
+              </TouchableOpacity>
+            )}
         </View>
       </View>
 
@@ -280,9 +282,7 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
         <Text style={[styles.statValue, { color: colors.text }]}>{truiesActuelles}</Text>
       </View>
       <View style={styles.statRow}>
-        <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-          Verrats :
-        </Text>
+        <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Verrats :</Text>
         <Text style={[styles.statValue, { color: colors.text }]}>{verratsActuels}</Text>
       </View>
     </View>
@@ -291,12 +291,12 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
   const renderResultats = () => {
     if (!simulationResultat) return null;
 
-    const { 
-      nombre_truies_necessaires, 
-      objectif_tonnes, 
+    const {
+      nombre_truies_necessaires,
+      objectif_tonnes,
       est_faisable,
       nombre_portees_necessaires,
-      nombre_porcs_necessaires 
+      nombre_porcs_necessaires,
     } = simulationResultat;
 
     return (
@@ -357,9 +357,7 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
               </Text>
             </View>
             <View style={styles.kpiItem}>
-              <Text style={[styles.kpiLabel, { color: colors.textSecondary }]}>
-                Saillies/mois
-              </Text>
+              <Text style={[styles.kpiLabel, { color: colors.textSecondary }]}>Saillies/mois</Text>
               <Text style={[styles.kpiValue, { color: colors.success }]}>
                 {Math.ceil(simulationResultat.nombre_saillies_par_mois || 0)}
               </Text>
@@ -418,7 +416,9 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={styles.cardHeader}>
           <Ionicons name="bulb" size={24} color={colors.warning} />
-          <Text style={[styles.cardTitle, { color: colors.text }]}>💡 Recommandations stratégiques</Text>
+          <Text style={[styles.cardTitle, { color: colors.text }]}>
+            💡 Recommandations stratégiques
+          </Text>
         </View>
 
         {recommendations.map((rec, index) => (
@@ -439,9 +439,7 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
                 size={20}
                 color={getCouleurPriorite(rec.priorite)}
               />
-              <Text style={[styles.recommendationTitre, { color: colors.text }]}>
-                {rec.titre}
-              </Text>
+              <Text style={[styles.recommendationTitre, { color: colors.text }]}>{rec.titre}</Text>
             </View>
 
             {/* Message principal */}
@@ -466,7 +464,9 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
                     {(action.cout_estime || action.delai) && (
                       <View style={styles.actionInfo}>
                         {action.cout_estime !== undefined && (
-                          <View style={[styles.infoChip, { backgroundColor: colors.primary + '15' }]}>
+                          <View
+                            style={[styles.infoChip, { backgroundColor: colors.primary + '15' }]}
+                          >
                             <Ionicons name="cash-outline" size={14} color={colors.primary} />
                             <Text style={[styles.infoChipText, { color: colors.primary }]}>
                               {formatMontant(action.cout_estime)}
@@ -490,7 +490,12 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
 
             {/* Impact estimé */}
             {rec.impact_estime && (
-              <View style={[styles.impactContainer, { backgroundColor: colors.background + '80', borderColor: colors.borderLight }]}>
+              <View
+                style={[
+                  styles.impactContainer,
+                  { backgroundColor: colors.background + '80', borderColor: colors.borderLight },
+                ]}
+              >
                 <Text style={[styles.impactTitre, { color: colors.textSecondary }]}>
                   📊 Impact estimé
                 </Text>
@@ -507,7 +512,8 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
                   )}
                   {rec.impact_estime.production_additionnelle && (
                     <Text style={[styles.impactText, { color: colors.text }]}>
-                      • Production additionnelle : +{rec.impact_estime.production_additionnelle.toFixed(1)} tonnes
+                      • Production additionnelle : +
+                      {rec.impact_estime.production_additionnelle.toFixed(1)} tonnes
                     </Text>
                   )}
                 </View>
@@ -763,4 +769,3 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 });
-

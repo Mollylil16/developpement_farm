@@ -17,7 +17,10 @@ import { loadMortalitesParProjet } from '../store/slices/mortalitesSlice';
 import { ChargeFixe, DepensePonctuelle, Mortalite, ProductionPesee } from '../types';
 import { selectPeseesRecents } from '../store/selectors/productionSelectors';
 import { selectAllMortalites } from '../store/selectors/mortalitesSelectors';
-import { selectAllChargesFixes, selectAllDepensesPonctuelles } from '../store/selectors/financeSelectors';
+import {
+  selectAllChargesFixes,
+  selectAllDepensesPonctuelles,
+} from '../store/selectors/financeSelectors';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -42,22 +45,25 @@ export default function TendancesChartsComponent() {
   }, [dispatch, projetActif]);
 
   // Configuration des graphiques
-  const chartConfig = useMemo(() => ({
-    backgroundColor: colors.surface,
-    backgroundGradientFrom: colors.surface,
-    backgroundGradientTo: colors.surface,
-    decimalPlaces: 0,
-    color: (opacity = 1) => `rgba(34, 139, 34, ${opacity})`,
-    labelColor: (opacity = 1) => `rgba(${isDark ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`,
-    style: {
-      borderRadius: BORDER_RADIUS.md,
-    },
-    propsForDots: {
-      r: '4',
-      strokeWidth: '2',
-      stroke: colors.primary,
-    },
-  }), [colors, isDark]);
+  const chartConfig = useMemo(
+    () => ({
+      backgroundColor: colors.surface,
+      backgroundGradientFrom: colors.surface,
+      backgroundGradientTo: colors.surface,
+      decimalPlaces: 0,
+      color: (opacity = 1) => `rgba(34, 139, 34, ${opacity})`,
+      labelColor: (opacity = 1) => `rgba(${isDark ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`,
+      style: {
+        borderRadius: BORDER_RADIUS.md,
+      },
+      propsForDots: {
+        r: '4',
+        strokeWidth: '2',
+        stroke: colors.primary,
+      },
+    }),
+    [colors, isDark]
+  );
 
   // Calculer la date de début selon la période
   const getDateDebut = (periodeType: PeriodeType): Date => {
@@ -90,26 +96,29 @@ export default function TendancesChartsComponent() {
 
     // Grouper par semaine ou mois selon la période
     const groupBy = periode === '7j' || periode === '30j' ? 'week' : 'month';
-    
-    const grouped = peseesFiltrees.reduce((acc: Record<string, { poids: number[]; count: number }>, pesee: ProductionPesee) => {
-      const datePesee = parseISO(pesee.date);
-      let key: string;
-      
-      if (groupBy === 'week') {
-        const weekStart = new Date(datePesee);
-        weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-        key = format(weekStart, 'dd MMM', { locale: fr });
-      } else {
-        key = format(datePesee, 'MMM yyyy', { locale: fr });
-      }
-      
-      if (!acc[key]) {
-        acc[key] = { poids: [], count: 0 };
-      }
-      acc[key].poids.push(pesee.poids_kg);
-      acc[key].count++;
-      return acc;
-    }, {} as Record<string, { poids: number[]; count: number }>);
+
+    const grouped = peseesFiltrees.reduce(
+      (acc: Record<string, { poids: number[]; count: number }>, pesee: ProductionPesee) => {
+        const datePesee = parseISO(pesee.date);
+        let key: string;
+
+        if (groupBy === 'week') {
+          const weekStart = new Date(datePesee);
+          weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+          key = format(weekStart, 'dd MMM', { locale: fr });
+        } else {
+          key = format(datePesee, 'MMM yyyy', { locale: fr });
+        }
+
+        if (!acc[key]) {
+          acc[key] = { poids: [], count: 0 };
+        }
+        acc[key].poids.push(pesee.poids_kg);
+        acc[key].count++;
+        return acc;
+      },
+      {} as Record<string, { poids: number[]; count: number }>
+    );
 
     const labels = Object.keys(grouped).sort((a, b) => {
       // Trier par date
@@ -142,17 +151,20 @@ export default function TendancesChartsComponent() {
     if (mortalitesFiltrees.length === 0) return null;
 
     // Grouper par mois
-    const grouped = mortalitesFiltrees.reduce((acc, mortalite) => {
-      const dateMortalite = parseISO(mortalite.date);
-      const key = format(dateMortalite, 'MMM yyyy', { locale: fr });
-      
-      if (!acc[key]) {
-        acc[key] = { total: 0, count: 0 };
-      }
-      acc[key].total += mortalite.nombre_porcs;
-      acc[key].count++;
-      return acc;
-    }, {} as Record<string, { total: number; count: number }>);
+    const grouped = mortalitesFiltrees.reduce(
+      (acc, mortalite) => {
+        const dateMortalite = parseISO(mortalite.date);
+        const key = format(dateMortalite, 'MMM yyyy', { locale: fr });
+
+        if (!acc[key]) {
+          acc[key] = { total: 0, count: 0 };
+        }
+        acc[key].total += mortalite.nombre_porcs;
+        acc[key].count++;
+        return acc;
+      },
+      {} as Record<string, { total: number; count: number }>
+    );
 
     const labels = Object.keys(grouped).sort();
     const data = labels.map((key) => grouped[key].total);
@@ -178,24 +190,27 @@ export default function TendancesChartsComponent() {
     if (peseesFiltrees.length === 0) return null;
 
     // Grouper par mois
-    const grouped = peseesFiltrees.reduce((acc: Record<string, { gmq: number[]; count: number }>, pesee: ProductionPesee) => {
-      const datePesee = parseISO(pesee.date);
-      const key = format(datePesee, 'MMM yyyy', { locale: fr });
-      
-      if (!acc[key]) {
-        acc[key] = { gmq: [], count: 0 };
-      }
-      if (pesee.gmq) {
-        acc[key].gmq.push(pesee.gmq);
-        acc[key].count++;
-      }
-      return acc;
-    }, {} as Record<string, { gmq: number[]; count: number }>);
+    const grouped = peseesFiltrees.reduce(
+      (acc: Record<string, { gmq: number[]; count: number }>, pesee: ProductionPesee) => {
+        const datePesee = parseISO(pesee.date);
+        const key = format(datePesee, 'MMM yyyy', { locale: fr });
+
+        if (!acc[key]) {
+          acc[key] = { gmq: [], count: 0 };
+        }
+        if (pesee.gmq) {
+          acc[key].gmq.push(pesee.gmq);
+          acc[key].count++;
+        }
+        return acc;
+      },
+      {} as Record<string, { gmq: number[]; count: number }>
+    );
 
     const labels = Object.keys(grouped).sort();
     const data = labels.map((key) => {
       const group = grouped[key];
-      return Math.round((group.gmq.reduce((a, b) => a + b, 0) / group.count));
+      return Math.round(group.gmq.reduce((a, b) => a + b, 0) / group.count);
     });
 
     return {
@@ -213,7 +228,7 @@ export default function TendancesChartsComponent() {
     const dateDebut = getDateDebut(periode);
     const maintenant = new Date();
     const maintenantStart = startOfMonth(maintenant);
-    
+
     // Calculer les dépenses par mois (uniquement dans le passé)
     const depensesFiltrees = depensesPonctuelles.filter((d: DepensePonctuelle) => {
       const dateDepense = parseISO(d.date);
@@ -222,16 +237,16 @@ export default function TendancesChartsComponent() {
 
     // Calculer les charges fixes mensuelles
     const chargesFixesActives = chargesFixes.filter((cf: ChargeFixe) => cf.statut === 'actif');
-    
+
     // Grouper par mois avec clé de date pour tri chronologique
     const grouped = new Map<string, { date: Date; montant: number }>();
-    
+
     // Ajouter les dépenses ponctuelles
     depensesFiltrees.forEach((depense: DepensePonctuelle) => {
       const dateDepense = parseISO(depense.date);
       const monthStart = startOfMonth(dateDepense);
       const key = format(monthStart, 'yyyy-MM');
-      
+
       if (!grouped.has(key)) {
         grouped.set(key, { date: monthStart, montant: 0 });
       }
@@ -241,15 +256,16 @@ export default function TendancesChartsComponent() {
 
     // Ajouter les charges fixes mensuelles
     chargesFixesActives.forEach((cf: ChargeFixe) => {
-      const montantMensuel = cf.frequence === 'mensuel' 
-        ? cf.montant 
-        : cf.frequence === 'trimestriel' 
-        ? cf.montant / 3 
-        : cf.montant / 12;
-      
+      const montantMensuel =
+        cf.frequence === 'mensuel'
+          ? cf.montant
+          : cf.frequence === 'trimestriel'
+            ? cf.montant / 3
+            : cf.montant / 12;
+
       // Ajouter pour chaque mois depuis dateDebut jusqu'à maintenant
       let currentDate = startOfMonth(dateDebut);
-      
+
       while (currentDate <= maintenantStart) {
         const key = format(currentDate, 'yyyy-MM');
         if (!grouped.has(key)) {
@@ -295,13 +311,15 @@ export default function TendancesChartsComponent() {
         showsVerticalScrollIndicator={false}
       >
         {/* Sélecteur de période */}
-        <View style={[
-          styles.periodSelector,
-          {
-            backgroundColor: colors.surface,
-            ...colors.shadow.small,
-          },
-        ]}>
+        <View
+          style={[
+            styles.periodSelector,
+            {
+              backgroundColor: colors.surface,
+              ...colors.shadow.small,
+            },
+          ]}
+        >
           <Text style={[styles.periodLabel, { color: colors.text }]}>Période :</Text>
           <View style={styles.periodButtons}>
             {periodes.map((p) => (
@@ -339,7 +357,9 @@ export default function TendancesChartsComponent() {
 
         {/* Graphique d'évolution du poids */}
         <Card elevation="medium" padding="large" style={styles.chartCard}>
-          <Text style={[styles.chartTitle, { color: colors.text }]}>📊 Évolution du poids moyen</Text>
+          <Text style={[styles.chartTitle, { color: colors.text }]}>
+            📊 Évolution du poids moyen
+          </Text>
           {poidsChartData ? (
             <LineChart
               data={poidsChartData}
@@ -391,7 +411,9 @@ export default function TendancesChartsComponent() {
 
         {/* Graphique de GMQ */}
         <Card elevation="medium" padding="large" style={styles.chartCard}>
-          <Text style={[styles.chartTitle, { color: colors.text }]}>📈 GMQ moyen (Gain Moyen Quotidien)</Text>
+          <Text style={[styles.chartTitle, { color: colors.text }]}>
+            📈 GMQ moyen (Gain Moyen Quotidien)
+          </Text>
           {gmqChartData ? (
             <LineChart
               data={gmqChartData}
@@ -510,4 +532,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-

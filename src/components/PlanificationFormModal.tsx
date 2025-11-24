@@ -8,7 +8,14 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Platform } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { createPlanification, updatePlanification } from '../store/slices/planificationSlice';
-import { Planification, CreatePlanificationInput, TypeTache, TYPE_TACHE_LABELS, StatutTache, STATUT_TACHE_LABELS } from '../types';
+import {
+  Planification,
+  CreatePlanificationInput,
+  TypeTache,
+  TYPE_TACHE_LABELS,
+  StatutTache,
+  STATUT_TACHE_LABELS,
+} from '../types';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING } from '../constants/theme';
@@ -67,11 +74,26 @@ export default function PlanificationFormModal({
     notes: '',
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [datePickerField, setDatePickerField] = useState<'date_prevue' | 'date_echeance' | 'rappel'>('date_prevue');
+  const [datePickerField, setDatePickerField] = useState<
+    'date_prevue' | 'date_echeance' | 'rappel'
+  >('date_prevue');
 
-  const types: TypeTache[] = ['saillie', 'vaccination', 'sevrage', 'nettoyage', 'alimentation', 'veterinaire', 'autre'];
+  const types: TypeTache[] = [
+    'saillie',
+    'vaccination',
+    'sevrage',
+    'nettoyage',
+    'alimentation',
+    'veterinaire',
+    'autre',
+  ];
   const statuts: StatutTache[] = ['a_faire', 'en_cours', 'terminee', 'annulee'];
-  const recurrences: Array<'aucune' | 'quotidienne' | 'hebdomadaire' | 'mensuelle'> = ['aucune', 'quotidienne', 'hebdomadaire', 'mensuelle'];
+  const recurrences: Array<'aucune' | 'quotidienne' | 'hebdomadaire' | 'mensuelle'> = [
+    'aucune',
+    'quotidienne',
+    'hebdomadaire',
+    'mensuelle',
+  ];
 
   const gestationsEnCours = useMemo(() => {
     if (!gestations || !Array.isArray(gestations)) return [];
@@ -113,11 +135,17 @@ export default function PlanificationFormModal({
   const handleSubmit = async () => {
     // Vérifier les permissions
     if (isEditing && !canUpdate('planification')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les planifications.');
+      Alert.alert(
+        'Permission refusée',
+        "Vous n'avez pas la permission de modifier les planifications."
+      );
       return;
     }
     if (!isEditing && !canCreate('planification')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de créer des planifications.');
+      Alert.alert(
+        'Permission refusée',
+        "Vous n'avez pas la permission de créer des planifications."
+      );
       return;
     }
 
@@ -230,7 +258,10 @@ export default function PlanificationFormModal({
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Date prévue *</Text>
           <TouchableOpacity
-            style={[styles.dateButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            style={[
+              styles.dateButton,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
             onPress={() => {
               setDatePickerField('date_prevue');
               setShowDatePicker(true);
@@ -257,9 +288,14 @@ export default function PlanificationFormModal({
         </View>
 
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Date d'échéance (optionnel)</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            Date d'échéance (optionnel)
+          </Text>
           <TouchableOpacity
-            style={[styles.dateButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            style={[
+              styles.dateButton,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
             onPress={() => {
               setDatePickerField('date_echeance');
               setShowDatePicker(true);
@@ -288,7 +324,10 @@ export default function PlanificationFormModal({
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Rappel (optionnel)</Text>
           <TouchableOpacity
-            style={[styles.dateButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            style={[
+              styles.dateButton,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
             onPress={() => {
               setDatePickerField('rappel');
               setShowDatePicker(true);
@@ -399,7 +438,9 @@ export default function PlanificationFormModal({
 
         {Array.isArray(gestationsEnCours) && gestationsEnCours.length > 0 && (
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Lier à une gestation (optionnel)</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Lier à une gestation (optionnel)
+            </Text>
             <View style={styles.optionsContainer}>
               <TouchableOpacity
                 style={[
@@ -454,7 +495,8 @@ export default function PlanificationFormModal({
                       },
                     ]}
                   >
-                    {gestation.truie_nom || `Truie ${gestation.truie_id}`} - {new Date(gestation.date_mise_bas_prevue).toLocaleDateString('fr-FR')}
+                    {gestation.truie_nom || `Truie ${gestation.truie_id}`} -{' '}
+                    {new Date(gestation.date_mise_bas_prevue).toLocaleDateString('fr-FR')}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -515,4 +557,3 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
-

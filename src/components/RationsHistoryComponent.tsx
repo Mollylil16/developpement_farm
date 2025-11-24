@@ -57,21 +57,17 @@ export default function RationsHistoryComponent() {
 
   const handleDelete = (id: string) => {
     if (!canDelete('nutrition')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de supprimer les rations.');
+      Alert.alert('Permission refusée', "Vous n'avez pas la permission de supprimer les rations.");
       return;
     }
-    Alert.alert(
-      'Supprimer la ration',
-      'Êtes-vous sûr de vouloir supprimer cette ration ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: () => dispatch(deleteRation(id)),
-        },
-      ]
-    );
+    Alert.alert('Supprimer la ration', 'Êtes-vous sûr de vouloir supprimer cette ration ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Supprimer',
+        style: 'destructive',
+        onPress: () => dispatch(deleteRation(id)),
+      },
+    ]);
   };
 
   const formatDate = (dateString: string) => {
@@ -101,7 +97,9 @@ export default function RationsHistoryComponent() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <Text style={[styles.title, { color: colors.text }]}>Historique des Rations</Text>
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{rations.length} ration{rations.length > 1 ? 's' : ''}</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+          {rations.length} ration{rations.length > 1 ? 's' : ''}
+        </Text>
       </View>
 
       {rations.length === 0 ? (
@@ -113,11 +111,17 @@ export default function RationsHistoryComponent() {
         <FlatList
           data={displayedRations}
           renderItem={({ item: ration }) => (
-            <View style={[styles.card, { backgroundColor: colors.surface, ...colors.shadow.small }]}>
+            <View
+              style={[styles.card, { backgroundColor: colors.surface, ...colors.shadow.small }]}
+            >
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderLeft}>
-                  <Text style={[styles.cardTitle, { color: colors.text }]}>{getTypePorcLabel(ration.type_porc as any)}</Text>
-                  <Text style={[styles.cardDate, { color: colors.textSecondary }]}>{formatDate(ration.date_creation)}</Text>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>
+                    {getTypePorcLabel(ration.type_porc as any)}
+                  </Text>
+                  <Text style={[styles.cardDate, { color: colors.textSecondary }]}>
+                    {formatDate(ration.date_creation)}
+                  </Text>
                 </View>
                 {canDelete('nutrition') && (
                   <TouchableOpacity
@@ -132,17 +136,25 @@ export default function RationsHistoryComponent() {
               <View style={styles.cardContent}>
                 <View style={styles.infoRow}>
                   <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Poids:</Text>
-                  <Text style={[styles.infoValue, { color: colors.text }]}>{ration.poids_kg} kg</Text>
+                  <Text style={[styles.infoValue, { color: colors.text }]}>
+                    {ration.poids_kg} kg
+                  </Text>
                 </View>
                 {ration.nombre_porcs && (
                   <View style={styles.infoRow}>
-                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Nombre de porcs:</Text>
-                    <Text style={[styles.infoValue, { color: colors.text }]}>{ration.nombre_porcs}</Text>
+                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                      Nombre de porcs:
+                    </Text>
+                    <Text style={[styles.infoValue, { color: colors.text }]}>
+                      {ration.nombre_porcs}
+                    </Text>
                   </View>
                 )}
                 {ration.cout_total && (
                   <View style={styles.infoRow}>
-                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Coût total:</Text>
+                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                      Coût total:
+                    </Text>
                     <Text style={[styles.infoValue, styles.amount, { color: colors.primary }]}>
                       {formatAmount(ration.cout_total)}
                     </Text>
@@ -150,7 +162,9 @@ export default function RationsHistoryComponent() {
                 )}
                 {ration.cout_par_kg && (
                   <View style={styles.infoRow}>
-                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Coût par kg:</Text>
+                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                      Coût par kg:
+                    </Text>
                     <Text style={[styles.infoValue, styles.amount, { color: colors.primary }]}>
                       {formatAmount(ration.cout_par_kg)}
                     </Text>
@@ -159,7 +173,9 @@ export default function RationsHistoryComponent() {
 
                 {ration.ingredients && ration.ingredients.length > 0 && (
                   <View style={[styles.ingredientsSection, { borderTopColor: colors.border }]}>
-                    <Text style={[styles.ingredientsTitle, { color: colors.text }]}>Ingrédients:</Text>
+                    <Text style={[styles.ingredientsTitle, { color: colors.text }]}>
+                      Ingrédients:
+                    </Text>
                     {ration.ingredients.map((ing: IngredientRation, index: number) => (
                       <View key={index} style={styles.ingredientItem}>
                         <Text style={[styles.ingredientText, { color: colors.text }]}>
@@ -305,4 +321,3 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
 });
-

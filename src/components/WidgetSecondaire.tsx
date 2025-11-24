@@ -15,22 +15,22 @@ interface WidgetSecondaireProps {
   onPress?: () => void;
 }
 
-export default function WidgetSecondaire({ 
-  icon, 
-  title, 
-  value, 
+export default function WidgetSecondaire({
+  icon,
+  title,
+  value,
   subtitle,
-  onPress 
+  onPress,
 }: WidgetSecondaireProps) {
   const { colors } = useTheme();
-  
+
   // Sécuriser la valeur pour éviter l'erreur "Text strings must be rendered within a <Text> component"
   const safeValue = value !== undefined && value !== null ? value : 0;
   const safeIcon = icon || '📊';
   const safeTitle = title || 'Widget';
-  
+
   return (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={[
         styles.container,
         {
@@ -38,15 +38,19 @@ export default function WidgetSecondaire({
           borderColor: colors.borderLight,
           ...colors.shadow.small,
         },
-      ]} 
+      ]}
       onPress={onPress}
       activeOpacity={0.7}
     >
       <Text style={styles.icon}>{safeIcon}</Text>
-      <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>{safeTitle}</Text>
+      <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
+        {safeTitle}
+      </Text>
       <Text style={[styles.value, { color: colors.primary }]}>{safeValue}</Text>
       {subtitle && (
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]} numberOfLines={1}>{subtitle}</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]} numberOfLines={1}>
+          {subtitle}
+        </Text>
       )}
     </TouchableOpacity>
   );
@@ -83,4 +87,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-

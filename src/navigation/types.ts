@@ -21,5 +21,4 @@ export const SCREENS = {
   ADMIN: 'Admin',
 } as const;
 
-export type ScreenName = typeof SCREENS[keyof typeof SCREENS];
-
+export type ScreenName = (typeof SCREENS)[keyof typeof SCREENS];

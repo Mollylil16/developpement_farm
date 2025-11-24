@@ -3,10 +3,23 @@
  * Section dédiée à la liste et gestion CRUD des ingrédients avec leurs prix
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, FlatList } from 'react-native';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  FlatList,
+  RefreshControl,
+} from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { loadIngredients, deleteIngredient, createIngredient } from '../store/slices/nutritionSlice';
+import {
+  loadIngredients,
+  deleteIngredient,
+  createIngredient,
+} from '../store/slices/nutritionSlice';
 import { Ingredient } from '../types';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -26,6 +39,7 @@ export default function IngredientsComponent() {
   const [isEditing, setIsEditing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showScannerModal, setShowScannerModal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (projetActif) {
@@ -33,27 +47,40 @@ export default function IngredientsComponent() {
     }
   }, [dispatch, projetActif?.id]);
 
+  const onRefresh = useCallback(async () => {
+    if (!projetActif?.id) return;
+    
+    setRefreshing(true);
+    try {
+      await dispatch(loadIngredients(projetActif.id)).unwrap();
+    } catch (error) {
+      console.error('Erreur lors du rafraîchissement:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [dispatch, projetActif?.id]);
+
   // Filtrer les ingrédients
   const filteredIngredients = useMemo(() => {
     if (!searchQuery.trim()) return ingredients;
     const query = searchQuery.toLowerCase();
-    return ingredients.filter(ing => 
-      ing.nom.toLowerCase().includes(query)
-    );
+    return ingredients.filter((ing) => ing.nom.toLowerCase().includes(query));
   }, [ingredients, searchQuery]);
 
   // Statistiques
   const stats = useMemo(() => {
     const total = ingredients.length;
-    const prixMoyen = total > 0 
-      ? ingredients.reduce((sum, ing) => sum + ing.prix_unitaire, 0) / total 
-      : 0;
+    const prixMoyen =
+      total > 0 ? ingredients.reduce((sum, ing) => sum + ing.prix_unitaire, 0) / total : 0;
     return { total, prixMoyen };
   }, [ingredients]);
 
   const handleEditIngredient = (ingredient: Ingredient) => {
     if (!canUpdate('nutrition')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier des ingrédients.');
+      Alert.alert(
+        'Permission refusée',
+        "Vous n'avez pas la permission de modifier des ingrédients."
+      );
       return;
     }
     setSelectedIngredient(ingredient);
@@ -63,12 +90,15 @@ export default function IngredientsComponent() {
 
   const handleDeleteIngredient = (ingredient: Ingredient) => {
     if (!canDelete('nutrition')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de supprimer des ingrédients.');
+      Alert.alert(
+        'Permission refusée',
+        "Vous n'avez pas la permission de supprimer des ingrédients."
+      );
       return;
     }
 
     Alert.alert(
-      'Supprimer l\'ingrédient',
+      "Supprimer l'ingrédient",
       `Êtes-vous sûr de vouloir supprimer "${ingredient.nom}" ?\n\nCette action est irréversible.`,
       [
         { text: 'Annuler', style: 'cancel' },
@@ -104,9 +134,11 @@ export default function IngredientsComponent() {
   /**
    * Import des prix scannés depuis la photo
    */
-  const handleImportScannedPrices = async (prices: Array<{ingredient: string; prix: number; unite: 'kg' | 'sac'}>) => {
+  const handleImportScannedPrices = async (
+    prices: Array<{ ingredient: string; prix: number; unite: 'kg' | 'sac' }>
+  ) => {
     if (!projetActif || !canCreate('nutrition')) {
-      Alert.alert('Erreur', 'Impossible d\'importer les prix');
+      Alert.alert('Erreur', "Impossible d'importer les prix");
       return;
     }
 
@@ -115,13 +147,15 @@ export default function IngredientsComponent() {
 
     for (const price of prices) {
       try {
-        await dispatch(createIngredient({
-          nom: price.ingredient,
-          unite: price.unite,
-          prix_unitaire: price.prix,
-          proteine_pourcent: undefined,
-          energie_kcal: undefined,
-        })).unwrap();
+        await dispatch(
+          createIngredient({
+            nom: price.ingredient,
+            unite: price.unite,
+            prix_unitaire: price.prix,
+            proteine_pourcent: undefined,
+            energie_kcal: undefined,
+          })
+        ).unwrap();
         successCount++;
       } catch (error) {
         errorCount++;
@@ -140,7 +174,7 @@ export default function IngredientsComponent() {
         [{ text: 'OK' }]
       );
     } else {
-      Alert.alert('Erreur', 'Aucun ingrédient n\'a pu être importé');
+      Alert.alert('Erreur', "Aucun ingrédient n'a pu être importé");
     }
   };
 
@@ -153,26 +187,27 @@ export default function IngredientsComponent() {
     return (
       <TouchableOpacity
         onLongPress={() => {
-          Alert.alert(
-            item.nom,
-            'Que voulez-vous faire ?',
-            [
-              { text: 'Annuler', style: 'cancel' },
-              {
-                text: 'Modifier',
-                onPress: () => handleEditIngredient(item),
-              },
-              {
-                text: 'Supprimer',
-                onPress: () => handleDeleteIngredient(item),
-                style: 'destructive',
-              },
-            ]
-          );
+          Alert.alert(item.nom, 'Que voulez-vous faire ?', [
+            { text: 'Annuler', style: 'cancel' },
+            {
+              text: 'Modifier',
+              onPress: () => handleEditIngredient(item),
+            },
+            {
+              text: 'Supprimer',
+              onPress: () => handleDeleteIngredient(item),
+              style: 'destructive',
+            },
+          ]);
         }}
         activeOpacity={0.7}
       >
-        <View style={[styles.ingredientCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View
+          style={[
+            styles.ingredientCard,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
           <View style={styles.ingredientHeader}>
             <View style={styles.ingredientInfo}>
               <Text style={[styles.ingredientNom, { color: colors.text }]}>{item.nom}</Text>
@@ -213,7 +248,12 @@ export default function IngredientsComponent() {
               )}
             </View>
           </View>
-          <View style={[styles.prixContainer, { backgroundColor: colors.success + '10', borderColor: colors.success + '30' }]}>
+          <View
+            style={[
+              styles.prixContainer,
+              { backgroundColor: colors.success + '10', borderColor: colors.success + '30' },
+            ]}
+          >
             <Text style={[styles.prixLabel, { color: colors.textSecondary }]}>Prix unitaire</Text>
             <Text style={[styles.prixValue, { color: colors.success }]}>
               {item.prix_unitaire.toLocaleString('fr-FR')} FCFA/{getUniteDisplay(item.unite)}
@@ -251,11 +291,15 @@ export default function IngredientsComponent() {
 
       {/* Statistiques */}
       <View style={styles.statsContainer}>
-        <View style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View
+          style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+        >
           <Text style={[styles.statValue, { color: colors.primary }]}>{stats.total}</Text>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Ingrédients</Text>
         </View>
-        <View style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View
+          style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+        >
           <Text style={[styles.statValue, { color: colors.success }]}>
             {stats.prixMoyen.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}
           </Text>
@@ -286,6 +330,14 @@ export default function IngredientsComponent() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          }
         />
       ) : (
         <View style={styles.emptyContainer}>
@@ -483,4 +535,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-

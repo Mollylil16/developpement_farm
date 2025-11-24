@@ -62,4 +62,3 @@ export const selectVeterinaire = (state: RootState): Collaborateur | undefined =
     (c) => c.role === 'veterinaire' && c.statut === 'actif'
   );
 };
-

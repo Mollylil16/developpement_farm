@@ -17,59 +17,59 @@ const Tab = createMaterialTopTabNavigator();
 
 function NutritionScreenContent() {
   const { colors } = useTheme();
-  
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
-    <Tab.Navigator
-      screenOptions={{
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
-        tabBarIndicatorStyle: {
-          backgroundColor: colors.primary,
-          height: 3,
-        },
-        tabBarStyle: {
-          backgroundColor: colors.background,
-          elevation: 4,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
-        },
-        tabBarLabelStyle: {
-          fontSize: FONT_SIZES.sm,
-          fontWeight: '600',
-          textTransform: 'none',
-        },
-        tabBarScrollEnabled: true,
-        tabBarItemStyle: {
-          width: 'auto',
-          minWidth: 100,
-        },
-      }}
-    >
-      <Tab.Screen
-        name="Budgetisation"
-        component={CalculateurNavigationScreen}
-        options={{
-          title: '💰 Budgétisation',
+      <Tab.Navigator
+        screenOptions={{
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: colors.textSecondary,
+          tabBarIndicatorStyle: {
+            backgroundColor: colors.primary,
+            height: 3,
+          },
+          tabBarStyle: {
+            backgroundColor: colors.background,
+            elevation: 4,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+          },
+          tabBarLabelStyle: {
+            fontSize: FONT_SIZES.sm,
+            fontWeight: '600',
+            textTransform: 'none',
+          },
+          tabBarScrollEnabled: true,
+          tabBarItemStyle: {
+            width: 'auto',
+            minWidth: 100,
+          },
         }}
-      />
-      <Tab.Screen
-        name="Stocks"
-        component={NutritionStockComponent}
-        options={{
-          title: '📦 Stocks',
-        }}
-      />
-      <Tab.Screen
-        name="Mouvements Stock"
-        component={StockMouvementsHistoryComponent}
-        options={{
-          title: '📊 Mouvements',
-        }}
-      />
-    </Tab.Navigator>
+      >
+        <Tab.Screen
+          name="Budgetisation"
+          component={CalculateurNavigationScreen}
+          options={{
+            title: '💰 Budgétisation',
+          }}
+        />
+        <Tab.Screen
+          name="Stocks"
+          component={NutritionStockComponent}
+          options={{
+            title: '📦 Stocks',
+          }}
+        />
+        <Tab.Screen
+          name="Mouvements Stock"
+          component={StockMouvementsHistoryComponent}
+          options={{
+            title: '📊 Mouvements',
+          }}
+        />
+      </Tab.Navigator>
     </SafeAreaView>
   );
 }

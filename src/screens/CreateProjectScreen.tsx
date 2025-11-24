@@ -92,7 +92,7 @@ export default function CreateProjectScreen() {
         setInvitationsModalVisible(true);
       }, 1000);
     }
-  }, [invitationsEnAttente.length, projetActif?.id]);  // ✅ projetActif?.id au lieu de projetActif (objet)
+  }, [invitationsEnAttente.length, projetActif?.id]); // ✅ projetActif?.id au lieu de projetActif (objet)
 
   const handleSubmit = async () => {
     // Validation
@@ -104,7 +104,11 @@ export default function CreateProjectScreen() {
       Alert.alert('Erreur', 'La localisation est requise');
       return;
     }
-    if (formData.nombre_truies < 0 || formData.nombre_verrats < 0 || formData.nombre_porcelets < 0) {
+    if (
+      formData.nombre_truies < 0 ||
+      formData.nombre_verrats < 0 ||
+      formData.nombre_porcelets < 0
+    ) {
       Alert.alert('Erreur', 'Les nombres ne peuvent pas être négatifs');
       return;
     }
@@ -116,8 +120,9 @@ export default function CreateProjectScreen() {
         return;
       }
 
-      const totalAnimaux = formData.nombre_truies + formData.nombre_verrats + formData.nombre_porcelets;
-      
+      const totalAnimaux =
+        formData.nombre_truies + formData.nombre_verrats + formData.nombre_porcelets;
+
       await dispatch(
         createProjet({
           ...formData,
@@ -128,22 +133,19 @@ export default function CreateProjectScreen() {
       // Si l'utilisateur a déjà un projet actif, il vient probablement des paramètres
       // Dans ce cas, on revient aux paramètres pour qu'il puisse voir son nouveau projet
       if (projetActif) {
-        const message = totalAnimaux > 0
-          ? `Votre nouveau projet a été créé avec ${totalAnimaux} animal${totalAnimaux > 1 ? 'x' : ''} dans votre cheptel. Vous pouvez basculer entre vos projets dans les paramètres.`
-          : 'Votre nouveau projet a été créé et est maintenant actif. Vous pouvez basculer entre vos projets dans les paramètres.';
-        
-        Alert.alert(
-          'Projet créé',
-          message,
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                navigation.goBack();
-              },
+        const message =
+          totalAnimaux > 0
+            ? `Votre nouveau projet a été créé avec ${totalAnimaux} animal${totalAnimaux > 1 ? 'x' : ''} dans votre cheptel. Vous pouvez basculer entre vos projets dans les paramètres.`
+            : 'Votre nouveau projet a été créé et est maintenant actif. Vous pouvez basculer entre vos projets dans les paramètres.';
+
+        Alert.alert('Projet créé', message, [
+          {
+            text: 'OK',
+            onPress: () => {
+              navigation.goBack();
             },
-          ]
-        );
+          },
+        ]);
       } else {
         // Pas de projet actif = premier projet, la navigation sera gérée automatiquement par AppNavigator
         if (totalAnimaux > 0) {
@@ -177,7 +179,10 @@ export default function CreateProjectScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top', 'bottom']}
+    >
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -187,10 +192,7 @@ export default function CreateProjectScreen() {
             styles.animatedContainer,
             {
               opacity: fadeAnim,
-              transform: [
-                { translateY: slideAnim },
-                { scale: scaleAnim },
-              ],
+              transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
             },
           ]}
         >
@@ -203,14 +205,27 @@ export default function CreateProjectScreen() {
               <View style={styles.header}>
                 <View style={styles.headerActions}>
                   <TouchableOpacity
-                    style={[styles.signOutButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
+                    style={[
+                      styles.signOutButton,
+                      { borderColor: colors.border, backgroundColor: colors.surface },
+                    ]}
                     onPress={handleSignOut}
                     activeOpacity={0.8}
                   >
-                    <Text style={[styles.signOutText, { color: colors.error }]}>Se déconnecter</Text>
+                    <Text style={[styles.signOutText, { color: colors.error }]}>
+                      Se déconnecter
+                    </Text>
                   </TouchableOpacity>
                 </View>
-                <View style={[styles.headerIconContainer, { backgroundColor: colors.primaryLight + '15', borderColor: colors.primaryLight + '30' }]}>
+                <View
+                  style={[
+                    styles.headerIconContainer,
+                    {
+                      backgroundColor: colors.primaryLight + '15',
+                      borderColor: colors.primaryLight + '30',
+                    },
+                  ]}
+                >
                   <Text style={styles.headerIcon}>🏡</Text>
                 </View>
                 <Text style={[styles.title, { color: colors.text }]}>Créer votre ferme</Text>
@@ -221,9 +236,13 @@ export default function CreateProjectScreen() {
 
               {/* Section Informations générales */}
               <Card elevation="small" padding="large" style={styles.sectionCard}>
-                <View style={[styles.sectionHeader, { borderBottomColor: colors.primaryLight + '30' }]}>
+                <View
+                  style={[styles.sectionHeader, { borderBottomColor: colors.primaryLight + '30' }]}
+                >
                   <Text style={styles.sectionIcon}>📋</Text>
-                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Informations générales</Text>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                    Informations générales
+                  </Text>
                 </View>
                 <View style={styles.formSection}>
                   <FormField
@@ -246,15 +265,19 @@ export default function CreateProjectScreen() {
 
               {/* Section Effectifs */}
               <Card elevation="small" padding="large" style={styles.sectionCard}>
-                <View style={[styles.sectionHeader, { borderBottomColor: colors.primaryLight + '30' }]}>
+                <View
+                  style={[styles.sectionHeader, { borderBottomColor: colors.primaryLight + '30' }]}
+                >
                   <Text style={styles.sectionIcon}>🐷</Text>
-                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Effectifs initiaux</Text>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                    Effectifs initiaux
+                  </Text>
                 </View>
                 <View style={styles.formSection}>
                   <View style={styles.row}>
                     <View style={styles.halfWidth}>
                       <FormField
-                        label="Truies"
+                        label="Truies reproductrices"
                         placeholder="Ex: 45"
                         keyboardType="numeric"
                         value={formData.nombre_truies.toString()}
@@ -266,7 +289,7 @@ export default function CreateProjectScreen() {
                     </View>
                     <View style={styles.halfWidth}>
                       <FormField
-                        label="Verrats"
+                        label="Verrats reproducteurs"
                         placeholder="Ex: 5"
                         keyboardType="numeric"
                         value={formData.nombre_verrats.toString()}
@@ -293,9 +316,13 @@ export default function CreateProjectScreen() {
 
               {/* Section Statistiques */}
               <Card elevation="small" padding="large" style={styles.sectionCard}>
-                <View style={[styles.sectionHeader, { borderBottomColor: colors.primaryLight + '30' }]}>
+                <View
+                  style={[styles.sectionHeader, { borderBottomColor: colors.primaryLight + '30' }]}
+                >
                   <Text style={styles.sectionIcon}>📊</Text>
-                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Statistiques moyennes</Text>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                    Statistiques moyennes
+                  </Text>
                 </View>
                 <View style={styles.formSection}>
                   <View style={styles.row}>
@@ -329,9 +356,13 @@ export default function CreateProjectScreen() {
 
               {/* Section Notes */}
               <Card elevation="small" padding="large" style={styles.sectionCard}>
-                <View style={[styles.sectionHeader, { borderBottomColor: colors.primaryLight + '30' }]}>
+                <View
+                  style={[styles.sectionHeader, { borderBottomColor: colors.primaryLight + '30' }]}
+                >
                   <Text style={styles.sectionIcon}>📝</Text>
-                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Notes supplémentaires</Text>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                    Notes supplémentaires
+                  </Text>
                 </View>
                 <View style={styles.formSection}>
                   <FormField
@@ -360,7 +391,7 @@ export default function CreateProjectScreen() {
           </ScrollView>
         </Animated.View>
       </KeyboardAvoidingView>
-      
+
       {/* Modal d'invitations */}
       <InvitationsModal
         visible={invitationsModalVisible}
@@ -473,4 +504,3 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.lg,
   },
 });
-

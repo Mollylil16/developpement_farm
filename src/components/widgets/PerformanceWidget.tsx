@@ -31,28 +31,25 @@ function PerformanceWidget({ onPress }: PerformanceWidgetProps) {
       dataChargeesRef.current = null;
       return;
     }
-    
+
     if (dataChargeesRef.current === projetActif.id) return; // Déjà chargé !
-    
+
     dataChargeesRef.current = projetActif.id;
     dispatch(loadMortalitesParProjet(projetActif.id));
   }, [dispatch, projetActif?.id]);
 
   // ✅ MÉMOÏSER les valeurs calculées des mortalités pour éviter les boucles infinies
-  const totalMorts = useMemo(() => 
-    Array.isArray(mortalites) 
-      ? mortalites.reduce((sum, m) => sum + (m.nombre_porcs || 0), 0) 
-      : 0,
-    [mortalites.length]  // ✅ Utiliser .length au lieu de l'array complet
+  const totalMorts = useMemo(
+    () =>
+      Array.isArray(mortalites) ? mortalites.reduce((sum, m) => sum + (m.nombre_porcs || 0), 0) : 0,
+    [mortalites.length] // ✅ Utiliser .length au lieu de l'array complet
   );
 
   const performanceData = useMemo(() => {
     if (!projetActif) return null;
 
     const nombrePorcsTotal =
-      projetActif.nombre_truies +
-      projetActif.nombre_verrats +
-      projetActif.nombre_porcelets;
+      projetActif.nombre_truies + projetActif.nombre_verrats + projetActif.nombre_porcelets;
 
     const tauxMortalite = nombrePorcsTotal > 0 ? (totalMorts / nombrePorcsTotal) * 100 : 0;
 
@@ -66,7 +63,12 @@ function PerformanceWidget({ onPress }: PerformanceWidgetProps) {
       coutProduction: Math.round(coutProduction),
       tendance: tauxMortalite < 5 ? 'positive' : tauxMortalite < 10 ? 'neutre' : 'negative',
     };
-  }, [projetActif?.id, totalMorts, indicateursPerformance?.taux_croissance, indicateursPerformance?.cout_production_kg]);
+  }, [
+    projetActif?.id,
+    totalMorts,
+    indicateursPerformance?.taux_croissance,
+    indicateursPerformance?.cout_production_kg,
+  ]);
 
   if (!performanceData) {
     return null;
@@ -83,14 +85,18 @@ function PerformanceWidget({ onPress }: PerformanceWidgetProps) {
 
       <View style={styles.content}>
         <View style={styles.statRow}>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Performance globale:</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+            Performance globale:
+          </Text>
           <Text style={[styles.statValue, { color: colors.primary }]}>
             {performanceData.performanceGlobale ?? 0}%
           </Text>
         </View>
 
         <View style={styles.statRow}>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Taux de mortalité:</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+            Taux de mortalité:
+          </Text>
           <View style={styles.statValueRow}>
             <Text
               style={[
@@ -100,8 +106,8 @@ function PerformanceWidget({ onPress }: PerformanceWidgetProps) {
                     (performanceData.tauxMortalite ?? 0) < 5
                       ? colors.success
                       : (performanceData.tauxMortalite ?? 0) < 10
-                      ? colors.warning
-                      : colors.error,
+                        ? colors.warning
+                        : colors.error,
                 },
               ]}
             >
@@ -112,7 +118,9 @@ function PerformanceWidget({ onPress }: PerformanceWidgetProps) {
         </View>
 
         <View style={styles.statRow}>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Coût de production:</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+            Coût de production:
+          </Text>
           <Text style={[styles.statValue, { color: colors.text }]}>
             {performanceData.coutProduction ?? 0} FCFA/kg
           </Text>
@@ -128,12 +136,16 @@ function PerformanceWidget({ onPress }: PerformanceWidgetProps) {
                   performanceData.tendance === 'positive'
                     ? colors.success
                     : performanceData.tendance === 'negative'
-                    ? colors.error
-                    : colors.warning,
+                      ? colors.error
+                      : colors.warning,
               },
             ]}
           >
-            {performanceData.tendance === 'positive' ? '↗️ Amélioration' : performanceData.tendance === 'negative' ? '↘️ Attention' : '→ Stable'}
+            {performanceData.tendance === 'positive'
+              ? '↗️ Amélioration'
+              : performanceData.tendance === 'negative'
+                ? '↘️ Attention'
+                : '→ Stable'}
           </Text>
         </View>
       </View>
@@ -220,4 +232,3 @@ const styles = StyleSheet.create({
 });
 
 export default memo(PerformanceWidget);
-

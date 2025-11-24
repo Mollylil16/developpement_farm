@@ -38,7 +38,7 @@ export function generateFinanceHTML(data: FinanceData): string {
 
   const content = `
     ${generatePDFHeader(
-      'Vue d\'ensemble Financière',
+      "Vue d'ensemble Financière",
       'Rapport détaillé des finances de votre exploitation',
       projet.nom
     )}
@@ -79,7 +79,7 @@ export function generateFinanceHTML(data: FinanceData): string {
           </tr>
           <tr style="font-weight: bold; border-top: 2px solid #333;">
             <td>Balance mensuelle moyenne</td>
-            <td class="text-right ${(moyennes.revenusMensuel - moyennes.depensesMensuelle) >= 0 ? 'text-success' : 'text-danger'}">
+            <td class="text-right ${moyennes.revenusMensuel - moyennes.depensesMensuelle >= 0 ? 'text-success' : 'text-danger'}">
               ${formatCurrency(moyennes.revenusMensuel - moyennes.depensesMensuelle)}
             </td>
           </tr>
@@ -93,7 +93,9 @@ export function generateFinanceHTML(data: FinanceData): string {
       <div class="card">
         <p><strong>Total :</strong> ${formatCurrency(totaux.chargesFixes)}</p>
         
-        ${chargesFixes.length > 0 ? `
+        ${
+          chargesFixes.length > 0
+            ? `
         <table>
           <thead>
             <tr>
@@ -104,22 +106,33 @@ export function generateFinanceHTML(data: FinanceData): string {
             </tr>
           </thead>
           <tbody>
-            ${chargesFixes.slice(0, 20).map(charge => `
+            ${chargesFixes
+              .slice(0, 20)
+              .map(
+                (charge) => `
               <tr>
                 <td>${charge.libelle}</td>
                 <td><span class="badge badge-info">${charge.categorie}</span></td>
                 <td>${charge.frequence}</td>
                 <td class="text-right">${formatCurrency(charge.montant)}</td>
               </tr>
-            `).join('')}
+            `
+              )
+              .join('')}
           </tbody>
         </table>
-        ${chargesFixes.length > 20 ? `
+        ${
+          chargesFixes.length > 20
+            ? `
           <p style="margin-top: 10px; font-size: 10px; color: #999;">
             ... et ${chargesFixes.length - 20} autre(s) charge(s) fixe(s)
           </p>
-        ` : ''}
-        ` : '<p style="color: #999;">Aucune charge fixe enregistrée</p>'}
+        `
+            : ''
+        }
+        `
+            : '<p style="color: #999;">Aucune charge fixe enregistrée</p>'
+        }
       </div>
     </div>
 
@@ -129,7 +142,9 @@ export function generateFinanceHTML(data: FinanceData): string {
       <div class="card">
         <p><strong>Total :</strong> ${formatCurrency(totaux.depensesPonctuelles)}</p>
         
-        ${depensesPonctuelles.length > 0 ? `
+        ${
+          depensesPonctuelles.length > 0
+            ? `
         <table>
           <thead>
             <tr>
@@ -140,22 +155,33 @@ export function generateFinanceHTML(data: FinanceData): string {
             </tr>
           </thead>
           <tbody>
-            ${depensesPonctuelles.slice(0, 30).map(depense => `
+            ${depensesPonctuelles
+              .slice(0, 30)
+              .map(
+                (depense) => `
               <tr>
                 <td>${formatDate(depense.date)}</td>
                 <td>${depense.libelle}</td>
                 <td><span class="badge badge-warning">${depense.categorie}</span></td>
                 <td class="text-right">${formatCurrency(depense.montant)}</td>
               </tr>
-            `).join('')}
+            `
+              )
+              .join('')}
           </tbody>
         </table>
-        ${depensesPonctuelles.length > 30 ? `
+        ${
+          depensesPonctuelles.length > 30
+            ? `
           <p style="margin-top: 10px; font-size: 10px; color: #999;">
             ... et ${depensesPonctuelles.length - 30} autre(s) dépense(s)
           </p>
-        ` : ''}
-        ` : '<p style="color: #999;">Aucune dépense ponctuelle enregistrée</p>'}
+        `
+            : ''
+        }
+        `
+            : '<p style="color: #999;">Aucune dépense ponctuelle enregistrée</p>'
+        }
       </div>
     </div>
 
@@ -165,7 +191,9 @@ export function generateFinanceHTML(data: FinanceData): string {
       <div class="card">
         <p><strong>Total :</strong> ${formatCurrency(totaux.totalRevenus)}</p>
         
-        ${revenus.length > 0 ? `
+        ${
+          revenus.length > 0
+            ? `
         <table>
           <thead>
             <tr>
@@ -176,22 +204,33 @@ export function generateFinanceHTML(data: FinanceData): string {
             </tr>
           </thead>
           <tbody>
-            ${revenus.slice(0, 30).map(revenu => `
+            ${revenus
+              .slice(0, 30)
+              .map(
+                (revenu) => `
               <tr>
                 <td>${formatDate(revenu.date)}</td>
                 <td><span class="badge badge-success">${revenu.categorie}</span></td>
                 <td>${revenu.description || '-'}</td>
                 <td class="text-right"><strong>${formatCurrency(revenu.montant)}</strong></td>
               </tr>
-            `).join('')}
+            `
+              )
+              .join('')}
           </tbody>
         </table>
-        ${revenus.length > 30 ? `
+        ${
+          revenus.length > 30
+            ? `
           <p style="margin-top: 10px; font-size: 10px; color: #999;">
             ... et ${revenus.length - 30} autre(s) revenu(s)
           </p>
-        ` : ''}
-        ` : '<p style="color: #999;">Aucun revenu enregistré</p>'}
+        `
+            : ''
+        }
+        `
+            : '<p style="color: #999;">Aucun revenu enregistré</p>'
+        }
       </div>
     </div>
 
@@ -226,9 +265,10 @@ export function generateFinanceHTML(data: FinanceData): string {
         
         <div style="margin-top: 15px; padding: 10px; background: ${totaux.solde >= 0 ? '#d4edda' : '#f8d7da'}; border-radius: 6px;">
           <p style="text-align: center; font-size: 12px; color: ${totaux.solde >= 0 ? '#155724' : '#721c24'};">
-            ${totaux.solde >= 0 
-              ? '✅ Votre exploitation est bénéficiaire' 
-              : '⚠️ Votre exploitation est déficitaire'
+            ${
+              totaux.solde >= 0
+                ? '✅ Votre exploitation est bénéficiaire'
+                : '⚠️ Votre exploitation est déficitaire'
             }
           </p>
         </div>
@@ -247,7 +287,6 @@ export function generateFinanceHTML(data: FinanceData): string {
 export async function exportFinancePDF(data: FinanceData): Promise<void> {
   const html = generateFinanceHTML(data);
   const fileName = `Finance_${data.projet.nom}_${new Date().toISOString().split('T')[0]}.pdf`;
-  
+
   await generateAndSharePDF(html, fileName);
 }
-

@@ -26,9 +26,14 @@ export default function StandardTabs({ tabs, activeTab, onTabChange }: StandardT
   const { colors } = useTheme();
 
   return (
-    <View style={[styles.ongletsContainer, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-      <ScrollView 
-        horizontal 
+    <View
+      style={[
+        styles.ongletsContainer,
+        { backgroundColor: colors.surface, borderBottomColor: colors.border },
+      ]}
+    >
+      <ScrollView
+        horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.ongletsContent}
       >
@@ -94,4 +99,3 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.xs,
   },
 });
-

@@ -2,7 +2,12 @@
  * Types pour le module Collaboration
  */
 
-export type RoleCollaborateur = 'proprietaire' | 'gestionnaire' | 'veterinaire' | 'ouvrier' | 'observateur';
+export type RoleCollaborateur =
+  | 'proprietaire'
+  | 'gestionnaire'
+  | 'veterinaire'
+  | 'ouvrier'
+  | 'observateur';
 export type StatutCollaborateur = 'actif' | 'inactif' | 'en_attente';
 
 export interface Collaborateur {
@@ -133,4 +138,3 @@ export const DEFAULT_PERMISSIONS: Record<RoleCollaborateur, Collaborateur['permi
     sante: false,
   },
 };
-

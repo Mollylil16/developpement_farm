@@ -3,7 +3,15 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  TextInput,
+} from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Platform } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
@@ -137,11 +145,14 @@ export default function MortalitesFormModal({
   const handleSubmit = async () => {
     // Vérifier les permissions
     if (isEditing && !canUpdate('mortalites')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les mortalités.');
+      Alert.alert(
+        'Permission refusée',
+        "Vous n'avez pas la permission de modifier les mortalités."
+      );
       return;
     }
     if (!isEditing && !canCreate('mortalites')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de créer des mortalités.');
+      Alert.alert('Permission refusée', "Vous n'avez pas la permission de créer des mortalités.");
       return;
     }
 
@@ -196,9 +207,7 @@ export default function MortalitesFormModal({
           <FormField
             label="Nombre de porcs"
             value={formData.nombre_porcs.toString()}
-            onChangeText={(text) =>
-              setFormData({ ...formData, nombre_porcs: parseInt(text) || 0 })
-            }
+            onChangeText={(text) => setFormData({ ...formData, nombre_porcs: parseInt(text) || 0 })}
             keyboardType="numeric"
             placeholder="Ex: 2"
           />
@@ -206,7 +215,10 @@ export default function MortalitesFormModal({
           <View style={styles.dateContainer}>
             <Text style={[styles.label, { color: colors.text }]}>Date</Text>
             <TouchableOpacity
-              style={[styles.dateButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              style={[
+                styles.dateButton,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
               onPress={() => setShowDatePicker(true)}
             >
               <Text style={[styles.dateButtonText, { color: colors.text }]}>
@@ -274,15 +286,24 @@ export default function MortalitesFormModal({
           </View>
 
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Numéro du sujet (optionnel)</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Numéro du sujet (optionnel)
+            </Text>
             <Text style={[styles.helperText, { color: colors.textSecondary }]}>
-              Si le sujet mort a un numéro enregistré dans le cheptel, sélectionnez-le. Il sera automatiquement retiré du cheptel et mis dans l'historique. Sinon, laissez vide (pour les porcelets non enregistrés par exemple).
+              Si le sujet mort a un numéro enregistré dans le cheptel, sélectionnez-le. Il sera
+              automatiquement retiré du cheptel et mis dans l'historique. Sinon, laissez vide (pour
+              les porcelets non enregistrés par exemple).
             </Text>
             <TouchableOpacity
-              style={[styles.selectButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
+              style={[
+                styles.selectButton,
+                { borderColor: colors.border, backgroundColor: colors.surface },
+              ]}
               onPress={() => setShowAnimalModal(true)}
             >
-              <Text style={[styles.selectButtonLabel, { color: colors.textSecondary }]}>Numéro du sujet</Text>
+              <Text style={[styles.selectButtonLabel, { color: colors.textSecondary }]}>
+                Numéro du sujet
+              </Text>
               <Text style={[styles.selectButtonValue, { color: colors.text }]}>
                 {getAnimalLabel(formData.animal_code)}
               </Text>
@@ -321,7 +342,14 @@ export default function MortalitesFormModal({
           <View style={styles.inputContainer}>
             <Text style={[styles.inputLabel, { color: colors.text }]}>Rechercher un sujet</Text>
             <TextInput
-              style={[styles.searchInput, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
+              style={[
+                styles.searchInput,
+                {
+                  borderColor: colors.border,
+                  backgroundColor: colors.background,
+                  color: colors.text,
+                },
+              ]}
               value={animalSearchQuery}
               onChangeText={setAnimalSearchQuery}
               placeholder="Rechercher par code ou nom..."
@@ -332,7 +360,10 @@ export default function MortalitesFormModal({
             style={[
               styles.modalOption,
               { borderColor: colors.border, backgroundColor: colors.surface },
-              !formData.animal_code && { borderColor: colors.primary, backgroundColor: colors.primary + '12' },
+              !formData.animal_code && {
+                borderColor: colors.primary,
+                backgroundColor: colors.primary + '12',
+              },
             ]}
             onPress={() => {
               setFormData({ ...formData, animal_code: '' });
@@ -381,7 +412,11 @@ export default function MortalitesFormModal({
                   </Text>
                   <Text style={[styles.modalOptionSubtitle, { color: colors.textSecondary }]}>
                     {animal.race ? `Race : ${animal.race} • ` : ''}
-                    {animal.sexe === 'male' ? 'Mâle' : animal.sexe === 'femelle' ? 'Femelle' : 'Indéterminé'}
+                    {animal.sexe === 'male'
+                      ? 'Mâle'
+                      : animal.sexe === 'femelle'
+                        ? 'Femelle'
+                        : 'Indéterminé'}
                   </Text>
                 </TouchableOpacity>
               );
@@ -495,4 +530,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-

@@ -15,7 +15,7 @@ const Tab = createMaterialTopTabNavigator();
 
 export default function ProductionScreen() {
   const { colors } = useTheme();
-  
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
       <Tab.Navigator
@@ -71,4 +71,3 @@ export default function ProductionScreen() {
     </SafeAreaView>
   );
 }
-

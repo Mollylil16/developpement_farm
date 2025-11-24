@@ -4,10 +4,11 @@
  */
 
 import React from 'react';
-import { View, StyleSheet, ViewStyle, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ViewStyle, TouchableOpacity, Text } from 'react-native';
 import { SPACING, TRANSITIONS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { getNeomorphismRaised, neomorphismToStyle } from '../utils/neomorphism';
+import { SafeTextWrapper } from '../utils/textRenderingGuard';
 
 interface CardProps {
   children: React.ReactNode;
@@ -27,7 +28,7 @@ export default function Card({
   neomorphism = false,
 }: CardProps) {
   const { colors, isDark } = useTheme();
-  
+
   // Mapping explicite pour éviter les erreurs TypeScript
   const elevationMap: Record<'small' | 'medium' | 'large', any> = {
     small: colors.shadow.small,
@@ -69,12 +70,20 @@ export default function Card({
         onPress={onPress}
         activeOpacity={TRANSITIONS.opacity.pressed}
       >
-        {children}
+        <SafeTextWrapper componentName="Card" silent={false}>
+          {children}
+        </SafeTextWrapper>
       </TouchableOpacity>
     );
   }
 
-  return <View style={cardStyle}>{children}</View>;
+  return (
+    <View style={cardStyle}>
+      <SafeTextWrapper componentName="Card" silent={false}>
+        {children}
+      </SafeTextWrapper>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -95,4 +104,3 @@ const styles = StyleSheet.create({
     padding: SPACING.lg,
   },
 });
-

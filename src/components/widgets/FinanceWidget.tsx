@@ -12,7 +12,10 @@ import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
 import { startOfMonth, endOfMonth, parseISO, isWithinInterval } from 'date-fns';
 import { ChargeFixe, DepensePonctuelle } from '../../types';
-import { selectAllChargesFixes, selectAllDepensesPonctuelles } from '../../store/selectors/financeSelectors';
+import {
+  selectAllChargesFixes,
+  selectAllDepensesPonctuelles,
+} from '../../store/selectors/financeSelectors';
 
 interface FinanceWidgetProps {
   onPress?: () => void;
@@ -34,9 +37,9 @@ function FinanceWidget({ onPress }: FinanceWidgetProps) {
       dataChargeesRef.current = null;
       return;
     }
-    
+
     if (dataChargeesRef.current === projetActif.id) return; // Déjà chargé !
-    
+
     dataChargeesRef.current = projetActif.id;
     dispatch(loadChargesFixes(projetActif.id));
     dispatch(loadDepensesPonctuelles(projetActif.id));
@@ -82,11 +85,13 @@ function FinanceWidget({ onPress }: FinanceWidgetProps) {
   const formatMontant = (montant: number | undefined) => {
     const montantSafe = montant ?? 0;
     // Format compact pour économiser de l'espace
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'decimal',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(montantSafe) + ' F';
+    return (
+      new Intl.NumberFormat('fr-FR', {
+        style: 'decimal',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(montantSafe) + ' F'
+    );
   };
 
   const WidgetContent = (
@@ -101,19 +106,27 @@ function FinanceWidget({ onPress }: FinanceWidgetProps) {
       <View style={styles.content}>
         <View style={styles.statRow}>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Budget mensuel:</Text>
-          <Text style={[styles.statValue, { color: colors.text }]}>{formatMontant(financeData.budgetMensuel)}</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>
+            {formatMontant(financeData.budgetMensuel)}
+          </Text>
         </View>
 
         <View style={styles.statRow}>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Dépenses:</Text>
           <Text style={[styles.statValue, { color: colors.error }]}>
-            {formatMontant(financeData.depensesDuMois)} ({Math.round(financeData.pourcentageUtilise ?? 0)}%)
+            {formatMontant(financeData.depensesDuMois)} (
+            {Math.round(financeData.pourcentageUtilise ?? 0)}%)
           </Text>
         </View>
 
         <View style={styles.statRow}>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Restant:</Text>
-          <Text style={[styles.statValue, { color: financeData.restant >= 0 ? colors.success : colors.error }]}>
+          <Text
+            style={[
+              styles.statValue,
+              { color: financeData.restant >= 0 ? colors.success : colors.error },
+            ]}
+          >
             {formatMontant(financeData.restant)}
           </Text>
         </View>
@@ -125,7 +138,12 @@ function FinanceWidget({ onPress }: FinanceWidgetProps) {
                 styles.progressFill,
                 {
                   width: `${Math.round(financeData.pourcentageUtilise)}%`,
-                  backgroundColor: financeData.pourcentageUtilise > 80 ? colors.error : financeData.pourcentageUtilise > 60 ? colors.warning : colors.primary,
+                  backgroundColor:
+                    financeData.pourcentageUtilise > 80
+                      ? colors.error
+                      : financeData.pourcentageUtilise > 60
+                        ? colors.warning
+                        : colors.primary,
                 },
               ]}
             />

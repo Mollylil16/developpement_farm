@@ -68,9 +68,7 @@ export default function RationCalculatorComponent() {
   };
 
   const handleRemoveIngredient = (ingredientId: string) => {
-    setSelectedIngredients(
-      selectedIngredients.filter((ing) => ing.ingredient_id !== ingredientId)
-    );
+    setSelectedIngredients(selectedIngredients.filter((ing) => ing.ingredient_id !== ingredientId));
   };
 
   const handleCalculate = () => {
@@ -89,34 +87,36 @@ export default function RationCalculatorComponent() {
     // Calculer le coût total et le poids total
     let coutTotal = 0;
     let poidsTotal = 0; // Poids total en kg
-    
-    const ingredientsDetails = selectedIngredients.map((selIng) => {
-      const ingredient = ingredients.find((i) => i.id === selIng.ingredient_id);
-      if (ingredient) {
-        const cout = selIng.quantite * ingredient.prix_unitaire;
-        coutTotal += cout;
-        
-        // Convertir toutes les quantités en kg pour calculer le poids total
-        let quantiteEnKg = selIng.quantite;
-        if (ingredient.unite === 'g') {
-          quantiteEnKg = selIng.quantite / 1000; // Convertir g en kg
-        } else if (ingredient.unite === 'l') {
-          quantiteEnKg = selIng.quantite; // 1L ≈ 1kg pour les liquides
-        } else if (ingredient.unite === 'ml') {
-          quantiteEnKg = selIng.quantite / 1000; // Convertir ml en kg (approximation)
+
+    const ingredientsDetails = selectedIngredients
+      .map((selIng) => {
+        const ingredient = ingredients.find((i) => i.id === selIng.ingredient_id);
+        if (ingredient) {
+          const cout = selIng.quantite * ingredient.prix_unitaire;
+          coutTotal += cout;
+
+          // Convertir toutes les quantités en kg pour calculer le poids total
+          let quantiteEnKg = selIng.quantite;
+          if (ingredient.unite === 'g') {
+            quantiteEnKg = selIng.quantite / 1000; // Convertir g en kg
+          } else if (ingredient.unite === 'l') {
+            quantiteEnKg = selIng.quantite; // 1L ≈ 1kg pour les liquides
+          } else if (ingredient.unite === 'ml') {
+            quantiteEnKg = selIng.quantite / 1000; // Convertir ml en kg (approximation)
+          }
+          // Si l'unité est déjà en kg, on garde la valeur telle quelle
+          poidsTotal += quantiteEnKg;
+
+          return {
+            nom: ingredient.nom,
+            quantite: selIng.quantite,
+            unite: ingredient.unite,
+            cout,
+          };
         }
-        // Si l'unité est déjà en kg, on garde la valeur telle quelle
-        poidsTotal += quantiteEnKg;
-        
-        return {
-          nom: ingredient.nom,
-          quantite: selIng.quantite,
-          unite: ingredient.unite,
-          cout,
-        };
-      }
-      return null;
-    }).filter((item): item is NonNullable<typeof item> => item !== null);
+        return null;
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
 
     const poids = parseFloat(poidsKg);
     const coutParKg = poids > 0 ? coutTotal / poids : 0;
@@ -157,7 +157,7 @@ export default function RationCalculatorComponent() {
       setSelectedIngredients([]);
       setResult(null);
     } catch (error: any) {
-      Alert.alert('Erreur', error || 'Erreur lors de l\'enregistrement');
+      Alert.alert('Erreur', error || "Erreur lors de l'enregistrement");
     } finally {
       setCalculating(false);
     }
@@ -166,7 +166,7 @@ export default function RationCalculatorComponent() {
   const recommandation = RECOMMANDATIONS_NUTRITION[typePorc];
 
   return (
-    <ScrollView 
+    <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
@@ -184,7 +184,10 @@ export default function RationCalculatorComponent() {
                 style={[
                   styles.option,
                   { borderColor: colors.border, backgroundColor: colors.background },
-                  typePorc === type && { backgroundColor: colors.primary, borderColor: colors.primary }
+                  typePorc === type && {
+                    backgroundColor: colors.primary,
+                    borderColor: colors.primary,
+                  },
                 ]}
                 onPress={() => setTypePorc(type)}
               >
@@ -192,7 +195,7 @@ export default function RationCalculatorComponent() {
                   style={[
                     styles.optionText,
                     { color: colors.text },
-                    typePorc === type && { color: colors.background, fontWeight: '600' }
+                    typePorc === type && { color: colors.background, fontWeight: '600' },
                   ]}
                 >
                   {getTypePorcLabel(type)}
@@ -202,7 +205,9 @@ export default function RationCalculatorComponent() {
           </View>
           {recommandation && (
             <View style={[styles.recommendationBox, { backgroundColor: colors.surface }]}>
-              <Text style={[styles.recommendationTitle, { color: colors.text }]}>Recommandations:</Text>
+              <Text style={[styles.recommendationTitle, { color: colors.text }]}>
+                Recommandations:
+              </Text>
               <Text style={[styles.recommendationText, { color: colors.textSecondary }]}>
                 Ration quotidienne: {recommandation.ration_kg_jour} kg/jour
               </Text>
@@ -246,12 +251,16 @@ export default function RationCalculatorComponent() {
 
           {ingredients.length === 0 ? (
             <View style={[styles.emptyIngredients, { backgroundColor: colors.surface }]}>
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Aucun ingrédient disponible</Text>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                Aucun ingrédient disponible
+              </Text>
               <TouchableOpacity
                 style={[styles.addButton, { backgroundColor: colors.primary }]}
                 onPress={() => setModalIngredientVisible(true)}
               >
-                <Text style={[styles.addButtonText, { color: colors.background }]}>+ Créer un ingrédient</Text>
+                <Text style={[styles.addButtonText, { color: colors.background }]}>
+                  + Créer un ingrédient
+                </Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -261,9 +270,14 @@ export default function RationCalculatorComponent() {
                   (sel) => sel.ingredient_id === ingredient.id
                 );
                 return (
-                  <View key={ingredient.id} style={[styles.ingredientRow, { backgroundColor: colors.surface }]}>
+                  <View
+                    key={ingredient.id}
+                    style={[styles.ingredientRow, { backgroundColor: colors.surface }]}
+                  >
                     <View style={styles.ingredientInfo}>
-                      <Text style={[styles.ingredientName, { color: colors.text }]}>{ingredient.nom}</Text>
+                      <Text style={[styles.ingredientName, { color: colors.text }]}>
+                        {ingredient.nom}
+                      </Text>
                       <Text style={[styles.ingredientPrice, { color: colors.textSecondary }]}>
                         {new Intl.NumberFormat('fr-FR', {
                           style: 'currency',
@@ -283,13 +297,17 @@ export default function RationCalculatorComponent() {
                         keyboardType="decimal-pad"
                         style={styles.quantiteInput}
                       />
-                      <Text style={[styles.uniteLabel, { color: colors.textSecondary }]}>{ingredient.unite}</Text>
+                      <Text style={[styles.uniteLabel, { color: colors.textSecondary }]}>
+                        {ingredient.unite}
+                      </Text>
                       {selected && selected.quantite > 0 && (
                         <TouchableOpacity
                           style={[styles.removeButton, { backgroundColor: colors.error }]}
                           onPress={() => handleRemoveIngredient(ingredient.id)}
                         >
-                          <Text style={[styles.removeButtonText, { color: colors.background }]}>✕</Text>
+                          <Text style={[styles.removeButtonText, { color: colors.background }]}>
+                            ✕
+                          </Text>
                         </TouchableOpacity>
                       )}
                     </View>
@@ -305,7 +323,10 @@ export default function RationCalculatorComponent() {
           style={[
             styles.calculateButton,
             { backgroundColor: colors.primary },
-            (!poidsKg || selectedIngredients.length === 0) && { backgroundColor: colors.textSecondary, opacity: 0.5 }
+            (!poidsKg || selectedIngredients.length === 0) && {
+              backgroundColor: colors.textSecondary,
+              opacity: 0.5,
+            },
           ]}
           onPress={handleCalculate}
           disabled={!poidsKg || selectedIngredients.length === 0 || calculating}
@@ -331,14 +352,18 @@ export default function RationCalculatorComponent() {
             </View>
 
             <View style={styles.resultItem}>
-              <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>Poids total:</Text>
+              <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>
+                Poids total:
+              </Text>
               <Text style={[styles.resultValue, { color: colors.primary }]}>
                 {result.poidsTotal.toFixed(2)} kg
               </Text>
             </View>
 
             <View style={styles.resultItem}>
-              <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>Coût par kg:</Text>
+              <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>
+                Coût par kg:
+              </Text>
               <Text style={[styles.resultValue, { color: colors.primary }]}>
                 {new Intl.NumberFormat('fr-FR', {
                   style: 'currency',
@@ -348,7 +373,9 @@ export default function RationCalculatorComponent() {
             </View>
 
             <View style={[styles.ingredientsList, { borderTopColor: colors.border }]}>
-              <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>Ingrédients requis:</Text>
+              <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>
+                Ingrédients requis:
+              </Text>
               {result.ingredients.map((ing, index) => (
                 <View key={index} style={styles.ingredientResult}>
                   <Text style={[styles.ingredientResultText, { color: colors.text }]}>
@@ -368,7 +395,9 @@ export default function RationCalculatorComponent() {
               onPress={handleSaveRation}
               disabled={calculating}
             >
-              <Text style={[styles.saveButtonText, { color: colors.background }]}>Enregistrer la ration</Text>
+              <Text style={[styles.saveButtonText, { color: colors.background }]}>
+                Enregistrer la ration
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -562,4 +591,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

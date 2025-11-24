@@ -53,7 +53,13 @@ export default function CollaborationFormModal({
     notes: '',
   });
 
-  const roles: RoleCollaborateur[] = ['proprietaire', 'gestionnaire', 'veterinaire', 'ouvrier', 'observateur'];
+  const roles: RoleCollaborateur[] = [
+    'proprietaire',
+    'gestionnaire',
+    'veterinaire',
+    'ouvrier',
+    'observateur',
+  ];
   const statuts: StatutCollaborateur[] = ['actif', 'inactif', 'en_attente'];
 
   useEffect(() => {
@@ -96,10 +102,13 @@ export default function CollaborationFormModal({
   const handleSubmit = async () => {
     // Vérifier les permissions
     if (!isProprietaire) {
-      Alert.alert('Permission refusée', 'Seul le propriétaire peut créer ou modifier des collaborateurs.');
+      Alert.alert(
+        'Permission refusée',
+        'Seul le propriétaire peut créer ou modifier des collaborateurs.'
+      );
       return;
     }
-    
+
     // Validation
     if (!formData.projet_id) {
       Alert.alert('Erreur', 'Aucun projet actif');
@@ -114,7 +123,7 @@ export default function CollaborationFormModal({
       return;
     }
     if (!formData.email.trim()) {
-      Alert.alert('Erreur', 'L\'email est requis');
+      Alert.alert('Erreur', "L'email est requis");
       return;
     }
     if (!formData.email.includes('@')) {
@@ -342,4 +351,3 @@ const styles = StyleSheet.create({
     fontWeight: FONT_WEIGHTS.medium,
   },
 });
-

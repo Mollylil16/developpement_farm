@@ -6,6 +6,7 @@ import React from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { SafeTextWrapper } from '../utils/textRenderingGuard';
 
 interface StatCardProps {
   value: string | number;
@@ -28,27 +29,31 @@ export default function StatCard({
 }: StatCardProps) {
   const { colors } = useTheme();
   const finalValueColor = valueColor || colors.primary;
-  
+
   // Sécuriser la valeur pour éviter l'erreur "Text strings must be rendered within a <Text> component"
   const safeValue = value !== undefined && value !== null ? value : 0;
-  
+
   return (
-    <View style={[
-      styles.container,
-      {
-        backgroundColor: colors.surface,
-        borderColor: gradient ? colors.primaryLight : colors.borderLight,
-        ...colors.shadow.medium,
-      },
-      style
-    ]}>
-      {icon && <View style={styles.iconContainer}>{icon}</View>}
-      <Text style={[styles.value, { color: finalValueColor }]}>
-        {safeValue}
-        {unit && <Text style={styles.unit}> {unit}</Text>}
-      </Text>
-      <Text style={[styles.label, { color: colors.textSecondary }]}>{label}</Text>
-    </View>
+    <SafeTextWrapper componentName="StatCard">
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: colors.surface,
+            borderColor: gradient ? colors.primaryLight : colors.borderLight,
+            ...colors.shadow.medium,
+          },
+          style,
+        ]}
+      >
+        {icon && <View style={styles.iconContainer}>{icon}</View>}
+        <Text style={[styles.value, { color: finalValueColor }]}>
+          {safeValue}
+          {unit && <Text style={styles.unit}> {unit}</Text>}
+        </Text>
+        <Text style={[styles.label, { color: colors.textSecondary }]}>{label}</Text>
+      </View>
+    </SafeTextWrapper>
   );
 }
 
@@ -80,4 +85,3 @@ const styles = StyleSheet.create({
     fontWeight: FONT_WEIGHTS.medium,
   },
 });
-

@@ -12,7 +12,8 @@ import {
   ProductionPesee,
   CreatePeseeInput,
 } from '../../types';
-import { databaseService } from '../../services/database';
+import { getDatabase } from '../../services/database';
+import { AnimalRepository, PeseeRepository } from '../../database/repositories';
 import { animauxSchema, peseesSchema, animalSchema, peseeSchema } from '../normalization/schemas';
 
 // Structure normalisée de l'état
@@ -68,13 +69,23 @@ const normalizePesee = (pesee: ProductionPesee) => {
   return normalize([pesee], peseesSchema);
 };
 
+
 export const loadProductionAnimaux = createAsyncThunk(
   'production/loadAnimaux',
-  async ({ projetId, inclureInactifs = true }: { projetId: string; inclureInactifs?: boolean }, { rejectWithValue }) => {
+  async (
+    { projetId, inclureInactifs = true }: { projetId: string; inclureInactifs?: boolean },
+    { rejectWithValue, dispatch }
+  ) => {
     try {
-      const animaux = await databaseService.getProductionAnimaux(projetId, inclureInactifs);
+      const db = await getDatabase();
+      const animalRepo = new AnimalRepository(db);
+      const animaux = inclureInactifs
+        ? await animalRepo.findByProjet(projetId)
+        : await animalRepo.findActiveByProjet(projetId);
+
       return animaux;
     } catch (error: any) {
+      console.error('❌ [loadProductionAnimaux] Erreur:', error);
       return rejectWithValue(error.message || 'Erreur lors du chargement des animaux');
     }
   }
@@ -82,9 +93,11 @@ export const loadProductionAnimaux = createAsyncThunk(
 
 export const createProductionAnimal = createAsyncThunk(
   'production/createAnimal',
-  async (input: CreateProductionAnimalInput, { rejectWithValue }) => {
+  async (input: CreateProductionAnimalInput, { rejectWithValue, dispatch }) => {
     try {
-      const animal = await databaseService.createProductionAnimal(input);
+      const db = await getDatabase();
+      const animalRepo = new AnimalRepository(db);
+      const animal = await animalRepo.create(input);
       return animal;
     } catch (error: any) {
       return rejectWithValue(error.message || "Erreur lors de la création de l'animal");
@@ -94,9 +107,14 @@ export const createProductionAnimal = createAsyncThunk(
 
 export const updateProductionAnimal = createAsyncThunk(
   'production/updateAnimal',
-  async ({ id, updates }: { id: string; updates: UpdateProductionAnimalInput }, { rejectWithValue }) => {
+  async (
+    { id, updates }: { id: string; updates: UpdateProductionAnimalInput },
+    { rejectWithValue, dispatch, getState }
+  ) => {
     try {
-      const animal = await databaseService.updateProductionAnimal(id, updates);
+      const db = await getDatabase();
+      const animalRepo = new AnimalRepository(db);
+      const animal = await animalRepo.update(id, updates);
       return animal;
     } catch (error: any) {
       return rejectWithValue(error.message || "Erreur lors de la mise à jour de l'animal");
@@ -106,9 +124,11 @@ export const updateProductionAnimal = createAsyncThunk(
 
 export const deleteProductionAnimal = createAsyncThunk(
   'production/deleteAnimal',
-  async (id: string, { rejectWithValue }) => {
+  async (id: string, { rejectWithValue, dispatch, getState }) => {
     try {
-      await databaseService.deleteProductionAnimal(id);
+      const db = await getDatabase();
+      const animalRepo = new AnimalRepository(db);
+      await animalRepo.delete(id);
       return id;
     } catch (error: any) {
       return rejectWithValue(error.message || "Erreur lors de la suppression de l'animal");
@@ -120,7 +140,9 @@ export const createPesee = createAsyncThunk(
   'production/createPesee',
   async (input: CreatePeseeInput, { rejectWithValue }) => {
     try {
-      const pesee = await databaseService.createPesee(input);
+      const db = await getDatabase();
+      const peseeRepo = new PeseeRepository(db);
+      const pesee = await peseeRepo.create(input);
       return pesee;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la création de la pesée');
@@ -130,9 +152,14 @@ export const createPesee = createAsyncThunk(
 
 export const updatePesee = createAsyncThunk(
   'production/updatePesee',
-  async ({ id, updates }: { id: string; updates: Partial<CreatePeseeInput> }, { rejectWithValue }) => {
+  async (
+    { id, updates }: { id: string; updates: Partial<CreatePeseeInput> },
+    { rejectWithValue }
+  ) => {
     try {
-      const pesee = await databaseService.updatePesee(id, updates);
+      const db = await getDatabase();
+      const peseeRepo = new PeseeRepository(db);
+      const pesee = await peseeRepo.update(id, updates);
       return pesee;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la modification de la pesée');
@@ -144,7 +171,9 @@ export const deletePesee = createAsyncThunk(
   'production/deletePesee',
   async ({ id, animalId }: { id: string; animalId: string }, { rejectWithValue }) => {
     try {
-      await databaseService.deletePesee(id);
+      const db = await getDatabase();
+      const peseeRepo = new PeseeRepository(db);
+      await peseeRepo.delete(id);
       return { id, animalId };
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la suppression de la pesée');
@@ -156,7 +185,9 @@ export const loadPeseesParAnimal = createAsyncThunk(
   'production/loadPeseesParAnimal',
   async (animalId: string, { rejectWithValue }) => {
     try {
-      const pesees = await databaseService.getPeseesParAnimal(animalId);
+      const db = await getDatabase();
+      const peseeRepo = new PeseeRepository(db);
+      const pesees = await peseeRepo.findByAnimal(animalId);
       return { animalId, pesees };
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des pesées');
@@ -168,10 +199,76 @@ export const loadPeseesRecents = createAsyncThunk(
   'production/loadPeseesRecents',
   async ({ projetId, limit = 20 }: { projetId: string; limit?: number }, { rejectWithValue }) => {
     try {
-      const pesees = await databaseService.getPeseesRecents(projetId, limit);
+      const db = await getDatabase();
+      const peseeRepo = new PeseeRepository(db);
+      const pesees = await peseeRepo.findRecentsByProjet(projetId, limit);
       return pesees;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des pesées récentes');
+    }
+  }
+);
+
+// Thunks pour Statistiques et Calculs
+export const calculateGMQ = createAsyncThunk(
+  'production/calculateGMQ',
+  async (animalId: string, { rejectWithValue }) => {
+    try {
+      const db = await getDatabase();
+      const peseeRepo = new PeseeRepository(db);
+      const gmq = await peseeRepo.calculateGMQ(animalId);
+      return { animalId, gmq };
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Erreur lors du calcul du GMQ');
+    }
+  }
+);
+
+export const getEvolutionPoids = createAsyncThunk(
+  'production/getEvolutionPoids',
+  async (animalId: string, { rejectWithValue }) => {
+    try {
+      const db = await getDatabase();
+      const peseeRepo = new PeseeRepository(db);
+      const evolution = await peseeRepo.getEvolutionPoids(animalId);
+      return { animalId, evolution };
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Erreur lors du calcul de l\'évolution');
+    }
+  }
+);
+
+export const getPoidsActuelEstime = createAsyncThunk(
+  'production/getPoidsActuelEstime',
+  async (animalId: string, { rejectWithValue }) => {
+    try {
+      const db = await getDatabase();
+      const peseeRepo = new PeseeRepository(db);
+      const poids = await peseeRepo.getPoidsActuelEstime(animalId);
+      return { animalId, poids };
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Erreur lors de l\'estimation du poids');
+    }
+  }
+);
+
+export const loadStatsProjet = createAsyncThunk(
+  'production/loadStatsProjet',
+  async (projetId: string, { rejectWithValue }) => {
+    try {
+      const db = await getDatabase();
+      const animalRepo = new AnimalRepository(db);
+      const peseeRepo = new PeseeRepository(db);
+      
+      const statsAnimaux = await animalRepo.getStats(projetId);
+      const statsPesees = await peseeRepo.getStatsProjet(projetId);
+      
+      return {
+        animaux: statsAnimaux,
+        pesees: statsPesees,
+      };
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Erreur lors du chargement des statistiques');
     }
   }
 );
@@ -215,8 +312,15 @@ const productionSlice = createSlice({
         state.error = action.payload as string;
       })
       .addCase(updateProductionAnimal.fulfilled, (state, action) => {
+        console.log('🔄 [updateProductionAnimal.fulfilled] Animal mis à jour:', action.payload.id, action.payload.code);
+        console.log('🔄 [updateProductionAnimal.fulfilled] Nouveau statut:', action.payload.statut);
+        console.log('🔄 [updateProductionAnimal.fulfilled] ids.animaux AVANT:', state.ids.animaux.length);
+        
         const normalized = normalizeAnimal(action.payload);
         state.entities.animaux = { ...state.entities.animaux, ...normalized.entities.animaux };
+        
+        console.log('🔄 [updateProductionAnimal.fulfilled] ids.animaux APRÈS:', state.ids.animaux.length);
+        console.log('🔄 [updateProductionAnimal.fulfilled] entities.animaux count:', Object.keys(state.entities.animaux).length);
       })
       .addCase(updateProductionAnimal.rejected, (state, action) => {
         state.error = action.payload as string;
@@ -242,13 +346,16 @@ const productionSlice = createSlice({
         state.entities.pesees = { ...state.entities.pesees, ...normalized.entities.pesees };
         const peseeId = normalized.result[0];
         state.ids.pesees = [peseeId, ...state.ids.pesees];
-        
+
         // Ajouter la pesée à l'animal
         if (!state.peseesParAnimal[pesee.animal_id]) {
           state.peseesParAnimal[pesee.animal_id] = [];
         }
-        state.peseesParAnimal[pesee.animal_id] = [peseeId, ...state.peseesParAnimal[pesee.animal_id]];
-        
+        state.peseesParAnimal[pesee.animal_id] = [
+          peseeId,
+          ...state.peseesParAnimal[pesee.animal_id],
+        ];
+
         // Ajouter aux pesées récentes
         state.peseesRecents = [peseeId, ...state.peseesRecents].slice(0, 20);
       })
@@ -259,7 +366,7 @@ const productionSlice = createSlice({
         const pesee = action.payload;
         const normalized = normalizePesee(pesee);
         state.entities.pesees = { ...state.entities.pesees, ...normalized.entities.pesees };
-        
+
         // Note : La pesée reste dans les mêmes listes, on met juste à jour ses données
       })
       .addCase(updatePesee.rejected, (state, action) => {
@@ -267,20 +374,20 @@ const productionSlice = createSlice({
       })
       .addCase(deletePesee.fulfilled, (state, action) => {
         const { id, animalId } = action.payload;
-        
+
         // Supprimer de l'entité globale
         delete state.entities.pesees[id];
-        
+
         // Supprimer de la liste globale
         state.ids.pesees = state.ids.pesees.filter((peseeId) => peseeId !== id);
-        
+
         // Supprimer de la liste de l'animal
         if (state.peseesParAnimal[animalId]) {
           state.peseesParAnimal[animalId] = state.peseesParAnimal[animalId].filter(
             (peseeId) => peseeId !== id
           );
         }
-        
+
         // Supprimer des pesées récentes
         state.peseesRecents = state.peseesRecents.filter((peseeId) => peseeId !== id);
       })

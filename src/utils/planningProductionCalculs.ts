@@ -33,16 +33,15 @@ export function simulerProduction(
 ): SimulationProductionResultat {
   console.log('🧮 [CALCUL] simulerProduction - Début');
   console.log('📥 Input:', input);
-  console.log('🐷 Truies:', { disponibles: truiesDisponibles, gestation: truiesEnGestation, lactation: truiesEnLactation });
+  console.log('🐷 Truies:', {
+    disponibles: truiesDisponibles,
+    gestation: truiesEnGestation,
+    lactation: truiesEnLactation,
+  });
   console.log('🐗 Verrats:', verratsDisponibles);
 
-  const {
-    objectif_tonnes,
-    periode_mois,
-    poids_moyen_vente,
-    porcelets_par_portee_moyen,
-  } = input;
-  
+  const { objectif_tonnes, periode_mois, poids_moyen_vente, porcelets_par_portee_moyen } = input;
+
   const poids_moyen_vente_kg = poids_moyen_vente || CONST.POIDS_MOYEN_VENTE_KG;
   const duree_mois = periode_mois;
 
@@ -62,27 +61,25 @@ export function simulerProduction(
 
   // Nombre de porcs à vendre (brut, avant mortalité)
   const nombre_porcs_necessaires = Math.ceil(objectif_kg / poids_moyen_vente_kg);
-  
+
   // 🔄 LOGIQUE TEMPORELLE RÉTROGRADE
   // Le DERNIER porc doit atteindre le poids cible À LA DATE LIMITE (fin de période)
   // On doit donc planifier les naissances de manière échelonnée
-  
+
   // GMQ réaliste (avec coefficient pessimiste terrain)
   const GMQ_REALISTE = CONST.GMQ_MOYEN_G_JOUR * (CONST.COEFFICIENT_PESSIMISTE_GMQ || 0.85);
-  
+
   // Durée d'engraissement nécessaire pour atteindre le poids cible (en jours)
   // poids_a_gagner = poids_cible - poids_au_sevrage (environ 8-10 kg)
   const POIDS_AU_SEVRAGE_KG = 8; // Poids typique au sevrage
   const poids_a_gagner_kg = poids_moyen_vente_kg - POIDS_AU_SEVRAGE_KG;
   const poids_a_gagner_g = poids_a_gagner_kg * 1000;
   const duree_engraissement_jours = Math.ceil(poids_a_gagner_g / GMQ_REALISTE);
-  
+
   // Durée totale du cycle (de la saillie à la vente)
-  const duree_cycle_complet_jours = 
-    CONST.DUREE_GESTATION_JOURS + 
-    CONST.DUREE_LACTATION_JOURS + 
-    duree_engraissement_jours;
-  
+  const duree_cycle_complet_jours =
+    CONST.DUREE_GESTATION_JOURS + CONST.DUREE_LACTATION_JOURS + duree_engraissement_jours;
+
   console.log('⏱️ [CALCUL] Durées temporelles:', {
     GMQ_theorique: CONST.GMQ_MOYEN_G_JOUR,
     coefficient_pessimiste: CONST.COEFFICIENT_PESSIMISTE_GMQ,
@@ -97,7 +94,7 @@ export function simulerProduction(
   const nombre_portees_necessaires_brut = Math.ceil(
     nombre_porcs_necessaires / PORCELETS_PAR_PORTEE
   );
-  
+
   // Ajustement avec le taux de survie
   const TAUX_SURVIE_GLOBAL = CONST.TAUX_SURVIE_MOYEN || 0.85;
   const nombre_portees_necessaires = Math.ceil(
@@ -105,39 +102,42 @@ export function simulerProduction(
   );
 
   // 🎯 CALCUL DES TRUIES NÉCESSAIRES avec planification rétrograde
-  
+
   // La période disponible en jours
   const periode_disponible_jours = duree_mois * 30;
-  
+
   // ⚠️ CONTRAINTE CRITIQUE : Le dernier porc doit être vendable À la date limite
   // Donc la première saillie doit avoir lieu à : date_debut
   // Et la dernière saillie doit avoir lieu à : date_limite - duree_cycle_complet
-  
+
   // Fenêtre de temps pour les saillies (en jours)
   const fenetre_saillies_jours = periode_disponible_jours - duree_cycle_complet_jours;
-  
+
   if (fenetre_saillies_jours < 0) {
-    console.warn('⚠️ [CALCUL] Période trop courte! Le cycle complet dépasse la période disponible.');
+    console.warn(
+      '⚠️ [CALCUL] Période trop courte! Le cycle complet dépasse la période disponible.'
+    );
   }
-  
+
   // Intervalle optimal entre chaque saillie pour répartir les portées
-  const intervalle_entre_saillies_jours = fenetre_saillies_jours > 0 
-    ? fenetre_saillies_jours / Math.max(1, nombre_portees_necessaires - 1)
-    : 0;
-  
+  const intervalle_entre_saillies_jours =
+    fenetre_saillies_jours > 0
+      ? fenetre_saillies_jours / Math.max(1, nombre_portees_necessaires - 1)
+      : 0;
+
   // Cycles par truie par an (généralement 2.3 cycles/an)
   const cycles_par_truie_par_an = CONST.CYCLES_PAR_AN || 2.3;
-  
+
   // Cycles possibles sur la durée demandée (pour une seule truie)
   const cycles_sur_duree = (duree_mois / 12) * cycles_par_truie_par_an;
-  
+
   // Nombre de truies nécessaires
   // Si les portées sont trop rapprochées, il faut plus de truies en parallèle
   const nombre_truies_necessaires = Math.ceil(nombre_portees_necessaires / cycles_sur_duree);
-  
+
   // Nombre de saillies par mois
   const nombre_saillies_par_mois = Math.ceil(nombre_portees_necessaires / duree_mois);
-  
+
   console.log('📐 [CALCUL] Planification temporelle:', {
     portees_necessaires: nombre_portees_necessaires,
     periode_disponible_jours,
@@ -224,14 +224,16 @@ export function genererRecommandationsStrategiques(
   const verratsDisponibles = simulation.details.verrats_disponibles;
   const porteesNecessaires = simulation.nombre_portees_necessaires;
   const porceletsTotaux = porteesNecessaires * simulation.details.porcelets_par_portee_moyen;
-  const porceletsSurvivants = Math.floor(porceletsTotaux * (simulation.details.taux_survie_prevu / 100));
+  const porceletsSurvivants = Math.floor(
+    porceletsTotaux * (simulation.details.taux_survie_prevu / 100)
+  );
   const ecartTruies = truiesNecessaires - truiesDisponibles;
   const tauxUtilisation = (truiesNecessaires / Math.max(1, truiesDisponibles)) * 100;
-  
+
   // ========================================
   // 🎯 ÉVALUATION GLOBALE
   // ========================================
-  
+
   if (simulation.est_faisable && tauxUtilisation <= 80) {
     recommandations.push({
       type: 'faisable',
@@ -253,15 +255,15 @@ export function genererRecommandationsStrategiques(
       },
     });
   }
-  
+
   // ========================================
   // ⚠️ MANQUE DE TRUIES
   // ========================================
-  
+
   if (ecartTruies > 0) {
     const coutAchatTruies = ecartTruies * CONST.COUT_TRUIE_REPRODUCTRICE;
     const delaiProductionMois = Math.ceil(ecartTruies * 2); // ~2 mois par truie à acheter
-    
+
     recommandations.push({
       type: 'truies',
       priorite: ecartTruies >= 3 ? 'critique' : 'elevee',
@@ -275,12 +277,12 @@ export function genererRecommandationsStrategiques(
           delai: `${delaiProductionMois} mois`,
         },
         {
-          action: 'Alternative: Réduire l\'objectif',
-          description: `Avec ${truiesDisponibles} truie(s), vous pouvez produire ~${(simulation.objectif_tonnes * truiesDisponibles / truiesNecessaires).toFixed(1)} tonnes`,
+          action: "Alternative: Réduire l'objectif",
+          description: `Avec ${truiesDisponibles} truie(s), vous pouvez produire ~${((simulation.objectif_tonnes * truiesDisponibles) / truiesNecessaires).toFixed(1)} tonnes`,
         },
         {
           action: 'Alternative: Prolonger la période',
-          description: `Étendre la période de ${simulation.periode_mois} à ${Math.ceil(simulation.periode_mois * truiesNecessaires / truiesDisponibles)} mois`,
+          description: `Étendre la période de ${simulation.periode_mois} à ${Math.ceil((simulation.periode_mois * truiesNecessaires) / truiesDisponibles)} mois`,
         },
       ],
       impact_estime: {
@@ -290,15 +292,15 @@ export function genererRecommandationsStrategiques(
       },
     });
   }
-  
+
   // ========================================
   // 🐗 RATIO VERRATS/TRUIES
   // ========================================
-  
+
   const ratioOptimal = CONST.RATIO_VERRAT_TRUIES;
   const verratsNecessaires = Math.ceil(truiesDisponibles / ratioOptimal);
   const ecartVerrats = verratsNecessaires - verratsDisponibles;
-  
+
   if (verratsDisponibles === 0) {
     recommandations.push({
       type: 'verrats',
@@ -350,17 +352,18 @@ export function genererRecommandationsStrategiques(
       },
     });
   }
-  
+
   // ========================================
   // 💰 ALTERNATIVE : ENGRAISSEMENT AVEC ACHAT DE PORCELETS
   // ========================================
-  
+
   if (ecartTruies > 2 || !simulation.est_faisable) {
     const porceletsAacheter = simulation.nombre_porcs_necessaires;
     const COUT_PORCELET = 15000; // F CFA (prix moyen d'un porcelet de 8-10kg)
     const coutAchatPorcelets = porceletsAacheter * COUT_PORCELET;
-    const economieVsReproduction = (ecartTruies * CONST.COUT_TRUIE_REPRODUCTRICE) - coutAchatPorcelets;
-    
+    const economieVsReproduction =
+      ecartTruies * CONST.COUT_TRUIE_REPRODUCTRICE - coutAchatPorcelets;
+
     recommandations.push({
       type: 'optimisation',
       priorite: economieVsReproduction > 0 ? 'elevee' : 'moyenne',
@@ -369,7 +372,7 @@ export function genererRecommandationsStrategiques(
       actions: [
         {
           action: `Acheter ${porceletsAacheter} porcelet(s) de 8-10kg`,
-          description: 'Acheter des porcelets sevrés et les engraisser jusqu\'au poids de vente',
+          description: "Acheter des porcelets sevrés et les engraisser jusqu'au poids de vente",
           cout_estime: coutAchatPorcelets,
           delai: '5-6 mois (engraissement uniquement)',
         },
@@ -389,16 +392,16 @@ export function genererRecommandationsStrategiques(
       },
     });
   }
-  
+
   // ========================================
   // 📊 TAUX D'UTILISATION ÉLEVÉ
   // ========================================
-  
+
   if (tauxUtilisation > 90 && tauxUtilisation <= 100) {
     recommandations.push({
       type: 'alerte',
       priorite: 'elevee',
-      titre: '⚠️ Taux d\'utilisation critique',
+      titre: "⚠️ Taux d'utilisation critique",
       message: `Vos truies seront utilisées à ${tauxUtilisation.toFixed(0)}% de leur capacité. Risque élevé en cas de problème.`,
       actions: [
         {
@@ -420,14 +423,17 @@ export function genererRecommandationsStrategiques(
       },
     });
   }
-  
+
   // ========================================
   // 📉 SOUS-UTILISATION DES RESSOURCES
   // ========================================
-  
+
   if (tauxUtilisation < 50 && truiesDisponibles >= 3) {
-    const productionMaxPossible = (simulation.objectif_tonnes * truiesDisponibles / truiesNecessaires).toFixed(1);
-    
+    const productionMaxPossible = (
+      (simulation.objectif_tonnes * truiesDisponibles) /
+      truiesNecessaires
+    ).toFixed(1);
+
     recommandations.push({
       type: 'optimisation',
       priorite: 'moyenne',
@@ -435,7 +441,7 @@ export function genererRecommandationsStrategiques(
       message: `Vos ${truiesDisponibles} truies ne seront utilisées qu'à ${tauxUtilisation.toFixed(0)}%. Vous pouvez produire jusqu'à ${productionMaxPossible} tonnes !`,
       actions: [
         {
-          action: 'Augmenter l\'objectif de production',
+          action: "Augmenter l'objectif de production",
           description: `Passer de ${simulation.objectif_tonnes} à ${productionMaxPossible} tonnes pour optimiser les ressources`,
         },
         {
@@ -445,16 +451,20 @@ export function genererRecommandationsStrategiques(
         {
           action: 'Réduire temporairement le cheptel',
           description: `Vendre ${Math.floor((truiesDisponibles - truiesNecessaires) * 0.7)} truie(s) excédentaire(s) pour réduire les coûts`,
-          cout_estime: -(Math.floor((truiesDisponibles - truiesNecessaires) * 0.7) * CONST.COUT_TRUIE_REPRODUCTRICE * 0.8),
+          cout_estime: -(
+            Math.floor((truiesDisponibles - truiesNecessaires) * 0.7) *
+            CONST.COUT_TRUIE_REPRODUCTRICE *
+            0.8
+          ),
         },
       ],
     });
   }
-  
+
   // ========================================
   // 🎯 RECOMMANDATIONS D'AMÉLIORATION CONTINUE
   // ========================================
-  
+
   if (simulation.details.porcelets_par_portee_moyen < 10) {
     recommandations.push({
       type: 'optimisation',
@@ -468,15 +478,15 @@ export function genererRecommandationsStrategiques(
           cout_estime: CONST.COUT_VERRAT * 1.5,
         },
         {
-          action: 'Améliorer l\'alimentation',
+          action: "Améliorer l'alimentation",
           description: 'Une truie bien nourrie produit plus de porcelets viables',
         },
       ],
     });
   }
-  
+
   console.log(`📋 [RECOMMANDATIONS] ${recommandations.length} recommandations générées`);
-  
+
   return recommandations;
 }
 
@@ -520,10 +530,7 @@ export function estimerDateSevrage(dateMiseBas: Date): Date {
 /**
  * Calculer le taux de reussite d'une simulation
  */
-export function calculerTauxReussite(
-  productionReelle: number,
-  objectif: number
-): number {
+export function calculerTauxReussite(productionReelle: number, objectif: number): number {
   if (objectif === 0) return 0;
   return Math.min(100, (productionReelle / objectif) * 100);
 }
@@ -562,11 +569,11 @@ export function calculerPrevisionVentes(
     .filter((a) => a.statut?.toLowerCase() === 'actif')
     .forEach((animal) => {
       const pesees = peseesParAnimal[animal.id] || [];
-      
+
       if (pesees.length === 0) return;
 
-      const peseesTriees = [...pesees].sort((a, b) => 
-        new Date(b.date).getTime() - new Date(a.date).getTime()
+      const peseesTriees = [...pesees].sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
       );
       const dernierePesee = peseesTriees[0];
       const poids_actuel = dernierePesee.poids_kg;
@@ -592,18 +599,19 @@ export function calculerPrevisionVentes(
       }
 
       // 🔄 APPLIQUER LE COEFFICIENT PESSIMISTE GMQ (réalité terrain)
-      const gmq_historique = dernierePesee.gmq && dernierePesee.gmq > 0 
-        ? dernierePesee.gmq 
-        : gmq_moyen;
-      
+      const gmq_historique =
+        dernierePesee.gmq && dernierePesee.gmq > 0 ? dernierePesee.gmq : gmq_moyen;
+
       // GMQ réaliste avec coefficient pessimiste
       const COEFFICIENT_PESSIMISTE = CONST.COEFFICIENT_PESSIMISTE_GMQ || 0.85;
       const gmq_utilise = gmq_historique * COEFFICIENT_PESSIMISTE;
 
       const poids_a_gagner = poids_cible_kg - poids_actuel;
       const jours_restants = Math.ceil((poids_a_gagner * 1000) / gmq_utilise);
-      
-      console.log(`🐷 [PRÉVISION] ${animal.code}: GMQ=${gmq_historique}g → ${gmq_utilise.toFixed(0)}g (×${COEFFICIENT_PESSIMISTE}), jours=${jours_restants}`);
+
+      console.log(
+        `🐷 [PRÉVISION] ${animal.code}: GMQ=${gmq_historique}g → ${gmq_utilise.toFixed(0)}g (×${COEFFICIENT_PESSIMISTE}), jours=${jours_restants}`
+      );
 
       const date_vente_prevue = addDays(new Date(dernierePesee.date), jours_restants);
       const date_vente_min = addDays(date_vente_prevue, -marge_jours);
@@ -688,17 +696,17 @@ export function calculerPrevisionsFutures(
   const TAUX_SURVIE = (parametres.taux_survie_sevrage || 90) / 100;
   const POIDS_CIBLE = parametres.poids_cible_kg || CONST.POIDS_MOYEN_VENTE_KG;
   const PRIX_KG = parametres.prix_vente_kg || CONST.PRIX_VENTE_KG_MOYEN;
-  
+
   // 🔄 GMQ RÉALISTE avec coefficient pessimiste terrain
   const GMQ_THEORIQUE = CONST.GMQ_MOYEN_G_JOUR;
   const COEFFICIENT_PESSIMISTE = CONST.COEFFICIENT_PESSIMISTE_GMQ || 0.85;
   const GMQ_REALISTE = GMQ_THEORIQUE * COEFFICIENT_PESSIMISTE;
-  
+
   // Durée d'engraissement recalculée avec GMQ réaliste
   const POIDS_AU_SEVRAGE_KG = 8;
   const poids_a_gagner_kg = POIDS_CIBLE - POIDS_AU_SEVRAGE_KG;
   const DUREE_ENGRAISSEMENT = Math.ceil((poids_a_gagner_kg * 1000) / GMQ_REALISTE);
-  
+
   console.log('📊 [PRÉVISIONS FUTURES] Paramètres:', {
     GMQ_theorique: GMQ_THEORIQUE,
     coefficient_pessimiste: COEFFICIENT_PESSIMISTE,
@@ -714,20 +722,20 @@ export function calculerPrevisionsFutures(
   sailliesActives.forEach((saillie, index) => {
     // Date de sevrage (21 jours après mise bas)
     const dateSevrage = new Date(saillie.date_sevrage_prevue);
-    
+
     // Date de vente = sevrage + engraissement
     const dateVente = addDays(dateSevrage, DUREE_ENGRAISSEMENT);
-    
+
     // Nombre de porcelets survivants
     const porceletsVendables = Math.floor(PORCELETS_PAR_PORTEE * TAUX_SURVIE);
-    
+
     // Jours restants jusqu'à la vente
     const joursRestants = differenceInDays(dateVente, maintenant);
-    
+
     // Créer une prévision pour chaque porcelet de la portée
     for (let i = 0; i < porceletsVendables; i++) {
       const animalId = `future_${saillie.id}_${i}`;
-      
+
       let priorite: 'urgente' | 'haute' | 'normale' | 'basse' = 'normale';
       if (joursRestants <= 7) priorite = 'urgente';
       else if (joursRestants <= 30) priorite = 'haute';
@@ -756,8 +764,8 @@ export function calculerPrevisionsFutures(
   });
 
   // Trier par date de vente
-  previsions.sort((a, b) => 
-    new Date(a.date_vente_prevue).getTime() - new Date(b.date_vente_prevue).getTime()
+  previsions.sort(
+    (a, b) => new Date(a.date_vente_prevue).getTime() - new Date(b.date_vente_prevue).getTime()
   );
 
   // Calculer les totaux
@@ -779,9 +787,10 @@ export function calculerPrevisionsFutures(
 
   // Période de projection : du premier au dernier sevrage + engraissement
   const dateDebut = maintenant;
-  const dateFin = previsions.length > 0 
-    ? new Date(previsions[previsions.length - 1].date_vente_prevue)
-    : addMonths(maintenant, 12);
+  const dateFin =
+    previsions.length > 0
+      ? new Date(previsions[previsions.length - 1].date_vente_prevue)
+      : addMonths(maintenant, 12);
 
   return {
     periode_debut: dateDebut.toISOString(),
@@ -810,7 +819,8 @@ function creerCalendrierVentes(
     if (type === 'mensuel') {
       cle = format(date, 'yyyy-MM');
     } else {
-      const numSemaine = Math.floor(differenceInDays(date, new Date(date.getFullYear(), 0, 1)) / 7) + 1;
+      const numSemaine =
+        Math.floor(differenceInDays(date, new Date(date.getFullYear(), 0, 1)) / 7) + 1;
       cle = `${date.getFullYear()}-S${numSemaine}`;
     }
 
@@ -845,11 +855,13 @@ function creerCalendrierVentes(
  * Formater un montant en FCFA
  */
 export function formaterMontant(montant: number): string {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'decimal',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(montant) + ' F CFA';
+  return (
+    new Intl.NumberFormat('fr-FR', {
+      style: 'decimal',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(montant) + ' F CFA'
+  );
 }
 
 /**
@@ -896,18 +908,18 @@ export function genererTachesDepuisSaillie(
   verratNom?: string
 ): TacheGeneree[] {
   const taches: TacheGeneree[] = [];
-  
+
   const dateSaillie = new Date(saillie.date_saillie_prevue);
   const dateMiseBas = new Date(saillie.date_mise_bas_prevue);
   const dateSevrage = new Date(saillie.date_sevrage_prevue);
-  const dateVente = saillie.date_vente_prevue 
+  const dateVente = saillie.date_vente_prevue
     ? new Date(saillie.date_vente_prevue)
     : addDays(dateSevrage, CONST.DUREE_ENGRAISSEMENT_STANDARD_JOURS);
-  
+
   const truieInfo = truieNom ? ` - Truie: ${truieNom}` : '';
   const verratInfo = verratNom ? ` - Verrat: ${verratNom}` : '';
   const infos = `${truieInfo}${verratInfo}`;
-  
+
   // 1️⃣ SAILLIE (J-0)
   taches.push({
     type: 'saillie',
@@ -918,7 +930,7 @@ export function genererTachesDepuisSaillie(
     rappel: addDays(dateSaillie, -1).toISOString(),
     notes: `Saillie planifiée par le module Planning Production\nRéférence: ${saillie.id}`,
   });
-  
+
   // 2️⃣ VISITE VÉTÉRINAIRE POST-SAILLIE (J+7)
   taches.push({
     type: 'veterinaire',
@@ -927,7 +939,7 @@ export function genererTachesDepuisSaillie(
     date_prevue: addDays(dateSaillie, 7).toISOString(),
     rappel: addDays(dateSaillie, 6).toISOString(),
   });
-  
+
   // 3️⃣ CONTRÔLE GESTATION (J+30)
   taches.push({
     type: 'veterinaire',
@@ -936,7 +948,7 @@ export function genererTachesDepuisSaillie(
     date_prevue: addDays(dateSaillie, 30).toISOString(),
     rappel: addDays(dateSaillie, 28).toISOString(),
   });
-  
+
   // 4️⃣ VACCINATION PRÉ-MISE BAS (J+100)
   taches.push({
     type: 'vaccination',
@@ -946,7 +958,7 @@ export function genererTachesDepuisSaillie(
     date_echeance: addDays(dateSaillie, 105).toISOString(),
     rappel: addDays(dateSaillie, 98).toISOString(),
   });
-  
+
   // 5️⃣ PRÉPARATION MISE BAS (J+110)
   taches.push({
     type: 'autre',
@@ -956,7 +968,7 @@ export function genererTachesDepuisSaillie(
     date_echeance: addDays(dateSaillie, 113).toISOString(),
     rappel: addDays(dateSaillie, 109).toISOString(),
   });
-  
+
   // 6️⃣ MISE BAS ATTENDUE (J+114)
   taches.push({
     type: 'autre',
@@ -966,7 +978,7 @@ export function genererTachesDepuisSaillie(
     date_echeance: addDays(dateMiseBas, 2).toISOString(),
     rappel: addDays(dateMiseBas, -1).toISOString(),
   });
-  
+
   // 7️⃣ VISITE VÉTÉRINAIRE POST-MISE BAS (J+116)
   taches.push({
     type: 'veterinaire',
@@ -975,7 +987,7 @@ export function genererTachesDepuisSaillie(
     date_prevue: addDays(dateMiseBas, 2).toISOString(),
     rappel: addDays(dateMiseBas, 1).toISOString(),
   });
-  
+
   // 8️⃣ SEVRAGE (J+135 = J+114 + 21)
   taches.push({
     type: 'sevrage',
@@ -985,7 +997,7 @@ export function genererTachesDepuisSaillie(
     date_echeance: addDays(dateSevrage, 1).toISOString(),
     rappel: addDays(dateSevrage, -2).toISOString(),
   });
-  
+
   // 9️⃣ VACCINATION PORCELETS (J+145)
   taches.push({
     type: 'vaccination',
@@ -995,7 +1007,7 @@ export function genererTachesDepuisSaillie(
     date_echeance: addDays(dateSevrage, 12).toISOString(),
     rappel: addDays(dateSevrage, 9).toISOString(),
   });
-  
+
   // 🔟 VENTE PRÉVUE
   if (saillie.date_vente_prevue) {
     taches.push({
@@ -1007,8 +1019,8 @@ export function genererTachesDepuisSaillie(
       notes: 'Vente estimée - Date flexible selon le poids atteint',
     });
   }
-  
+
   console.log(`📋 [TÂCHES] ${taches.length} tâches générées pour la saillie ${saillie.id}`);
-  
+
   return taches;
 }

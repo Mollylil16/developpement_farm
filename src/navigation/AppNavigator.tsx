@@ -10,7 +10,11 @@ import { Text, TouchableOpacity, Dimensions, ActivityIndicator, View } from 'rea
 import { SCREENS } from './types';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadProjetActif } from '../store/slices/projetSlice';
-import { loadCollaborateurActuel, clearCollaborateurActuel, loadInvitationsEnAttente } from '../store/slices/collaborationSlice';
+import {
+  loadCollaborateurActuel,
+  clearCollaborateurActuel,
+  loadInvitationsEnAttente,
+} from '../store/slices/collaborationSlice';
 import { loadUserFromStorageThunk } from '../store/slices/authSlice';
 import { usePermissions } from '../hooks/usePermissions';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -104,7 +108,7 @@ function MainTabs() {
           tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>🏠</Text>,
         }}
       />
-      
+
       {/* Reproduction - Visible si permission reproduction */}
       {hasPermission('reproduction') && (
         <Tab.Screen
@@ -116,7 +120,7 @@ function MainTabs() {
           }}
         />
       )}
-      
+
       {/* Finance - Visible si permission finance */}
       {hasPermission('finance') && (
         <Tab.Screen
@@ -128,7 +132,7 @@ function MainTabs() {
           }}
         />
       )}
-      
+
       {/* Rapports - Visible si permission rapports */}
       {hasPermission('rapports') && (
         <Tab.Screen
@@ -141,7 +145,7 @@ function MainTabs() {
           {() => <ReportsScreen />}
         </Tab.Screen>
       )}
-      
+
       {/* Paramètres - Toujours visible */}
       <Tab.Screen
         name={SCREENS.PARAMETRES}
@@ -153,7 +157,7 @@ function MainTabs() {
       />
       {/* Modules accessibles via Dashboard : Nutrition, Planning, Collaboration, Mortalités, Production */}
       {/* Ces écrans sont cachés de la barre mais accessibles via navigation si permission accordée */}
-      
+
       {/* Nutrition - Accessible si permission nutrition */}
       {hasPermission('nutrition') && (
         <Tab.Screen
@@ -164,7 +168,7 @@ function MainTabs() {
           }}
         />
       )}
-      
+
       {/* Planning Production - Accessible si permission planification */}
       {hasPermission('planification') && (
         <Tab.Screen
@@ -175,7 +179,7 @@ function MainTabs() {
           }}
         />
       )}
-      
+
       {/* Collaboration - Accessible seulement au propriétaire */}
       {isProprietaire && (
         <Tab.Screen
@@ -186,7 +190,7 @@ function MainTabs() {
           }}
         />
       )}
-      
+
       {/* Mortalités - Accessible si permission mortalites */}
       {hasPermission('mortalites') && (
         <Tab.Screen
@@ -197,7 +201,7 @@ function MainTabs() {
           }}
         />
       )}
-      
+
       {/* Production - Toujours accessible (pas de permission spécifique pour l'instant) */}
       <Tab.Screen
         name={SCREENS.PRODUCTION}
@@ -206,7 +210,7 @@ function MainTabs() {
           tabBarButton: () => <></>,
         }}
       />
-      
+
       {/* Santé - Accessible si permission sante */}
       {hasPermission('sante') && (
         <Tab.Screen
@@ -238,20 +242,18 @@ export default function AppNavigator() {
   useEffect(() => {
     // Charger le projet actif seulement si l'utilisateur est authentifié
     if (isAuthenticated && !authLoading) {
-      console.log('🔄 Chargement du projet actif...');
       dispatch(loadProjetActif());
     }
   }, [dispatch, isAuthenticated, authLoading]);
 
   // Utiliser useRef pour éviter de charger plusieurs fois le collaborateur
   const collaborateurChargeRef = React.useRef<string | null>(null);
-  
+
   useEffect(() => {
     // Charger le collaborateur actuel quand le projet actif change
     if (isAuthenticated && user && projetActif) {
       const cle = `${user.id}-${projetActif.id}`;
       if (collaborateurChargeRef.current !== cle) {
-        console.log('🔄 Chargement du collaborateur actuel pour le projet:', projetActif.id);
         dispatch(loadCollaborateurActuel({ userId: user.id, projetId: projetActif.id }));
         collaborateurChargeRef.current = cle;
       }
@@ -264,17 +266,18 @@ export default function AppNavigator() {
 
   // Utiliser useRef pour éviter de charger plusieurs fois les invitations
   const invitationsChargeesRef = React.useRef<string | null>(null);
-  
+
   useEffect(() => {
     // Charger les invitations en attente quand l'utilisateur est authentifié
     if (isAuthenticated && user) {
       const cle = `${user.id}-${user.email || ''}`;
       if (invitationsChargeesRef.current !== cle) {
-        console.log('🔄 Chargement des invitations en attente pour:', user.id);
-        dispatch(loadInvitationsEnAttente({ 
-          userId: user.id, 
-          email: user.email || undefined 
-        }));
+        dispatch(
+          loadInvitationsEnAttente({
+            userId: user.id,
+            email: user.email || undefined,
+          })
+        );
         invitationsChargeesRef.current = cle;
       }
     } else {
@@ -284,41 +287,46 @@ export default function AppNavigator() {
 
   useEffect(() => {
     if (authLoading || !navigationRef.current) {
-      console.log('⏳ En attente... authLoading:', authLoading, 'navigationRef:', !!navigationRef.current);
       return;
     }
 
     let targetRoute: string;
-    if (isAuthenticated) {
+    if (isAuthenticated && user) {
       // Si l'utilisateur a un projet actif, aller au Dashboard
       if (projetActif) {
         targetRoute = 'Main';
-      } 
+      }
       // Si l'utilisateur a des invitations en attente, aller à CreateProjectScreen
       // (qui affichera le modal d'invitations)
       else if (invitationsEnAttente.length > 0) {
         targetRoute = SCREENS.CREATE_PROJECT;
-        console.log('📬 Utilisateur a des invitations en attente, redirection vers CreateProject pour afficher les invitations');
       }
       // Sinon, créer un projet
       else {
         targetRoute = SCREENS.CREATE_PROJECT;
       }
-      console.log('✅ Utilisateur authentifié. Projet actif:', projetActif?.nom || 'aucun', 'Invitations:', invitationsEnAttente.length, '→ Route:', targetRoute);
+    } else if (isAuthenticated && !user) {
+      // Utilisateur authentifié mais pas encore chargé - ne rien faire, attendre
+      return;
     } else {
       targetRoute = SCREENS.WELCOME;
-      console.log('❌ Utilisateur non authentifié → Route:', targetRoute);
     }
 
     // Toujours naviguer si on change d'état d'authentification ou de projet
     // ou si on est actuellement sur AUTH et qu'on devrait être ailleurs
     const currentRoute = navigationRef.current?.getCurrentRoute()?.name;
-    const shouldNavigate = 
-      lastRouteRef.current !== targetRoute || 
+    const shouldNavigate =
+      lastRouteRef.current !== targetRoute ||
       (currentRoute === SCREENS.AUTH && targetRoute !== SCREENS.AUTH);
 
     if (shouldNavigate) {
-      console.log('🚀 Navigation vers:', targetRoute, '(depuis:', lastRouteRef.current || currentRoute, ')');
+      console.log(
+        '🚀 Navigation vers:',
+        targetRoute,
+        '(depuis:',
+        lastRouteRef.current || currentRoute,
+        ')'
+      );
       try {
         navigationRef.current.reset({
           index: 0,
@@ -331,7 +339,7 @@ export default function AppNavigator() {
     } else {
       console.log('⏸️ Pas de changement de route nécessaire');
     }
-  }, [isAuthenticated, projetActif?.id, authLoading, invitationsEnAttente.length]);
+  }, [isAuthenticated, user, projetActif?.id, authLoading, invitationsEnAttente.length]);
 
   return (
     <NavigationContainer ref={navigationRef}>
@@ -387,10 +395,7 @@ export default function AppNavigator() {
         <Stack.Screen name={SCREENS.AUTH} component={AuthScreen} />
         <Stack.Screen name={SCREENS.CREATE_PROJECT} component={CreateProjectScreen} />
         <Stack.Screen name={SCREENS.PROFIL} component={ProfilScreen} />
-        <Stack.Screen
-          name={SCREENS.ADMIN}
-          options={{ headerShown: false }}
-        >
+        <Stack.Screen name={SCREENS.ADMIN} options={{ headerShown: false }}>
           {() => <AdminScreen />}
         </Stack.Screen>
         <Stack.Screen name="Main" component={MainTabs} />
@@ -398,5 +403,3 @@ export default function AppNavigator() {
     </NavigationContainer>
   );
 }
-
-

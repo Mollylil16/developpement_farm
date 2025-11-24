@@ -40,19 +40,189 @@ import { genererPlusieursNomsAleatoires } from '../utils/nameGenerator';
 
 class DatabaseService {
   private db: SQLite.SQLiteDatabase | null = null;
+  private isInitializing: boolean = false;
+  private initPromise: Promise<void> | null = null;
 
   /**
    * Initialise la connexion à la base de données
+   * Utilise un verrou pour éviter les initialisations parallèles
    */
   async initialize(): Promise<void> {
+    // Si déjà initialisé, ne rien faire
+    if (this.db) {
+      return;
+    }
+
+    // Si une initialisation est en cours, attendre qu'elle se termine
+    if (this.isInitializing && this.initPromise) {
+      console.log('⏳ [DB] Initialisation en cours, attente...');
+      return this.initPromise;
+    }
+
+    // Marquer comme en cours d'initialisation
+    this.isInitializing = true;
+
+    // Créer la promesse d'initialisation
+    this.initPromise = (async () => {
+      try {
+        console.log('🔧 [DB] Initialisation de la base de données...');
+        this.db = await SQLite.openDatabaseAsync('fermier_pro.db');
+        
+        // Configurer SQLite pour éviter les deadlocks
+        try {
+          await this.db.execAsync('PRAGMA busy_timeout = 5000;'); // Attendre 5s si locked
+          await this.db.execAsync('PRAGMA journal_mode = WAL;'); // Write-Ahead Logging
+          console.log('✅ [DB] Configuration SQLite appliquée');
+        } catch (error: any) {
+          console.warn('⚠️ [DB] Impossible de configurer SQLite:', error?.message);
+        }
+
+        await this.createTables();
+        await this.migrateTables();
+        await this.createIndexesWithProjetId();
+        
+        console.log('✅ [DB] Base de données initialisée avec succès');
+      } catch (error) {
+        console.error("❌ [DB] Erreur lors de l'initialisation de la base de données:", error);
+        this.db = null; // Réinitialiser en cas d'erreur
+        throw error;
+      } finally {
+        this.isInitializing = false;
+        this.initPromise = null;
+      }
+    })();
+
+    return this.initPromise;
+  }
+
+  /**
+   * Détecte et répare une base de données corrompue
+   */
+  private async detectAndRepairCorruption(): Promise<boolean> {
+    if (!this.db) {
+      return false;
+    }
+
     try {
+      // Vérifier si des tables _old existent
+      const oldTables = await this.db.getAllAsync<{ name: string }>(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%_old'"
+      );
+
+      if (oldTables.length > 0) {
+        console.warn(`🚨 [DB] CORRUPTION DÉTECTÉE: ${oldTables.length} table(s) temporaire(s)`);
+        console.warn('🔧 [DB] Tentative de réparation automatique...');
+
+        // Tenter de supprimer chaque table _old
+        let failedDeletions = 0;
+        for (const table of oldTables) {
+          try {
+            await this.db.execAsync(`DROP TABLE IF EXISTS ${table.name};`);
+            console.log(`   ✅ ${table.name} supprimée`);
+          } catch (error: any) {
+            failedDeletions++;
+            console.error(`   ❌ ${table.name}: ${error?.message}`);
+          }
+        }
+
+        // Si on n'a pas pu supprimer les tables, la base est verrouillée = corruption critique
+        if (failedDeletions > 0) {
+          console.error('🚨 [DB] CORRUPTION CRITIQUE: Impossible de nettoyer les tables');
+          console.error('🔄 [DB] Reconstruction complète nécessaire...');
+          return true; // Signaler qu'une reconstruction est nécessaire
+        }
+      }
+
+      return false; // Pas de corruption ou réparation réussie
+    } catch (error: any) {
+      console.error('❌ [DB] Erreur lors de la détection de corruption:', error?.message);
+      return false;
+    }
+  }
+
+  /**
+   * Reconstruit complètement la base de données
+   */
+  private async rebuildDatabase(): Promise<void> {
+    if (!this.db) {
+      return;
+    }
+
+    try {
+      console.warn('🔨 [DB] RECONSTRUCTION COMPLÈTE DE LA BASE...');
+
+      // Fermer la connexion actuelle
+      await this.db.closeAsync();
+      this.db = null;
+
+      // Attendre un peu pour s'assurer que le fichier est libéré
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Supprimer l'ancienne base (via expo-sqlite, on ne peut pas supprimer physiquement)
+      // On va plutôt recréer toutes les tables en DROP IF EXISTS
+      console.log('🗑️  [DB] Suppression de toutes les tables...');
+
+      // Rouvrir la base
       this.db = await SQLite.openDatabaseAsync('fermier_pro.db');
-      await this.createTables();
-      await this.migrateTables();
-      await this.createIndexesWithProjetId();
-    } catch (error) {
-      console.error('Erreur lors de l\'initialisation de la base de données:', error);
+
+      // Supprimer TOUTES les tables existantes
+      const allTables = await this.db.getAllAsync<{ name: string }>(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+      );
+
+      for (const table of allTables) {
+        try {
+          await this.db.execAsync(`DROP TABLE IF EXISTS ${table.name};`);
+          console.log(`   ✅ Table ${table.name} supprimée`);
+        } catch (error: any) {
+          console.warn(`   ⚠️  Impossible de supprimer ${table.name}: ${error?.message}`);
+        }
+      }
+
+      console.log('✅ [DB] Base reconstruite, recréation des tables...');
+
+    } catch (error: any) {
+      console.error('❌ [DB] Erreur lors de la reconstruction:', error?.message);
       throw error;
+    }
+  }
+
+  /**
+   * Nettoie les tables temporaires (_old) laissées par des migrations échouées
+   */
+  private async cleanupFailedMigrations(): Promise<void> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    try {
+      console.log('🧹 [DB] Nettoyage des migrations échouées...');
+
+      // Détecter une corruption critique
+      const needsRebuild = await this.detectAndRepairCorruption();
+
+      if (needsRebuild) {
+        // Reconstruction complète
+        await this.rebuildDatabase();
+        return; // Les tables seront recréées après
+      }
+
+      // Vérifier à nouveau s'il reste des tables _old
+      const oldTables = await this.db.getAllAsync<{ name: string }>(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%_old'"
+      );
+
+      if (oldTables.length === 0) {
+        console.log('✅ [DB] Aucune table temporaire trouvée');
+      }
+    } catch (error: any) {
+      console.error('❌ [DB] Erreur lors du nettoyage:', error?.message || error);
+      // En cas d'erreur, tenter une reconstruction
+      try {
+        await this.rebuildDatabase();
+      } catch (rebuildError: any) {
+        console.error('❌ [DB] Impossible de reconstruire la base:', rebuildError?.message);
+      }
     }
   }
 
@@ -64,9 +234,12 @@ class DatabaseService {
       throw new Error('Base de données non initialisée');
     }
 
+    // NOUVEAU: Nettoyer les tables temporaires avant toute migration
+    await this.cleanupFailedMigrations();
+
     try {
       // Toutes les migrations sont dans un try-catch global pour éviter qu'une erreur bloque l'initialisation
-      
+
       // Migration: Mettre à jour la table users pour supporter email OU téléphone (sans mot de passe)
       try {
         const usersTableExists = await this.db.getFirstAsync<{ name: string } | null>(
@@ -157,6 +330,31 @@ class DatabaseService {
         console.warn('Erreur lors de la migration de la table users:', error?.message || error);
       }
 
+      // Migration: Ajouter champs profil_type et champs vétérinaire
+      // DÉSACTIVÉE - Fonctionnalité retirée mais colonnes conservées en DB
+      /* try {
+        const usersColumns = await this.db.getAllAsync<{ name: string }>(
+          "PRAGMA table_info('users')"
+        );
+        
+        const colonnesAVerifier = [
+          { nom: 'profil_type', sql: 'profil_type TEXT CHECK (profil_type IN (\'producteur\', \'veterinaire\', \'acheteur\'))' },
+          { nom: 'localite_exercice', sql: 'localite_exercice TEXT' },
+          { nom: 'photo_piece_identite', sql: 'photo_piece_identite TEXT' },
+          { nom: 'photo_diplome_veterinaire', sql: 'photo_diplome_veterinaire TEXT' }
+        ];
+        
+        for (const colonne of colonnesAVerifier) {
+          const colonneExiste = usersColumns.some((col) => col.name === colonne.nom);
+          if (!colonneExiste) {
+            await this.db.execAsync(`ALTER TABLE users ADD COLUMN ${colonne.sql};`);
+            console.log(`Migration: Colonne ${colonne.nom} ajoutée à la table users`);
+          }
+        }
+      } catch (error: any) {
+        console.warn('Erreur lors de la migration profil_type pour users:', error?.message || error);
+      } */
+
       // Migration: Ajouter projet_id à la table rations si elle n'existe pas
       try {
         // Vérifier d'abord si la table rations existe
@@ -168,13 +366,13 @@ class DatabaseService {
           const tableInfo = await this.db.getFirstAsync<{ name: string } | null>(
             "SELECT name FROM pragma_table_info('rations') WHERE name = 'projet_id'"
           );
-          
+
           if (!tableInfo) {
             // La colonne n'existe pas, on l'ajoute
             await this.db.execAsync(`
               ALTER TABLE rations ADD COLUMN projet_id TEXT;
             `);
-            
+
             // Pour les rations existantes sans projet_id, on peut les associer au premier projet actif
             // ou les laisser NULL (selon votre logique métier)
             // Migration: Colonne projet_id ajoutée à rations
@@ -184,20 +382,23 @@ class DatabaseService {
           // Migration: Table rations sera créée avec projet_id
         }
       } catch (error: any) {
-        console.warn('Erreur lors de la migration projet_id pour rations:', error?.message || error);
+        console.warn(
+          'Erreur lors de la migration projet_id pour rations:',
+          error?.message || error
+        );
       }
 
       // Migration: Ajouter statut à la table production_animaux si elle n'existe pas
       const statutInfo = await this.db.getFirstAsync<{ name: string } | null>(
         "SELECT name FROM pragma_table_info('production_animaux') WHERE name = 'statut'"
       );
-      
+
       if (!statutInfo) {
         // La colonne n'existe pas, on l'ajoute
         await this.db.execAsync(`
           ALTER TABLE production_animaux ADD COLUMN statut TEXT DEFAULT 'actif' CHECK (statut IN ('actif', 'mort', 'vendu', 'offert', 'autre'));
         `);
-        
+
         // Pour les animaux existants, définir le statut basé sur actif
         await this.db.execAsync(`
           UPDATE production_animaux 
@@ -207,7 +408,7 @@ class DatabaseService {
           END
           WHERE statut IS NULL;
         `);
-        
+
         // Migration: Colonne statut ajoutée
       }
 
@@ -221,20 +422,20 @@ class DatabaseService {
           const userIdInfo = await this.db.getFirstAsync<{ name: string } | null>(
             "SELECT name FROM pragma_table_info('collaborations') WHERE name = 'user_id'"
           );
-          
+
           if (!userIdInfo) {
             // Migration: Ajout colonne user_id à collaborations
-            
+
             // Ajouter la colonne user_id (nullable car les anciens collaborateurs n'ont pas encore de user_id)
             await this.db.execAsync(`
               ALTER TABLE collaborations ADD COLUMN user_id TEXT;
             `);
-            
+
             // Créer un index pour user_id
             await this.db.execAsync(`
               CREATE INDEX IF NOT EXISTS idx_collaborations_user_id ON collaborations(user_id);
             `);
-            
+
             // Migration: Colonne user_id ajoutée
           } else {
             // Migration: Colonne user_id existe déjà
@@ -243,8 +444,11 @@ class DatabaseService {
           // Migration: Table collaborations sera créée avec user_id
         }
       } catch (error: any) {
-        console.error('❌ Erreur lors de la migration user_id pour collaborations:', error?.message || error);
-        console.error('Détails de l\'erreur:', error);
+        console.error(
+          '❌ Erreur lors de la migration user_id pour collaborations:',
+          error?.message || error
+        );
+        console.error("Détails de l'erreur:", error);
         // Ne pas bloquer l'initialisation, mais loguer l'erreur clairement
       }
 
@@ -270,7 +474,7 @@ class DatabaseService {
           const prixVifInfo = await this.db.getFirstAsync<{ name: string } | null>(
             "SELECT name FROM pragma_table_info('projets') WHERE name = 'prix_kg_vif'"
           );
-          
+
           if (!prixVifInfo) {
             await this.db.execAsync(`
               ALTER TABLE projets ADD COLUMN prix_kg_vif REAL;
@@ -281,7 +485,7 @@ class DatabaseService {
           const prixCarcasseInfo = await this.db.getFirstAsync<{ name: string } | null>(
             "SELECT name FROM pragma_table_info('projets') WHERE name = 'prix_kg_carcasse'"
           );
-          
+
           if (!prixCarcasseInfo) {
             await this.db.execAsync(`
               ALTER TABLE projets ADD COLUMN prix_kg_carcasse REAL;
@@ -335,9 +539,9 @@ class DatabaseService {
       // Migration: Ajouter verrat_id à la table gestations si elle n'existe pas
       try {
         // Vérifier d'abord si la table gestations existe
-        const gestationsTableExistsForVerratId = await this.db.getFirstAsync<{ name: string } | null>(
-          "SELECT name FROM sqlite_master WHERE type='table' AND name='gestations'"
-        );
+        const gestationsTableExistsForVerratId = await this.db.getFirstAsync<{
+          name: string;
+        } | null>("SELECT name FROM sqlite_master WHERE type='table' AND name='gestations'");
 
         if (gestationsTableExistsForVerratId) {
           const verratIdInfo = await this.db.getFirstAsync<{ name: string } | null>(
@@ -352,15 +556,18 @@ class DatabaseService {
           }
         }
       } catch (error: any) {
-        console.warn('Erreur lors de la migration verrat_id pour gestations:', error?.message || error);
+        console.warn(
+          'Erreur lors de la migration verrat_id pour gestations:',
+          error?.message || error
+        );
       }
 
       // Migration: Ajouter verrat_nom à la table gestations si elle n'existe pas
       try {
         // Vérifier d'abord si la table gestations existe
-        const gestationsTableExistsForVerratNom = await this.db.getFirstAsync<{ name: string } | null>(
-          "SELECT name FROM sqlite_master WHERE type='table' AND name='gestations'"
-        );
+        const gestationsTableExistsForVerratNom = await this.db.getFirstAsync<{
+          name: string;
+        } | null>("SELECT name FROM sqlite_master WHERE type='table' AND name='gestations'");
 
         if (gestationsTableExistsForVerratNom) {
           const verratNomInfo = await this.db.getFirstAsync<{ name: string } | null>(
@@ -375,7 +582,10 @@ class DatabaseService {
           }
         }
       } catch (error: any) {
-        console.warn('Erreur lors de la migration verrat_nom pour gestations:', error?.message || error);
+        console.warn(
+          'Erreur lors de la migration verrat_nom pour gestations:',
+          error?.message || error
+        );
       }
 
       // Migration: Ajouter projet_id à la table gestations si elle n'existe pas
@@ -411,7 +621,10 @@ class DatabaseService {
           // Migration: Table gestations n\'existe pas encore, sera créée avec projet_id');
         }
       } catch (error: any) {
-        console.warn('Erreur lors de la migration projet_id pour gestations:', error?.message || error);
+        console.warn(
+          'Erreur lors de la migration projet_id pour gestations:',
+          error?.message || error
+        );
       }
 
       // Migration: Ajouter animal_code à la table mortalites si elle n'existe pas
@@ -437,7 +650,10 @@ class DatabaseService {
           // Migration: Table mortalites n\'existe pas encore, sera créée avec animal_code');
         }
       } catch (error: any) {
-        console.warn('Erreur lors de la migration animal_code pour mortalites:', error?.message || error);
+        console.warn(
+          'Erreur lors de la migration animal_code pour mortalites:',
+          error?.message || error
+        );
       }
 
       // Migration: Ajouter projet_id à la table sevrages si elle n'existe pas
@@ -460,29 +676,29 @@ class DatabaseService {
             await this.db.execAsync(`
               ALTER TABLE sevrages ADD COLUMN projet_id TEXT;
             `);
-            
+
             // Vérifier d'abord si la table gestations existe et a la colonne projet_id
             const gestationsTableExists = await this.db.getFirstAsync<{ name: string } | null>(
               "SELECT name FROM sqlite_master WHERE type='table' AND name='gestations'"
             );
-            
+
             if (gestationsTableExists) {
               const gestationsHasProjetId = await this.db.getFirstAsync<{ name: string } | null>(
                 "SELECT name FROM pragma_table_info('gestations') WHERE name = 'projet_id'"
               );
-              
+
               if (gestationsHasProjetId) {
                 // Vérifier que la colonne projet_id est réellement utilisable dans gestations
                 try {
                   // Test de la colonne avec une requête simple
                   await this.db.getFirstAsync<any>('SELECT projet_id FROM gestations LIMIT 1');
-                  
+
                   // Si on arrive ici, la colonne est utilisable
                   // Vérifier qu'il y a des gestations avec projet_id
-                  const gestationsAvecProjetId = await this.db.getFirstAsync<{ count: number } | null>(
-                    'SELECT COUNT(*) as count FROM gestations WHERE projet_id IS NOT NULL'
-                  );
-                  
+                  const gestationsAvecProjetId = await this.db.getFirstAsync<{
+                    count: number;
+                  } | null>('SELECT COUNT(*) as count FROM gestations WHERE projet_id IS NOT NULL');
+
                   if (gestationsAvecProjetId && gestationsAvecProjetId.count > 0) {
                     // Utiliser une requête UPDATE avec sous-requête
                     await this.db.runAsync(
@@ -512,7 +728,10 @@ class DatabaseService {
                   }
                 } catch (testError: any) {
                   // Si la colonne n'est pas utilisable, utiliser le premier projet comme fallback
-                  console.warn('Colonne projet_id non utilisable dans gestations, utilisation du fallback:', testError?.message || testError);
+                  console.warn(
+                    'Colonne projet_id non utilisable dans gestations, utilisation du fallback:',
+                    testError?.message || testError
+                  );
                   const premierProjet = await this.db.getFirstAsync<{ id: string } | null>(
                     'SELECT id FROM projets ORDER BY date_creation ASC LIMIT 1'
                   );
@@ -551,7 +770,10 @@ class DatabaseService {
           }
         }
       } catch (error: any) {
-        console.warn('Erreur lors de la migration projet_id pour sevrages:', error?.message || error);
+        console.warn(
+          'Erreur lors de la migration projet_id pour sevrages:',
+          error?.message || error
+        );
       }
 
       // Migration: Ajouter projet_id à la table depenses_ponctuelles si elle n'existe pas
@@ -587,7 +809,47 @@ class DatabaseService {
           // Migration: Table depenses_ponctuelles n\'existe pas encore, sera créée avec projet_id');
         }
       } catch (error: any) {
-        console.warn('Erreur lors de la migration projet_id pour depenses_ponctuelles:', error?.message || error);
+        console.warn(
+          'Erreur lors de la migration projet_id pour depenses_ponctuelles:',
+          error?.message || error
+        );
+      }
+
+      // Migration: Ajouter projet_id à la table charges_fixes si elle n'existe pas
+      try {
+        const chargesFixesTableExists = await this.db.getFirstAsync<{ name: string } | null>(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='charges_fixes'"
+        );
+
+        if (chargesFixesTableExists) {
+          const chargesFixesProjetIdInfo = await this.db.getFirstAsync<{ name: string } | null>(
+            "SELECT name FROM pragma_table_info('charges_fixes') WHERE name = 'projet_id'"
+          );
+
+          if (!chargesFixesProjetIdInfo) {
+            await this.db.execAsync(`
+              ALTER TABLE charges_fixes ADD COLUMN projet_id TEXT;
+            `);
+            // Mettre à jour les charges fixes existantes avec le premier projet actif (si disponible)
+            const premierProjet = await this.db.getFirstAsync<{ id: string } | null>(
+              'SELECT id FROM projets ORDER BY date_creation ASC LIMIT 1'
+            );
+            if (premierProjet) {
+              await this.db.runAsync(
+                'UPDATE charges_fixes SET projet_id = ? WHERE projet_id IS NULL',
+                [premierProjet.id]
+              );
+            }
+            console.log('  ✅ Colonne projet_id ajoutée à la table charges_fixes');
+          } else {
+            console.log('  ℹ️  Colonne projet_id déjà présente dans la table charges_fixes');
+          }
+        } else {
+          // Table n'existe pas encore, elle sera créée avec projet_id dans createTables
+          console.log('  ℹ️  Table charges_fixes n\'existe pas encore, sera créée avec projet_id');
+        }
+      } catch (error: any) {
+        console.warn('⚠️  Erreur lors de la migration projet_id pour charges_fixes:', error?.message || error);
       }
 
       // Migration: Mettre à jour la contrainte CHECK de la table ingredients pour supporter 'sac'
@@ -621,9 +883,7 @@ class DatabaseService {
 
           if (!migrationEffectuee) {
             // Récupérer les données existantes
-            const existingIngredients = await this.db.getAllAsync<any>(
-              'SELECT * FROM ingredients'
-            );
+            const existingIngredients = await this.db.getAllAsync<any>('SELECT * FROM ingredients');
 
             // Supprimer l'ancienne table
             await this.db.execAsync('DROP TABLE IF EXISTS ingredients');
@@ -668,7 +928,10 @@ class DatabaseService {
           }
         }
       } catch (error: any) {
-        console.warn('Erreur lors de la migration de la contrainte unite pour ingredients:', error?.message || error);
+        console.warn(
+          'Erreur lors de la migration de la contrainte unite pour ingredients:',
+          error?.message || error
+        );
       }
 
       // Migration: Recalculer les GMQ des pesées existantes avec la nouvelle fonction de calcul
@@ -774,7 +1037,10 @@ class DatabaseService {
           // Migration: Table collaborations n\'existe pas encore, sera créée avec permission_sante');
         }
       } catch (error: any) {
-        console.warn('Erreur lors de la migration permission_sante pour collaborations:', error?.message || error);
+        console.warn(
+          'Erreur lors de la migration permission_sante pour collaborations:',
+          error?.message || error
+        );
       }
 
       // Migration: Ajouter nouvelles colonnes à la table vaccinations pour prophylaxie améliorée
@@ -810,14 +1076,20 @@ class DatabaseService {
                 console.log(`Migration: Colonne ${colonne.nom} ajoutée à la table vaccinations`);
               }
             } catch (error: any) {
-              console.warn(`Erreur lors de l'ajout de la colonne ${colonne.nom}:`, error?.message || error);
+              console.warn(
+                `Erreur lors de l'ajout de la colonne ${colonne.nom}:`,
+                error?.message || error
+              );
             }
           }
         } else {
           // Migration: Table vaccinations n\'existe pas encore, sera créée avec les nouvelles colonnes');
         }
       } catch (error: any) {
-        console.warn('Erreur lors de la migration des colonnes prophylaxie pour vaccinations:', error?.message || error);
+        console.warn(
+          'Erreur lors de la migration des colonnes prophylaxie pour vaccinations:',
+          error?.message || error
+        );
       }
 
       // Migration: Mettre à jour table visites_veterinaires
@@ -835,7 +1107,9 @@ class DatabaseService {
           if (!colonneExists) {
             // Migration: Mise à jour de la table visites_veterinaires');
 
-            await this.db.execAsync(`ALTER TABLE visites_veterinaires RENAME TO visites_veterinaires_old;`);
+            await this.db.execAsync(
+              `ALTER TABLE visites_veterinaires RENAME TO visites_veterinaires_old;`
+            );
 
             await this.db.execAsync(`
               CREATE TABLE visites_veterinaires (
@@ -890,7 +1164,7 @@ class DatabaseService {
           // Migration: Colonne photo_uri ajoutée avec succès');
         }
       } catch (error: any) {
-        console.warn('Erreur lors de l\'ajout de photo_uri:', error?.message || error);
+        console.warn("Erreur lors de l'ajout de photo_uri:", error?.message || error);
       }
 
       // Migration: Mettre à jour CHECK constraint statut dans production_animaux
@@ -907,7 +1181,9 @@ class DatabaseService {
             // Ignorer les erreurs
           }
 
-          await this.db.execAsync(`ALTER TABLE production_animaux RENAME TO production_animaux_old;`);
+          await this.db.execAsync(
+            `ALTER TABLE production_animaux RENAME TO production_animaux_old;`
+          );
 
           await this.db.execAsync(`
             CREATE TABLE production_animaux (
@@ -952,7 +1228,10 @@ class DatabaseService {
           await this.db.execAsync(`DROP TABLE IF EXISTS production_animaux_old;`);
         }
       } catch (error: any) {
-        console.warn('Erreur lors de la migration production_animaux statut:', error?.message || error);
+        console.warn(
+          'Erreur lors de la migration production_animaux statut:',
+          error?.message || error
+        );
       }
 
       // Migration: Rendre la colonne vaccin nullable dans vaccinations (pour type_prophylaxie)
@@ -1077,6 +1356,50 @@ class DatabaseService {
       } catch (error: any) {
         console.warn('Erreur lors de la migration des types de maladies:', error?.message || error);
       }
+
+      // ============================================
+      // Migration: OPEX/CAPEX - Ajout champs amortissement et marges
+      // ============================================
+      try {
+        const { migrateOpexCapexFields, isOpexCapexMigrationApplied } = 
+          await import('../database/migrations/add_opex_capex_fields');
+        
+        const migrationApplied = await isOpexCapexMigrationApplied(this.db);
+        
+        if (!migrationApplied) {
+          console.log('🔄 Application de la migration OPEX/CAPEX...');
+          await migrateOpexCapexFields(this.db);
+          console.log('✅ Migration OPEX/CAPEX appliquée avec succès');
+        } else {
+          console.log('ℹ️  Migration OPEX/CAPEX déjà appliquée');
+        }
+      } catch (error: any) {
+        console.warn('⚠️  Erreur lors de la migration OPEX/CAPEX:', error?.message || error);
+        // La migration échoue silencieusement pour ne pas bloquer l'app
+      }
+
+      // ============================================
+      // Migration: Ajout de animal_id dans revenus
+      // ============================================
+      try {
+        const revenusColumns = await this.db.getAllAsync<{ name: string }>(
+          "PRAGMA table_info('revenus')"
+        );
+        
+        const hasAnimalId = revenusColumns.some((col) => col.name === 'animal_id');
+        
+        if (!hasAnimalId) {
+          await this.db.execAsync(`
+            ALTER TABLE revenus ADD COLUMN animal_id TEXT;
+          `);
+          console.log('✅ Colonne animal_id ajoutée à la table revenus');
+        } else {
+          console.log('ℹ️  Colonne animal_id déjà présente dans revenus');
+        }
+      } catch (error: any) {
+        console.warn('⚠️  Erreur lors de l\'ajout de animal_id:', error?.message || error);
+        // La migration échoue silencieusement pour ne pas bloquer l'app
+      }
     } catch (error) {
       // Si la migration échoue, on continue quand même
       console.warn('Erreur lors de la migration des tables:', error);
@@ -1096,14 +1419,46 @@ class DatabaseService {
     // Liste des index à créer avec leur table et colonne
     // CRITIQUES: Tous ces index sont essentiels pour les performances
     const indexes = [
-      { name: 'idx_depenses_projet', table: 'depenses_ponctuelles', column: 'projet_id', critical: true },
+      {
+        name: 'idx_depenses_projet',
+        table: 'depenses_ponctuelles',
+        column: 'projet_id',
+        critical: true,
+      },
       { name: 'idx_revenus_projet', table: 'revenus', column: 'projet_id', critical: true },
-      { name: 'idx_rapports_croissance_projet', table: 'rapports_croissance', column: 'projet_id', critical: true },
+      {
+        name: 'idx_rapports_croissance_projet',
+        table: 'rapports_croissance',
+        column: 'projet_id',
+        critical: true,
+      },
       { name: 'idx_mortalites_projet', table: 'mortalites', column: 'projet_id', critical: true },
-      { name: 'idx_planifications_projet', table: 'planifications', column: 'projet_id', critical: true },
-      { name: 'idx_collaborations_projet', table: 'collaborations', column: 'projet_id', critical: true },
-      { name: 'idx_stocks_aliments_projet', table: 'stocks_aliments', column: 'projet_id', critical: true },
-      { name: 'idx_production_animaux_code', table: 'production_animaux', column: 'projet_id', unique: true, additionalColumns: 'code', critical: true },
+      {
+        name: 'idx_planifications_projet',
+        table: 'planifications',
+        column: 'projet_id',
+        critical: true,
+      },
+      {
+        name: 'idx_collaborations_projet',
+        table: 'collaborations',
+        column: 'projet_id',
+        critical: true,
+      },
+      {
+        name: 'idx_stocks_aliments_projet',
+        table: 'stocks_aliments',
+        column: 'projet_id',
+        critical: true,
+      },
+      {
+        name: 'idx_production_animaux_code',
+        table: 'production_animaux',
+        column: 'projet_id',
+        unique: true,
+        additionalColumns: 'code',
+        critical: true,
+      },
     ];
 
     // Fonction helper pour vérifier si un index existe déjà
@@ -1120,8 +1475,8 @@ class DatabaseService {
 
     // Fonction helper pour créer un index avec réessai agressif
     const createIndexWithRetry = async (
-      index: typeof indexes[0],
-      maxRetries: number = 5  // Augmenté à 5 tentatives pour être plus agressif
+      index: (typeof indexes)[0],
+      maxRetries: number = 5 // Augmenté à 5 tentatives pour être plus agressif
     ): Promise<boolean> => {
       // Vérifier d'abord si l'index existe déjà
       if (await indexExists(index.name)) {
@@ -1134,7 +1489,7 @@ class DatabaseService {
           const tableExists = await this.db!.getFirstAsync<{ name: string } | null>(
             `SELECT name FROM sqlite_master WHERE type='table' AND name='${index.table}'`
           );
-          
+
           if (!tableExists) {
             console.error(`❌ Index ${index.name} non créé: table ${index.table} n'existe pas`);
             return false;
@@ -1146,7 +1501,9 @@ class DatabaseService {
           );
 
           if (!columnExists) {
-            console.error(`❌ Index ${index.name} non créé: colonne ${index.column} n'existe pas dans ${index.table}`);
+            console.error(
+              `❌ Index ${index.name} non créé: colonne ${index.column} n'existe pas dans ${index.table}`
+            );
             return false;
           }
 
@@ -1170,15 +1527,21 @@ class DatabaseService {
           }
         } catch (error: any) {
           const errorMessage = error?.message || error;
-          
+
           if (attempt < maxRetries) {
             // Délai progressif plus long pour les tentatives suivantes
             const delay = Math.min(200 * attempt, 1000); // Max 1 seconde
-            await new Promise(resolve => setTimeout(resolve, delay));
-            console.warn(`⚠ Tentative ${attempt}/${maxRetries} échouée pour ${index.name}, réessai dans ${delay}ms...`, errorMessage);
+            await new Promise((resolve) => setTimeout(resolve, delay));
+            console.warn(
+              `⚠ Tentative ${attempt}/${maxRetries} échouée pour ${index.name}, réessai dans ${delay}ms...`,
+              errorMessage
+            );
           } else {
             // Dernière tentative échouée
-            console.error(`❌ Échec définitif de création de l'index ${index.name} après ${maxRetries} tentatives:`, errorMessage);
+            console.error(
+              `❌ Échec définitif de création de l'index ${index.name} après ${maxRetries} tentatives:`,
+              errorMessage
+            );
             return false;
           }
         }
@@ -1224,7 +1587,7 @@ class DatabaseService {
       const tableExists = await this.db.getFirstAsync<{ name: string } | null>(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='production_animaux'"
       );
-      
+
       if (tableExists) {
         const columnExists = await this.db.getFirstAsync<{ name: string } | null>(
           "SELECT name FROM pragma_table_info('production_animaux') WHERE name = 'reproducteur'"
@@ -1240,7 +1603,10 @@ class DatabaseService {
         }
       }
     } catch (error: any) {
-      console.warn('Erreur lors de la création de idx_production_animaux_reproducteur:', error?.message || error);
+      console.warn(
+        'Erreur lors de la création de idx_production_animaux_reproducteur:',
+        error?.message || error
+      );
     }
 
     // Index sur collaborations(user_id) - colonne ajoutée par migration
@@ -1248,7 +1614,7 @@ class DatabaseService {
       const tableExists = await this.db.getFirstAsync<{ name: string } | null>(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='collaborations'"
       );
-      
+
       if (tableExists) {
         const columnExists = await this.db.getFirstAsync<{ name: string } | null>(
           "SELECT name FROM pragma_table_info('collaborations') WHERE name = 'user_id'"
@@ -1264,23 +1630,33 @@ class DatabaseService {
         }
       }
     } catch (error: any) {
-      console.warn('Erreur lors de la création de idx_collaborations_user_id:', error?.message || error);
+      console.warn(
+        'Erreur lors de la création de idx_collaborations_user_id:',
+        error?.message || error
+      );
     }
 
     // Résumé et vérification critique
-    const successCount = results.filter(r => r).length;
-    const failCount = results.filter(r => !r).length;
+    const successCount = results.filter((r) => r).length;
+    const failCount = results.filter((r) => !r).length;
     const failedIndexes = indexes.filter((_, i) => !results[i]);
 
     if (failCount > 0) {
-      console.error(`❌ CRITIQUE: ${failCount} index(s) critique(s) n'ont pas pu être créés:`, failedIndexes.map(i => i.name).join(', '));
-      console.error(`⚠ Sans ces index, les requêtes sur projet_id seront TRÈS LENTES (scan complet de table)`);
+      console.error(
+        `❌ CRITIQUE: ${failCount} index(s) critique(s) n'ont pas pu être créés:`,
+        failedIndexes.map((i) => i.name).join(', ')
+      );
+      console.error(
+        `⚠ Sans ces index, les requêtes sur projet_id seront TRÈS LENTES (scan complet de table)`
+      );
       console.error(`⚠ L'application fonctionnera mais l'expérience utilisateur sera dégradée`);
-      
+
       // Ne pas bloquer l'initialisation, mais logger sévèrement
       // L'application pourra réessayer lors de la prochaine initialisation
     } else {
-      console.log(`✓ Tous les index critiques (${successCount}/${indexes.length}) ont été créés avec succès`);
+      console.log(
+        `✓ Tous les index critiques (${successCount}/${indexes.length}) ont été créés avec succès`
+      );
     }
   }
 
@@ -1294,7 +1670,7 @@ class DatabaseService {
 
     console.log('🔧 Vérification et réparation des index manquants...');
     await this.createIndexesWithProjetId();
-    
+
     // Compter les index manquants après réparation
     const indexes = [
       'idx_depenses_projet',
@@ -1382,6 +1758,7 @@ class DatabaseService {
     await this.db.execAsync(`
       CREATE TABLE IF NOT EXISTS charges_fixes (
         id TEXT PRIMARY KEY,
+        projet_id TEXT,
         categorie TEXT NOT NULL,
         libelle TEXT NOT NULL,
         montant REAL NOT NULL,
@@ -1391,7 +1768,8 @@ class DatabaseService {
         notes TEXT,
         statut TEXT NOT NULL CHECK (statut IN ('actif', 'suspendu', 'termine')),
         date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
-        derniere_modification TEXT DEFAULT CURRENT_TIMESTAMP
+        derniere_modification TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (projet_id) REFERENCES projets(id)
       );
     `);
 
@@ -1952,9 +2330,7 @@ class DatabaseService {
   /**
    * Récupérer tous les protocoles de vaccination d'un projet
    */
-  async getCalendrierVaccinationsByProjet(
-    projetId: string
-  ): Promise<CalendrierVaccination[]> {
+  async getCalendrierVaccinationsByProjet(projetId: string): Promise<CalendrierVaccination[]> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -2580,10 +2956,7 @@ class DatabaseService {
       throw new Error('Base de données non initialisée');
     }
 
-    const row = await this.db.getFirstAsync<any>(
-      'SELECT * FROM maladies WHERE id = ?',
-      [id]
-    );
+    const row = await this.db.getFirstAsync<any>('SELECT * FROM maladies WHERE id = ?', [id]);
 
     if (!row) return null;
 
@@ -2865,10 +3238,7 @@ class DatabaseService {
       throw new Error('Base de données non initialisée');
     }
 
-    const row = await this.db.getFirstAsync<any>(
-      'SELECT * FROM traitements WHERE id = ?',
-      [id]
-    );
+    const row = await this.db.getFirstAsync<any>('SELECT * FROM traitements WHERE id = ?', [id]);
 
     if (!row) return null;
 
@@ -3259,7 +3629,10 @@ class DatabaseService {
   /**
    * Mettre à jour une visite vétérinaire
    */
-  async updateVisiteVeterinaire(id: string, updates: Partial<CreateVisiteVeterinaireInput>): Promise<void> {
+  async updateVisiteVeterinaire(
+    id: string,
+    updates: Partial<CreateVisiteVeterinaireInput>
+  ): Promise<void> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3310,7 +3683,10 @@ class DatabaseService {
     values.push(new Date().toISOString());
     values.push(id);
 
-    await this.db.runAsync(`UPDATE visites_veterinaires SET ${fields.join(', ')} WHERE id = ?`, values);
+    await this.db.runAsync(
+      `UPDATE visites_veterinaires SET ${fields.join(', ')} WHERE id = ?`,
+      values
+    );
   }
 
   /**
@@ -3662,11 +4038,13 @@ class DatabaseService {
   /**
    * Obtenir le taux de mortalité par cause
    */
-  async getTauxMortaliteParCause(projetId: string): Promise<Array<{
-    cause: string;
-    nombre: number;
-    pourcentage: number;
-  }>> {
+  async getTauxMortaliteParCause(projetId: string): Promise<
+    Array<{
+      cause: string;
+      nombre: number;
+      pourcentage: number;
+    }>
+  > {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3691,12 +4069,14 @@ class DatabaseService {
   /**
    * Obtenir des recommandations sanitaires basées sur l'historique
    */
-  async getRecommandationsSanitaires(projetId: string): Promise<Array<{
-    type: 'vaccination' | 'traitement' | 'visite' | 'alerte';
-    priorite: 'haute' | 'moyenne' | 'basse';
-    message: string;
-    data?: any;
-  }>> {
+  async getRecommandationsSanitaires(projetId: string): Promise<
+    Array<{
+      type: 'vaccination' | 'traitement' | 'visite' | 'alerte';
+      priorite: 'haute' | 'moyenne' | 'basse';
+      message: string;
+      data?: any;
+    }>
+  > {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3772,13 +4152,15 @@ class DatabaseService {
   /**
    * Obtenir les alertes sanitaires urgentes
    */
-  async getAlertesSanitaires(projetId: string): Promise<Array<{
-    type: 'rappel_retard' | 'maladie_critique' | 'epidemie' | 'mortalite_elevee';
-    gravite: 'critique' | 'elevee' | 'moyenne';
-    message: string;
-    date: string;
-    data?: any;
-  }>> {
+  async getAlertesSanitaires(projetId: string): Promise<
+    Array<{
+      type: 'rappel_retard' | 'maladie_critique' | 'epidemie' | 'mortalite_elevee';
+      gravite: 'critique' | 'elevee' | 'moyenne';
+      message: string;
+      date: string;
+      data?: any;
+    }>
+  > {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3903,12 +4285,14 @@ class DatabaseService {
   /**
    * Obtenir les animaux avec temps d'attente actif (avant abattage)
    */
-  async getAnimauxTempsAttente(projetId: string): Promise<Array<{
-    animal_id: string;
-    traitement: Traitement;
-    date_fin_attente: string;
-    jours_restants: number;
-  }>> {
+  async getAnimauxTempsAttente(projetId: string): Promise<
+    Array<{
+      animal_id: string;
+      traitement: Traitement;
+      date_fin_attente: string;
+      jours_restants: number;
+    }>
+  > {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3938,7 +4322,9 @@ class DatabaseService {
 
       // Vérifier si le temps d'attente est toujours actif
       if (dateFinAttente > now) {
-        const joursRestants = Math.ceil((dateFinAttente.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+        const joursRestants = Math.ceil(
+          (dateFinAttente.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)
+        );
 
         animauxAvecAttente.push({
           animal_id: row.animal_id,
@@ -4141,7 +4527,7 @@ class DatabaseService {
     const id = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const now = new Date().toISOString();
     const provider = input.provider || (input.telephone ? 'telephone' : 'email');
-    
+
     // Normaliser l'email (trim + lowercase) si fourni
     const normalizedEmail = input.email ? input.email.trim().toLowerCase() : null;
     const normalizedTelephone = input.telephone ? input.telephone.trim().replace(/\s+/g, '') : null;
@@ -4178,7 +4564,11 @@ class DatabaseService {
 
     console.log('✅ Utilisateur créé avec succès:', id);
     const createdUser = await this.getUserById(id);
-    console.log('📋 Utilisateur récupéré:', { id: createdUser.id, email: createdUser.email, telephone: createdUser.telephone });
+    console.log('📋 Utilisateur récupéré:', {
+      id: createdUser.id,
+      email: createdUser.email,
+      telephone: createdUser.telephone,
+    });
     return createdUser;
   }
 
@@ -4192,7 +4582,7 @@ class DatabaseService {
 
     const normalizedEmail = email.toLowerCase().trim();
     console.log('🔍 Recherche par email normalisé:', normalizedEmail);
-    
+
     const row = await this.db.getFirstAsync<any>(
       'SELECT * FROM users WHERE email = ? AND is_active = 1',
       [normalizedEmail]
@@ -4201,8 +4591,13 @@ class DatabaseService {
     if (!row) {
       console.log('❌ Aucun utilisateur trouvé avec email:', normalizedEmail);
       // Vérifier tous les emails dans la base (pour débogage)
-      const allEmails = await this.db.getAllAsync<any>('SELECT email FROM users WHERE email IS NOT NULL');
-      console.log('📋 Emails dans la base:', allEmails.map(e => e.email));
+      const allEmails = await this.db.getAllAsync<any>(
+        'SELECT email FROM users WHERE email IS NOT NULL'
+      );
+      console.log(
+        '📋 Emails dans la base:',
+        allEmails.map((e) => e.email)
+      );
       return null;
     }
 
@@ -4240,10 +4635,10 @@ class DatabaseService {
 
     // Normaliser l'identifiant (trim + lowercase pour email)
     const normalized = identifier.trim();
-    
+
     // Vérifier si c'est un email (contient @) ou un téléphone
     const isEmail = normalized.includes('@');
-    
+
     if (isEmail) {
       // Pour les emails, utiliser toLowerCase pour la recherche
       return this.getUserByEmail(normalized.toLowerCase());
@@ -4256,10 +4651,15 @@ class DatabaseService {
 
   /**
    * Récupérer un utilisateur par ID
+   * Retourne null si l'utilisateur n'existe pas au lieu de lancer une erreur
    */
-  async getUserById(id: string): Promise<User> {
+  async getUserById(id: string): Promise<User | null> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
+    }
+
+    if (!id) {
+      return null;
     }
 
     const row = await this.db.getFirstAsync<any>(
@@ -4268,10 +4668,87 @@ class DatabaseService {
     );
 
     if (!row) {
-      throw new Error('Utilisateur non trouvé');
+      return null;
     }
 
     return this.mapRowToUser(row);
+  }
+
+  /**
+   * Mettre à jour un utilisateur
+   */
+  async updateUser(
+    id: string,
+    updates: {
+      nom?: string;
+      prenom?: string;
+      email?: string;
+      telephone?: string;
+      photo?: string;
+    }
+  ): Promise<User> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (updates.nom !== undefined) {
+      fields.push('nom = ?');
+      values.push(updates.nom);
+    }
+    if (updates.prenom !== undefined) {
+      fields.push('prenom = ?');
+      values.push(updates.prenom);
+    }
+    if (updates.email !== undefined) {
+      fields.push('email = ?');
+      values.push(updates.email);
+    }
+    if (updates.telephone !== undefined) {
+      fields.push('telephone = ?');
+      values.push(updates.telephone);
+    }
+    if (updates.photo !== undefined) {
+      fields.push('photo = ?');
+      values.push(updates.photo);
+    }
+    /* DÉSACTIVÉ - profil_type
+    if (updates.profil_type !== undefined) {
+      fields.push('profil_type = ?');
+      values.push(updates.profil_type);
+    }
+    if (updates.localite_exercice !== undefined) {
+      fields.push('localite_exercice = ?');
+      values.push(updates.localite_exercice);
+    }
+    if (updates.photo_piece_identite !== undefined) {
+      fields.push('photo_piece_identite = ?');
+      values.push(updates.photo_piece_identite);
+    }
+    if (updates.photo_diplome_veterinaire !== undefined) {
+      fields.push('photo_diplome_veterinaire = ?');
+      values.push(updates.photo_diplome_veterinaire);
+    }
+    */ // FIN DÉSACTIVATION profil_type
+
+    if (fields.length === 0) {
+      throw new Error('Aucun champ à mettre à jour');
+    }
+
+    values.push(id);
+
+    await this.db.runAsync(
+      `UPDATE users SET ${fields.join(', ')} WHERE id = ?`,
+      values
+    );
+
+    const updatedUser = await this.getUserById(id);
+    if (!updatedUser) {
+      throw new Error('Utilisateur non trouvé après mise à jour');
+    }
+    return updatedUser;
   }
 
   /**
@@ -4284,22 +4761,27 @@ class DatabaseService {
 
     console.log('🔍 Recherche utilisateur avec identifiant:', identifier);
     const user = await this.getUserByIdentifier(identifier);
-    
+
     if (!user) {
       console.log('❌ Aucun utilisateur trouvé avec:', identifier);
       // Vérifier si l'utilisateur existe dans la base (pour débogage)
-      const allUsers = await this.db.getAllAsync<any>('SELECT id, email, telephone FROM users WHERE is_active = 1');
-      console.log('📋 Utilisateurs actifs dans la base:', allUsers.map(u => ({ id: u.id, email: u.email, telephone: u.telephone })));
+      const allUsers = await this.db.getAllAsync<any>(
+        'SELECT id, email, telephone FROM users WHERE is_active = 1'
+      );
+      console.log(
+        '📋 Utilisateurs actifs dans la base:',
+        allUsers.map((u) => ({ id: u.id, email: u.email, telephone: u.telephone }))
+      );
       return null;
     }
 
     console.log('✅ Utilisateur trouvé:', user.id, user.email || user.telephone);
 
     // Mettre à jour la dernière connexion
-    await this.db.runAsync(
-      'UPDATE users SET derniere_connexion = ? WHERE id = ?',
-      [new Date().toISOString(), user.id]
-    );
+    await this.db.runAsync('UPDATE users SET derniere_connexion = ? WHERE id = ?', [
+      new Date().toISOString(),
+      user.id,
+    ]);
 
     return this.getUserById(user.id);
   }
@@ -4327,7 +4809,9 @@ class DatabaseService {
    * ============================================
    */
 
-  async createProjet(projet: Omit<Projet, 'id' | 'date_creation' | 'derniere_modification'>): Promise<Projet> {
+  async createProjet(
+    projet: Omit<Projet, 'id' | 'date_creation' | 'derniere_modification'>
+  ): Promise<Projet> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -4364,7 +4848,11 @@ class DatabaseService {
     const projetCree = await this.getProjetById(id);
 
     // Créer automatiquement les animaux dans le cheptel
-    if (projetCree.nombre_truies > 0 || projetCree.nombre_verrats > 0 || projetCree.nombre_porcelets > 0) {
+    if (
+      projetCree.nombre_truies > 0 ||
+      projetCree.nombre_verrats > 0 ||
+      projetCree.nombre_porcelets > 0
+    ) {
       await this.createAnimauxInitials(projetCree.id, {
         nombre_truies: projetCree.nombre_truies,
         nombre_verrats: projetCree.nombre_verrats,
@@ -4389,23 +4877,23 @@ class DatabaseService {
     // Récupérer les codes existants pour éviter les doublons
     const animauxExistants = await this.getProductionAnimaux(projetId, true);
     const codesExistants = new Set(animauxExistants.map((a) => a.code.toUpperCase()));
-    
+
     // Récupérer les noms déjà utilisés pour générer des noms uniques
     const nomsDejaUtilises = animauxExistants
-      .map(a => a.nom)
+      .map((a) => a.nom)
       .filter((nom): nom is string => nom !== undefined && nom !== null && nom !== '');
 
     // Fonction helper pour générer un code unique
     const generateUniqueCode = (prefix: string, count: number): string => {
       let num = count;
       let code = `${prefix}${String(num).padStart(3, '0')}`;
-      
+
       // Si le code existe déjà, incrémenter jusqu'à trouver un code libre
       while (codesExistants.has(code.toUpperCase())) {
         num++;
         code = `${prefix}${String(num).padStart(3, '0')}`;
       }
-      
+
       codesExistants.add(code.toUpperCase());
       return code;
     };
@@ -4429,17 +4917,36 @@ class DatabaseService {
       }
     });
 
-    // Générer des noms uniques pour tous les animaux à créer
-    const totalAnimaux = effectifs.nombre_truies + effectifs.nombre_verrats + effectifs.nombre_porcelets;
-    const nomsAleatoires = genererPlusieursNomsAleatoires(totalAnimaux, nomsDejaUtilises, 'tous');
-    let nomIndex = 0;
+    // Générer des noms uniques séparément par genre pour éviter les noms féminins aux verrats
+    const nomsFeminins = genererPlusieursNomsAleatoires(
+      effectifs.nombre_truies,
+      nomsDejaUtilises,
+      'tous',
+      'femelle'
+    );
+    const nomsMasculins = genererPlusieursNomsAleatoires(
+      effectifs.nombre_verrats,
+      [...nomsDejaUtilises, ...nomsFeminins], // Éviter les doublons avec les truies
+      'tous',
+      'male'
+    );
+    const nomsPorcelets = genererPlusieursNomsAleatoires(
+      effectifs.nombre_porcelets,
+      [...nomsDejaUtilises, ...nomsFeminins, ...nomsMasculins], // Éviter les doublons
+      'tous',
+      'indetermine'
+    );
+
+    let nomFemininIndex = 0;
+    let nomMasculinIndex = 0;
+    let nomPorceletIndex = 0;
 
     // Créer les truies
     for (let i = 0; i < effectifs.nombre_truies; i++) {
       truieCount++;
       const code = generateUniqueCode('T', truieCount);
-      const nom = nomsAleatoires[nomIndex++];
-      
+      const nom = nomsFeminins[nomFemininIndex++];
+
       await this.createProductionAnimal({
         projet_id: projetId,
         code,
@@ -4452,9 +4959,9 @@ class DatabaseService {
         date_entree: undefined,
         race: undefined,
         origine: undefined,
-        notes: 'Créé lors de l\'initialisation du projet',
-        pere_id: null,  // Inconnu par défaut, modifiable par l'utilisateur
-        mere_id: null,  // Inconnu par défaut, modifiable par l'utilisateur
+        notes: "Créé lors de l'initialisation du projet",
+        pere_id: null, // Inconnu par défaut, modifiable par l'utilisateur
+        mere_id: null, // Inconnu par défaut, modifiable par l'utilisateur
       });
     }
 
@@ -4462,8 +4969,8 @@ class DatabaseService {
     for (let i = 0; i < effectifs.nombre_verrats; i++) {
       verratCount++;
       const code = generateUniqueCode('V', verratCount);
-      const nom = nomsAleatoires[nomIndex++];
-      
+      const nom = nomsMasculins[nomMasculinIndex++];
+
       await this.createProductionAnimal({
         projet_id: projetId,
         code,
@@ -4476,9 +4983,9 @@ class DatabaseService {
         date_entree: undefined,
         race: undefined,
         origine: undefined,
-        notes: 'Créé lors de l\'initialisation du projet',
-        pere_id: null,  // Inconnu par défaut, modifiable par l'utilisateur
-        mere_id: null,  // Inconnu par défaut, modifiable par l'utilisateur
+        notes: "Créé lors de l'initialisation du projet",
+        pere_id: null, // Inconnu par défaut, modifiable par l'utilisateur
+        mere_id: null, // Inconnu par défaut, modifiable par l'utilisateur
       });
     }
 
@@ -4486,8 +4993,8 @@ class DatabaseService {
     for (let i = 0; i < effectifs.nombre_porcelets; i++) {
       porceletCount++;
       const code = generateUniqueCode('P', porceletCount);
-      const nom = nomsAleatoires[nomIndex++];
-      
+      const nom = nomsPorcelets[nomPorceletIndex++];
+
       await this.createProductionAnimal({
         projet_id: projetId,
         code,
@@ -4500,9 +5007,9 @@ class DatabaseService {
         date_entree: undefined,
         race: undefined,
         origine: undefined,
-        notes: 'Créé lors de l\'initialisation du projet',
-        pere_id: null,  // Inconnu par défaut, modifiable par l'utilisateur
-        mere_id: null,  // Inconnu par défaut, modifiable par l'utilisateur
+        notes: "Créé lors de l'initialisation du projet",
+        pere_id: null, // Inconnu par défaut, modifiable par l'utilisateur
+        mere_id: null, // Inconnu par défaut, modifiable par l'utilisateur
       });
     }
   }
@@ -4512,10 +5019,7 @@ class DatabaseService {
       throw new Error('Base de données non initialisée');
     }
 
-    const result = await this.db.getFirstAsync<Projet>(
-      'SELECT * FROM projets WHERE id = ?',
-      [id]
-    );
+    const result = await this.db.getFirstAsync<Projet>('SELECT * FROM projets WHERE id = ?', [id]);
 
     if (!result) {
       throw new Error(`Projet avec l'id ${id} non trouvé`);
@@ -4607,10 +5111,7 @@ class DatabaseService {
     values.push(derniere_modification);
     values.push(id);
 
-    await this.db.runAsync(
-      `UPDATE projets SET ${fields.join(', ')} WHERE id = ?`,
-      values
-    );
+    await this.db.runAsync(`UPDATE projets SET ${fields.join(', ')} WHERE id = ?`, values);
 
     return this.getProjetById(id);
   }
@@ -4621,7 +5122,9 @@ class DatabaseService {
    * ============================================
    */
 
-  async createChargeFixe(charge: Omit<ChargeFixe, 'id' | 'date_creation' | 'derniere_modification'>): Promise<ChargeFixe> {
+  async createChargeFixe(
+    charge: Omit<ChargeFixe, 'id' | 'date_creation' | 'derniere_modification'>
+  ): Promise<ChargeFixe> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -4716,10 +5219,7 @@ class DatabaseService {
     values.push(derniere_modification);
     values.push(id);
 
-    await this.db.runAsync(
-      `UPDATE charges_fixes SET ${fields.join(', ')} WHERE id = ?`,
-      values
-    );
+    await this.db.runAsync(`UPDATE charges_fixes SET ${fields.join(', ')} WHERE id = ?`, values);
 
     return this.getChargeFixeById(id);
   }
@@ -4738,7 +5238,9 @@ class DatabaseService {
    * ============================================
    */
 
-  async createDepensePonctuelle(depense: Omit<DepensePonctuelle, 'id' | 'date_creation'>): Promise<DepensePonctuelle> {
+  async createDepensePonctuelle(
+    depense: Omit<DepensePonctuelle, 'id' | 'date_creation'>
+  ): Promise<DepensePonctuelle> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -4804,7 +5306,10 @@ class DatabaseService {
     }));
   }
 
-  async getDepensesPonctuellesByDateRange(dateDebut: string, dateFin: string): Promise<DepensePonctuelle[]> {
+  async getDepensesPonctuellesByDateRange(
+    dateDebut: string,
+    dateFin: string
+  ): Promise<DepensePonctuelle[]> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -4820,7 +5325,10 @@ class DatabaseService {
     }));
   }
 
-  async updateDepensePonctuelle(id: string, updates: UpdateDepensePonctuelleInput): Promise<DepensePonctuelle> {
+  async updateDepensePonctuelle(
+    id: string,
+    updates: UpdateDepensePonctuelleInput
+  ): Promise<DepensePonctuelle> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -4900,10 +5408,7 @@ class DatabaseService {
       throw new Error('Base de données non initialisée');
     }
 
-    const result = await this.db.getFirstAsync<any>(
-      'SELECT * FROM revenus WHERE id = ?',
-      [id]
-    );
+    const result = await this.db.getFirstAsync<any>('SELECT * FROM revenus WHERE id = ?', [id]);
 
     if (!result) {
       throw new Error(`Revenu avec l'id ${id} non trouvé`);
@@ -4931,7 +5436,11 @@ class DatabaseService {
     }));
   }
 
-  async getRevenusByDateRange(dateDebut: string, dateFin: string, projetId: string): Promise<Revenu[]> {
+  async getRevenusByDateRange(
+    dateDebut: string,
+    dateFin: string,
+    projetId: string
+  ): Promise<Revenu[]> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -4993,7 +5502,12 @@ class DatabaseService {
    * ============================================
    */
 
-  async createGestation(gestation: Omit<Gestation, 'id' | 'date_creation' | 'derniere_modification' | 'date_mise_bas_prevue'>): Promise<Gestation> {
+  async createGestation(
+    gestation: Omit<
+      Gestation,
+      'id' | 'date_creation' | 'derniere_modification' | 'date_mise_bas_prevue'
+    >
+  ): Promise<Gestation> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5033,10 +5547,9 @@ class DatabaseService {
       throw new Error('Base de données non initialisée');
     }
 
-    const result = await this.db.getFirstAsync<Gestation>(
-      'SELECT * FROM gestations WHERE id = ?',
-      [id]
-    );
+    const result = await this.db.getFirstAsync<Gestation>('SELECT * FROM gestations WHERE id = ?', [
+      id,
+    ]);
 
     if (!result) {
       throw new Error(`Gestation avec l'id ${id} non trouvée`);
@@ -5102,13 +5615,14 @@ class DatabaseService {
     values.push(derniere_modification);
     values.push(id);
 
-    await this.db.runAsync(
-      `UPDATE gestations SET ${fields.join(', ')} WHERE id = ?`,
-      values
-    );
+    await this.db.runAsync(`UPDATE gestations SET ${fields.join(', ')} WHERE id = ?`, values);
 
     // ✅ AUTOMATISATION : Créer les porcelets automatiquement si la gestation est terminée
-    if (updates.statut === 'terminee' && updates.nombre_porcelets_reel && updates.nombre_porcelets_reel > 0) {
+    if (
+      updates.statut === 'terminee' &&
+      updates.nombre_porcelets_reel &&
+      updates.nombre_porcelets_reel > 0
+    ) {
       const gestation = await this.getGestationById(id);
       await this.creerPorceletsDepuisGestation(gestation);
     }
@@ -5134,7 +5648,11 @@ class DatabaseService {
     }
 
     // Vérifier que la gestation est bien terminée
-    if (gestation.statut !== 'terminee' || !gestation.nombre_porcelets_reel || gestation.nombre_porcelets_reel <= 0) {
+    if (
+      gestation.statut !== 'terminee' ||
+      !gestation.nombre_porcelets_reel ||
+      gestation.nombre_porcelets_reel <= 0
+    ) {
       return;
     }
 
@@ -5157,15 +5675,15 @@ class DatabaseService {
 
     // Récupérer tous les animaux du projet pour générer des codes uniques
     const animauxExistants = await this.getProductionAnimaux(gestation.projet_id, true);
-    
+
     // ✅ CORRECTION : Trouver les vrais IDs des parents dans production_animaux
     // truie_id et verrat_id dans gestations peuvent être des codes ou des IDs
     let mereIdReel: string | null = null;
     let pereIdReel: string | null = null;
 
     // Chercher la truie par ID ou par code
-    const truieTrouvee = animauxExistants.find(a => 
-      a.id === gestation.truie_id || a.code === gestation.truie_id
+    const truieTrouvee = animauxExistants.find(
+      (a) => a.id === gestation.truie_id || a.code === gestation.truie_id
     );
     if (truieTrouvee) {
       mereIdReel = truieTrouvee.id;
@@ -5173,34 +5691,39 @@ class DatabaseService {
 
     // Chercher le verrat par ID ou par code (si renseigné)
     if (gestation.verrat_id) {
-      const verratTrouve = animauxExistants.find(a => 
-        a.id === gestation.verrat_id || a.code === gestation.verrat_id
+      const verratTrouve = animauxExistants.find(
+        (a) => a.id === gestation.verrat_id || a.code === gestation.verrat_id
       );
       if (verratTrouve) {
         pereIdReel = verratTrouve.id;
       }
     }
-    
+
     // Trouver le prochain numéro de porcelet disponible
     const codesPorcelets = animauxExistants
-      .map(a => a.code)
-      .filter(code => code.startsWith('P'))
-      .map(code => {
+      .map((a) => a.code)
+      .filter((code) => code.startsWith('P'))
+      .map((code) => {
         const match = code.match(/P(\d+)/);
         return match ? parseInt(match[1], 10) : 0;
       })
-      .filter(num => !isNaN(num));
-    
+      .filter((num) => !isNaN(num));
+
     const maxNumero = codesPorcelets.length > 0 ? Math.max(...codesPorcelets) : 0;
     let prochainNumero = maxNumero + 1;
 
     // Générer des noms uniques et aléatoires pour les porcelets
     const nomsDejaUtilises = animauxExistants
-      .map(a => a.nom)
+      .map((a) => a.nom)
       .filter((nom): nom is string => nom !== undefined && nom !== null && nom !== '');
-    
+
     const nombrePorcelets = gestation.nombre_porcelets_reel;
-    const nomsAleatoires = genererPlusieursNomsAleatoires(nombrePorcelets, nomsDejaUtilises, 'tous');
+    const nomsAleatoires = genererPlusieursNomsAleatoires(
+      nombrePorcelets,
+      nomsDejaUtilises,
+      'tous',
+      'indetermine' // Les porcelets ont un sexe indéterminé à la naissance
+    );
 
     // Créer les porcelets
     const porceletsCreees: ProductionAnimal[] = [];
@@ -5208,7 +5731,7 @@ class DatabaseService {
     for (let i = 0; i < nombrePorcelets; i++) {
       const codePorcelet = `P${String(prochainNumero).padStart(3, '0')}`;
       const nomPorcelet = nomsAleatoires[i];
-      
+
       try {
         const porcelet = await this.createProductionAnimal({
           projet_id: gestation.projet_id,
@@ -5222,11 +5745,11 @@ class DatabaseService {
           statut: 'actif',
           race: undefined,
           reproducteur: false,
-          pere_id: pereIdReel,  // ✅ Utiliser le vrai ID trouvé
-          mere_id: mereIdReel,  // ✅ Utiliser le vrai ID trouvé
+          pere_id: pereIdReel, // ✅ Utiliser le vrai ID trouvé
+          mere_id: mereIdReel, // ✅ Utiliser le vrai ID trouvé
           notes: `Né de la gestation ${gestation.truie_nom || gestation.truie_id}${gestation.verrat_nom ? ` x ${gestation.verrat_nom}` : ''}`,
         });
-        
+
         porceletsCreees.push(porcelet);
         prochainNumero++;
       } catch (error) {
@@ -5235,7 +5758,9 @@ class DatabaseService {
       }
     }
 
-    console.log(`✅ ${porceletsCreees.length} porcelet(s) créé(s) automatiquement pour la gestation ${gestation.id}`);
+    console.log(
+      `✅ ${porceletsCreees.length} porcelet(s) créé(s) automatiquement pour la gestation ${gestation.id}`
+    );
   }
 
   /**
@@ -5252,7 +5777,7 @@ class DatabaseService {
     // Récupérer le projet_id depuis la gestation
     const gestation = await this.getGestationById(sevrage.gestation_id);
     if (!gestation.projet_id) {
-      throw new Error('La gestation n\'a pas de projet_id associé');
+      throw new Error("La gestation n'a pas de projet_id associé");
     }
 
     const id = `sevrage_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -5283,10 +5808,9 @@ class DatabaseService {
       throw new Error('Base de données non initialisée');
     }
 
-    const result = await this.db.getFirstAsync<Sevrage>(
-      'SELECT * FROM sevrages WHERE id = ?',
-      [id]
-    );
+    const result = await this.db.getFirstAsync<Sevrage>('SELECT * FROM sevrages WHERE id = ?', [
+      id,
+    ]);
 
     if (!result) {
       throw new Error(`Sevrage avec l'id ${id} non trouvé`);
@@ -5342,7 +5866,9 @@ class DatabaseService {
    * ============================================
    */
 
-  async createIngredient(ingredient: Omit<Ingredient, 'id' | 'date_creation'>): Promise<Ingredient> {
+  async createIngredient(
+    ingredient: Omit<Ingredient, 'id' | 'date_creation'>
+  ): Promise<Ingredient> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5391,9 +5917,7 @@ class DatabaseService {
     }
 
     // Les ingrédients sont partagés entre tous les projets (pas de projet_id dans la table)
-    return await this.db.getAllAsync<Ingredient>(
-      'SELECT * FROM ingredients ORDER BY nom ASC'
-    );
+    return await this.db.getAllAsync<Ingredient>('SELECT * FROM ingredients ORDER BY nom ASC');
   }
 
   async updateIngredient(id: string, updates: Partial<Ingredient>): Promise<Ingredient> {
@@ -5417,10 +5941,7 @@ class DatabaseService {
 
     values.push(id);
 
-    await this.db.runAsync(
-      `UPDATE ingredients SET ${fields.join(', ')} WHERE id = ?`,
-      values
-    );
+    await this.db.runAsync(`UPDATE ingredients SET ${fields.join(', ')} WHERE id = ?`, values);
 
     return this.getIngredientById(id);
   }
@@ -5439,7 +5960,9 @@ class DatabaseService {
    * ============================================
    */
 
-  async createRationBudget(input: import('../types/nutrition').CreateRationBudgetInput): Promise<import('../types/nutrition').RationBudget> {
+  async createRationBudget(
+    input: import('../types/nutrition').CreateRationBudgetInput
+  ): Promise<import('../types/nutrition').RationBudget> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5487,10 +6010,9 @@ class DatabaseService {
       throw new Error('Base de données non initialisée');
     }
 
-    const result = await this.db.getFirstAsync<any>(
-      'SELECT * FROM rations_budget WHERE id = ?',
-      [id]
-    );
+    const result = await this.db.getFirstAsync<any>('SELECT * FROM rations_budget WHERE id = ?', [
+      id,
+    ]);
 
     if (!result) {
       return null;
@@ -5502,7 +6024,9 @@ class DatabaseService {
     };
   }
 
-  async getRationsBudgetByProjet(projetId: string): Promise<import('../types/nutrition').RationBudget[]> {
+  async getRationsBudgetByProjet(
+    projetId: string
+  ): Promise<import('../types/nutrition').RationBudget[]> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5512,7 +6036,7 @@ class DatabaseService {
       [projetId]
     );
 
-    return results.map(row => ({
+    return results.map((row) => ({
       ...row,
       ingredients: JSON.parse(row.ingredients || '[]'),
     }));
@@ -5587,17 +6111,18 @@ class DatabaseService {
     const id = `stock_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const date_creation = new Date().toISOString();
     const quantite_initiale = input.quantite_initiale ?? 0;
-    const alerte_active = input.seuil_alerte !== undefined && input.seuil_alerte !== null
-      ? quantite_initiale <= input.seuil_alerte
-      : false;
+    const alerte_active =
+      input.seuil_alerte !== undefined && input.seuil_alerte !== null
+        ? quantite_initiale <= input.seuil_alerte
+        : false;
 
     await this.db.runAsync(
       `INSERT INTO stocks_aliments (
         id, projet_id, nom, categorie, quantite_actuelle, unite,
         seuil_alerte, date_derniere_entree, date_derniere_sortie,
         alerte_active, notes, date_creation, derniere_modification
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ,[
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
         id,
         input.projet_id,
         input.nom,
@@ -5622,10 +6147,9 @@ class DatabaseService {
       throw new Error('Base de données non initialisée');
     }
 
-    const result = await this.db.getFirstAsync<any>(
-      'SELECT * FROM stocks_aliments WHERE id = ?',
-      [id]
-    );
+    const result = await this.db.getFirstAsync<any>('SELECT * FROM stocks_aliments WHERE id = ?', [
+      id,
+    ]);
 
     if (!result) {
       throw new Error(`Aliment avec l'id ${id} non trouvé`);
@@ -5667,7 +6191,10 @@ class DatabaseService {
 
     const current = await this.getStockAlimentById(id);
     const nouvelleQuantite = current.quantite_actuelle;
-    const nouveauSeuil = updates.seuil_alerte !== undefined ? updates.seuil_alerte ?? null : current.seuil_alerte ?? null;
+    const nouveauSeuil =
+      updates.seuil_alerte !== undefined
+        ? (updates.seuil_alerte ?? null)
+        : (current.seuil_alerte ?? null);
     const alerte_active = nouveauSeuil !== null ? nouvelleQuantite <= nouveauSeuil : false;
     const derniere_modification = new Date().toISOString();
 
@@ -5702,10 +6229,7 @@ class DatabaseService {
     values.push(derniere_modification);
     values.push(id);
 
-    await this.db.runAsync(
-      `UPDATE stocks_aliments SET ${fields.join(', ')} WHERE id = ?`,
-      values
-    );
+    await this.db.runAsync(`UPDATE stocks_aliments SET ${fields.join(', ')} WHERE id = ?`, values);
 
     return this.getStockAlimentById(id);
   }
@@ -5719,24 +6243,30 @@ class DatabaseService {
     await this.db.runAsync('DELETE FROM stocks_aliments WHERE id = ?', [id]);
   }
 
-  async createStockMouvement(input: CreateStockMouvementInput): Promise<{ mouvement: StockMouvement; stock: StockAliment }> {
+  async createStockMouvement(
+    input: CreateStockMouvementInput
+  ): Promise<{ mouvement: StockMouvement; stock: StockAliment }> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
 
     const stock = await this.getStockAlimentById(input.aliment_id);
-    
+
     // S'assurer que les valeurs sont des nombres
-    const quantiteActuelle = typeof stock.quantite_actuelle === 'number' ? stock.quantite_actuelle : parseFloat(String(stock.quantite_actuelle)) || 0;
-    const quantiteMouvement = typeof input.quantite === 'number' ? input.quantite : parseFloat(String(input.quantite)) || 0;
-    
+    const quantiteActuelle =
+      typeof stock.quantite_actuelle === 'number'
+        ? stock.quantite_actuelle
+        : parseFloat(String(stock.quantite_actuelle)) || 0;
+    const quantiteMouvement =
+      typeof input.quantite === 'number' ? input.quantite : parseFloat(String(input.quantite)) || 0;
+
     console.log('[createStockMouvement] Avant calcul:', {
       type: input.type,
       quantiteActuelle,
       quantiteMouvement,
       aliment_id: input.aliment_id,
     });
-    
+
     let nouvelleQuantite = quantiteActuelle;
 
     switch (input.type) {
@@ -5754,17 +6284,17 @@ class DatabaseService {
     }
 
     nouvelleQuantite = Math.max(0, nouvelleQuantite);
-    
+
     // S'assurer que nouvelleQuantite est bien un nombre
-    const nouvelleQuantiteNum = typeof nouvelleQuantite === 'number' 
-      ? nouvelleQuantite 
-      : parseFloat(String(nouvelleQuantite)) || 0;
-    
+    const nouvelleQuantiteNum =
+      typeof nouvelleQuantite === 'number'
+        ? nouvelleQuantite
+        : parseFloat(String(nouvelleQuantite)) || 0;
+
     // S'assurer que input.quantite est bien un nombre pour l'insertion
-    const quantiteMouvementNum = typeof input.quantite === 'number'
-      ? input.quantite
-      : parseFloat(String(input.quantite)) || 0;
-    
+    const quantiteMouvementNum =
+      typeof input.quantite === 'number' ? input.quantite : parseFloat(String(input.quantite)) || 0;
+
     console.log('[createStockMouvement] Après calcul:', {
       nouvelleQuantite: nouvelleQuantiteNum,
       type: input.type,
@@ -5779,8 +6309,8 @@ class DatabaseService {
       `INSERT INTO stocks_mouvements (
         id, projet_id, aliment_id, type, quantite, unite, date,
         origine, commentaire, cree_par, date_creation
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ,[
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
         id,
         input.projet_id,
         input.aliment_id,
@@ -5795,12 +6325,15 @@ class DatabaseService {
       ]
     );
 
-    const alerte_active = stock.seuil_alerte !== undefined && stock.seuil_alerte !== null
-      ? nouvelleQuantiteNum <= stock.seuil_alerte
-      : false;
+    const alerte_active =
+      stock.seuil_alerte !== undefined && stock.seuil_alerte !== null
+        ? nouvelleQuantiteNum <= stock.seuil_alerte
+        : false;
 
-    const dateDerniereEntree = input.type === 'entree' ? input.date : stock.date_derniere_entree || null;
-    const dateDerniereSortie = input.type === 'sortie' ? input.date : stock.date_derniere_sortie || null;
+    const dateDerniereEntree =
+      input.type === 'entree' ? input.date : stock.date_derniere_entree || null;
+    const dateDerniereSortie =
+      input.type === 'sortie' ? input.date : stock.date_derniere_sortie || null;
 
     console.log('[createStockMouvement] Avant UPDATE:', {
       stock_id: stock.id,
@@ -5825,7 +6358,7 @@ class DatabaseService {
         stock.id,
       ]
     );
-    
+
     console.log('[createStockMouvement] UPDATE exécuté avec succès');
 
     // Vérifier que la mise à jour a bien été effectuée
@@ -5833,12 +6366,13 @@ class DatabaseService {
       'SELECT quantite_actuelle FROM stocks_aliments WHERE id = ?',
       [stock.id]
     );
-    
+
     // Convertir en nombre pour la comparaison
-    const quantiteEnDb = typeof verification?.quantite_actuelle === 'number'
-      ? verification.quantite_actuelle
-      : parseFloat(String(verification?.quantite_actuelle)) || 0;
-    
+    const quantiteEnDb =
+      typeof verification?.quantite_actuelle === 'number'
+        ? verification.quantite_actuelle
+        : parseFloat(String(verification?.quantite_actuelle)) || 0;
+
     console.log('[createStockMouvement] Vérification après UPDATE:', {
       quantite_actuelle_en_db: quantiteEnDb,
       nouvelleQuantite_calculee: nouvelleQuantite,
@@ -5849,7 +6383,7 @@ class DatabaseService {
 
     const mouvement = await this.getStockMouvementById(id);
     const updatedStock = await this.getStockAlimentById(stock.id);
-    
+
     console.log('[createStockMouvement] Stock retourné:', {
       id: updatedStock.id,
       quantite_actuelle: updatedStock.quantite_actuelle,
@@ -5924,8 +6458,8 @@ class DatabaseService {
         id, projet_id, code, nom, origine, sexe, date_naissance, poids_initial,
         date_entree, actif, statut, race, reproducteur, pere_id, mere_id, notes,
         photo_uri, date_creation, derniere_modification
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ,[
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
         id,
         input.projet_id,
         input.code,
@@ -5968,7 +6502,10 @@ class DatabaseService {
     return this.mapRowToProductionAnimal(result);
   }
 
-  async getProductionAnimaux(projetId: string, inclureInactifs: boolean = true): Promise<ProductionAnimal[]> {
+  async getProductionAnimaux(
+    projetId: string,
+    inclureInactifs: boolean = true
+  ): Promise<ProductionAnimal[]> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5981,7 +6518,10 @@ class DatabaseService {
     return results.map((row) => this.mapRowToProductionAnimal(row));
   }
 
-  async updateProductionAnimal(id: string, updates: UpdateProductionAnimalInput): Promise<ProductionAnimal> {
+  async updateProductionAnimal(
+    id: string,
+    updates: UpdateProductionAnimalInput
+  ): Promise<ProductionAnimal> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5990,7 +6530,8 @@ class DatabaseService {
     const values: any[] = [];
 
     Object.entries(updates).forEach(([key, value]) => {
-      if (value !== undefined && key !== 'actif') { // actif est géré via statut
+      if (value !== undefined && key !== 'actif') {
+        // actif est géré via statut
         if (key === 'statut') {
           fields.push('statut = ?');
           fields.push('actif = ?'); // Mettre à jour actif en fonction du statut
@@ -6068,8 +6609,8 @@ class DatabaseService {
       `INSERT INTO production_pesees (
         id, projet_id, animal_id, date, poids_kg, gmq, difference_standard,
         commentaire, cree_par, date_creation
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ,[
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
         id,
         input.projet_id,
         input.animal_id,
@@ -6113,14 +6654,15 @@ class DatabaseService {
 
     // Récupérer la pesée existante
     const peseeExistante = await this.getPeseeById(id);
-    
+
     // Fusionner les données
     const dataMerged = {
       projet_id: peseeExistante.projet_id,
       animal_id: peseeExistante.animal_id,
       date: updates.date ?? peseeExistante.date,
       poids_kg: updates.poids_kg ?? peseeExistante.poids_kg,
-      commentaire: updates.commentaire !== undefined ? updates.commentaire : peseeExistante.commentaire,
+      commentaire:
+        updates.commentaire !== undefined ? updates.commentaire : peseeExistante.commentaire,
       cree_par: peseeExistante.cree_par,
     };
 
@@ -6134,7 +6676,8 @@ class DatabaseService {
     let poidsReference = animal.poids_initial ?? null;
     let dateReference = animal.date_entree ?? null;
 
-    if (previous && previous.id !== id) { // Exclure la pesée qu'on est en train de modifier
+    if (previous && previous.id !== id) {
+      // Exclure la pesée qu'on est en train de modifier
       poidsReference = previous.poids_kg;
       dateReference = previous.date;
     }
@@ -6181,10 +6724,10 @@ class DatabaseService {
 
     // Récupérer la pesée avant de la supprimer pour savoir quel animal et quelle date
     const pesee = await this.getPeseeById(id);
-    
+
     // Supprimer la pesée
     await this.db.runAsync('DELETE FROM production_pesees WHERE id = ?', [id]);
-    
+
     // Recalculer les GMQ des pesées suivantes
     await this.recalculerGMQSuivants(pesee.animal_id, pesee.date);
   }
@@ -6349,10 +6892,7 @@ class DatabaseService {
       throw new Error('Base de données non initialisée');
     }
 
-    const ration = await this.db.getFirstAsync<any>(
-      'SELECT * FROM rations WHERE id = ?',
-      [id]
-    );
+    const ration = await this.db.getFirstAsync<any>('SELECT * FROM rations WHERE id = ?', [id]);
 
     if (!ration) {
       throw new Error(`Ration avec l'id ${id} non trouvée`);
@@ -6449,7 +6989,9 @@ class DatabaseService {
    * ============================================
    */
 
-  async createRapportCroissance(rapport: Omit<RapportCroissance, 'id' | 'date_creation'>): Promise<RapportCroissance> {
+  async createRapportCroissance(
+    rapport: Omit<RapportCroissance, 'id' | 'date_creation'>
+  ): Promise<RapportCroissance> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6516,7 +7058,10 @@ class DatabaseService {
     );
   }
 
-  async getRapportsCroissanceParDateRange(dateDebut: string, dateFin: string): Promise<RapportCroissance[]> {
+  async getRapportsCroissanceParDateRange(
+    dateDebut: string,
+    dateFin: string
+  ): Promise<RapportCroissance[]> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6557,7 +7102,7 @@ class DatabaseService {
     // Fonction helper pour déterminer si un animal correspond à la catégorie
     const animalCorrespondCategorie = (animal: ProductionAnimal, categorie: string): boolean => {
       if (categorie === 'autre') return true; // Catégorie "autre" accepte tous les animaux
-      
+
       const isReproducteur = animal.reproducteur === true;
       const isMale = animal.sexe === 'male';
       const isFemelle = animal.sexe === 'femelle';
@@ -6568,14 +7113,18 @@ class DatabaseService {
         case 'verrat':
           return isMale && isReproducteur;
         case 'porcelet':
-          return (isMale && !isReproducteur) || (isFemelle && !isReproducteur) || animal.sexe === 'indetermine';
+          return (
+            (isMale && !isReproducteur) ||
+            (isFemelle && !isReproducteur) ||
+            animal.sexe === 'indetermine'
+          );
         default:
           return true;
       }
     };
 
     // Filtrer les animaux actifs correspondant à la catégorie
-    const animauxCorrespondants = animauxActifs.filter((a) => 
+    const animauxCorrespondants = animauxActifs.filter((a) =>
       animalCorrespondCategorie(a, mortalite.categorie)
     );
 
@@ -6583,7 +7132,7 @@ class DatabaseService {
     if (mortalite.nombre_porcs > animauxCorrespondants.length) {
       throw new Error(
         `Impossible d'enregistrer ${mortalite.nombre_porcs} mortalité(s) de ${mortalite.categorie}(s). ` +
-        `Il n'y a que ${animauxCorrespondants.length} ${mortalite.categorie}(s) actif(s) disponible(s).`
+          `Il n'y a que ${animauxCorrespondants.length} ${mortalite.categorie}(s) actif(s) disponible(s).`
       );
     }
 
@@ -6613,7 +7162,7 @@ class DatabaseService {
           'SELECT * FROM production_animaux WHERE projet_id = ? AND code = ?',
           [mortalite.projet_id, mortalite.animal_code]
         );
-        
+
         if (animal && animal.statut?.toLowerCase() === 'actif') {
           // Changer le statut en "mort"
           await this.db.runAsync(
@@ -6622,13 +7171,15 @@ class DatabaseService {
           );
         }
       } catch (error) {
-        console.warn(`Animal avec le code ${mortalite.animal_code} non trouvé lors de la création de la mortalité`);
+        console.warn(
+          `Animal avec le code ${mortalite.animal_code} non trouvé lors de la création de la mortalité`
+        );
       }
     } else {
       // Cas 2 : Mortalité générique (sans code spécifique)
       // Mettre à jour automatiquement les N premiers animaux actifs correspondant à la catégorie
       const animauxAMarquer = animauxCorrespondants.slice(0, mortalite.nombre_porcs);
-      
+
       for (const animal of animauxAMarquer) {
         await this.db.runAsync(
           'UPDATE production_animaux SET statut = ?, actif = 0, derniere_modification = ? WHERE id = ?',
@@ -6645,10 +7196,9 @@ class DatabaseService {
       throw new Error('Base de données non initialisée');
     }
 
-    const result = await this.db.getFirstAsync<Mortalite>(
-      'SELECT * FROM mortalites WHERE id = ?',
-      [id]
-    );
+    const result = await this.db.getFirstAsync<Mortalite>('SELECT * FROM mortalites WHERE id = ?', [
+      id,
+    ]);
 
     if (!result) {
       throw new Error(`Mortalité avec l'id ${id} non trouvée`);
@@ -6722,10 +7272,7 @@ class DatabaseService {
 
     values.push(id);
 
-    await this.db.runAsync(
-      `UPDATE mortalites SET ${fields.join(', ')} WHERE id = ?`,
-      values
-    );
+    await this.db.runAsync(`UPDATE mortalites SET ${fields.join(', ')} WHERE id = ?`, values);
 
     return this.getMortaliteById(id);
   }
@@ -6761,11 +7308,11 @@ class DatabaseService {
 
     // Récupérer les animaux du projet pour calculer le taux basé sur les données réelles du cheptel
     const animauxProjet = await this.getProductionAnimaux(projetId, true);
-    
+
     // Calculer le nombre d'animaux morts : UNIQUEMENT depuis les animaux avec statut "mort" dans le cheptel
     // C'est la source de vérité car les animaux sont automatiquement mis à jour lors de l'enregistrement d'une mortalité
-    const nombrePorcsMorts = animauxProjet.filter((animal) => 
-      animal.statut?.toLowerCase() === 'mort'
+    const nombrePorcsMorts = animauxProjet.filter(
+      (animal) => animal.statut?.toLowerCase() === 'mort'
     ).length;
 
     // Calculer aussi le total des morts depuis la table mortalites (pour référence)
@@ -6780,15 +7327,22 @@ class DatabaseService {
     // Calculer le taux de mortalité
     // Taux = (nombre de morts / population totale) * 100
     // Population totale = tous les animaux du projet (actifs + morts + vendus + autres)
-    const taux_mortalite =
-      nombrePorcsTotal > 0 ? (nombrePorcsMorts / nombrePorcsTotal) * 100 : 0;
+    const taux_mortalite = nombrePorcsTotal > 0 ? (nombrePorcsMorts / nombrePorcsTotal) * 100 : 0;
 
     // Compter par catégorie
     const mortalites_par_categorie = {
-      porcelet: mortalites.filter((m) => m.categorie === 'porcelet').reduce((sum, m) => sum + m.nombre_porcs, 0),
-      truie: mortalites.filter((m) => m.categorie === 'truie').reduce((sum, m) => sum + m.nombre_porcs, 0),
-      verrat: mortalites.filter((m) => m.categorie === 'verrat').reduce((sum, m) => sum + m.nombre_porcs, 0),
-      autre: mortalites.filter((m) => m.categorie === 'autre').reduce((sum, m) => sum + m.nombre_porcs, 0),
+      porcelet: mortalites
+        .filter((m) => m.categorie === 'porcelet')
+        .reduce((sum, m) => sum + m.nombre_porcs, 0),
+      truie: mortalites
+        .filter((m) => m.categorie === 'truie')
+        .reduce((sum, m) => sum + m.nombre_porcs, 0),
+      verrat: mortalites
+        .filter((m) => m.categorie === 'verrat')
+        .reduce((sum, m) => sum + m.nombre_porcs, 0),
+      autre: mortalites
+        .filter((m) => m.categorie === 'autre')
+        .reduce((sum, m) => sum + m.nombre_porcs, 0),
     };
 
     // Grouper par mois
@@ -6818,7 +7372,9 @@ class DatabaseService {
    * ============================================
    */
 
-  async createPlanification(planification: Omit<Planification, 'id' | 'date_creation' | 'derniere_modification'>): Promise<Planification> {
+  async createPlanification(
+    planification: Omit<Planification, 'id' | 'date_creation' | 'derniere_modification'>
+  ): Promise<Planification> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6905,7 +7461,10 @@ class DatabaseService {
     );
   }
 
-  async getPlanificationsParDateRange(dateDebut: string, dateFin: string): Promise<Planification[]> {
+  async getPlanificationsParDateRange(
+    dateDebut: string,
+    dateFin: string
+  ): Promise<Planification[]> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6961,10 +7520,7 @@ class DatabaseService {
     values.push(derniere_modification);
     values.push(id);
 
-    await this.db.runAsync(
-      `UPDATE planifications SET ${fields.join(', ')} WHERE id = ?`,
-      values
-    );
+    await this.db.runAsync(`UPDATE planifications SET ${fields.join(', ')} WHERE id = ?`, values);
 
     return this.getPlanificationById(id);
   }
@@ -6983,7 +7539,9 @@ class DatabaseService {
    * ============================================
    */
 
-  async createCollaborateur(collaborateur: Omit<Collaborateur, 'id' | 'date_creation' | 'derniere_modification'>): Promise<Collaborateur> {
+  async createCollaborateur(
+    collaborateur: Omit<Collaborateur, 'id' | 'date_creation' | 'derniere_modification'>
+  ): Promise<Collaborateur> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7032,10 +7590,9 @@ class DatabaseService {
       throw new Error('Base de données non initialisée');
     }
 
-    const result = await this.db.getFirstAsync<any>(
-      'SELECT * FROM collaborations WHERE id = ?',
-      [id]
-    );
+    const result = await this.db.getFirstAsync<any>('SELECT * FROM collaborations WHERE id = ?', [
+      id,
+    ]);
 
     if (!result) {
       throw new Error(`Collaborateur avec l'id ${id} non trouvé`);
@@ -7137,13 +7694,16 @@ class DatabaseService {
    * Lier un collaborateur à un utilisateur par email
    * Cette fonction met à jour le user_id du collaborateur si l'email correspond
    */
-  async lierCollaborateurAUtilisateur(userId: string, email: string): Promise<Collaborateur | null> {
+  async lierCollaborateurAUtilisateur(
+    userId: string,
+    email: string
+  ): Promise<Collaborateur | null> {
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
 
     const emailNormalized = email.trim().toLowerCase();
-    
+
     // Trouver le collaborateur avec cet email qui n'a pas encore de user_id
     const collaborateur = await this.db.getFirstAsync<any>(
       'SELECT * FROM collaborations WHERE LOWER(TRIM(email)) = ? AND (user_id IS NULL OR user_id = ?) LIMIT 1',
@@ -7292,10 +7852,7 @@ class DatabaseService {
     values.push(derniere_modification);
     values.push(id);
 
-    await this.db.runAsync(
-      `UPDATE collaborations SET ${fields.join(', ')} WHERE id = ?`,
-      values
-    );
+    await this.db.runAsync(`UPDATE collaborations SET ${fields.join(', ')} WHERE id = ?`, values);
 
     return this.getCollaborateurById(id);
   }
@@ -7310,15 +7867,19 @@ class DatabaseService {
   // Helper pour mapper les lignes de la base de données vers l'objet Collaborateur
   private mapRowToStockAliment(row: any): StockAliment {
     // S'assurer que quantite_actuelle est toujours un nombre
-    const quantiteActuelle = typeof row.quantite_actuelle === 'number' 
-      ? row.quantite_actuelle 
-      : parseFloat(String(row.quantite_actuelle)) || 0;
-    
+    const quantiteActuelle =
+      typeof row.quantite_actuelle === 'number'
+        ? row.quantite_actuelle
+        : parseFloat(String(row.quantite_actuelle)) || 0;
+
     // S'assurer que seuil_alerte est un nombre ou undefined
-    const seuilAlerte = row.seuil_alerte !== null && row.seuil_alerte !== undefined
-      ? (typeof row.seuil_alerte === 'number' ? row.seuil_alerte : parseFloat(String(row.seuil_alerte)) || undefined)
-      : undefined;
-    
+    const seuilAlerte =
+      row.seuil_alerte !== null && row.seuil_alerte !== undefined
+        ? typeof row.seuil_alerte === 'number'
+          ? row.seuil_alerte
+          : parseFloat(String(row.seuil_alerte)) || undefined
+        : undefined;
+
     return {
       id: row.id,
       projet_id: row.projet_id,
@@ -7427,7 +7988,7 @@ class DatabaseService {
       const [year, month, day] = dateStr.split('-').map(Number);
       return new Date(year, month - 1, day);
     };
-    
+
     const startDate = parseDateOnly(start);
     const endDate = parseDateOnly(end);
     const diffMs = endDate.getTime() - startDate.getTime();
@@ -7458,7 +8019,10 @@ class DatabaseService {
         // Supprimer toutes les données liées au projet (en respectant l'ordre des dépendances)
         await this.db.runAsync('DELETE FROM stocks_mouvements WHERE projet_id = ?', [projetId]);
         await this.db.runAsync('DELETE FROM stocks_aliments WHERE projet_id = ?', [projetId]);
-        await this.db.runAsync('DELETE FROM ingredients_ration WHERE ration_id IN (SELECT id FROM rations WHERE projet_id = ?)', [projetId]);
+        await this.db.runAsync(
+          'DELETE FROM ingredients_ration WHERE ration_id IN (SELECT id FROM rations WHERE projet_id = ?)',
+          [projetId]
+        );
         await this.db.runAsync('DELETE FROM rations WHERE projet_id = ?', [projetId]);
         await this.db.runAsync('DELETE FROM production_pesees WHERE projet_id = ?', [projetId]);
         await this.db.runAsync('DELETE FROM production_animaux WHERE projet_id = ?', [projetId]);
@@ -7485,4 +8049,15 @@ class DatabaseService {
 // Instance singleton
 export const databaseService = new DatabaseService();
 
-
+/**
+ * Fonction helper pour obtenir la base de données
+ * Utilisée par les repositories
+ */
+export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
+  await databaseService.initialize();
+  const db = (databaseService as any).db;
+  if (!db) {
+    throw new Error('Base de données non initialisée');
+  }
+  return db;
+}

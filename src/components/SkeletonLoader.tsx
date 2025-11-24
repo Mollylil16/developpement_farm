@@ -94,7 +94,7 @@ interface SkeletonWidgetProps {
 
 export function SkeletonWidget({ showStats = true }: SkeletonWidgetProps) {
   const { colors } = useTheme();
-  
+
   return (
     <View style={[styles.widget, { backgroundColor: colors.surface }]}>
       <View style={styles.widgetHeader}>
@@ -168,4 +168,3 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xs,
   },
 });
-

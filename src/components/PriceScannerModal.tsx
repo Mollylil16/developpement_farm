@@ -4,7 +4,16 @@
  */
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, ActivityIndicator, Image } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  ScrollView,
+  ActivityIndicator,
+  Image,
+} from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { useTheme } from '../contexts/ThemeContext';
@@ -25,11 +34,7 @@ interface PriceScannerModalProps {
   onImport: (prices: ExtractedPrice[]) => void;
 }
 
-export default function PriceScannerModal({
-  visible,
-  onClose,
-  onImport,
-}: PriceScannerModalProps) {
+export default function PriceScannerModal({ visible, onClose, onImport }: PriceScannerModalProps) {
   const { colors } = useTheme();
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
@@ -42,11 +47,11 @@ export default function PriceScannerModal({
   const takePhoto = async () => {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      
+
       if (status !== 'granted') {
         Alert.alert(
           'Permission requise',
-          'L\'accès à la caméra est nécessaire pour scanner le tableau de prix.',
+          "L'accès à la caméra est nécessaire pour scanner le tableau de prix.",
           [{ text: 'OK' }]
         );
         return;
@@ -63,7 +68,7 @@ export default function PriceScannerModal({
       }
     } catch (error) {
       console.error('Erreur lors de la prise de photo:', error);
-      Alert.alert('Erreur', 'Impossible d\'accéder à la caméra');
+      Alert.alert('Erreur', "Impossible d'accéder à la caméra");
     }
   };
 
@@ -73,11 +78,11 @@ export default function PriceScannerModal({
   const pickImage = async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
+
       if (status !== 'granted') {
         Alert.alert(
           'Permission requise',
-          'L\'accès à la galerie est nécessaire pour sélectionner une photo.',
+          "L'accès à la galerie est nécessaire pour sélectionner une photo.",
           [{ text: 'OK' }]
         );
         return;
@@ -93,8 +98,8 @@ export default function PriceScannerModal({
         await processImage(result.assets[0].uri);
       }
     } catch (error) {
-      console.error('Erreur lors de la sélection d\'image:', error);
-      Alert.alert('Erreur', 'Impossible d\'accéder à la galerie');
+      console.error("Erreur lors de la sélection d'image:", error);
+      Alert.alert('Erreur', "Impossible d'accéder à la galerie");
     }
   };
 
@@ -107,18 +112,17 @@ export default function PriceScannerModal({
 
     try {
       // Optimiser l'image pour l'OCR
-      const manipulatedImage = await manipulateAsync(
-        uri,
-        [{ resize: { width: 1000 } }],
-        { compress: 0.8, format: SaveFormat.JPEG }
-      );
+      const manipulatedImage = await manipulateAsync(uri, [{ resize: { width: 1000 } }], {
+        compress: 0.8,
+        format: SaveFormat.JPEG,
+      });
 
       // Extraire le texte (simulation pour l'instant)
       // Dans une vraie implémentation, on utiliserait l'API Google Vision
       await extractTextFromImage(manipulatedImage.uri);
     } catch (error) {
       console.error('Erreur lors du traitement:', error);
-      Alert.alert('Erreur', 'Impossible de traiter l\'image');
+      Alert.alert('Erreur', "Impossible de traiter l'image");
       setScanning(false);
     }
   };
@@ -172,7 +176,7 @@ export default function PriceScannerModal({
     for (const line of lines) {
       // Regex pour détecter : Nom Ingredient ... Prix (FCFA ou CFA)
       const match = line.match(/^(.+?)\s+\.+\s+(\d[\d\s,]*)\s*(FCFA|CFA|F)?/i);
-      
+
       if (match) {
         const ingredient = match[1].trim();
         const prixStr = match[2].replace(/[\s,]/g, '');
@@ -181,7 +185,7 @@ export default function PriceScannerModal({
         if (!isNaN(prix) && prix > 0) {
           // Déterminer l'unité
           const unite = line.toLowerCase().includes('sac') || prix > 5000 ? 'sac' : 'kg';
-          
+
           prices.push({
             ingredient,
             prix,
@@ -208,7 +212,7 @@ export default function PriceScannerModal({
    * Supprimer un prix extrait
    */
   const handleDeletePrice = (index: number) => {
-    setExtractedPrices(prev => prev.filter((_, i) => i !== index));
+    setExtractedPrices((prev) => prev.filter((_, i) => i !== index));
   };
 
   /**
@@ -216,7 +220,7 @@ export default function PriceScannerModal({
    */
   const handleImport = () => {
     if (extractedPrices.length === 0) {
-      Alert.alert('Aucun prix', 'Veuillez d\'abord scanner une photo');
+      Alert.alert('Aucun prix', "Veuillez d'abord scanner une photo");
       return;
     }
 
@@ -250,7 +254,12 @@ export default function PriceScannerModal({
       <ScrollView style={styles.scrollView}>
         {/* Instructions */}
         {!imageUri && (
-          <View style={[styles.instructionsBox, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' }]}>
+          <View
+            style={[
+              styles.instructionsBox,
+              { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' },
+            ]}
+          >
             <Text style={[styles.instructionsTitle, { color: colors.primary }]}>
               📋 Instructions
             </Text>
@@ -276,12 +285,17 @@ export default function PriceScannerModal({
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.captureButton, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 2 }]}
+              style={[
+                styles.captureButton,
+                { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 2 },
+              ]}
               onPress={pickImage}
               activeOpacity={0.7}
             >
               <Text style={styles.captureButtonIcon}>🖼️</Text>
-              <Text style={[styles.captureButtonText, { color: colors.text }]}>Choisir une photo</Text>
+              <Text style={[styles.captureButtonText, { color: colors.text }]}>
+                Choisir une photo
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -289,11 +303,7 @@ export default function PriceScannerModal({
         {/* Image capturée */}
         {imageUri && (
           <View style={styles.imageContainer}>
-            <Image
-              source={{ uri: imageUri }}
-              style={styles.image}
-              resizeMode="contain"
-            />
+            <Image source={{ uri: imageUri }} style={styles.image} resizeMode="contain" />
             {scanning && (
               <View style={[styles.scanningOverlay, { backgroundColor: 'rgba(0,0,0,0.7)' }]}>
                 <ActivityIndicator size="large" color="#FFFFFF" />
@@ -311,7 +321,10 @@ export default function PriceScannerModal({
                 ✅ Prix détectés ({extractedPrices.length})
               </Text>
               <TouchableOpacity
-                style={[styles.retakeButton, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}
+                style={[
+                  styles.retakeButton,
+                  { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 },
+                ]}
                 onPress={() => {
                   setImageUri(null);
                   setExtractedPrices([]);
@@ -326,7 +339,10 @@ export default function PriceScannerModal({
             {extractedPrices.map((price, index) => (
               <View
                 key={index}
-                style={[styles.priceCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                style={[
+                  styles.priceCard,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
               >
                 <View style={styles.priceHeader}>
                   <View style={styles.confidenceBadge}>
@@ -364,11 +380,19 @@ export default function PriceScannerModal({
                         style={[
                           styles.uniteButton,
                           { borderColor: colors.border },
-                          price.unite === 'kg' && { backgroundColor: colors.primary, borderColor: colors.primary },
+                          price.unite === 'kg' && {
+                            backgroundColor: colors.primary,
+                            borderColor: colors.primary,
+                          },
                         ]}
                         onPress={() => handleEditPrice(index, 'unite', 'kg')}
                       >
-                        <Text style={[styles.uniteButtonText, { color: price.unite === 'kg' ? '#FFF' : colors.text }]}>
+                        <Text
+                          style={[
+                            styles.uniteButtonText,
+                            { color: price.unite === 'kg' ? '#FFF' : colors.text },
+                          ]}
+                        >
                           KG
                         </Text>
                       </TouchableOpacity>
@@ -376,11 +400,19 @@ export default function PriceScannerModal({
                         style={[
                           styles.uniteButton,
                           { borderColor: colors.border },
-                          price.unite === 'sac' && { backgroundColor: colors.primary, borderColor: colors.primary },
+                          price.unite === 'sac' && {
+                            backgroundColor: colors.primary,
+                            borderColor: colors.primary,
+                          },
                         ]}
                         onPress={() => handleEditPrice(index, 'unite', 'sac')}
                       >
-                        <Text style={[styles.uniteButtonText, { color: price.unite === 'sac' ? '#FFF' : colors.text }]}>
+                        <Text
+                          style={[
+                            styles.uniteButtonText,
+                            { color: price.unite === 'sac' ? '#FFF' : colors.text },
+                          ]}
+                        >
                           SAC
                         </Text>
                       </TouchableOpacity>
@@ -393,7 +425,10 @@ export default function PriceScannerModal({
             {/* Boutons d'action */}
             <View style={styles.actionButtons}>
               <TouchableOpacity
-                style={[styles.cancelButton, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 2 }]}
+                style={[
+                  styles.cancelButton,
+                  { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 2 },
+                ]}
                 onPress={handleClose}
               >
                 <Text style={[styles.cancelButtonText, { color: colors.text }]}>Annuler</Text>
@@ -402,9 +437,7 @@ export default function PriceScannerModal({
                 style={[styles.importButton, { backgroundColor: colors.success }]}
                 onPress={handleImport}
               >
-                <Text style={styles.importButtonText}>
-                  ✅ Importer ({extractedPrices.length})
-                </Text>
+                <Text style={styles.importButtonText}>✅ Importer ({extractedPrices.length})</Text>
               </TouchableOpacity>
             </View>
           </>
@@ -580,4 +613,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

@@ -3,7 +3,15 @@
  */
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
@@ -13,7 +21,13 @@ import {
   updateCollaborateur,
   accepterInvitation,
 } from '../store/slices/collaborationSlice';
-import { Collaborateur, RoleCollaborateur, StatutCollaborateur, ROLE_LABELS, STATUT_LABELS } from '../types';
+import {
+  Collaborateur,
+  RoleCollaborateur,
+  StatutCollaborateur,
+  ROLE_LABELS,
+  STATUT_LABELS,
+} from '../types';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';
@@ -120,8 +134,8 @@ export default function CollaborationListComponent() {
       return;
     }
     Alert.alert(
-      'Accepter l\'invitation',
-      'Confirmez que ce collaborateur a accepté l\'invitation ?',
+      "Accepter l'invitation",
+      "Confirmez que ce collaborateur a accepté l'invitation ?",
       [
         { text: 'Annuler', style: 'cancel' },
         {
@@ -194,7 +208,16 @@ export default function CollaborationListComponent() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: colors.surface, paddingTop: insets.top + SPACING.lg, ...colors.shadow.medium }]}>
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: colors.surface,
+            paddingTop: insets.top + SPACING.lg,
+            ...colors.shadow.medium,
+          },
+        ]}
+      >
         <Text style={[styles.title, { color: colors.text }]}>Collaboration</Text>
         {isProprietaire && (
           <TouchableOpacity
@@ -250,7 +273,8 @@ export default function CollaborationListComponent() {
                   styles.filterButtonText,
                   {
                     color: filterStatut === statut ? colors.textOnPrimary : colors.text,
-                    fontWeight: filterStatut === statut ? FONT_WEIGHTS.semiBold : FONT_WEIGHTS.medium,
+                    fontWeight:
+                      filterStatut === statut ? FONT_WEIGHTS.semiBold : FONT_WEIGHTS.medium,
                   },
                 ]}
               >
@@ -263,7 +287,12 @@ export default function CollaborationListComponent() {
 
       {/* Liste des collaborateurs */}
       {collaborateursFiltres.length === 0 ? (
-        <View style={[styles.listContainer, { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md }]}>
+        <View
+          style={[
+            styles.listContainer,
+            { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md },
+          ]}
+        >
           <EmptyState
             title="Aucun collaborateur"
             message="Invitez des membres pour collaborer sur ce projet"
@@ -273,10 +302,28 @@ export default function CollaborationListComponent() {
         <FlatList
           data={displayedCollaborateurs}
           renderItem={({ item: collaborateur }) => (
-            <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.medium }]}>
+            <View
+              style={[
+                styles.card,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  ...colors.shadow.medium,
+                },
+              ]}
+            >
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderLeft}>
-                  <View style={[styles.avatar, { backgroundColor: `${colors.primary}15`, borderColor: `${colors.primary}30`, borderWidth: 2 }]}>
+                  <View
+                    style={[
+                      styles.avatar,
+                      {
+                        backgroundColor: `${colors.primary}15`,
+                        borderColor: `${colors.primary}30`,
+                        borderWidth: 2,
+                      },
+                    ]}
+                  >
                     <Text style={[styles.avatarText, { color: colors.primary }]}>
                       {collaborateur.prenom.charAt(0).toUpperCase()}
                       {collaborateur.nom.charAt(0).toUpperCase()}
@@ -286,7 +333,9 @@ export default function CollaborationListComponent() {
                     <Text style={[styles.nomText, { color: colors.text }]}>
                       {collaborateur.prenom} {collaborateur.nom}
                     </Text>
-                    <Text style={[styles.emailText, { color: colors.textSecondary }]}>{collaborateur.email}</Text>
+                    <Text style={[styles.emailText, { color: colors.textSecondary }]}>
+                      {collaborateur.email}
+                    </Text>
                   </View>
                 </View>
                 <View style={styles.cardActions}>
@@ -321,20 +370,35 @@ export default function CollaborationListComponent() {
                   <View
                     style={[
                       styles.roleBadge,
-                      { backgroundColor: `${getRoleColor(collaborateur.role)}20`, borderColor: `${getRoleColor(collaborateur.role)}40`, borderWidth: 1 },
+                      {
+                        backgroundColor: `${getRoleColor(collaborateur.role)}20`,
+                        borderColor: `${getRoleColor(collaborateur.role)}40`,
+                        borderWidth: 1,
+                      },
                     ]}
                   >
-                    <Text style={[styles.roleBadgeText, { color: getRoleColor(collaborateur.role) }]}>
+                    <Text
+                      style={[styles.roleBadgeText, { color: getRoleColor(collaborateur.role) }]}
+                    >
                       {ROLE_LABELS[collaborateur.role as RoleCollaborateur]}
                     </Text>
                   </View>
                   <View
                     style={[
                       styles.statutBadge,
-                      { backgroundColor: `${getStatutColor(collaborateur.statut)}20`, borderColor: `${getStatutColor(collaborateur.statut)}40`, borderWidth: 1 },
+                      {
+                        backgroundColor: `${getStatutColor(collaborateur.statut)}20`,
+                        borderColor: `${getStatutColor(collaborateur.statut)}40`,
+                        borderWidth: 1,
+                      },
                     ]}
                   >
-                    <Text style={[styles.statutBadgeText, { color: getStatutColor(collaborateur.statut) }]}>
+                    <Text
+                      style={[
+                        styles.statutBadgeText,
+                        { color: getStatutColor(collaborateur.statut) },
+                      ]}
+                    >
                       {STATUT_LABELS[collaborateur.statut as StatutCollaborateur]}
                     </Text>
                   </View>
@@ -342,15 +406,29 @@ export default function CollaborationListComponent() {
                 {collaborateur.telephone && (
                   <View style={styles.infoRow}>
                     <Ionicons name="call-outline" size={16} color={colors.textSecondary} />
-                    <Text style={[styles.infoText, { color: colors.textSecondary }]}>{collaborateur.telephone}</Text>
+                    <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+                      {collaborateur.telephone}
+                    </Text>
                   </View>
                 )}
                 <View style={styles.permissionsContainer}>
-                  <Text style={[styles.permissionsTitle, { color: colors.text }]}>Permissions :</Text>
+                  <Text style={[styles.permissionsTitle, { color: colors.text }]}>
+                    Permissions :
+                  </Text>
                   <View style={styles.permissionsList}>
                     {Object.entries(collaborateur.permissions).map(([key, value]) =>
                       value ? (
-                        <View key={key} style={[styles.permissionBadge, { backgroundColor: `${colors.primary}10`, borderColor: `${colors.primary}20`, borderWidth: 1 }]}>
+                        <View
+                          key={key}
+                          style={[
+                            styles.permissionBadge,
+                            {
+                              backgroundColor: `${colors.primary}10`,
+                              borderColor: `${colors.primary}20`,
+                              borderWidth: 1,
+                            },
+                          ]}
+                        >
                           <Text style={[styles.permissionBadgeText, { color: colors.primary }]}>
                             {key.charAt(0).toUpperCase() + key.slice(1)}
                           </Text>
@@ -360,8 +438,15 @@ export default function CollaborationListComponent() {
                   </View>
                 </View>
                 {collaborateur.notes && (
-                  <View style={[styles.notesContainer, { backgroundColor: colors.surfaceVariant, borderColor: colors.border }]}>
-                    <Text style={[styles.notesText, { color: colors.textSecondary }]}>{collaborateur.notes}</Text>
+                  <View
+                    style={[
+                      styles.notesContainer,
+                      { backgroundColor: colors.surfaceVariant, borderColor: colors.border },
+                    ]}
+                  >
+                    <Text style={[styles.notesText, { color: colors.textSecondary }]}>
+                      {collaborateur.notes}
+                    </Text>
                   </View>
                 )}
               </View>
@@ -582,4 +667,3 @@ const styles = StyleSheet.create({
     lineHeight: FONT_SIZES.sm * 1.4,
   },
 });
-

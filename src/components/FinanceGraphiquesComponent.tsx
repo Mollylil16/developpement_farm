@@ -3,13 +3,32 @@
  */
 
 import React, { useMemo, useEffect, useCallback, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Dimensions, Animated, TouchableOpacity, ActivityIndicator, Alert, RefreshControl } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Dimensions,
+  Animated,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
+} from 'react-native';
 import { LineChart, PieChart } from 'react-native-chart-kit';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { loadProductionAnimaux, loadPeseesParAnimal } from '../store/slices/productionSlice';
-import { loadRevenus, loadChargesFixes, loadDepensesPonctuelles } from '../store/slices/financeSlice';
-import { selectAllAnimaux, selectPeseesParAnimal } from '../store/selectors/productionSelectors';
-import { selectAllChargesFixes, selectAllDepensesPonctuelles, selectAllRevenus } from '../store/selectors/financeSelectors';
+// Les animaux sont chargés automatiquement par useAnimauxActifs dans LivestockStatsCard
+import {
+  loadRevenus,
+  loadChargesFixes,
+  loadDepensesPonctuelles,
+} from '../store/slices/financeSlice';
+// Les animaux sont gérés par LivestockStatsCard via useAnimauxActifs
+import {
+  selectAllChargesFixes,
+  selectAllDepensesPonctuelles,
+  selectAllRevenus,
+} from '../store/selectors/financeSelectors';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { format, subMonths, startOfMonth, endOfMonth, parseISO } from 'date-fns';
@@ -18,6 +37,7 @@ import PriceConfigCard from './finance/PriceConfigCard';
 import LivestockStatsCard from './finance/LivestockStatsCard';
 import ProjectedRevenueCard from './finance/ProjectedRevenueCard';
 import ComparisonCard from './finance/ComparisonCard';
+// OpexCapexChart déplacé dans FinanceBilanComptableComponent
 import { exportFinancePDF } from '../services/pdf/financePDF';
 
 const screenWidth = Dimensions.get('window').width;
@@ -33,43 +53,34 @@ export default function FinanceGraphiquesComponent() {
   const revenus = useAppSelector(selectAllRevenus);
   const financeLoading = useAppSelector((state) => state.finance.loading);
   const { projetActif } = useAppSelector((state) => state.projet);
-  const animaux = useAppSelector(selectAllAnimaux);
-  const peseesParAnimal = useAppSelector(selectPeseesParAnimal);
-  
-  // Charger les données nécessaires
+  // Charger les données financières uniquement
+  // Les animaux sont chargés automatiquement par useAnimauxActifs dans LivestockStatsCard
   useEffect(() => {
     if (projetActif) {
       dispatch(loadRevenus(projetActif.id));
       dispatch(loadChargesFixes(projetActif.id));
       dispatch(loadDepensesPonctuelles(projetActif.id));
-      dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
     }
   }, [dispatch, projetActif?.id]);
 
   // Fonction de rafraîchissement
   const onRefresh = useCallback(async () => {
     if (!projetActif) return;
-    
+
     setRefreshing(true);
     try {
       await Promise.all([
         dispatch(loadRevenus(projetActif.id)).unwrap(),
         dispatch(loadChargesFixes(projetActif.id)).unwrap(),
         dispatch(loadDepensesPonctuelles(projetActif.id)).unwrap(),
-        dispatch(loadProductionAnimaux({ projetId: projetActif.id })).unwrap(),
+        // Les animaux sont chargés automatiquement par useAnimauxActifs dans LivestockStatsCard
       ]);
-      
-      // Recharger les pesées pour tous les animaux actifs
-      const animauxActifs = animaux.filter(
-        (a) => a.projet_id === projetActif.id && a.statut?.toLowerCase() === 'actif'
-      );
-      await Promise.all(animauxActifs.map(a => dispatch(loadPeseesParAnimal(a.id)).unwrap()));
     } catch (error) {
       // Erreur silencieuse
     } finally {
       setRefreshing(false);
     }
-  }, [projetActif, dispatch, animaux]);
+  }, [projetActif, dispatch]);
 
   // Animation fade-in au chargement
   useEffect(() => {
@@ -80,31 +91,7 @@ export default function FinanceGraphiquesComponent() {
     }).start();
   }, [fadeAnim]);
 
-  // ✅ Mémoïser les IDs des animaux pour éviter les re-renders inutiles
-  const animauxIds = React.useMemo(() => 
-    animaux.map(a => a.id).sort().join(','), 
-    [animaux]
-  );
-
-  // ✅ Utiliser useRef pour tracker les pesées déjà chargées
-  const peseesChargeesRef = React.useRef<Set<string>>(new Set());
-
-  // Charger les pesées pour tous les animaux actifs
-  useEffect(() => {
-    if (!projetActif) return;
-    
-    const animauxActifs = animaux.filter(
-      (a) => a.projet_id === projetActif.id && a.statut?.toLowerCase() === 'actif'
-    );
-    
-    // Ne charger que les pesées qui n'ont pas encore été chargées
-    animauxActifs.forEach((animal) => {
-      if (!peseesChargeesRef.current.has(animal.id)) {
-        peseesChargeesRef.current.add(animal.id);
-        dispatch(loadPeseesParAnimal(animal.id));
-      }
-    });
-  }, [dispatch, projetActif?.id, animauxIds, animaux]);
+  // Les animaux et pesées sont gérés par LivestockStatsCard via useAnimauxActifs
 
   // Callback pour mettre à jour après modification des prix
   const handlePriceUpdate = React.useCallback(() => {
@@ -114,7 +101,7 @@ export default function FinanceGraphiquesComponent() {
   // Fonction pour exporter les finances en PDF
   const handleExportPDF = useCallback(async () => {
     if (!projetActif) return;
-    
+
     setExportingPDF(true);
     try {
       // Calculer les totaux
@@ -122,12 +109,12 @@ export default function FinanceGraphiquesComponent() {
       const totalDepenses = depensesPonctuelles.reduce((sum, d) => sum + d.montant, 0);
       const totalRevenus = revenus.reduce((sum, r) => sum + r.montant, 0);
       const solde = totalRevenus - (totalCharges + totalDepenses);
-      
+
       // Calculer les moyennes mensuelles (basé sur les 6 derniers mois)
       const nombreMois = 6;
       const depensesMensuelle = (totalCharges + totalDepenses) / nombreMois;
       const revenusMensuel = totalRevenus / nombreMois;
-      
+
       // Préparer les données pour le PDF
       const financeData = {
         projet: projetActif,
@@ -146,28 +133,24 @@ export default function FinanceGraphiquesComponent() {
           revenusMensuel: revenusMensuel,
         },
       };
-      
+
       // Générer et partager le PDF
       await exportFinancePDF(financeData);
-      
+
       Alert.alert(
         'PDF généré avec succès',
         'Le rapport financier a été généré et est prêt à être partagé.',
         [{ text: 'OK' }]
       );
     } catch (error) {
-      console.error('Erreur lors de l\'export PDF:', error);
-      Alert.alert(
-        'Erreur',
-        'Impossible de générer le PDF. Vérifiez vos données et réessayez.',
-        [{ text: 'OK' }]
-      );
+      console.error("Erreur lors de l'export PDF:", error);
+      Alert.alert('Erreur', 'Impossible de générer le PDF. Vérifiez vos données et réessayez.', [
+        { text: 'OK' },
+      ]);
     } finally {
       setExportingPDF(false);
     }
   }, [projetActif, chargesFixes, depensesPonctuelles, revenus]);
-
-
 
   // Calcul des données pour les graphiques
   const graphData = useMemo(() => {
@@ -248,14 +231,7 @@ export default function FinanceGraphiquesComponent() {
     };
 
     // Données pour le graphique par catégorie de dépenses
-    const pieChartColors = [
-      '#2E7D32',
-      '#4CAF50',
-      '#FF9800',
-      '#F44336',
-      '#2196F3',
-      '#9C27B0',
-    ];
+    const pieChartColors = ['#2E7D32', '#4CAF50', '#FF9800', '#F44336', '#2196F3', '#9C27B0'];
     const pieChartData = Object.entries(categoryData).map(([category, montant]) => {
       return {
         name: category,
@@ -277,7 +253,10 @@ export default function FinanceGraphiquesComponent() {
       return {
         name: categoryLabels[category] || category,
         population: montant,
-        color: pieChartColors[Object.keys(revenusCategoryData).indexOf(category) % pieChartColors.length],
+        color:
+          pieChartColors[
+            Object.keys(revenusCategoryData).indexOf(category) % pieChartColors.length
+          ],
         legendFontColor: colors.text,
         legendFontSize: 12,
       };
@@ -296,21 +275,23 @@ export default function FinanceGraphiquesComponent() {
     const soldeTotal = revenusTotal - depensesTotal;
 
     // Calculer les tendances (comparaison avec le mois précédent)
-    const revenusTrend = previousMonth.revenus > 0 
-      ? ((revenusMois - previousMonth.revenus) / previousMonth.revenus) * 100 
-      : null;
-    const depensesTrend = previousMonth.reel > 0 
-      ? ((depensesReelles - previousMonth.reel) / previousMonth.reel) * 100 
-      : null;
+    const revenusTrend =
+      previousMonth.revenus > 0
+        ? ((revenusMois - previousMonth.revenus) / previousMonth.revenus) * 100
+        : null;
+    const depensesTrend =
+      previousMonth.reel > 0
+        ? ((depensesReelles - previousMonth.reel) / previousMonth.reel) * 100
+        : null;
     const soldePrecedent = previousMonth.revenus - previousMonth.reel;
-    const soldeTrend = soldePrecedent !== 0 
-      ? ((solde - soldePrecedent) / Math.abs(soldePrecedent)) * 100 
-      : null;
+    const soldeTrend =
+      soldePrecedent !== 0 ? ((solde - soldePrecedent) / Math.abs(soldePrecedent)) * 100 : null;
 
     // Calculer le taux d'épargne avec protection contre les erreurs de précision
-    const tauxEpargne = revenusMois > 0 
-      ? Math.round(((revenusMois - depensesReelles) / revenusMois) * 100 * 100) / 100 // Arrondir à 2 décimales puis multiplier par 100 pour le pourcentage
-      : 0;
+    const tauxEpargne =
+      revenusMois > 0
+        ? Math.round(((revenusMois - depensesReelles) / revenusMois) * 100 * 100) / 100 // Arrondir à 2 décimales puis multiplier par 100 pour le pourcentage
+        : 0;
 
     return {
       lineChartData,
@@ -332,22 +313,25 @@ export default function FinanceGraphiquesComponent() {
     };
   }, [chargesFixes, depensesPonctuelles, revenus]);
 
-  const chartConfig = useMemo(() => ({
-    backgroundColor: colors.background,
-    backgroundGradientFrom: colors.background,
-    backgroundGradientTo: colors.surface,
-    decimalPlaces: 0,
-    color: (opacity = 1) => `rgba(46, 125, 50, ${opacity})`,
-    labelColor: (opacity = 1) => `rgba(${isDark ? '255, 255, 255' : '33, 33, 33'}, ${opacity})`,
-    style: {
-      borderRadius: 16,
-    },
-    propsForDots: {
-      r: '6',
-      strokeWidth: '2',
-      stroke: colors.primary,
-    },
-  }), [colors, isDark]);
+  const chartConfig = useMemo(
+    () => ({
+      backgroundColor: colors.background,
+      backgroundGradientFrom: colors.background,
+      backgroundGradientTo: colors.surface,
+      decimalPlaces: 0,
+      color: (opacity = 1) => `rgba(46, 125, 50, ${opacity})`,
+      labelColor: (opacity = 1) => `rgba(${isDark ? '255, 255, 255' : '33, 33, 33'}, ${opacity})`,
+      style: {
+        borderRadius: 16,
+      },
+      propsForDots: {
+        r: '6',
+        strokeWidth: '2',
+        stroke: colors.primary,
+      },
+    }),
+    [colors, isDark]
+  );
 
   // Calculer les données pour le graphique réel et revenus (utilisé dans le rendu)
   const monthsDataForReel = useMemo(() => {
@@ -394,7 +378,7 @@ export default function FinanceGraphiquesComponent() {
   };
 
   return (
-    <ScrollView 
+    <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.scrollContent}
       refreshControl={
@@ -410,13 +394,13 @@ export default function FinanceGraphiquesComponent() {
         <Text style={[styles.title, { color: colors.text }]}>Vue d'ensemble financière</Text>
 
         {/* Carte financière unique */}
-        <Animated.View 
+        <Animated.View
           style={[
-            styles.financialCard, 
-            { 
+            styles.financialCard,
+            {
               backgroundColor: colors.surface,
               opacity: fadeAnim,
-            }
+            },
           ]}
           accessible={true}
           accessibilityLabel={`Aperçu financier pour ${graphData.currentMonthName}`}
@@ -435,7 +419,7 @@ export default function FinanceGraphiquesComponent() {
           {/* 3 colonnes */}
           <View style={styles.columnsContainer}>
             {/* Revenus */}
-            <View 
+            <View
               style={styles.column}
               accessible={true}
               accessibilityLabel={`Revenus: ${formatAmount(graphData.revenusMois)}${graphData.revenusTrend !== null ? `, ${graphData.revenusTrend >= 0 ? 'augmentation' : 'diminution'} de ${Math.abs(graphData.revenusTrend).toFixed(1)}%` : ''}`}
@@ -444,7 +428,11 @@ export default function FinanceGraphiquesComponent() {
               <Text style={styles.columnIcon}>💰</Text>
               <Text style={[styles.columnLabel, { color: colors.textSecondary }]}>Revenus</Text>
               <View style={styles.amountContainer}>
-                <Text style={[styles.columnAmount, { color: colors.success || '#10B981' }]} numberOfLines={1} adjustsFontSizeToFit>
+                <Text
+                  style={[styles.columnAmount, { color: colors.success || '#10B981' }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                >
                   {formatAmountParts(graphData.revenusMois).number}
                 </Text>
                 <Text style={[styles.columnCurrency, { color: colors.success || '#10B981' }]}>
@@ -452,15 +440,19 @@ export default function FinanceGraphiquesComponent() {
                 </Text>
               </View>
               {graphData.revenusTrend !== null && (
-                <Text style={[
-                  styles.columnTrend,
-                  { 
-                    color: graphData.revenusTrend >= 0 
-                      ? colors.success || '#10B981' 
-                      : colors.error || '#EF4444' 
-                  }
-                ]}>
-                  {graphData.revenusTrend >= 0 ? '↗' : '↘'} {Math.abs(graphData.revenusTrend).toFixed(1)}%
+                <Text
+                  style={[
+                    styles.columnTrend,
+                    {
+                      color:
+                        graphData.revenusTrend >= 0
+                          ? colors.success || '#10B981'
+                          : colors.error || '#EF4444',
+                    },
+                  ]}
+                >
+                  {graphData.revenusTrend >= 0 ? '↗' : '↘'}{' '}
+                  {Math.abs(graphData.revenusTrend).toFixed(1)}%
                 </Text>
               )}
             </View>
@@ -469,7 +461,7 @@ export default function FinanceGraphiquesComponent() {
             <View style={[styles.verticalDivider, { backgroundColor: colors.border }]} />
 
             {/* Dépenses */}
-            <View 
+            <View
               style={styles.column}
               accessible={true}
               accessibilityLabel={`Dépenses: ${formatAmount(graphData.depensesReelles)}${graphData.depensesTrend !== null ? `, ${graphData.depensesTrend >= 0 ? 'augmentation' : 'diminution'} de ${Math.abs(graphData.depensesTrend).toFixed(1)}%` : ''}`}
@@ -478,7 +470,11 @@ export default function FinanceGraphiquesComponent() {
               <Text style={styles.columnIcon}>💸</Text>
               <Text style={[styles.columnLabel, { color: colors.textSecondary }]}>Dépenses</Text>
               <View style={styles.amountContainer}>
-                <Text style={[styles.columnAmount, { color: colors.warning || '#F59E0B' }]} numberOfLines={1} adjustsFontSizeToFit>
+                <Text
+                  style={[styles.columnAmount, { color: colors.warning || '#F59E0B' }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                >
                   {formatAmountParts(graphData.depensesReelles).number}
                 </Text>
                 <Text style={[styles.columnCurrency, { color: colors.warning || '#F59E0B' }]}>
@@ -486,15 +482,19 @@ export default function FinanceGraphiquesComponent() {
                 </Text>
               </View>
               {graphData.depensesTrend !== null && (
-                <Text style={[
-                  styles.columnTrend,
-                  { 
-                    color: graphData.depensesTrend >= 0 
-                      ? colors.error || '#EF4444' 
-                      : colors.success || '#10B981' 
-                  }
-                ]}>
-                  {graphData.depensesTrend >= 0 ? '↗' : '↘'} {Math.abs(graphData.depensesTrend).toFixed(1)}%
+                <Text
+                  style={[
+                    styles.columnTrend,
+                    {
+                      color:
+                        graphData.depensesTrend >= 0
+                          ? colors.error || '#EF4444'
+                          : colors.success || '#10B981',
+                    },
+                  ]}
+                >
+                  {graphData.depensesTrend >= 0 ? '↗' : '↘'}{' '}
+                  {Math.abs(graphData.depensesTrend).toFixed(1)}%
                 </Text>
               )}
             </View>
@@ -503,7 +503,7 @@ export default function FinanceGraphiquesComponent() {
             <View style={[styles.verticalDivider, { backgroundColor: colors.border }]} />
 
             {/* Solde */}
-            <View 
+            <View
               style={styles.column}
               accessible={true}
               accessibilityLabel={`Solde: ${formatAmount(graphData.solde)}, ${graphData.solde >= 0 ? 'positif' : 'négatif'}`}
@@ -512,35 +512,46 @@ export default function FinanceGraphiquesComponent() {
               <Text style={styles.columnIcon}>💳</Text>
               <Text style={[styles.columnLabel, { color: colors.textSecondary }]}>Solde</Text>
               <View style={styles.amountContainer}>
-                <Text style={[
-                  styles.columnAmount,
-                  { 
-                    color: graphData.solde >= 0 
-                      ? colors.primary || '#3B82F6' 
-                      : colors.error || '#EF4444' 
-                  }
-                ]} numberOfLines={1} adjustsFontSizeToFit>
+                <Text
+                  style={[
+                    styles.columnAmount,
+                    {
+                      color:
+                        graphData.solde >= 0
+                          ? colors.primary || '#3B82F6'
+                          : colors.error || '#EF4444',
+                    },
+                  ]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                >
                   {formatAmountParts(graphData.solde).number}
                 </Text>
-                <Text style={[
-                  styles.columnCurrency,
-                  { 
-                    color: graphData.solde >= 0 
-                      ? colors.primary || '#3B82F6' 
-                      : colors.error || '#EF4444' 
-                  }
-                ]}>
+                <Text
+                  style={[
+                    styles.columnCurrency,
+                    {
+                      color:
+                        graphData.solde >= 0
+                          ? colors.primary || '#3B82F6'
+                          : colors.error || '#EF4444',
+                    },
+                  ]}
+                >
                   {formatAmountParts(graphData.solde).currency}
                 </Text>
               </View>
-              <Text style={[
-                styles.columnStatus,
-                { 
-                  color: graphData.solde >= 0 
-                    ? colors.success || '#10B981' 
-                    : colors.error || '#EF4444' 
-                }
-              ]}>
+              <Text
+                style={[
+                  styles.columnStatus,
+                  {
+                    color:
+                      graphData.solde >= 0
+                        ? colors.success || '#10B981'
+                        : colors.error || '#EF4444',
+                  },
+                ]}
+              >
                 {graphData.solde >= 0 ? 'Positif' : 'Négatif'}
               </Text>
             </View>
@@ -548,10 +559,11 @@ export default function FinanceGraphiquesComponent() {
 
           {/* Recommandation */}
           {(() => {
-            const pourcentageDepenses = graphData.revenusMois > 0 
-              ? (graphData.depensesReelles / graphData.revenusMois) * 100 
-              : 0;
-            
+            const pourcentageDepenses =
+              graphData.revenusMois > 0
+                ? (graphData.depensesReelles / graphData.revenusMois) * 100
+                : 0;
+
             let recommandation = '';
             let icon = '';
             let color = colors.primary;
@@ -559,29 +571,37 @@ export default function FinanceGraphiquesComponent() {
             if (graphData.solde < 0) {
               icon = '⚠️';
               color = colors.error;
-              recommandation = "Attention : Vos dépenses dépassent vos revenus. Réduisez les dépenses ou augmentez vos revenus.";
+              recommandation =
+                'Attention : Vos dépenses dépassent vos revenus. Réduisez les dépenses ou augmentez vos revenus.';
             } else if (graphData.solde === 0) {
               icon = '⚖️';
               color = colors.warning;
-              recommandation = "Équilibre atteint, mais sans marge de sécurité. Essayez de générer plus de revenus.";
+              recommandation =
+                'Équilibre atteint, mais sans marge de sécurité. Essayez de générer plus de revenus.';
             } else if (pourcentageDepenses > 80) {
               icon = '💡';
               color = colors.warning;
-              recommandation = "Solde positif mais dépenses élevées (>80%). Surveillez vos coûts.";
+              recommandation = 'Solde positif mais dépenses élevées (>80%). Surveillez vos coûts.';
             } else if (pourcentageDepenses > 60) {
               icon = '👍';
               color = colors.success;
-              recommandation = "Bonne gestion ! Continuez à optimiser vos dépenses.";
+              recommandation = 'Bonne gestion ! Continuez à optimiser vos dépenses.';
             } else {
               icon = '🎉';
               color = colors.success;
-              recommandation = "Excellente santé financière ! Envisagez d'investir dans votre croissance.";
+              recommandation =
+                "Excellente santé financière ! Envisagez d'investir dans votre croissance.";
             }
 
             return (
               <>
                 <View style={[styles.horizontalDivider, { backgroundColor: colors.border }]} />
-                <View style={[styles.recommendationContainer, { backgroundColor: color + '10', borderColor: color + '30' }]}>
+                <View
+                  style={[
+                    styles.recommendationContainer,
+                    { backgroundColor: color + '10', borderColor: color + '30' },
+                  ]}
+                >
                   <Text style={styles.recommendationIcon}>{icon}</Text>
                   <Text style={[styles.recommendationText, { color: color }]}>
                     {recommandation}
@@ -609,7 +629,9 @@ export default function FinanceGraphiquesComponent() {
 
         {/* Graphique Planifié vs Réel */}
         <View style={[styles.chartSection, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.chartTitle, { color: colors.text }]}>Planifié vs Réel (6 derniers mois)</Text>
+          <Text style={[styles.chartTitle, { color: colors.text }]}>
+            Planifié vs Réel (6 derniers mois)
+          </Text>
           {graphData.lineChartData.datasets[0].data.length > 0 ? (
             <>
               <View style={styles.chartContainer}>
@@ -671,7 +693,9 @@ export default function FinanceGraphiquesComponent() {
             </>
           ) : (
             <View style={styles.emptyChart}>
-              <Text style={[styles.emptyChartText, { color: colors.textSecondary }]}>Aucune donnée disponible</Text>
+              <Text style={[styles.emptyChartText, { color: colors.textSecondary }]}>
+                Aucune donnée disponible
+              </Text>
             </View>
           )}
         </View>
@@ -679,7 +703,9 @@ export default function FinanceGraphiquesComponent() {
         {/* Graphique par catégorie de dépenses */}
         {graphData.pieChartData.length > 0 && (
           <View style={[styles.chartSection, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.chartTitle, { color: colors.text }]}>Répartition des dépenses par catégorie</Text>
+            <Text style={[styles.chartTitle, { color: colors.text }]}>
+              Répartition des dépenses par catégorie
+            </Text>
             <PieChart
               data={graphData.pieChartData}
               width={screenWidth - SPACING.lg * 2}
@@ -696,7 +722,9 @@ export default function FinanceGraphiquesComponent() {
         {/* Graphique par catégorie de revenus */}
         {graphData.revenusPieChartData.length > 0 && (
           <View style={[styles.chartSection, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.chartTitle, { color: colors.text }]}>Répartition des revenus par catégorie</Text>
+            <Text style={[styles.chartTitle, { color: colors.text }]}>
+              Répartition des revenus par catégorie
+            </Text>
             <PieChart
               data={graphData.revenusPieChartData}
               width={screenWidth - SPACING.lg * 2}
@@ -714,29 +742,65 @@ export default function FinanceGraphiquesComponent() {
         <View style={[styles.summarySection, { backgroundColor: colors.surface }]}>
           <Text style={[styles.summaryTitle, { color: colors.text }]}>Résumé total</Text>
           <View style={styles.summaryRow}>
-            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Total des revenus:</Text>
-            <Text style={[styles.summaryValue, { color: colors.success || colors.primary }]}>{formatAmount(graphData.revenusTotal)}</Text>
+            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+              Total des revenus:
+            </Text>
+            <Text style={[styles.summaryValue, { color: colors.success || colors.primary }]}>
+              {formatAmount(graphData.revenusTotal)}
+            </Text>
           </View>
           <View style={styles.summaryRow}>
-            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Total des dépenses:</Text>
-            <Text style={[styles.summaryValue, { color: colors.text }]}>{formatAmount(graphData.depensesTotal)}</Text>
+            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+              Total des dépenses:
+            </Text>
+            <Text style={[styles.summaryValue, { color: colors.text }]}>
+              {formatAmount(graphData.depensesTotal)}
+            </Text>
           </View>
-          <View style={[styles.summaryRow, { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: SPACING.sm, marginTop: SPACING.sm }]}>
-            <Text style={[styles.summaryLabel, { color: colors.text, fontWeight: 'bold' }]}>Solde total:</Text>
-            <Text style={[styles.summaryValue, { color: graphData.soldeTotal >= 0 ? colors.success : colors.error, fontWeight: 'bold' }]}>
+          <View
+            style={[
+              styles.summaryRow,
+              {
+                borderTopWidth: 1,
+                borderTopColor: colors.border,
+                paddingTop: SPACING.sm,
+                marginTop: SPACING.sm,
+              },
+            ]}
+          >
+            <Text style={[styles.summaryLabel, { color: colors.text, fontWeight: 'bold' }]}>
+              Solde total:
+            </Text>
+            <Text
+              style={[
+                styles.summaryValue,
+                {
+                  color: graphData.soldeTotal >= 0 ? colors.success : colors.error,
+                  fontWeight: 'bold',
+                },
+              ]}
+            >
               {formatAmount(graphData.soldeTotal)}
             </Text>
           </View>
           <View style={styles.summaryRow}>
-            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Nombre de revenus:</Text>
+            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+              Nombre de revenus:
+            </Text>
             <Text style={[styles.summaryValue, { color: colors.text }]}>{revenus.length}</Text>
           </View>
           <View style={styles.summaryRow}>
-            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Nombre de dépenses:</Text>
-            <Text style={[styles.summaryValue, { color: colors.text }]}>{depensesPonctuelles.length}</Text>
+            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+              Nombre de dépenses:
+            </Text>
+            <Text style={[styles.summaryValue, { color: colors.text }]}>
+              {depensesPonctuelles.length}
+            </Text>
           </View>
           <View style={styles.summaryRow}>
-            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Charges fixes actives:</Text>
+            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+              Charges fixes actives:
+            </Text>
             <Text style={[styles.summaryValue, { color: colors.text }]}>
               {chargesFixes.filter((cf) => cf.statut === 'actif').length}
             </Text>
@@ -1117,9 +1181,4 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: SPACING.xs,
   },
-  recommendationText: {
-    fontSize: FONT_SIZES.md,
-    lineHeight: 20,
-  },
 });
-

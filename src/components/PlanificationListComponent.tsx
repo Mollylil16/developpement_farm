@@ -3,7 +3,15 @@
  */
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+} from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import {
   loadPlanificationsParProjet,
@@ -11,7 +19,15 @@ import {
   deletePlanification,
   updatePlanification,
 } from '../store/slices/planificationSlice';
-import { Planification, TypeTache, StatutTache, TYPE_TACHE_LABELS, STATUT_TACHE_LABELS, getTachesAVenir, getTachesEnRetard } from '../types';
+import {
+  Planification,
+  TypeTache,
+  StatutTache,
+  TYPE_TACHE_LABELS,
+  STATUT_TACHE_LABELS,
+  getTachesAVenir,
+  getTachesEnRetard,
+} from '../types';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';
@@ -24,7 +40,9 @@ export default function PlanificationListComponent() {
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const { projetActif } = useAppSelector((state) => state.projet);
-  const { planifications, planificationsAVenir, loading } = useAppSelector((state) => state.planification);
+  const { planifications, planificationsAVenir, loading } = useAppSelector(
+    (state) => state.planification
+  );
   const [selectedPlanification, setSelectedPlanification] = useState<Planification | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -52,7 +70,7 @@ export default function PlanificationListComponent() {
     if (!planifications || !Array.isArray(planifications)) return [];
     return getTachesAVenir(planifications);
   }, [planifications]);
-  
+
   const tachesEnRetard = useMemo(() => {
     if (!planifications || !Array.isArray(planifications)) return [];
     return getTachesEnRetard(planifications);
@@ -84,7 +102,10 @@ export default function PlanificationListComponent() {
 
   const handleEdit = (planification: Planification) => {
     if (!canUpdate('planification')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les planifications.');
+      Alert.alert(
+        'Permission refusée',
+        "Vous n'avez pas la permission de modifier les planifications."
+      );
       return;
     }
     setSelectedPlanification(planification);
@@ -94,56 +115,54 @@ export default function PlanificationListComponent() {
 
   const handleDelete = (id: string) => {
     if (!canDelete('planification')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de supprimer les planifications.');
+      Alert.alert(
+        'Permission refusée',
+        "Vous n'avez pas la permission de supprimer les planifications."
+      );
       return;
     }
-    Alert.alert(
-      'Supprimer la planification',
-      'Êtes-vous sûr de vouloir supprimer cette tâche ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            await dispatch(deletePlanification(id));
-            if (projetActif) {
-              dispatch(loadPlanificationsParProjet(projetActif.id));
-              dispatch(loadPlanificationsAVenir({ projetId: projetActif.id, jours: 7 }));
-            }
-          },
+    Alert.alert('Supprimer la planification', 'Êtes-vous sûr de vouloir supprimer cette tâche ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Supprimer',
+        style: 'destructive',
+        onPress: async () => {
+          await dispatch(deletePlanification(id));
+          if (projetActif) {
+            dispatch(loadPlanificationsParProjet(projetActif.id));
+            dispatch(loadPlanificationsAVenir({ projetId: projetActif.id, jours: 7 }));
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const handleMarquerTerminee = (planification: Planification) => {
     if (!canUpdate('planification')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les planifications.');
+      Alert.alert(
+        'Permission refusée',
+        "Vous n'avez pas la permission de modifier les planifications."
+      );
       return;
     }
-    Alert.alert(
-      'Marquer comme terminée',
-      'Confirmez que cette tâche est terminée ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Confirmer',
-          onPress: async () => {
-            await dispatch(
-              updatePlanification({
-                id: planification.id,
-                updates: { statut: 'terminee' },
-              })
-            );
-            if (projetActif) {
-              dispatch(loadPlanificationsParProjet(projetActif.id));
-              dispatch(loadPlanificationsAVenir({ projetId: projetActif.id, jours: 7 }));
-            }
-          },
+    Alert.alert('Marquer comme terminée', 'Confirmez que cette tâche est terminée ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Confirmer',
+        onPress: async () => {
+          await dispatch(
+            updatePlanification({
+              id: planification.id,
+              updates: { statut: 'terminee' },
+            })
+          );
+          if (projetActif) {
+            dispatch(loadPlanificationsParProjet(projetActif.id));
+            dispatch(loadPlanificationsAVenir({ projetId: projetActif.id, jours: 7 }));
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const handleCloseModal = () => {
@@ -228,7 +247,12 @@ export default function PlanificationListComponent() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.divider }]}>
+      <View
+        style={[
+          styles.header,
+          { backgroundColor: colors.surface, borderBottomColor: colors.divider },
+        ]}
+      >
         <Text style={[styles.title, { color: colors.text }]}>Planification</Text>
         {canCreate('planification') && (
           <TouchableOpacity
@@ -248,13 +272,35 @@ export default function PlanificationListComponent() {
       {(tachesEnRetard.length > 0 || tachesAVenir.length > 0) && (
         <View style={styles.alertsContainer}>
           {tachesEnRetard.length > 0 && (
-            <View style={[styles.alertCard, { backgroundColor: colors.surface, borderLeftColor: colors.error, ...colors.shadow.small }]}>
-              <Text style={[styles.alertTitle, { color: colors.text }]}>⚠️ {tachesEnRetard.length} tâche(s) en retard</Text>
+            <View
+              style={[
+                styles.alertCard,
+                {
+                  backgroundColor: colors.surface,
+                  borderLeftColor: colors.error,
+                  ...colors.shadow.small,
+                },
+              ]}
+            >
+              <Text style={[styles.alertTitle, { color: colors.text }]}>
+                ⚠️ {tachesEnRetard.length} tâche(s) en retard
+              </Text>
             </View>
           )}
           {tachesAVenir.length > 0 && (
-            <View style={[styles.alertCard, { backgroundColor: colors.surface, borderLeftColor: colors.warning, ...colors.shadow.small }]}>
-              <Text style={[styles.alertTitle, { color: colors.text }]}>📅 {tachesAVenir.length} tâche(s) à venir (7 jours)</Text>
+            <View
+              style={[
+                styles.alertCard,
+                {
+                  backgroundColor: colors.surface,
+                  borderLeftColor: colors.warning,
+                  ...colors.shadow.small,
+                },
+              ]}
+            >
+              <Text style={[styles.alertTitle, { color: colors.text }]}>
+                📅 {tachesAVenir.length} tâche(s) à venir (7 jours)
+              </Text>
             </View>
           )}
         </View>
@@ -310,7 +356,10 @@ export default function PlanificationListComponent() {
                   backgroundColor: colors.surface,
                   borderColor: colors.borderLight,
                   ...colors.shadow.medium,
-                  ...(isEnRetard(planification) && { borderLeftWidth: 4, borderLeftColor: colors.error }),
+                  ...(isEnRetard(planification) && {
+                    borderLeftWidth: 4,
+                    borderLeftColor: colors.error,
+                  }),
                 },
               ]}
             >
@@ -365,14 +414,17 @@ export default function PlanificationListComponent() {
                 </View>
               </View>
               <View style={styles.cardContent}>
-                <Text style={[styles.titreText, { color: colors.text }]}>{planification.titre}</Text>
+                <Text style={[styles.titreText, { color: colors.text }]}>
+                  {planification.titre}
+                </Text>
                 <Text style={[styles.dateText, { color: colors.textSecondary }]}>
                   📅 {formatDate(planification.date_prevue)}
-                  {planification.date_echeance &&
-                    ` → ${formatDate(planification.date_echeance)}`}
+                  {planification.date_echeance && ` → ${formatDate(planification.date_echeance)}`}
                 </Text>
                 {planification.description && (
-                  <Text style={[styles.descriptionText, { color: colors.text }]}>{planification.description}</Text>
+                  <Text style={[styles.descriptionText, { color: colors.text }]}>
+                    {planification.description}
+                  </Text>
                 )}
                 {planification.recurrence && planification.recurrence !== 'aucune' && (
                   <Text style={[styles.recurrenceText, { color: colors.textSecondary }]}>
@@ -380,7 +432,9 @@ export default function PlanificationListComponent() {
                   </Text>
                 )}
                 {planification.notes && (
-                  <Text style={[styles.notesText, { color: colors.textSecondary }]}>{planification.notes}</Text>
+                  <Text style={[styles.notesText, { color: colors.textSecondary }]}>
+                    {planification.notes}
+                  </Text>
                 )}
               </View>
             </View>
@@ -556,4 +610,3 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
 });
-

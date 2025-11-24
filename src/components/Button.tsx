@@ -3,7 +3,14 @@
  */
 
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle, ActivityIndicator } from 'react-native';
+import {
+  TouchableOpacity,
+  Text,
+  StyleSheet,
+  ViewStyle,
+  TextStyle,
+  ActivityIndicator,
+} from 'react-native';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, TRANSITIONS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -33,10 +40,10 @@ export default function Button({
   textStyle,
 }: ButtonProps) {
   const { colors } = useTheme();
-  
+
   const getButtonStyle = (): ViewStyle[] => {
     const baseStyle: ViewStyle[] = [styles.button, styles[size]];
-    
+
     switch (variant) {
       case 'primary':
         baseStyle.push({ backgroundColor: colors.primary });
@@ -60,21 +67,21 @@ export default function Button({
         });
         break;
     }
-    
+
     if (disabled || loading) {
       baseStyle.push(styles.disabled);
     }
-    
+
     if (fullWidth) {
       baseStyle.push(styles.fullWidth);
     }
-    
+
     return baseStyle;
   };
 
   const getTextStyle = (): TextStyle[] => {
     const baseStyle: TextStyle[] = [styles.buttonText, styles[`${size}Text`]];
-    
+
     switch (variant) {
       case 'primary':
       case 'secondary':
@@ -85,11 +92,11 @@ export default function Button({
         baseStyle.push({ color: colors.primary });
         break;
     }
-    
+
     if (disabled || loading) {
       baseStyle.push({ opacity: 0.6 });
     }
-    
+
     return baseStyle;
   };
 
@@ -107,7 +114,9 @@ export default function Button({
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={variant === 'primary' || variant === 'secondary' ? colors.textOnPrimary : colors.primary}
+          color={
+            variant === 'primary' || variant === 'secondary' ? colors.textOnPrimary : colors.primary
+          }
         />
       ) : (
         <>
@@ -163,4 +172,3 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.lg,
   },
 });
-

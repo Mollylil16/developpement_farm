@@ -12,13 +12,26 @@ import { Mortalite } from '../../types';
 // Sélecteur de base pour l'état mortalites
 const selectMortalitesState = (state: RootState) => state.mortalites;
 
+// Sélecteurs intermédiaires pour éviter les nouvelles références
+const selectMortalitesIds = createSelector(
+  [selectMortalitesState],
+  (mortalitesState) => mortalitesState.ids.mortalites
+);
+
+const selectMortalitesEntities = createSelector(
+  [selectMortalitesState],
+  (mortalitesState) => mortalitesState.entities.mortalites
+);
+
 // Sélecteurs pour les mortalités
 export const selectAllMortalites = createSelector(
-  [selectMortalitesState],
-  (mortalitesState): Mortalite[] => {
-    const { entities, ids } = mortalitesState;
-    const mortalitesIds = ids.mortalites || [];
-    const result = denormalize(mortalitesIds, mortalitesSchema, { mortalites: entities.mortalites });
+  [selectMortalitesIds, selectMortalitesEntities],
+  (mortalitesIds, mortalitesEntities): Mortalite[] => {
+    if (!mortalitesIds || !mortalitesEntities) return [];
+    if (mortalitesIds.length === 0) return [];
+    const result = denormalize(mortalitesIds, mortalitesSchema, {
+      mortalites: mortalitesEntities,
+    });
     return Array.isArray(result) ? result : [];
   }
 );
@@ -28,7 +41,9 @@ export const selectMortaliteById = createSelector(
   (mortalitesState, mortaliteId): Mortalite | undefined => {
     const { entities } = mortalitesState;
     if (!entities.mortalites || !mortaliteId) return undefined;
-    const normalized = denormalize([mortaliteId], mortalitesSchema, { mortalites: entities.mortalites });
+    const normalized = denormalize([mortaliteId], mortalitesSchema, {
+      mortalites: entities.mortalites,
+    });
     return Array.isArray(normalized) ? normalized[0] : undefined;
   }
 );
@@ -49,4 +64,3 @@ export const selectMortalitesError = createSelector(
   [selectMortalitesState],
   (mortalitesState) => mortalitesState.error
 );
-

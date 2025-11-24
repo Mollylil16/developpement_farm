@@ -17,9 +17,14 @@ export default function VisitesVeterinaireComponent({ refreshControl }: Props) {
   const visites = useAppSelector(selectAllVisitesVeterinaires);
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} refreshControl={refreshControl}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      refreshControl={refreshControl}
+    >
       <View style={styles.content}>
-        <Text style={[styles.title, { color: colors.text }]}>Visites Vétérinaires ({visites.length})</Text>
+        <Text style={[styles.title, { color: colors.text }]}>
+          Visites Vétérinaires ({visites.length})
+        </Text>
       </View>
     </ScrollView>
   );
@@ -30,4 +35,3 @@ const styles = StyleSheet.create({
   content: { padding: 20 },
   title: { fontSize: 20, fontWeight: '700' },
 });
-

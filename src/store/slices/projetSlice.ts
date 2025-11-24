@@ -26,7 +26,7 @@ export const createProjet = createAsyncThunk(
   async (input: CreateProjetInput & { proprietaire_id: string }, { rejectWithValue, getState }) => {
     try {
       const userId = input.proprietaire_id;
-      
+
       // Archiver tous les autres projets actifs de l'utilisateur
       const projets = await databaseService.getAllProjets(userId);
       for (const projet of projets) {
@@ -84,15 +84,15 @@ export const switchProjetActif = createAsyncThunk(
       // Récupérer l'ID de l'utilisateur actuel depuis le state
       const state = getState() as any;
       const userId = state.auth?.user?.id;
-      
+
       if (!userId) {
         return rejectWithValue('Utilisateur non authentifié');
       }
 
       // Vérifier que le projet appartient bien à l'utilisateur
       const projets = await databaseService.getAllProjets(userId);
-      const projetExiste = projets.find(p => p.id === projetId);
-      
+      const projetExiste = projets.find((p) => p.id === projetId);
+
       if (!projetExiste) {
         return rejectWithValue('Ce projet ne vous appartient pas');
       }
@@ -104,7 +104,11 @@ export const switchProjetActif = createAsyncThunk(
         }
       }
       // Activer le nouveau projet (userId déjà vérifié)
-      const nouveauProjet = await databaseService.updateProjet(projetId, { statut: 'actif' }, userId);
+      const nouveauProjet = await databaseService.updateProjet(
+        projetId,
+        { statut: 'actif' },
+        userId
+      );
       return nouveauProjet;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du changement de projet');
@@ -114,12 +118,15 @@ export const switchProjetActif = createAsyncThunk(
 
 export const updateProjet = createAsyncThunk(
   'projet/update',
-  async ({ id, updates }: { id: string; updates: Partial<Projet> }, { rejectWithValue, getState }) => {
+  async (
+    { id, updates }: { id: string; updates: Partial<Projet> },
+    { rejectWithValue, getState }
+  ) => {
     try {
       // Récupérer l'ID de l'utilisateur actuel depuis le state
       const state = getState() as any;
       const userId = state.auth?.user?.id;
-      
+
       if (!userId) {
         return rejectWithValue('Utilisateur non authentifié');
       }
@@ -227,4 +234,3 @@ const projetSlice = createSlice({
 
 export const { clearError, setProjetActif } = projetSlice.actions;
 export default projetSlice.reducer;
-

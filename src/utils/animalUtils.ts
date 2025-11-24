@@ -8,11 +8,13 @@ import { ProductionAnimal } from '../types';
  * Détermine la catégorie d'un animal (Truie, Verrat, ou Porcelet)
  * @param animal L'animal à catégoriser
  * @returns La catégorie de l'animal
+ * 
+ * Note: reproducteur vient de SQLite comme INTEGER (0/1), donc on le convertit en boolean
  */
 export function getCategorieAnimal(animal: ProductionAnimal): 'truie' | 'verrat' | 'porcelet' {
-  const isReproducteur = animal.reproducteur === true;
-  const isMale = animal.sexe === 'male';
-  const isFemelle = animal.sexe === 'femelle';
+  const isReproducteur = Boolean(animal.reproducteur); // Convertit 1 → true, 0 → false
+  const isMale = animal.sexe?.toLowerCase() === 'male';
+  const isFemelle = animal.sexe?.toLowerCase() === 'femelle';
 
   if (isMale && isReproducteur) {
     return 'verrat';
@@ -58,7 +60,10 @@ export function countAnimalsByCategory(animaux: ProductionAnimal[]): {
  * @param projetId ID du projet (optionnel, pour filtrer par projet)
  * @returns Liste des animaux actifs
  */
-export function filterActiveAnimals(animaux: ProductionAnimal[], projetId?: string): ProductionAnimal[] {
+export function filterActiveAnimals(
+  animaux: ProductionAnimal[],
+  projetId?: string
+): ProductionAnimal[] {
   let filtered = animaux.filter((animal) => animal.statut?.toLowerCase() === 'actif');
   if (projetId) {
     filtered = filtered.filter((animal) => animal.projet_id === projetId);
@@ -82,15 +87,15 @@ export function calculatePoidsTotalAnimauxActifs(
   poidsMoyenProjet: number = 0
 ): number {
   const animauxActifs = animaux.filter((animal) => animal.statut?.toLowerCase() === 'actif');
-  
+
   let poidsTotal = 0;
-  
+
   animauxActifs.forEach((animal) => {
     const pesees = peseesParAnimal[animal.id] || [];
     if (pesees.length > 0) {
       // Trier les pesées par date (la plus récente en premier)
-      const peseesTriees = [...pesees].sort((a, b) => 
-        new Date(b.date).getTime() - new Date(a.date).getTime()
+      const peseesTriees = [...pesees].sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
       );
       poidsTotal += peseesTriees[0].poids_kg;
     } else if (animal.poids_initial) {
@@ -100,7 +105,7 @@ export function calculatePoidsTotalAnimauxActifs(
       poidsTotal += poidsMoyenProjet;
     }
   });
-  
+
   return poidsTotal;
 }
 
@@ -115,9 +120,9 @@ export function calculerAge(dateNaissance?: string): string | null {
     const date = new Date(dateNaissance);
     const maintenant = new Date();
     const jours = Math.floor((maintenant.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-    
+
     if (jours < 0) return null; // Date future invalide
-    
+
     if (jours < 30) return `${jours} jour${jours > 1 ? 's' : ''}`;
     const mois = Math.floor(jours / 30);
     if (mois < 12) return `${mois} mois`;
@@ -136,7 +141,13 @@ export function calculerAge(dateNaissance?: string): string | null {
  */
 export function getStatutColor(
   statut: string,
-  colors?: { success: string; error: string; warning: string; secondary: string; textSecondary: string }
+  colors?: {
+    success: string;
+    error: string;
+    warning: string;
+    secondary: string;
+    textSecondary: string;
+  }
 ): string {
   // Valeurs par défaut si colors n'est pas fourni
   const defaultColors = {

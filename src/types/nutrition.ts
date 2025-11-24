@@ -2,11 +2,11 @@
  * Types pour la gestion de la nutrition
  */
 
-export type TypePorc = 
-  | 'porcelet' 
-  | 'truie_gestante' 
-  | 'truie_allaitante' 
-  | 'verrat' 
+export type TypePorc =
+  | 'porcelet'
+  | 'truie_gestante'
+  | 'truie_allaitante'
+  | 'verrat'
   | 'porc_croissance';
 
 export interface Ingredient {
@@ -81,7 +81,7 @@ export interface ValeursNutritionnelles {
 
 export const VALEURS_NUTRITIONNELLES_INGREDIENTS: Record<string, ValeursNutritionnelles> = {
   // Céréales
-  'mais': {
+  mais: {
     proteine_pourcent: 8.5,
     energie_kcal: 3350,
     equivalents: ['Sorgho', 'Blé', 'Orge'],
@@ -91,49 +91,49 @@ export const VALEURS_NUTRITIONNELLES_INGREDIENTS: Record<string, ValeursNutritio
     energie_kcal: 3350,
     equivalents: ['Sorgho', 'Blé', 'Orge'],
   },
-  'sorgho': {
+  sorgho: {
     proteine_pourcent: 10,
     energie_kcal: 3300,
     equivalents: ['Maïs', 'Mil', 'Blé'],
   },
-  'ble': {
+  ble: {
     proteine_pourcent: 12,
     energie_kcal: 3320,
     equivalents: ['Maïs', 'Orge', 'Sorgho'],
   },
-  'blé': {
+  blé: {
     proteine_pourcent: 12,
     energie_kcal: 3320,
     equivalents: ['Maïs', 'Orge', 'Sorgho'],
   },
-  'orge': {
+  orge: {
     proteine_pourcent: 11,
     energie_kcal: 3000,
     equivalents: ['Blé', 'Maïs', 'Avoine'],
   },
-  'mil': {
+  mil: {
     proteine_pourcent: 11,
     energie_kcal: 3400,
     equivalents: ['Sorgho', 'Maïs'],
   },
-  'riz': {
+  riz: {
     proteine_pourcent: 7.5,
     energie_kcal: 3600,
     equivalents: ['Maïs', 'Blé'],
   },
-  
+
   // Tourteaux et sources protéiques
   'tourteau de soja': {
     proteine_pourcent: 44,
     energie_kcal: 2300,
-    equivalents: ['Tourteau d\'arachide', 'Farine de poisson', 'Tourteau de coton'],
+    equivalents: ["Tourteau d'arachide", 'Farine de poisson', 'Tourteau de coton'],
   },
   'tourteau soja': {
     proteine_pourcent: 44,
     energie_kcal: 2300,
-    equivalents: ['Tourteau d\'arachide', 'Farine de poisson', 'Tourteau de coton'],
+    equivalents: ["Tourteau d'arachide", 'Farine de poisson', 'Tourteau de coton'],
   },
-  'tourteau d\'arachide': {
+  "tourteau d'arachide": {
     proteine_pourcent: 48,
     energie_kcal: 2200,
     equivalents: ['Tourteau de soja', 'Farine de poisson'],
@@ -146,14 +146,14 @@ export const VALEURS_NUTRITIONNELLES_INGREDIENTS: Record<string, ValeursNutritio
   'tourteau de coton': {
     proteine_pourcent: 40,
     energie_kcal: 2000,
-    equivalents: ['Tourteau de soja', 'Tourteau d\'arachide'],
+    equivalents: ['Tourteau de soja', "Tourteau d'arachide"],
   },
   'farine de poisson': {
     proteine_pourcent: 65,
     energie_kcal: 2800,
     equivalents: ['Tourteau de soja', 'Farine de viande'],
   },
-  
+
   // Sons et co-produits
   'son de ble': {
     proteine_pourcent: 16,
@@ -180,12 +180,12 @@ export const VALEURS_NUTRITIONNELLES_INGREDIENTS: Record<string, ValeursNutritio
     energie_kcal: 2000,
     equivalents: ['Son de blé', 'Son de riz'],
   },
-  'remoulage': {
+  remoulage: {
     proteine_pourcent: 17,
     energie_kcal: 2100,
     equivalents: ['Son de blé', 'Farine basse'],
   },
-  
+
   // Matières grasses
   'huile de soja': {
     proteine_pourcent: 0,
@@ -202,9 +202,9 @@ export const VALEURS_NUTRITIONNELLES_INGREDIENTS: Record<string, ValeursNutritio
     energie_kcal: 8500,
     equivalents: ['Huile de soja', 'Huile de palme'],
   },
-  
+
   // Minéraux et compléments
-  'cmv': {
+  cmv: {
     proteine_pourcent: 0,
     energie_kcal: 0,
     equivalents: ['Prémix minéral vitaminé', 'CMV Porc'],
@@ -222,53 +222,53 @@ export const VALEURS_NUTRITIONNELLES_INGREDIENTS: Record<string, ValeursNutritio
   'carbonate de calcium': {
     proteine_pourcent: 0,
     energie_kcal: 0,
-    equivalents: ['Phosphate bicalcique', 'Coquilles d\'huîtres'],
+    equivalents: ['Phosphate bicalcique', "Coquilles d'huîtres"],
   },
   'phosphate bicalcique': {
     proteine_pourcent: 0,
     energie_kcal: 0,
     equivalents: ['Carbonate de calcium', 'Phosphate monocalcique'],
   },
-  'sel': {
+  sel: {
     proteine_pourcent: 0,
     energie_kcal: 0,
     equivalents: [],
   },
-  
+
   // Acides aminés
-  'lysine': {
+  lysine: {
     proteine_pourcent: 0,
     energie_kcal: 0,
     equivalents: ['L-Lysine HCl'],
   },
-  'methionine': {
+  methionine: {
     proteine_pourcent: 0,
     energie_kcal: 0,
     equivalents: ['DL-Méthionine'],
   },
-  'thréonine': {
+  thréonine: {
     proteine_pourcent: 0,
     energie_kcal: 0,
     equivalents: ['L-Thréonine'],
   },
-  'threonine': {
+  threonine: {
     proteine_pourcent: 0,
     energie_kcal: 0,
     equivalents: ['L-Thréonine'],
   },
-  
+
   // Produits laitiers
   'lait en poudre': {
     proteine_pourcent: 26,
     energie_kcal: 3600,
     equivalents: ['Lactosérum', 'Poudre de lait écrémé'],
   },
-  'lactoserum': {
+  lactoserum: {
     proteine_pourcent: 13,
     energie_kcal: 3500,
     equivalents: ['Lait en poudre', 'Babeurre'],
   },
-  'lactosérum': {
+  lactosérum: {
     proteine_pourcent: 13,
     energie_kcal: 3500,
     equivalents: ['Lait en poudre', 'Babeurre'],
@@ -280,23 +280,24 @@ export const VALEURS_NUTRITIONNELLES_INGREDIENTS: Record<string, ValeursNutritio
  * Recherche insensible à la casse et aux accents
  */
 export function getValeursNutritionnelles(nomIngredient: string): ValeursNutritionnelles | null {
-  const nomNormalise = nomIngredient.toLowerCase()
+  const nomNormalise = nomIngredient
+    .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '') // Enlever les accents
     .trim();
-  
+
   // Recherche exacte
   if (VALEURS_NUTRITIONNELLES_INGREDIENTS[nomNormalise]) {
     return VALEURS_NUTRITIONNELLES_INGREDIENTS[nomNormalise];
   }
-  
+
   // Recherche partielle (si le nom contient un des ingrédients connus)
   for (const [cle, valeurs] of Object.entries(VALEURS_NUTRITIONNELLES_INGREDIENTS)) {
     if (nomNormalise.includes(cle) || cle.includes(nomNormalise)) {
       return valeurs;
     }
   }
-  
+
   return null;
 }
 
@@ -368,11 +369,14 @@ export interface CreateStockMouvementInput {
  * Recommandations nutritionnelles standards par type de porc (kg/jour)
  * Ces valeurs sont des moyennes et peuvent être ajustées
  */
-export const RECOMMANDATIONS_NUTRITION: Record<TypePorc, {
-  energie_kcal_kg?: number;
-  proteine_pourcent?: number;
-  ration_kg_jour?: number; // Ration quotidienne recommandée en kg
-}> = {
+export const RECOMMANDATIONS_NUTRITION: Record<
+  TypePorc,
+  {
+    energie_kcal_kg?: number;
+    proteine_pourcent?: number;
+    ration_kg_jour?: number; // Ration quotidienne recommandée en kg
+  }
+> = {
   porcelet: {
     energie_kcal_kg: 3500,
     proteine_pourcent: 18,
@@ -498,11 +502,11 @@ export interface ResultatCalculRation {
   poids_moyen_kg: number;
   nombre_porcs: number;
   duree_jours: number;
-  
+
   // Recommandation nutritionnelle
   ration_journaliere_par_porc: number; // kg/jour/porc
   formule_recommandee: FormuleAlimentaire;
-  
+
   // Quantités par ingrédient
   details_ingredients: Array<{
     nom: string;
@@ -511,7 +515,7 @@ export interface ResultatCalculRation {
     prix_unitaire: number;
     cout_total: number;
   }>;
-  
+
   // Totaux
   quantite_totale_kg: number; // Quantité totale d'aliment nécessaire
   cout_total: number; // Coût total de l'alimentation
@@ -533,7 +537,12 @@ export const FORMULES_RECOMMANDEES: Record<TypePorc, FormuleAlimentaire> = {
       { ingredient_id: '', nom: 'Tourteau de soja', pourcentage: 28, prix_unitaire: 0 },
       { ingredient_id: '', nom: 'Son de blé', pourcentage: 10, prix_unitaire: 0 },
       { ingredient_id: '', nom: 'Lait en poudre', pourcentage: 5, prix_unitaire: 0 },
-      { ingredient_id: '', nom: 'CMV (Complément Minéral Vitaminé)', pourcentage: 5, prix_unitaire: 0 },
+      {
+        ingredient_id: '',
+        nom: 'CMV (Complément Minéral Vitaminé)',
+        pourcentage: 5,
+        prix_unitaire: 0,
+      },
       { ingredient_id: '', nom: 'Lysine', pourcentage: 2, prix_unitaire: 0 },
     ],
   },
@@ -545,7 +554,12 @@ export const FORMULES_RECOMMANDEES: Record<TypePorc, FormuleAlimentaire> = {
       { ingredient_id: '', nom: 'Maïs', pourcentage: 60, prix_unitaire: 0 },
       { ingredient_id: '', nom: 'Tourteau de soja', pourcentage: 15, prix_unitaire: 0 },
       { ingredient_id: '', nom: 'Son de blé', pourcentage: 20, prix_unitaire: 0 },
-      { ingredient_id: '', nom: 'CMV (Complément Minéral Vitaminé)', pourcentage: 3, prix_unitaire: 0 },
+      {
+        ingredient_id: '',
+        nom: 'CMV (Complément Minéral Vitaminé)',
+        pourcentage: 3,
+        prix_unitaire: 0,
+      },
       { ingredient_id: '', nom: 'Carbonate de calcium', pourcentage: 2, prix_unitaire: 0 },
     ],
   },
@@ -558,7 +572,12 @@ export const FORMULES_RECOMMANDEES: Record<TypePorc, FormuleAlimentaire> = {
       { ingredient_id: '', nom: 'Tourteau de soja', pourcentage: 25, prix_unitaire: 0 },
       { ingredient_id: '', nom: 'Son de blé', pourcentage: 10, prix_unitaire: 0 },
       { ingredient_id: '', nom: 'Huile de soja', pourcentage: 3, prix_unitaire: 0 },
-      { ingredient_id: '', nom: 'CMV (Complément Minéral Vitaminé)', pourcentage: 5, prix_unitaire: 0 },
+      {
+        ingredient_id: '',
+        nom: 'CMV (Complément Minéral Vitaminé)',
+        pourcentage: 5,
+        prix_unitaire: 0,
+      },
       { ingredient_id: '', nom: 'Lysine', pourcentage: 2, prix_unitaire: 0 },
     ],
   },
@@ -570,7 +589,12 @@ export const FORMULES_RECOMMANDEES: Record<TypePorc, FormuleAlimentaire> = {
       { ingredient_id: '', nom: 'Maïs', pourcentage: 62, prix_unitaire: 0 },
       { ingredient_id: '', nom: 'Tourteau de soja', pourcentage: 18, prix_unitaire: 0 },
       { ingredient_id: '', nom: 'Son de blé', pourcentage: 15, prix_unitaire: 0 },
-      { ingredient_id: '', nom: 'CMV (Complément Minéral Vitaminé)', pourcentage: 3, prix_unitaire: 0 },
+      {
+        ingredient_id: '',
+        nom: 'CMV (Complément Minéral Vitaminé)',
+        pourcentage: 3,
+        prix_unitaire: 0,
+      },
       { ingredient_id: '', nom: 'Lysine', pourcentage: 2, prix_unitaire: 0 },
     ],
   },
@@ -582,9 +606,13 @@ export const FORMULES_RECOMMANDEES: Record<TypePorc, FormuleAlimentaire> = {
       { ingredient_id: '', nom: 'Maïs', pourcentage: 65, prix_unitaire: 0 },
       { ingredient_id: '', nom: 'Tourteau de soja', pourcentage: 20, prix_unitaire: 0 },
       { ingredient_id: '', nom: 'Son de blé', pourcentage: 10, prix_unitaire: 0 },
-      { ingredient_id: '', nom: 'CMV (Complément Minéral Vitaminé)', pourcentage: 3, prix_unitaire: 0 },
+      {
+        ingredient_id: '',
+        nom: 'CMV (Complément Minéral Vitaminé)',
+        pourcentage: 3,
+        prix_unitaire: 0,
+      },
       { ingredient_id: '', nom: 'Lysine', pourcentage: 2, prix_unitaire: 0 },
     ],
   },
 };
-

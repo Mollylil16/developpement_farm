@@ -18,7 +18,7 @@ interface CustomModalProps {
   cancelText?: string;
   showButtons?: boolean;
   loading?: boolean;
-  enableShakeToCancel?: boolean; // Activer le shake-to-cancel (par défaut: true)
+  enableShakeToCancel?: boolean; // Activer le shake-to-cancel (par défaut: false pour éviter permissions intrusives)
   shakeThreshold?: number; // Sensibilité de la détection (par défaut: 15)
 }
 
@@ -32,30 +32,26 @@ export default function CustomModal({
   cancelText = 'Annuler',
   showButtons = true,
   loading = false,
-  enableShakeToCancel = true,
+  enableShakeToCancel = false, // Désactivé par défaut pour éviter les permissions intrusive
   shakeThreshold = 15,
 }: CustomModalProps) {
   const { colors } = useTheme();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
-  
+
   // Activer le shake-to-cancel si autorisé et modal visible
   useShakeToCancel({
     enabled: visible && enableShakeToCancel && !loading,
     threshold: shakeThreshold,
     onShake: () => {
-      Alert.alert(
-        '🔔 Secousse détectée',
-        'Voulez-vous annuler cette action ?',
-        [
-          { text: 'Non', style: 'cancel' },
-          { 
-            text: 'Oui, annuler', 
-            style: 'destructive',
-            onPress: onClose
-          }
-        ]
-      );
+      Alert.alert('🔔 Secousse détectée', 'Voulez-vous annuler cette action ?', [
+        { text: 'Non', style: 'cancel' },
+        {
+          text: 'Oui, annuler',
+          style: 'destructive',
+          onPress: onClose,
+        },
+      ]);
     },
   });
 
@@ -97,11 +93,7 @@ export default function CustomModal({
           },
         ]}
       >
-        <TouchableOpacity
-          style={StyleSheet.absoluteFill}
-          activeOpacity={1}
-          onPress={onClose}
-        />
+        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
         <Animated.View
           style={[
             styles.modal,
@@ -233,4 +225,3 @@ const styles = StyleSheet.create({
     fontWeight: FONT_WEIGHTS.semiBold,
   },
 });
-

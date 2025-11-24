@@ -103,34 +103,72 @@ export const genererPlanSaillies = createAsyncThunk(
   async (_, { getState, rejectWithValue }) => {
     try {
       const state = getState() as RootState;
-      const { simulationResultat, objectifProduction, parametresProduction } = state.planningProduction;
+      const { simulationResultat, objectifProduction, parametresProduction } =
+        state.planningProduction;
 
       if (!simulationResultat || !objectifProduction) {
-        throw new Error('Veuillez d\'abord lancer une simulation');
+        throw new Error("Veuillez d'abord lancer une simulation");
       }
 
-      // Récupérer les truies disponibles du cheptel
+      // Récupérer le projet actif
+      const projetActif = state.projet?.projetActif;
+      if (!projetActif) {
+        throw new Error('Aucun projet actif sélectionné');
+      }
+
+      // Récupérer les truies disponibles du cheptel (filtrées par projet)
       const animaux = state.production?.entities?.animaux || {};
-      
+
       // Récupérer les gestations en cours pour exclure les truies déjà en gestation
       const gestations = state.reproduction?.entities?.gestations || {};
-      const gestationsEnCours = Object.values(gestations).filter((g: any) => 
-        g && g.statut === 'en_cours'
+      const gestationsEnCours = Object.values(gestations).filter(
+        (g: any) => g && g.statut === 'en_cours' && g.projet_id === projetActif.id
       );
       const truiesEnGestationIds = new Set(
         gestationsEnCours.map((g: any) => g.truie_id).filter(Boolean)
       );
+
+      // Helper pour vérifier si un animal est reproducteur (gère les booléens et les entiers SQLite)
+      const isReproducteur = (reproducteur: any): boolean => {
+        return reproducteur === true || reproducteur === 1 || reproducteur === '1';
+      };
+
+      // Log pour déboguer
+      const tousAnimaux = Object.values(animaux);
+      console.log('🔍 [genererPlanSaillies] Total animaux dans state:', tousAnimaux.length);
+      console.log('🔍 [genererPlanSaillies] Projet actif:', projetActif.id);
       
+      const animauxProjet = tousAnimaux.filter((a: any) => a?.projet_id === projetActif.id);
+      console.log('🔍 [genererPlanSaillies] Animaux du projet:', animauxProjet.length);
+      
+      const truiesProjet = animauxProjet.filter((a: any) => a?.sexe === 'femelle');
+      console.log('🔍 [genererPlanSaillies] Truies du projet:', truiesProjet.length);
+      if (truiesProjet.length > 0) {
+        console.log('🔍 [genererPlanSaillies] Détails truies:', truiesProjet.map((a: any) => ({
+          id: a.id,
+          code: a.code,
+          sexe: a.sexe,
+          reproducteur: a.reproducteur,
+          type_reproducteur: typeof a.reproducteur,
+          statut: a.statut,
+          projet_id: a.projet_id,
+          isReproducteur: isReproducteur(a.reproducteur)
+        })));
+      }
+
       const truiesDisponibles = Object.values(animaux).filter((animal: any) => {
         if (!animal) return false;
         const isFemelle = animal.sexe === 'femelle';
-        const isReproductrice = animal.reproducteur === true;
+        const isReproductrice = isReproducteur(animal.reproducteur);
         const isActive = animal.statut === 'actif';
+        const isDuProjet = animal.projet_id === projetActif.id;
         const estEnGestation = truiesEnGestationIds.has(animal.id);
-        
+
         // Exclure les truies déjà en gestation
-        return isFemelle && isReproductrice && isActive && !estEnGestation;
+        return isFemelle && isReproductrice && isActive && isDuProjet && !estEnGestation;
       });
+      
+      console.log('🔍 [genererPlanSaillies] Truies disponibles après filtrage:', truiesDisponibles.length);
 
       const nombreTruies = truiesDisponibles.length;
       const nombrePorteesNecessaires = simulationResultat.nombre_portees_necessaires;
@@ -140,12 +178,12 @@ export const genererPlanSaillies = createAsyncThunk(
       }
 
       // 🎯 LOGIQUE RÉTROGRADE CORRECTE
-      
+
       // Calcul du cycle de reproduction (gestation + lactation + repos)
       const JOURS_REPOS = 7;
-      const cycleReproductionJours = 
-        parametresProduction.duree_gestation_jours + 
-        parametresProduction.duree_lactation_jours + 
+      const cycleReproductionJours =
+        parametresProduction.duree_gestation_jours +
+        parametresProduction.duree_lactation_jours +
         JOURS_REPOS;
 
       // Durée d'engraissement (sevrage → poids de vente)
@@ -154,38 +192,40 @@ export const genererPlanSaillies = createAsyncThunk(
       const poids_a_gagner_kg = poidsCible - POIDS_AU_SEVRAGE_KG;
       const GMQ_REALISTE = parametresProduction.gmq_moyen_g_jour * 0.85; // Coefficient pessimiste
       const dureeEngraissementJours = Math.ceil((poids_a_gagner_kg * 1000) / GMQ_REALISTE);
-      
+
       // Cycle COMPLET (saillie → vente)
-      const cycleTotalJours = 
-        parametresProduction.duree_gestation_jours + 
-        parametresProduction.duree_lactation_jours + 
+      const cycleTotalJours =
+        parametresProduction.duree_gestation_jours +
+        parametresProduction.duree_lactation_jours +
         dureeEngraissementJours;
-      
+
       // Période disponible
       const periodeJours = objectifProduction.periode_mois * 30;
       const dateDebut = new Date(objectifProduction.date_debut);
       const dateLimite = addDays(dateDebut, periodeJours);
-      
+
       // ⚠️ CONTRAINTE : Le DERNIER porc doit être vendable À LA DATE LIMITE
       // Donc la DERNIÈRE saillie doit avoir lieu à : dateLimite - cycleTotalJours
       const dateDerniereSaillie = addDays(dateLimite, -cycleTotalJours);
-      
+
       // Fenêtre de temps pour toutes les saillies
       const fenetreSailliesJours = differenceInDays(dateDerniereSaillie, dateDebut);
-      
+
       if (fenetreSailliesJours < 0) {
-        throw new Error(`Période trop courte ! Il faut au moins ${Math.ceil(cycleTotalJours / 30)} mois pour produire.`);
+        throw new Error(
+          `Période trop courte ! Il faut au moins ${Math.ceil(cycleTotalJours / 30)} mois pour produire.`
+        );
       }
-      
+
       // 🔄 STRATÉGIE OPTIMALE : Utiliser toutes les truies en parallèle
       // Au lieu d'étaler les saillies, on les groupe par vague
-      
+
       // Combien de cycles chaque truie peut faire ?
       const cyclesMaxParTruie = Math.floor(fenetreSailliesJours / cycleReproductionJours) + 1;
-      
+
       // Combien de vagues de saillies peut-on faire ?
       const nombreVagues = Math.ceil(nombrePorteesNecessaires / nombreTruies);
-      
+
       // Intervalle entre les vagues
       const intervalleVaguesJours = cycleReproductionJours; // Une vague par cycle de reproduction
 
@@ -193,9 +233,10 @@ export const genererPlanSaillies = createAsyncThunk(
       const verratsDisponibles = Object.values(animaux).filter((animal: any) => {
         if (!animal) return false;
         const isMale = animal.sexe === 'male';
-        const isReproducteur = animal.reproducteur === true;
+        const estReproducteur = isReproducteur(animal.reproducteur);
         const isActive = animal.statut === 'actif';
-        return isMale && isReproducteur && isActive;
+        const isDuProjet = animal.projet_id === projetActif.id;
+        return isMale && estReproducteur && isActive && isDuProjet;
       });
 
       const nombreVerrats = verratsDisponibles.length;
@@ -204,76 +245,100 @@ export const genererPlanSaillies = createAsyncThunk(
       // Respect des contraintes biologiques:
       // - 1 verrat ne peut saillir qu'1 truie tous les 2 jours (truie reste 2j dans la loge)
       // - Avec plusieurs verrats: on peut les utiliser en parallèle
-      
+
       const DUREE_SAILLIE_JOURS = 2; // La truie reste 2 jours avec le verrat
       const saillies: SailliePlanifiee[] = [];
       let saillieIndex = 0;
-      
+
       // Suivi de la disponibilité des verrats (dernière date d'utilisation)
       const derniereSaillieVerrat: { [verratId: string]: Date } = {};
-      verratsDisponibles.forEach(v => {
-        derniereSaillieVerrat[v.id] = new Date(dateDebut.getTime() - DUREE_SAILLIE_JOURS * 24 * 60 * 60 * 1000); // Disponibles au début
+      verratsDisponibles.forEach((v) => {
+        derniereSaillieVerrat[v.id] = new Date(
+          dateDebut.getTime() - DUREE_SAILLIE_JOURS * 24 * 60 * 60 * 1000
+        ); // Disponibles au début
       });
-      
+
       // Pour chaque vague de saillies (cycle de reproduction)
-      for (let vague = 0; vague < nombreVagues && saillieIndex < nombrePorteesNecessaires; vague++) {
+      for (
+        let vague = 0;
+        vague < nombreVagues && saillieIndex < nombrePorteesNecessaires;
+        vague++
+      ) {
         // Date de début de cette vague
         const dateDebutVague = addDays(dateDebut, vague * intervalleVaguesJours);
-        
+
         // Trouver les truies disponibles pour cette vague
-        const truiesDisponiblesVague = truiesDisponibles.filter(truie => {
+        const truiesDisponiblesVague = truiesDisponibles.filter((truie) => {
           const derniereSaillieTruie = saillies
-            .filter(s => s.truie_id === truie.id)
-            .sort((a, b) => new Date(b.date_saillie_prevue).getTime() - new Date(a.date_saillie_prevue).getTime())[0];
-          
+            .filter((s) => s.truie_id === truie.id)
+            .sort(
+              (a, b) =>
+                new Date(b.date_saillie_prevue).getTime() -
+                new Date(a.date_saillie_prevue).getTime()
+            )[0];
+
           if (!derniereSaillieTruie) return true; // Jamais saillie
-          
-          const joursDerniereSaillie = differenceInDays(dateDebutVague, new Date(derniereSaillieTruie.date_saillie_prevue));
+
+          const joursDerniereSaillie = differenceInDays(
+            dateDebutVague,
+            new Date(derniereSaillieTruie.date_saillie_prevue)
+          );
           return joursDerniereSaillie >= cycleReproductionJours; // Disponible si cycle terminé
         });
-        
+
         // Planifier les saillies de cette vague
         let jourActuel = 0; // Jours depuis le début de la vague
-        
-        for (let truieIdx = 0; truieIdx < truiesDisponiblesVague.length && saillieIndex < nombrePorteesNecessaires; truieIdx++) {
+
+        for (
+          let truieIdx = 0;
+          truieIdx < truiesDisponiblesVague.length && saillieIndex < nombrePorteesNecessaires;
+          truieIdx++
+        ) {
           const truie = truiesDisponiblesVague[truieIdx];
-          
+
           // Trouver le verrat disponible le plus tôt
           let verratChoisi: any = null;
           let dateDisponibleVerrat = new Date(9999, 0, 1); // Date lointaine
-          
+
           for (const verrat of verratsDisponibles) {
             const derniereUtilisation = derniereSaillieVerrat[verrat.id];
             const prochaineDispo = addDays(derniereUtilisation, DUREE_SAILLIE_JOURS);
-            const dateProposee = new Date(Math.max(prochaineDispo.getTime(), dateDebutVague.getTime() + jourActuel * 24 * 60 * 60 * 1000));
-            
+            const dateProposee = new Date(
+              Math.max(
+                prochaineDispo.getTime(),
+                dateDebutVague.getTime() + jourActuel * 24 * 60 * 60 * 1000
+              )
+            );
+
             if (dateProposee < dateDisponibleVerrat) {
               dateDisponibleVerrat = dateProposee;
               verratChoisi = verrat;
             }
           }
-          
+
           if (!verratChoisi) {
             console.warn('⚠️ Aucun verrat disponible');
             continue;
           }
-          
+
           // Date de saillie = quand le verrat est disponible
           const dateSaillie = dateDisponibleVerrat;
-          
+
           // Vérifier que le porc sera vendable avant la deadline
           const dateMiseBas = addDays(dateSaillie, parametresProduction.duree_gestation_jours);
           const dateSevrage = addDays(dateMiseBas, parametresProduction.duree_lactation_jours);
           const dateVente = addDays(dateSevrage, dureeEngraissementJours);
-          
+
           if (dateVente > dateLimite) {
-            console.warn(`⚠️ Saillie ignorée: vente ${format(dateVente, 'dd/MM/yyyy')} > deadline ${format(dateLimite, 'dd/MM/yyyy')}`);
+            console.warn(
+              `⚠️ Saillie ignorée: vente ${format(dateVente, 'dd/MM/yyyy')} > deadline ${format(dateLimite, 'dd/MM/yyyy')}`
+            );
             break; // Arrêter cette vague, trop tard
           }
-          
+
           // Enregistrer la saillie
           const verratInfo = verratChoisi.code || verratChoisi.nom || verratChoisi.id;
-          
+
           saillies.push({
             id: `saillie_${Date.now()}_${saillieIndex}_${Date.now() % 1000}`,
             projet_id: truie.projet_id || '',
@@ -287,10 +352,10 @@ export const genererPlanSaillies = createAsyncThunk(
             date_creation: new Date().toISOString(),
             derniere_modification: new Date().toISOString(),
           });
-          
+
           // Mettre à jour la disponibilité du verrat
           derniereSaillieVerrat[verratChoisi.id] = dateSaillie;
-          
+
           saillieIndex++;
           jourActuel++; // Incrémenter pour espacer dans la vague si nécessaire
         }
@@ -300,7 +365,7 @@ export const genererPlanSaillies = createAsyncThunk(
       if (saillies.length < nombrePorteesNecessaires) {
         console.warn(
           `Attention: Seulement ${saillies.length} saillies planifiées sur ${nombrePorteesNecessaires} nécessaires. ` +
-          `Vous avez ${nombreTruies} truie(s) mais il en faudrait environ ${Math.ceil(nombrePorteesNecessaires / parametresProduction.cycles_par_an)}.`
+            `Vous avez ${nombreTruies} truie(s) mais il en faudrait environ ${Math.ceil(nombrePorteesNecessaires / parametresProduction.cycles_par_an)}.`
         );
       }
 
@@ -316,19 +381,22 @@ export const genererPlanSaillies = createAsyncThunk(
  */
 export const genererPrevisionsVentes = createAsyncThunk(
   'planningProduction/genererPrevisions',
-  async (params: { poids_cible_kg?: number; gmq_moyen?: number } | undefined, { getState, rejectWithValue }) => {
+  async (
+    params: { poids_cible_kg?: number; gmq_moyen?: number } | undefined,
+    { getState, rejectWithValue }
+  ) => {
     try {
       const state = getState() as RootState;
       const { parametresProduction } = state.planningProduction;
-      
+
       // Utiliser les paramètres fournis ou ceux par défaut
       const poidsCible = params?.poids_cible_kg ?? parametresProduction.poids_moyen_vente_kg;
       const gmqMoyen = params?.gmq_moyen ?? parametresProduction.gmq_moyen_g_jour;
-      
+
       // Recuperer les animaux depuis l'etat Redux (entities normalisées)
       const animauxEntities = state.production?.entities?.animaux || {};
       const animaux = Object.values(animauxEntities).filter((a): a is any => a !== undefined);
-      
+
       // Filtrer uniquement les animaux à vendre (non reproducteurs)
       const animauxAVendre = animaux.filter((animal) => {
         // Exclure les reproducteurs (verrats et truies)
@@ -342,7 +410,7 @@ export const genererPrevisionsVentes = createAsyncThunk(
       // Recuperer les pesees par animal depuis l'etat Redux
       const peseesParAnimalIds = state.production?.peseesParAnimal || {};
       const peseesEntities = state.production?.entities?.pesees || {};
-      
+
       const peseesParAnimal: { [key: string]: any[] } = {};
       Object.keys(peseesParAnimalIds).forEach((animalId) => {
         const peseeIds = peseesParAnimalIds[animalId] || [];
@@ -351,15 +419,11 @@ export const genererPrevisionsVentes = createAsyncThunk(
           .filter((p) => p !== undefined);
       });
 
-      const synthese = calculerPrevisionVentes(
-        animauxAVendre,
-        peseesParAnimal,
-        {
-          poids_cible_kg: poidsCible,
-          gmq_moyen: gmqMoyen,
-          marge_jours: 7,
-        }
-      );
+      const synthese = calculerPrevisionVentes(animauxAVendre, peseesParAnimal, {
+        poids_cible_kg: poidsCible,
+        gmq_moyen: gmqMoyen,
+        marge_jours: 7,
+      });
 
       return synthese;
     } catch (error: any) {
@@ -377,28 +441,29 @@ export const genererPrevisionsFuturesVentes = createAsyncThunk(
     try {
       const state = getState() as RootState;
       const { parametresProduction, sailliesPlanifiees } = state.planningProduction;
-      
+
       if (!sailliesPlanifiees || sailliesPlanifiees.length === 0) {
-        return rejectWithValue('Aucune saillie planifiée. Veuillez d\'abord générer un plan de saillies dans l\'onglet "Saillies".');
+        return rejectWithValue(
+          'Aucune saillie planifiée. Veuillez d\'abord générer un plan de saillies dans l\'onglet "Saillies".'
+        );
       }
-      
+
       // Utiliser les paramètres fournis ou ceux par défaut
       const poidsCible = params?.poids_cible_kg ?? parametresProduction.poids_moyen_vente_kg;
-      
-      const synthese = calculerPrevisionsFutures(
-        sailliesPlanifiees,
-        {
-          porcelets_par_portee: parametresProduction.porcelets_par_portee_moyen,
-          taux_survie_sevrage: parametresProduction.taux_survie_sevrage * 100,
-          duree_engraissement_jours: 180, // 6 mois d'engraissement
-          poids_cible_kg: poidsCible,
-          prix_vente_kg: 1500, // Prix par défaut (CONSTANTES_PRODUCTION.PRIX_VENTE_KG_MOYEN)
-        }
-      );
+
+      const synthese = calculerPrevisionsFutures(sailliesPlanifiees, {
+        porcelets_par_portee: parametresProduction.porcelets_par_portee_moyen,
+        taux_survie_sevrage: parametresProduction.taux_survie_sevrage * 100,
+        duree_engraissement_jours: 180, // 6 mois d'engraissement
+        poids_cible_kg: poidsCible,
+        prix_vente_kg: 1500, // Prix par défaut (CONSTANTES_PRODUCTION.PRIX_VENTE_KG_MOYEN)
+      });
 
       return synthese;
     } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la generation des previsions futures');
+      return rejectWithValue(
+        error.message || 'Erreur lors de la generation des previsions futures'
+      );
     }
   }
 );
@@ -430,28 +495,27 @@ export const validerPlanningSaillies = createAsyncThunk(
     { dispatch, rejectWithValue }
   ) => {
     try {
-      
       // Importer dynamiquement pour éviter les dépendances circulaires
       const { genererTachesDepuisSaillie } = await import('../../utils/planningProductionCalculs');
       const { createPlanificationsBatch } = await import('./planificationSlice');
-      
+
       const toutesLesTaches: any[] = [];
       const sailliesValidees: SailliePlanifiee[] = [];
-      
+
       for (const saillie of payload.saillies) {
         // Trouver les infos de la truie et du verrat
-        const truie = payload.animaux?.find(a => a.id === saillie.truie_id);
-        const verrat = payload.animaux?.find(a => a.id === saillie.verrat_id);
-        
+        const truie = payload.animaux?.find((a) => a.id === saillie.truie_id);
+        const verrat = payload.animaux?.find((a) => a.id === saillie.verrat_id);
+
         // Générer les tâches pour cette saillie
         const taches = genererTachesDepuisSaillie(
           saillie,
           truie?.nom || truie?.code,
           verrat?.nom || verrat?.code
         );
-        
+
         // Convertir en CreatePlanificationInput
-        const tachesACreer = taches.map(tache => ({
+        const tachesACreer = taches.map((tache) => ({
           projet_id: payload.projetId,
           type: tache.type as any,
           titre: tache.titre,
@@ -461,32 +525,32 @@ export const validerPlanningSaillies = createAsyncThunk(
           rappel: tache.rappel,
           notes: tache.notes,
         }));
-        
+
         toutesLesTaches.push(...tachesACreer);
-        
+
         // Marquer la saillie comme validée
         sailliesValidees.push({
           ...saillie,
           validee: true,
         });
       }
-      
+
       // Créer toutes les tâches en batch
       const resultBatch = await dispatch(createPlanificationsBatch(toutesLesTaches));
-      
+
       if (createPlanificationsBatch.fulfilled.match(resultBatch)) {
         const tachesCrees = resultBatch.payload;
-        
+
         // Mettre à jour les IDs des tâches créées dans les saillies
         for (let i = 0; i < sailliesValidees.length; i++) {
           const nbTachesParSaillie = 10; // Nombre de tâches par saillie
           const tachesIds = tachesCrees
             .slice(i * nbTachesParSaillie, (i + 1) * nbTachesParSaillie)
-            .map(t => t.id);
-          
+            .map((t) => t.id);
+
           sailliesValidees[i].taches_creees = tachesIds;
         }
-        
+
         return {
           sailliesValidees,
           nombreTachesCreees: tachesCrees.length,
@@ -530,9 +594,7 @@ const planningProductionSlice = createSlice({
 
     // Supprimer une saillie planifiee
     supprimerSailliePlanifiee: (state, action: PayloadAction<string>) => {
-      state.sailliesPlanifiees = state.sailliesPlanifiees.filter(
-        (s) => s.id !== action.payload
-      );
+      state.sailliesPlanifiees = state.sailliesPlanifiees.filter((s) => s.id !== action.payload);
     },
 
     // Supprimer une prevision de vente
@@ -540,10 +602,13 @@ const planningProductionSlice = createSlice({
       // Les previsions ventes sont dans la synthese, on ne peut pas les supprimer individuellement
       // TODO: Refactorer si necessaire
     },
-    
+
     // Marquer une saillie comme validée
-    marquerSaillieValidee: (state, action: PayloadAction<{ saillieId: string; tachesIds: string[] }>) => {
-      const saillie = state.sailliesPlanifiees.find(s => s.id === action.payload.saillieId);
+    marquerSaillieValidee: (
+      state,
+      action: PayloadAction<{ saillieId: string; tachesIds: string[] }>
+    ) => {
+      const saillie = state.sailliesPlanifiees.find((s) => s.id === action.payload.saillieId);
       if (saillie) {
         saillie.validee = true;
         saillie.taches_creees = action.payload.tachesIds;
@@ -593,7 +658,7 @@ const planningProductionSlice = createSlice({
       })
       .addCase(genererPrevisionsVentes.fulfilled, (state, action) => {
         state.loading = false;
-        state.previsionsVentes = action.payload.calendrier_mensuel.flatMap(c => c.animaux);
+        state.previsionsVentes = action.payload.calendrier_mensuel.flatMap((c) => c.animaux);
       })
       .addCase(genererPrevisionsVentes.rejected, (state, action) => {
         state.loading = false;
@@ -608,13 +673,13 @@ const planningProductionSlice = createSlice({
       })
       .addCase(genererPrevisionsFuturesVentes.fulfilled, (state, action) => {
         state.loading = false;
-        state.previsionsVentes = action.payload.calendrier_mensuel.flatMap(c => c.animaux);
+        state.previsionsVentes = action.payload.calendrier_mensuel.flatMap((c) => c.animaux);
       })
       .addCase(genererPrevisionsFuturesVentes.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       });
-    
+
     // Valider planning saillies
     builder
       .addCase(validerPlanningSaillies.pending, (state) => {

@@ -3,16 +3,36 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { setIndicateursPerformance, setRecommandations } from '../store/slices/reportsSlice';
 import { loadProductionAnimaux, loadPeseesParAnimal } from '../store/slices/productionSlice';
 import { loadMortalites } from '../store/slices/mortalitesSlice';
 import { selectAllAnimaux, selectPeseesParAnimal } from '../store/selectors/productionSelectors';
-import { selectAllChargesFixes, selectAllDepensesPonctuelles, selectAllRevenus } from '../store/selectors/financeSelectors';
+import {
+  selectAllChargesFixes,
+  selectAllDepensesPonctuelles,
+  selectAllRevenus,
+} from '../store/selectors/financeSelectors';
 import { selectAllGestations, selectAllSevrages } from '../store/selectors/reproductionSelectors';
 import { selectAllMortalites } from '../store/selectors/mortalitesSelectors';
-import { IndicateursPerformance, Recommandation, ChargeFixe, DepensePonctuelle, Gestation, Sevrage, Mortalite } from '../types';
+import {
+  IndicateursPerformance,
+  Recommandation,
+  ChargeFixe,
+  DepensePonctuelle,
+  Gestation,
+  Sevrage,
+  Mortalite,
+} from '../types';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import StatCard from './StatCard';
@@ -74,7 +94,7 @@ export default function PerformanceIndicatorsComponent() {
   // Utiliser useRef pour tracker les chargements et éviter les boucles
   const aChargeRef = useRef<string | null>(null);
   const animauxChargesRef = useRef<Set<string>>(new Set());
-  
+
   // Charger les animaux de production et leurs pesées (une seule fois par projet)
   useEffect(() => {
     if (!projetActif) {
@@ -82,7 +102,7 @@ export default function PerformanceIndicatorsComponent() {
       animauxChargesRef.current.clear();
       return;
     }
-    
+
     // Charger uniquement si le projet a changé
     if (aChargeRef.current !== projetActif.id) {
       aChargeRef.current = projetActif.id;
@@ -91,11 +111,14 @@ export default function PerformanceIndicatorsComponent() {
       dispatch(loadMortalites(projetActif.id));
     }
   }, [dispatch, projetActif?.id]);
-  
+
   // Créer un identifiant stable basé sur les IDs des animaux pour éviter les boucles infinies
   const animauxIdsString = useMemo(() => {
     if (!Array.isArray(animaux)) return '';
-    return animaux.map(a => a.id).sort().join(',');
+    return animaux
+      .map((a) => a.id)
+      .sort()
+      .join(',');
   }, [animaux]);
 
   // Créer un identifiant stable basé sur les clés de peseesParAnimal pour éviter les boucles infinies
@@ -106,16 +129,16 @@ export default function PerformanceIndicatorsComponent() {
 
   useEffect(() => {
     if (!projetActif || !Array.isArray(animaux) || animaux.length === 0) return;
-    
+
     // Charger uniquement si on est sur le bon projet
     if (aChargeRef.current !== projetActif.id) return;
-    
+
     // Utiliser peseesParAnimalKeysString pour éviter les re-renders inutiles
     // mais accéder à peseesParAnimal directement dans le filtre
     const animauxSansPesees = animaux.filter(
-      (animal) => 
+      (animal) =>
         animal.projet_id === projetActif.id &&
-        (!peseesParAnimal || !peseesParAnimal[animal.id]) && 
+        (!peseesParAnimal || !peseesParAnimal[animal.id]) &&
         !animauxChargesRef.current.has(animal.id)
     );
     // Limiter à 10 animaux à la fois pour éviter de surcharger
@@ -153,19 +176,19 @@ export default function PerformanceIndicatorsComponent() {
     const animauxProjet = animaux.filter((animal) => animal.projet_id === projetActif.id);
 
     // Calculer le nombre total de porcs ACTIFS : UNIQUEMENT les animaux avec statut "Actif" (insensible à la casse)
-    const nombrePorcsActifs = animauxProjet.filter((animal) => 
-      animal.statut?.toLowerCase() === 'actif'
+    const nombrePorcsActifs = animauxProjet.filter(
+      (animal) => animal.statut?.toLowerCase() === 'actif'
     ).length;
 
     // Calculer le nombre de porcs vendus : UNIQUEMENT les animaux avec statut "Vendu" (insensible à la casse)
-    const nombrePorcsVendus = animauxProjet.filter((animal) => 
-      animal.statut?.toLowerCase() === 'vendu'
+    const nombrePorcsVendus = animauxProjet.filter(
+      (animal) => animal.statut?.toLowerCase() === 'vendu'
     ).length;
 
     // Calculer le nombre d'animaux morts : UNIQUEMENT depuis les animaux avec statut "mort" dans le cheptel
     // C'est la source de vérité car les animaux sont automatiquement mis à jour lors de l'enregistrement d'une mortalité
-    const nombrePorcsMorts = animauxProjet.filter((animal) => 
-      animal.statut?.toLowerCase() === 'mort'
+    const nombrePorcsMorts = animauxProjet.filter(
+      (animal) => animal.statut?.toLowerCase() === 'mort'
     ).length;
 
     // Population totale = tous les animaux du projet (actifs + morts + vendus + autres)
@@ -178,7 +201,7 @@ export default function PerformanceIndicatorsComponent() {
       peseesParAnimal,
       projetActif.poids_moyen_actuel || 0
     );
-    
+
     // Si aucun animal actif avec poids, utiliser l'approximation basée sur le projet
     if (poidsTotal === 0 && nombrePorcsActifs > 0) {
       poidsTotal = (projetActif.poids_moyen_actuel || 0) * nombrePorcsActifs;
@@ -188,31 +211,31 @@ export default function PerformanceIndicatorsComponent() {
     // Taux = (nombre de morts / population totale) * 100
     // Population totale = tous les animaux du projet (actifs + morts + vendus + autres)
     // Les animaux morts sont SOUSTRAITS de la population totale pour obtenir la population actuelle
-    const tauxMortalite =
-      nombrePorcsTotal > 0 ? (nombrePorcsMorts / nombrePorcsTotal) * 100 : 0;
+    const tauxMortalite = nombrePorcsTotal > 0 ? (nombrePorcsMorts / nombrePorcsTotal) * 100 : 0;
 
     // Calculer le taux de croissance (basé sur les sevrages)
     const gestationsTerminees = gestations.filter((g: Gestation) => g.statut === 'terminee');
-    const tauxCroissance = gestationsTerminees.length > 0 && sevrages.length > 0 
-      ? (sevrages.length / gestationsTerminees.length) * 100 
-      : 0;
+    const tauxCroissance =
+      gestationsTerminees.length > 0 && sevrages.length > 0
+        ? (sevrages.length / gestationsTerminees.length) * 100
+        : 0;
 
     // Calculer l'efficacité alimentaire (ratio poids_gain / alimentation_consommee)
     // On utilise le poids réel basé sur les pesées si disponible
     const alimentationTotale = coutAlimentationTotal; // En CFA, à convertir en kg si nécessaire
-    
+
     // Calculer le poids réel pour l'efficacité alimentaire (dernières pesées des animaux actifs)
     let poidsReelPourEfficacite = calculatePoidsTotalAnimauxActifs(
       animauxProjet,
       peseesParAnimal,
       projetActif.poids_moyen_actuel || 0
     );
-    
+
     // Si pas de pesées, utiliser l'approximation
     if (poidsReelPourEfficacite === 0) {
       poidsReelPourEfficacite = poidsTotal;
     }
-    
+
     const efficaciteAlimentaire =
       alimentationTotale > 0 ? poidsReelPourEfficacite / (alimentationTotale / 1000) : 0; // Approximation
 
@@ -227,12 +250,12 @@ export default function PerformanceIndicatorsComponent() {
         peseesParAnimal,
         projetActif.poids_moyen_actuel || 0
       );
-      
+
       // Si pas de pesées, utiliser l'approximation du projet
       if (poidsReelPourCalcul === 0) {
         poidsReelPourCalcul = poidsTotal;
       }
-      
+
       const coutTotalMensuel = chargesFixesMensuelles + depensesPonctuellesTotales / 12;
       const coutProductionKg = poidsReelPourCalcul > 0 ? coutTotalMensuel / poidsReelPourCalcul : 0;
       return {
@@ -253,7 +276,10 @@ export default function PerformanceIndicatorsComponent() {
     const dateFinProduction = new Date(); // Aujourd'hui
 
     // 2. Calculer le nombre de mois de production
-    const nombreMoisProduction = Math.max(1, differenceInMonths(dateFinProduction, dateDebutProduction) + 1);
+    const nombreMoisProduction = Math.max(
+      1,
+      differenceInMonths(dateFinProduction, dateDebutProduction) + 1
+    );
 
     // 3. Calculer les charges fixes totales sur toute la période
     const chargesFixesTotales = chargesFixesActives.reduce((sum: number, cf: ChargeFixe) => {
@@ -261,46 +287,54 @@ export default function PerformanceIndicatorsComponent() {
       if (cf.frequence === 'mensuel') montantMensuel = cf.montant;
       else if (cf.frequence === 'trimestriel') montantMensuel = cf.montant / 3;
       else if (cf.frequence === 'annuel') montantMensuel = cf.montant / 12;
-      
+
       // Si la charge fixe a une date de début, ne compter que depuis cette date
       if (cf.date_debut) {
         const dateDebutCharge = parseISO(cf.date_debut);
-        
+
         // Ne compter que si la charge a commencé avant ou pendant la période de production
         if (isAfter(dateDebutCharge, dateFinProduction)) {
           return sum; // La charge commence après la fin de production
         }
-        
+
         // Si la charge est terminée (statut = 'termine'), utiliser la date de dernière modification comme fin
         // Sinon, elle continue jusqu'à aujourd'hui
-        const dateFinCharge = cf.statut === 'termine' && cf.derniere_modification 
-          ? parseISO(cf.derniere_modification)
+        const dateFinCharge =
+          cf.statut === 'termine' && cf.derniere_modification
+            ? parseISO(cf.derniere_modification)
+            : dateFinProduction;
+
+        const debutEffectif = isAfter(dateDebutCharge, dateDebutProduction)
+          ? dateDebutCharge
+          : dateDebutProduction;
+        const finEffectif = isBefore(dateFinCharge, dateFinProduction)
+          ? dateFinCharge
           : dateFinProduction;
-        
-        const debutEffectif = isAfter(dateDebutCharge, dateDebutProduction) ? dateDebutCharge : dateDebutProduction;
-        const finEffectif = isBefore(dateFinCharge, dateFinProduction) ? dateFinCharge : dateFinProduction;
-        
+
         // Ne compter que si la période effective est valide
         if (isAfter(debutEffectif, finEffectif)) {
           return sum;
         }
-        
+
         const moisEffectifs = Math.max(1, differenceInMonths(finEffectif, debutEffectif) + 1);
         return sum + montantMensuel * moisEffectifs;
       }
-      
+
       // Si pas de date_debut, compter sur toute la période de production
       return sum + montantMensuel * nombreMoisProduction;
     }, 0);
 
     // 4. Calculer les dépenses ponctuelles dans la période de production
-    const depensesPonctuellesDansPeriode = depensesPonctuelles.reduce((sum: number, dp: DepensePonctuelle) => {
-      const dateDepense = parseISO(dp.date);
-      if (isAfter(dateDepense, dateFinProduction) || isBefore(dateDepense, dateDebutProduction)) {
-        return sum;
-      }
-      return sum + dp.montant;
-    }, 0);
+    const depensesPonctuellesDansPeriode = depensesPonctuelles.reduce(
+      (sum: number, dp: DepensePonctuelle) => {
+        const dateDepense = parseISO(dp.date);
+        if (isAfter(dateDepense, dateFinProduction) || isBefore(dateDepense, dateDebutProduction)) {
+          return sum;
+        }
+        return sum + dp.montant;
+      },
+      0
+    );
 
     // 5. Calculer le coût total d'alimentation (rations) dans la période
     const coutAlimentationDansPeriode = rations.reduce((sum, ration) => {
@@ -318,22 +352,24 @@ export default function PerformanceIndicatorsComponent() {
     // On utilise la dernière pesée de chaque animal ACTIF dans la période pour obtenir le poids total
     let poidsTotalProduit = 0;
     let animauxAvecPesee = 0;
-    
+
     // Filtrer uniquement les animaux actifs
-    const animauxActifsPourPoids = animauxProjet.filter((animal) => animal.statut?.toLowerCase() === 'actif');
-    
+    const animauxActifsPourPoids = animauxProjet.filter(
+      (animal) => animal.statut?.toLowerCase() === 'actif'
+    );
+
     animauxActifsPourPoids.forEach((animal) => {
       const pesees = peseesParAnimal[animal.id] || [];
       if (pesees.length > 0) {
         // Trier les pesées par date (la plus récente en premier)
-        const peseesTriees = [...pesees].sort((a, b) => 
-          parseISO(b.date).getTime() - parseISO(a.date).getTime()
+        const peseesTriees = [...pesees].sort(
+          (a, b) => parseISO(b.date).getTime() - parseISO(a.date).getTime()
         );
-        
+
         // Prendre la dernière pesée (la plus récente)
         const dernierePesee = peseesTriees[0];
         const datePesee = parseISO(dernierePesee.date);
-        
+
         // Ne compter que si la pesée est dans la période de production
         if (!isAfter(datePesee, dateFinProduction) && !isBefore(datePesee, dateDebutProduction)) {
           poidsTotalProduit += dernierePesee.poids_kg;
@@ -358,7 +394,8 @@ export default function PerformanceIndicatorsComponent() {
     }
 
     // 7. Calculer le coût total sur toute la période
-    const coutTotalProduction = chargesFixesTotales + depensesPonctuellesDansPeriode + coutAlimentationDansPeriode;
+    const coutTotalProduction =
+      chargesFixesTotales + depensesPonctuellesDansPeriode + coutAlimentationDansPeriode;
 
     // 8. Calculer le coût par kg
     const coutProductionKg = poidsTotalProduit > 0 ? coutTotalProduction / poidsTotalProduit : 0;
@@ -490,7 +527,7 @@ export default function PerformanceIndicatorsComponent() {
   // Fonction pour exporter le rapport COMPLET en PDF (Dashboard + Finance + Rapports)
   const handleExportPDF = useCallback(async () => {
     if (!projetActif || !calculatedIndicators) return;
-    
+
     setExportingPDF(true);
     try {
       // Calculer les totaux financiers
@@ -498,43 +535,48 @@ export default function PerformanceIndicatorsComponent() {
       const totalDepenses = depensesPonctuelles.reduce((sum, d) => sum + d.montant, 0);
       const totalRevenus = revenus.reduce((sum, r) => sum + r.montant, 0);
       const solde = totalRevenus - (totalCharges + totalDepenses);
-      const rentabilite = totalRevenus > 0 ? ((solde / totalRevenus) * 100) : 0;
-      
+      const rentabilite = totalRevenus > 0 ? (solde / totalRevenus) * 100 : 0;
+
       // Stats de reproduction
-      const gestationsTerminees = gestations.filter(g => g.statut === 'terminee').length;
-      const gestationsEnCours = gestations.filter(g => g.statut === 'en_cours').length;
+      const gestationsTerminees = gestations.filter((g) => g.statut === 'terminee').length;
+      const gestationsEnCours = gestations.filter((g) => g.statut === 'en_cours').length;
       const porceletsNes = gestations
-        .filter(g => g.statut === 'terminee' && g.nombre_porcelets_reel)
+        .filter((g) => g.statut === 'terminee' && g.nombre_porcelets_reel)
         .reduce((sum, g) => sum + (g.nombre_porcelets_reel || 0), 0);
       const porceletsSevres = sevrages.reduce((sum, s) => sum + s.nombre_porcelets, 0);
-      const tauxSurvie = porceletsNes > 0 ? ((porceletsSevres / porceletsNes) * 100) : 0;
-      
+      const tauxSurvie = porceletsNes > 0 ? (porceletsSevres / porceletsNes) * 100 : 0;
+
       // Sevrages récents (30 derniers jours)
-      const sevragesRecents = sevrages.filter(s => {
+      const sevragesRecents = sevrages.filter((s) => {
         const dateS = new Date(s.date_sevrage);
         const now = new Date();
         const diffDays = (now.getTime() - dateS.getTime()) / (1000 * 60 * 60 * 24);
         return diffDays <= 30;
       }).length;
-      
+
       // Trouver la prochaine mise bas
       const gestationsAvecDatePrevue = gestations
         .filter((g) => g.statut === 'en_cours' && g.date_mise_bas_prevue)
-        .sort((a, b) => new Date(a.date_mise_bas_prevue!).getTime() - new Date(b.date_mise_bas_prevue!).getTime());
-      const prochaineMiseBas = gestationsAvecDatePrevue.length > 0 
-        ? gestationsAvecDatePrevue[0].date_mise_bas_prevue 
-        : null;
-      
+        .sort(
+          (a, b) =>
+            new Date(a.date_mise_bas_prevue!).getTime() -
+            new Date(b.date_mise_bas_prevue!).getTime()
+        );
+      const prochaineMiseBas =
+        gestationsAvecDatePrevue.length > 0
+          ? gestationsAvecDatePrevue[0].date_mise_bas_prevue
+          : null;
+
       // Stats de production
-      const animauxActifs = animaux.filter(a => a.statut?.toLowerCase() === 'actif');
+      const animauxActifs = animaux.filter((a) => a.statut?.toLowerCase() === 'actif');
       const toutesPesees = Object.values(peseesParAnimal).flat();
       const peseesEffectuees = toutesPesees.length;
       const peseesRecentes = toutesPesees.slice(0, 20).length;
-      
+
       // Calculer le poids total et GMQ moyen
       let poidsTotal = 0;
       const gmqValues: number[] = [];
-      animauxActifs.forEach(animal => {
+      animauxActifs.forEach((animal) => {
         const pesees = peseesParAnimal[animal.id];
         if (pesees && pesees.length > 0) {
           poidsTotal += pesees[0].poids_kg;
@@ -543,31 +585,30 @@ export default function PerformanceIndicatorsComponent() {
           }
         }
       });
-      const gmqMoyen = gmqValues.length > 0 
-        ? gmqValues.reduce((sum, val) => sum + val, 0) / gmqValues.length 
-        : 0;
-      
+      const gmqMoyen =
+        gmqValues.length > 0 ? gmqValues.reduce((sum, val) => sum + val, 0) / gmqValues.length : 0;
+
       // Calculer le gain de poids total
       let gainPoidsTotal = 0;
-      animauxActifs.forEach(animal => {
+      animauxActifs.forEach((animal) => {
         const pesees = peseesParAnimal[animal.id];
         if (pesees && pesees.length >= 2) {
           const premierePesee = pesees[pesees.length - 1];
           const dernierePesee = pesees[0];
-          gainPoidsTotal += (dernierePesee.poids_kg - premierePesee.poids_kg);
+          gainPoidsTotal += dernierePesee.poids_kg - premierePesee.poids_kg;
         }
       });
-      
+
       // Calculer moyennes mensuelles
       const nombreMois = 6;
       const depensesMensuelle = (totalCharges + totalDepenses) / nombreMois;
       const revenusMensuel = totalRevenus / nombreMois;
-      
+
       // Préparer les données pour le PDF COMPLET
       const rapportCompletData = {
         projet: projetActif,
         animaux: animaux,
-        
+
         // Dashboard
         finances: {
           totalDepenses: totalCharges + totalDepenses,
@@ -587,7 +628,7 @@ export default function PerformanceIndicatorsComponent() {
           prochaineMiseBas: prochaineMiseBas,
           sevragesRecents: sevragesRecents,
         },
-        
+
         // Finance détaillée
         chargesFixes: chargesFixes,
         depensesPonctuelles: depensesPonctuelles,
@@ -603,7 +644,7 @@ export default function PerformanceIndicatorsComponent() {
           depensesMensuelle: depensesMensuelle,
           revenusMensuel: revenusMensuel,
         },
-        
+
         // Indicateurs de performance
         indicateurs: {
           gmqMoyen: calculatedIndicators.taux_croissance,
@@ -633,23 +674,23 @@ export default function PerformanceIndicatorsComponent() {
           porceletsSevres: porceletsSevres,
           tauxSurvie: tauxSurvie,
         },
-        recommandations: (recommandations || []).map(r => ({
+        recommandations: (recommandations || []).map((r) => ({
           categorie: r.titre,
-          priorite: r.type === 'avertissement' ? 'haute' as const : 'moyenne' as const,
+          priorite: r.type === 'avertissement' ? ('haute' as const) : ('moyenne' as const),
           message: r.message,
         })),
       };
-      
+
       // Générer et partager le PDF COMPLET
       await exportRapportCompletPDF(rapportCompletData);
-      
+
       Alert.alert(
         '✅ Rapport complet généré',
         'Le rapport complet (Dashboard + Finance + Indicateurs) a été généré avec succès et est prêt à être partagé.',
         [{ text: 'OK' }]
       );
     } catch (error) {
-      console.error('Erreur lors de l\'export PDF:', error);
+      console.error("Erreur lors de l'export PDF:", error);
       Alert.alert(
         'Erreur',
         'Impossible de générer le rapport complet. Vérifiez vos données et réessayez.',
@@ -658,10 +699,21 @@ export default function PerformanceIndicatorsComponent() {
     } finally {
       setExportingPDF(false);
     }
-  }, [projetActif, calculatedIndicators, recommandations, chargesFixes, depensesPonctuelles, revenus, gestations, sevrages, animaux, peseesParAnimal]);
+  }, [
+    projetActif,
+    calculatedIndicators,
+    recommandations,
+    chargesFixes,
+    depensesPonctuelles,
+    revenus,
+    gestations,
+    sevrages,
+    animaux,
+    peseesParAnimal,
+  ]);
 
   return (
-    <ScrollView 
+    <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.scrollContent}
     >
@@ -690,9 +742,7 @@ export default function PerformanceIndicatorsComponent() {
                 value={calculatedIndicators.taux_mortalite.toFixed(1)}
                 label="Taux de mortalité"
                 unit="%"
-                valueColor={
-                  calculatedIndicators.taux_mortalite > 5 ? colors.error : colors.success
-                }
+                valueColor={calculatedIndicators.taux_mortalite > 5 ? colors.error : colors.success}
               />
               <StatCard
                 value={calculatedIndicators.taux_croissance.toFixed(1)}
@@ -715,7 +765,9 @@ export default function PerformanceIndicatorsComponent() {
             <View style={styles.costSection}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Coût de Production</Text>
               <View style={[styles.costCard, { backgroundColor: colors.surface }]}>
-                <Text style={[styles.costLabel, { color: colors.textSecondary }]}>Coût par kilogramme:</Text>
+                <Text style={[styles.costLabel, { color: colors.textSecondary }]}>
+                  Coût par kilogramme:
+                </Text>
                 <Text style={[styles.costValue, { color: colors.text }]}>
                   {formatAmount(calculatedIndicators.cout_production_kg)}
                 </Text>
@@ -726,25 +778,33 @@ export default function PerformanceIndicatorsComponent() {
             <View style={styles.detailsSection}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Détails</Text>
               <View style={styles.detailRow}>
-                <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Nombre total de porcs:</Text>
+                <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>
+                  Nombre total de porcs:
+                </Text>
                 <Text style={[styles.detailValue, { color: colors.text }]}>
                   {calculatedIndicators.nombre_porcs_total}
                 </Text>
               </View>
               <View style={styles.detailRow}>
-                <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Porcs vendus:</Text>
+                <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>
+                  Porcs vendus:
+                </Text>
                 <Text style={[styles.detailValue, { color: colors.text }]}>
                   {calculatedIndicators.nombre_porcs_vivants}
                 </Text>
               </View>
               <View style={styles.detailRow}>
-                <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Porcs morts:</Text>
+                <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>
+                  Porcs morts:
+                </Text>
                 <Text style={[styles.detailValue, { color: colors.text }]}>
                   {calculatedIndicators.nombre_porcs_morts}
                 </Text>
               </View>
               <View style={styles.detailRow}>
-                <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Poids total:</Text>
+                <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>
+                  Poids total:
+                </Text>
                 <Text style={[styles.detailValue, { color: colors.text }]}>
                   {calculatedIndicators.poids_total.toFixed(1)} kg
                 </Text>
@@ -754,19 +814,30 @@ export default function PerformanceIndicatorsComponent() {
             {/* Recommandations */}
             {recommandations.length > 0 && (
               <View style={styles.recommendationsSection}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>💡 Recommandations</Text>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                  💡 Recommandations
+                </Text>
                 {recommandations.map((rec) => (
                   <View
                     key={rec.id}
                     style={[
                       styles.recommendationCard,
-                      { borderLeftColor: getRecommandationColor(rec.type), backgroundColor: colors.surface },
+                      {
+                        borderLeftColor: getRecommandationColor(rec.type),
+                        backgroundColor: colors.surface,
+                      },
                     ]}
                   >
-                    <Text style={[styles.recommendationTitle, { color: colors.text }]}>{rec.titre}</Text>
-                    <Text style={[styles.recommendationMessage, { color: colors.textSecondary }]}>{rec.message}</Text>
+                    <Text style={[styles.recommendationTitle, { color: colors.text }]}>
+                      {rec.titre}
+                    </Text>
+                    <Text style={[styles.recommendationMessage, { color: colors.textSecondary }]}>
+                      {rec.message}
+                    </Text>
                     {rec.action && (
-                      <Text style={[styles.recommendationAction, { color: colors.primary }]}>→ {rec.action}</Text>
+                      <Text style={[styles.recommendationAction, { color: colors.primary }]}>
+                        → {rec.action}
+                      </Text>
                     )}
                   </View>
                 ))}
@@ -892,4 +963,3 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xl,
   },
 });
-

@@ -3,7 +3,16 @@
  */
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  Alert,
+  ScrollView,
+  RefreshControl,
+} from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { selectAllGestations } from '../store/selectors/reproductionSelectors';
 import {
@@ -13,7 +22,8 @@ import {
   updateGestation,
 } from '../store/slices/reproductionSlice';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
-import { Gestation } from '../types';
+import { selectAllAnimaux } from '../store/selectors/productionSelectors';
+import { Gestation, ProductionAnimal } from '../types';
 import { doitGenererAlerte, joursRestantsAvantMiseBas } from '../types/reproduction';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -31,6 +41,7 @@ export default function GestationsListComponent() {
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const gestations = useAppSelector(selectAllGestations);
+  const animaux = useAppSelector(selectAllAnimaux);
   const { loading } = useAppSelector((state) => state.reproduction);
   const [selectedGestation, setSelectedGestation] = useState<Gestation | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -41,7 +52,10 @@ export default function GestationsListComponent() {
   const [terminerModalVisible, setTerminerModalVisible] = useState(false);
   const [gestationATerminer, setGestationATerminer] = useState<Gestation | null>(null);
   const [nombrePorceletsReel, setNombrePorceletsReel] = useState<string>('');
-  const [dateMiseBasReelle, setDateMiseBasReelle] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [dateMiseBasReelle, setDateMiseBasReelle] = useState<string>(
+    new Date().toISOString().split('T')[0]
+  );
+  const [refreshing, setRefreshing] = useState(false);
 
   const { projetActif } = useAppSelector((state) => state.projet);
 
@@ -50,7 +64,7 @@ export default function GestationsListComponent() {
 
   // Utiliser useRef pour éviter les chargements multiples
   const gestationsChargeesRef = React.useRef<string | null>(null);
-  
+
   // ✅ CORRECTION CRITIQUE: Utiliser useRef pour éviter les mises à jour inutiles (pagination)
   const lastGestationsLengthRef = React.useRef<number>(gestationsLength);
   const displayedGestationsLength = displayedGestations.length;
@@ -60,15 +74,17 @@ export default function GestationsListComponent() {
       gestationsChargeesRef.current = null;
       return;
     }
-    
+
     if (gestationsChargeesRef.current === projetActif.id) {
       return; // Déjà chargé !
     }
-    
+
     try {
       gestationsChargeesRef.current = projetActif.id;
       dispatch(loadGestations(projetActif.id));
       dispatch(loadGestationsEnCours(projetActif.id));
+      // Charger les animaux pour pouvoir afficher les noms des verrats
+      dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
     } catch (error) {
       console.error('Erreur lors du chargement des gestations:', error);
     }
@@ -78,18 +94,17 @@ export default function GestationsListComponent() {
   const gestationsEnCoursLength = React.useMemo(() => {
     if (!projetActif?.id) return 0;
     if (!Array.isArray(gestations)) return 0;
-    return gestations.filter((g) => g.projet_id === projetActif.id && g.statut === 'en_cours').length;
+    return gestations.filter((g) => g.projet_id === projetActif.id && g.statut === 'en_cours')
+      .length;
   }, [gestationsLength, projetActif?.id]);
 
   const gestationsEnCours = useMemo(
     () => {
       if (!projetActif?.id) return [];
       if (!Array.isArray(gestations)) return [];
-      return gestations.filter(
-        (g) => g.projet_id === projetActif.id && g.statut === 'en_cours'
-      );
+      return gestations.filter((g) => g.projet_id === projetActif.id && g.statut === 'en_cours');
     },
-    [gestationsLength, gestations, projetActif?.id]  // ✅ GARDER gestations (utilisé dans le corps)
+    [gestationsLength, gestations, projetActif?.id] // ✅ GARDER gestations (utilisé dans le corps)
   );
 
   const alertes = useMemo(() => {
@@ -98,11 +113,11 @@ export default function GestationsListComponent() {
       try {
         return doitGenererAlerte(g.date_mise_bas_prevue);
       } catch (error) {
-        console.error('Erreur lors de la vérification de l\'alerte:', error);
+        console.error("Erreur lors de la vérification de l'alerte:", error);
         return false;
       }
     });
-  }, [gestationsEnCoursLength, gestationsEnCours]);  // ✅ GARDER gestationsEnCours (utilisé dans le corps)
+  }, [gestationsEnCoursLength, gestationsEnCours]); // ✅ GARDER gestationsEnCours (utilisé dans le corps)
 
   // ✅ CORRECTION CRITIQUE: Ne mettre à jour que si gestationsLength a vraiment changé
   useEffect(() => {
@@ -113,7 +128,7 @@ export default function GestationsListComponent() {
       }
       return;
     }
-    
+
     if (!Array.isArray(gestations)) {
       if (displayedGestations.length > 0) {
         setDisplayedGestations([]);
@@ -121,27 +136,27 @@ export default function GestationsListComponent() {
       }
       return;
     }
-    
+
     // ✅ NE METTRE À JOUR QUE SI LA LENGTH A CHANGÉ (évite la boucle infinie)
     if (lastGestationsLengthRef.current !== gestationsLength) {
       lastGestationsLengthRef.current = gestationsLength;
-      
+
       // Filtrer les gestations du projet actif
       const gestationsProjet = gestations.filter((g) => g.projet_id === projetActif.id);
       const initial = gestationsProjet.slice(0, ITEMS_PER_PAGE);
       setDisplayedGestations(initial);
       setPage(1);
     }
-  }, [gestationsLength, gestations, projetActif?.id]);  // ✅ Besoin de gestations pour le filtrage
+  }, [gestationsLength, gestations, projetActif?.id]); // ✅ Besoin de gestations pour le filtrage
 
   // ✅ CORRECTION CRITIQUE: Utiliser displayedGestationsLength au lieu de displayedGestations.length
   const loadMore = useCallback(() => {
     if (!projetActif?.id) return;
     if (!Array.isArray(gestations)) return;
-    
+
     // Filtrer les gestations du projet actif
     const gestationsProjet = gestations.filter((g) => g.projet_id === projetActif.id);
-    
+
     if (displayedGestationsLength >= gestationsProjet.length) {
       return;
     }
@@ -155,11 +170,14 @@ export default function GestationsListComponent() {
       setDisplayedGestations((prev) => [...prev, ...newItems]);
       setPage(nextPage);
     }
-  }, [page, displayedGestationsLength, gestationsLength, projetActif?.id]);  // ✅ Utiliser gestationsLength au lieu de gestations
+  }, [page, displayedGestationsLength, gestationsLength, projetActif?.id]); // ✅ Utiliser gestationsLength au lieu de gestations
 
   const handleEdit = (gestation: Gestation) => {
     if (!canUpdate('reproduction')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les gestations.');
+      Alert.alert(
+        'Permission refusée',
+        "Vous n'avez pas la permission de modifier les gestations."
+      );
       return;
     }
     setSelectedGestation(gestation);
@@ -169,21 +187,20 @@ export default function GestationsListComponent() {
 
   const handleDelete = (id: string) => {
     if (!canDelete('reproduction')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de supprimer les gestations.');
+      Alert.alert(
+        'Permission refusée',
+        "Vous n'avez pas la permission de supprimer les gestations."
+      );
       return;
     }
-    Alert.alert(
-      'Supprimer la gestation',
-      'Êtes-vous sûr de vouloir supprimer cette gestation ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: () => dispatch(deleteGestation(id)),
-        },
-      ]
-    );
+    Alert.alert('Supprimer la gestation', 'Êtes-vous sûr de vouloir supprimer cette gestation ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Supprimer',
+        style: 'destructive',
+        onPress: () => dispatch(deleteGestation(id)),
+      },
+    ]);
   };
 
   const handleMarquerTerminee = (gestation: Gestation) => {
@@ -217,7 +234,7 @@ export default function GestationsListComponent() {
       setTerminerModalVisible(false);
       setGestationATerminer(null);
       setNombrePorceletsReel('');
-      
+
       if (projetActif) {
         dispatch(loadGestations(projetActif.id));
         dispatch(loadGestationsEnCours(projetActif.id));
@@ -249,6 +266,22 @@ export default function GestationsListComponent() {
       dispatch(loadGestationsEnCours(projetActif.id));
     }
   };
+
+  const onRefresh = useCallback(async () => {
+    if (!projetActif?.id) return;
+    
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        dispatch(loadGestations(projetActif.id)).unwrap(),
+        dispatch(loadGestationsEnCours(projetActif.id)).unwrap(),
+      ]);
+    } catch (error) {
+      console.error('Erreur lors du rafraîchissement:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [dispatch, projetActif?.id]);
 
   const formatDate = (dateString: string) => {
     if (!dateString) return 'Date invalide';
@@ -316,20 +349,13 @@ export default function GestationsListComponent() {
 
       {/* Statistiques */}
       <View style={[styles.statsContainer, { backgroundColor: colors.surface }]}>
-        <StatCard
-          value={gestationsEnCours.length}
-          label="En cours"
-          valueColor={colors.primary}
-        />
-        <StatCard
-          value={alertes.length}
-          label="Alertes"
-          valueColor={colors.warning}
-        />
+        <StatCard value={gestationsEnCours.length} label="En cours" valueColor={colors.primary} />
+        <StatCard value={alertes.length} label="Alertes" valueColor={colors.warning} />
         <StatCard
           value={
             projetActif?.id && Array.isArray(gestations)
-              ? gestations.filter((g) => g.projet_id === projetActif.id && g.statut === 'terminee').length
+              ? gestations.filter((g) => g.projet_id === projetActif.id && g.statut === 'terminee')
+                  .length
               : 0
           }
           label="Terminées"
@@ -346,7 +372,10 @@ export default function GestationsListComponent() {
             try {
               const joursRestants = joursRestantsAvantMiseBas(gestation.date_mise_bas_prevue);
               return (
-                <View key={gestation.id} style={[styles.alerteCard, { backgroundColor: colors.background }]}>
+                <View
+                  key={gestation.id}
+                  style={[styles.alerteCard, { backgroundColor: colors.background }]}
+                >
                   <Text style={[styles.alerteText, { color: colors.warning }]}>
                     ⚠️ Mise bas prévue dans {joursRestants} jour{joursRestants > 1 ? 's' : ''} pour{' '}
                     {gestation.truie_nom || gestation.truie_id}
@@ -357,14 +386,16 @@ export default function GestationsListComponent() {
                 </View>
               );
             } catch (error) {
-              console.error('Erreur lors de l\'affichage de l\'alerte:', error);
+              console.error("Erreur lors de l'affichage de l'alerte:", error);
               return null;
             }
           })}
         </View>
       )}
 
-      {(!projetActif?.id || !Array.isArray(gestations) || gestations.filter((g) => g.projet_id === projetActif.id).length === 0) ? (
+      {!projetActif?.id ||
+      !Array.isArray(gestations) ||
+      gestations.filter((g) => g.projet_id === projetActif.id).length === 0 ? (
         <EmptyState
           title="Aucune gestation enregistrée"
           message="Ajoutez votre première gestation pour commencer"
@@ -378,7 +409,9 @@ export default function GestationsListComponent() {
                   setModalVisible(true);
                 }}
               >
-                <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>+ Nouvelle gestation</Text>
+                <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>
+                  + Nouvelle gestation
+                </Text>
               </TouchableOpacity>
             ) : null
           }
@@ -386,15 +419,39 @@ export default function GestationsListComponent() {
       ) : (
         <FlatList
           data={displayedGestations}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          }
           renderItem={({ item: gestation }) => (
-            <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small }]}>
+            <View
+              style={[
+                styles.card,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  ...colors.shadow.small,
+                },
+              ]}
+            >
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderLeft}>
                   <Text style={[styles.cardTitle, { color: colors.text }]}>
                     {gestation.truie_nom || gestation.truie_id}
                   </Text>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(gestation.statut), marginLeft: SPACING.sm }]}>
-                    <Text style={[styles.statusText, { color: colors.textOnPrimary }]}>{getStatusLabel(gestation.statut)}</Text>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      { backgroundColor: getStatusColor(gestation.statut), marginLeft: SPACING.sm },
+                    ]}
+                  >
+                    <Text style={[styles.statusText, { color: colors.textOnPrimary }]}>
+                      {getStatusLabel(gestation.statut)}
+                    </Text>
                   </View>
                 </View>
                 <View style={styles.cardActions}>
@@ -408,7 +465,12 @@ export default function GestationsListComponent() {
                   )}
                   {canUpdate('reproduction') && (
                     <TouchableOpacity
-                      style={[styles.actionButton, (gestation.statut === 'en_cours' && canUpdate('reproduction')) ? { marginLeft: SPACING.xs } : {}]}
+                      style={[
+                        styles.actionButton,
+                        gestation.statut === 'en_cours' && canUpdate('reproduction')
+                          ? { marginLeft: SPACING.xs }
+                          : {},
+                      ]}
                       onPress={() => handleEdit(gestation)}
                     >
                       <Text style={styles.actionButtonText}>✏️</Text>
@@ -426,61 +488,97 @@ export default function GestationsListComponent() {
               </View>
 
               <View style={styles.cardContent}>
-                {gestation.verrat_nom || gestation.verrat_id ? (
+                {gestation.verrat_id ? (
                   <View style={styles.infoRow}>
-                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Verrat utilisé:</Text>
+                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                      Verrat utilisé:
+                    </Text>
                     <Text style={[styles.infoValue, { color: colors.text }]}>
-                      {gestation.verrat_nom || gestation.verrat_id}
+                      {(() => {
+                        // Chercher le verrat dans le cheptel pour obtenir son nom réel
+                        const verrat = animaux.find((a: ProductionAnimal) => a.id === gestation.verrat_id);
+                        if (verrat) {
+                          // Afficher le nom personnalisé, le code, ou un nom par défaut
+                          return verrat.nom || verrat.code || `Verrat ${verrat.id}`;
+                        }
+                        // Si le verrat n'est pas trouvé, utiliser verrat_nom ou verrat_id comme fallback
+                        return gestation.verrat_nom || gestation.verrat_id;
+                      })()}
                     </Text>
                   </View>
                 ) : null}
                 <View style={styles.infoRow}>
-                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Date de sautage:</Text>
-                  <Text style={[styles.infoValue, { color: colors.text }]}>{formatDate(gestation.date_sautage)}</Text>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                    Date de sautage:
+                  </Text>
+                  <Text style={[styles.infoValue, { color: colors.text }]}>
+                    {formatDate(gestation.date_sautage)}
+                  </Text>
                 </View>
                 <View style={styles.infoRow}>
-                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Mise bas prévue:</Text>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                    Mise bas prévue:
+                  </Text>
                   <Text style={[styles.infoValue, styles.highlight, { color: colors.primary }]}>
                     {formatDate(gestation.date_mise_bas_prevue)}
                   </Text>
                 </View>
                 {gestation.date_mise_bas_reelle && (
                   <View style={styles.infoRow}>
-                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Mise bas réelle:</Text>
+                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                      Mise bas réelle:
+                    </Text>
                     <Text style={[styles.infoValue, { color: colors.text }]}>
                       {formatDate(gestation.date_mise_bas_reelle)}
                     </Text>
                   </View>
                 )}
                 <View style={styles.infoRow}>
-                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Porcelets prévus:</Text>
-                  <Text style={[styles.infoValue, { color: colors.text }]}>{gestation.nombre_porcelets_prevu}</Text>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                    Porcelets prévus:
+                  </Text>
+                  <Text style={[styles.infoValue, { color: colors.text }]}>
+                    {gestation.nombre_porcelets_prevu}
+                  </Text>
                 </View>
                 {gestation.nombre_porcelets_reel && (
                   <View style={styles.infoRow}>
-                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Porcelets réels:</Text>
-                    <Text style={[styles.infoValue, { color: colors.text }]}>{gestation.nombre_porcelets_reel}</Text>
+                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                      Porcelets réels:
+                    </Text>
+                    <Text style={[styles.infoValue, { color: colors.text }]}>
+                      {gestation.nombre_porcelets_reel}
+                    </Text>
                   </View>
                 )}
-                {gestation.statut === 'en_cours' && gestation.date_mise_bas_prevue && (() => {
-                  try {
-                    const joursRestants = joursRestantsAvantMiseBas(gestation.date_mise_bas_prevue);
-                    return (
-                      <View style={[styles.daysRemaining, { backgroundColor: colors.primary + '20' }]}>
-                        <Text style={[styles.daysRemainingText, { color: colors.primary }]}>
-                          {joursRestants} jour{joursRestants > 1 ? 's' : ''} restant{joursRestants > 1 ? 's' : ''}
-                        </Text>
-                      </View>
-                    );
-                  } catch (error) {
-                    console.error('Erreur lors du calcul des jours restants:', error);
-                    return null;
-                  }
-                })()}
+                {gestation.statut === 'en_cours' &&
+                  gestation.date_mise_bas_prevue &&
+                  (() => {
+                    try {
+                      const joursRestants = joursRestantsAvantMiseBas(
+                        gestation.date_mise_bas_prevue
+                      );
+                      return (
+                        <View
+                          style={[styles.daysRemaining, { backgroundColor: colors.primary + '20' }]}
+                        >
+                          <Text style={[styles.daysRemainingText, { color: colors.primary }]}>
+                            {joursRestants} jour{joursRestants > 1 ? 's' : ''} restant
+                            {joursRestants > 1 ? 's' : ''}
+                          </Text>
+                        </View>
+                      );
+                    } catch (error) {
+                      console.error('Erreur lors du calcul des jours restants:', error);
+                      return null;
+                    }
+                  })()}
                 {gestation.notes && (
                   <View style={[styles.notesContainer, { borderTopColor: colors.border }]}>
                     <Text style={[styles.notesLabel, { color: colors.textSecondary }]}>Notes:</Text>
-                    <Text style={[styles.notesText, { color: colors.text }]}>{gestation.notes}</Text>
+                    <Text style={[styles.notesText, { color: colors.text }]}>
+                      {gestation.notes}
+                    </Text>
                   </View>
                 )}
               </View>
@@ -528,7 +626,9 @@ export default function GestationsListComponent() {
           {gestationATerminer && (
             <>
               <View style={[styles.infoBox, { backgroundColor: colors.primary + '10' }]}>
-                <Text style={[styles.infoBoxTitle, { color: colors.primary }]}>Informations de la gestation</Text>
+                <Text style={[styles.infoBoxTitle, { color: colors.primary }]}>
+                  Informations de la gestation
+                </Text>
                 <Text style={[styles.infoBoxText, { color: colors.text }]}>
                   Truie: {gestationATerminer.truie_nom || gestationATerminer.truie_id}
                 </Text>
@@ -621,14 +721,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: SPACING.xl,
-    paddingTop: SPACING.lg + 10,
+    padding: SPACING.md,
     paddingBottom: 100, // Espace pour la barre de navigation
   },
   card: {
-    margin: SPACING.md,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.sm,
+    marginBottom: SPACING.sm,
     borderWidth: 1,
   },
   cardHeader: {
@@ -725,4 +824,3 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
   },
 });
-

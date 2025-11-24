@@ -34,8 +34,17 @@ const selectSanteState = (state: RootState) => state.sante;
 
 export const selectSanteLoading = (state: RootState) => state.sante.loading;
 export const selectSanteError = (state: RootState) => state.sante.error;
-export const selectSanteStatistics = (state: RootState) => state.sante.statistics;
-export const selectSanteAlertes = (state: RootState) => state.sante.alertes;
+
+// Memoizer selectSanteStatistics pour éviter les re-renders inutiles
+export const selectSanteStatistics = createSelector(
+  [selectSanteState],
+  (sante) => sante.statistics
+);
+
+export const selectSanteAlertes = createSelector(
+  [selectSanteState],
+  (sante) => sante.alertes
+);
 
 // ============================================
 // CALENDRIER VACCINATIONS
@@ -56,7 +65,9 @@ export const selectAllCalendrierVaccinations = createSelector(
   (ids, entities): CalendrierVaccination[] => {
     if (!ids || !entities) return [];
     try {
-      const result = denormalize(ids, [calendrierVaccinationSchema], { calendrier_vaccinations: entities });
+      const result = denormalize(ids, [calendrierVaccinationSchema], {
+        calendrier_vaccinations: entities,
+      });
       return Array.isArray(result) ? result : [];
     } catch (error) {
       console.warn('Erreur lors de la dénormalisation des calendriers de vaccination:', error);
@@ -72,20 +83,15 @@ export const selectCalendrierVaccinationById = (id: string) =>
   );
 
 export const selectCalendrierVaccinationsByCategorie = (categorie: string) =>
-  createSelector(
-    [selectAllCalendrierVaccinations],
-    (calendriers): CalendrierVaccination[] =>
-      calendriers.filter((c) => c.categorie === categorie || c.categorie === 'tous')
+  createSelector([selectAllCalendrierVaccinations], (calendriers): CalendrierVaccination[] =>
+    calendriers.filter((c) => c.categorie === categorie || c.categorie === 'tous')
   );
 
 // ============================================
 // VACCINATIONS
 // ============================================
 
-const selectVaccinationsIds = createSelector(
-  [selectSanteState],
-  (sante) => sante.ids.vaccinations
-);
+const selectVaccinationsIds = createSelector([selectSanteState], (sante) => sante.ids.vaccinations);
 
 const selectVaccinationsEntities = createSelector(
   [selectSanteState],
@@ -107,23 +113,18 @@ export const selectAllVaccinations = createSelector(
 );
 
 export const selectVaccinationById = (id: string) =>
-  createSelector(
-    [selectVaccinationsEntities],
-    (entities): Vaccination | undefined => entities[id]
-  );
+  createSelector([selectVaccinationsEntities], (entities): Vaccination | undefined => entities[id]);
 
 export const selectVaccinationsByAnimal = (animalId: string) =>
-  createSelector(
-    [selectAllVaccinations],
-    (vaccinations): Vaccination[] =>
-      vaccinations.filter((v) => v.animal_id === animalId)
+  createSelector([selectAllVaccinations], (vaccinations): Vaccination[] =>
+    vaccinations.filter((v) => v.animal_id === animalId)
   );
 
-export const selectVaccinationsByStatut = (statut: 'planifie' | 'effectue' | 'en_retard' | 'annule') =>
-  createSelector(
-    [selectAllVaccinations],
-    (vaccinations): Vaccination[] =>
-      vaccinations.filter((v) => v.statut === statut)
+export const selectVaccinationsByStatut = (
+  statut: 'planifie' | 'effectue' | 'en_retard' | 'annule'
+) =>
+  createSelector([selectAllVaccinations], (vaccinations): Vaccination[] =>
+    vaccinations.filter((v) => v.statut === statut)
   );
 
 export const selectVaccinationsEnRetard = createSelector(
@@ -154,10 +155,7 @@ export const selectVaccinationsAVenir = createSelector(
 // MALADIES
 // ============================================
 
-const selectMaladiesIds = createSelector(
-  [selectSanteState],
-  (sante) => sante.ids.maladies
-);
+const selectMaladiesIds = createSelector([selectSanteState], (sante) => sante.ids.maladies);
 
 const selectMaladiesEntities = createSelector(
   [selectSanteState],
@@ -173,52 +171,36 @@ export const selectAllMaladies = createSelector(
 );
 
 export const selectMaladieById = (id: string) =>
-  createSelector(
-    [selectMaladiesEntities],
-    (entities): Maladie | undefined => entities[id]
-  );
+  createSelector([selectMaladiesEntities], (entities): Maladie | undefined => entities[id]);
 
 export const selectMaladiesByAnimal = (animalId: string) =>
-  createSelector(
-    [selectAllMaladies],
-    (maladies): Maladie[] =>
-      maladies.filter((m) => m.animal_id === animalId)
+  createSelector([selectAllMaladies], (maladies): Maladie[] =>
+    maladies.filter((m) => m.animal_id === animalId)
   );
 
-export const selectMaladiesEnCours = createSelector(
-  [selectAllMaladies],
-  (maladies): Maladie[] =>
-    maladies.filter((m) => !m.gueri)
+export const selectMaladiesEnCours = createSelector([selectAllMaladies], (maladies): Maladie[] =>
+  maladies.filter((m) => !m.gueri)
 );
 
 export const selectMaladiesByType = (type: string) =>
-  createSelector(
-    [selectAllMaladies],
-    (maladies): Maladie[] =>
-      maladies.filter((m) => m.type === type)
+  createSelector([selectAllMaladies], (maladies): Maladie[] =>
+    maladies.filter((m) => m.type === type)
   );
 
 export const selectMaladiesByGravite = (gravite: 'faible' | 'moderee' | 'grave' | 'critique') =>
-  createSelector(
-    [selectAllMaladies],
-    (maladies): Maladie[] =>
-      maladies.filter((m) => m.gravite === gravite)
+  createSelector([selectAllMaladies], (maladies): Maladie[] =>
+    maladies.filter((m) => m.gravite === gravite)
   );
 
-export const selectMaladiesCritiques = createSelector(
-  [selectAllMaladies],
-  (maladies): Maladie[] =>
-    maladies.filter((m) => m.gravite === 'critique' && !m.gueri)
+export const selectMaladiesCritiques = createSelector([selectAllMaladies], (maladies): Maladie[] =>
+  maladies.filter((m) => m.gravite === 'critique' && !m.gueri)
 );
 
 // ============================================
 // TRAITEMENTS
 // ============================================
 
-const selectTraitementsIds = createSelector(
-  [selectSanteState],
-  (sante) => sante.ids.traitements
-);
+const selectTraitementsIds = createSelector([selectSanteState], (sante) => sante.ids.traitements);
 
 const selectTraitementsEntities = createSelector(
   [selectSanteState],
@@ -234,36 +216,26 @@ export const selectAllTraitements = createSelector(
 );
 
 export const selectTraitementById = (id: string) =>
-  createSelector(
-    [selectTraitementsEntities],
-    (entities): Traitement | undefined => entities[id]
-  );
+  createSelector([selectTraitementsEntities], (entities): Traitement | undefined => entities[id]);
 
 export const selectTraitementsByAnimal = (animalId: string) =>
-  createSelector(
-    [selectAllTraitements],
-    (traitements): Traitement[] =>
-      traitements.filter((t) => t.animal_id === animalId)
+  createSelector([selectAllTraitements], (traitements): Traitement[] =>
+    traitements.filter((t) => t.animal_id === animalId)
   );
 
 export const selectTraitementsByMaladie = (maladieId: string) =>
-  createSelector(
-    [selectAllTraitements],
-    (traitements): Traitement[] =>
-      traitements.filter((t) => t.maladie_id === maladieId)
+  createSelector([selectAllTraitements], (traitements): Traitement[] =>
+    traitements.filter((t) => t.maladie_id === maladieId)
   );
 
 export const selectTraitementsEnCours = createSelector(
   [selectAllTraitements],
-  (traitements): Traitement[] =>
-    traitements.filter((t) => !t.termine)
+  (traitements): Traitement[] => traitements.filter((t) => !t.termine)
 );
 
 export const selectTraitementsByType = (type: string) =>
-  createSelector(
-    [selectAllTraitements],
-    (traitements): Traitement[] =>
-      traitements.filter((t) => t.type === type)
+  createSelector([selectAllTraitements], (traitements): Traitement[] =>
+    traitements.filter((t) => t.type === type)
   );
 
 // ============================================
@@ -295,21 +267,21 @@ export const selectVisiteVeterinaireById = (id: string) =>
   );
 
 export const selectVisitesVeterinairesByAnimal = (animalId: string) =>
-  createSelector(
-    [selectAllVisitesVeterinaires],
-    (visites): VisiteVeterinaire[] =>
-      visites.filter((v) => v.animaux_examines?.includes(animalId))
+  createSelector([selectAllVisitesVeterinaires], (visites): VisiteVeterinaire[] =>
+    visites.filter((v) => v.animaux_examines?.includes(animalId))
   );
 
 export const selectProchainesVisitesVeterinaires = createSelector(
   [selectAllVisitesVeterinaires],
   (visites): VisiteVeterinaire[] => {
     const now = new Date();
-    return visites.filter(
-      (v) => v.prochaine_visite_prevue && new Date(v.prochaine_visite_prevue) >= now
-    ).sort((a, b) =>
-      new Date(a.prochaine_visite_prevue!).getTime() - new Date(b.prochaine_visite_prevue!).getTime()
-    );
+    return visites
+      .filter((v) => v.prochaine_visite_prevue && new Date(v.prochaine_visite_prevue) >= now)
+      .sort(
+        (a, b) =>
+          new Date(a.prochaine_visite_prevue!).getTime() -
+          new Date(b.prochaine_visite_prevue!).getTime()
+      );
   }
 );
 
@@ -342,10 +314,8 @@ export const selectRappelVaccinationById = (id: string) =>
   );
 
 export const selectRappelsVaccinationsByVaccination = (vaccinationId: string) =>
-  createSelector(
-    [selectAllRappelsVaccinations],
-    (rappels): RappelVaccination[] =>
-      rappels.filter((r) => r.vaccination_id === vaccinationId)
+  createSelector([selectAllRappelsVaccinations], (rappels): RappelVaccination[] =>
+    rappels.filter((r) => r.vaccination_id === vaccinationId)
   );
 
 export const selectRappelsAVenir = createSelector(
@@ -354,10 +324,7 @@ export const selectRappelsAVenir = createSelector(
     const now = new Date();
     const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     return rappels.filter(
-      (r) =>
-        !r.envoi &&
-        new Date(r.date_rappel) >= now &&
-        new Date(r.date_rappel) <= in7Days
+      (r) => !r.envoi && new Date(r.date_rappel) >= now && new Date(r.date_rappel) <= in7Days
     );
   }
 );
@@ -366,9 +333,7 @@ export const selectRappelsEnRetard = createSelector(
   [selectAllRappelsVaccinations],
   (rappels): RappelVaccination[] => {
     const now = new Date();
-    return rappels.filter(
-      (r) => !r.envoi && new Date(r.date_rappel) < now
-    );
+    return rappels.filter((r) => !r.envoi && new Date(r.date_rappel) < now);
   }
 );
 
@@ -435,4 +400,3 @@ export const selectNombreVaccinationsEnRetard = createSelector(
   [selectVaccinationsEnRetard],
   (vaccinations) => vaccinations.length
 );
-

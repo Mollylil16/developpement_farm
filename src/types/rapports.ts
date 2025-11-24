@@ -46,4 +46,3 @@ export interface Recommandation {
   message: string;
   action?: string; // Action suggérée
 }
-

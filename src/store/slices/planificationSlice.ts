@@ -74,7 +74,10 @@ export const loadPlanificationsAVenir = createAsyncThunk(
 
 export const updatePlanification = createAsyncThunk(
   'planification/updatePlanification',
-  async ({ id, updates }: { id: string; updates: UpdatePlanificationInput }, { rejectWithValue }) => {
+  async (
+    { id, updates }: { id: string; updates: UpdatePlanificationInput },
+    { rejectWithValue }
+  ) => {
     try {
       const planification = await databaseService.updatePlanification(id, updates);
       return planification;
@@ -104,9 +107,9 @@ export const createPlanificationsBatch = createAsyncThunk(
   async (inputs: CreatePlanificationInput[], { rejectWithValue }) => {
     try {
       console.log(`📋 [BATCH] Création de ${inputs.length} tâches...`);
-      
+
       const planifications: Planification[] = [];
-      
+
       for (const input of inputs) {
         const planification = await databaseService.createPlanification({
           ...input,
@@ -114,7 +117,7 @@ export const createPlanificationsBatch = createAsyncThunk(
         });
         planifications.push(planification);
       }
-      
+
       console.log(`✅ [BATCH] ${planifications.length} tâches créées avec succès`);
       return planifications;
     } catch (error: any) {
@@ -193,11 +196,15 @@ const planificationSlice = createSlice({
       })
       .addCase(updatePlanification.fulfilled, (state, action) => {
         state.loading = false;
-        const index = state.planifications.findIndex((p: Planification) => p.id === action.payload.id);
+        const index = state.planifications.findIndex(
+          (p: Planification) => p.id === action.payload.id
+        );
         if (index !== -1) {
           state.planifications[index] = action.payload;
         }
-        const indexAVenir = state.planificationsAVenir.findIndex((p: Planification) => p.id === action.payload.id);
+        const indexAVenir = state.planificationsAVenir.findIndex(
+          (p: Planification) => p.id === action.payload.id
+        );
         if (indexAVenir !== -1) {
           state.planificationsAVenir[indexAVenir] = action.payload;
         }
@@ -213,8 +220,12 @@ const planificationSlice = createSlice({
       })
       .addCase(deletePlanification.fulfilled, (state, action) => {
         state.loading = false;
-        state.planifications = state.planifications.filter((p: Planification) => p.id !== action.payload);
-        state.planificationsAVenir = state.planificationsAVenir.filter((p: Planification) => p.id !== action.payload);
+        state.planifications = state.planifications.filter(
+          (p: Planification) => p.id !== action.payload
+        );
+        state.planificationsAVenir = state.planificationsAVenir.filter(
+          (p: Planification) => p.id !== action.payload
+        );
       })
       .addCase(deletePlanification.rejected, (state, action) => {
         state.loading = false;
@@ -239,4 +250,3 @@ const planificationSlice = createSlice({
 
 export const { clearError } = planificationSlice.actions;
 export default planificationSlice.reducer;
-

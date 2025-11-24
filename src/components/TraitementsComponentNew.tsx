@@ -22,18 +22,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
-import {
-  selectAllVaccinations,
-  selectAllMaladies,
-} from '../store/selectors/santeSelectors';
-import {
-  selectAllAnimaux,
-} from '../store/selectors/productionSelectors';
-import {
-  loadVaccinations,
-  loadMaladies,
-  updateMaladie,
-} from '../store/slices/santeSlice';
+import { selectAllVaccinations, selectAllMaladies } from '../store/selectors/santeSelectors';
+import { selectAllAnimaux } from '../store/selectors/productionSelectors';
+import { loadVaccinations, loadMaladies, updateMaladie } from '../store/slices/santeSlice';
 import { loadProductionAnimaux, updateProductionAnimal } from '../store/slices/productionSlice';
 import { createMortalite } from '../store/slices/mortalitesSlice';
 import {
@@ -78,13 +69,16 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
 
   // Section A: Inventaire des produits
   const inventaireProduits = useMemo(() => {
-    const produitsMap = new Map<string, {
-      nom: string;
-      type: 'vaccin' | 'medicament';
-      raison: string;
-      stock: number;
-      derniereUtilisation?: string;
-    }>();
+    const produitsMap = new Map<
+      string,
+      {
+        nom: string;
+        type: 'vaccin' | 'medicament';
+        raison: string;
+        stock: number;
+        derniereUtilisation?: string;
+      }
+    >();
 
     // Récupérer produits depuis vaccinations
     (vaccinations || []).forEach((v) => {
@@ -137,9 +131,7 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
 
     if (rechercheFiltre) {
       const search = rechercheFiltre.toLowerCase();
-      filtered = filtered.filter((p) =>
-        p.nom.toLowerCase().includes(search)
-      );
+      filtered = filtered.filter((p) => p.nom.toLowerCase().includes(search));
     }
 
     if (filtreRaison !== 'tous') {
@@ -163,99 +155,122 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
   }, [maladies, animaux]);
 
   // Gestion changement de statut
-  const handleChangementStatut = useCallback(async (
-    maladie: Maladie,
-    animal: ProductionAnimal | undefined,
-    nouveauStatut: StatutSuivi
-  ) => {
-    if (!projetActif?.id) return;
+  const handleChangementStatut = useCallback(
+    async (maladie: Maladie, animal: ProductionAnimal | undefined, nouveauStatut: StatutSuivi) => {
+      if (!projetActif?.id) return;
 
-    if (nouveauStatut === 'mort') {
-      Alert.alert(
-        'Confirmer le décès',
-        `Êtes-vous sûr que ${animal?.nom || 'cet animal'} est décédé ?\n\nCette action va :\n- Retirer l'animal du cheptel actif\n- Enregistrer la cause du décès\n- Archiver le cas de maladie`,
-        [
-          { text: 'Annuler', style: 'cancel' },
-          {
-            text: 'Confirmer',
-            style: 'destructive',
-            onPress: async () => {
-              try {
-                if (!animal) {
-                  Alert.alert('Erreur', 'Animal introuvable');
-                  return;
+      if (nouveauStatut === 'mort') {
+        Alert.alert(
+          'Confirmer le décès',
+          `Êtes-vous sûr que ${animal?.nom || 'cet animal'} est décédé ?\n\nCette action va :\n- Retirer l'animal du cheptel actif\n- Enregistrer la cause du décès\n- Archiver le cas de maladie`,
+          [
+            { text: 'Annuler', style: 'cancel' },
+            {
+              text: 'Confirmer',
+              style: 'destructive',
+              onPress: async () => {
+                try {
+                  if (!animal) {
+                    Alert.alert('Erreur', 'Animal introuvable');
+                    return;
+                  }
+
+                  // 1. Mettre à jour le statut de l'animal (inactif)
+                  await dispatch(
+                    updateProductionAnimal({
+                      id: animal.id,
+                      updates: { statut: 'inactif' },
+                    })
+                  ).unwrap();
+
+                  // 2. Enregistrer dans mortalites
+                  const categorie = animal.sexe === 'femelle' ? 'truie' : animal.sexe === 'male' ? 'verrat' : 'porcelet';
+                  await dispatch(
+                    createMortalite({
+                      projet_id: projetActif.id,
+                      nombre_porcs: 1,
+                      date: new Date().toISOString().split('T')[0],
+                      cause: maladie.nom_maladie || 'Maladie',
+                      categorie: categorie as 'truie' | 'verrat' | 'porcelet' | 'autre',
+                      animal_code: animal.code || undefined,
+                      notes: `Décès suite à: ${maladie.nom_maladie}. Symptômes: ${maladie.symptomes || 'N/A'}`,
+                    })
+                  ).unwrap();
+
+                  // 3. Mettre à jour la maladie comme terminée
+                  await dispatch(
+                    updateMaladie({
+                      id: maladie.id,
+                      updates: {
+                        gueri: true,
+                        date_fin: new Date().toISOString().split('T')[0],
+                        notes: `${maladie.notes || ''}\n[DÉCÈS ENREGISTRÉ] ${new Date().toISOString().split('T')[0]}`,
+                      },
+                    })
+                  ).unwrap();
+
+                  Alert.alert(
+                    'Décès enregistré',
+                    `${animal.nom || "L'animal"} a été retiré du cheptel actif.\n\nLe cas de maladie et la cause du décès ont été archivés.`
+                  );
+                } catch (error: any) {
+                  console.error('Erreur changement statut mort:', error);
+                  Alert.alert(
+                    'Erreur',
+                    `Impossible d'enregistrer le décès: ${error?.message || error}`
+                  );
                 }
-
-                // 1. Mettre à jour le statut de l'animal (inactif)
-                await dispatch(updateProductionAnimal({
-                  id: animal.id,
-                  updates: { statut: 'inactif' },
-                })).unwrap();
-
-                // 2. Enregistrer dans mortalites
-                await dispatch(createMortalite({
-                  projet_id: projetActif.id,
-                  animal_id: animal.id,
-                  date_mort: new Date().toISOString().split('T')[0],
-                  cause: maladie.nom_maladie || 'Maladie',
-                  age_jours: animal.age_jours || 0,
-                  poids_kg: animal.poids_actuel || 0,
-                  notes: `Décès suite à: ${maladie.nom_maladie}. Symptômes: ${maladie.symptomes || 'N/A'}`,
-                })).unwrap();
-
-                // 3. Mettre à jour la maladie comme terminée
-                await dispatch(updateMaladie({
-                  id: maladie.id,
-                  updates: {
-                    gueri: true,
-                    date_fin: new Date().toISOString().split('T')[0],
-                    notes: `${maladie.notes || ''}\n[DÉCÈS ENREGISTRÉ] ${new Date().toISOString().split('T')[0]}`,
-                  },
-                })).unwrap();
-
-                Alert.alert(
-                  'Décès enregistré',
-                  `${animal.nom || 'L\'animal'} a été retiré du cheptel actif.\n\nLe cas de maladie et la cause du décès ont été archivés.`
-                );
-              } catch (error: any) {
-                console.error('Erreur changement statut mort:', error);
-                Alert.alert('Erreur', `Impossible d'enregistrer le décès: ${error?.message || error}`);
-              }
+              },
             },
-          },
-        ]
-      );
-    } else if (nouveauStatut === 'gueri') {
-      try {
-        await dispatch(updateMaladie({
-          id: maladie.id,
-          updates: {
-            gueri: true,
-            date_fin: new Date().toISOString().split('T')[0],
-          },
-        })).unwrap();
+          ]
+        );
+      } else if (nouveauStatut === 'gueri') {
+        try {
+          await dispatch(
+            updateMaladie({
+              id: maladie.id,
+              updates: {
+                gueri: true,
+                date_fin: new Date().toISOString().split('T')[0],
+              },
+            })
+          ).unwrap();
 
-        Alert.alert('Succès', `✅ ${animal?.nom || 'L\'animal'} a été marqué comme guéri !`);
-      } catch (error: any) {
-        console.error('Erreur changement statut guéri:', error);
-        Alert.alert('Erreur', `Impossible de marquer comme guéri: ${error?.message || error}`);
+          Alert.alert('Succès', `✅ ${animal?.nom || "L'animal"} a été marqué comme guéri !`);
+        } catch (error: any) {
+          console.error('Erreur changement statut guéri:', error);
+          Alert.alert('Erreur', `Impossible de marquer comme guéri: ${error?.message || error}`);
+        }
       }
-    }
-  }, [projetActif, dispatch]);
+    },
+    [projetActif, dispatch]
+  );
 
   // Render Section A: Inventaire
   const renderInventaireProduits = () => (
     <View style={styles.section}>
-      <View style={[styles.carteInventaire, { backgroundColor: colors.surface, borderColor: colors.borderLight, ...colors.shadow.medium }]}>
+      <View
+        style={[
+          styles.carteInventaire,
+          {
+            backgroundColor: colors.surface,
+            borderColor: colors.borderLight,
+            ...colors.shadow.medium,
+          },
+        ]}
+      >
         <View style={styles.headerSection}>
           <Ionicons name="medical-outline" size={24} color={colors.primary} />
-          <Text style={[styles.titreSection, { color: colors.text }]}>
-            Inventaire des Produits
-          </Text>
+          <Text style={[styles.titreSection, { color: colors.text }]}>Inventaire des Produits</Text>
         </View>
 
         {/* Barre de recherche */}
-        <View style={[styles.searchBar, { backgroundColor: colors.background, borderColor: colors.borderLight }]}>
+        <View
+          style={[
+            styles.searchBar,
+            { backgroundColor: colors.background, borderColor: colors.borderLight },
+          ]}
+        >
           <Ionicons name="search" size={20} color={colors.textSecondary} />
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
@@ -277,14 +292,19 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
             style={[
               styles.filtreChip,
               { borderColor: colors.border },
-              filtreRaison === 'tous' && { backgroundColor: colors.primary, borderColor: colors.primary },
+              filtreRaison === 'tous' && {
+                backgroundColor: colors.primary,
+                borderColor: colors.primary,
+              },
             ]}
             onPress={() => setFiltreRaison('tous')}
           >
-            <Text style={[
-              styles.filtreChipText,
-              { color: filtreRaison === 'tous' ? '#FFF' : colors.text },
-            ]}>
+            <Text
+              style={[
+                styles.filtreChipText,
+                { color: filtreRaison === 'tous' ? '#FFF' : colors.text },
+              ]}
+            >
               Tous ({inventaireProduits.length})
             </Text>
           </TouchableOpacity>
@@ -296,14 +316,19 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
                 style={[
                   styles.filtreChip,
                   { borderColor: colors.border },
-                  filtreRaison === key && { backgroundColor: colors.primary, borderColor: colors.primary },
+                  filtreRaison === key && {
+                    backgroundColor: colors.primary,
+                    borderColor: colors.primary,
+                  },
                 ]}
                 onPress={() => setFiltreRaison(key)}
               >
-                <Text style={[
-                  styles.filtreChipText,
-                  { color: filtreRaison === key ? '#FFF' : colors.text },
-                ]}>
+                <Text
+                  style={[
+                    styles.filtreChipText,
+                    { color: filtreRaison === key ? '#FFF' : colors.text },
+                  ]}
+                >
                   {label} ({count})
                 </Text>
               </TouchableOpacity>
@@ -323,19 +348,32 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
           produitsFiltres.map((produit, index) => (
             <View
               key={index}
-              style={[styles.produitCard, { backgroundColor: colors.background, borderColor: colors.borderLight }]}
+              style={[
+                styles.produitCard,
+                { backgroundColor: colors.background, borderColor: colors.borderLight },
+              ]}
             >
               <View style={styles.produitHeader}>
                 <View style={styles.produitInfo}>
                   <Text style={[styles.produitNom, { color: colors.text }]}>{produit.nom}</Text>
                   <View style={styles.produitBadges}>
-                    <View style={[styles.badge, { backgroundColor: produit.type === 'vaccin' ? colors.success : colors.warning }]}>
+                    <View
+                      style={[
+                        styles.badge,
+                        {
+                          backgroundColor:
+                            produit.type === 'vaccin' ? colors.success : colors.warning,
+                        },
+                      ]}
+                    >
                       <Text style={styles.badgeText}>
                         {produit.type === 'vaccin' ? 'Vaccin' : 'Médicament'}
                       </Text>
                     </View>
                     <Text style={[styles.produitRaison, { color: colors.textSecondary }]}>
-                      {RAISON_TRAITEMENT_LABELS[produit.raison as keyof typeof RAISON_TRAITEMENT_LABELS] || produit.raison}
+                      {RAISON_TRAITEMENT_LABELS[
+                        produit.raison as keyof typeof RAISON_TRAITEMENT_LABELS
+                      ] || produit.raison}
                     </Text>
                   </View>
                 </View>
@@ -366,7 +404,16 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
   // Render Section B: Sujets Malades
   const renderSujetsMalades = () => (
     <View style={styles.section}>
-      <View style={[styles.carteMalades, { backgroundColor: colors.surface, borderColor: colors.borderLight, ...colors.shadow.medium }]}>
+      <View
+        style={[
+          styles.carteMalades,
+          {
+            backgroundColor: colors.surface,
+            borderColor: colors.borderLight,
+            ...colors.shadow.medium,
+          },
+        ]}
+      >
         <View style={styles.headerSection}>
           <Ionicons name="medical" size={24} color={colors.error} />
           <Text style={[styles.titreSection, { color: colors.text }]}>
@@ -391,7 +438,14 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
           sujetsMalades.map(({ maladie, animal }) => (
             <View
               key={maladie.id}
-              style={[styles.maladeCard, { backgroundColor: colors.surface, borderColor: colors.borderLight, ...colors.shadow.small }]}
+              style={[
+                styles.maladeCard,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.borderLight,
+                  ...colors.shadow.small,
+                },
+              ]}
             >
               <View style={styles.maladeHeader}>
                 <View style={styles.maladeHeaderLeft}>
@@ -401,24 +455,32 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
                   <Text style={[styles.maladeId, { color: colors.textSecondary }]}>
                     ID: {animal?.code || maladie.animal_id?.slice(0, 12)}
                   </Text>
-                  <View style={[styles.graviteBadge, {
-                  backgroundColor:
-                    maladie.gravite === 'critique' ? colors.error :
-                    maladie.gravite === 'grave' ? '#FF6B6B' :
-                    maladie.gravite === 'moderee' ? colors.warning :
-                    colors.success
-                }]}>
-                  <Text style={styles.graviteBadgeText}>
-                    {maladie.gravite.toUpperCase()}
-                  </Text>
+                  <View
+                    style={[
+                      styles.graviteBadge,
+                      {
+                        backgroundColor:
+                          maladie.gravite === 'critique'
+                            ? colors.error
+                            : maladie.gravite === 'grave'
+                              ? '#FF6B6B'
+                              : maladie.gravite === 'moderee'
+                                ? colors.warning
+                                : colors.success,
+                      },
+                    ]}
+                  >
+                    <Text style={styles.graviteBadgeText}>{maladie.gravite.toUpperCase()}</Text>
+                  </View>
                 </View>
-              </View>
                 <View style={styles.maladeActions}>
                   <TouchableOpacity
                     style={[styles.actionButton, { backgroundColor: colors.warning + '15' }]}
                     activeOpacity={0.7}
                   >
-                    <Text style={[styles.actionButtonText, { color: colors.warning }]}>Observer</Text>
+                    <Text style={[styles.actionButtonText, { color: colors.warning }]}>
+                      Observer
+                    </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.actionButton, { backgroundColor: colors.success + '15' }]}
@@ -455,7 +517,10 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
                 {maladie.notes && (
                   <View style={styles.infoRow}>
                     <Ionicons name="document-text" size={16} color={colors.textSecondary} />
-                    <Text style={[styles.infoText, { color: colors.textSecondary }]} numberOfLines={2}>
+                    <Text
+                      style={[styles.infoText, { color: colors.textSecondary }]}
+                      numberOfLines={2}
+                    >
                       {maladie.notes}
                     </Text>
                   </View>
@@ -481,7 +546,10 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
           style={[
             styles.sectionNavButton,
             { borderColor: colors.border },
-            sectionActive === 'produits' && { backgroundColor: colors.primary, borderColor: colors.primary },
+            sectionActive === 'produits' && {
+              backgroundColor: colors.primary,
+              borderColor: colors.primary,
+            },
           ]}
           onPress={() => setSectionActive('produits')}
         >
@@ -490,10 +558,12 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
             size={20}
             color={sectionActive === 'produits' ? '#FFF' : colors.text}
           />
-          <Text style={[
-            styles.sectionNavText,
-            { color: sectionActive === 'produits' ? '#FFF' : colors.text },
-          ]}>
+          <Text
+            style={[
+              styles.sectionNavText,
+              { color: sectionActive === 'produits' ? '#FFF' : colors.text },
+            ]}
+          >
             Produits ({inventaireProduits.length})
           </Text>
         </TouchableOpacity>
@@ -502,7 +572,10 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
           style={[
             styles.sectionNavButton,
             { borderColor: colors.border },
-            sectionActive === 'malades' && { backgroundColor: colors.primary, borderColor: colors.primary },
+            sectionActive === 'malades' && {
+              backgroundColor: colors.primary,
+              borderColor: colors.primary,
+            },
           ]}
           onPress={() => setSectionActive('malades')}
         >
@@ -511,10 +584,12 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
             size={20}
             color={sectionActive === 'malades' ? '#FFF' : colors.text}
           />
-          <Text style={[
-            styles.sectionNavText,
-            { color: sectionActive === 'malades' ? '#FFF' : colors.text },
-          ]}>
+          <Text
+            style={[
+              styles.sectionNavText,
+              { color: sectionActive === 'malades' ? '#FFF' : colors.text },
+            ]}
+          >
             Sujets Malades ({sujetsMalades.length})
           </Text>
         </TouchableOpacity>
@@ -536,7 +611,7 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     paddingBottom: 100,
   },
-  
+
   // Navigation sections
   sectionNav: {
     flexDirection: 'row',
@@ -764,4 +839,3 @@ const styles = StyleSheet.create({
     height: SPACING.xl,
   },
 });
-

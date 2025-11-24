@@ -6,7 +6,7 @@ import { useMemo } from 'react';
 import { useAppSelector } from '../store/hooks';
 import { Collaborateur } from '../types';
 
-export type PermissionType = 
+export type PermissionType =
   | 'reproduction'
   | 'nutrition'
   | 'finance'
@@ -18,35 +18,35 @@ export type PermissionType =
 interface UsePermissionsReturn {
   // Le collaborateur actuel (null si l'utilisateur est propriétaire)
   collaborateurActuel: Collaborateur | null;
-  
+
   // Vérifier si l'utilisateur est propriétaire du projet
   isProprietaire: boolean;
-  
+
   // Vérifier si l'utilisateur est collaborateur
   isCollaborateur: boolean;
-  
+
   // Vérifier une permission spécifique
   hasPermission: (permission: PermissionType) => boolean;
-  
+
   // Vérifier plusieurs permissions (toutes doivent être vraies)
   hasAllPermissions: (permissions: PermissionType[]) => boolean;
-  
+
   // Vérifier au moins une permission (au moins une doit être vraie)
   hasAnyPermission: (permissions: PermissionType[]) => boolean;
-  
+
   // Obtenir toutes les permissions
   permissions: Collaborateur['permissions'] | null;
-  
+
   // Rôle du collaborateur (si collaborateur)
   role: Collaborateur['role'] | null;
 }
 
 /**
  * Hook pour gérer les permissions du collaborateur actuel
- * 
+ *
  * @example
  * const { hasPermission, isProprietaire } = usePermissions();
- * 
+ *
  * if (hasPermission('finance')) {
  *   // Afficher le module Finance
  * }
@@ -73,7 +73,7 @@ export function usePermissions(): UsePermissionsReturn {
 
     // Vérifier si l'utilisateur est propriétaire du projet
     const isProprietaire = projetActif.proprietaire_id === user.id;
-    
+
     // Si propriétaire, toutes les permissions sont accordées
     if (isProprietaire) {
       return {
@@ -98,7 +98,7 @@ export function usePermissions(): UsePermissionsReturn {
     // Si collaborateur, utiliser ses permissions
     if (collaborateurActuel && collaborateurActuel.statut === 'actif') {
       const permissions = collaborateurActuel.permissions;
-      
+
       return {
         collaborateurActuel,
         isProprietaire: false,
@@ -129,10 +129,10 @@ export function usePermissions(): UsePermissionsReturn {
       role: null,
     };
   }, [
-    user?.id, 
-    projetActif?.id, 
-    collaborateurActuel?.id, 
-    collaborateurActuel?.statut, 
+    user?.id,
+    projetActif?.id,
+    collaborateurActuel?.id,
+    collaborateurActuel?.statut,
     collaborateurActuel?.role,
     // Ajouter les permissions pour qu'elles se mettent à jour quand le rôle change
     collaborateurActuel?.permissions?.reproduction,
@@ -141,8 +141,7 @@ export function usePermissions(): UsePermissionsReturn {
     collaborateurActuel?.permissions?.rapports,
     collaborateurActuel?.permissions?.planification,
     collaborateurActuel?.permissions?.mortalites,
-  ]);  // ✅ Utiliser des propriétés primitives au lieu de l'objet complet pour éviter les boucles infinies
+  ]); // ✅ Utiliser des propriétés primitives au lieu de l'objet complet pour éviter les boucles infinies
 
   return result;
 }
-

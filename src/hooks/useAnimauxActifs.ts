@@ -79,4 +79,3 @@ export function useAnimauxActifs(options: UseAnimauxActifsOptions = {}): UseAnim
     countByCategory,
   };
 }
-

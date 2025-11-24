@@ -60,22 +60,21 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // ✅ MÉMOÏSER colors pour éviter les re-renders inutiles
-  const colors = React.useMemo(() => isDark ? DARK_COLORS : LIGHT_COLORS, [isDark]);
+  const colors = React.useMemo(() => (isDark ? DARK_COLORS : LIGHT_COLORS), [isDark]);
 
   // ✅ MÉMOÏSER le value du Context pour éviter la boucle infinie
   // C'EST LA CORRECTION LA PLUS CRITIQUE !
-  const value = React.useMemo(() => ({
-    mode,
-    isDark,
-    colors,
-    setMode,
-  }), [mode, isDark, colors, setMode]);
-
-  return (
-    <ThemeContext.Provider value={value}>
-      {children}
-    </ThemeContext.Provider>
+  const value = React.useMemo(
+    () => ({
+      mode,
+      isDark,
+      colors,
+      setMode,
+    }),
+    [mode, isDark, colors, setMode]
   );
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme() {
@@ -85,4 +84,3 @@ export function useTheme() {
   }
   return context;
 }
-

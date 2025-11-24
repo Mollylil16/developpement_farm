@@ -3,7 +3,17 @@
  */
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  Platform,
+  RefreshControl,
+} from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadSevrages, deleteSevrage, createSevrage } from '../store/slices/reproductionSlice';
@@ -30,6 +40,7 @@ export default function SevragesListComponent() {
   const [displayedSevrages, setDisplayedSevrages] = useState<Sevrage[]>([]);
   const [page, setPage] = useState(1);
   const ITEMS_PER_PAGE = 50;
+  const [refreshing, setRefreshing] = useState(false);
   const [formData, setFormData] = useState({
     date_sevrage: new Date().toISOString().split('T')[0],
     nombre_porcelets_sevres: 0,
@@ -46,7 +57,7 @@ export default function SevragesListComponent() {
 
   // Utiliser useRef pour éviter les chargements multiples (boucle infinie)
   const sevragesChargesRef = React.useRef<string | null>(null);
-  
+
   // ✅ CORRECTION CRITIQUE: Utiliser useRef pour éviter les mises à jour inutiles
   const lastSevragesLengthRef = React.useRef<number>(sevragesLength);
   const displayedSevragesLength = displayedSevrages.length;
@@ -56,9 +67,9 @@ export default function SevragesListComponent() {
       sevragesChargesRef.current = null;
       return;
     }
-    
+
     if (sevragesChargesRef.current === projetActif.id) return; // Déjà chargé !
-    
+
     try {
       sevragesChargesRef.current = projetActif.id;
       dispatch(loadSevrages(projetActif.id));
@@ -67,10 +78,23 @@ export default function SevragesListComponent() {
     }
   }, [dispatch, projetActif?.id]);
 
+  const onRefresh = useCallback(async () => {
+    if (!projetActif?.id) return;
+    
+    setRefreshing(true);
+    try {
+      await dispatch(loadSevrages(projetActif.id)).unwrap();
+    } catch (error) {
+      console.error('Erreur lors du rafraîchissement:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [dispatch, projetActif?.id]);
+
   const gestationsTerminees = useMemo(() => {
     if (!projetActif?.id) return [];
     return gestations.filter((g) => g.projet_id === projetActif.id && g.statut === 'terminee');
-  }, [gestationsLength, gestations, projetActif?.id]);  // ✅ Ajout de gestationsLength
+  }, [gestationsLength, gestations, projetActif?.id]); // ✅ Ajout de gestationsLength
 
   // Fonction pour calculer la date prévisionnelle de sevrage (28 jours après la mise bas)
   const calculerDateSevragePrevue = (dateMiseBas: string | undefined): string | null => {
@@ -97,12 +121,14 @@ export default function SevragesListComponent() {
 
   const handleCreateSevrage = (gestation: Gestation) => {
     if (!canCreate('reproduction')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de créer des sevrages.');
+      Alert.alert('Permission refusée', "Vous n'avez pas la permission de créer des sevrages.");
       return;
     }
     setSelectedGestation(gestation);
     // Utiliser la date prévisionnelle de sevrage par défaut (28 jours après la mise bas)
-    const dateSevragePrevue = calculerDateSevragePrevue(gestation.date_mise_bas_reelle) || new Date().toISOString().split('T')[0];
+    const dateSevragePrevue =
+      calculerDateSevragePrevue(gestation.date_mise_bas_reelle) ||
+      new Date().toISOString().split('T')[0];
     setFormData({
       date_sevrage: dateSevragePrevue,
       nombre_porcelets_sevres: gestation.nombre_porcelets_reel || gestation.nombre_porcelets_prevu,
@@ -114,12 +140,12 @@ export default function SevragesListComponent() {
 
   const handleSubmit = async () => {
     if (!selectedGestation) return;
-    
+
     if (!canCreate('reproduction')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de créer des sevrages.');
+      Alert.alert('Permission refusée', "Vous n'avez pas la permission de créer des sevrages.");
       return;
     }
-    
+
     if (formData.nombre_porcelets_sevres <= 0) {
       Alert.alert('Erreur', 'Le nombre de porcelets sevrés doit être supérieur à 0');
       return;
@@ -136,7 +162,7 @@ export default function SevragesListComponent() {
           notes: formData.notes || undefined,
         })
       ).unwrap();
-      
+
       setModalVisible(false);
       setSelectedGestation(null);
       if (projetActif) {
@@ -151,21 +177,17 @@ export default function SevragesListComponent() {
 
   const handleDelete = (id: string) => {
     if (!canDelete('reproduction')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de supprimer les sevrages.');
+      Alert.alert('Permission refusée', "Vous n'avez pas la permission de supprimer les sevrages.");
       return;
     }
-    Alert.alert(
-      'Supprimer le sevrage',
-      'Êtes-vous sûr de vouloir supprimer ce sevrage ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: () => dispatch(deleteSevrage(id)),
-        },
-      ]
-    );
+    Alert.alert('Supprimer le sevrage', 'Êtes-vous sûr de vouloir supprimer ce sevrage ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Supprimer',
+        style: 'destructive',
+        onPress: () => dispatch(deleteSevrage(id)),
+      },
+    ]);
   };
 
   const getGestationNom = (gestationId: string) => {
@@ -198,7 +220,7 @@ export default function SevragesListComponent() {
         return false;
       }
     });
-  }, [sevragesLength, sevrages, projetActif?.id, currentMonth, currentYear]);  // ✅ Ajout de sevragesLength
+  }, [sevragesLength, sevrages, projetActif?.id, currentMonth, currentYear]); // ✅ Ajout de sevragesLength
 
   // ✅ CORRECTION CRITIQUE: Ne mettre à jour que si sevragesLength a vraiment changé
   useEffect(() => {
@@ -209,26 +231,26 @@ export default function SevragesListComponent() {
       }
       return;
     }
-    
+
     // ✅ NE METTRE À JOUR QUE SI LA LENGTH A CHANGÉ (évite la boucle infinie)
     if (lastSevragesLengthRef.current !== sevragesLength) {
       lastSevragesLengthRef.current = sevragesLength;
-      
+
       // Filtrer les sevrages du projet actif
       const sevragesProjet = sevrages.filter((s) => s.projet_id === projetActif.id);
       const initial = sevragesProjet.slice(0, ITEMS_PER_PAGE);
       setDisplayedSevrages(initial);
       setPage(1);
     }
-  }, [sevragesLength, sevrages, projetActif?.id]);  // ✅ Besoin de sevrages pour le filtrage
+  }, [sevragesLength, sevrages, projetActif?.id]); // ✅ Besoin de sevrages pour le filtrage
 
   // ✅ CORRECTION CRITIQUE: Utiliser displayedSevragesLength au lieu de displayedSevrages.length
   const loadMore = useCallback(() => {
     if (!projetActif?.id) return;
-    
+
     // Filtrer les sevrages du projet actif
     const sevragesProjet = sevrages.filter((s) => s.projet_id === projetActif.id);
-    
+
     if (displayedSevragesLength >= sevragesProjet.length) {
       return;
     }
@@ -242,12 +264,12 @@ export default function SevragesListComponent() {
       setDisplayedSevrages((prev) => [...prev, ...newItems]);
       setPage(nextPage);
     }
-  }, [page, displayedSevragesLength, sevragesLength, projetActif?.id]);  // ✅ Utiliser sevragesLength au lieu de sevrages
+  }, [page, displayedSevragesLength, sevragesLength, projetActif?.id]); // ✅ Utiliser sevragesLength au lieu de sevrages
 
   const sevragesProjet = useMemo(() => {
     if (!projetActif?.id) return [];
     return sevrages.filter((s) => s.projet_id === projetActif.id);
-  }, [sevragesLength, sevrages, projetActif?.id]);  // ✅ Ajout de sevragesLength
+  }, [sevragesLength, sevrages, projetActif?.id]); // ✅ Ajout de sevragesLength
 
   if (loading) {
     return <LoadingSpinner message="Chargement des sevrages..." />;
@@ -264,26 +286,30 @@ export default function SevragesListComponent() {
           {gestationsTerminees.map((gestation) => {
             const hasSevrage = sevragesProjet.some((s) => s.gestation_id === gestation.id);
             if (hasSevrage) return null;
-            
+
             return canCreate('reproduction') ? (
               <TouchableOpacity
                 key={gestation.id}
-                style={[styles.gestationCard, { backgroundColor: colors.surface, borderColor: colors.primary }]}
+                style={[
+                  styles.gestationCard,
+                  { backgroundColor: colors.surface, borderColor: colors.primary },
+                ]}
                 onPress={() => handleCreateSevrage(gestation)}
               >
                 <Text style={[styles.gestationCardTitle, { color: colors.text }]}>
                   {gestation.truie_nom || gestation.truie_id}
                 </Text>
                 <Text style={[styles.gestationCardSubtitle, { color: colors.textSecondary }]}>
-                  {gestation.nombre_porcelets_reel || gestation.nombre_porcelets_prevu}{' '}
-                  porcelets
+                  {gestation.nombre_porcelets_reel || gestation.nombre_porcelets_prevu} porcelets
                 </Text>
                 {gestation.date_mise_bas_reelle && (
                   <Text style={[styles.gestationCardDate, { color: colors.textSecondary }]}>
                     Sevrage prévu: {formaterDateSevragePrevue(gestation.date_mise_bas_reelle)}
                   </Text>
                 )}
-                <Text style={[styles.gestationCardButton, { color: colors.primary }]}>+ Enregistrer le sevrage</Text>
+                <Text style={[styles.gestationCardButton, { color: colors.primary }]}>
+                  + Enregistrer le sevrage
+                </Text>
               </TouchableOpacity>
             ) : null;
           })}
@@ -297,7 +323,9 @@ export default function SevragesListComponent() {
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { borderBottomColor: colors.border }]}>
           <Text style={[styles.title, { color: colors.text }]}>Sevrages</Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{sevragesCeMois.length} ce mois</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            {sevragesCeMois.length} ce mois
+          </Text>
         </View>
         <EmptyState
           title="Aucun sevrage"
@@ -311,51 +339,82 @@ export default function SevragesListComponent() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <Text style={[styles.title, { color: colors.text }]}>Sevrages</Text>
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{sevragesCeMois.length} ce mois</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+          {sevragesCeMois.length} ce mois
+        </Text>
       </View>
 
       <FlatList
-              data={displayedSevrages}
-              renderItem={({ item: sevrage }) => (
-                <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small }]}>
-                <View style={styles.cardHeader}>
-                  <Text style={[styles.cardTitle, { color: colors.text }]}>
-                    {getGestationNom(sevrage.gestation_id)}
-                  </Text>
-                  {canDelete('reproduction') && (
-                    <TouchableOpacity
-                      style={styles.actionButton}
-                      onPress={() => handleDelete(sevrage.id)}
-                    >
-                      <Text style={styles.actionButtonText}>🗑️</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-
-                <View style={styles.cardContent}>
-                  <View style={styles.infoRow}>
-                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Date de sevrage:</Text>
-                    <Text style={[styles.infoValue, { color: colors.text }]}>{formatDate(sevrage.date_sevrage)}</Text>
-                  </View>
-                  <View style={styles.infoRow}>
-                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Nombre de porcelets sevrés:</Text>
-                    <Text style={[styles.infoValue, { color: colors.text }]}>{sevrage.nombre_porcelets_sevres}</Text>
-                  </View>
-                  {sevrage.poids_moyen_sevrage && (
-                    <View style={styles.infoRow}>
-                      <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Poids moyen:</Text>
-                      <Text style={[styles.infoValue, { color: colors.text }]}>{sevrage.poids_moyen_sevrage} kg</Text>
-                    </View>
-                  )}
-                  {sevrage.notes && (
-                    <View style={[styles.notesContainer, { borderTopColor: colors.border }]}>
-                      <Text style={[styles.notesLabel, { color: colors.textSecondary }]}>Notes:</Text>
-                      <Text style={[styles.notesText, { color: colors.text }]}>{sevrage.notes}</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
+        data={displayedSevrages}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
+        renderItem={({ item: sevrage }) => (
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                ...colors.shadow.small,
+              },
+            ]}
+          >
+            <View style={styles.cardHeader}>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>
+                {getGestationNom(sevrage.gestation_id)}
+              </Text>
+              {canDelete('reproduction') && (
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => handleDelete(sevrage.id)}
+                >
+                  <Text style={styles.actionButtonText}>🗑️</Text>
+                </TouchableOpacity>
               )}
+            </View>
+
+            <View style={styles.cardContent}>
+              <View style={styles.infoRow}>
+                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                  Date de sevrage:
+                </Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>
+                  {formatDate(sevrage.date_sevrage)}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                  Nombre de porcelets sevrés:
+                </Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>
+                  {sevrage.nombre_porcelets_sevres}
+                </Text>
+              </View>
+              {sevrage.poids_moyen_sevrage && (
+                <View style={styles.infoRow}>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                    Poids moyen:
+                  </Text>
+                  <Text style={[styles.infoValue, { color: colors.text }]}>
+                    {sevrage.poids_moyen_sevrage} kg
+                  </Text>
+                </View>
+              )}
+              {sevrage.notes && (
+                <View style={[styles.notesContainer, { borderTopColor: colors.border }]}>
+                  <Text style={[styles.notesLabel, { color: colors.textSecondary }]}>Notes:</Text>
+                  <Text style={[styles.notesText, { color: colors.text }]}>{sevrage.notes}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
         keyExtractor={(item) => item.id}
         onEndReached={loadMore}
         onEndReachedThreshold={0.5}
@@ -387,18 +446,22 @@ export default function SevragesListComponent() {
           onConfirm={handleSubmit}
           showButtons={true}
         >
-          <ScrollView 
+          <ScrollView
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={true}
           >
             <View style={[styles.infoBox, { backgroundColor: colors.primary + '10' }]}>
-              <Text style={[styles.infoBoxTitle, { color: colors.primary }]}>Informations de la gestation</Text>
+              <Text style={[styles.infoBoxTitle, { color: colors.primary }]}>
+                Informations de la gestation
+              </Text>
               <Text style={[styles.infoBoxText, { color: colors.text }]}>
                 Truie: {selectedGestation.truie_nom || selectedGestation.truie_id}
               </Text>
               <Text style={[styles.infoBoxText, { color: colors.text }]}>
-                Porcelets nés: {selectedGestation.nombre_porcelets_reel || selectedGestation.nombre_porcelets_prevu}
+                Porcelets nés:{' '}
+                {selectedGestation.nombre_porcelets_reel ||
+                  selectedGestation.nombre_porcelets_prevu}
               </Text>
               {selectedGestation.date_mise_bas_reelle && (
                 <Text style={[styles.infoBoxText, { color: colors.text }]}>
@@ -413,15 +476,19 @@ export default function SevragesListComponent() {
             </View>
             <View style={styles.dateFieldContainer}>
               <Text style={[styles.dateFieldLabel, { color: colors.text }]}>
-                Date de sevrage *
-                <Text style={{ color: colors.error }}> *</Text>
+                Date de sevrage *<Text style={{ color: colors.error }}> *</Text>
               </Text>
               <TouchableOpacity
-                style={[styles.datePickerButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                style={[
+                  styles.datePickerButton,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
                 onPress={() => setShowDatePicker(true)}
               >
                 <Text style={[styles.datePickerText, { color: colors.text }]}>
-                  {formData.date_sevrage ? format(parseISO(formData.date_sevrage), 'dd/MM/yyyy') : 'Sélectionner une date'}
+                  {formData.date_sevrage
+                    ? format(parseISO(formData.date_sevrage), 'dd/MM/yyyy')
+                    : 'Sélectionner une date'}
                 </Text>
               </TouchableOpacity>
               {showDatePicker && (
@@ -434,7 +501,10 @@ export default function SevragesListComponent() {
                       setShowDatePicker(false);
                     }
                     if (event.type === 'set' && selectedDate) {
-                      setFormData({ ...formData, date_sevrage: selectedDate.toISOString().split('T')[0] });
+                      setFormData({
+                        ...formData,
+                        date_sevrage: selectedDate.toISOString().split('T')[0],
+                      });
                     }
                     if (Platform.OS === 'android' && event.type === 'dismissed') {
                       setShowDatePicker(false);
@@ -448,7 +518,9 @@ export default function SevragesListComponent() {
                     style={[styles.iosDatePickerButton, { backgroundColor: colors.primary }]}
                     onPress={() => setShowDatePicker(false)}
                   >
-                    <Text style={[styles.iosDatePickerButtonText, { color: colors.textOnPrimary }]}>OK</Text>
+                    <Text style={[styles.iosDatePickerButtonText, { color: colors.textOnPrimary }]}>
+                      OK
+                    </Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -654,4 +726,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

@@ -30,15 +30,15 @@ interface Props {
 
 export default function VaccinationsComponent({ refreshControl }: Props) {
   const { colors } = useTheme();
-  
+
   const vaccinations = useAppSelector(selectAllVaccinations);
   const vaccinationsEnRetard = useAppSelector(selectVaccinationsEnRetard);
   const vaccinationsAVenir = useAppSelector(selectVaccinationsAVenir);
   const statistics = useAppSelector(selectSanteStatistics);
-  
+
   const [filtre, setFiltre] = useState<'toutes' | 'en_retard' | 'a_venir'>('toutes');
   const [modalVisible, setModalVisible] = useState(false);
-  
+
   const vaccinationsFiltrees = useMemo(() => {
     switch (filtre) {
       case 'en_retard':
@@ -118,12 +118,7 @@ export default function VaccinationsComponent({ refreshControl }: Props) {
         ]}
         onPress={() => setFiltre('en_retard')}
       >
-        <Text
-          style={[
-            styles.filtreText,
-            { color: filtre === 'en_retard' ? '#fff' : colors.text },
-          ]}
-        >
+        <Text style={[styles.filtreText, { color: filtre === 'en_retard' ? '#fff' : colors.text }]}>
           En retard ({vaccinationsEnRetard.length})
         </Text>
       </TouchableOpacity>
@@ -138,12 +133,7 @@ export default function VaccinationsComponent({ refreshControl }: Props) {
         ]}
         onPress={() => setFiltre('a_venir')}
       >
-        <Text
-          style={[
-            styles.filtreText,
-            { color: filtre === 'a_venir' ? '#fff' : colors.text },
-          ]}
-        >
+        <Text style={[styles.filtreText, { color: filtre === 'a_venir' ? '#fff' : colors.text }]}>
           À venir ({vaccinationsAVenir.length})
         </Text>
       </TouchableOpacity>
@@ -153,7 +143,7 @@ export default function VaccinationsComponent({ refreshControl }: Props) {
   const renderVaccinationCard = (vaccination: any) => {
     const date = new Date(vaccination.date_vaccination);
     const isEnRetard = vaccination.statut === 'planifie' && date < new Date();
-    
+
     return (
       <View
         key={vaccination.id}
@@ -168,8 +158,8 @@ export default function VaccinationsComponent({ refreshControl }: Props) {
                 vaccination.statut === 'effectue'
                   ? colors.success
                   : isEnRetard
-                  ? colors.error
-                  : colors.warning
+                    ? colors.error
+                    : colors.warning
               }
             />
             <Text style={[styles.cardTitle, { color: colors.text }]}>
@@ -186,8 +176,8 @@ export default function VaccinationsComponent({ refreshControl }: Props) {
                   vaccination.statut === 'effectue'
                     ? colors.success + '20'
                     : isEnRetard
-                    ? colors.error + '20'
-                    : colors.warning + '20',
+                      ? colors.error + '20'
+                      : colors.warning + '20',
               },
             ]}
           >
@@ -199,8 +189,8 @@ export default function VaccinationsComponent({ refreshControl }: Props) {
                     vaccination.statut === 'effectue'
                       ? colors.success
                       : isEnRetard
-                      ? colors.error
-                      : colors.warning,
+                        ? colors.error
+                        : colors.warning,
                 },
               ]}
             >
@@ -296,10 +286,7 @@ export default function VaccinationsComponent({ refreshControl }: Props) {
       </TouchableOpacity>
 
       {/* Modal de formulaire */}
-      <VaccinationFormModal
-        visible={modalVisible}
-        onClose={() => setModalVisible(false)}
-      />
+      <VaccinationFormModal visible={modalVisible} onClose={() => setModalVisible(false)} />
     </ScrollView>
   );
 }
@@ -416,4 +403,3 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
 });
-

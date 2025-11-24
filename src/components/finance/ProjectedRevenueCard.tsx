@@ -43,9 +43,10 @@ export default function ProjectedRevenueCard({ type }: ProjectedRevenueCardProps
       projetActif.poids_moyen_actuel || 0
     );
 
-    const prixKg = type === 'vif' 
-      ? (projetActif.prix_kg_vif || PRIX_KG_VIF_DEFAUT)
-      : (projetActif.prix_kg_carcasse || PRIX_KG_CARCASSE_DEFAUT);
+    const prixKg =
+      type === 'vif'
+        ? projetActif.prix_kg_vif || PRIX_KG_VIF_DEFAUT
+        : projetActif.prix_kg_carcasse || PRIX_KG_CARCASSE_DEFAUT;
 
     const poidsPourCalcul = type === 'vif' ? poidsTotal : poidsTotal * TAUX_CARCASSE;
     const revenuInitial = poidsPourCalcul * prixKg;
@@ -75,7 +76,9 @@ export default function ProjectedRevenueCard({ type }: ProjectedRevenueCardProps
   const label = type === 'vif' ? 'Vente en VIF' : 'Vente en CARCASSE';
 
   return (
-    <Card style={StyleSheet.flatten([styles.previsionnelCard, { backgroundColor: colors.surface }])}>
+    <Card
+      style={StyleSheet.flatten([styles.previsionnelCard, { backgroundColor: colors.surface }])}
+    >
       <View style={styles.previsionnelHeader}>
         <Text style={[styles.previsionnelLabel, { color: colors.text }]}>
           {emoji} Revenu prévisionnel - {label}
@@ -83,8 +86,15 @@ export default function ProjectedRevenueCard({ type }: ProjectedRevenueCardProps
       </View>
       <View style={styles.previsionnelContent}>
         <View style={styles.previsionnelRow}>
-          <Text style={[styles.previsionnelText, { color: colors.textSecondary }]}>Potentiel initial:</Text>
-          <Text style={[styles.previsionnelValue, { color: colors.success || colors.primary, fontWeight: 'bold' }]}>
+          <Text style={[styles.previsionnelText, { color: colors.textSecondary }]}>
+            Potentiel initial:
+          </Text>
+          <Text
+            style={[
+              styles.previsionnelValue,
+              { color: colors.success || colors.primary, fontWeight: 'bold' },
+            ]}
+          >
             {formatAmount(revenusPrevisionnels.revenuInitial)}
           </Text>
         </View>
@@ -110,17 +120,29 @@ export default function ProjectedRevenueCard({ type }: ProjectedRevenueCardProps
             </View>
             {revenusPrevisionnels.revenusRealises > 0 && (
               <View style={styles.previsionnelRow}>
-                <Text style={[styles.previsionnelText, { color: colors.textSecondary }]}>Déjà réalisé:</Text>
+                <Text style={[styles.previsionnelText, { color: colors.textSecondary }]}>
+                  Déjà réalisé:
+                </Text>
                 <Text style={[styles.previsionnelValue, { color: colors.text }]}>
                   {formatAmount(revenusPrevisionnels.revenusRealises)}
                 </Text>
               </View>
             )}
             <View style={[styles.previsionnelRow, styles.previsionnelRowHighlight]}>
-              <Text style={[styles.previsionnelText, { color: colors.textSecondary, fontWeight: '600' }]}>
+              <Text
+                style={[
+                  styles.previsionnelText,
+                  { color: colors.textSecondary, fontWeight: '600' },
+                ]}
+              >
                 Revenu prévisionnel restant:
               </Text>
-              <Text style={[styles.previsionnelValue, { color: colors.success || colors.primary, fontWeight: 'bold' }]}>
+              <Text
+                style={[
+                  styles.previsionnelValue,
+                  { color: colors.success || colors.primary, fontWeight: 'bold' },
+                ]}
+              >
                 {formatAmount(revenusPrevisionnels.revenuRestant)}
               </Text>
             </View>
@@ -180,4 +202,3 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
 });
-

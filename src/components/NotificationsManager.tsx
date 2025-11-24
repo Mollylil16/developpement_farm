@@ -104,4 +104,3 @@ export default function NotificationsManager() {
   // Ce composant ne rend rien, il sert juste à activer le hook et les listeners
   return null;
 }
-

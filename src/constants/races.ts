@@ -18,42 +18,42 @@ export const RACES_PERFORMANCES: Record<string, RacePerformance> = {
     porceletsParPorteeMoyen: 12,
     description: 'Race prolifique, excellente reproductrice',
   },
-  'Landrace': {
+  Landrace: {
     nom: 'Landrace',
     porceletsParPorteeMoyen: 11,
     description: 'Bonne prolificité, longue durée de lactation',
   },
-  'Duroc': {
+  Duroc: {
     nom: 'Duroc',
     porceletsParPorteeMoyen: 10,
     description: 'Viande de qualité, prolificité moyenne',
   },
-  'Piétrain': {
+  Piétrain: {
     nom: 'Piétrain',
     porceletsParPorteeMoyen: 9,
     description: 'Excellente conformation, prolificité modérée',
   },
-  'Hampshire': {
+  Hampshire: {
     nom: 'Hampshire',
     porceletsParPorteeMoyen: 10,
     description: 'Rustique, prolificité moyenne',
   },
-  'Berkshire': {
+  Berkshire: {
     nom: 'Berkshire',
     porceletsParPorteeMoyen: 9,
     description: 'Viande marbrée, prolificité modérée',
   },
-  'Yorkshire': {
+  Yorkshire: {
     nom: 'Yorkshire',
     porceletsParPorteeMoyen: 12,
     description: 'Très prolifique, similaire à Large White',
   },
-  'Croisée': {
+  Croisée: {
     nom: 'Croisée',
     porceletsParPorteeMoyen: 11,
     description: 'Vigueur hybride, bonne prolificité',
   },
-  'Locale': {
+  Locale: {
     nom: 'Locale',
     porceletsParPorteeMoyen: 8,
     description: 'Race locale adaptée, prolificité variable',
@@ -96,4 +96,3 @@ export function calculerMoyennePorceletsSelonRaces(truies: Array<{ race?: string
   // Retourner la moyenne pondérée
   return Math.round((totalPorcelets / nombreTruiesAvecRace) * 10) / 10; // Arrondi à 1 décimale
 }
-

@@ -14,7 +14,7 @@ const Tab = createMaterialTopTabNavigator();
 
 export default function CalculateurNavigationScreen() {
   const { colors } = useTheme();
-  
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -56,4 +56,3 @@ export default function CalculateurNavigationScreen() {
     </Tab.Navigator>
   );
 }
-

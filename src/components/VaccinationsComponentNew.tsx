@@ -18,9 +18,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import {
-  selectAllVaccinations,
-} from '../store/selectors/santeSelectors';
+import { selectAllVaccinations } from '../store/selectors/santeSelectors';
 import { selectAllAnimaux } from '../store/selectors/productionSelectors';
 import { loadVaccinations } from '../store/slices/santeSlice';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
@@ -95,9 +93,8 @@ export default function VaccinationsComponentNew({ refreshControl }: Props) {
 
     const porcsEnRetard = porcsEnRetardSet.size;
 
-    const tauxCouverture = totalAnimaux > 0
-      ? Math.round(((totalAnimaux - porcsEnRetard) / totalAnimaux) * 100)
-      : 0;
+    const tauxCouverture =
+      totalAnimaux > 0 ? Math.round(((totalAnimaux - porcsEnRetard) / totalAnimaux) * 100) : 0;
 
     return {
       totalAnimaux,
@@ -119,9 +116,7 @@ export default function VaccinationsComponentNew({ refreshControl }: Props) {
     ];
 
     return types.map((type) => {
-      const vaccinationsType = (vaccinations || []).filter(
-        (v) => v.type_prophylaxie === type
-      );
+      const vaccinationsType = (vaccinations || []).filter((v) => v.type_prophylaxie === type);
 
       const porcsVaccinesSet = new Set<string>();
       vaccinationsType.forEach((v) => {
@@ -130,13 +125,11 @@ export default function VaccinationsComponentNew({ refreshControl }: Props) {
 
       const porcsVaccines = porcsVaccinesSet.size;
       const totalPorcs = statsGlobales.totalAnimaux;
-      const tauxCouverture = totalPorcs > 0
-        ? Math.round((porcsVaccines / totalPorcs) * 100)
-        : 0;
+      const tauxCouverture = totalPorcs > 0 ? Math.round((porcsVaccines / totalPorcs) * 100) : 0;
 
-      const dernierTraitement = vaccinationsType
-        .sort((a, b) => new Date(b.date_vaccination).getTime() - new Date(a.date_vaccination).getTime())
-        [0]?.date_vaccination;
+      const dernierTraitement = vaccinationsType.sort(
+        (a, b) => new Date(b.date_vaccination).getTime() - new Date(a.date_vaccination).getTime()
+      )[0]?.date_vaccination;
 
       const coutTotal = vaccinationsType.reduce((sum, v) => sum + (v.cout || 0), 0);
 
@@ -185,11 +178,12 @@ export default function VaccinationsComponentNew({ refreshControl }: Props) {
   // Filtrer les types selon la recherche
   const statParTypeFiltres = useMemo(() => {
     if (!searchQuery.trim()) return statParType;
-    
+
     const query = searchQuery.toLowerCase();
-    return statParType.filter((stat) =>
-      stat.nom_type.toLowerCase().includes(query) ||
-      stat.type_prophylaxie.toLowerCase().includes(query)
+    return statParType.filter(
+      (stat) =>
+        stat.nom_type.toLowerCase().includes(query) ||
+        stat.type_prophylaxie.toLowerCase().includes(query)
     );
   }, [statParType, searchQuery]);
 
@@ -246,9 +240,7 @@ export default function VaccinationsComponentNew({ refreshControl }: Props) {
       <View style={[styles.carteRecap, { backgroundColor: colors.surface }]}>
         <View style={styles.headerRecap}>
           <Ionicons name="stats-chart" size={24} color={colors.primary} />
-          <Text style={[styles.titreRecap, { color: colors.text }]}>
-            Aperçu Prophylaxie
-          </Text>
+          <Text style={[styles.titreRecap, { color: colors.text }]}>Aperçu Prophylaxie</Text>
         </View>
 
         <View style={styles.statsGrid}>
@@ -256,36 +248,33 @@ export default function VaccinationsComponentNew({ refreshControl }: Props) {
             <Text style={[styles.statValue, { color: colors.primary }]}>
               {statsGlobales.totalAnimaux}
             </Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-              Porcs actifs
-            </Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Porcs actifs</Text>
           </View>
 
           <View style={styles.statItem}>
             <Text style={[styles.statValue, { color: colors.success }]}>
               {statsGlobales.totalVaccinations}
             </Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-              Traitements
-            </Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Traitements</Text>
           </View>
 
           <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: statsGlobales.porcsEnRetard > 5 ? colors.error : colors.warning }]}>
+            <Text
+              style={[
+                styles.statValue,
+                { color: statsGlobales.porcsEnRetard > 5 ? colors.error : colors.warning },
+              ]}
+            >
               {statsGlobales.porcsEnRetard}
             </Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-              En retard
-            </Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>En retard</Text>
           </View>
 
           <View style={styles.statItem}>
             <Text style={[styles.statValue, { color: colors.primary }]}>
               {statsGlobales.tauxCouverture}%
             </Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-              Couverture
-            </Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Couverture</Text>
           </View>
         </View>
 
@@ -330,22 +319,16 @@ export default function VaccinationsComponentNew({ refreshControl }: Props) {
               <Ionicons name={icone} size={24} color={couleur} />
             </View>
             <View style={styles.carteTitreContainer}>
-              <Text style={[styles.carteTypeTitre, { color: colors.text }]}>
-                {stat.nom_type}
-              </Text>
+              <Text style={[styles.carteTypeTitre, { color: colors.text }]}>{stat.nom_type}</Text>
               {stat.en_retard > 0 && (
                 <View style={[styles.badgeRetard, { backgroundColor: colors.error }]}>
-                  <Text style={styles.badgeRetardTexte}>
-                    {stat.en_retard} en retard
-                  </Text>
+                  <Text style={styles.badgeRetardTexte}>{stat.en_retard} en retard</Text>
                 </View>
               )}
             </View>
           </View>
           <View style={[styles.badgeCount, { backgroundColor: `${couleur}20` }]}>
-            <Text style={[styles.badgeCountTexte, { color: couleur }]}>
-              {stat.porcs_vaccines}
-            </Text>
+            <Text style={[styles.badgeCountTexte, { color: couleur }]}>{stat.porcs_vaccines}</Text>
           </View>
         </View>
 
@@ -405,9 +388,7 @@ export default function VaccinationsComponentNew({ refreshControl }: Props) {
             onPress={() => handleOuvrirCalendrier(stat.type_prophylaxie)}
           >
             <Ionicons name="list" size={20} color={couleur} />
-            <Text style={[styles.boutonSecondaireTexte, { color: couleur }]}>
-              Calendrier
-            </Text>
+            <Text style={[styles.boutonSecondaireTexte, { color: couleur }]}>Calendrier</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -424,7 +405,12 @@ export default function VaccinationsComponentNew({ refreshControl }: Props) {
       {renderCarteRecapitulative()}
 
       {/* Barre de recherche */}
-      <View style={[styles.searchContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View
+        style={[
+          styles.searchContainer,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+        ]}
+      >
         <Ionicons name="search" size={20} color={colors.textSecondary} />
         <TextInput
           style={[styles.searchInput, { color: colors.text }]}
@@ -688,4 +674,3 @@ const styles = StyleSheet.create({
     height: 32,
   },
 });
-

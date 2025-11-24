@@ -4,7 +4,14 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, FlatList } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppSelector } from '../store/hooks';
 import { databaseService } from '../services/database';
@@ -35,11 +42,11 @@ export default function AdminScreen() {
       setLoading(true);
       const allUsers = await databaseService.getAllUsers();
       setUsers(allUsers);
-      
+
       // Calculer les statistiques
-      const usersWithEmail = allUsers.filter(u => u.email).length;
-      const usersWithPhone = allUsers.filter(u => u.telephone).length;
-      
+      const usersWithEmail = allUsers.filter((u) => u.email).length;
+      const usersWithPhone = allUsers.filter((u) => u.telephone).length;
+
       // Compter les projets (tous les projets de tous les utilisateurs)
       let totalProjets = 0;
       for (const u of allUsers) {
@@ -50,7 +57,7 @@ export default function AdminScreen() {
           // Ignorer les erreurs
         }
       }
-      
+
       setStats({
         totalUsers: allUsers.length,
         usersWithEmail,
@@ -74,14 +81,20 @@ export default function AdminScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        edges={['top', 'bottom']}
+      >
         <LoadingSpinner message="Chargement des données..." />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top', 'bottom']}
+    >
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Administration</Text>
         <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
@@ -89,7 +102,7 @@ export default function AdminScreen() {
         </Text>
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -101,7 +114,9 @@ export default function AdminScreen() {
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Utilisateurs</Text>
           </Card>
           <Card elevation="small" padding="large" style={styles.statCard}>
-            <Text style={[styles.statValue, { color: colors.success }]}>{stats.usersWithEmail}</Text>
+            <Text style={[styles.statValue, { color: colors.success }]}>
+              {stats.usersWithEmail}
+            </Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Avec email</Text>
           </Card>
           <Card elevation="small" padding="large" style={styles.statCard}>
@@ -116,7 +131,9 @@ export default function AdminScreen() {
 
         {/* Liste des utilisateurs */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Utilisateurs ({users.length})</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            Utilisateurs ({users.length})
+          </Text>
           {users.length === 0 ? (
             <Card elevation="small" padding="large">
               <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
@@ -124,53 +141,58 @@ export default function AdminScreen() {
               </Text>
             </Card>
           ) : (
-            <FlatList
-              data={users}
-              scrollEnabled={false}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  onPress={() => handleUserPress(item)}
-                  activeOpacity={0.7}
-                >
-                  <Card elevation="small" padding="large" style={styles.userCard}>
-                    <View style={styles.userHeader}>
-                      <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-                        <Text style={[styles.avatarText, { color: colors.textOnPrimary }]}>
-                          {item.prenom.charAt(0).toUpperCase()}{item.nom.charAt(0).toUpperCase()}
-                        </Text>
-                      </View>
-                      <View style={styles.userInfo}>
-                        <Text style={[styles.userName, { color: colors.text }]}>
-                          {item.prenom} {item.nom}
-                        </Text>
-                        <Text style={[styles.userIdentifier, { color: colors.textSecondary }]}>
-                          {item.email || item.telephone || 'Pas d\'identifiant'}
-                        </Text>
-                      </View>
+            users.map((item) => (
+              <TouchableOpacity key={item.id} onPress={() => handleUserPress(item)} activeOpacity={0.7}>
+                <Card elevation="small" padding="large" style={styles.userCard}>
+                  <View style={styles.userHeader}>
+                    <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
+                      <Text style={[styles.avatarText, { color: colors.textOnPrimary }]}>
+                        {item.prenom.charAt(0).toUpperCase()}
+                        {item.nom.charAt(0).toUpperCase()}
+                      </Text>
                     </View>
-                    <View style={[styles.userDetails, { borderTopColor: colors.border }]}>
-                      <View style={styles.detailRow}>
-                        <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>ID:</Text>
-                        <Text style={[styles.detailValue, { color: colors.text }]} numberOfLines={1} ellipsizeMode="middle">
-                          {item.id}
-                        </Text>
-                      </View>
-                      <View style={styles.detailRow}>
-                        <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Provider:</Text>
-                        <Text style={[styles.detailValue, { color: colors.text }]}>{item.provider}</Text>
-                      </View>
-                      <View style={styles.detailRow}>
-                        <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Créé le:</Text>
-                        <Text style={[styles.detailValue, { color: colors.text }]}>
-                          {new Date(item.date_creation).toLocaleDateString('fr-FR')}
-                        </Text>
-                      </View>
+                    <View style={styles.userInfo}>
+                      <Text style={[styles.userName, { color: colors.text }]}>
+                        {item.prenom} {item.nom}
+                      </Text>
+                      <Text style={[styles.userIdentifier, { color: colors.textSecondary }]}>
+                        {item.email || item.telephone || "Pas d'identifiant"}
+                      </Text>
                     </View>
-                  </Card>
-                </TouchableOpacity>
-              )}
-            />
+                  </View>
+                  <View style={[styles.userDetails, { borderTopColor: colors.border }]}>
+                    <View style={styles.detailRow}>
+                      <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>
+                        ID:
+                      </Text>
+                      <Text
+                        style={[styles.detailValue, { color: colors.text }]}
+                        numberOfLines={1}
+                        ellipsizeMode="middle"
+                      >
+                        {item.id}
+                      </Text>
+                    </View>
+                    <View style={styles.detailRow}>
+                      <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>
+                        Provider:
+                      </Text>
+                      <Text style={[styles.detailValue, { color: colors.text }]}>
+                        {item.provider}
+                      </Text>
+                    </View>
+                    <View style={styles.detailRow}>
+                      <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>
+                        Créé le:
+                      </Text>
+                      <Text style={[styles.detailValue, { color: colors.text }]}>
+                        {new Date(item.date_creation).toLocaleDateString('fr-FR')}
+                      </Text>
+                    </View>
+                  </View>
+                </Card>
+              </TouchableOpacity>
+            ))
           )}
         </View>
       </ScrollView>
@@ -285,4 +307,3 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
 });
-

@@ -43,13 +43,13 @@ interface CompactCardHeaderProps {
   titleStyle?: TextStyle;
 }
 
-export function CompactCardHeader({ 
-  title, 
-  subtitle, 
-  icon, 
+export function CompactCardHeader({
+  title,
+  subtitle,
+  icon,
   action,
   style,
-  titleStyle 
+  titleStyle,
 }: CompactCardHeaderProps) {
   const { colors } = useTheme();
 
@@ -123,4 +123,3 @@ const styles = StyleSheet.create({
     marginLeft: SPACING.sm,
   },
 });
-

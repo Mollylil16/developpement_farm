@@ -111,7 +111,7 @@ export const GMQ_STANDARDS: ProductionStandardGMQ[] = [
 ];
 
 export function getStandardGMQ(poids: number): ProductionStandardGMQ | undefined {
-  return GMQ_STANDARDS.find((standard) => poids >= standard.min_poids && poids < standard.max_poids);
+  return GMQ_STANDARDS.find(
+    (standard) => poids >= standard.min_poids && poids < standard.max_poids
+  );
 }
-
-

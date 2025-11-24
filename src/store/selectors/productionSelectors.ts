@@ -12,13 +12,24 @@ import { ProductionAnimal, ProductionPesee } from '../../types';
 // Sélecteur de base pour l'état production
 const selectProductionState = (state: RootState) => state.production;
 
+// Sélecteurs intermédiaires pour éviter les nouvelles références
+const selectAnimauxIds = createSelector(
+  [selectProductionState],
+  (productionState) => productionState.ids.animaux
+);
+
+const selectAnimauxEntities = createSelector(
+  [selectProductionState],
+  (productionState) => productionState.entities.animaux
+);
+
 // Sélecteur pour obtenir tous les animaux (dénormalisés)
 export const selectAllAnimaux = createSelector(
-  [selectProductionState],
-  (productionState): ProductionAnimal[] => {
-    const { entities, ids } = productionState;
-    const animauxIds = ids.animaux || [];
-    const result = denormalize(animauxIds, animauxSchema, { animaux: entities.animaux });
+  [selectAnimauxIds, selectAnimauxEntities],
+  (animauxIds, animauxEntities): ProductionAnimal[] => {
+    if (!animauxIds || !animauxEntities) return [];
+    if (animauxIds.length === 0) return [];
+    const result = denormalize(animauxIds, animauxSchema, { animaux: animauxEntities });
     return Array.isArray(result) ? result : [];
   }
 );
@@ -34,46 +45,10 @@ export const selectAnimalById = createSelector(
   }
 );
 
-// Sélecteur pour obtenir toutes les pesées (dénormalisées)
-export const selectAllPesees = createSelector(
+// Sélecteurs intermédiaires pour les pesées
+const selectPeseesIds = createSelector(
   [selectProductionState],
-  (productionState): ProductionPesee[] => {
-    const { entities, ids } = productionState;
-    const peseesIds = ids.pesees || [];
-    const result = denormalize(peseesIds, peseesSchema, { pesees: entities.pesees });
-    return Array.isArray(result) ? result : [];
-  }
-);
-
-// Sélecteur pour obtenir les pesées d'un animal (dénormalisées)
-export const selectPeseesByAnimalId = createSelector(
-  [selectProductionState, (_: RootState, animalId: string) => animalId],
-  (productionState, animalId): ProductionPesee[] => {
-    const { entities, peseesParAnimal } = productionState;
-    const peseeIds = peseesParAnimal?.[animalId] || [];
-    if (peseeIds.length === 0) return [];
-    const result = denormalize(peseeIds, peseesSchema, { pesees: entities.pesees });
-    return Array.isArray(result) ? result : [];
-  }
-);
-
-// Sélecteur pour obtenir les pesées récentes (dénormalisées)
-export const selectPeseesRecents = createSelector(
-  [selectProductionState],
-  (productionState): ProductionPesee[] => {
-    const { entities, peseesRecents } = productionState;
-    const peseesRecentsIds = peseesRecents || [];
-    if (peseesRecentsIds.length === 0) return [];
-    const result = denormalize(peseesRecentsIds, peseesSchema, { pesees: entities.pesees });
-    return Array.isArray(result) ? result : [];
-  }
-);
-
-// Sélecteur pour obtenir peseesParAnimal (compatible avec l'ancien format)
-// Utiliser une comparaison personnalisée pour éviter les recalculs inutiles
-const selectPeseesParAnimalIds = createSelector(
-  [selectProductionState],
-  (productionState) => productionState.peseesParAnimal
+  (productionState) => productionState.ids.pesees
 );
 
 const selectPeseesEntities = createSelector(
@@ -81,13 +56,60 @@ const selectPeseesEntities = createSelector(
   (productionState) => productionState.entities.pesees
 );
 
+const selectPeseesParAnimalIds = createSelector(
+  [selectProductionState],
+  (productionState) => productionState.peseesParAnimal
+);
+
+const selectPeseesRecentsIds = createSelector(
+  [selectProductionState],
+  (productionState) => productionState.peseesRecents
+);
+
+// Sélecteur pour obtenir toutes les pesées (dénormalisées)
+export const selectAllPesees = createSelector(
+  [selectPeseesIds, selectPeseesEntities],
+  (peseesIds, peseesEntities): ProductionPesee[] => {
+    if (!peseesIds || !peseesEntities) return [];
+    if (peseesIds.length === 0) return [];
+    const result = denormalize(peseesIds, peseesSchema, { pesees: peseesEntities });
+    return Array.isArray(result) ? result : [];
+  }
+);
+
+// Sélecteur pour obtenir les pesées d'un animal (dénormalisées)
+export const selectPeseesByAnimalId = createSelector(
+  [selectPeseesParAnimalIds, selectPeseesEntities, (_: RootState, animalId: string) => animalId],
+  (peseesParAnimal, peseesEntities, animalId): ProductionPesee[] => {
+    if (!peseesParAnimal || !peseesEntities) return [];
+    const peseeIds = peseesParAnimal[animalId];
+    if (!peseeIds || peseeIds.length === 0) return [];
+    const result = denormalize(peseeIds, peseesSchema, { pesees: peseesEntities });
+    return Array.isArray(result) ? result : [];
+  }
+);
+
+// Sélecteur pour obtenir les pesées récentes (dénormalisées)
+export const selectPeseesRecents = createSelector(
+  [selectPeseesRecentsIds, selectPeseesEntities],
+  (peseesRecentsIds, peseesEntities): ProductionPesee[] => {
+    if (!peseesRecentsIds || !peseesEntities) return [];
+    if (peseesRecentsIds.length === 0) return [];
+    const result = denormalize(peseesRecentsIds, peseesSchema, { pesees: peseesEntities });
+    return Array.isArray(result) ? result : [];
+  }
+);
+
+// Sélecteur pour obtenir peseesParAnimal (compatible avec l'ancien format)
+// Utiliser une comparaison personnalisée pour éviter les recalculs inutiles
+
 export const selectPeseesParAnimal = createSelector(
   [selectPeseesParAnimalIds, selectPeseesEntities],
   (peseesParAnimal, peseesEntities): Record<string, ProductionPesee[]> => {
     const result: Record<string, ProductionPesee[]> = {};
-    
+
     if (!peseesParAnimal) return result;
-    
+
     Object.keys(peseesParAnimal).forEach((animalId) => {
       const peseeIds = peseesParAnimal[animalId];
       if (peseeIds && Array.isArray(peseeIds) && peseeIds.length > 0) {
@@ -97,7 +119,7 @@ export const selectPeseesParAnimal = createSelector(
         result[animalId] = [];
       }
     });
-    
+
     return result;
   }
 );
@@ -113,4 +135,3 @@ export const selectProductionError = createSelector(
   [selectProductionState],
   (productionState) => productionState.error
 );
-

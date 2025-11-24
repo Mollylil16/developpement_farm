@@ -90,4 +90,3 @@ export function joursRestantsAvantMiseBas(dateMiseBasPrevue: string): number {
   );
   return differenceJours;
 }
-

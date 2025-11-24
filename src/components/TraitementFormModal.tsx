@@ -495,9 +495,7 @@ export default function TraitementFormModal({
                     styles.ratingButton,
                     {
                       backgroundColor:
-                        formData.efficace === rating.toString()
-                          ? colors.success
-                          : colors.surface,
+                        formData.efficace === rating.toString() ? colors.success : colors.surface,
                       borderColor: colors.border,
                     },
                   ]}
@@ -507,8 +505,7 @@ export default function TraitementFormModal({
                     style={[
                       styles.ratingText,
                       {
-                        color:
-                          formData.efficace === rating.toString() ? '#fff' : colors.text,
+                        color: formData.efficace === rating.toString() ? '#fff' : colors.text,
                       },
                     ]}
                   >
@@ -715,4 +712,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

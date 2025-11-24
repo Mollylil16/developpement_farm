@@ -45,22 +45,23 @@ function ReportsScreenContent() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top']}
+    >
       <StandardHeader
         icon="bar-chart"
         title="Rapports"
         subtitle="Indicateurs de performance et tendances"
       />
-      
+
       <StandardTabs
         tabs={tabs}
         activeTab={activeTab}
         onTabChange={(tabId) => setActiveTab(tabId as TabType)}
       />
 
-      <View style={styles.content}>
-        {renderContent()}
-      </View>
+      <View style={styles.content}>{renderContent()}</View>
     </SafeAreaView>
   );
 }
@@ -81,4 +82,3 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
-

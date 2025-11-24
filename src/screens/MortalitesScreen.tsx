@@ -11,9 +11,12 @@ import MortalitesListComponent from '../components/MortalitesListComponent';
 
 function MortalitesScreenContent() {
   const { colors } = useTheme();
-  
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top']}
+    >
       <MortalitesListComponent />
     </SafeAreaView>
   );
@@ -32,4 +35,3 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
-

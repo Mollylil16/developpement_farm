@@ -73,7 +73,7 @@ export default function IngredientFormModal({
     if (formData.nom.trim().length > 2 && !autoFilled && !isEditing) {
       const valeurs = getValeursNutritionnelles(formData.nom);
       if (valeurs) {
-        setFormData(prev => ({
+        setFormData((prev) => ({
           ...prev,
           proteine_pourcent: valeurs.proteine_pourcent,
           energie_kcal: valeurs.energie_kcal,
@@ -87,17 +87,20 @@ export default function IngredientFormModal({
   const handleSubmit = async () => {
     // Vérifier les permissions
     if (isEditing && !canUpdate('nutrition')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier des ingrédients.');
+      Alert.alert(
+        'Permission refusée',
+        "Vous n'avez pas la permission de modifier des ingrédients."
+      );
       return;
     }
     if (!isEditing && !canCreate('nutrition')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de créer des ingrédients.');
+      Alert.alert('Permission refusée', "Vous n'avez pas la permission de créer des ingrédients.");
       return;
     }
-    
+
     // Validation
     if (!formData.nom.trim()) {
-      Alert.alert('Erreur', 'Le nom de l\'ingrédient est requis');
+      Alert.alert('Erreur', "Le nom de l'ingrédient est requis");
       return;
     }
     if (formData.prix_unitaire <= 0) {
@@ -109,10 +112,12 @@ export default function IngredientFormModal({
     try {
       if (isEditing && ingredient) {
         // Mise à jour
-        await dispatch(updateIngredient({ 
-          id: ingredient.id, 
-          updates: formData 
-        })).unwrap();
+        await dispatch(
+          updateIngredient({
+            id: ingredient.id,
+            updates: formData,
+          })
+        ).unwrap();
         Alert.alert('Succès', 'Ingrédient modifié avec succès');
       } else {
         // Création
@@ -121,7 +126,10 @@ export default function IngredientFormModal({
       }
       onSuccess();
     } catch (error: any) {
-      Alert.alert('Erreur', error || `Erreur lors de ${isEditing ? 'la modification' : 'la création'} de l\'ingrédient`);
+      Alert.alert(
+        'Erreur',
+        error || `Erreur lors de ${isEditing ? 'la modification' : 'la création'} de l\'ingrédient`
+      );
     } finally {
       setLoading(false);
     }
@@ -138,7 +146,7 @@ export default function IngredientFormModal({
     <CustomModal
       visible={visible}
       onClose={onClose}
-      title={isEditing ? 'Modifier l\'ingrédient' : 'Nouvel ingrédient'}
+      title={isEditing ? "Modifier l'ingrédient" : 'Nouvel ingrédient'}
       confirmText={isEditing ? 'Modifier' : 'Créer'}
       onConfirm={handleSubmit}
       showButtons={true}
@@ -157,7 +165,12 @@ export default function IngredientFormModal({
 
         {/* Afficher un message si auto-rempli */}
         {autoFilled && !isEditing && (
-          <View style={[styles.infoBox, { backgroundColor: colors.success + '15', borderColor: colors.success + '30' }]}>
+          <View
+            style={[
+              styles.infoBox,
+              { backgroundColor: colors.success + '15', borderColor: colors.success + '30' },
+            ]}
+          >
             <Text style={[styles.infoText, { color: colors.success }]}>
               ✅ Valeurs nutritionnelles remplies automatiquement
             </Text>
@@ -243,16 +256,22 @@ export default function IngredientFormModal({
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
               💡 Ingrédients équivalents
             </Text>
-            <View style={[styles.equivalentsContainer, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' }]}>
+            <View
+              style={[
+                styles.equivalentsContainer,
+                { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' },
+              ]}
+            >
               <Text style={[styles.equivalentsLabel, { color: colors.textSecondary }]}>
                 Vous pouvez remplacer cet ingrédient par :
               </Text>
               <View style={styles.equivalentsList}>
                 {equivalentsSuggeres.map((equiv, index) => (
-                  <View key={index} style={[styles.equivalentBadge, { backgroundColor: colors.primary + '20' }]}>
-                    <Text style={[styles.equivalentText, { color: colors.primary }]}>
-                      {equiv}
-                    </Text>
+                  <View
+                    key={index}
+                    style={[styles.equivalentBadge, { backgroundColor: colors.primary + '20' }]}
+                  >
+                    <Text style={[styles.equivalentText, { color: colors.primary }]}>{equiv}</Text>
                   </View>
                 ))}
               </View>
@@ -325,4 +344,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

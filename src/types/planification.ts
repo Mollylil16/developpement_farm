@@ -110,9 +110,6 @@ export function getTachesEnRetard(planifications: Planification[]): Planificatio
   return planifications.filter((p) => {
     const datePrevue = new Date(p.date_prevue);
     datePrevue.setHours(0, 0, 0, 0);
-    return (
-      datePrevue < aujourdhui &&
-      (p.statut === 'a_faire' || p.statut === 'en_cours')
-    );
+    return datePrevue < aujourdhui && (p.statut === 'a_faire' || p.statut === 'en_cours');
   });
 }

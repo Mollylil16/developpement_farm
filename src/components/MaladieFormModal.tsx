@@ -300,14 +300,14 @@ export default function MaladieFormModal({ visible, onClose, maladie, animalId }
                       gravite === 'critique'
                         ? colors.error
                         : gravite === 'grave'
-                        ? colors.warning
-                        : colors.primary,
+                          ? colors.warning
+                          : colors.primary,
                     borderColor:
                       gravite === 'critique'
                         ? colors.error
                         : gravite === 'grave'
-                        ? colors.warning
-                        : colors.primary,
+                          ? colors.warning
+                          : colors.primary,
                   },
                 ]}
                 onPress={() => setFormData({ ...formData, gravite })}
@@ -577,4 +577,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

@@ -57,11 +57,11 @@ export default function ProductionHistoriqueComponent() {
       dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
     }
   }, [dispatch, projetActif]);
-  
+
   // Fonction pour rafraîchir les données (pull-to-refresh)
   const onRefresh = useCallback(async () => {
     if (!projetActif?.id) return;
-    
+
     setRefreshing(true);
     try {
       await dispatch(loadProductionAnimaux({ projetId: projetActif.id })).unwrap();
@@ -86,11 +86,11 @@ export default function ProductionHistoriqueComponent() {
 
   const handleDelete = (animal: ProductionAnimal) => {
     if (!canDelete('reproduction')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de supprimer les animaux.');
+      Alert.alert('Permission refusée', "Vous n'avez pas la permission de supprimer les animaux.");
       return;
     }
     Alert.alert(
-      'Supprimer l\'animal',
+      "Supprimer l'animal",
       `Êtes-vous sûr de vouloir supprimer ${animal.code}${animal.nom ? ` (${animal.nom})` : ''} ?`,
       [
         { text: 'Annuler', style: 'cancel' },
@@ -111,7 +111,7 @@ export default function ProductionHistoriqueComponent() {
 
   const handleChangeStatut = (animal: ProductionAnimal, nouveauStatut: StatutAnimal) => {
     if (!canUpdate('reproduction')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les animaux.');
+      Alert.alert('Permission refusée', "Vous n'avez pas la permission de modifier les animaux.");
       return;
     }
     Alert.alert(
@@ -148,7 +148,6 @@ export default function ProductionHistoriqueComponent() {
     );
   };
 
-
   const getParentLabel = (id?: string | null) => {
     if (!id) {
       return 'Inconnu';
@@ -177,11 +176,13 @@ export default function ProductionHistoriqueComponent() {
                 {STATUT_ANIMAL_LABELS[item.statut]}
               </Text>
             </View>
-          {item.reproducteur && (
-            <View style={[styles.reproducteurBadge, { backgroundColor: colors.success + '18' }]}>
-              <Text style={[styles.reproducteurText, { color: colors.success }]}>Reproducteur</Text>
-            </View>
-          )}
+            {item.reproducteur && (
+              <View style={[styles.reproducteurBadge, { backgroundColor: colors.success + '18' }]}>
+                <Text style={[styles.reproducteurText, { color: colors.success }]}>
+                  Reproducteur
+                </Text>
+              </View>
+            )}
           </View>
           <View style={styles.animalActions}>
             {canUpdate('reproduction') && (
@@ -224,7 +225,9 @@ export default function ProductionHistoriqueComponent() {
           )}
           {item.date_naissance && (
             <View style={styles.detailRow}>
-              <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Date de naissance:</Text>
+              <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>
+                Date de naissance:
+              </Text>
               <Text style={[styles.detailValue, { color: colors.text }]}>
                 {format(parseISO(item.date_naissance), 'dd MMM yyyy', { locale: fr })}
               </Text>
@@ -232,7 +235,9 @@ export default function ProductionHistoriqueComponent() {
           )}
           {item.date_entree && (
             <View style={styles.detailRow}>
-              <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Date d'arrivée:</Text>
+              <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>
+                Date d'arrivée:
+              </Text>
               <Text style={[styles.detailValue, { color: colors.text }]}>
                 {format(parseISO(item.date_entree), 'dd MMM yyyy', { locale: fr })}
               </Text>
@@ -246,14 +251,20 @@ export default function ProductionHistoriqueComponent() {
           )}
           <View style={styles.detailRow}>
             <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Père:</Text>
-            <Text style={[styles.detailValue, { color: colors.text }]}>{getParentLabel(item.pere_id)}</Text>
+            <Text style={[styles.detailValue, { color: colors.text }]}>
+              {getParentLabel(item.pere_id)}
+            </Text>
           </View>
           <View style={styles.detailRow}>
             <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Mère:</Text>
-            <Text style={[styles.detailValue, { color: colors.text }]}>{getParentLabel(item.mere_id)}</Text>
+            <Text style={[styles.detailValue, { color: colors.text }]}>
+              {getParentLabel(item.mere_id)}
+            </Text>
           </View>
           <View style={styles.detailRow}>
-            <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Poids à l'arrivée:</Text>
+            <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>
+              Poids à l'arrivée:
+            </Text>
             <Text style={[styles.detailValue, { color: colors.text }]}>
               {item.poids_initial ? `${item.poids_initial.toFixed(1)} kg` : 'Non renseigné'}
             </Text>
@@ -270,7 +281,9 @@ export default function ProductionHistoriqueComponent() {
           <>
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
             <View style={styles.notesContainer}>
-              <Text style={[styles.notesLabel, { color: colors.textSecondary }]}>Notes (vaccins, etc.):</Text>
+              <Text style={[styles.notesLabel, { color: colors.textSecondary }]}>
+                Notes (vaccins, etc.):
+              </Text>
               <Text style={[styles.notesText, { color: colors.text }]}>{item.notes}</Text>
             </View>
           </>
@@ -279,7 +292,9 @@ export default function ProductionHistoriqueComponent() {
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
         {canUpdate('reproduction') && (
           <View style={styles.statutSelector}>
-            <Text style={[styles.statutSelectorLabel, { color: colors.text }]}>Changer le statut:</Text>
+            <Text style={[styles.statutSelectorLabel, { color: colors.text }]}>
+              Changer le statut:
+            </Text>
             <View style={styles.statutButtons}>
               {/* Permettre de remettre en actif ou changer entre les statuts d'historique */}
               {(['actif', 'mort', 'vendu', 'offert', 'autre'] as StatutAnimal[]).map((statut) => (
@@ -288,7 +303,8 @@ export default function ProductionHistoriqueComponent() {
                   style={[
                     styles.statutButton,
                     {
-                      backgroundColor: item.statut === statut ? getStatutColor(statut, colors) : colors.background,
+                      backgroundColor:
+                        item.statut === statut ? getStatutColor(statut, colors) : colors.background,
                       borderColor: getStatutColor(statut, colors),
                     },
                   ]}
@@ -298,7 +314,10 @@ export default function ProductionHistoriqueComponent() {
                     style={[
                       styles.statutButtonText,
                       {
-                        color: item.statut === statut ? colors.textOnPrimary : getStatutColor(statut, colors),
+                        color:
+                          item.statut === statut
+                            ? colors.textOnPrimary
+                            : getStatutColor(statut, colors),
                       },
                     ]}
                   >
@@ -320,11 +339,14 @@ export default function ProductionHistoriqueComponent() {
       </View>
       <View style={styles.summary}>
         <Text style={[styles.summaryText, { color: colors.text }]}>
-          {animauxHistorique.length} animal{animauxHistorique.length > 1 ? 'aux' : ''} dans l'historique
+          {animauxHistorique.length} animal{animauxHistorique.length > 1 ? 'aux' : ''} dans
+          l'historique
         </Text>
       </View>
       <View style={styles.filters}>
-        <Text style={[styles.filterLabel, { color: colors.textSecondary }]}>Filtrer par statut:</Text>
+        <Text style={[styles.filterLabel, { color: colors.textSecondary }]}>
+          Filtrer par statut:
+        </Text>
         <View style={styles.filterButtons}>
           {(['tous', 'mort', 'vendu', 'offert'] as const).map((statut) => (
             <TouchableOpacity
@@ -566,4 +588,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

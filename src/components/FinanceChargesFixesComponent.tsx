@@ -2,14 +2,10 @@
  * Composant liste des charges fixes
  */
 
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, RefreshControl } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import {
-  loadChargesFixes,
-  deleteChargeFixe,
-  updateChargeFixe,
-} from '../store/slices/financeSlice';
+import { loadChargesFixes, deleteChargeFixe, updateChargeFixe } from '../store/slices/financeSlice';
 import { ChargeFixe, StatutChargeFixe } from '../types';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -28,6 +24,7 @@ export default function FinanceChargesFixesComponent() {
   const [selectedCharge, setSelectedCharge] = useState<ChargeFixe | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const { projetActif } = useAppSelector((state) => state.projet);
 
@@ -39,7 +36,10 @@ export default function FinanceChargesFixesComponent() {
 
   const handleEdit = (charge: ChargeFixe) => {
     if (!canUpdate('finance')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les charges fixes.');
+      Alert.alert(
+        'Permission refusée',
+        "Vous n'avez pas la permission de modifier les charges fixes."
+      );
       return;
     }
     setSelectedCharge(charge);
@@ -49,7 +49,10 @@ export default function FinanceChargesFixesComponent() {
 
   const handleDelete = (id: string) => {
     if (!canDelete('finance')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de supprimer les charges fixes.');
+      Alert.alert(
+        'Permission refusée',
+        "Vous n'avez pas la permission de supprimer les charges fixes."
+      );
       return;
     }
     Alert.alert(
@@ -68,7 +71,10 @@ export default function FinanceChargesFixesComponent() {
 
   const handleSuspend = (charge: ChargeFixe) => {
     if (!canUpdate('finance')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les charges fixes.');
+      Alert.alert(
+        'Permission refusée',
+        "Vous n'avez pas la permission de modifier les charges fixes."
+      );
       return;
     }
     dispatch(
@@ -91,6 +97,19 @@ export default function FinanceChargesFixesComponent() {
       dispatch(loadChargesFixes(projetActif.id));
     }
   };
+
+  const onRefresh = useCallback(async () => {
+    if (!projetActif?.id) return;
+    
+    setRefreshing(true);
+    try {
+      await dispatch(loadChargesFixes(projetActif.id)).unwrap();
+    } catch (error) {
+      console.error('Erreur lors du rafraîchissement:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [dispatch, projetActif?.id]);
 
   const getStatusColor = (statut: StatutChargeFixe) => {
     switch (statut) {
@@ -149,8 +168,16 @@ export default function FinanceChargesFixesComponent() {
       </View>
 
       <ScrollView 
-        style={styles.scrollView}
+        style={styles.scrollView} 
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
       >
         {chargesFixes.length === 0 ? (
           <EmptyState
@@ -166,19 +193,35 @@ export default function FinanceChargesFixesComponent() {
                     setModalVisible(true);
                   }}
                 >
-                  <Text style={[styles.addButtonText, { color: colors.background }]}>+ Ajouter une charge fixe</Text>
+                  <Text style={[styles.addButtonText, { color: colors.background }]}>
+                    + Ajouter une charge fixe
+                  </Text>
                 </TouchableOpacity>
               ) : null
             }
           />
         ) : (
           chargesFixes.map((charge) => (
-            <View key={charge.id} style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, ...colors.shadow.small }]}>
+            <View
+              key={charge.id}
+              style={[
+                styles.card,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  ...colors.shadow.small,
+                },
+              ]}
+            >
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderLeft}>
                   <Text style={[styles.cardTitle, { color: colors.text }]}>{charge.libelle}</Text>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(charge.statut) }]}>
-                    <Text style={[styles.statusText, { color: colors.background }]}>{getStatusLabel(charge.statut)}</Text>
+                  <View
+                    style={[styles.statusBadge, { backgroundColor: getStatusColor(charge.statut) }]}
+                  >
+                    <Text style={[styles.statusText, { color: colors.background }]}>
+                      {getStatusLabel(charge.statut)}
+                    </Text>
                   </View>
                 </View>
                 <View style={styles.cardActions}>
@@ -213,7 +256,9 @@ export default function FinanceChargesFixesComponent() {
 
               <View style={styles.cardContent}>
                 <View style={styles.infoRow}>
-                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Catégorie:</Text>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                    Catégorie:
+                  </Text>
                   <Text style={[styles.infoValue, { color: colors.text }]}>{charge.categorie}</Text>
                 </View>
                 <View style={styles.infoRow}>
@@ -223,13 +268,19 @@ export default function FinanceChargesFixesComponent() {
                   </Text>
                 </View>
                 <View style={styles.infoRow}>
-                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Fréquence:</Text>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                    Fréquence:
+                  </Text>
                   <Text style={[styles.infoValue, { color: colors.text }]}>{charge.frequence}</Text>
                 </View>
                 {charge.jour_paiement && (
                   <View style={styles.infoRow}>
-                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Jour de paiement:</Text>
-                    <Text style={[styles.infoValue, { color: colors.text }]}>Le {charge.jour_paiement} de chaque mois</Text>
+                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                      Jour de paiement:
+                    </Text>
+                    <Text style={[styles.infoValue, { color: colors.text }]}>
+                      Le {charge.jour_paiement} de chaque mois
+                    </Text>
                   </View>
                 )}
                 {charge.notes && (
@@ -361,4 +412,3 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
 });
-

@@ -35,9 +35,9 @@ function OverviewWidget({ onPress }: OverviewWidgetProps) {
       dataChargeesRef.current = null;
       return;
     }
-    
+
     if (dataChargeesRef.current === projetActif.id) return; // Déjà chargé !
-    
+
     dataChargeesRef.current = projetActif.id;
     dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
   }, [dispatch, projetActif?.id]);
@@ -105,9 +105,7 @@ function OverviewWidget({ onPress }: OverviewWidgetProps) {
         <View style={styles.statItem}>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Truies</Text>
           <View style={styles.statValueRow}>
-            <Text style={[styles.statValue, { color: colors.primary }]}>
-              {stats.truies ?? 0}
-            </Text>
+            <Text style={[styles.statValue, { color: colors.primary }]}>{stats.truies ?? 0}</Text>
             <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
           </View>
         </View>
@@ -125,9 +123,7 @@ function OverviewWidget({ onPress }: OverviewWidgetProps) {
         <View style={styles.statItem}>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Porcelets</Text>
           <View style={styles.statValueRow}>
-            <Text style={[styles.statValue, { color: colors.accent }]}>
-              {stats.porcelets ?? 0}
-            </Text>
+            <Text style={[styles.statValue, { color: colors.accent }]}>{stats.porcelets ?? 0}</Text>
             <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
           </View>
         </View>

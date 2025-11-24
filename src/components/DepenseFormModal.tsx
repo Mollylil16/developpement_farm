@@ -8,6 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { createDepensePonctuelle, updateDepensePonctuelle } from '../store/slices/financeSlice';
 import { DepensePonctuelle, CreateDepensePonctuelleInput, CategorieDepense } from '../types';
+import { getTypeDepense, CATEGORIE_DEPENSE_LABELS } from '../types/finance';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING, BORDER_RADIUS } from '../constants/theme';
@@ -74,7 +75,7 @@ export default function DepenseFormModal({
     if (status !== 'granted') {
       Alert.alert(
         'Permission requise',
-        'L\'application a besoin de l\'accès à vos photos pour ajouter des reçus.'
+        "L'application a besoin de l'accès à vos photos pour ajouter des reçus."
       );
       return false;
     }
@@ -86,7 +87,7 @@ export default function DepenseFormModal({
     if (status !== 'granted') {
       Alert.alert(
         'Permission requise',
-        'L\'application a besoin de l\'accès à la caméra pour prendre des photos de reçus.'
+        "L'application a besoin de l'accès à la caméra pour prendre des photos de reçus."
       );
       return false;
     }
@@ -152,11 +153,11 @@ export default function DepenseFormModal({
   const handleSubmit = async () => {
     // Vérifier les permissions
     if (isEditing && !canUpdate('finance')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les dépenses.');
+      Alert.alert('Permission refusée', "Vous n'avez pas la permission de modifier les dépenses.");
       return;
     }
     if (!isEditing && !canCreate('finance')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de créer des dépenses.');
+      Alert.alert('Permission refusée', "Vous n'avez pas la permission de créer des dépenses.");
       return;
     }
 
@@ -173,51 +174,53 @@ export default function DepenseFormModal({
     setLoading(true);
     try {
       if (isEditing && depense) {
-        await dispatch(updateDepensePonctuelle({
-          id: depense.id,
-          updates: {
-            montant: formData.montant,
-            categorie: formData.categorie,
-            libelle_categorie: formData.libelle_categorie,
-            date: formData.date,
-            commentaire: formData.commentaire,
-            photos: formData.photos || [],
-          },
-        })).unwrap();
+        await dispatch(
+          updateDepensePonctuelle({
+            id: depense.id,
+            updates: {
+              montant: formData.montant,
+              categorie: formData.categorie,
+              libelle_categorie: formData.libelle_categorie,
+              date: formData.date,
+              commentaire: formData.commentaire,
+              photos: formData.photos || [],
+            },
+          })
+        ).unwrap();
       } else {
         if (!projetActif) {
           Alert.alert('Erreur', 'Aucun projet actif');
           return;
         }
-        await dispatch(createDepensePonctuelle({ ...formData, projet_id: projetActif.id })).unwrap();
+        await dispatch(
+          createDepensePonctuelle({ ...formData, projet_id: projetActif.id })
+        ).unwrap();
       }
       onSuccess();
     } catch (error: any) {
-      Alert.alert('Erreur', error || 'Erreur lors de l\'enregistrement');
+      Alert.alert('Erreur', error || "Erreur lors de l'enregistrement");
     } finally {
       setLoading(false);
     }
   };
 
   const categories: CategorieDepense[] = [
+    // OPEX
     'vaccins',
+    'medicaments',
     'alimentation',
     'veterinaire',
     'entretien',
     'equipements',
     'autre',
+    // CAPEX - Limité à 3 catégories
+    'amenagement_batiment',
+    'equipement_lourd',
+    'achat_sujet',
   ];
 
   const getCategoryLabel = (cat: CategorieDepense): string => {
-    const labels: Record<CategorieDepense, string> = {
-      vaccins: 'Vaccins',
-      alimentation: 'Alimentation',
-      veterinaire: 'Vétérinaire',
-      entretien: 'Entretien',
-      equipements: 'Équipements',
-      autre: 'Autre',
-    };
-    return labels[cat];
+    return CATEGORIE_DEPENSE_LABELS[cat] || cat;
   };
 
   return (
@@ -233,9 +236,7 @@ export default function DepenseFormModal({
         <FormField
           label="Montant (CFA)"
           value={formData.montant.toString()}
-          onChangeText={(text) =>
-            setFormData({ ...formData, montant: parseFloat(text) || 0 })
-          }
+          onChangeText={(text) => setFormData({ ...formData, montant: parseFloat(text) || 0 })}
           placeholder="0"
           keyboardType="numeric"
           required
@@ -276,6 +277,42 @@ export default function DepenseFormModal({
             ))}
           </View>
         </View>
+
+        {formData.categorie && (
+          <View
+            style={[
+              styles.typeIndicator,
+              {
+                backgroundColor:
+                  getTypeDepense(formData.categorie) === 'CAPEX'
+                    ? colors.warning + '20'
+                    : colors.info + '20',
+                borderColor:
+                  getTypeDepense(formData.categorie) === 'CAPEX'
+                    ? colors.warning
+                    : colors.info,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.typeLabel,
+                {
+                  color:
+                    getTypeDepense(formData.categorie) === 'CAPEX'
+                      ? colors.warning
+                      : colors.info,
+                },
+              ]}
+            >
+              {getTypeDepense(formData.categorie) === 'CAPEX'
+                ? `💰 CAPEX - Investissement (amorti sur ${
+                    projetActif?.duree_amortissement_par_defaut_mois || 36
+                  } mois)`
+                : '📊 OPEX - Dépense opérationnelle'}
+            </Text>
+          </View>
+        )}
 
         {formData.categorie === 'autre' && (
           <FormField
@@ -323,11 +360,27 @@ export default function DepenseFormModal({
           </View>
           {(formData.photos || []).length < 3 && (
             <View style={styles.photoActions}>
-              <TouchableOpacity style={[styles.photoButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={takePhoto}>
-                <Text style={[styles.photoButtonText, { color: colors.text }]}>📷 Prendre une photo</Text>
+              <TouchableOpacity
+                style={[
+                  styles.photoButton,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+                onPress={takePhoto}
+              >
+                <Text style={[styles.photoButtonText, { color: colors.text }]}>
+                  📷 Prendre une photo
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.photoButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={pickImageFromGallery}>
-                <Text style={[styles.photoButtonText, { color: colors.text }]}>📂 Choisir depuis la galerie</Text>
+              <TouchableOpacity
+                style={[
+                  styles.photoButton,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+                onPress={pickImageFromGallery}
+              >
+                <Text style={[styles.photoButtonText, { color: colors.text }]}>
+                  📂 Choisir depuis la galerie
+                </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -407,5 +460,15 @@ const styles = StyleSheet.create({
   photoButtonText: {
     fontSize: 14,
   },
+  typeIndicator: {
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    marginBottom: SPACING.md,
+  },
+  typeLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
 });
-

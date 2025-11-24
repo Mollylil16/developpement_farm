@@ -6,17 +6,20 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import {
-  createStockAliment,
-  updateStockAliment,
-} from '../store/slices/stocksSlice';
+import { createStockAliment, updateStockAliment } from '../store/slices/stocksSlice';
 import { loadRationsBudget } from '../store/slices/nutritionSlice';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 import Button from './Button';
-import { StockAliment, UniteStock, CreateStockAlimentInput, RationBudget, getTypePorcLabel } from '../types';
+import {
+  StockAliment,
+  UniteStock,
+  CreateStockAlimentInput,
+  RationBudget,
+  getTypePorcLabel,
+} from '../types';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 
 interface StockAlimentFormModalProps {
@@ -52,7 +55,7 @@ export default function StockAlimentFormModal({
     seuil_alerte: undefined,
     notes: '',
   });
-  
+
   // États pour la ration
   const [useRation, setUseRation] = useState(false);
   const [selectedRationId, setSelectedRationId] = useState<string | null>(null);
@@ -96,22 +99,22 @@ export default function StockAlimentFormModal({
       }
     }
   }, [visible, aliment, isEditing, projetId]);
-  
+
   // Calculer la quantité en sacs basée sur la ration sélectionnée
   const calculRationEnSacs = useMemo(() => {
     if (!useRation || !selectedRationId) return null;
-    
-    const ration = rationsBudget.find(r => r.id === selectedRationId);
+
+    const ration = rationsBudget.find((r) => r.id === selectedRationId);
     if (!ration) return null;
-    
+
     const quantiteTotaleKg = ration.quantite_totale_kg;
     const nombreSacsComplets = Math.floor(quantiteTotaleKg / typeSac);
     const resteKg = quantiteTotaleKg % typeSac;
     const proportionReste = resteKg / typeSac;
-    
+
     // Quantité totale en sacs (avec décimales)
     const quantiteTotaleSacs = quantiteTotaleKg / typeSac;
-    
+
     return {
       ration,
       quantiteTotaleKg,
@@ -122,13 +125,13 @@ export default function StockAlimentFormModal({
       typeSac,
     };
   }, [useRation, selectedRationId, rationsBudget, typeSac]);
-  
+
   // Auto-remplir le nom de l'aliment avec le nom de la ration sélectionnée
   useEffect(() => {
     if (useRation && selectedRationId) {
-      const ration = rationsBudget.find(r => r.id === selectedRationId);
+      const ration = rationsBudget.find((r) => r.id === selectedRationId);
       if (ration) {
-        setFormData(prev => ({
+        setFormData((prev) => ({
           ...prev,
           nom: ration.nom,
           categorie: 'Aliment complet',
@@ -136,11 +139,11 @@ export default function StockAlimentFormModal({
       }
     }
   }, [useRation, selectedRationId, rationsBudget]);
-  
+
   // Auto-changer l'unité en "sac" quand un type de sac est sélectionné
   useEffect(() => {
     if (useRation && selectedRationId && typeSac) {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
         unite: 'sac',
       }));
@@ -150,11 +153,11 @@ export default function StockAlimentFormModal({
   const handleSubmit = async () => {
     // Vérifier les permissions
     if (isEditing && !canUpdate('nutrition')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les stocks.');
+      Alert.alert('Permission refusée', "Vous n'avez pas la permission de modifier les stocks.");
       return;
     }
     if (!isEditing && !canCreate('nutrition')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de créer des stocks.');
+      Alert.alert('Permission refusée', "Vous n'avez pas la permission de créer des stocks.");
       return;
     }
 
@@ -177,10 +180,13 @@ export default function StockAlimentFormModal({
       Alert.alert('Valeur invalide', 'La quantité initiale doit être positive');
       return;
     }
-    
+
     // Si utilisation d'une ration, vérifier qu'une ration est sélectionnée
     if (useRation && !selectedRationId) {
-      Alert.alert('Ration manquante', 'Veuillez sélectionner une ration ou désactiver cette option');
+      Alert.alert(
+        'Ration manquante',
+        'Veuillez sélectionner une ration ou désactiver cette option'
+      );
       return;
     }
 
@@ -189,24 +195,25 @@ export default function StockAlimentFormModal({
       // Déterminer la quantité finale
       let quantiteFinal = formData.quantite_initiale ?? 0;
       let notesFinales = formData.notes || '';
-      
+
       if (useRation && calculRationEnSacs) {
         // Utiliser la quantité en SACS (pas en kg)
         quantiteFinal = calculRationEnSacs.quantiteTotaleSacs;
-        
+
         // Ajouter les détails de la ration dans les notes
-        const detailsRation = `\n\n📊 Basé sur la ration: ${calculRationEnSacs.ration.nom}\n` +
+        const detailsRation =
+          `\n\n📊 Basé sur la ration: ${calculRationEnSacs.ration.nom}\n` +
           `• Quantité totale: ${calculRationEnSacs.quantiteTotaleKg.toFixed(2)} kg\n` +
           `• Type de sac: ${calculRationEnSacs.typeSac} kg\n` +
           `• Nombre de sacs: ${calculRationEnSacs.quantiteTotaleSacs.toFixed(2)} sacs\n` +
           `• Sacs complets: ${calculRationEnSacs.nombreSacsComplets}\n` +
-          (calculRationEnSacs.resteKg > 0 
+          (calculRationEnSacs.resteKg > 0
             ? `• Reste: ${calculRationEnSacs.resteKg.toFixed(2)} kg (${(calculRationEnSacs.proportionReste * 100).toFixed(1)}% d'un sac)`
             : '• Pas de reste');
-        
+
         notesFinales = (notesFinales + detailsRation).trim();
       }
-      
+
       if (isEditing && aliment) {
         await dispatch(
           updateStockAliment({
@@ -233,13 +240,24 @@ export default function StockAlimentFormModal({
           })
         ).unwrap();
       }
-      onSuccess();
     } catch (error: any) {
       console.error('Erreur lors de la sauvegarde du stock:', error);
       Alert.alert('Erreur', error?.message || 'Une erreur est survenue lors de la sauvegarde');
-    } finally {
       setLoading(false);
+      return; // Ne pas appeler onSuccess en cas d'erreur
     }
+    
+    // Réinitialiser le loading
+    setLoading(false);
+    
+    // Fermer le modal immédiatement en appelant onClose
+    // Puis appeler onSuccess de manière asynchrone
+    onClose();
+    
+    // Appeler onSuccess de manière asynchrone pour laisser le modal se fermer complètement
+    setTimeout(() => {
+      onSuccess();
+    }, 50);
   };
 
   return (
@@ -270,7 +288,13 @@ export default function StockAlimentFormModal({
             {/* Option utiliser une ration */}
             <View style={styles.section}>
               <TouchableOpacity
-                style={[styles.toggleOption, { backgroundColor: useRation ? `${colors.primary}15` : colors.surface, borderColor: useRation ? colors.primary : colors.border }]}
+                style={[
+                  styles.toggleOption,
+                  {
+                    backgroundColor: useRation ? `${colors.primary}15` : colors.surface,
+                    borderColor: useRation ? colors.primary : colors.border,
+                  },
+                ]}
                 onPress={() => {
                   setUseRation(!useRation);
                   if (useRation) {
@@ -279,10 +303,10 @@ export default function StockAlimentFormModal({
                 }}
               >
                 <View style={styles.toggleLeft}>
-                  <Ionicons 
-                    name={useRation ? "checkbox" : "square-outline"} 
-                    size={24} 
-                    color={useRation ? colors.primary : colors.textSecondary} 
+                  <Ionicons
+                    name={useRation ? 'checkbox' : 'square-outline'}
+                    size={24}
+                    color={useRation ? colors.primary : colors.textSecondary}
                   />
                   <Text style={[styles.toggleText, { color: colors.text }]}>
                     Utiliser une ration créée
@@ -296,19 +320,34 @@ export default function StockAlimentFormModal({
             {useRation && (
               <>
                 <View style={styles.section}>
-                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Ration à utiliser *</Text>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                    Ration à utiliser *
+                  </Text>
                   <TouchableOpacity
-                    style={[styles.rationSelector, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                    style={[
+                      styles.rationSelector,
+                      { backgroundColor: colors.surface, borderColor: colors.border },
+                    ]}
                     onPress={() => setShowRationSelector(!showRationSelector)}
                   >
                     <View style={styles.rationSelectorContent}>
                       {selectedRationId ? (
                         <>
                           <Text style={[styles.rationSelectedText, { color: colors.text }]}>
-                            {rationsBudget.find(r => r.id === selectedRationId)?.nom}
+                            {rationsBudget.find((r) => r.id === selectedRationId)?.nom}
                           </Text>
-                          <Text style={[styles.rationSelectedSubtext, { color: colors.textSecondary }]}>
-                            {getTypePorcLabel(rationsBudget.find(r => r.id === selectedRationId)?.type_porc || 'porc_croissance')} • {rationsBudget.find(r => r.id === selectedRationId)?.quantite_totale_kg.toFixed(0)} kg
+                          <Text
+                            style={[styles.rationSelectedSubtext, { color: colors.textSecondary }]}
+                          >
+                            {getTypePorcLabel(
+                              rationsBudget.find((r) => r.id === selectedRationId)?.type_porc ||
+                                'porc_croissance'
+                            )}{' '}
+                            •{' '}
+                            {rationsBudget
+                              .find((r) => r.id === selectedRationId)
+                              ?.quantite_totale_kg.toFixed(0)}{' '}
+                            kg
                           </Text>
                         </>
                       ) : (
@@ -317,19 +356,34 @@ export default function StockAlimentFormModal({
                         </Text>
                       )}
                     </View>
-                    <Ionicons name={showRationSelector ? "chevron-up" : "chevron-down"} size={20} color={colors.textSecondary} />
+                    <Ionicons
+                      name={showRationSelector ? 'chevron-up' : 'chevron-down'}
+                      size={20}
+                      color={colors.textSecondary}
+                    />
                   </TouchableOpacity>
 
                   {/* Liste déroulante des rations */}
                   {showRationSelector && (
-                    <View style={[styles.rationList, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <View
+                      style={[
+                        styles.rationList,
+                        { backgroundColor: colors.surface, borderColor: colors.border },
+                      ]}
+                    >
                       {rationsBudget.length === 0 ? (
                         <View style={styles.emptyRations}>
-                          <Ionicons name="document-text-outline" size={32} color={colors.textSecondary} />
+                          <Ionicons
+                            name="document-text-outline"
+                            size={32}
+                            color={colors.textSecondary}
+                          />
                           <Text style={[styles.emptyRationsText, { color: colors.textSecondary }]}>
                             Aucune ration disponible
                           </Text>
-                          <Text style={[styles.emptyRationsSubtext, { color: colors.textSecondary }]}>
+                          <Text
+                            style={[styles.emptyRationsSubtext, { color: colors.textSecondary }]}
+                          >
                             Créez une ration dans l'onglet Budgétisation
                           </Text>
                         </View>
@@ -340,7 +394,9 @@ export default function StockAlimentFormModal({
                             style={[
                               styles.rationItem,
                               { borderBottomColor: colors.border },
-                              selectedRationId === ration.id && { backgroundColor: `${colors.primary}10` }
+                              selectedRationId === ration.id && {
+                                backgroundColor: `${colors.primary}10`,
+                              },
                             ]}
                             onPress={() => {
                               setSelectedRationId(ration.id);
@@ -348,9 +404,14 @@ export default function StockAlimentFormModal({
                             }}
                           >
                             <View style={styles.rationItemContent}>
-                              <Text style={[styles.rationItemNom, { color: colors.text }]}>{ration.nom}</Text>
-                              <Text style={[styles.rationItemDetails, { color: colors.textSecondary }]}>
-                                {getTypePorcLabel(ration.type_porc)} • {ration.nombre_porcs} porcs • {ration.duree_jours} jours
+                              <Text style={[styles.rationItemNom, { color: colors.text }]}>
+                                {ration.nom}
+                              </Text>
+                              <Text
+                                style={[styles.rationItemDetails, { color: colors.textSecondary }]}
+                              >
+                                {getTypePorcLabel(ration.type_porc)} • {ration.nombre_porcs} porcs •{' '}
+                                {ration.duree_jours} jours
                               </Text>
                               <Text style={[styles.rationItemQuantite, { color: colors.primary }]}>
                                 {ration.quantite_totale_kg.toFixed(2)} kg
@@ -374,28 +435,38 @@ export default function StockAlimentFormModal({
                       <TouchableOpacity
                         style={[
                           styles.typeSacButton,
-                          { 
+                          {
                             backgroundColor: typeSac === 25 ? colors.primary : colors.surface,
                             borderColor: typeSac === 25 ? colors.primary : colors.border,
-                          }
+                          },
                         ]}
                         onPress={() => setTypeSac(25)}
                       >
-                        <Text style={[styles.typeSacText, { color: typeSac === 25 ? colors.textOnPrimary : colors.text }]}>
+                        <Text
+                          style={[
+                            styles.typeSacText,
+                            { color: typeSac === 25 ? colors.textOnPrimary : colors.text },
+                          ]}
+                        >
                           25 kg
                         </Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[
                           styles.typeSacButton,
-                          { 
+                          {
                             backgroundColor: typeSac === 50 ? colors.primary : colors.surface,
                             borderColor: typeSac === 50 ? colors.primary : colors.border,
-                          }
+                          },
                         ]}
                         onPress={() => setTypeSac(50)}
                       >
-                        <Text style={[styles.typeSacText, { color: typeSac === 50 ? colors.textOnPrimary : colors.text }]}>
+                        <Text
+                          style={[
+                            styles.typeSacText,
+                            { color: typeSac === 50 ? colors.textOnPrimary : colors.text },
+                          ]}
+                        >
                           50 kg
                         </Text>
                       </TouchableOpacity>
@@ -405,26 +476,59 @@ export default function StockAlimentFormModal({
 
                 {/* Affichage du calcul */}
                 {calculRationEnSacs && (
-                  <View style={[styles.calculResult, { backgroundColor: `${colors.success}10`, borderColor: `${colors.success}30` }]}>
+                  <View
+                    style={[
+                      styles.calculResult,
+                      {
+                        backgroundColor: `${colors.success}10`,
+                        borderColor: `${colors.success}30`,
+                      },
+                    ]}
+                  >
                     <View style={styles.calculHeader}>
                       <Ionicons name="calculator" size={24} color={colors.success} />
-                      <Text style={[styles.calculTitle, { color: colors.success }]}>Calcul automatique</Text>
+                      <Text style={[styles.calculTitle, { color: colors.success }]}>
+                        Calcul automatique
+                      </Text>
                     </View>
                     <View style={styles.calculDetails}>
                       <View style={styles.calculRow}>
-                        <Text style={[styles.calculLabel, { color: colors.text }]}>Poids total:</Text>
+                        <Text style={[styles.calculLabel, { color: colors.text }]}>
+                          Poids total:
+                        </Text>
                         <Text style={[styles.calculValue, { color: colors.text }]}>
                           {calculRationEnSacs.quantiteTotaleKg.toFixed(2)} kg
                         </Text>
                       </View>
-                      <View style={[styles.calculRow, { backgroundColor: `${colors.primary}10`, padding: SPACING.sm, borderRadius: BORDER_RADIUS.md, marginVertical: SPACING.xs }]}>
-                        <Text style={[styles.calculLabel, { color: colors.primary, fontWeight: '700' }]}>Quantité en stock:</Text>
-                        <Text style={[styles.calculValue, { color: colors.primary, fontWeight: '700', fontSize: FONT_SIZES.lg }]}>
+                      <View
+                        style={[
+                          styles.calculRow,
+                          {
+                            backgroundColor: `${colors.primary}10`,
+                            padding: SPACING.sm,
+                            borderRadius: BORDER_RADIUS.md,
+                            marginVertical: SPACING.xs,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[styles.calculLabel, { color: colors.primary, fontWeight: '700' }]}
+                        >
+                          Quantité en stock:
+                        </Text>
+                        <Text
+                          style={[
+                            styles.calculValue,
+                            { color: colors.primary, fontWeight: '700', fontSize: FONT_SIZES.lg },
+                          ]}
+                        >
                           {calculRationEnSacs.quantiteTotaleSacs.toFixed(2)} sacs
                         </Text>
                       </View>
                       <View style={styles.calculRow}>
-                        <Text style={[styles.calculLabel, { color: colors.text }]}>Sacs complets:</Text>
+                        <Text style={[styles.calculLabel, { color: colors.text }]}>
+                          Sacs complets:
+                        </Text>
                         <Text style={[styles.calculValue, { color: colors.text }]}>
                           {calculRationEnSacs.nombreSacsComplets} × {calculRationEnSacs.typeSac}kg
                         </Text>
@@ -433,12 +537,18 @@ export default function StockAlimentFormModal({
                         <View style={styles.calculRow}>
                           <Text style={[styles.calculLabel, { color: colors.text }]}>Reste:</Text>
                           <Text style={[styles.calculValue, { color: colors.warning }]}>
-                            {calculRationEnSacs.resteKg.toFixed(2)} kg ({(calculRationEnSacs.proportionReste * 100).toFixed(1)}%)
+                            {calculRationEnSacs.resteKg.toFixed(2)} kg (
+                            {(calculRationEnSacs.proportionReste * 100).toFixed(1)}%)
                           </Text>
                         </View>
                       )}
                     </View>
-                    <View style={[styles.calculInfo, { backgroundColor: `${colors.info}10`, borderColor: `${colors.info}30` }]}>
+                    <View
+                      style={[
+                        styles.calculInfo,
+                        { backgroundColor: `${colors.info}10`, borderColor: `${colors.info}30` },
+                      ]}
+                    >
                       <Ionicons name="information-circle" size={16} color={colors.info} />
                       <Text style={[styles.calculInfoText, { color: colors.text }]}>
                         Cette quantité sera enregistrée en stock avec l'unité "sac"
@@ -526,16 +636,18 @@ export default function StockAlimentFormModal({
           <View style={[styles.infoBox, { backgroundColor: colors.primary + '10' }]}>
             <Text style={[styles.infoTitle, { color: colors.primary }]}>💡 Astuce</Text>
             <Text style={[styles.infoText, { color: colors.text }]}>
-              Vous pouvez utiliser une ration créée pour calculer automatiquement la quantité en sacs, ou saisir manuellement la quantité initiale.
+              Vous pouvez utiliser une ration créée pour calculer automatiquement la quantité en
+              sacs, ou saisir manuellement la quantité initiale.
             </Text>
           </View>
         )}
-        
+
         {!isEditing && useRation && !selectedRationId && rationsBudget.length > 0 && (
           <View style={[styles.infoBox, { backgroundColor: colors.warning + '10' }]}>
             <Text style={[styles.infoTitle, { color: colors.warning }]}>⚠️ Sélection requise</Text>
             <Text style={[styles.infoText, { color: colors.text }]}>
-              Veuillez sélectionner une ration dans la liste ci-dessus pour calculer automatiquement la quantité nécessaire.
+              Veuillez sélectionner une ration dans la liste ci-dessus pour calculer automatiquement
+              la quantité nécessaire.
             </Text>
           </View>
         )}
@@ -742,5 +854,3 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 });
-
-

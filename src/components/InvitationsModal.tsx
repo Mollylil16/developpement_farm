@@ -5,7 +5,11 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { accepterInvitation, rejeterInvitation, loadInvitationsEnAttente } from '../store/slices/collaborationSlice';
+import {
+  accepterInvitation,
+  rejeterInvitation,
+  loadInvitationsEnAttente,
+} from '../store/slices/collaborationSlice';
 import { loadProjets, loadProjetActif } from '../store/slices/projetSlice';
 import { Collaborateur, ROLE_LABELS } from '../types';
 import CustomModal from './CustomModal';
@@ -53,13 +57,13 @@ export default function InvitationsModal({ visible, onClose }: InvitationsModalP
   const handleAccepter = async (invitation: Collaborateur) => {
     try {
       await dispatch(accepterInvitation(invitation.id)).unwrap();
-      
+
       // Recharger les projets pour inclure le nouveau projet
       await dispatch(loadProjets());
-      
+
       // Charger le projet actif (qui devrait maintenant inclure ce projet)
       await dispatch(loadProjetActif());
-      
+
       Alert.alert(
         'Invitation acceptée',
         `Vous avez rejoint le projet "${projetNoms[invitation.projet_id] || 'Projet'}" avec le rôle ${ROLE_LABELS[invitation.role]}.`,
@@ -74,19 +78,19 @@ export default function InvitationsModal({ visible, onClose }: InvitationsModalP
           },
         ]
       );
-      
+
       // Recharger les invitations en attente
       if (user) {
         dispatch(loadInvitationsEnAttente({ userId: user.id, email: user.email || undefined }));
       }
     } catch (error: any) {
-      Alert.alert('Erreur', error || 'Erreur lors de l\'acceptation de l\'invitation');
+      Alert.alert('Erreur', error || "Erreur lors de l'acceptation de l'invitation");
     }
   };
 
   const handleRejeter = async (invitation: Collaborateur) => {
     Alert.alert(
-      'Rejeter l\'invitation',
+      "Rejeter l'invitation",
       `Êtes-vous sûr de vouloir rejeter l'invitation pour le projet "${projetNoms[invitation.projet_id] || 'Projet'}" ?`,
       [
         { text: 'Annuler', style: 'cancel' },
@@ -96,14 +100,16 @@ export default function InvitationsModal({ visible, onClose }: InvitationsModalP
           onPress: async () => {
             try {
               await dispatch(rejeterInvitation(invitation.id)).unwrap();
-              Alert.alert('Invitation rejetée', 'L\'invitation a été rejetée.');
-              
+              Alert.alert('Invitation rejetée', "L'invitation a été rejetée.");
+
               // Recharger les invitations en attente
               if (user) {
-                dispatch(loadInvitationsEnAttente({ userId: user.id, email: user.email || undefined }));
+                dispatch(
+                  loadInvitationsEnAttente({ userId: user.id, email: user.email || undefined })
+                );
               }
             } catch (error: any) {
-              Alert.alert('Erreur', error || 'Erreur lors du rejet de l\'invitation');
+              Alert.alert('Erreur', error || "Erreur lors du rejet de l'invitation");
             }
           },
         },
@@ -138,12 +144,16 @@ export default function InvitationsModal({ visible, onClose }: InvitationsModalP
           invitationsEnAttente.map((invitation) => (
             <View
               key={invitation.id}
-              style={[styles.invitationCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              style={[
+                styles.invitationCard,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
             >
               <View style={styles.invitationHeader}>
                 <View style={styles.invitationInfo}>
                   <Text style={[styles.projetNom, { color: colors.text }]}>
-                    {projetNoms[invitation.projet_id] || (loadingProjets ? 'Chargement...' : 'Projet')}
+                    {projetNoms[invitation.projet_id] ||
+                      (loadingProjets ? 'Chargement...' : 'Projet')}
                   </Text>
                   <Text style={[styles.roleText, { color: colors.textSecondary }]}>
                     Rôle: {ROLE_LABELS[invitation.role]}
@@ -153,25 +163,35 @@ export default function InvitationsModal({ visible, onClose }: InvitationsModalP
                   </Text>
                 </View>
               </View>
-              
+
               <View style={styles.permissionsContainer}>
                 <Text style={[styles.permissionsTitle, { color: colors.text }]}>Permissions:</Text>
                 <View style={styles.permissionsList}>
-                  {Object.entries(invitation.permissions).map(([key, value]) => (
-                    value && (
-                      <View key={key} style={[styles.permissionBadge, { backgroundColor: colors.primary + '20' }]}>
-                        <Text style={[styles.permissionText, { color: colors.primary }]}>
-                          {key.charAt(0).toUpperCase() + key.slice(1)}
-                        </Text>
-                      </View>
-                    )
-                  ))}
+                  {Object.entries(invitation.permissions).map(
+                    ([key, value]) =>
+                      value && (
+                        <View
+                          key={key}
+                          style={[
+                            styles.permissionBadge,
+                            { backgroundColor: colors.primary + '20' },
+                          ]}
+                        >
+                          <Text style={[styles.permissionText, { color: colors.primary }]}>
+                            {key.charAt(0).toUpperCase() + key.slice(1)}
+                          </Text>
+                        </View>
+                      )
+                  )}
                 </View>
               </View>
 
               <View style={styles.actionsContainer}>
                 <TouchableOpacity
-                  style={[styles.rejectButton, { backgroundColor: colors.error + '20', borderColor: colors.error }]}
+                  style={[
+                    styles.rejectButton,
+                    { backgroundColor: colors.error + '20', borderColor: colors.error },
+                  ]}
                   onPress={() => handleRejeter(invitation)}
                   disabled={loading}
                 >
@@ -182,7 +202,9 @@ export default function InvitationsModal({ visible, onClose }: InvitationsModalP
                   onPress={() => handleAccepter(invitation)}
                   disabled={loading}
                 >
-                  <Text style={[styles.acceptButtonText, { color: colors.textOnPrimary }]}>Accepter</Text>
+                  <Text style={[styles.acceptButtonText, { color: colors.textOnPrimary }]}>
+                    Accepter
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -277,4 +299,3 @@ const styles = StyleSheet.create({
     fontWeight: FONT_WEIGHTS.semiBold,
   },
 });
-

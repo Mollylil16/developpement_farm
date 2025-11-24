@@ -34,30 +34,30 @@ export async function initLanguage(): Promise<string> {
   try {
     // Essayer de charger la langue sauvegardée
     const savedLanguage = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
-    
+
     if (savedLanguage && (savedLanguage === 'fr' || savedLanguage === 'en')) {
       i18n.locale = savedLanguage;
       return savedLanguage;
     }
-    
+
     // Sinon, utiliser la locale du système
     const systemLocale = Localization.locale;
-    
+
     // Vérification de sécurité
     if (systemLocale && typeof systemLocale === 'string') {
       const languageCode = systemLocale.split('-')[0]; // 'fr-FR' -> 'fr'
-      
+
       if (languageCode === 'en') {
         i18n.locale = 'en';
         return 'en';
       }
     }
-    
+
     // Par défaut, français
     i18n.locale = 'fr';
     return 'fr';
   } catch (error) {
-    console.error('Erreur lors de l\'initialisation de la langue:', error);
+    console.error("Erreur lors de l'initialisation de la langue:", error);
     i18n.locale = 'fr';
     return 'fr';
   }
@@ -110,4 +110,3 @@ export function getCurrentTranslations() {
 export type TranslationKey = keyof typeof fr;
 
 export default i18n;
-

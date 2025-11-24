@@ -14,7 +14,7 @@ const saveUserToStorage = async (user: User) => {
   try {
     await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
   } catch (error) {
-    console.error('Erreur lors de la sauvegarde de l\'utilisateur:', error);
+    console.error("Erreur lors de la sauvegarde de l'utilisateur:", error);
   }
 };
 
@@ -27,7 +27,7 @@ const loadUserFromStorage = async (): Promise<User | null> => {
     }
     return null;
   } catch (error) {
-    console.error('Erreur lors du chargement de l\'utilisateur:', error);
+    console.error("Erreur lors du chargement de l'utilisateur:", error);
     return null;
   }
 };
@@ -37,7 +37,7 @@ const removeUserFromStorage = async () => {
   try {
     await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
   } catch (error) {
-    console.error('Erreur lors de la suppression de l\'utilisateur:', error);
+    console.error("Erreur lors de la suppression de l'utilisateur:", error);
   }
 };
 
@@ -49,39 +49,45 @@ const initialState: AuthState = {
 };
 
 // Thunk pour charger l'utilisateur depuis le stockage au démarrage
-export const loadUserFromStorageThunk = createAsyncThunk(
-  'auth/loadUserFromStorage',
-  async () => {
-    // D'abord essayer AsyncStorage (pour compatibilité)
-    const storedUser = await loadUserFromStorage();
-    
-    if (storedUser) {
-      // Vérifier si l'utilisateur existe toujours dans la base de données
-      try {
-        const { databaseService } = await import('../../services/database');
-        const dbUser = await databaseService.getUserById(storedUser.id);
-        
+export const loadUserFromStorageThunk = createAsyncThunk('auth/loadUserFromStorage', async () => {
+  // D'abord essayer AsyncStorage (pour compatibilité)
+  const storedUser = await loadUserFromStorage();
+
+  if (storedUser) {
+    // Vérifier si l'utilisateur existe toujours dans la base de données
+    try {
+      const { databaseService } = await import('../../services/database');
+      const dbUser = await databaseService.getUserById(storedUser.id);
+
+      if (dbUser) {
         // Vérifier si l'utilisateur est un collaborateur et le lier si nécessaire
         if (dbUser.email) {
           try {
             await databaseService.lierCollaborateurAUtilisateur(dbUser.id, dbUser.email);
           } catch (error: any) {
             // Ne pas bloquer le chargement si la liaison échoue
-            console.warn('Avertissement lors de la liaison du collaborateur au démarrage:', error?.message || error);
+            console.warn(
+              'Avertissement lors de la liaison du collaborateur au démarrage:',
+              error?.message || error
+            );
           }
         }
-        
+
         // Si trouvé dans la DB, utiliser celui de la DB (plus à jour)
         return dbUser;
-      } catch (error) {
+      } else {
         // Si pas trouvé dans la DB, utiliser celui d'AsyncStorage
         return storedUser;
       }
+    } catch (error) {
+      // En cas d'erreur, utiliser celui d'AsyncStorage
+      console.warn('Erreur lors du chargement de l\'utilisateur depuis la DB:', error);
+      return storedUser;
     }
-    
-    return null;
   }
-);
+
+  return null;
+});
 
 // Thunk pour l'inscription
 export const signUp = createAsyncThunk(
@@ -97,7 +103,7 @@ export const signUp = createAsyncThunk(
       if (input.email) {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(input.email.trim())) {
-          return rejectWithValue('Format d\'email invalide');
+          return rejectWithValue("Format d'email invalide");
         }
       }
 
@@ -127,28 +133,37 @@ export const signUp = createAsyncThunk(
       if (user.email) {
         try {
           // Chercher un collaborateur avec cet email et le lier
-          const collaborateur = await databaseService.lierCollaborateurAUtilisateur(user.id, user.email);
-          
+          const collaborateur = await databaseService.lierCollaborateurAUtilisateur(
+            user.id,
+            user.email
+          );
+
           if (collaborateur) {
-            console.log('✅ Collaborateur lié à l\'utilisateur lors de l\'inscription:', collaborateur.id);
+            console.log(
+              "✅ Collaborateur lié à l'utilisateur lors de l'inscription:",
+              collaborateur.id
+            );
             // Le projet sera chargé automatiquement dans loadProjetActif
           }
         } catch (error: any) {
           // Ne pas bloquer l'inscription si la liaison échoue
-          console.warn('Avertissement lors de la liaison du collaborateur à l\'inscription:', error?.message || error);
+          console.warn(
+            "Avertissement lors de la liaison du collaborateur à l'inscription:",
+            error?.message || error
+          );
         }
       }
 
       // Sauvegarder aussi dans AsyncStorage pour compatibilité
       await saveUserToStorage(user);
-      
+
       // Réinitialiser le projet actif pour le nouvel utilisateur
       // (sera rechargé automatiquement si c'est un collaborateur)
       dispatch(setProjetActif(null));
-      
+
       return user;
     } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de l\'inscription');
+      return rejectWithValue(error.message || "Erreur lors de l'inscription");
     }
   }
 );
@@ -168,9 +183,11 @@ export const signIn = createAsyncThunk(
 
       // Se connecter avec email ou téléphone (sans mot de passe)
       const user = await databaseService.loginUser(input.identifier.trim());
-      
+
       if (!user) {
-        return rejectWithValue('Aucun compte trouvé avec cet email ou ce numéro. Veuillez vous inscrire.');
+        return rejectWithValue(
+          'Aucun compte trouvé avec cet email ou ce numéro. Veuillez vous inscrire.'
+        );
       }
 
       // Vérifier si l'utilisateur est un collaborateur et le lier
@@ -178,21 +195,27 @@ export const signIn = createAsyncThunk(
       if (user.email) {
         try {
           // Chercher un collaborateur avec cet email et le lier
-          const collaborateur = await databaseService.lierCollaborateurAUtilisateur(user.id, user.email);
-          
+          const collaborateur = await databaseService.lierCollaborateurAUtilisateur(
+            user.id,
+            user.email
+          );
+
           if (collaborateur) {
-            console.log('✅ Collaborateur lié à l\'utilisateur:', collaborateur.id);
+            console.log("✅ Collaborateur lié à l'utilisateur:", collaborateur.id);
             // Le projet sera chargé automatiquement dans loadProjetActif
           }
         } catch (error: any) {
           // Ne pas bloquer la connexion si la liaison échoue
-          console.warn('Avertissement lors de la liaison du collaborateur:', error?.message || error);
+          console.warn(
+            'Avertissement lors de la liaison du collaborateur:',
+            error?.message || error
+          );
         }
       }
 
       // Sauvegarder aussi dans AsyncStorage pour compatibilité
       await saveUserToStorage(user);
-      
+
       return user;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la connexion');
@@ -205,11 +228,26 @@ export const signInWithGoogle = createAsyncThunk(
   'auth/signInWithGoogle',
   async (_, { rejectWithValue }) => {
     try {
+      const { databaseService } = await import('../../services/database');
+
       // TODO: Implémenter avec expo-auth-session
       // Pour l'instant, simulation
+      const googleEmail = 'user@gmail.com';
+      
+      // Vérifier si l'utilisateur existe déjà
+      const existingUser = await databaseService.getUserByEmail(googleEmail);
+      
+      if (existingUser) {
+        // Utilisateur existe, le connecter
+        await saveUserToStorage(existingUser);
+        return existingUser;
+      }
+      
+      // Nouvel utilisateur, le créer dans la base
+      const newUserId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const user: User = {
-        id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        email: 'user@gmail.com',
+        id: newUserId,
+        email: googleEmail,
         nom: 'Google',
         prenom: 'User',
         provider: 'google',
@@ -217,6 +255,9 @@ export const signInWithGoogle = createAsyncThunk(
         date_creation: new Date().toISOString(),
         derniere_connexion: new Date().toISOString(),
       };
+
+      // Enregistrer dans la base de données
+      await databaseService.createUser(user);
 
       await saveUserToStorage(user);
       return user;
@@ -231,11 +272,26 @@ export const signInWithApple = createAsyncThunk(
   'auth/signInWithApple',
   async (_, { rejectWithValue }) => {
     try {
+      const { databaseService } = await import('../../services/database');
+
       // TODO: Implémenter avec expo-apple-authentication
       // Pour l'instant, simulation
+      const appleEmail = 'user@icloud.com';
+      
+      // Vérifier si l'utilisateur existe déjà
+      const existingUser = await databaseService.getUserByEmail(appleEmail);
+      
+      if (existingUser) {
+        // Utilisateur existe, le connecter
+        await saveUserToStorage(existingUser);
+        return existingUser;
+      }
+      
+      // Nouvel utilisateur, le créer dans la base
+      const newUserId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const user: User = {
-        id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        email: 'user@icloud.com',
+        id: newUserId,
+        email: appleEmail,
         nom: 'Apple',
         prenom: 'User',
         provider: 'apple',
@@ -243,6 +299,9 @@ export const signInWithApple = createAsyncThunk(
         date_creation: new Date().toISOString(),
         derniere_connexion: new Date().toISOString(),
       };
+
+      // Enregistrer dans la base de données
+      await databaseService.createUser(user);
 
       await saveUserToStorage(user);
       return user;
@@ -253,17 +312,14 @@ export const signInWithApple = createAsyncThunk(
 );
 
 // Thunk pour la déconnexion
-export const signOut = createAsyncThunk(
-  'auth/signOut',
-  async (_, { dispatch }) => {
-    // Ne pas nettoyer les données lors de la déconnexion
-    // pour permettre à l'utilisateur de se reconnecter plus tard
-    await removeUserFromStorage();
-    // Réinitialiser le projet actif lors de la déconnexion
-    dispatch(setProjetActif(null));
-    return null;
-  }
-);
+export const signOut = createAsyncThunk('auth/signOut', async (_, { dispatch }) => {
+  // Ne pas nettoyer les données lors de la déconnexion
+  // pour permettre à l'utilisateur de se reconnecter plus tard
+  await removeUserFromStorage();
+  // Réinitialiser le projet actif lors de la déconnexion
+  dispatch(setProjetActif(null));
+  return null;
+});
 
 const authSlice = createSlice({
   name: 'auth',
@@ -369,4 +425,3 @@ const authSlice = createSlice({
 
 export const { clearError } = authSlice.actions;
 export default authSlice.reducer;
-

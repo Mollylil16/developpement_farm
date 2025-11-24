@@ -53,22 +53,23 @@ export default function ParametresScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top']}
+    >
       <StandardHeader
         icon="settings"
         title="Paramètres"
         subtitle="Configuration de votre projet et application"
       />
-      
+
       <StandardTabs
         tabs={tabs}
         activeTab={activeTab}
         onTabChange={(tabId) => setActiveTab(tabId as TabType)}
       />
 
-      <View style={styles.content}>
-        {renderContent()}
-      </View>
+      <View style={styles.content}>{renderContent()}</View>
     </SafeAreaView>
   );
 }
@@ -81,4 +82,3 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
-

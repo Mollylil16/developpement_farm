@@ -22,7 +22,7 @@ export default function GlobalSearchModal({ visible, onClose }: GlobalSearchModa
 
   const handleResultPress = (result: SearchResult) => {
     onClose();
-    
+
     // Naviguer vers l'écran approprié selon le type de résultat
     switch (result.screen) {
       case 'Production':
@@ -58,7 +58,10 @@ export default function GlobalSearchModal({ visible, onClose }: GlobalSearchModa
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        edges={['top']}
+      >
         <View style={[styles.header, { borderBottomColor: colors.border }]}>
           <Text style={[styles.title, { color: colors.text }]}>Recherche globale</Text>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -95,4 +98,3 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
-

@@ -19,17 +19,17 @@ interface ProtectedScreenProps {
 
 /**
  * Composant HOC pour protéger un écran selon les permissions
- * 
+ *
  * @example
  * <ProtectedScreen requiredPermission="finance">
  *   <FinanceScreen />
  * </ProtectedScreen>
  */
-export default function ProtectedScreen({ 
-  children, 
+export default function ProtectedScreen({
+  children,
   requiredPermission,
   requireOwner = false,
-  fallbackScreen = SCREENS.DASHBOARD 
+  fallbackScreen = SCREENS.DASHBOARD,
 }: ProtectedScreenProps) {
   const { hasPermission, isProprietaire } = usePermissions();
   const navigation = useNavigation();
@@ -60,7 +60,12 @@ export default function ProtectedScreen({
   if (!hasAccess) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.errorContainer, { backgroundColor: colors.surface, borderColor: colors.error }]}>
+        <View
+          style={[
+            styles.errorContainer,
+            { backgroundColor: colors.surface, borderColor: colors.error },
+          ]}
+        >
           <Text style={[styles.errorIcon, { color: colors.error }]}>🚫</Text>
           <Text style={[styles.errorTitle, { color: colors.text }]}>Accès refusé</Text>
           <Text style={[styles.errorMessage, { color: colors.textSecondary }]}>
@@ -143,4 +148,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

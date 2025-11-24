@@ -2,9 +2,12 @@
  * Widget Vue d'Ensemble - Grand widget avec stats principales
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { useAppSelector } from '../store/hooks';
+import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { loadProductionAnimaux } from '../store/slices/productionSlice';
+import { selectAllAnimaux } from '../store/selectors/productionSelectors';
+import { countAnimalsByCategory } from '../utils/animalUtils';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -14,10 +17,36 @@ interface WidgetVueEnsembleProps {
 
 export default function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
   const { colors } = useTheme();
+  const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   const { gestations } = useAppSelector((state) => state.reproduction);
   const { chargesFixes, depensesPonctuelles } = useAppSelector((state) => state.finance);
   const { indicateursPerformance } = useAppSelector((state) => state.reports);
+  const animaux = useAppSelector(selectAllAnimaux);
+
+  // Charger les animaux du cheptel
+  const dataChargeesRef = React.useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!projetActif) {
+      dataChargeesRef.current = null;
+      return;
+    }
+
+    // Charger uniquement une fois par projet
+    if (dataChargeesRef.current !== projetActif.id) {
+      dataChargeesRef.current = projetActif.id;
+      dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
+    }
+  }, [dispatch, projetActif?.id]);
+
+  // Calculer le comptage depuis le cheptel (animaux actifs)
+  const comptageAnimaux = useMemo(() => {
+    const animauxActifs = animaux.filter(
+      (a) => a.projet_id === projetActif?.id && a.statut?.toLowerCase() === 'actif'
+    );
+    return countAnimalsByCategory(animauxActifs);
+  }, [animaux, projetActif?.id]);
 
   // Calculer les alertes (mises bas prévues dans les 7 prochains jours)
   const alertesMisesBas = useMemo(() => {
@@ -25,7 +54,7 @@ export default function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
     const aujourdhui = new Date();
     const dans7Jours = new Date();
     dans7Jours.setDate(aujourdhui.getDate() + 7);
-    
+
     return gestations.filter((g) => {
       if (g.statut !== 'en_cours') return false;
       const dateMiseBas = new Date(g.date_mise_bas_prevue);
@@ -56,9 +85,8 @@ export default function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
     }, 0);
 
     const budgetRestant = chargesFixesMensuelles - depensesMois;
-    const pourcentageUtilise = chargesFixesMensuelles > 0 
-      ? (depensesMois / chargesFixesMensuelles) * 100 
-      : 0;
+    const pourcentageUtilise =
+      chargesFixesMensuelles > 0 ? (depensesMois / chargesFixesMensuelles) * 100 : 0;
 
     return {
       budgetMensuel: chargesFixesMensuelles,
@@ -71,16 +99,19 @@ export default function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
   // Calculer la performance globale à partir des indicateurs
   const performanceGlobale = useMemo(() => {
     if (!indicateursPerformance) return 0;
-    
+
     // Score basé sur plusieurs facteurs (0-100)
     // - Taux de croissance (0-50 points)
     // - Taux de mortalité inversé (0-30 points, plus bas = mieux)
     // - Efficacité alimentaire (0-20 points)
-    
+
     const scoreCroissance = Math.min(50, (indicateursPerformance.taux_croissance / 100) * 50);
-    const scoreMortalite = Math.min(30, (1 - Math.min(1, indicateursPerformance.taux_mortalite / 10)) * 30);
+    const scoreMortalite = Math.min(
+      30,
+      (1 - Math.min(1, indicateursPerformance.taux_mortalite / 10)) * 30
+    );
     const scoreEfficacite = Math.min(20, (indicateursPerformance.efficacite_alimentaire / 10) * 20);
-    
+
     return scoreCroissance + scoreMortalite + scoreEfficacite;
   }, [indicateursPerformance]);
 
@@ -93,7 +124,7 @@ export default function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
   };
 
   return (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={[
         styles.container,
         {
@@ -101,7 +132,7 @@ export default function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
           borderColor: colors.borderLight,
           ...colors.shadow.medium,
         },
-      ]} 
+      ]}
       onPress={onPress}
       activeOpacity={0.7}
     >
@@ -111,38 +142,41 @@ export default function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
 
       <View style={styles.statsRow}>
         <View style={styles.statItem}>
-          <Text style={[styles.statValue, { color: colors.primary }]}>{projetActif.nombre_truies}</Text>
+          <Text style={[styles.statValue, { color: colors.primary }]}>
+            {comptageAnimaux.truies}
+          </Text>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Truies</Text>
-          <View style={styles.trendContainer}>
-            <Text style={[styles.trend, { color: colors.success }]}>↗️ +2</Text>
-          </View>
         </View>
 
         <View style={styles.statItem}>
-          <Text style={[styles.statValue, { color: colors.primary }]}>{projetActif.nombre_verrats}</Text>
+          <Text style={[styles.statValue, { color: colors.primary }]}>
+            {comptageAnimaux.verrats}
+          </Text>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Verrats</Text>
-          <View style={styles.trendContainer}>
-            <Text style={[styles.trend, { color: colors.textSecondary }]}>→ 0</Text>
-          </View>
         </View>
 
         <View style={styles.statItem}>
-          <Text style={[styles.statValue, { color: colors.primary }]}>{projetActif.nombre_porcelets}</Text>
+          <Text style={[styles.statValue, { color: colors.primary }]}>
+            {comptageAnimaux.porcelets}
+          </Text>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Porcelets</Text>
-          <View style={styles.trendContainer}>
-            <Text style={[styles.trend, { color: colors.success }]}>↗️ +5</Text>
-          </View>
         </View>
       </View>
 
       <View style={[styles.footer, { borderTopColor: colors.divider }]}>
         <View style={styles.footerItem}>
-          <Text style={[styles.footerLabel, { color: colors.textSecondary }]}>📈 Performance globale</Text>
-          <Text style={[styles.footerValue, { color: colors.text }]}>{performanceGlobale.toFixed(0)}%</Text>
+          <Text style={[styles.footerLabel, { color: colors.textSecondary }]}>
+            📈 Performance globale
+          </Text>
+          <Text style={[styles.footerValue, { color: colors.text }]}>
+            {performanceGlobale.toFixed(0)}%
+          </Text>
         </View>
 
         <View style={styles.footerItem}>
-          <Text style={[styles.footerLabel, { color: colors.textSecondary }]}>💰 Budget restant</Text>
+          <Text style={[styles.footerLabel, { color: colors.textSecondary }]}>
+            💰 Budget restant
+          </Text>
           <Text style={[styles.footerValue, { color: colors.text }]}>
             {budgetInfo.budgetRestant.toLocaleString('fr-FR')} FCFA
           </Text>
@@ -151,7 +185,8 @@ export default function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
         {alertesMisesBas > 0 && (
           <View style={[styles.alertContainer, { backgroundColor: colors.warning + '20' }]}>
             <Text style={[styles.alertText, { color: colors.warning }]}>
-              ⚠️ {alertesMisesBas} mise{alertesMisesBas > 1 ? 's' : ''} bas prévue{alertesMisesBas > 1 ? 's' : ''} cette semaine
+              ⚠️ {alertesMisesBas} mise{alertesMisesBas > 1 ? 's' : ''} bas prévue
+              {alertesMisesBas > 1 ? 's' : ''} cette semaine
             </Text>
           </View>
         )}
@@ -227,4 +262,3 @@ const styles = StyleSheet.create({
     fontWeight: FONT_WEIGHTS.medium,
   },
 });
-

@@ -47,16 +47,16 @@ export async function exportAllDataJSON(projetId: string): Promise<string> {
     const planifications = await databaseService.getAllPlanifications(projetId);
     const collaborateurs = await databaseService.getAllCollaborateurs(projetId);
     const stocksAliments = await databaseService.getStocksParProjet(projetId);
-    
+
     // Récupérer les mouvements de stock pour chaque aliment
     const stocksMouvements: any[] = [];
     for (const stock of stocksAliments) {
       const mouvements = await databaseService.getMouvementsParAliment(stock.id, 100);
       stocksMouvements.push(...mouvements);
     }
-    
+
     const productionAnimaux = await databaseService.getProductionAnimaux(projetId, true);
-    
+
     // Récupérer les pesées pour chaque animal
     const productionPesees: any[] = [];
     for (const animal of productionAnimaux) {
@@ -107,7 +107,7 @@ export async function exportAndShareJSON(projetId: string): Promise<void> {
         dialogTitle: 'Exporter les données',
       });
     } else {
-      throw new Error('Le partage de fichiers n\'est pas disponible sur cet appareil');
+      throw new Error("Le partage de fichiers n'est pas disponible sur cet appareil");
     }
   } catch (error: any) {
     throw new Error(`Erreur lors de l'export et du partage : ${error.message}`);
@@ -120,7 +120,7 @@ export async function exportAndShareJSON(projetId: string): Promise<void> {
 export async function exportDataCSV(projetId: string, module?: string): Promise<string> {
   try {
     let csv = '';
-    
+
     if (!module || module === 'gestations') {
       const gestations = await databaseService.getAllGestations(projetId);
       csv += 'Module: Gestations\n';
@@ -184,7 +184,7 @@ export async function exportAndShareCSV(projetId: string, module?: string): Prom
         dialogTitle: 'Exporter en CSV',
       });
     } else {
-      throw new Error('Le partage de fichiers n\'est pas disponible sur cet appareil');
+      throw new Error("Le partage de fichiers n'est pas disponible sur cet appareil");
     }
   } catch (error: any) {
     throw new Error(`Erreur lors de l'export CSV : ${error.message}`);
@@ -284,4 +284,3 @@ export async function readJSONFile(uri: string): Promise<string> {
     throw new Error(`Erreur lors de la lecture du fichier : ${error.message}`);
   }
 }
-

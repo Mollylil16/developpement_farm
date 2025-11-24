@@ -4,7 +4,15 @@
  */
 
 import React, { Component, ErrorInfo, ReactNode, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Clipboard, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Clipboard,
+  Platform,
+} from 'react-native';
 import { SPACING, FONT_SIZES, BORDER_RADIUS, LIGHT_COLORS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import Button from './Button';
@@ -25,7 +33,7 @@ interface State {
 }
 
 class ErrorBoundaryClass extends Component<Props, State> {
-  private retryTimeout: NodeJS.Timeout | null = null;
+  private retryTimeout: ReturnType<typeof setTimeout> | null = null;
   private readonly MAX_RETRIES = this.props.maxRetries ?? 3;
   private readonly RETRY_DELAY = 1000; // 1 seconde entre les tentatives
 
@@ -51,14 +59,34 @@ class ErrorBoundaryClass extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     const now = Date.now();
     const { errorCount, lastErrorTime } = this.state;
-    
+
     // Détecter les erreurs récurrentes (même erreur dans les 5 secondes)
-    const isRecurringError = 
-      lastErrorTime && 
-      (now - lastErrorTime) < 5000 && 
-      error.message === this.state.error?.message;
+    const isRecurringError =
+      lastErrorTime && now - lastErrorTime < 5000 && error.message === this.state.error?.message;
 
     const newErrorCount = isRecurringError ? errorCount + 1 : 1;
+
+    // Détecter spécifiquement l'erreur "Text strings must be rendered"
+    const isTextRenderingError = error.message.includes('Text strings must be rendered') ||
+                                 error.message.includes('must be rendered within a <Text>');
+
+    if (isTextRenderingError) {
+      console.error('🔴 [ErrorBoundary] ERREUR DE RENDU DE TEXTE DÉTECTÉE:', {
+        error: error.toString(),
+        message: error.message,
+        stack: error.stack,
+        componentStack: errorInfo.componentStack,
+        errorCount: newErrorCount,
+        isRecurring: isRecurringError,
+        suggestion: 'Vérifiez les composants dans componentStack ci-dessus. Cherchez les valeurs primitives (string/number) rendues directement dans des <View> ou autres composants non-Text.',
+      });
+
+      // Extraire le nom du composant problématique depuis le componentStack
+      const componentMatch = errorInfo.componentStack.match(/at\s+(\w+)\s*\(/);
+      if (componentMatch) {
+        console.error(`🔍 Composant suspect: ${componentMatch[1]}`);
+      }
+    }
 
     // Logger l'erreur avec plus de détails
     console.error('Error caught by boundary:', {
@@ -68,6 +96,7 @@ class ErrorBoundaryClass extends Component<Props, State> {
       componentStack: errorInfo.componentStack,
       errorCount: newErrorCount,
       isRecurring: isRecurringError,
+      isTextRenderingError,
     });
 
     // Appeler le callback personnalisé si fourni
@@ -235,7 +264,9 @@ function getFileName(filePath: string): string {
 /**
  * Parse le component stack React pour extraire les composants
  */
-function parseComponentStack(componentStack: string): Array<{ component: string; location: string }> {
+function parseComponentStack(
+  componentStack: string
+): Array<{ component: string; location: string }> {
   const components: Array<{ component: string; location: string }> = [];
   const lines = componentStack.split('\n');
 
@@ -299,7 +330,9 @@ function ErrorFallback({
 
   // Analyser les stack traces
   const stackFrames = error?.stack ? parseStackTrace(error.stack) : [];
-  const componentList = errorInfo?.componentStack ? parseComponentStack(errorInfo.componentStack) : [];
+  const componentList = errorInfo?.componentStack
+    ? parseComponentStack(errorInfo.componentStack)
+    : [];
   const problematicComponent = errorInfo?.componentStack
     ? identifyProblematicComponent(errorInfo.componentStack)
     : null;
@@ -307,8 +340,8 @@ function ErrorFallback({
   // Fonction pour copier le texte dans le presse-papier
   const copyToClipboard = async (text: string) => {
     try {
-      if (Platform.OS === 'web') {
-        await navigator.clipboard.writeText(text);
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && window.navigator?.clipboard) {
+        await window.navigator.clipboard.writeText(text);
       } else {
         Clipboard.setString(text);
       }
@@ -341,7 +374,12 @@ function ErrorFallback({
         </Text>
 
         {hasExceededMaxRetries && (
-          <View style={[styles.warningBox, { backgroundColor: colors.warning + '20', borderColor: colors.warning }]}>
+          <View
+            style={[
+              styles.warningBox,
+              { backgroundColor: colors.warning + '20', borderColor: colors.warning },
+            ]}
+          >
             <Text style={[styles.warningText, { color: colors.warning }]}>
               ⚠️ Erreur répétée {errorCount} fois. Un redémarrage peut être nécessaire.
             </Text>
@@ -355,9 +393,18 @@ function ErrorFallback({
 
             {/* Composant problématique identifié */}
             {problematicComponent && (
-              <View style={[styles.highlightBox, { backgroundColor: colors.error + '15', borderColor: colors.error }]}>
-                <Text style={[styles.highlightTitle, { color: colors.error }]}>🔍 Composant suspect:</Text>
-                <Text style={[styles.highlightText, { color: colors.text }]}>{problematicComponent}</Text>
+              <View
+                style={[
+                  styles.highlightBox,
+                  { backgroundColor: colors.error + '15', borderColor: colors.error },
+                ]}
+              >
+                <Text style={[styles.highlightTitle, { color: colors.error }]}>
+                  🔍 Composant suspect:
+                </Text>
+                <Text style={[styles.highlightText, { color: colors.text }]}>
+                  {problematicComponent}
+                </Text>
               </View>
             )}
 
@@ -379,7 +426,10 @@ function ErrorFallback({
                   <>
                     <ScrollView style={styles.stackScroll} nestedScrollEnabled>
                       {stackFrames.slice(0, 10).map((frame, index) => (
-                        <View key={index} style={[styles.stackFrame, { borderLeftColor: colors.primary }]}>
+                        <View
+                          key={index}
+                          style={[styles.stackFrame, { borderLeftColor: colors.primary }]}
+                        >
                           <Text style={[styles.stackFrameFunction, { color: colors.primary }]}>
                             {frame.functionName}
                           </Text>
@@ -387,7 +437,9 @@ function ErrorFallback({
                             {getFileName(frame.file)}
                           </Text>
                           {frame.line && (
-                            <Text style={[styles.stackFrameLocation, { color: colors.textSecondary }]}>
+                            <Text
+                              style={[styles.stackFrameLocation, { color: colors.textSecondary }]}
+                            >
                               Ligne {frame.line}:{frame.column}
                             </Text>
                           )}
@@ -401,9 +453,14 @@ function ErrorFallback({
                     </ScrollView>
                     <TouchableOpacity
                       onPress={() => copyToClipboard(error.stack!)}
-                      style={[styles.copyButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                      style={[
+                        styles.copyButton,
+                        { backgroundColor: colors.surface, borderColor: colors.border },
+                      ]}
                     >
-                      <Text style={[styles.copyButtonText, { color: colors.primary }]}>📋 Copier la stack trace</Text>
+                      <Text style={[styles.copyButtonText, { color: colors.primary }]}>
+                        📋 Copier la stack trace
+                      </Text>
                     </TouchableOpacity>
                   </>
                 )}
@@ -428,12 +485,17 @@ function ErrorFallback({
                   <>
                     <ScrollView style={styles.stackScroll} nestedScrollEnabled>
                       {componentList.map((comp, index) => (
-                        <View key={index} style={[styles.componentItem, { borderLeftColor: colors.secondary }]}>
+                        <View
+                          key={index}
+                          style={[styles.componentItem, { borderLeftColor: colors.secondary }]}
+                        >
                           <Text style={[styles.componentName, { color: colors.secondary }]}>
                             {comp.component}
                           </Text>
                           {comp.location && (
-                            <Text style={[styles.componentLocation, { color: colors.textSecondary }]}>
+                            <Text
+                              style={[styles.componentLocation, { color: colors.textSecondary }]}
+                            >
                               {comp.location}
                             </Text>
                           )}
@@ -442,7 +504,10 @@ function ErrorFallback({
                     </ScrollView>
                     <TouchableOpacity
                       onPress={() => copyToClipboard(errorInfo.componentStack!)}
-                      style={[styles.copyButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                      style={[
+                        styles.copyButton,
+                        { backgroundColor: colors.surface, borderColor: colors.border },
+                      ]}
                     >
                       <Text style={[styles.copyButtonText, { color: colors.primary }]}>
                         📋 Copier le component stack
@@ -456,9 +521,13 @@ function ErrorFallback({
             {/* Stack trace brute (fallback si parsing échoue) */}
             {error.stack && stackFrames.length === 0 && (
               <View style={styles.stackContainer}>
-                <Text style={[styles.stackTitle, { color: colors.textSecondary }]}>Stack trace (brute):</Text>
+                <Text style={[styles.stackTitle, { color: colors.textSecondary }]}>
+                  Stack trace (brute):
+                </Text>
                 <ScrollView style={styles.stackScroll} nestedScrollEnabled>
-                  <Text style={[styles.errorStack, { color: colors.textSecondary }]}>{error.stack}</Text>
+                  <Text style={[styles.errorStack, { color: colors.textSecondary }]}>
+                    {error.stack}
+                  </Text>
                 </ScrollView>
               </View>
             )}
@@ -474,7 +543,7 @@ function ErrorFallback({
                 title="Réessayer quand même"
                 onPress={onReset}
                 variant="outline"
-                style={[styles.actionButton, { marginBottom: SPACING.md }]}
+                style={styles.actionButton}
               />
               <Button
                 title="Redémarrer l'app"
@@ -658,8 +727,8 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     width: '100%',
+    marginBottom: SPACING.md,
   },
 });
 
 export default ErrorBoundaryClass;
-

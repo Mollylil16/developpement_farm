@@ -59,7 +59,8 @@ interface RapportsData {
  * Génère le HTML pour le rapport Indicateurs et Tendances
  */
 export function generateRapportsHTML(data: RapportsData): string {
-  const { projet, indicateurs, production, finance, reproduction, tendances, recommandations } = data;
+  const { projet, indicateurs, production, finance, reproduction, tendances, recommandations } =
+    data;
 
   const content = `
     ${generatePDFHeader(
@@ -79,8 +80,11 @@ export function generateRapportsHTML(data: RapportsData): string {
             <td><strong>GMQ Moyen</strong></td>
             <td class="text-right">
               <span style="font-size: 16px; font-weight: bold; color: ${
-                indicateurs.gmqMoyen >= 600 ? '#28a745' : 
-                indicateurs.gmqMoyen >= 400 ? '#ffc107' : '#dc3545'
+                indicateurs.gmqMoyen >= 600
+                  ? '#28a745'
+                  : indicateurs.gmqMoyen >= 400
+                    ? '#ffc107'
+                    : '#dc3545'
               }">
                 ${formatNumber(indicateurs.gmqMoyen, 0)} g/jour
               </span>
@@ -108,8 +112,11 @@ export function generateRapportsHTML(data: RapportsData): string {
             <td><strong>Taux de reproduction</strong></td>
             <td class="text-right">
               <span style="font-size: 16px; font-weight: bold; color: ${
-                indicateurs.tauxReproduction >= 80 ? '#28a745' : 
-                indicateurs.tauxReproduction >= 60 ? '#ffc107' : '#dc3545'
+                indicateurs.tauxReproduction >= 80
+                  ? '#28a745'
+                  : indicateurs.tauxReproduction >= 60
+                    ? '#ffc107'
+                    : '#dc3545'
               }">
                 ${formatNumber(indicateurs.tauxReproduction, 1)}%
               </span>
@@ -119,8 +126,11 @@ export function generateRapportsHTML(data: RapportsData): string {
             <td><strong>Taux de mortalité</strong></td>
             <td class="text-right">
               <span style="font-size: 16px; font-weight: bold; color: ${
-                indicateurs.tauxMortalite <= 5 ? '#28a745' : 
-                indicateurs.tauxMortalite <= 10 ? '#ffc107' : '#dc3545'
+                indicateurs.tauxMortalite <= 5
+                  ? '#28a745'
+                  : indicateurs.tauxMortalite <= 10
+                    ? '#ffc107'
+                    : '#dc3545'
               }">
                 ${formatNumber(indicateurs.tauxMortalite, 1)}%
               </span>
@@ -201,9 +211,11 @@ export function generateRapportsHTML(data: RapportsData): string {
           <tr>
             <td>Moyenne porcelets/portée</td>
             <td class="text-right">
-              ${reproduction.gestationsTerminees > 0 
-                ? formatNumber(reproduction.porceletsNes / reproduction.gestationsTerminees, 1) 
-                : '0'}
+              ${
+                reproduction.gestationsTerminees > 0
+                  ? formatNumber(reproduction.porceletsNes / reproduction.gestationsTerminees, 1)
+                  : '0'
+              }
             </td>
           </tr>
         </table>
@@ -231,14 +243,18 @@ export function generateRapportsHTML(data: RapportsData): string {
       </div>
       <div class="card">
         <p><strong>Coût moyen/animal :</strong> 
-          ${production.nombreAnimauxActifs > 0 
-            ? formatCurrency(finance.totalDepenses / production.nombreAnimauxActifs) 
-            : 'N/A'}
+          ${
+            production.nombreAnimauxActifs > 0
+              ? formatCurrency(finance.totalDepenses / production.nombreAnimauxActifs)
+              : 'N/A'
+          }
         </p>
         <p><strong>Revenu moyen/animal :</strong> 
-          ${production.nombreAnimauxActifs > 0 
-            ? formatCurrency(finance.totalRevenus / production.nombreAnimauxActifs) 
-            : 'N/A'}
+          ${
+            production.nombreAnimauxActifs > 0
+              ? formatCurrency(finance.totalRevenus / production.nombreAnimauxActifs)
+              : 'N/A'
+          }
         </p>
       </div>
     </div>
@@ -247,7 +263,9 @@ export function generateRapportsHTML(data: RapportsData): string {
     <div class="section">
       <h2>📈 Évolution des Tendances</h2>
       
-      ${tendances.evolutionGMQ.length > 0 ? `
+      ${
+        tendances.evolutionGMQ.length > 0
+          ? `
       <h3>Évolution du GMQ</h3>
       <div class="card">
         <table>
@@ -259,11 +277,15 @@ export function generateRapportsHTML(data: RapportsData): string {
             </tr>
           </thead>
           <tbody>
-            ${tendances.evolutionGMQ.map((item, index) => {
-              const variation = index > 0 
-                ? ((item.valeur - tendances.evolutionGMQ[index - 1].valeur) / tendances.evolutionGMQ[index - 1].valeur * 100)
-                : 0;
-              return `
+            ${tendances.evolutionGMQ
+              .map((item, index) => {
+                const variation =
+                  index > 0
+                    ? ((item.valeur - tendances.evolutionGMQ[index - 1].valeur) /
+                        tendances.evolutionGMQ[index - 1].valeur) *
+                      100
+                    : 0;
+                return `
                 <tr>
                   <td>${item.periode}</td>
                   <td class="text-right"><strong>${formatNumber(item.valeur, 0)}</strong></td>
@@ -272,13 +294,18 @@ export function generateRapportsHTML(data: RapportsData): string {
                   </td>
                 </tr>
               `;
-            }).join('')}
+              })
+              .join('')}
           </tbody>
         </table>
       </div>
-      ` : ''}
+      `
+          : ''
+      }
 
-      ${tendances.evolutionFinance.length > 0 ? `
+      ${
+        tendances.evolutionFinance.length > 0
+          ? `
       <h3>Évolution Financière</h3>
       <div class="card">
         <table>
@@ -291,9 +318,10 @@ export function generateRapportsHTML(data: RapportsData): string {
             </tr>
           </thead>
           <tbody>
-            ${tendances.evolutionFinance.map(item => {
-              const balance = item.revenus - item.depenses;
-              return `
+            ${tendances.evolutionFinance
+              .map((item) => {
+                const balance = item.revenus - item.depenses;
+                return `
                 <tr>
                   <td>${item.periode}</td>
                   <td class="text-right text-danger">${formatCurrency(item.depenses)}</td>
@@ -303,24 +331,33 @@ export function generateRapportsHTML(data: RapportsData): string {
                   </td>
                 </tr>
               `;
-            }).join('')}
+              })
+              .join('')}
           </tbody>
         </table>
       </div>
-      ` : ''}
+      `
+          : ''
+      }
     </div>
 
     <!-- Recommandations -->
-    ${recommandations.length > 0 ? `
+    ${
+      recommandations.length > 0
+        ? `
     <div class="section page-break">
       <h2>💡 Recommandations</h2>
-      ${recommandations.map(rec => `
+      ${recommandations
+        .map(
+          (rec) => `
         <div class="card" style="margin-bottom: 10px;">
           <div style="display: flex; align-items: center; margin-bottom: 8px;">
             <span class="badge ${
-              rec.priorite === 'haute' ? 'badge-danger' : 
-              rec.priorite === 'moyenne' ? 'badge-warning' : 
-              'badge-info'
+              rec.priorite === 'haute'
+                ? 'badge-danger'
+                : rec.priorite === 'moyenne'
+                  ? 'badge-warning'
+                  : 'badge-info'
             }" style="margin-right: 10px;">
               ${rec.priorite.toUpperCase()}
             </span>
@@ -328,9 +365,13 @@ export function generateRapportsHTML(data: RapportsData): string {
           </div>
           <p style="font-size: 11px; line-height: 1.5;">${rec.message}</p>
         </div>
-      `).join('')}
+      `
+        )
+        .join('')}
     </div>
-    ` : ''}
+    `
+        : ''
+    }
 
     ${generatePDFFooter()}
   `;
@@ -344,7 +385,6 @@ export function generateRapportsHTML(data: RapportsData): string {
 export async function exportRapportsPDF(data: RapportsData): Promise<void> {
   const html = generateRapportsHTML(data);
   const fileName = `Rapports_${data.projet.nom}_${new Date().toISOString().split('T')[0]}.pdf`;
-  
+
   await generateAndSharePDF(html, fileName);
 }
-

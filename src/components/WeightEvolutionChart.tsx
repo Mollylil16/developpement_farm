@@ -36,7 +36,7 @@ export default function WeightEvolutionChart({ pesees, animalName }: Props) {
     const weights = sortedPesees
       .map((p) => p.poids_kg)
       .filter((w) => typeof w === 'number' && !isNaN(w) && isFinite(w));
-    
+
     if (weights.length === 0) {
       return null;
     }
@@ -305,4 +305,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-

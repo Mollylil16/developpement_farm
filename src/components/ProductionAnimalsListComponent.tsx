@@ -38,11 +38,12 @@ import Button from './Button';
 import ProductionAnimalFormModal from './ProductionAnimalFormModal';
 import ProductionPeseeFormModal from './ProductionPeseeFormModal';
 import WeightEvolutionChart from './WeightEvolutionChart';
+import TotalWeightEvolutionChart from './TotalWeightEvolutionChart';
 import { format, startOfDay, subDays, eachDayOfInterval, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useFocusEffect } from '@react-navigation/native';
 import { useActionPermissions } from '../hooks/useActionPermissions';
-import { LineChart } from 'react-native-chart-kit';
+import { evaluerGMQIndividuel, calculerGMQMoyen } from '../utils/gmqEvaluation';
 
 export default function ProductionAnimalsListComponent() {
   const { colors } = useTheme();
@@ -67,7 +68,7 @@ export default function ProductionAnimalsListComponent() {
 
   // Utiliser useRef pour tracker les chargements et éviter les boucles
   const aChargeRef = useRef<string | null>(null);
-  
+
   // Charger les données uniquement quand l'onglet est visible
   useFocusEffect(
     React.useCallback(() => {
@@ -75,7 +76,7 @@ export default function ProductionAnimalsListComponent() {
         aChargeRef.current = null;
         return;
       }
-      
+
       // Charger uniquement si le projet a changé
       if (aChargeRef.current !== projetActif.id) {
         aChargeRef.current = projetActif.id;
@@ -93,17 +94,20 @@ export default function ProductionAnimalsListComponent() {
 
   const animauxAvecStats = useMemo(() => {
     // Filtrer uniquement les animaux actifs du cheptel (avec protection contre undefined)
-    const animauxActifs = (animaux || []).filter((animal) => animal.statut?.toLowerCase() === 'actif');
-    
+    const animauxActifs = (animaux || []).filter(
+      (animal) => animal.statut?.toLowerCase() === 'actif'
+    );
+
     return animauxActifs.map((animal) => {
       const pesees = peseesParAnimal[animal.id] || [];
-      const dernierePesee = pesees[0]; // La plus récente (triée DESC)
       
+      // Les pesées sont triées par date ASC (croissante), donc la dernière est à la fin
+      const dernierePesee = pesees.length > 0 ? pesees[pesees.length - 1] : null;
+
       // Pour le calcul du GMQ moyen, on a besoin de l'ordre chronologique (ASC)
-      const peseesTriees = [...pesees].sort((a, b) => 
-        new Date(a.date).getTime() - new Date(b.date).getTime()
-      );
-      
+      // Les pesées sont déjà triées par date ASC depuis le Repository
+      const peseesTriees = pesees; // Déjà triées ASC
+
       const gmqMoyen =
         peseesTriees.length > 1
           ? peseesTriees.reduce((sum, p, idx) => {
@@ -117,7 +121,8 @@ export default function ProductionAnimalsListComponent() {
                 )
               );
               return sum + (p.gmq || 0);
-            }, 0) / (peseesTriees.length - 1)
+            }, 0) /
+            (peseesTriees.length - 1)
           : dernierePesee?.gmq || null;
 
       return {
@@ -167,322 +172,454 @@ export default function ProductionAnimalsListComponent() {
     }
   }, [page, displayedAnimals.length, animauxFiltres]);
 
-  const handleDelete = useCallback((animal: ProductionAnimal) => {
-    if (!canDelete('reproduction')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de supprimer les animaux.');
-      return;
-    }
-    Alert.alert(
-      'Supprimer l\'animal',
-      `Voulez-vous supprimer ${animal.code}${animal.nom ? ` (${animal.nom})` : ''} ? Toutes les pesées associées seront également supprimées.`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            await dispatch(deleteProductionAnimal(animal.id));
-            if (selectedAnimal?.id === animal.id) {
-              setSelectedAnimal(null);
-            }
-          },
-        },
-      ]
-    );
-  }, [dispatch, selectedAnimal, setSelectedAnimal, canDelete]);
-
-  const handleEditPesee = useCallback((pesee: ProductionPesee) => {
-    if (!canUpdate('reproduction')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les pesées.');
-      return;
-    }
-    setSelectedPesee(pesee);
-    setIsEditingPesee(true);
-    setShowPeseeModal(true);
-  }, [canUpdate]);
-
-  const handleDeletePesee = useCallback((pesee: ProductionPesee) => {
-    if (!canDelete('reproduction')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de supprimer les pesées.');
-      return;
-    }
-    Alert.alert(
-      'Supprimer la pesée',
-      `Voulez-vous supprimer cette pesée du ${format(new Date(pesee.date), 'dd/MM/yyyy')} (${pesee.poids_kg.toFixed(1)} kg) ?`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await dispatch(deletePesee({ id: pesee.id, animalId: pesee.animal_id })).unwrap();
-              if (selectedAnimal) {
-                dispatch(loadPeseesParAnimal(selectedAnimal.id));
+  const handleDelete = useCallback(
+    (animal: ProductionAnimal) => {
+      if (!canDelete('reproduction')) {
+        Alert.alert(
+          'Permission refusée',
+          "Vous n'avez pas la permission de supprimer les animaux."
+        );
+        return;
+      }
+      Alert.alert(
+        "Supprimer l'animal",
+        `Voulez-vous supprimer ${animal.code}${animal.nom ? ` (${animal.nom})` : ''} ? Toutes les pesées associées seront également supprimées.`,
+        [
+          { text: 'Annuler', style: 'cancel' },
+          {
+            text: 'Supprimer',
+            style: 'destructive',
+            onPress: async () => {
+              await dispatch(deleteProductionAnimal(animal.id));
+              if (selectedAnimal?.id === animal.id) {
+                setSelectedAnimal(null);
               }
-            } catch (error: any) {
-              Alert.alert('Erreur', error || 'Erreur lors de la suppression de la pesée.');
-            }
+            },
           },
-        },
-      ]
-    );
-  }, [dispatch, selectedAnimal, canDelete]);
+        ]
+      );
+    },
+    [dispatch, selectedAnimal, setSelectedAnimal, canDelete]
+  );
+
+  const handleEditPesee = useCallback(
+    (pesee: ProductionPesee) => {
+      if (!canUpdate('reproduction')) {
+        Alert.alert('Permission refusée', "Vous n'avez pas la permission de modifier les pesées.");
+        return;
+      }
+      setSelectedPesee(pesee);
+      setIsEditingPesee(true);
+      setShowPeseeModal(true);
+    },
+    [canUpdate]
+  );
+
+  const handleDeletePesee = useCallback(
+    (pesee: ProductionPesee) => {
+      if (!canDelete('reproduction')) {
+        Alert.alert('Permission refusée', "Vous n'avez pas la permission de supprimer les pesées.");
+        return;
+      }
+      Alert.alert(
+        'Supprimer la pesée',
+        `Voulez-vous supprimer cette pesée du ${format(new Date(pesee.date), 'dd/MM/yyyy')} (${pesee.poids_kg.toFixed(1)} kg) ?`,
+        [
+          { text: 'Annuler', style: 'cancel' },
+          {
+            text: 'Supprimer',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await dispatch(deletePesee({ id: pesee.id, animalId: pesee.animal_id })).unwrap();
+                if (selectedAnimal) {
+                  dispatch(loadPeseesParAnimal(selectedAnimal.id));
+                }
+              } catch (error: any) {
+                Alert.alert('Erreur', error || 'Erreur lors de la suppression de la pesée.');
+              }
+            },
+          },
+        ]
+      );
+    },
+    [dispatch, selectedAnimal, canDelete]
+  );
 
   // Composant mémorisé pour chaque carte d'animal - défini AVANT les retours anticipés pour éviter les problèmes de hooks
-  const AnimalCard = React.memo(({ item, isSelected, pesees, onSelect, onPesee, onEdit, onDelete }: {
-    item: typeof animauxAvecStats[0];
-    isSelected: boolean;
-    pesees: ProductionPesee[];
-    onSelect: (animal: ProductionAnimal) => void;
-    onPesee: (animal: ProductionAnimal) => void;
-    onEdit: (animal: ProductionAnimal) => void;
-    onDelete: (animal: ProductionAnimal) => void;
-  }) => {
-    const { colors } = useTheme();
-    const { animal, dernierePesee, gmqMoyen, nombrePesees } = item;
-    
-    // Debug: Vérifier si photo_uri est présent
-    if (animal.photo_uri) {
-      console.log(`Animal ${animal.code} a une photo:`, animal.photo_uri);
-    }
+  const AnimalCard = React.memo(
+    ({
+      item,
+      isSelected,
+      pesees,
+      onSelect,
+      onPesee,
+      onEdit,
+      onDelete,
+    }: {
+      item: (typeof animauxAvecStats)[0];
+      isSelected: boolean;
+      pesees: ProductionPesee[];
+      onSelect: (animal: ProductionAnimal) => void;
+      onPesee: (animal: ProductionAnimal) => void;
+      onEdit: (animal: ProductionAnimal) => void;
+      onDelete: (animal: ProductionAnimal) => void;
+    }) => {
+      const { colors } = useTheme();
+      const { animal, dernierePesee, gmqMoyen, nombrePesees } = item;
 
-    return (
-      <TouchableOpacity
-        style={[
-          styles.card,
-          {
-            backgroundColor: colors.surface,
-            borderColor: isSelected ? colors.primary : colors.borderLight,
-            borderWidth: isSelected ? 2 : 1,
-            ...colors.shadow.small,
-          },
-        ]}
-        onPress={() => onSelect(animal)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.cardHeader}>
-          {animal.photo_uri ? (
-            <Image 
-              source={{ uri: animal.photo_uri }} 
-              style={styles.animalPhoto}
-              onError={(error) => console.log('Erreur chargement photo:', error.nativeEvent.error)}
-            />
-          ) : (
-            <View style={[styles.animalPhoto, styles.animalPhotoPlaceholder, { backgroundColor: colors.primaryLight + '15', borderColor: colors.primary + '30' }]}>
-              <Text style={{ fontSize: 40 }}>🐷</Text>
-            </View>
-          )}
-          <View style={styles.cardHeaderRight}>
-            <View style={styles.titleRow}>
-              <Text style={[styles.cardCode, { color: colors.text }]}>{animal.code}</Text>
-              {animal.nom && (
-                <Text style={[styles.cardNom, { color: colors.textSecondary }]}>• {animal.nom}</Text>
-              )}
-            </View>
-            {animal.statut?.toLowerCase() !== 'actif' && (
-              <View style={[styles.inactiveBadge, { backgroundColor: colors.textSecondary + '20' }]}>
-                <Text style={[styles.inactiveBadgeText, { color: colors.textSecondary }]}>Inactif</Text>
+      // Debug: Vérifier si photo_uri est présent
+      if (animal.photo_uri) {
+        console.log(`Animal ${animal.code} a une photo:`, animal.photo_uri);
+      }
+
+      return (
+        <TouchableOpacity
+          style={[
+            styles.card,
+            {
+              backgroundColor: colors.surface,
+              borderColor: isSelected ? colors.primary : colors.borderLight,
+              borderWidth: isSelected ? 2 : 1,
+              ...colors.shadow.small,
+            },
+          ]}
+          onPress={() => onSelect(animal)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.cardHeader}>
+            {animal.photo_uri ? (
+              <Image
+                source={{ uri: animal.photo_uri }}
+                style={styles.animalPhoto}
+                onError={(error) =>
+                  console.log('Erreur chargement photo:', error.nativeEvent.error)
+                }
+              />
+            ) : (
+              <View
+                style={[
+                  styles.animalPhoto,
+                  styles.animalPhotoPlaceholder,
+                  {
+                    backgroundColor: colors.primaryLight + '15',
+                    borderColor: colors.primary + '30',
+                  },
+                ]}
+              >
+                <Text style={{ fontSize: 40 }}>🐷</Text>
               </View>
             )}
-            <View style={styles.cardActions}>
-              {canCreate('reproduction') && (
-                <TouchableOpacity
-                  style={[styles.actionButton, { backgroundColor: colors.primaryLight + '15' }]}
-                  onPress={() => onPesee(animal)}
+            <View style={styles.cardHeaderRight}>
+              <View style={styles.titleRow}>
+                <Text style={[styles.cardCode, { color: colors.text }]}>{animal.code}</Text>
+                {animal.nom && (
+                  <Text style={[styles.cardNom, { color: colors.textSecondary }]}>
+                    • {animal.nom}
+                  </Text>
+                )}
+              </View>
+              {animal.statut?.toLowerCase() !== 'actif' && (
+                <View
+                  style={[styles.inactiveBadge, { backgroundColor: colors.textSecondary + '20' }]}
                 >
-                  <Text style={[styles.actionButtonText, { color: colors.primaryDark }]}>Pesée</Text>
-                </TouchableOpacity>
+                  <Text style={[styles.inactiveBadgeText, { color: colors.textSecondary }]}>
+                    Inactif
+                  </Text>
+                </View>
               )}
-              {canUpdate('reproduction') && (
-                <TouchableOpacity
-                  style={[styles.actionButton, { backgroundColor: colors.primaryLight + '15' }]}
-                  onPress={() => onEdit(animal)}
-                >
-                  <Text style={[styles.actionButtonText, { color: colors.primaryDark }]}>Modifier</Text>
-                </TouchableOpacity>
-              )}
-              {canDelete('reproduction') && (
-                <TouchableOpacity
-                  style={[styles.actionButton, { backgroundColor: colors.error + '15' }]}
-                  onPress={() => onDelete(animal)}
-                >
-                  <Text style={[styles.actionButtonText, { color: colors.error }]}>Supprimer</Text>
-                </TouchableOpacity>
-              )}
+              <View style={styles.cardActions}>
+                {canCreate('reproduction') && (
+                  <TouchableOpacity
+                    style={[styles.actionButton, { backgroundColor: colors.primaryLight + '15' }]}
+                    onPress={() => onPesee(animal)}
+                  >
+                    <Text style={[styles.actionButtonText, { color: colors.primaryDark }]}>
+                      Pesée
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                {canUpdate('reproduction') && (
+                  <TouchableOpacity
+                    style={[styles.actionButton, { backgroundColor: colors.primaryLight + '15' }]}
+                    onPress={() => onEdit(animal)}
+                  >
+                    <Text style={[styles.actionButtonText, { color: colors.primaryDark }]}>
+                      Modifier
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                {canDelete('reproduction') && (
+                  <TouchableOpacity
+                    style={[styles.actionButton, { backgroundColor: colors.error + '15' }]}
+                    onPress={() => onDelete(animal)}
+                  >
+                    <Text style={[styles.actionButtonText, { color: colors.error }]}>
+                      Supprimer
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
           </View>
-        </View>
 
-        {dernierePesee && (
-          <View style={[styles.cardStats, { borderTopColor: colors.border }]}>
-            <View style={styles.statItem}>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Dernière pesée:</Text>
-              <Text style={[styles.statValue, { color: colors.text }]}>
-                {format(new Date(dernierePesee.date), 'dd MMM yyyy', { locale: fr })}
-              </Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Poids:</Text>
-              <Text style={[styles.statValue, { color: colors.text }]}>{dernierePesee.poids_kg.toFixed(1)} kg</Text>
-            </View>
-            {dernierePesee.gmq && (
+          {dernierePesee && (
+            <View style={[styles.cardStats, { borderTopColor: colors.border }]}>
               <View style={styles.statItem}>
-                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>GMQ:</Text>
-                <Text
-                  style={[
-                    styles.statValue,
-                    {
-                      color: dernierePesee.gmq < 0 ? colors.error : colors.success,
-                    },
-                  ]}
-                >
-                  {dernierePesee.gmq.toFixed(0)} g/j
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                  Dernière pesée:
+                </Text>
+                <Text style={[styles.statValue, { color: colors.text }]}>
+                  {format(new Date(dernierePesee.date), 'dd MMM yyyy', { locale: fr })}
                 </Text>
               </View>
-            )}
-            {gmqMoyen !== null && (
               <View style={styles.statItem}>
-                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>GMQ moyen:</Text>
-                <Text style={[styles.statValue, { color: colors.text }]}>{gmqMoyen.toFixed(0)} g/j</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Poids:</Text>
+                <Text style={[styles.statValue, { color: colors.text }]}>
+                  {dernierePesee.poids_kg.toFixed(1)} kg
+                </Text>
               </View>
-            )}
-            <View style={styles.statItem}>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Nombre de pesées:</Text>
-              <Text style={[styles.statValue, { color: colors.text }]}>{nombrePesees}</Text>
-            </View>
-          </View>
-        )}
-
-        {isSelected && (
-          <View style={[styles.historyContainer, { borderTopColor: colors.border }]}>
-            {/* Graphique d'évolution */}
-            {pesees.length > 0 && (
-              <View style={styles.chartContainer}>
-                <WeightEvolutionChart pesees={pesees} animalName={animal.nom || animal.code} />
-              </View>
-            )}
-
-            <Text style={[styles.historyTitle, { color: colors.text }]}>Historique des pesées</Text>
-            {pesees.length === 0 ? (
-              <Text style={[styles.noHistoryText, { color: colors.textSecondary }]}>
-                Aucune pesée enregistrée pour cet animal.
-              </Text>
-            ) : (
-              <View style={[styles.historyList, { backgroundColor: colors.background }]}>
-                {[...pesees].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((pesee) => (
-                  <TouchableOpacity 
-                    key={pesee.id} 
-                    style={[styles.historyItem, { borderBottomColor: colors.divider }]}
-                    onPress={() => handleEditPesee(pesee)}
-                    onLongPress={() => {
-                      Alert.alert(
-                        'Options',
-                        `Pesée du ${format(new Date(pesee.date), 'dd/MM/yyyy')}`,
-                        [
-                          {
-                            text: 'Modifier',
-                            onPress: () => handleEditPesee(pesee),
-                          },
-                          {
-                            text: 'Supprimer',
-                            style: 'destructive',
-                            onPress: () => handleDeletePesee(pesee),
-                          },
-                          {
-                            text: 'Annuler',
-                            style: 'cancel',
-                          },
-                        ]
-                      );
-                    }}
-                    activeOpacity={0.7}
+              {dernierePesee.gmq && (
+                <View style={styles.statItem}>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>GMQ:</Text>
+                  <Text
+                    style={[
+                      styles.statValue,
+                      {
+                        color: dernierePesee.gmq < 0 ? colors.error : colors.success,
+                      },
+                    ]}
                   >
-                    <View style={styles.historyItemHeader}>
-                      <Text style={[styles.historyDate, { color: colors.textSecondary }]}>
-                        {format(new Date(pesee.date), 'dd MMM yyyy', { locale: fr })}
-                      </Text>
-                      <Text style={[styles.historyPoids, { color: colors.text }]}>
-                        {pesee.poids_kg.toFixed(1)} kg
-                      </Text>
-                    </View>
-                    {pesee.gmq && (
-                      <Text style={[styles.historyGmq, { color: colors.primary }]}>
-                        GMQ: {pesee.gmq.toFixed(0)} g/j
-                      </Text>
-                    )}
-                    {pesee.commentaire && (
-                      <Text style={[styles.historyComment, { color: colors.textTertiary }]}>{pesee.commentaire}</Text>
-                    )}
-                  </TouchableOpacity>
-                ))}
+                    {dernierePesee.gmq.toFixed(0)} g/j
+                  </Text>
+                </View>
+              )}
+              {gmqMoyen !== null && (
+                <View style={styles.statItem}>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                    GMQ moyen:
+                  </Text>
+                  <Text style={[styles.statValue, { color: colors.text }]}>
+                    {gmqMoyen.toFixed(0)} g/j
+                  </Text>
+                </View>
+              )}
+              <View style={styles.statItem}>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                  Nombre de pesées:
+                </Text>
+                <Text style={[styles.statValue, { color: colors.text }]}>{nombrePesees}</Text>
               </View>
-            )}
-          </View>
-        )}
-      </TouchableOpacity>
-    );
-  });
+            </View>
+          )}
+
+          {/* Évaluation GMQ */}
+          {gmqMoyen !== null && dernierePesee && (() => {
+            const evaluation = evaluerGMQIndividuel(gmqMoyen);
+            return (
+              <View
+                style={[
+                  styles.gmqEvaluationBox,
+                  { 
+                    backgroundColor: `${evaluation.couleur}15`,
+                    borderColor: `${evaluation.couleur}40`,
+                  },
+                ]}
+              >
+                <View style={styles.gmqEvaluationHeader}>
+                  <Text style={{ fontSize: 20 }}>{evaluation.icone}</Text>
+                  <Text
+                    style={[
+                      styles.gmqEvaluationTitle,
+                      { color: evaluation.couleur },
+                    ]}
+                  >
+                    {evaluation.commentaire}
+                  </Text>
+                </View>
+                <Text
+                  style={[
+                    styles.gmqEvaluationText,
+                    { color: colors.text },
+                  ]}
+                >
+                  {evaluation.recommandation}
+                </Text>
+              </View>
+            );
+          })()}
+
+          {isSelected && (
+            <View style={[styles.historyContainer, { borderTopColor: colors.border }]}>
+              {/* Graphique d'évolution */}
+              {pesees.length > 0 && (
+                <View style={styles.chartContainer}>
+                  <WeightEvolutionChart pesees={pesees} animalName={animal.nom || animal.code} />
+                </View>
+              )}
+
+              <Text style={[styles.historyTitle, { color: colors.text }]}>
+                Historique des pesées
+              </Text>
+              {pesees.length === 0 ? (
+                <Text style={[styles.noHistoryText, { color: colors.textSecondary }]}>
+                  Aucune pesée enregistrée pour cet animal.
+                </Text>
+              ) : (
+                <View style={[styles.historyList, { backgroundColor: colors.background }]}>
+                  {[...pesees]
+                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                    .map((pesee) => (
+                      <TouchableOpacity
+                        key={pesee.id}
+                        style={[styles.historyItem, { borderBottomColor: colors.divider }]}
+                        onPress={() => handleEditPesee(pesee)}
+                        onLongPress={() => {
+                          Alert.alert(
+                            'Options',
+                            `Pesée du ${format(new Date(pesee.date), 'dd/MM/yyyy')}`,
+                            [
+                              {
+                                text: 'Modifier',
+                                onPress: () => handleEditPesee(pesee),
+                              },
+                              {
+                                text: 'Supprimer',
+                                style: 'destructive',
+                                onPress: () => handleDeletePesee(pesee),
+                              },
+                              {
+                                text: 'Annuler',
+                                style: 'cancel',
+                              },
+                            ]
+                          );
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.historyItemHeader}>
+                          <Text style={[styles.historyDate, { color: colors.textSecondary }]}>
+                            {format(new Date(pesee.date), 'dd MMM yyyy', { locale: fr })}
+                          </Text>
+                          <Text style={[styles.historyPoids, { color: colors.text }]}>
+                            {pesee.poids_kg.toFixed(1)} kg
+                          </Text>
+                        </View>
+                        {pesee.gmq && (
+                          <Text style={[styles.historyGmq, { color: colors.primary }]}>
+                            GMQ: {pesee.gmq.toFixed(0)} g/j
+                          </Text>
+                        )}
+                        {pesee.commentaire && (
+                          <Text style={[styles.historyComment, { color: colors.textTertiary }]}>
+                            {pesee.commentaire}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                </View>
+              )}
+            </View>
+          )}
+        </TouchableOpacity>
+      );
+    }
+  );
 
   // Définir renderAnimal, ListHeader et ListFooter AVANT les retours anticipés pour éviter les problèmes de hooks
-  const renderAnimal = useCallback(({ item }: { item: typeof animauxAvecStats[0] }) => {
-    const isSelected = selectedAnimal?.id === item.animal.id;
-    const pesees = peseesParAnimal[item.animal.id] || [];
-    
-    return (
-      <AnimalCard
-        item={item}
-        isSelected={isSelected}
-        pesees={pesees}
-        onSelect={(animal) => setSelectedAnimal(isSelected ? null : animal)}
-        onPesee={(animal) => {
-          if (!canCreate('reproduction')) {
-            Alert.alert('Permission refusée', 'Vous n\'avez pas la permission d\'ajouter des pesées.');
-            return;
-          }
-          setSelectedAnimal(animal);
-          setShowPeseeModal(true);
-        }}
-        onEdit={(animal) => {
-          if (!canUpdate('reproduction')) {
-            Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les animaux.');
-            return;
-          }
-          setSelectedAnimal(animal);
-          setIsEditing(true);
-          setShowAnimalModal(true);
-        }}
-        onDelete={handleDelete}
-      />
-    );
-  }, [selectedAnimal, peseesParAnimal, handleDelete, setSelectedAnimal, setShowPeseeModal, setIsEditing, setShowAnimalModal, canCreate, canUpdate]);
+  const renderAnimal = useCallback(
+    ({ item }: { item: (typeof animauxAvecStats)[0] }) => {
+      const isSelected = selectedAnimal?.id === item.animal.id;
+      const pesees = peseesParAnimal[item.animal.id] || [];
+
+      return (
+        <AnimalCard
+          item={item}
+          isSelected={isSelected}
+          pesees={pesees}
+          onSelect={(animal) => setSelectedAnimal(isSelected ? null : animal)}
+          onPesee={(animal) => {
+            if (!canCreate('reproduction')) {
+              Alert.alert(
+                'Permission refusée',
+                "Vous n'avez pas la permission d'ajouter des pesées."
+              );
+              return;
+            }
+            setSelectedAnimal(animal);
+            setShowPeseeModal(true);
+          }}
+          onEdit={(animal) => {
+            if (!canUpdate('reproduction')) {
+              Alert.alert(
+                'Permission refusée',
+                "Vous n'avez pas la permission de modifier les animaux."
+              );
+              return;
+            }
+            setSelectedAnimal(animal);
+            setIsEditing(true);
+            setShowAnimalModal(true);
+          }}
+          onDelete={handleDelete}
+        />
+      );
+    },
+    [
+      selectedAnimal,
+      peseesParAnimal,
+      handleDelete,
+      setSelectedAnimal,
+      setShowPeseeModal,
+      setIsEditing,
+      setShowAnimalModal,
+      canCreate,
+      canUpdate,
+    ]
+  );
 
   // Calculer le poids total du cheptel basé sur les dernières pesées
   const poidsTotalCheptel = useMemo(() => {
     const animauxActifs = animaux.filter((a) => a.statut?.toLowerCase() === 'actif');
     let poidsTotal = 0;
     let animauxAvecPesee = 0;
+    let sommeGMQ = 0;
+    let animauxAvecGMQ = 0;
 
     animauxActifs.forEach((animal) => {
       const pesees = peseesParAnimal[animal.id] || [];
       if (pesees.length > 0) {
-        // Prendre la pesée la plus récente (déjà triée DESC)
-        poidsTotal += pesees[0].poids_kg;
+        // Les pesées sont triées par date ASC, donc la dernière est à la fin
+        const dernierePesee = pesees[pesees.length - 1];
+        poidsTotal += dernierePesee.poids_kg;
         animauxAvecPesee++;
+
+        // Calculer le GMQ moyen de l'animal
+        const gmqMoyen = calculerGMQMoyen(pesees);
+        if (gmqMoyen > 0) {
+          sommeGMQ += gmqMoyen;
+          animauxAvecGMQ++;
+        }
       }
     });
 
-    return { poidsTotal, animauxAvecPesee, animauxActifs: animauxActifs.length };
+    const gmqMoyenCheptel = animauxAvecGMQ > 0 ? sommeGMQ / animauxAvecGMQ : 0;
+
+    return {
+      poidsTotal,
+      animauxAvecPesee,
+      animauxActifs: animauxActifs.length,
+      gmqMoyenCheptel,
+    };
   }, [animaux, peseesParAnimal]);
 
-  // État pour la période du graphe de poids total
+  // Période par défaut pour le graphe de poids total
   const [periodePoidsFerme, setPeriodePoidsFerme] = useState<7 | 30 | 90>(30);
-  const [showGraphPoidsFerme, setShowGraphPoidsFerme] = useState(true);
 
   // Calculer l'évolution du poids total de la ferme dans le temps
   const evolutionPoidsFerme = useMemo(() => {
     const animauxActifs = animaux.filter((a) => a.statut?.toLowerCase() === 'actif');
-    
+
     // Collecter toutes les pesées des animaux actifs
     const toutesLesPesees: (ProductionPesee & { animalId: string })[] = [];
     animauxActifs.forEach((animal) => {
@@ -497,21 +634,27 @@ export default function ProductionAnimalsListComponent() {
     }
 
     // Déterminer la plage de dates
-    const maintenant = startOfDay(new Date());
-    const dateDebut = subDays(maintenant, periodePoidsFerme);
-    const datesFiltrees = eachDayOfInterval({ start: dateDebut, end: maintenant });
+    // Utiliser la date maximale des pesées au lieu d'aujourd'hui pour inclure les pesées futures
+    const datesPesees = toutesLesPesees.map((p) => parseISO(p.date).getTime());
+    const dateMax = new Date(Math.max(...datesPesees));
+    const dateFin = startOfDay(dateMax);
+    const dateDebut = subDays(dateFin, periodePoidsFerme);
+    const datesFiltrees = eachDayOfInterval({ start: dateDebut, end: dateFin });
 
     // Grouper les pesées par date et animal (prendre la plus récente par animal par jour)
     const peseesParDateEtAnimal: { [date: string]: { [animalId: string]: number } } = {};
-    
+
     toutesLesPesees.forEach((pesee) => {
       const dateStr = format(startOfDay(parseISO(pesee.date)), 'yyyy-MM-dd');
       if (!peseesParDateEtAnimal[dateStr]) {
         peseesParDateEtAnimal[dateStr] = {};
       }
       // Si plusieurs pesées le même jour pour le même animal, garder la plus récente
-      if (!peseesParDateEtAnimal[dateStr][pesee.animalId] || 
-          new Date(pesee.date).getTime() > new Date(peseesParDateEtAnimal[dateStr][pesee.animalId]).getTime()) {
+      if (
+        !peseesParDateEtAnimal[dateStr][pesee.animalId] ||
+        new Date(pesee.date).getTime() >
+          new Date(peseesParDateEtAnimal[dateStr][pesee.animalId]).getTime()
+      ) {
         peseesParDateEtAnimal[dateStr][pesee.animalId] = pesee.poids_kg;
       }
     });
@@ -522,7 +665,7 @@ export default function ProductionAnimalsListComponent() {
 
     datesFiltrees.forEach((date) => {
       const dateStr = format(date, 'yyyy-MM-dd');
-      
+
       // Mettre à jour les derniers poids connus avec les pesées du jour
       if (peseesParDateEtAnimal[dateStr]) {
         Object.entries(peseesParDateEtAnimal[dateStr]).forEach(([animalId, poids]) => {
@@ -532,7 +675,7 @@ export default function ProductionAnimalsListComponent() {
 
       // Calculer le poids total à cette date
       const poidsTotal = Object.values(derniersPoidsConnus).reduce((sum, poids) => sum + poids, 0);
-      
+
       // Ajouter uniquement si on a au moins un poids connu
       if (Object.keys(derniersPoidsConnus).length > 0) {
         donnees.push({ date: dateStr, poidsTotal });
@@ -546,200 +689,160 @@ export default function ProductionAnimalsListComponent() {
     return donnees;
   }, [animaux, peseesParAnimal, periodePoidsFerme]);
 
-  const ListHeader = React.useCallback(() => (
-    <>
-      {/* Carte récapitulative */}
-      <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <View style={styles.summaryHeader}>
-          <TouchableOpacity
-            style={styles.summaryToggle}
-            onPress={() => {}}
-          >
-            <Text style={[styles.summaryTitle, { color: colors.text }]}>
-              📊 Suivi des pesées
-            </Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.summaryStats}>
-          <View style={styles.summaryItem}>
-            <Text style={[styles.summaryValue, { color: colors.text }]}>
-              {poidsTotalCheptel.animauxActifs}
-            </Text>
-            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Animaux actifs</Text>
-          </View>
-          <View style={[styles.dividerVertical, { backgroundColor: colors.border }]} />
-          <View style={styles.summaryItem}>
-            <Text style={[styles.summaryValue, { color: colors.text }]}>{peseesRecents.length}</Text>
-            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Pesées récentes</Text>
-          </View>
-          <View style={[styles.dividerVertical, { backgroundColor: colors.border }]} />
-          <View style={styles.summaryItem}>
-            <Text style={[styles.summaryValue, { color: colors.primary }]}>
-              {poidsTotalCheptel.poidsTotal.toFixed(0)} kg
-            </Text>
-            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Poids total</Text>
-          </View>
-        </View>
-        {poidsTotalCheptel.animauxAvecPesee < poidsTotalCheptel.animauxActifs && (
-          <View style={[styles.disclaimerContainer, { backgroundColor: `${colors.info}10`, borderColor: `${colors.info}30` }]}>
-            <Text style={[styles.disclaimerText, { color: colors.text }]}>
-              ℹ️ Poids approximatif basé sur les dernières pesées de {poidsTotalCheptel.animauxAvecPesee}/{poidsTotalCheptel.animauxActifs} animaux.
-              {poidsTotalCheptel.animauxAvecPesee < poidsTotalCheptel.animauxActifs && ' Certains animaux n\'ont pas encore été pesés.'}
-            </Text>
-          </View>
-        )}
-      </View>
-
-      {/* Graphe d'évolution du poids total de la ferme */}
-      {evolutionPoidsFerme && evolutionPoidsFerme.length > 0 && (
-        <View style={[styles.graphCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={styles.graphHeader}>
-            <TouchableOpacity
-              style={styles.graphToggle}
-              onPress={() => setShowGraphPoidsFerme(!showGraphPoidsFerme)}
-            >
-              <Text style={[styles.graphTitle, { color: colors.text }]}>
-                📈 Évolution du poids total
-              </Text>
-              <Text style={[styles.graphToggleIcon, { color: colors.primary }]}>
-                {showGraphPoidsFerme ? '▼' : '▶'}
-              </Text>
+  const ListHeader = React.useCallback(
+    () => (
+      <>
+        {/* Carte récapitulative */}
+        <View
+          style={[
+            styles.summaryCard,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
+          <View style={styles.summaryHeader}>
+            <TouchableOpacity style={styles.summaryToggle} onPress={() => {}}>
+              <Text style={[styles.summaryTitle, { color: colors.text }]}>📊 Suivi des pesées</Text>
             </TouchableOpacity>
           </View>
-
-          {showGraphPoidsFerme && (
-            <>
-              {/* Sélecteur de période */}
-              <View style={styles.periodSelector}>
-                {([7, 30, 90] as const).map((jours) => (
-                  <TouchableOpacity
-                    key={jours}
-                    style={[
-                      styles.periodButton,
-                      {
-                        backgroundColor: periodePoidsFerme === jours ? colors.primary : colors.background,
-                        borderColor: periodePoidsFerme === jours ? colors.primary : colors.border,
-                      },
-                    ]}
-                    onPress={() => setPeriodePoidsFerme(jours)}
-                  >
-                    <Text
-                      style={[
-                        styles.periodButtonText,
-                        { color: periodePoidsFerme === jours ? colors.textOnPrimary : colors.text },
-                      ]}
-                    >
-                      {jours}j
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              {/* Graphe */}
-              <LineChart
-                data={{
-                  labels: evolutionPoidsFerme.map((d, idx) => {
-                    // Afficher seulement quelques labels pour éviter la surcharge
-                    if (evolutionPoidsFerme.length <= 7) {
-                      return format(parseISO(d.date), 'dd/MM');
-                    } else if (evolutionPoidsFerme.length <= 30) {
-                      return idx % 5 === 0 ? format(parseISO(d.date), 'dd/MM') : '';
-                    } else {
-                      return idx % 15 === 0 ? format(parseISO(d.date), 'dd/MM') : '';
-                    }
-                  }),
-                  datasets: [
-                    {
-                      data: evolutionPoidsFerme.map((d) => d.poidsTotal),
-                      color: () => colors.primary,
-                      strokeWidth: 3,
-                    },
-                  ],
-                }}
-                width={Dimensions.get('window').width - SPACING.lg * 4 - SPACING.md * 2}
-                height={220}
-                chartConfig={{
-                  backgroundColor: colors.surface,
-                  backgroundGradientFrom: colors.surface,
-                  backgroundGradientTo: colors.surface,
-                  decimalPlaces: 0,
-                  color: (opacity = 1) => colors.text + Math.round(opacity * 255).toString(16).padStart(2, '0'),
-                  labelColor: (opacity = 1) => colors.textSecondary + Math.round(opacity * 255).toString(16).padStart(2, '0'),
-                  style: {
-                    borderRadius: BORDER_RADIUS.lg,
-                  },
-                  propsForDots: {
-                    r: '4',
-                    strokeWidth: '2',
-                    stroke: colors.surface,
-                  },
-                  propsForBackgroundLines: {
-                    strokeDasharray: '',
-                    stroke: colors.border,
-                    strokeWidth: 1,
-                  },
-                  fillShadowGradient: colors.primary,
-                  fillShadowGradientOpacity: 0.3,
-                }}
-                bezier
-                style={styles.chart}
-                withInnerLines={true}
-                withOuterLines={true}
-                withVerticalLines={false}
-                withHorizontalLines={true}
-                withVerticalLabels={true}
-                withHorizontalLabels={true}
-                fromZero={true}
-              />
-
-              {/* Légende */}
-              <View style={styles.legend}>
-                <View style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: colors.primary }]} />
-                  <Text style={[styles.legendText, { color: colors.text }]}>
-                    Poids total (kg)
-                  </Text>
-                </View>
-              </View>
-
-              {/* Info */}
-              <View style={[styles.infoBox, { backgroundColor: `${colors.info}10`, borderColor: `${colors.info}30` }]}>
-                <Text style={[styles.infoText, { color: colors.text }]}>
-                  💡 Ce graphe montre l'évolution du poids cumulé de tous les animaux actifs
-                </Text>
-              </View>
-            </>
+          <View style={styles.summaryStats}>
+            <View style={styles.summaryItem}>
+              <Text style={[styles.summaryValue, { color: colors.text }]}>
+                {poidsTotalCheptel.animauxActifs}
+              </Text>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+                Animaux actifs
+              </Text>
+            </View>
+            <View style={[styles.dividerVertical, { backgroundColor: colors.border }]} />
+            <View style={styles.summaryItem}>
+              <Text style={[styles.summaryValue, { color: colors.text }]}>
+                {peseesRecents.length}
+              </Text>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+                Pesées récentes
+              </Text>
+            </View>
+            <View style={[styles.dividerVertical, { backgroundColor: colors.border }]} />
+            <View style={styles.summaryItem}>
+              <Text style={[styles.summaryValue, { color: colors.primary }]}>
+                {poidsTotalCheptel.poidsTotal.toFixed(0)} kg
+              </Text>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+                Poids total
+              </Text>
+            </View>
+          </View>
+          {poidsTotalCheptel.animauxAvecPesee < poidsTotalCheptel.animauxActifs && (
+            <View
+              style={[
+                styles.disclaimerContainer,
+                { backgroundColor: `${colors.info}10`, borderColor: `${colors.info}30` },
+              ]}
+            >
+              <Text style={[styles.disclaimerText, { color: colors.text }]}>
+                ℹ️ Poids approximatif basé sur les dernières pesées de{' '}
+                {poidsTotalCheptel.animauxAvecPesee}/{poidsTotalCheptel.animauxActifs} animaux.
+                {poidsTotalCheptel.animauxAvecPesee < poidsTotalCheptel.animauxActifs &&
+                  " Certains animaux n'ont pas encore été pesés."}
+              </Text>
+            </View>
           )}
         </View>
-      )}
 
-      {/* Barre de recherche */}
-      <View style={[styles.searchContainer, { backgroundColor: colors.surface, ...colors.shadow.small }]}>
-        <Ionicons name="search" size={20} color={colors.textSecondary} style={styles.searchIcon} />
-        <TextInput
-          style={[styles.searchInput, { color: colors.text }]}
-          placeholder="Rechercher par code ou nom..."
-          placeholderTextColor={colors.textSecondary}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
-            <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
-          </TouchableOpacity>
+        {/* Sélecteur de période */}
+        {evolutionPoidsFerme && evolutionPoidsFerme.length > 0 && (
+          <View style={[styles.periodSelectorContainer, { marginHorizontal: SPACING.md, marginTop: SPACING.md }]}>
+            <View style={styles.periodSelector}>
+              {([7, 30, 90] as const).map((jours) => (
+                <TouchableOpacity
+                  key={jours}
+                  style={[
+                    styles.periodButton,
+                    {
+                      backgroundColor:
+                        periodePoidsFerme === jours ? colors.primary : colors.background,
+                      borderColor: periodePoidsFerme === jours ? colors.primary : colors.border,
+                    },
+                  ]}
+                  onPress={() => setPeriodePoidsFerme(jours)}
+                >
+                  <Text
+                    style={[
+                      styles.periodButtonText,
+                      {
+                        color: periodePoidsFerme === jours ? colors.textOnPrimary : colors.text,
+                      },
+                    ]}
+                  >
+                    {jours}j
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
         )}
-      </View>
 
-      {/* Titre de la liste */}
-      <View style={styles.listContainer}>
-        <Text style={[styles.listTitle, { color: colors.text }]}>
-          {searchQuery ? `Résultats (${animauxFiltres.length})` : `Mes animaux (${animaux.length})`}
-        </Text>
-      </View>
-    </>
-  ), [colors, animaux, peseesRecents.length, poidsTotalCheptel, searchQuery, animauxFiltres.length, evolutionPoidsFerme, periodePoidsFerme, showGraphPoidsFerme]);
+        {/* Graphe d'évolution du poids total de la ferme */}
+        {evolutionPoidsFerme && evolutionPoidsFerme.length > 0 && (
+          <View style={{ marginHorizontal: SPACING.md }}>
+            <TotalWeightEvolutionChart
+              evolutionData={evolutionPoidsFerme}
+              nombreAnimaux={poidsTotalCheptel.animauxActifs}
+              gmqMoyenCheptel={poidsTotalCheptel.gmqMoyenCheptel}
+            />
+          </View>
+        )}
+
+        {/* Barre de recherche */}
+        <View
+          style={[
+            styles.searchContainer,
+            { backgroundColor: colors.surface, ...colors.shadow.small },
+          ]}
+        >
+          <Ionicons
+            name="search"
+            size={20}
+            color={colors.textSecondary}
+            style={styles.searchIcon}
+          />
+          <TextInput
+            style={[styles.searchInput, { color: colors.text }]}
+            placeholder="Rechercher par code ou nom..."
+            placeholderTextColor={colors.textSecondary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
+              <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Titre de la liste */}
+        <View style={styles.listContainer}>
+          <Text style={[styles.listTitle, { color: colors.text }]}>
+            {searchQuery
+              ? `Résultats (${animauxFiltres.length})`
+              : `Mes animaux (${animaux.length})`}
+          </Text>
+        </View>
+      </>
+    ),
+    [
+      colors,
+      animaux,
+      peseesRecents.length,
+      poidsTotalCheptel,
+      searchQuery,
+      animauxFiltres.length,
+      evolutionPoidsFerme,
+      periodePoidsFerme,
+    ]
+  );
 
   const ListFooter = React.useCallback(() => {
     if (displayedAnimals.length >= animauxFiltres.length) {
@@ -823,7 +926,7 @@ export default function ProductionAnimalsListComponent() {
         isEditing={isEditing}
       />
 
-      {selectedAnimal && (
+      {selectedAnimal && projetActif && (
         <ProductionPeseeFormModal
           visible={showPeseeModal}
           onClose={() => {
@@ -835,12 +938,10 @@ export default function ProductionAnimalsListComponent() {
             setShowPeseeModal(false);
             setIsEditingPesee(false);
             setSelectedPesee(null);
-            if (projetActif) {
-              dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 }));
-              dispatch(loadPeseesParAnimal(selectedAnimal.id));
-            }
+            dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 }));
+            dispatch(loadPeseesParAnimal(selectedAnimal.id));
           }}
-          projetId={projetActif?.id || ''}
+          projetId={projetActif.id}
           animal={selectedAnimal}
           pesee={isEditingPesee ? selectedPesee : null}
           isEditing={isEditingPesee}
@@ -1092,10 +1193,12 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.md,
     fontWeight: '700',
   },
+  periodSelectorContainer: {
+    marginBottom: 0,
+  },
   periodSelector: {
     flexDirection: 'row',
     gap: SPACING.sm,
-    marginBottom: SPACING.md,
   },
   periodButton: {
     flex: 1,
@@ -1143,5 +1246,25 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
     lineHeight: FONT_SIZES.sm * 1.5,
   },
+  gmqEvaluationBox: {
+    marginTop: SPACING.md,
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1.5,
+    marginHorizontal: SPACING.sm,
+  },
+  gmqEvaluationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    marginBottom: SPACING.xs,
+  },
+  gmqEvaluationTitle: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '700',
+  },
+  gmqEvaluationText: {
+    fontSize: FONT_SIZES.sm,
+    lineHeight: FONT_SIZES.sm * 1.6,
+  },
 });
-

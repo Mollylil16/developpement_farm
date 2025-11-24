@@ -13,11 +13,11 @@ export function formatLocalDate(isoDate: string): string {
     if (isNaN(date.getTime())) {
       return '';
     }
-    
+
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
-    
+
     return `${year}-${month}-${day}`;
   } catch (error) {
     console.error('Erreur lors du formatage de la date:', error);
@@ -35,14 +35,14 @@ export function parseLocalDate(localDate: string): Date {
     if (!localDate) {
       return new Date();
     }
-    
+
     // Ajouter l'heure midi pour éviter les problèmes de timezone
     const date = new Date(`${localDate}T12:00:00.000Z`);
-    
+
     if (isNaN(date.getTime())) {
       return new Date();
     }
-    
+
     return date;
   } catch (error) {
     console.error('Erreur lors du parsing de la date:', error);
@@ -70,7 +70,7 @@ export function formatDisplayDate(isoDate: string, locale: string = 'fr-FR'): st
     if (isNaN(date.getTime())) {
       return '';
     }
-    
+
     return date.toLocaleDateString(locale, {
       year: 'numeric',
       month: 'long',
@@ -92,14 +92,14 @@ export function getDaysDifference(date1: string, date2: string): number {
   try {
     const d1 = new Date(date1);
     const d2 = new Date(date2);
-    
+
     if (isNaN(d1.getTime()) || isNaN(d2.getTime())) {
       return 0;
     }
-    
+
     const diffTime = Math.abs(d2.getTime() - d1.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     return diffDays;
   } catch (error) {
     console.error('Erreur lors du calcul de la différence:', error);
@@ -116,11 +116,11 @@ export function isDateInPast(isoDate: string): boolean {
   try {
     const date = new Date(isoDate);
     const now = new Date();
-    
+
     if (isNaN(date.getTime())) {
       return false;
     }
-    
+
     return date < now;
   } catch (error) {
     console.error('Erreur lors de la vérification de la date:', error);
@@ -137,11 +137,11 @@ export function isDateInFuture(isoDate: string): boolean {
   try {
     const date = new Date(isoDate);
     const now = new Date();
-    
+
     if (isNaN(date.getTime())) {
       return false;
     }
-    
+
     return date > now;
   } catch (error) {
     console.error('Erreur lors de la vérification de la date:', error);
@@ -158,16 +158,15 @@ export function isDateInFuture(isoDate: string): boolean {
 export function addDays(isoDate: string, days: number): string {
   try {
     const date = new Date(isoDate);
-    
+
     if (isNaN(date.getTime())) {
       return new Date().toISOString();
     }
-    
+
     date.setDate(date.getDate() + days);
     return date.toISOString();
   } catch (error) {
-    console.error('Erreur lors de l\'ajout de jours:', error);
+    console.error("Erreur lors de l'ajout de jours:", error);
     return new Date().toISOString();
   }
 }
-

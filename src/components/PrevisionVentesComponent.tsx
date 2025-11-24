@@ -39,16 +39,22 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
 
-  const { previsionsVentes, loading, parametresProduction, simulationResultat, sailliesPlanifiees } = useAppSelector((state) => state.planningProduction);
+  const {
+    previsionsVentes,
+    loading,
+    parametresProduction,
+    simulationResultat,
+    sailliesPlanifiees,
+  } = useAppSelector((state) => state.planningProduction);
   const animaux = useAppSelector(selectAllAnimaux);
   const projetActif = useAppSelector((state) => state.auth.projetActif);
 
   const [vueListe, setVueListe] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  
+
   // Sélection du mode de prévision
   const [modePrevu, setModePrevu] = useState<'cheptel' | 'projection'>('cheptel');
-  
+
   // Paramètres pour la génération des prévisions (Mode 1 : Cheptel actuel)
   const [poidsCible, setPoidsCible] = useState(
     parametresProduction.poids_moyen_vente_kg.toString()
@@ -75,29 +81,27 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
 
   // Animaux à vendre (non reproducteurs uniquement)
   // Exclure les verrats (male + reproducteur) et truies (femelle + reproducteur)
-  const animauxAVendre = (animaux || []).filter(
-    (a) => {
-      // Exclure les reproducteurs
-      if (a.reproducteur === true) {
-        return false;
-      }
-      // Inclure uniquement les animaux actifs
-      return a.statut === 'actif';
+  const animauxAVendre = (animaux || []).filter((a) => {
+    // Exclure les reproducteurs
+    if (a.reproducteur === true) {
+      return false;
     }
-  );
+    // Inclure uniquement les animaux actifs
+    return a.statut === 'actif';
+  });
 
   // Debug log
   useEffect(() => {
     console.log('📊 PrevisionVentesComponent Debug:', {
       totalAnimaux: animaux?.length || 0,
       animauxAVendre: animauxAVendre.length,
-      animaux: animaux?.map(a => ({
+      animaux: animaux?.map((a) => ({
         id: a.id,
         code: a.code,
         sexe: a.sexe,
         reproducteur: a.reproducteur,
-        statut: a.statut
-      }))
+        statut: a.statut,
+      })),
     });
   }, [animaux, animauxAVendre]);
 
@@ -115,7 +119,7 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
         Alert.alert(
           'Aucun animal à vendre',
           'Le cheptel ne contient aucun animal non reproducteur actif.\n\n' +
-          'Les reproducteurs (verrats et truies) sont exclus des prévisions de ventes.'
+            'Les reproducteurs (verrats et truies) sont exclus des prévisions de ventes.'
         );
         return;
       }
@@ -123,10 +127,10 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
       Alert.alert(
         'Générer les prévisions - Mode Cheptel',
         `📊 Basé sur les animaux actuels\n\n` +
-        `• ${animauxAVendre.length} animal(aux) à vendre\n` +
-        `• Poids cible : ${poids} kg\n` +
-        `• GMQ : Calculé depuis les pesées\n\n` +
-        `Le système calculera la date de vente pour chaque animal.`,
+          `• ${animauxAVendre.length} animal(aux) à vendre\n` +
+          `• Poids cible : ${poids} kg\n` +
+          `• GMQ : Calculé depuis les pesées\n\n` +
+          `Le système calculera la date de vente pour chaque animal.`,
         [
           { text: 'Annuler', style: 'cancel' },
           {
@@ -143,9 +147,7 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
         Alert.alert(
           'Aucune saillie planifiée',
           'Vous devez d\'abord générer un plan de saillies dans l\'onglet "Saillies" pour utiliser la projection future.',
-          [
-            { text: 'OK' },
-          ]
+          [{ text: 'OK' }]
         );
         return;
       }
@@ -153,10 +155,10 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
       Alert.alert(
         'Générer les prévisions - Mode Projection',
         `📈 Basé sur les saillies planifiées\n\n` +
-        `• ${sailliesPlanifiees.length} saillie(s) planifiée(s)\n` +
-        `• Poids cible : ${poids} kg\n` +
-        `• Projection sur 12-24 mois\n\n` +
-        `Le système calculera les ventes futures de toutes les portées.`,
+          `• ${sailliesPlanifiees.length} saillie(s) planifiée(s)\n` +
+          `• Poids cible : ${poids} kg\n` +
+          `• Projection sur 12-24 mois\n\n` +
+          `Le système calculera les ventes futures de toutes les portées.`,
         [
           { text: 'Annuler', style: 'cancel' },
           {
@@ -171,20 +173,16 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
   };
 
   const handleSupprimerPrevision = (id: string) => {
-    Alert.alert(
-      'Supprimer la prévision',
-      'Êtes-vous sûr de vouloir supprimer cette prévision ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: () => {
-            dispatch(supprimerPrevisionVente(id));
-          },
+    Alert.alert('Supprimer la prévision', 'Êtes-vous sûr de vouloir supprimer cette prévision ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Supprimer',
+        style: 'destructive',
+        onPress: () => {
+          dispatch(supprimerPrevisionVente(id));
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const getMarkedDates = () => {
@@ -217,9 +215,7 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
 
   const getPrevisionsForDate = (date: string) => {
     return (previsionsVentes || []).filter(
-      (p) =>
-        p.date_vente_prevue &&
-        format(parseISO(p.date_vente_prevue), 'yyyy-MM-dd') === date
+      (p) => p.date_vente_prevue && format(parseISO(p.date_vente_prevue), 'yyyy-MM-dd') === date
     );
   };
 
@@ -244,12 +240,24 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
             style={[
               styles.modeButton,
               modePrevu === 'cheptel' && styles.modeButtonActive,
-              { backgroundColor: modePrevu === 'cheptel' ? colors.primary : colors.background, borderColor: colors.border }
+              {
+                backgroundColor: modePrevu === 'cheptel' ? colors.primary : colors.background,
+                borderColor: colors.border,
+              },
             ]}
             onPress={() => setModePrevu('cheptel')}
           >
-            <Ionicons name="livestock" size={18} color={modePrevu === 'cheptel' ? '#fff' : colors.text} />
-            <Text style={[styles.modeButtonText, { color: modePrevu === 'cheptel' ? '#fff' : colors.text }]}>
+            <Ionicons
+              name="paw"
+              size={18}
+              color={modePrevu === 'cheptel' ? '#fff' : colors.text}
+            />
+            <Text
+              style={[
+                styles.modeButtonText,
+                { color: modePrevu === 'cheptel' ? '#fff' : colors.text },
+              ]}
+            >
               Cheptel actuel
             </Text>
           </TouchableOpacity>
@@ -257,35 +265,59 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
             style={[
               styles.modeButton,
               modePrevu === 'projection' && styles.modeButtonActive,
-              { backgroundColor: modePrevu === 'projection' ? colors.primary : colors.background, borderColor: colors.border }
+              {
+                backgroundColor: modePrevu === 'projection' ? colors.primary : colors.background,
+                borderColor: colors.border,
+              },
             ]}
             onPress={() => setModePrevu('projection')}
           >
-            <Ionicons name="trending-up" size={18} color={modePrevu === 'projection' ? '#fff' : colors.text} />
-            <Text style={[styles.modeButtonText, { color: modePrevu === 'projection' ? '#fff' : colors.text }]}>
+            <Ionicons
+              name="trending-up"
+              size={18}
+              color={modePrevu === 'projection' ? '#fff' : colors.text}
+            />
+            <Text
+              style={[
+                styles.modeButtonText,
+                { color: modePrevu === 'projection' ? '#fff' : colors.text },
+              ]}
+            >
               Projection future
             </Text>
           </TouchableOpacity>
         </View>
 
         {/* Formulaire de paramétrage */}
-        <View style={[styles.paramBox, { backgroundColor: colors.background, borderColor: colors.border }]}>
+        <View
+          style={[
+            styles.paramBox,
+            { backgroundColor: colors.background, borderColor: colors.border },
+          ]}
+        >
           <Text style={[styles.paramTitle, { color: colors.text }]}>
-            {modePrevu === 'cheptel' 
-              ? `📊 Mode : Cheptel actuel (${animauxAVendre.length} animaux à vendre)` 
+            {modePrevu === 'cheptel'
+              ? `📊 Mode : Cheptel actuel (${animauxAVendre.length} animaux à vendre)`
               : `📈 Mode : Projection future (${sailliesPlanifiees?.length || 0} saillies planifiées)`}
           </Text>
           <Text style={[styles.paramSubtitle, { color: colors.textSecondary }]}>
-            {modePrevu === 'cheptel' 
-              ? 'GMQ calculé automatiquement depuis l\'historique des pesées' 
+            {modePrevu === 'cheptel'
+              ? "GMQ calculé automatiquement depuis l'historique des pesées"
               : 'Prévisions basées sur les saillies planifiées et la simulation'}
           </Text>
-          
+
           <View style={styles.paramRow}>
             <View style={styles.paramField}>
               <Text style={[styles.paramLabel, { color: colors.text }]}>Poids cible (kg)</Text>
               <TextInput
-                style={[styles.paramInput, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]}
+                style={[
+                  styles.paramInput,
+                  {
+                    backgroundColor: colors.surface,
+                    color: colors.text,
+                    borderColor: colors.border,
+                  },
+                ]}
                 value={poidsCible}
                 onChangeText={setPoidsCible}
                 keyboardType="decimal-pad"
@@ -294,12 +326,13 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
               />
             </View>
           </View>
-          
+
           {animaux && animaux.length > 0 && (
             <View style={styles.infoRow}>
               <Ionicons name="information-circle" size={14} color={colors.primary} />
               <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-                {animaux.length} animal(aux) total · {animaux.filter(a => a.reproducteur).length} reproducteur(s) exclu(s)
+                {animaux.length} animal(aux) total · {animaux.filter((a) => a.reproducteur).length}{' '}
+                reproducteur(s) exclu(s)
               </Text>
             </View>
           )}
@@ -387,8 +420,8 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
             return (
               <View key={prevision.animal_id} style={styles.miniPrevisionCard}>
                 <Text style={[styles.miniPrevisionText, { color: colors.text }]}>
-                  🐷 {animal?.nom || 'Animal inconnu'} - {prevision.poids_actuel.toFixed(1)} kg
-                  → {prevision.poids_cible} kg
+                  🐷 {animal?.nom || 'Animal inconnu'} - {prevision.poids_actuel.toFixed(1)} kg →{' '}
+                  {prevision.poids_cible} kg
                 </Text>
               </View>
             );
@@ -420,8 +453,7 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
   const renderPrevisionCard = ({ item }: { item: PrevisionVenteAnimal }) => {
     const animal = animaux.find((a) => a.id === item.animal_id);
 
-    const progressionPoids =
-      ((item.poids_actuel - 0) / (item.poids_cible - 0)) * 100;
+    const progressionPoids = ((item.poids_actuel - 0) / (item.poids_cible - 0)) * 100;
 
     let urgenceColor = colors.success;
     let urgenceIcon = 'checkmark-circle';
@@ -547,10 +579,7 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
       {vueListe ? (
         renderListe()
       ) : (
-        <ScrollView
-          contentContainerStyle={styles.content}
-          refreshControl={refreshControl}
-        >
+        <ScrollView contentContainerStyle={styles.content} refreshControl={refreshControl}>
           {renderHeader()}
           {renderCalendrier()}
         </ScrollView>
@@ -849,4 +878,3 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
 });
-

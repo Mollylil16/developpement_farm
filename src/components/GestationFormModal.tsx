@@ -3,7 +3,15 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  TextInput,
+} from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { createGestation, updateGestation } from '../store/slices/reproductionSlice';
@@ -18,14 +26,14 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { selectAllAnimaux } from '../store/selectors/productionSelectors';
 import { selectAllMortalites } from '../store/selectors/mortalitesSelectors';
-import { 
-  detecterConsanguinite, 
-  getCouleurRisque, 
-  getIconeRisque, 
+import {
+  detecterConsanguinite,
+  getCouleurRisque,
+  getIconeRisque,
   doitBloquerAccouplement,
   doitAfficherAvertissement,
   ResultatConsanguinite,
-  RisqueConsanguinite
+  RisqueConsanguinite,
 } from '../utils/consanguiniteUtils';
 
 interface GestationFormModalProps {
@@ -88,7 +96,9 @@ export default function GestationFormModal({
   const [searchQuery, setSearchQuery] = useState('');
   const [showFullList, setShowFullList] = useState(false);
   const [verratSearchQuery, setVerratSearchQuery] = useState('');
-  const [resultatConsanguinite, setResultatConsanguinite] = useState<ResultatConsanguinite | null>(null);
+  const [resultatConsanguinite, setResultatConsanguinite] = useState<ResultatConsanguinite | null>(
+    null
+  );
 
   // Charger les animaux et mortalités au montage du composant
   useEffect(() => {
@@ -98,20 +108,19 @@ export default function GestationFormModal({
     }
   }, [dispatch, projetActif?.id, visible]);
 
-
   // Générer une liste de truies basée sur le projet actif (en soustrayant les mortalités)
   const truies = useMemo(() => {
     if (!projetActif) return [];
-    
+
     // Calculer le nombre de truies mortes
     const mortalitesProjet = mortalites.filter((m: Mortalite) => m.projet_id === projetActif.id);
     const mortalitesTruies = mortalitesProjet
       .filter((m: Mortalite) => m.categorie === 'truie')
       .reduce((sum: number, m: Mortalite) => sum + (m.nombre_porcs || 0), 0);
-    
+
     // Nombre de truies actives = nombre initial - mortalités
     const nombreTruiesActives = Math.max(0, projetActif.nombre_truies - mortalitesTruies);
-    
+
     const truiesList = [];
     for (let i = 1; i <= nombreTruiesActives; i++) {
       truiesList.push({
@@ -128,85 +137,63 @@ export default function GestationFormModal({
     return animaux.filter((a: ProductionAnimal) => a.projet_id === projetActif.id);
   }, [animaux, projetActif?.id]);
 
-  // Générer une liste de verrats basée sur le projet actif (en soustrayant les mortalités)
-  // Combiner les verrats virtuels (basés sur nombre_verrats) avec les verrats enregistrés dans le cheptel
+  // Générer une liste de verrats basée uniquement sur les verrats réellement enregistrés dans le cheptel
+  // Ne plus créer de verrats virtuels pour éviter les verrats fantômes
   const verrats = useMemo(() => {
     if (!projetActif) {
-      console.log('No active project for verrats');
       return [];
     }
 
-    // Calculer le nombre de verrats morts
-    const mortalitesProjet = mortalites.filter((m: Mortalite) => m.projet_id === projetActif.id);
-    const mortalitesVerrats = mortalitesProjet
-      .filter((m: Mortalite) => m.categorie === 'verrat')
-      .reduce((sum: number, m: Mortalite) => sum + (m.nombre_porcs || 0), 0);
-    
-    // Nombre de verrats actifs = nombre initial - mortalités
-    const nombreVerratsInitial = projetActif.nombre_verrats ?? 0;
-    const nombreVerratsActifs = Math.max(0, nombreVerratsInitial - mortalitesVerrats);
-    
-    console.log('Calculating verrats:', {
-      nombreVerratsInitial,
-      mortalitesVerrats,
-      nombreVerratsActifs,
-    });
-    
-    // Créer une liste de verrats virtuels (comme pour les truies)
-    const verratsVirtuels: VerratOption[] = [];
-    for (let i = 1; i <= nombreVerratsActifs; i++) {
-      verratsVirtuels.push({
-        id: `verrat_${i}`,
-        code: `VER${i}`,
-        nom: `Verrat ${i}`,
-        sexe: 'male' as const,
-        statut: 'actif' as const,
-        reproducteur: true,
-        numero: i,
-      });
-    }
-
-    // Récupérer les verrats réellement enregistrés dans le cheptel
-    const malesActifsEnregistres = animauxProjet.filter(
+    // Récupérer uniquement les verrats réellement enregistrés dans le cheptel
+    // Filtrer : mâles actifs ET reproducteurs
+    const verratsEnregistres = animauxProjet.filter(
       (a: ProductionAnimal) =>
         a.sexe === 'male' &&
-        (a.statut?.toLowerCase() === 'actif' || a.id === formData.verrat_id)
+        a.statut?.toLowerCase() === 'actif' &&
+        (a.reproducteur === true || a.reproducteur === 1 || a.reproducteur === '1') &&
+        a.projet_id === projetActif.id
     );
 
-    // Combiner les deux listes, en évitant les doublons
-    // Si un verrat enregistré a le même code qu'un virtuel, on garde l'enregistré
-    const verratsCombines: VerratOption[] = [...verratsVirtuels];
-    malesActifsEnregistres.forEach((verratEnregistre: ProductionAnimal) => {
-      const indexExistant = verratsCombines.findIndex(
-        (v) => v.id === verratEnregistre.id || v.code === verratEnregistre.code
-      );
-      const numero = parseInt(verratEnregistre.code?.replace(/\D/g, '') || '0') || 0;
-      const verratOption: VerratOption = {
-        id: verratEnregistre.id,
-        code: verratEnregistre.code || `VER${numero}`,
-        nom: verratEnregistre.nom || `Verrat ${numero}`,
-        sexe: verratEnregistre.sexe as 'male',
-        statut: verratEnregistre.statut as 'actif' | 'mort' | 'vendu' | 'offert',
-        reproducteur: verratEnregistre.reproducteur ?? true,
+    // Convertir en VerratOption
+    const verratsOptions: VerratOption[] = verratsEnregistres.map((verrat: ProductionAnimal) => {
+      const numero = parseInt(verrat.code?.replace(/\D/g, '') || '0') || 0;
+      return {
+        id: verrat.id,
+        code: verrat.code || `VER${numero}`,
+        nom: verrat.nom || `Verrat ${numero}`,
+        sexe: verrat.sexe as 'male',
+        statut: verrat.statut as 'actif' | 'mort' | 'vendu' | 'offert',
+        reproducteur: verrat.reproducteur ?? true,
         numero: numero,
-        race: verratEnregistre.race,
-        projet_id: verratEnregistre.projet_id,
+        race: verrat.race,
+        projet_id: verrat.projet_id,
       };
-      
-      if (indexExistant >= 0) {
-        // Remplacer le virtuel par l'enregistré
-        verratsCombines[indexExistant] = verratOption;
-      } else {
-        // Ajouter le verrat enregistré
-        verratsCombines.push(verratOption);
-      }
     });
 
+    // Si un verrat est déjà sélectionné dans le formulaire mais n'est plus actif, l'ajouter quand même
+    if (formData.verrat_id) {
+      const verratSelectionne = animauxProjet.find((a: ProductionAnimal) => a.id === formData.verrat_id);
+      if (verratSelectionne && !verratsOptions.find((v) => v.id === formData.verrat_id)) {
+        const numero = parseInt(verratSelectionne.code?.replace(/\D/g, '') || '0') || 0;
+        verratsOptions.push({
+          id: verratSelectionne.id,
+          code: verratSelectionne.code || `VER${numero}`,
+          nom: verratSelectionne.nom || `Verrat ${numero}`,
+          sexe: verratSelectionne.sexe as 'male',
+          statut: verratSelectionne.statut as 'actif' | 'mort' | 'vendu' | 'offert',
+          reproducteur: verratSelectionne.reproducteur ?? true,
+          numero: numero,
+          race: verratSelectionne.race,
+          projet_id: verratSelectionne.projet_id,
+        });
+      }
+    }
+
     // Trier : reproducteurs en premier, puis par code/nom
-    const verratsTries = verratsCombines.sort((a, b) => {
-      const aReproducteur = a.reproducteur ?? true; // Les virtuels sont reproducteurs par défaut
+    const verratsTries = verratsOptions.sort((a, b) => {
+      const aReproducteur = a.reproducteur ?? true;
       const bReproducteur = b.reproducteur ?? true;
-      
+
       if (aReproducteur === bReproducteur) {
         const codeA = a.code?.toLowerCase() || '';
         const codeB = b.code?.toLowerCase() || '';
@@ -215,10 +202,9 @@ export default function GestationFormModal({
 
       return aReproducteur ? -1 : 1;
     });
-    
-    console.log('Final verrats list:', verratsTries.length, verratsTries);
+
     return verratsTries;
-  }, [animauxProjet, projetActif?.id, mortalites, formData.verrat_id]);
+  }, [animauxProjet, projetActif?.id, formData.verrat_id]);
 
   // Filtrer les verrats selon la recherche
   const verratsFiltres = useMemo(() => {
@@ -284,7 +270,7 @@ export default function GestationFormModal({
     if (formData.truie_id && formData.verrat_id && animauxProjet.length > 0) {
       // Trouver la truie réelle dans le cheptel
       const truieReelle = animauxProjet.find((a) => a.id === formData.truie_id);
-      
+
       if (truieReelle) {
         const resultat = detecterConsanguinite(
           formData.truie_id,
@@ -292,13 +278,13 @@ export default function GestationFormModal({
           animauxProjet
         );
         setResultatConsanguinite(resultat);
-        
+
         // Afficher une alerte si risque critique
         if (doitBloquerAccouplement(resultat)) {
           Alert.alert(
             '🚨 Risque de Consanguinité Critique',
             `${resultat.message}\n\n${resultat.details}\n\nCet accouplement est fortement déconseillé et peut causer de graves problèmes de santé chez les porcelets.`,
-            [{ text: 'J\'ai compris', style: 'cancel' }]
+            [{ text: "J'ai compris", style: 'cancel' }]
           );
         }
       } else {
@@ -348,17 +334,20 @@ export default function GestationFormModal({
   const handleSubmit = async () => {
     // Vérifier les permissions
     if (isEditing && !canUpdate('reproduction')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les gestations.');
+      Alert.alert(
+        'Permission refusée',
+        "Vous n'avez pas la permission de modifier les gestations."
+      );
       return;
     }
     if (!isEditing && !canCreate('reproduction')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de créer des gestations.');
+      Alert.alert('Permission refusée', "Vous n'avez pas la permission de créer des gestations.");
       return;
     }
 
     // Validation
     if (!formData.projet_id) {
-      Alert.alert('Erreur', 'Aucun projet actif n\'est sélectionné pour cette gestation');
+      Alert.alert('Erreur', "Aucun projet actif n'est sélectionné pour cette gestation");
       return;
     }
     if (!formData.truie_id && !formData.truie_nom?.trim()) {
@@ -385,10 +374,10 @@ export default function GestationFormModal({
         `Un risque critique de consanguinité a été détecté :\n\n${resultatConsanguinite.message}\n\n${resultatConsanguinite.details}\n\nÊtes-vous sûr de vouloir continuer ?`,
         [
           { text: 'Annuler', style: 'cancel', onPress: () => {} },
-          { 
-            text: 'Continuer quand même', 
-            style: 'destructive', 
-            onPress: () => proceedWithSubmit() 
+          {
+            text: 'Continuer quand même',
+            style: 'destructive',
+            onPress: () => proceedWithSubmit(),
           },
         ]
       );
@@ -402,9 +391,9 @@ export default function GestationFormModal({
         `${resultatConsanguinite.message}\n\n${resultatConsanguinite.details}\n\nVoulez-vous continuer ?`,
         [
           { text: 'Annuler', style: 'cancel', onPress: () => {} },
-          { 
-            text: 'Continuer', 
-            onPress: () => proceedWithSubmit() 
+          {
+            text: 'Continuer',
+            onPress: () => proceedWithSubmit(),
           },
         ]
       );
@@ -439,7 +428,7 @@ export default function GestationFormModal({
       }
       onSuccess();
     } catch (error: any) {
-      Alert.alert('Erreur', error || 'Erreur lors de l\'enregistrement');
+      Alert.alert('Erreur', error || "Erreur lors de l'enregistrement");
     } finally {
       setLoading(false);
     }
@@ -455,408 +444,495 @@ export default function GestationFormModal({
 
   return (
     <>
-    <CustomModal
-      visible={visible}
-      onClose={onClose}
-      title={isEditing ? 'Modifier la gestation' : 'Nouvelle gestation'}
-      confirmText={isEditing ? 'Modifier' : 'Créer'}
-      onConfirm={handleSubmit}
-      showButtons={true}
-    >
-      <ScrollView 
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={true}
-        nestedScrollEnabled={true}
+      <CustomModal
+        visible={visible}
+        onClose={onClose}
+        title={isEditing ? 'Modifier la gestation' : 'Nouvelle gestation'}
+        confirmText={isEditing ? 'Modifier' : 'Créer'}
+        onConfirm={handleSubmit}
+        showButtons={true}
       >
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Truie *</Text>
-          
-          {/* Champ de saisie directe du numéro */}
-          <View style={styles.inputContainer}>
-            <Text style={[styles.inputLabel, { color: colors.text }]}>Numéro de la truie (saisie rapide)</Text>
-            <TextInput
-              style={[styles.directInput, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
-              value={directInput}
-              onChangeText={(text) => {
-                setDirectInput(text);
-                setSearchQuery(''); // Réinitialiser la recherche
-              }}
-              placeholder="Ex: 856"
-              keyboardType="numeric"
-              placeholderTextColor={colors.textSecondary}
-            />
-            {directInput.trim() && (
-              <Text style={[styles.inputHint, { color: colors.primary }]}>
-                {(() => {
-                  const numero = parseInt(directInput.trim());
-                  if (!isNaN(numero) && numero > 0 && numero <= truies.length) {
-                    return `✓ Truie ${numero} trouvée`;
-                  } else if (!isNaN(numero) && numero > truies.length) {
-                    return `✗ Numéro invalide (max: ${truies.length})`;
-                  } else {
-                    return '';
-                  }
-                })()}
+        <ScrollView
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={true}
+          nestedScrollEnabled={true}
+        >
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Truie *</Text>
+
+            {/* Champ de saisie directe du numéro */}
+            <View style={styles.inputContainer}>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>
+                Numéro de la truie (saisie rapide)
               </Text>
+              <TextInput
+                style={[
+                  styles.directInput,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.background,
+                    color: colors.text,
+                  },
+                ]}
+                value={directInput}
+                onChangeText={(text) => {
+                  setDirectInput(text);
+                  setSearchQuery(''); // Réinitialiser la recherche
+                }}
+                placeholder="Ex: 856"
+                keyboardType="numeric"
+                placeholderTextColor={colors.textSecondary}
+              />
+              {directInput.trim() && (
+                <Text style={[styles.inputHint, { color: colors.primary }]}>
+                  {(() => {
+                    const numero = parseInt(directInput.trim());
+                    if (!isNaN(numero) && numero > 0 && numero <= truies.length) {
+                      return `✓ Truie ${numero} trouvée`;
+                    } else if (!isNaN(numero) && numero > truies.length) {
+                      return `✗ Numéro invalide (max: ${truies.length})`;
+                    } else {
+                      return '';
+                    }
+                  })()}
+                </Text>
+              )}
+            </View>
+
+            {/* Barre de recherche (si pas de saisie directe valide) */}
+            {(!directInput.trim() ||
+              parseInt(directInput.trim()) > truies.length ||
+              isNaN(parseInt(directInput.trim()))) && (
+              <View style={styles.inputContainer}>
+                <Text style={[styles.inputLabel, { color: colors.text }]}>
+                  Rechercher une truie
+                </Text>
+                <TextInput
+                  style={[
+                    styles.searchInput,
+                    {
+                      borderColor: colors.border,
+                      backgroundColor: colors.background,
+                      color: colors.text,
+                    },
+                  ]}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Rechercher par nom ou numéro..."
+                  placeholderTextColor={colors.textSecondary}
+                />
+              </View>
+            )}
+
+            {/* Affichage de la truie sélectionnée */}
+            {formData.truie_id && (
+              <View
+                style={[
+                  styles.selectedTruieCard,
+                  { backgroundColor: colors.surface, borderColor: colors.primary },
+                ]}
+              >
+                <Text style={[styles.selectedTruieLabel, { color: colors.textSecondary }]}>
+                  Truie sélectionnée:
+                </Text>
+                <Text style={[styles.selectedTruieValue, { color: colors.primary }]}>
+                  {formData.truie_nom}
+                </Text>
+              </View>
+            )}
+
+            {/* Liste des résultats filtrés */}
+            {truies.length > 0 && (
+              <View style={styles.resultsContainer}>
+                {truiesFiltrees.length > 0 ? (
+                  <>
+                    <View style={styles.resultsHeader}>
+                      <Text style={[styles.resultsCount, { color: colors.textSecondary }]}>
+                        {truiesFiltrees.length} résultat{truiesFiltrees.length > 1 ? 's' : ''}
+                        {!showFullList && truiesFiltrees.length === 50 && ` (sur ${truies.length})`}
+                      </Text>
+                      {!showFullList && truies.length > 50 && (
+                        <TouchableOpacity
+                          style={[styles.showAllButton, { backgroundColor: colors.primary }]}
+                          onPress={() => setShowFullList(true)}
+                        >
+                          <Text style={[styles.showAllButtonText, { color: colors.textOnPrimary }]}>
+                            Voir toutes ({truies.length})
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                    <View style={styles.optionsContainer}>
+                      {(showFullList ? truies : truiesFiltrees).map((item) => (
+                        <TouchableOpacity
+                          key={item.id}
+                          style={[
+                            styles.option,
+                            {
+                              borderColor:
+                                formData.truie_id === item.id ? colors.primary : colors.border,
+                              backgroundColor:
+                                formData.truie_id === item.id ? colors.primary : colors.background,
+                            },
+                          ]}
+                          onPress={() => {
+                            setFormData({
+                              ...formData,
+                              truie_id: item.id,
+                              truie_nom: item.nom,
+                            });
+                            setDirectInput(item.numero.toString());
+                            setSearchQuery('');
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.optionText,
+                              {
+                                color:
+                                  formData.truie_id === item.id
+                                    ? colors.textOnPrimary
+                                    : colors.text,
+                                fontWeight: formData.truie_id === item.id ? '600' : 'normal',
+                              },
+                            ]}
+                          >
+                            {item.nom}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </>
+                ) : (
+                  <View style={styles.noResults}>
+                    <Text style={[styles.noResultsText, { color: colors.textSecondary }]}>
+                      {searchQuery.trim()
+                        ? 'Aucun résultat trouvé'
+                        : 'Commencez à rechercher ou saisissez un numéro'}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Option de saisie manuelle si aucune truie */}
+            {truies.length === 0 && (
+              <FormField
+                label="Nom de la truie"
+                value={formData.truie_nom || ''}
+                onChangeText={(text) => setFormData({ ...formData, truie_nom: text })}
+                placeholder="Ex: TRU015"
+                required
+              />
             )}
           </View>
 
-          {/* Barre de recherche (si pas de saisie directe valide) */}
-          {(!directInput.trim() || parseInt(directInput.trim()) > truies.length || isNaN(parseInt(directInput.trim()))) && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Verrat utilisé *</Text>
+            <Text style={[styles.helperText, { color: colors.textSecondary }]}>
+              Sélectionnez le verrat utilisé pour cette saillie. Ce champ est obligatoire pour
+              tracer la généalogie.
+            </Text>
+
+            {/* Champ de recherche pour verrat */}
             <View style={styles.inputContainer}>
-              <Text style={[styles.inputLabel, { color: colors.text }]}>Rechercher une truie</Text>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Rechercher un verrat</Text>
               <TextInput
-                style={[styles.searchInput, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                placeholder="Rechercher par nom ou numéro..."
+                style={[
+                  styles.searchInput,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.background,
+                    color: colors.text,
+                  },
+                ]}
+                value={verratSearchQuery}
+                onChangeText={setVerratSearchQuery}
+                placeholder="Rechercher par code ou nom..."
                 placeholderTextColor={colors.textSecondary}
               />
             </View>
-          )}
 
-          {/* Affichage de la truie sélectionnée */}
-          {formData.truie_id && (
-            <View style={[styles.selectedTruieCard, { backgroundColor: colors.surface, borderColor: colors.primary }]}>
-              <Text style={[styles.selectedTruieLabel, { color: colors.textSecondary }]}>Truie sélectionnée:</Text>
-              <Text style={[styles.selectedTruieValue, { color: colors.primary }]}>{formData.truie_nom}</Text>
-            </View>
-          )}
+            {/* Affichage du verrat sélectionné */}
+            {formData.verrat_id && (
+              <View
+                style={[
+                  styles.selectedTruieCard,
+                  { backgroundColor: colors.surface, borderColor: colors.primary },
+                ]}
+              >
+                <Text style={[styles.selectedTruieLabel, { color: colors.textSecondary }]}>
+                  Verrat sélectionné:
+                </Text>
+                <Text style={[styles.selectedTruieValue, { color: colors.primary }]}>
+                  {formData.verrat_nom}
+                </Text>
+              </View>
+            )}
 
-          {/* Liste des résultats filtrés */}
-          {truies.length > 0 && (
-            <View style={styles.resultsContainer}>
-              {truiesFiltrees.length > 0 ? (
-                <>
-                  <View style={styles.resultsHeader}>
-                    <Text style={[styles.resultsCount, { color: colors.textSecondary }]}>
-                      {truiesFiltrees.length} résultat{truiesFiltrees.length > 1 ? 's' : ''}
-                      {!showFullList && truiesFiltrees.length === 50 && ` (sur ${truies.length})`}
-                    </Text>
-                    {!showFullList && truies.length > 50 && (
-                      <TouchableOpacity
-                        style={[styles.showAllButton, { backgroundColor: colors.primary }]}
-                        onPress={() => setShowFullList(true)}
-                      >
-                        <Text style={[styles.showAllButtonText, { color: colors.textOnPrimary }]}>Voir toutes ({truies.length})</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                  <View style={styles.optionsContainer}>
-                    {(showFullList ? truies : truiesFiltrees).map((item) => (
-                      <TouchableOpacity
-                        key={item.id}
-                        style={[
-                          styles.option,
-                          {
-                            borderColor: formData.truie_id === item.id ? colors.primary : colors.border,
-                            backgroundColor: formData.truie_id === item.id ? colors.primary : colors.background,
-                          },
-                        ]}
-                        onPress={() => {
-                          setFormData({
-                            ...formData,
-                            truie_id: item.id,
-                            truie_nom: item.nom,
-                          });
-                          setDirectInput(item.numero.toString());
-                          setSearchQuery('');
-                        }}
-                      >
-                        <Text
+            {/* Liste des verrats disponibles */}
+            {verrats.length > 0 && (
+              <View style={styles.resultsContainer}>
+                <View style={styles.resultsHeader}>
+                  <Text style={[styles.resultsCount, { color: colors.textSecondary }]}>
+                    {verratsFiltres.length} verrat{verratsFiltres.length > 1 ? 's' : ''} disponible
+                    {verratsFiltres.length > 1 ? 's' : ''}
+                  </Text>
+                </View>
+                <ScrollView
+                  style={[
+                    styles.verratListContainer,
+                    { maxHeight: 200, borderColor: colors.border },
+                  ]}
+                  nestedScrollEnabled={true}
+                >
+                  {verratsFiltres.length > 0 ? (
+                    verratsFiltres.map((verrat) => {
+                      const selected = formData.verrat_id === verrat.id;
+
+                      // Calculer le risque de consanguinité pour ce verrat si une truie est sélectionnée
+                      let risqueVerrat: ResultatConsanguinite | null = null;
+                      if (formData.truie_id && verrat.projet_id) {
+                        // Seulement si le verrat est réellement dans le cheptel
+                        risqueVerrat = detecterConsanguinite(
+                          formData.truie_id,
+                          verrat.id,
+                          animauxProjet
+                        );
+                      }
+
+                      return (
+                        <TouchableOpacity
+                          key={verrat.id}
                           style={[
-                            styles.optionText,
+                            styles.option,
                             {
-                              color: formData.truie_id === item.id ? colors.textOnPrimary : colors.text,
-                              fontWeight: formData.truie_id === item.id ? '600' : 'normal',
+                              borderColor: selected ? colors.primary : colors.border,
+                              backgroundColor: selected ? colors.primary + '20' : colors.background,
                             },
                           ]}
+                          onPress={() => {
+                            console.log('Verrat sélectionné:', verrat);
+                            setFormData((prev) => ({
+                              ...prev,
+                              verrat_id: verrat.id,
+                              verrat_nom: `${verrat.code}${verrat.nom ? ` (${verrat.nom})` : ''}`,
+                            }));
+                            setVerratSearchQuery('');
+                          }}
                         >
-                          {item.nom}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </>
-              ) : (
-                <View style={styles.noResults}>
-                  <Text style={[styles.noResultsText, { color: colors.textSecondary }]}>
-                    {searchQuery.trim() ? 'Aucun résultat trouvé' : 'Commencez à rechercher ou saisissez un numéro'}
+                          <View style={styles.verratOptionHeader}>
+                            <Text
+                              style={[
+                                styles.optionText,
+                                {
+                                  color: selected ? colors.primary : colors.text,
+                                  fontWeight: selected ? '600' : 'normal',
+                                  flex: 1,
+                                },
+                              ]}
+                            >
+                              {verrat.code}
+                              {verrat.nom ? ` - ${verrat.nom}` : ''}
+                            </Text>
+                            {risqueVerrat && risqueVerrat.risque !== RisqueConsanguinite.AUCUN && (
+                              <Text style={{ fontSize: 18, marginLeft: SPACING.xs }}>
+                                {getIconeRisque(risqueVerrat.niveau)}
+                              </Text>
+                            )}
+                          </View>
+                          {verrat.race && (
+                            <Text style={[styles.optionSubtext, { color: colors.textSecondary }]}>
+                              Race: {verrat.race} •{' '}
+                              {verrat.statut?.toLowerCase() === 'actif' ? 'Actif' : verrat.statut}
+                            </Text>
+                          )}
+                          {risqueVerrat && risqueVerrat.risque !== RisqueConsanguinite.AUCUN && (
+                            <Text
+                              style={[
+                                styles.optionConsanguinite,
+                                { color: getCouleurRisque(risqueVerrat.niveau) },
+                              ]}
+                            >
+                              ⚠️ {risqueVerrat.message}
+                            </Text>
+                          )}
+                          {!verrat.reproducteur && (
+                            <Text style={[styles.optionWarning, { color: colors.warning }]}>
+                              ⚠️ Non marqué comme reproducteur
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })
+                  ) : (
+                    <View style={styles.noResults}>
+                      <Text style={[styles.noResultsText, { color: colors.textSecondary }]}>
+                        {verratSearchQuery.trim()
+                          ? 'Aucun verrat trouvé avec cette recherche'
+                          : 'Aucun verrat disponible'}
+                      </Text>
+                    </View>
+                  )}
+                </ScrollView>
+              </View>
+            )}
+
+            {verrats.length === 0 && (
+              <View
+                style={[
+                  styles.warningBox,
+                  { backgroundColor: colors.warning + '15', borderColor: colors.warning },
+                ]}
+              >
+                <Text style={[styles.warningText, { color: colors.warning }]}>
+                  ⚠️ Aucun verrat disponible. Nombre de verrats dans le projet:{' '}
+                  {projetActif?.nombre_verrats ?? 0}. Vérifiez les paramètres du projet ou ajoutez
+                  des verrats dans le module Production.
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Alerte de consanguinité */}
+          {resultatConsanguinite && resultatConsanguinite.risque !== RisqueConsanguinite.AUCUN && (
+            <View
+              style={[
+                styles.consanguiniteBox,
+                {
+                  backgroundColor: getCouleurRisque(resultatConsanguinite.niveau) + '15',
+                  borderColor: getCouleurRisque(resultatConsanguinite.niveau),
+                  borderWidth: 2,
+                },
+              ]}
+            >
+              <View style={styles.consanguiniteHeader}>
+                <Text style={[styles.consanguiniteIcone, { fontSize: 24 }]}>
+                  {getIconeRisque(resultatConsanguinite.niveau)}
+                </Text>
+                <Text
+                  style={[
+                    styles.consanguiniteTitre,
+                    { color: getCouleurRisque(resultatConsanguinite.niveau) },
+                  ]}
+                >
+                  {resultatConsanguinite.message}
+                </Text>
+              </View>
+              {resultatConsanguinite.details && (
+                <Text style={[styles.consanguiniteDetails, { color: colors.text }]}>
+                  {resultatConsanguinite.details}
+                </Text>
+              )}
+              {resultatConsanguinite.niveau === 'critique' && (
+                <View
+                  style={[
+                    styles.consanguiniteWarning,
+                    { backgroundColor: getCouleurRisque('critique') },
+                  ]}
+                >
+                  <Text style={styles.consanguiniteWarningText}>
+                    ⛔ Cet accouplement n'est PAS recommandé et peut entraîner des malformations
+                    graves.
                   </Text>
                 </View>
               )}
             </View>
           )}
 
-          {/* Option de saisie manuelle si aucune truie */}
-          {truies.length === 0 && (
-            <FormField
-              label="Nom de la truie"
-              value={formData.truie_nom || ''}
-              onChangeText={(text) => setFormData({ ...formData, truie_nom: text })}
-              placeholder="Ex: TRU015"
-              required
-            />
-          )}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Verrat utilisé *</Text>
-          <Text style={[styles.helperText, { color: colors.textSecondary }]}>
-            Sélectionnez le verrat utilisé pour cette saillie. Ce champ est obligatoire pour tracer la généalogie.
-          </Text>
-          
-          {/* Champ de recherche pour verrat */}
-          <View style={styles.inputContainer}>
-            <Text style={[styles.inputLabel, { color: colors.text }]}>Rechercher un verrat</Text>
-            <TextInput
-              style={[styles.searchInput, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
-              value={verratSearchQuery}
-              onChangeText={setVerratSearchQuery}
-              placeholder="Rechercher par code ou nom..."
-              placeholderTextColor={colors.textSecondary}
-            />
-          </View>
-
-          {/* Affichage du verrat sélectionné */}
-          {formData.verrat_id && (
-            <View style={[styles.selectedTruieCard, { backgroundColor: colors.surface, borderColor: colors.primary }]}>
-              <Text style={[styles.selectedTruieLabel, { color: colors.textSecondary }]}>Verrat sélectionné:</Text>
-              <Text style={[styles.selectedTruieValue, { color: colors.primary }]}>{formData.verrat_nom}</Text>
-            </View>
-          )}
-
-          {/* Liste des verrats disponibles */}
-          {verrats.length > 0 && (
-            <View style={styles.resultsContainer}>
-              <View style={styles.resultsHeader}>
-                <Text style={[styles.resultsCount, { color: colors.textSecondary }]}>
-                  {verratsFiltres.length} verrat{verratsFiltres.length > 1 ? 's' : ''} disponible{verratsFiltres.length > 1 ? 's' : ''}
+          {/* Message de confirmation si aucun risque */}
+          {resultatConsanguinite && resultatConsanguinite.risque === RisqueConsanguinite.AUCUN && (
+            <View
+              style={[
+                styles.consanguiniteBox,
+                {
+                  backgroundColor: getCouleurRisque('aucun') + '15',
+                  borderColor: getCouleurRisque('aucun'),
+                },
+              ]}
+            >
+              <View style={styles.consanguiniteHeader}>
+                <Text style={[styles.consanguiniteIcone, { fontSize: 20 }]}>✓</Text>
+                <Text style={[styles.consanguiniteOkText, { color: getCouleurRisque('aucun') }]}>
+                  Aucun risque de consanguinité détecté
                 </Text>
               </View>
-              <ScrollView 
-                style={[styles.verratListContainer, { maxHeight: 200, borderColor: colors.border }]}
-                nestedScrollEnabled={true}
-              >
-                {verratsFiltres.length > 0 ? (
-                  verratsFiltres.map((verrat) => {
-                    const selected = formData.verrat_id === verrat.id;
-                    
-                    // Calculer le risque de consanguinité pour ce verrat si une truie est sélectionnée
-                    let risqueVerrat: ResultatConsanguinite | null = null;
-                    if (formData.truie_id && verrat.projet_id) {
-                      // Seulement si le verrat est réellement dans le cheptel
-                      risqueVerrat = detecterConsanguinite(
-                        formData.truie_id,
-                        verrat.id,
-                        animauxProjet
-                      );
-                    }
-                    
-                    return (
-                      <TouchableOpacity
-                        key={verrat.id}
-                        style={[
-                          styles.option,
-                          {
-                            borderColor: selected ? colors.primary : colors.border,
-                            backgroundColor: selected ? colors.primary + '20' : colors.background,
-                          },
-                        ]}
-                        onPress={() => {
-                          console.log('Verrat sélectionné:', verrat);
-                          setFormData((prev) => ({
-                            ...prev,
-                            verrat_id: verrat.id,
-                            verrat_nom: `${verrat.code}${verrat.nom ? ` (${verrat.nom})` : ''}`,
-                          }));
-                          setVerratSearchQuery('');
-                        }}
-                      >
-                        <View style={styles.verratOptionHeader}>
-                          <Text
-                            style={[
-                              styles.optionText,
-                              {
-                                color: selected ? colors.primary : colors.text,
-                                fontWeight: selected ? '600' : 'normal',
-                                flex: 1,
-                              },
-                            ]}
-                          >
-                            {verrat.code}
-                            {verrat.nom ? ` - ${verrat.nom}` : ''}
-                          </Text>
-                          {risqueVerrat && risqueVerrat.risque !== RisqueConsanguinite.AUCUN && (
-                            <Text style={{ fontSize: 18, marginLeft: SPACING.xs }}>
-                              {getIconeRisque(risqueVerrat.niveau)}
-                            </Text>
-                          )}
-                        </View>
-                        {verrat.race && (
-                          <Text style={[styles.optionSubtext, { color: colors.textSecondary }]}>
-                            Race: {verrat.race} • {verrat.statut?.toLowerCase() === 'actif' ? 'Actif' : verrat.statut}
-                          </Text>
-                        )}
-                        {risqueVerrat && risqueVerrat.risque !== RisqueConsanguinite.AUCUN && (
-                          <Text style={[styles.optionConsanguinite, { color: getCouleurRisque(risqueVerrat.niveau) }]}>
-                            ⚠️ {risqueVerrat.message}
-                          </Text>
-                        )}
-                        {!verrat.reproducteur && (
-                          <Text style={[styles.optionWarning, { color: colors.warning }]}>
-                            ⚠️ Non marqué comme reproducteur
-                          </Text>
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })
-                ) : (
-                  <View style={styles.noResults}>
-                    <Text style={[styles.noResultsText, { color: colors.textSecondary }]}>
-                      {verratSearchQuery.trim()
-                        ? 'Aucun verrat trouvé avec cette recherche'
-                        : 'Aucun verrat disponible'}
-                    </Text>
-                  </View>
-                )}
-              </ScrollView>
             </View>
           )}
 
-          {verrats.length === 0 && (
-            <View style={[styles.warningBox, { backgroundColor: colors.warning + '15', borderColor: colors.warning }]}>
-              <Text style={[styles.warningText, { color: colors.warning }]}>
-                ⚠️ Aucun verrat disponible. Nombre de verrats dans le projet: {projetActif?.nombre_verrats ?? 0}. 
-                Vérifiez les paramètres du projet ou ajoutez des verrats dans le module Production.
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Alerte de consanguinité */}
-        {resultatConsanguinite && resultatConsanguinite.risque !== RisqueConsanguinite.AUCUN && (
-          <View 
-            style={[
-              styles.consanguiniteBox, 
-              { 
-                backgroundColor: getCouleurRisque(resultatConsanguinite.niveau) + '15', 
-                borderColor: getCouleurRisque(resultatConsanguinite.niveau),
-                borderWidth: 2,
-              }
-            ]}
-          >
-            <View style={styles.consanguiniteHeader}>
-              <Text style={[styles.consanguiniteIcone, { fontSize: 24 }]}>
-                {getIconeRisque(resultatConsanguinite.niveau)}
-              </Text>
-              <Text style={[styles.consanguiniteTitre, { color: getCouleurRisque(resultatConsanguinite.niveau) }]}>
-                {resultatConsanguinite.message}
-              </Text>
-            </View>
-            {resultatConsanguinite.details && (
-              <Text style={[styles.consanguiniteDetails, { color: colors.text }]}>
-                {resultatConsanguinite.details}
-              </Text>
-            )}
-            {resultatConsanguinite.niveau === 'critique' && (
-              <View style={[styles.consanguiniteWarning, { backgroundColor: getCouleurRisque('critique') }]}>
-                <Text style={styles.consanguiniteWarningText}>
-                  ⛔ Cet accouplement n'est PAS recommandé et peut entraîner des malformations graves.
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Message de confirmation si aucun risque */}
-        {resultatConsanguinite && resultatConsanguinite.risque === RisqueConsanguinite.AUCUN && (
-          <View 
-            style={[
-              styles.consanguiniteBox, 
-              { 
-                backgroundColor: getCouleurRisque('aucun') + '15', 
-                borderColor: getCouleurRisque('aucun'),
-              }
-            ]}
-          >
-            <View style={styles.consanguiniteHeader}>
-              <Text style={[styles.consanguiniteIcone, { fontSize: 20 }]}>✓</Text>
-              <Text style={[styles.consanguiniteOkText, { color: getCouleurRisque('aucun') }]}>
-                Aucun risque de consanguinité détecté
-              </Text>
-            </View>
-          </View>
-        )}
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Date de sautage *</Text>
-          <TouchableOpacity
-            style={[styles.dateButton, { borderColor: colors.border, backgroundColor: colors.background }]}
-            onPress={() => {
-              setDatePickerMode('date');
-              setShowDatePicker(true);
-            }}
-          >
-            <Text style={[styles.dateButtonText, { color: colors.text }]}>
-              {new Date(formData.date_sautage).toLocaleDateString('fr-FR', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-              })}
-            </Text>
-          </TouchableOpacity>
-          {showDatePicker && (
-            <DateTimePicker
-              value={new Date(formData.date_sautage)}
-              mode={datePickerMode}
-              display="default"
-              onChange={(event, selectedDate) => {
-                setShowDatePicker(false);
-                if (selectedDate && event.type !== 'dismissed') {
-                  // Convertir la date sélectionnée en format local YYYY-MM-DD
-                  const year = selectedDate.getFullYear();
-                  const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-                  const day = String(selectedDate.getDate()).padStart(2, '0');
-                  setFormData({
-                    ...formData,
-                    date_sautage: `${year}-${month}-${day}`,
-                  });
-                }
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Date de sautage *</Text>
+            <TouchableOpacity
+              style={[
+                styles.dateButton,
+                { borderColor: colors.border, backgroundColor: colors.background },
+              ]}
+              onPress={() => {
+                setDatePickerMode('date');
+                setShowDatePicker(true);
               }}
-            />
-          )}
-        </View>
+            >
+              <Text style={[styles.dateButtonText, { color: colors.text }]}>
+                {new Date(formData.date_sautage).toLocaleDateString('fr-FR', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                })}
+              </Text>
+            </TouchableOpacity>
+            {showDatePicker && (
+              <DateTimePicker
+                value={new Date(formData.date_sautage)}
+                mode={datePickerMode}
+                display="default"
+                onChange={(event, selectedDate) => {
+                  setShowDatePicker(false);
+                  if (selectedDate && event.type !== 'dismissed') {
+                    // Convertir la date sélectionnée en format local YYYY-MM-DD
+                    const year = selectedDate.getFullYear();
+                    const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+                    const day = String(selectedDate.getDate()).padStart(2, '0');
+                    setFormData({
+                      ...formData,
+                      date_sautage: `${year}-${month}-${day}`,
+                    });
+                  }
+                }}
+              />
+            )}
+          </View>
 
-        <View style={[styles.infoBox, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Date de mise bas prévue:</Text>
-          <Text style={[styles.infoValue, { color: colors.primary }]}>{formattedDate}</Text>
-          <Text style={[styles.infoNote, { color: colors.textSecondary }]}>
-            (Calculée automatiquement: {formData.date_sautage} + 114 jours)
-          </Text>
-        </View>
+          <View style={[styles.infoBox, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+              Date de mise bas prévue:
+            </Text>
+            <Text style={[styles.infoValue, { color: colors.primary }]}>{formattedDate}</Text>
+            <Text style={[styles.infoNote, { color: colors.textSecondary }]}>
+              (Calculée automatiquement: {formData.date_sautage} + 114 jours)
+            </Text>
+          </View>
 
-        <FormField
-          label="Nombre de porcelets prévu *"
-          value={formData.nombre_porcelets_prevu.toString()}
-          onChangeText={(text) =>
-            setFormData({ ...formData, nombre_porcelets_prevu: parseInt(text) || 0 })
-          }
-          placeholder="Ex: 12"
-          keyboardType="numeric"
-          required
-        />
+          <FormField
+            label="Nombre de porcelets prévu *"
+            value={formData.nombre_porcelets_prevu.toString()}
+            onChangeText={(text) =>
+              setFormData({ ...formData, nombre_porcelets_prevu: parseInt(text) || 0 })
+            }
+            placeholder="Ex: 12"
+            keyboardType="numeric"
+            required
+          />
 
-        <FormField
-          label="Notes"
-          value={formData.notes}
-          onChangeText={(text) => setFormData({ ...formData, notes: text })}
-          placeholder="Notes supplémentaires..."
-          multiline
-          numberOfLines={4}
-        />
-      </ScrollView>
-    </CustomModal>
+          <FormField
+            label="Notes"
+            value={formData.notes}
+            onChangeText={(text) => setFormData({ ...formData, notes: text })}
+            placeholder="Notes supplémentaires..."
+            multiline
+            numberOfLines={4}
+          />
+        </ScrollView>
+      </CustomModal>
     </>
   );
 }
@@ -956,8 +1032,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
     minWidth: '30%',
   },
-  optionSelected: {
-  },
+  optionSelected: {},
   optionText: {
     fontSize: 14,
   },
@@ -1156,4 +1231,3 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xs,
   },
 });
-

@@ -22,13 +22,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
-import {
-  selectAllVaccinations,
-} from '../store/selectors/santeSelectors';
+import { selectAllVaccinations } from '../store/selectors/santeSelectors';
 import { selectAllAnimaux } from '../store/selectors/productionSelectors';
-import { loadVaccinations } from '../store/slices/santeSlice';
+import { selectAllDepensesPonctuelles } from '../store/selectors/financeSelectors';
+import { loadVaccinations, createVaccination, updateVaccination, deleteVaccination } from '../store/slices/santeSlice';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
-import { createVaccination } from '../store/slices/santeSlice';
 import {
   TypeProphylaxie,
   TYPE_PROPHYLAXIE_LABELS,
@@ -41,6 +39,9 @@ import {
 } from '../types/sante';
 import { getCategorieAnimal } from '../utils/animalUtils';
 import { formatLocalDate, getCurrentLocalDate } from '../utils/dateUtils';
+import { parseAnimalIds, animalIncludedInVaccination } from '../utils/vaccinationUtils';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 // Activer LayoutAnimation sur Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -58,10 +59,13 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
   const dispatch = useAppDispatch();
 
   const projetActif = useAppSelector((state) => state.projet.projetActif);
-  const vaccinations = useAppSelector((state) => selectAllVaccinations(state));
-  const animaux = useAppSelector((state) => selectAllAnimaux(state));
+  const vaccinations = useAppSelector(selectAllVaccinations);
+  const animaux = useAppSelector(selectAllAnimaux);
+  const allDepensesPonctuelles = useAppSelector(selectAllDepensesPonctuelles);
 
   const [sectionOuverte, setSectionOuverte] = useState<SectionOuverte>(null);
+  const [historiqueOuvert, setHistoriqueOuvert] = useState<Set<TypeProphylaxie>>(new Set());
+  const [vaccinationEnEdition, setVaccinationEnEdition] = useState<string | null>(null);
 
   // États du formulaire
   const [produitAdministre, setProduitAdministre] = useState('');
@@ -82,11 +86,12 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
 
   // Debug removed to prevent "Text must be rendered" errors
 
-  // Récupérer les dépenses pour le calcul automatique du coût
-  const depensesPonctuelles = useAppSelector((state) => {
-    const depensesEntities = state.finance?.entities?.depensesPonctuelles || {};
-    return Object.values(depensesEntities).filter((d): d is any => d !== undefined);
-  });
+  // Filtrer les dépenses pour le calcul automatique du coût (mémorisé pour éviter les re-renders)
+  const depensesPonctuelles = useMemo(() => {
+    return allDepensesPonctuelles.filter(
+      (d) => d.categorie === 'medicaments' || d.categorie === 'veterinaire'
+    );
+  }, [allDepensesPonctuelles]);
 
   // Calculer le coût moyen automatique par vaccination
   const calculerCoutMoyenAutomatique = useCallback(() => {
@@ -126,7 +131,7 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
       const aAuMoinsUnTraitementManquant = traitementsObligatoires.some((traitement) => {
         const aRecuTraitement = (vaccinations || []).some(
           (v) =>
-            v.animal_ids?.includes(animal.id) &&
+            animalIncludedInVaccination(v.animal_ids, animal.id) &&
             v.type_prophylaxie === traitement.type_prophylaxie &&
             v.statut === 'effectue'
         );
@@ -135,14 +140,13 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
 
       if (aAuMoinsUnTraitementManquant) {
         porcsEnRetardSet.add(animal.id);
-        }
+      }
     });
 
     const porcsEnRetard = porcsEnRetardSet.size;
 
-    const tauxCouverture = totalAnimaux > 0
-      ? Math.round(((totalAnimaux - porcsEnRetard) / totalAnimaux) * 100)
-      : 0;
+    const tauxCouverture =
+      totalAnimaux > 0 ? Math.round(((totalAnimaux - porcsEnRetard) / totalAnimaux) * 100) : 0;
 
     return {
       totalAnimaux,
@@ -164,24 +168,21 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
     ];
 
     return types.map((type) => {
-      const vaccinationsType = (vaccinations || []).filter(
-        (v) => v.type_prophylaxie === type
-      );
+      const vaccinationsType = (vaccinations || []).filter((v) => v.type_prophylaxie === type);
 
       const porcsVaccinesSet = new Set<string>();
       vaccinationsType.forEach((v) => {
-        v.animal_ids?.forEach((id) => porcsVaccinesSet.add(id));
+        const animalIds = parseAnimalIds(v.animal_ids);
+        animalIds.forEach((id) => porcsVaccinesSet.add(id));
       });
 
       const porcsVaccines = porcsVaccinesSet.size;
       const totalPorcs = statsGlobales.totalAnimaux;
-      const tauxCouverture = totalPorcs > 0
-        ? Math.round((porcsVaccines / totalPorcs) * 100)
-        : 0;
+      const tauxCouverture = totalPorcs > 0 ? Math.round((porcsVaccines / totalPorcs) * 100) : 0;
 
-      const dernierTraitement = vaccinationsType
-        .sort((a, b) => new Date(b.date_vaccination).getTime() - new Date(a.date_vaccination).getTime())
-        [0]?.date_vaccination;
+      const dernierTraitement = vaccinationsType.sort(
+        (a, b) => new Date(b.date_vaccination).getTime() - new Date(a.date_vaccination).getTime()
+      )[0]?.date_vaccination;
 
       const coutTotal = vaccinationsType.reduce((sum, v) => sum + (v.cout || 0), 0);
 
@@ -199,7 +200,7 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
         const aAuMoinsUnTraitementManquant = traitementsObligatoiresType.some((traitement) => {
           const aRecuTraitement = (vaccinations || []).some(
             (v) =>
-              v.animal_ids?.includes(animal.id) &&
+              animalIncludedInVaccination(v.animal_ids, animal.id) &&
               v.type_prophylaxie === type &&
               v.statut === 'effectue'
           );
@@ -208,7 +209,7 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
 
         if (aAuMoinsUnTraitementManquant) {
           porcsEnRetardSet.add(animal.id);
-          }
+        }
       });
 
       const enRetard = porcsEnRetardSet.size;
@@ -269,15 +270,13 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     if (sectionOuverte === type) {
       setSectionOuverte(null);
-      // Réinitialiser le formulaire
-      setProduitAdministre('');
-      setDosage('');
-      setUniteDosage('ml');
-      setCout('');
-      setRaisonTraitement('suivi_normal');
-      setAnimauxSelectionnes([]);
+      reinitialiserFormulaire();
     } else {
       setSectionOuverte(type);
+      // Si on ouvre une autre section, réinitialiser aussi
+      if (sectionOuverte !== null) {
+        reinitialiserFormulaire();
+      }
     }
   };
 
@@ -289,6 +288,66 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
         return [...prev, animalId];
       }
     });
+  };
+
+  const initialiserFormulaireAvecVaccination = (vaccination: any) => {
+    const animalIds = parseAnimalIds(vaccination.animal_ids);
+    setVaccinationEnEdition(vaccination.id);
+    setProduitAdministre(vaccination.produit_administre || '');
+    setDosage(vaccination.dosage || '');
+    setUniteDosage(vaccination.unite_dosage || 'ml');
+    setCout(vaccination.cout ? vaccination.cout.toString() : '');
+    setRaisonTraitement(vaccination.raison_traitement || 'suivi_normal');
+    setAnimauxSelectionnes(animalIds);
+    setSectionOuverte(vaccination.type_prophylaxie);
+    // Ouvrir l'historique pour voir la vaccination modifiée
+    setHistoriqueOuvert((prev) => {
+      const nouveau = new Set(prev);
+      nouveau.add(vaccination.type_prophylaxie);
+      return nouveau;
+    });
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+  };
+
+  const reinitialiserFormulaire = () => {
+    setVaccinationEnEdition(null);
+    setProduitAdministre('');
+    setDosage('');
+    setUniteDosage('ml');
+    setCout('');
+    setRaisonTraitement('suivi_normal');
+    setAnimauxSelectionnes([]);
+    setRechercheAnimal('');
+  };
+
+  const handleSupprimerVaccination = (vaccinationId: string, typeProphylaxie: TypeProphylaxie) => {
+    Alert.alert(
+      'Supprimer la vaccination',
+      'Êtes-vous sûr de vouloir supprimer cette vaccination ? Cette action est irréversible.',
+      [
+        {
+          text: 'Annuler',
+          style: 'cancel',
+        },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await dispatch(deleteVaccination(vaccinationId)).unwrap();
+              Alert.alert('Succès', 'Vaccination supprimée avec succès');
+              
+              // Recharger les vaccinations
+              if (projetActif?.id) {
+                dispatch(loadVaccinations(projetActif.id));
+              }
+            } catch (error: any) {
+              Alert.alert('Erreur', 'Impossible de supprimer la vaccination');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleEnregistrer = async () => {
@@ -324,31 +383,59 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
         }
       }
 
-      const dateVaccination = getCurrentLocalDate();
-      
-      const input: CreateVaccinationInput = {
-        projet_id: projetActif.id,
-        animal_ids: animauxSelectionnes,
-        type_prophylaxie: sectionOuverte,
-        produit_administre: produitAdministre.trim(),
-        date_vaccination: dateVaccination,
-        dosage: dosage.trim(),
-        unite_dosage: uniteDosage,
-        raison_traitement: raisonTraitement,
-        cout: coutFinal,
-        statut: 'effectue',
-      };
+      if (vaccinationEnEdition) {
+        // Mise à jour d'une vaccination existante
+        const updates: any = {
+          animal_ids: animauxSelectionnes,
+          produit_administre: produitAdministre.trim(),
+          dosage: dosage.trim(),
+          unite_dosage: uniteDosage,
+          raison_traitement: raisonTraitement,
+          cout: coutFinal,
+        };
 
-      const result = await dispatch(createVaccination(input)).unwrap();
+        await dispatch(updateVaccination({ id: vaccinationEnEdition, updates })).unwrap();
 
-      const messageSucces = coutFinal && !cout
-        ? `Vaccination enregistrée pour ${animauxSelectionnes.length} animal(aux)\n💡 Coût calculé automatiquement: ${coutFinal} FCFA`
-        : `Vaccination enregistrée pour ${animauxSelectionnes.length} animal(aux)`;
+        Alert.alert('Succès', 'Vaccination modifiée avec succès');
 
-      Alert.alert('Succès', messageSucces);
+        // Recharger les vaccinations
+        if (projetActif?.id) {
+          dispatch(loadVaccinations(projetActif.id));
+        }
 
-      // Réinitialiser et fermer
-      toggleSection(sectionOuverte);
+        // Réinitialiser et fermer
+        reinitialiserFormulaire();
+        toggleSection(sectionOuverte);
+      } else {
+        // Création d'une nouvelle vaccination
+        const dateVaccination = getCurrentLocalDate();
+
+        const input: CreateVaccinationInput = {
+          projet_id: projetActif.id,
+          animal_ids: animauxSelectionnes,
+          type_prophylaxie: sectionOuverte,
+          produit_administre: produitAdministre.trim(),
+          date_vaccination: dateVaccination,
+          dosage: dosage.trim(),
+          unite_dosage: uniteDosage,
+          raison_traitement: raisonTraitement,
+          cout: coutFinal,
+          statut: 'effectue',
+        };
+
+        await dispatch(createVaccination(input)).unwrap();
+
+        const messageSucces =
+          coutFinal && !cout
+            ? `Vaccination enregistrée pour ${animauxSelectionnes.length} animal(aux)\n💡 Coût calculé automatiquement: ${coutFinal} FCFA`
+            : `Vaccination enregistrée pour ${animauxSelectionnes.length} animal(aux)`;
+
+        Alert.alert('Succès', messageSucces);
+
+        // Réinitialiser et fermer
+        reinitialiserFormulaire();
+        toggleSection(sectionOuverte);
+      }
     } catch (error: any) {
       console.error('=== ERREUR ENREGISTREMENT ===');
       console.error('Type erreur:', typeof error);
@@ -356,10 +443,10 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
       console.error('Error message:', error?.message);
       console.error('Error stack:', error?.stack);
       console.error('Error name:', error?.name);
-      
+
       const errorMessage = error?.message || error?.toString() || 'Erreur inconnue';
       Alert.alert(
-        'Erreur', 
+        'Erreur',
         `Impossible d'enregistrer la vaccination\n\nDétails: ${errorMessage}\n\nVoir les logs pour plus d'informations`
       );
     }
@@ -367,12 +454,19 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
 
   const renderCarteRecapitulative = () => {
     return (
-      <View style={[styles.carteRecap, { backgroundColor: colors.surface, borderColor: colors.borderLight, ...colors.shadow.medium }]}>
+      <View
+        style={[
+          styles.carteRecap,
+          {
+            backgroundColor: colors.surface,
+            borderColor: colors.borderLight,
+            ...colors.shadow.medium,
+          },
+        ]}
+      >
         <View style={styles.headerRecap}>
           <Ionicons name="stats-chart" size={24} color={colors.primary} />
-          <Text style={[styles.titreRecap, { color: colors.text }]}>
-            Aperçu Prophylaxie
-          </Text>
+          <Text style={[styles.titreRecap, { color: colors.text }]}>Aperçu Prophylaxie</Text>
         </View>
 
         <View style={styles.statsGrid}>
@@ -380,36 +474,33 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
             <Text style={[styles.statValue, { color: colors.primary }]}>
               {statsGlobales.totalAnimaux}
             </Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-              Porcs actifs
-            </Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Porcs actifs</Text>
           </View>
 
           <View style={styles.statItem}>
             <Text style={[styles.statValue, { color: colors.success }]}>
               {statsGlobales.totalVaccinations}
             </Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-              Traitements
-            </Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Traitements</Text>
           </View>
 
           <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: statsGlobales.porcsEnRetard > 5 ? colors.error : colors.warning }]}>
+            <Text
+              style={[
+                styles.statValue,
+                { color: statsGlobales.porcsEnRetard > 5 ? colors.error : colors.warning },
+              ]}
+            >
               {statsGlobales.porcsEnRetard}
             </Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-              En retard
-            </Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>En retard</Text>
           </View>
 
           <View style={styles.statItem}>
             <Text style={[styles.statValue, { color: colors.primary }]}>
               {statsGlobales.tauxCouverture}%
             </Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-              Couverture
-            </Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Couverture</Text>
           </View>
         </View>
 
@@ -443,18 +534,39 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
     if (sectionOuverte !== type) return null;
 
     const animauxActifs = (animaux || []).filter((a) => a.statut === 'actif');
-    
+
     // Debug removed
 
     return (
       <View style={[styles.formulaire, { backgroundColor: colors.background }]}>
+        {/* Indicateur de mode édition */}
+        {vaccinationEnEdition && (
+          <View style={[styles.modeEditionBadge, { backgroundColor: `${couleur}15`, borderColor: couleur }]}>
+            <Ionicons name="create-outline" size={16} color={couleur} />
+            <Text style={[styles.modeEditionText, { color: couleur }]}>
+              Mode édition - Modification d'une vaccination existante
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                reinitialiserFormulaire();
+                toggleSection(type);
+              }}
+            >
+              <Ionicons name="close-circle" size={18} color={couleur} />
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Produit */}
         <View style={styles.formSection}>
           <Text style={[styles.formLabel, { color: colors.text }]}>
             Produit administré <Text style={{ color: colors.error }}>*</Text>
           </Text>
           <TextInput
-            style={[styles.formInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+            style={[
+              styles.formInput,
+              { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+            ]}
             value={produitAdministre}
             onChangeText={setProduitAdministre}
             placeholder="Ex: Fer dextran, Vitamine AD3E..."
@@ -469,14 +581,22 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
           </Text>
           <View style={styles.dosageRow}>
             <TextInput
-              style={[styles.dosageInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+              style={[
+                styles.dosageInput,
+                { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+              ]}
               value={dosage}
               onChangeText={setDosage}
               placeholder="Ex: 2"
               placeholderTextColor={colors.textSecondary}
               keyboardType="numeric"
             />
-            <View style={[styles.uniteContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View
+              style={[
+                styles.uniteContainer,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+            >
               <Text style={[styles.uniteTexte, { color: colors.text }]}>{uniteDosage}</Text>
             </View>
           </View>
@@ -484,11 +604,12 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
 
         {/* Coût */}
         <View style={styles.formSection}>
-          <Text style={[styles.formLabel, { color: colors.text }]}>
-            Coût (FCFA) - optionnel
-          </Text>
+          <Text style={[styles.formLabel, { color: colors.text }]}>Coût (FCFA) - optionnel</Text>
           <TextInput
-            style={[styles.formInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+            style={[
+              styles.formInput,
+              { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+            ]}
             value={cout}
             onChangeText={setCout}
             placeholder="Ex: 5000"
@@ -499,7 +620,8 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
             💡 Laissez vide pour calcul automatique depuis dépenses
             {!cout && calculerCoutMoyenAutomatique() > 0 && (
               <Text style={{ color: colors.success, fontWeight: '600' }}>
-                {' '}• Coût moyen: {calculerCoutMoyenAutomatique()} FCFA
+                {' '}
+                • Coût moyen: {calculerCoutMoyenAutomatique()} FCFA
               </Text>
             )}
           </Text>
@@ -513,16 +635,22 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
           <Text style={[styles.compteur, { color: colors.primary }]}>
             {animauxSelectionnes.length} sélectionné(s)
           </Text>
-          
+
           {/* Info si pas de noms */}
           {animauxActifs.length > 0 && !animauxActifs[0].nom && (
             <Text style={[styles.formHint, { color: colors.warning, marginBottom: 8 }]}>
-              💡 Astuce : Ajoutez des noms à vos animaux dans Production pour les identifier facilement
+              💡 Astuce : Ajoutez des noms à vos animaux dans Production pour les identifier
+              facilement
             </Text>
           )}
 
           {/* Barre de recherche */}
-          <View style={[styles.rechercheContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+          <View
+            style={[
+              styles.rechercheContainer,
+              { backgroundColor: colors.background, borderColor: colors.border },
+            ]}
+          >
             <Ionicons name="search" size={20} color={colors.textSecondary} />
             <TextInput
               style={[styles.rechercheInput, { color: colors.text }]}
@@ -538,7 +666,13 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
             )}
           </View>
 
-          <ScrollView style={[styles.listeAnimaux, { backgroundColor: colors.surface, borderColor: colors.border }]} nestedScrollEnabled>
+          <ScrollView
+            style={[
+              styles.listeAnimaux,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+            nestedScrollEnabled
+          >
             {animauxActifs.length === 0 ? (
               <View style={styles.emptyState}>
                 <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
@@ -554,7 +688,11 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
                   const nom = (animal.nom || '').toLowerCase();
                   const code = (animal.code || '').toLowerCase();
                   const categorie = getCategorieAnimal(animal).toLowerCase();
-                  return nom.includes(searchLower) || code.includes(searchLower) || categorie.includes(searchLower);
+                  return (
+                    nom.includes(searchLower) ||
+                    code.includes(searchLower) ||
+                    categorie.includes(searchLower)
+                  );
                 });
 
                 if (animauxFiltres.length === 0) {
@@ -569,12 +707,12 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
 
                 return animauxFiltres.map((animal) => {
                   const isSelected = animauxSelectionnes.includes(animal.id);
-                  
+
                   // Utiliser les bonnes propriétés du type ProductionAnimal
                   const nomAnimal = animal.nom; // Pas nom_personnalise
                   const codeAnimal = animal.code; // Pas code_identification
                   const animalId = animal.id;
-                  
+
                   // Construire le nom de façon plus robuste
                   let nom = 'Sans nom';
                   if (nomAnimal && nomAnimal.trim() !== '' && nomAnimal !== 'undefined') {
@@ -586,7 +724,7 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
                     const shortId = animalId.replace('animal_', '').slice(0, 12);
                     nom = `Porc #${shortId}`;
                   }
-                  
+
                   const categorie = getCategorieAnimal(animal);
                   return (
                     <TouchableOpacity
@@ -605,20 +743,22 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
                           {isSelected && <Ionicons name="checkmark" size={14} color="#FFF" />}
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={[styles.animalNom, { color: colors.text }]} numberOfLines={1}>
+                          <Text
+                            style={[styles.animalNom, { color: colors.text }]}
+                            numberOfLines={1}
+                          >
                             {nom}
                           </Text>
                           <Text style={[styles.animalDetails, { color: colors.textSecondary }]}>
                             {categorie}
                             {codeAnimal && ` • ${codeAnimal}`}
-                            {animal.sexe && ` • ${animal.sexe === 'male' ? 'Mâle' : animal.sexe === 'femelle' ? 'Femelle' : animal.sexe}`}
+                            {animal.sexe &&
+                              ` • ${animal.sexe === 'male' ? 'Mâle' : animal.sexe === 'femelle' ? 'Femelle' : animal.sexe}`}
                             {animal.reproducteur && ' • Reprod.'}
                           </Text>
                         </View>
                       </View>
-                      {isSelected && (
-                        <Ionicons name="checkmark-circle" size={20} color={couleur} />
-                      )}
+                      {isSelected && <Ionicons name="checkmark-circle" size={20} color={couleur} />}
                     </TouchableOpacity>
                   );
                 });
@@ -630,7 +770,10 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
         {/* Boutons */}
         <View style={styles.boutonsContainer}>
           <TouchableOpacity
-            style={[styles.boutonAnnuler, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            style={[
+              styles.boutonAnnuler,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
             onPress={() => toggleSection(type)}
           >
             <Text style={[styles.boutonAnnulerTexte, { color: colors.text }]}>Annuler</Text>
@@ -639,10 +782,159 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
             style={[styles.boutonValider, { backgroundColor: couleur }]}
             onPress={handleEnregistrer}
           >
-            <Text style={styles.boutonValiderTexte}>Enregistrer</Text>
+            <Text style={styles.boutonValiderTexte}>
+              {vaccinationEnEdition ? 'Modifier' : 'Enregistrer'}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
+    );
+  };
+
+  const toggleHistorique = (type: TypeProphylaxie) => {
+    setHistoriqueOuvert((prev) => {
+      const nouveau = new Set(prev);
+      if (nouveau.has(type)) {
+        nouveau.delete(type);
+      } else {
+        nouveau.add(type);
+      }
+      return nouveau;
+    });
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+  };
+
+  const renderHistorique = (type: TypeProphylaxie, couleur: string) => {
+    const vaccinationsType = (vaccinations || [])
+      .filter((v) => v.type_prophylaxie === type)
+      .sort(
+        (a, b) =>
+          new Date(b.date_vaccination).getTime() - new Date(a.date_vaccination).getTime()
+      );
+
+    if (vaccinationsType.length === 0) {
+      return (
+        <View style={styles.historiqueEmpty}>
+          <Text style={[styles.historiqueEmptyText, { color: colors.textSecondary }]}>
+            Aucune vaccination enregistrée
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <ScrollView
+        style={styles.historiqueContainer}
+        nestedScrollEnabled
+        showsVerticalScrollIndicator={false}
+      >
+        {vaccinationsType.map((v) => {
+          const animalIds = parseAnimalIds(v.animal_ids);
+          const animauxVaccines = (animaux || []).filter((a) => animalIds.includes(a.id));
+
+          return (
+            <View
+              key={v.id}
+              style={[
+                styles.historiqueItem,
+                {
+                  backgroundColor: colors.background,
+                  borderLeftColor: couleur,
+                },
+              ]}
+            >
+              {/* Header avec date */}
+              <View style={styles.historiqueItemHeader}>
+                <View style={styles.historiqueItemHeaderLeft}>
+                  <Ionicons name="calendar" size={14} color={couleur} />
+                  <Text style={[styles.historiqueItemDate, { color: colors.text }]}>
+                    {format(new Date(v.date_vaccination), 'dd MMM yyyy', { locale: fr })}
+                  </Text>
+                </View>
+                {v.cout && (
+                  <Text style={[styles.historiqueItemCout, { color: colors.textSecondary }]}>
+                    {v.cout.toLocaleString('fr-FR')} FCFA
+                  </Text>
+                )}
+              </View>
+
+              {/* Produit */}
+              <View style={styles.historiqueItemRow}>
+                <Ionicons name="flask" size={14} color={couleur} />
+                <Text style={[styles.historiqueItemLabel, { color: colors.textSecondary }]}>
+                  Produit:
+                </Text>
+                <Text style={[styles.historiqueItemValue, { color: colors.text }]}>
+                  {v.produit_administre || 'Non spécifié'}
+                </Text>
+              </View>
+
+              {/* Dosage */}
+              <View style={styles.historiqueItemRow}>
+                <Ionicons name="medical" size={14} color={couleur} />
+                <Text style={[styles.historiqueItemLabel, { color: colors.textSecondary }]}>
+                  Dosage:
+                </Text>
+                <Text style={[styles.historiqueItemValue, { color: colors.text }]}>
+                  {v.dosage || 'Non spécifié'} {v.unite_dosage || ''}
+                </Text>
+              </View>
+
+              {/* Animaux vaccinés */}
+              <View style={styles.historiqueItemRow}>
+                <Ionicons name="paw" size={14} color={couleur} />
+                <Text style={[styles.historiqueItemLabel, { color: colors.textSecondary }]}>
+                  Animaux ({animauxVaccines.length}):
+                </Text>
+              </View>
+              <View style={styles.historiqueAnimauxList}>
+                {animauxVaccines.length > 0 ? (
+                  <View style={styles.historiqueAnimauxTags}>
+                      {animauxVaccines.map((animal) => {
+                      const nom = animal.nom || animal.code || `Animal ${animal.id.slice(0, 6)}`;
+                      return (
+                        <View
+                          key={animal.id}
+                          style={[
+                            styles.historiqueAnimalTag,
+                            { backgroundColor: `${couleur}15`, borderColor: `${couleur}40` },
+                          ]}
+                        >
+                          <Text style={[styles.historiqueAnimalText, { color: couleur }]}>
+                            {nom}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                ) : (
+                  <Text style={[styles.historiqueItemValue, { color: colors.textSecondary }]}>
+                    Aucun animal trouvé
+                  </Text>
+                )}
+              </View>
+
+              {/* Boutons Modifier/Supprimer */}
+              <View style={[styles.historiqueActions, { borderTopColor: colors.border }]}>
+                <TouchableOpacity
+                  style={[styles.historiqueActionButton, { backgroundColor: `${couleur}15`, borderColor: couleur }]}
+                  onPress={() => initialiserFormulaireAvecVaccination(v)}
+                >
+                  <Ionicons name="create-outline" size={16} color={couleur} />
+                  <Text style={[styles.historiqueActionText, { color: couleur }]}>Modifier</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.historiqueActionButton, { backgroundColor: `${colors.error}15`, borderColor: colors.error }]}
+                  onPress={() => handleSupprimerVaccination(v.id, type)}
+                >
+                  <Ionicons name="trash-outline" size={16} color={colors.error} />
+                  <Text style={[styles.historiqueActionText, { color: colors.error }]}>Supprimer</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          );
+        })}
+      </ScrollView>
     );
   };
 
@@ -650,11 +942,19 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
     const couleur = getCouleurType(stat.type_prophylaxie);
     const icone = getIconeType(stat.type_prophylaxie);
     const isOuverte = sectionOuverte === stat.type_prophylaxie;
+    const isHistoriqueOuvert = historiqueOuvert.has(stat.type_prophylaxie);
 
     return (
       <View
         key={stat.type_prophylaxie}
-        style={[styles.carteType, { backgroundColor: colors.surface, borderColor: colors.borderLight, ...colors.shadow.small }]}
+        style={[
+          styles.carteType,
+          {
+            backgroundColor: colors.surface,
+            borderColor: colors.borderLight,
+            ...colors.shadow.small,
+          },
+        ]}
       >
         {/* Header - Toujours visible */}
         <TouchableOpacity
@@ -667,23 +967,15 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
               <Ionicons name={icone} size={24} color={couleur} />
             </View>
             <View style={styles.carteTitreContainer}>
-              <Text style={[styles.carteTypeTitre, { color: colors.text }]}>
-                {stat.nom_type}
-              </Text>
+              <Text style={[styles.carteTypeTitre, { color: colors.text }]}>{stat.nom_type}</Text>
               {stat.en_retard > 0 && (
                 <View style={[styles.badgeRetard, { backgroundColor: colors.error }]}>
-                  <Text style={styles.badgeRetardTexte}>
-                    {stat.en_retard} en retard
-                  </Text>
+                  <Text style={styles.badgeRetardTexte}>{stat.en_retard} en retard</Text>
                 </View>
               )}
             </View>
           </View>
-          <Ionicons
-            name={isOuverte ? 'chevron-up' : 'chevron-down'}
-            size={24}
-            color={couleur}
-          />
+          <Ionicons name={isOuverte ? 'chevron-up' : 'chevron-down'} size={24} color={couleur} />
         </TouchableOpacity>
 
         {/* Stats - Toujours visible */}
@@ -730,12 +1022,37 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
           </Text>
         </View>
 
+        {/* Bouton Historique */}
+        <TouchableOpacity
+          style={[
+            styles.boutonHistorique,
+            { backgroundColor: `${couleur}10`, borderColor: couleur },
+          ]}
+          onPress={() => toggleHistorique(stat.type_prophylaxie)}
+        >
+          <Ionicons name="time-outline" size={18} color={couleur} />
+          <Text style={[styles.boutonHistoriqueTexte, { color: couleur }]}>
+            {isHistoriqueOuvert ? 'Masquer l\'historique' : 'Voir l\'historique'}
+          </Text>
+          <Ionicons
+            name={isHistoriqueOuvert ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={couleur}
+          />
+        </TouchableOpacity>
+
+        {/* Historique dépliable */}
+        {isHistoriqueOuvert && renderHistorique(stat.type_prophylaxie, couleur)}
+
         {/* Formulaire dépliable */}
         {renderFormulaire(stat.type_prophylaxie, couleur)}
 
         {/* Bouton calendrier */}
         <TouchableOpacity
-          style={[styles.boutonCalendrier, { backgroundColor: `${couleur}15`, borderColor: couleur }]}
+          style={[
+            styles.boutonCalendrier,
+            { backgroundColor: `${couleur}15`, borderColor: couleur },
+          ]}
           onPress={() => {
             const calendrierKey: SectionOuverte = `${stat.type_prophylaxie}_calendrier`;
             setSectionOuverte(sectionOuverte === calendrierKey ? null : calendrierKey);
@@ -744,17 +1061,24 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
         >
           <Ionicons name="calendar-outline" size={20} color={couleur} />
           <Text style={[styles.boutonCalendrierTexte, { color: couleur }]}>
-            {sectionOuverte === `${stat.type_prophylaxie}_calendrier` ? 'Masquer le calendrier' : 'Voir le calendrier'}
+            {sectionOuverte === `${stat.type_prophylaxie}_calendrier`
+              ? 'Masquer le calendrier'
+              : 'Voir le calendrier'}
           </Text>
           <Ionicons
-            name={sectionOuverte === `${stat.type_prophylaxie}_calendrier` ? 'chevron-up' : 'chevron-down'}
+            name={
+              sectionOuverte === `${stat.type_prophylaxie}_calendrier`
+                ? 'chevron-up'
+                : 'chevron-down'
+            }
             size={20}
             color={couleur}
           />
         </TouchableOpacity>
 
         {/* Calendrier dépliable */}
-        {sectionOuverte === `${stat.type_prophylaxie}_calendrier` && renderCalendrier(stat.type_prophylaxie, couleur)}
+        {sectionOuverte === `${stat.type_prophylaxie}_calendrier` &&
+          renderCalendrier(stat.type_prophylaxie, couleur)}
       </View>
     );
   };
@@ -768,12 +1092,14 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
         if (!animal.date_naissance) return null;
 
         const ageJours = calculerAgeJours(animal.date_naissance);
-        const traitementsType = CALENDRIER_VACCINAL_TYPE.filter((cal) => cal.type_prophylaxie === type);
+        const traitementsType = CALENDRIER_VACCINAL_TYPE.filter(
+          (cal) => cal.type_prophylaxie === type
+        );
 
         const prochainTraitement = traitementsType.find((traitement) => {
           const aRecuTraitement = (vaccinations || []).some(
             (v) =>
-              v.animal_ids?.includes(animal.id) &&
+              animalIncludedInVaccination(v.animal_ids, animal.id) &&
               v.type_prophylaxie === traitement.type_prophylaxie &&
               v.statut === 'effectue'
           );
@@ -781,8 +1107,11 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
         });
 
         const dernierTraitement = (vaccinations || [])
-          .filter((v) => v.animal_ids?.includes(animal.id) && v.type_prophylaxie === type)
-          .sort((a, b) => new Date(b.date_vaccination).getTime() - new Date(a.date_vaccination).getTime())[0];
+          .filter((v) => animalIncludedInVaccination(v.animal_ids, animal.id) && v.type_prophylaxie === type)
+          .sort(
+            (a, b) =>
+              new Date(b.date_vaccination).getTime() - new Date(a.date_vaccination).getTime()
+          )[0];
 
         if (!prochainTraitement && !dernierTraitement) return null;
 
@@ -809,7 +1138,12 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
       });
 
     return (
-      <View style={[styles.calendrierContainer, { backgroundColor: `${couleur}10`, borderColor: couleur }]}>
+      <View
+        style={[
+          styles.calendrierContainer,
+          { backgroundColor: `${couleur}10`, borderColor: couleur },
+        ]}
+      >
         <Text style={[styles.calendrierTitre, { color: colors.text }]}>
           📅 Calendrier de vaccination - {TYPE_PROPHYLAXIE_LABELS[type]}
         </Text>
@@ -854,16 +1188,24 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
                   <View style={styles.calendrierItemRow}>
                     <Ionicons name="checkmark-circle" size={14} color={colors.success} />
                     <Text style={[styles.calendrierItemTexte, { color: colors.textSecondary }]}>
-                      Dernier : {new Date(item.dernierTraitement.date_vaccination).toLocaleDateString('fr-FR')}
+                      Dernier :{' '}
+                      {new Date(item.dernierTraitement.date_vaccination).toLocaleDateString(
+                        'fr-FR'
+                      )}
                     </Text>
                   </View>
                 )}
 
                 {item.prochainTraitement && (
                   <View style={styles.calendrierItemRow}>
-                    <Ionicons name="alarm" size={14} color={item.enRetard ? colors.error : couleur} />
+                    <Ionicons
+                      name="alarm"
+                      size={14}
+                      color={item.enRetard ? colors.error : couleur}
+                    />
                     <Text style={[styles.calendrierItemTexte, { color: colors.textSecondary }]}>
-                      {item.prochainTraitement.nom_traitement} ({item.prochainTraitement.age_display})
+                      {item.prochainTraitement.nom_traitement} (
+                      {item.prochainTraitement.age_display})
                     </Text>
                   </View>
                 )}
@@ -1061,6 +1403,20 @@ const styles = StyleSheet.create({
     marginTop: SPACING.md,
     padding: SPACING.md,
     borderRadius: BORDER_RADIUS.sm,
+  },
+  modeEditionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: SPACING.sm,
+    borderRadius: BORDER_RADIUS.sm,
+    borderWidth: 1,
+    marginBottom: SPACING.md,
+    gap: SPACING.xs,
+  },
+  modeEditionText: {
+    flex: 1,
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
   },
   formSection: {
     marginBottom: SPACING.md,
@@ -1272,5 +1628,113 @@ const styles = StyleSheet.create({
     color: '#FFF',
     marginLeft: 6,
   },
-});
 
+  // Historique - Style compact et esthétique
+  boutonHistorique: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.sm,
+    borderRadius: BORDER_RADIUS.sm,
+    borderWidth: 1,
+    marginTop: SPACING.sm,
+    gap: SPACING.xs,
+  },
+  boutonHistoriqueTexte: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+    flex: 1,
+    textAlign: 'center',
+  },
+  historiqueContainer: {
+    marginTop: SPACING.sm,
+    maxHeight: 400,
+  },
+  historiqueEmpty: {
+    padding: SPACING.md,
+    alignItems: 'center',
+  },
+  historiqueEmptyText: {
+    fontSize: FONT_SIZES.sm,
+    fontStyle: 'italic',
+  },
+  historiqueItem: {
+    padding: SPACING.sm,
+    borderRadius: BORDER_RADIUS.sm,
+    borderLeftWidth: 3,
+    marginBottom: SPACING.xs,
+    gap: SPACING.xs / 2,
+  },
+  historiqueItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.xs / 2,
+  },
+  historiqueItemHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs / 2,
+  },
+  historiqueItemDate: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+  },
+  historiqueItemCout: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '500',
+  },
+  historiqueItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs / 2,
+  },
+  historiqueItemLabel: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '500',
+  },
+  historiqueItemValue: {
+    fontSize: FONT_SIZES.xs,
+    flex: 1,
+  },
+  historiqueAnimauxList: {
+    marginTop: SPACING.xs / 2,
+    paddingLeft: 20, // Align with icon
+  },
+  historiqueAnimauxTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.xs / 2,
+  },
+  historiqueAnimalTag: {
+    paddingHorizontal: SPACING.xs,
+    paddingVertical: 2,
+    borderRadius: BORDER_RADIUS.xs,
+    borderWidth: 1,
+  },
+  historiqueAnimalText: {
+    fontSize: FONT_SIZES.xs - 1,
+    fontWeight: '600',
+  },
+  historiqueActions: {
+    flexDirection: 'row',
+    gap: SPACING.xs,
+    marginTop: SPACING.sm,
+    paddingTop: SPACING.sm,
+    borderTopWidth: 1,
+  },
+  historiqueActionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.xs,
+    borderRadius: BORDER_RADIUS.xs,
+    borderWidth: 1,
+    gap: SPACING.xs / 2,
+  },
+  historiqueActionText: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '600',
+  },
+});

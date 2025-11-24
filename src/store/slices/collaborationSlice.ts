@@ -3,7 +3,12 @@
  */
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { Collaborateur, CreateCollaborateurInput, UpdateCollaborateurInput, DEFAULT_PERMISSIONS } from '../../types';
+import {
+  Collaborateur,
+  CreateCollaborateurInput,
+  UpdateCollaborateurInput,
+  DEFAULT_PERMISSIONS,
+} from '../../types';
 import { databaseService } from '../../services/database';
 
 interface CollaborationState {
@@ -27,7 +32,7 @@ export const createCollaborateur = createAsyncThunk(
   'collaboration/createCollaborateur',
   async (input: CreateCollaborateurInput, { rejectWithValue }) => {
     try {
-      const permissions = input.permissions 
+      const permissions = input.permissions
         ? { ...DEFAULT_PERMISSIONS[input.role], ...input.permissions }
         : DEFAULT_PERMISSIONS[input.role];
       const collaborateur = await databaseService.createCollaborateur({
@@ -69,7 +74,10 @@ export const loadCollaborateursParProjet = createAsyncThunk(
 
 export const updateCollaborateur = createAsyncThunk(
   'collaboration/updateCollaborateur',
-  async ({ id, updates }: { id: string; updates: UpdateCollaborateurInput }, { rejectWithValue }) => {
+  async (
+    { id, updates }: { id: string; updates: UpdateCollaborateurInput },
+    { rejectWithValue }
+  ) => {
     try {
       const collaborateur = await databaseService.updateCollaborateur(id, updates);
       return collaborateur;
@@ -101,7 +109,7 @@ export const accepterInvitation = createAsyncThunk(
       });
       return collaborateur;
     } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de l\'acceptation de l\'invitation');
+      return rejectWithValue(error.message || "Erreur lors de l'acceptation de l'invitation");
     }
   }
 );
@@ -115,8 +123,10 @@ export const loadCollaborateurActuel = createAsyncThunk(
     try {
       // Chercher le collaborateur actif pour cet utilisateur et ce projet
       const collaborateurs = await databaseService.getCollaborateursActifsParUserId(userId);
-      const collaborateur = collaborateurs.find((c) => c.projet_id === projetId && c.statut === 'actif');
-      
+      const collaborateur = collaborateurs.find(
+        (c) => c.projet_id === projetId && c.statut === 'actif'
+      );
+
       return collaborateur || null;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement du collaborateur actuel');
@@ -137,12 +147,12 @@ export const loadInvitationsEnAttente = createAsyncThunk(
       }
 
       let invitations: Collaborateur[] = [];
-      
+
       // D'abord essayer par user_id si disponible
       if (userId) {
         invitations = await databaseService.getInvitationsEnAttenteParUserId(userId);
       }
-      
+
       // Si pas d'invitations par user_id, essayer par email
       if (invitations.length === 0 && email) {
         invitations = await databaseService.getInvitationsEnAttenteParEmail(email);
@@ -157,10 +167,12 @@ export const loadInvitationsEnAttente = createAsyncThunk(
           invitations = await databaseService.getInvitationsEnAttenteParUserId(userId);
         }
       }
-      
+
       return invitations;
     } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement des invitations en attente');
+      return rejectWithValue(
+        error.message || 'Erreur lors du chargement des invitations en attente'
+      );
     }
   }
 );
@@ -177,7 +189,7 @@ export const rejeterInvitation = createAsyncThunk(
       });
       return id;
     } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du rejet de l\'invitation');
+      return rejectWithValue(error.message || "Erreur lors du rejet de l'invitation");
     }
   }
 );
@@ -244,7 +256,9 @@ const collaborationSlice = createSlice({
       })
       .addCase(updateCollaborateur.fulfilled, (state, action) => {
         state.loading = false;
-        const index = state.collaborateurs.findIndex((c: Collaborateur) => c.id === action.payload.id);
+        const index = state.collaborateurs.findIndex(
+          (c: Collaborateur) => c.id === action.payload.id
+        );
         if (index !== -1) {
           state.collaborateurs[index] = action.payload;
         }
@@ -260,7 +274,9 @@ const collaborationSlice = createSlice({
       })
       .addCase(deleteCollaborateur.fulfilled, (state, action) => {
         state.loading = false;
-        state.collaborateurs = state.collaborateurs.filter((c: Collaborateur) => c.id !== action.payload);
+        state.collaborateurs = state.collaborateurs.filter(
+          (c: Collaborateur) => c.id !== action.payload
+        );
       })
       .addCase(deleteCollaborateur.rejected, (state, action) => {
         state.loading = false;
@@ -273,7 +289,9 @@ const collaborationSlice = createSlice({
       })
       .addCase(accepterInvitation.fulfilled, (state, action) => {
         state.loading = false;
-        const index = state.collaborateurs.findIndex((c: Collaborateur) => c.id === action.payload.id);
+        const index = state.collaborateurs.findIndex(
+          (c: Collaborateur) => c.id === action.payload.id
+        );
         if (index !== -1) {
           state.collaborateurs[index] = action.payload;
         }
@@ -331,6 +349,6 @@ const collaborationSlice = createSlice({
   },
 });
 
-export const { clearError, clearCollaborateurActuel, clearInvitationsEnAttente } = collaborationSlice.actions;
+export const { clearError, clearCollaborateurActuel, clearInvitationsEnAttente } =
+  collaborationSlice.actions;
 export default collaborationSlice.reducer;
-

@@ -46,7 +46,7 @@ export default function ExportImportComponent() {
       await exportAndShareJSON(projetActif.id);
       Alert.alert('Succès', 'Données exportées avec succès !');
     } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Erreur lors de l\'export');
+      Alert.alert('Erreur', error.message || "Erreur lors de l'export");
     } finally {
       setExporting(false);
     }
@@ -63,7 +63,7 @@ export default function ExportImportComponent() {
       await exportAndShareCSV(projetActif.id, module);
       Alert.alert('Succès', 'Données exportées en CSV avec succès !');
     } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Erreur lors de l\'export CSV');
+      Alert.alert('Erreur', error.message || "Erreur lors de l'export CSV");
     } finally {
       setExporting(false);
     }
@@ -77,10 +77,8 @@ export default function ExportImportComponent() {
 
     Alert.alert(
       'Import de données',
-      'Pour importer des données, vous devez partager un fichier JSON avec l\'application Fermier Pro. Cette fonctionnalité nécessite l\'installation de expo-document-picker. Pour l\'instant, utilisez l\'export JSON pour sauvegarder vos données.',
-      [
-        { text: 'OK', style: 'default' },
-      ]
+      "Pour importer des données, vous devez partager un fichier JSON avec l'application Fermier Pro. Cette fonctionnalité nécessite l'installation de expo-document-picker. Pour l'instant, utilisez l'export JSON pour sauvegarder vos données.",
+      [{ text: 'OK', style: 'default' }]
     );
   };
 
@@ -109,7 +107,8 @@ export default function ExportImportComponent() {
         <Card elevation="medium" padding="large" style={styles.card}>
           <Text style={[styles.cardTitle, { color: colors.text }]}>Export complet (JSON)</Text>
           <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
-            Exporte toutes les données de votre projet au format JSON. Idéal pour la sauvegarde complète.
+            Exporte toutes les données de votre projet au format JSON. Idéal pour la sauvegarde
+            complète.
           </Text>
           <Button
             title={exporting ? 'Export en cours...' : 'Exporter en JSON'}
@@ -171,10 +170,17 @@ export default function ExportImportComponent() {
         <Card elevation="medium" padding="large" style={styles.card}>
           <Text style={[styles.cardTitle, { color: colors.text }]}>Import depuis JSON</Text>
           <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
-            Importe les données depuis un fichier JSON exporté précédemment. Les données seront ajoutées à votre base actuelle.
+            Importe les données depuis un fichier JSON exporté précédemment. Les données seront
+            ajoutées à votre base actuelle.
           </Text>
-          <Text style={[styles.warningText, { color: colors.warning, backgroundColor: colors.warning + '10' }]}>
-            ⚠️ Attention : Les doublons seront ignorés. Assurez-vous que le fichier provient bien d'une exportation Fermier Pro.
+          <Text
+            style={[
+              styles.warningText,
+              { color: colors.warning, backgroundColor: colors.warning + '10' },
+            ]}
+          >
+            ⚠️ Attention : Les doublons seront ignorés. Assurez-vous que le fichier provient bien
+            d'une exportation Fermier Pro.
           </Text>
           <Button
             title={importing ? 'Import en cours...' : 'Importer depuis JSON'}
@@ -289,4 +295,3 @@ const styles = StyleSheet.create({
     padding: SPACING.xl,
   },
 });
-

@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   Pressable,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import {
@@ -40,11 +41,26 @@ export default function NutritionStockComponent() {
   const [showMovementModal, setShowMovementModal] = useState(false);
   const [displayedStocks, setDisplayedStocks] = useState<StockAliment[]>([]);
   const [pageStocks, setPageStocks] = useState(1);
+  const [refreshing, setRefreshing] = useState(false);
   const ITEMS_PER_PAGE = 50;
 
   useEffect(() => {
     if (projetActif) {
       dispatch(loadStocks(projetActif.id));
+    }
+  }, [dispatch, projetActif?.id]);
+
+  // Fonction pour rafraîchir les données (pull-to-refresh)
+  const onRefresh = useCallback(async () => {
+    if (!projetActif?.id) return;
+
+    setRefreshing(true);
+    try {
+      await dispatch(loadStocks(projetActif.id)).unwrap();
+    } catch (error) {
+      console.error('Erreur lors du rafraîchissement des stocks:', error);
+    } finally {
+      setRefreshing(false);
     }
   }, [dispatch, projetActif?.id]);
 
@@ -74,9 +90,9 @@ export default function NutritionStockComponent() {
   // Pagination: mettre à jour displayedStocks quand stocks change (pas seulement la longueur)
   // Créer une clé basée sur les IDs et quantités pour détecter les changements
   const stocksKey = useMemo(() => {
-    return (stocks || []).map(s => `${s.id}:${s.quantite_actuelle}`).join(',');
+    return (stocks || []).map((s) => `${s.id}:${s.quantite_actuelle}`).join(',');
   }, [stocks]);
-  
+
   // Synchroniser displayedStocks quand stocks change (détecté via la clé)
   useEffect(() => {
     const initial = (stocks || []).slice(0, ITEMS_PER_PAGE);
@@ -103,7 +119,7 @@ export default function NutritionStockComponent() {
 
   const handleDelete = (aliment: StockAliment) => {
     if (!canDelete('nutrition')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de supprimer les stocks.');
+      Alert.alert('Permission refusée', "Vous n'avez pas la permission de supprimer les stocks.");
       return;
     }
     Alert.alert(
@@ -115,9 +131,20 @@ export default function NutritionStockComponent() {
           text: 'Supprimer',
           style: 'destructive',
           onPress: async () => {
-            await dispatch(deleteStockAliment(aliment.id));
-            if (selectedStock?.id === aliment.id) {
-              setSelectedStock(null);
+            try {
+              await dispatch(deleteStockAliment(aliment.id)).unwrap();
+              // Recharger la liste pour s'assurer que l'UI est à jour
+              if (projetActif) {
+                await dispatch(loadStocks(projetActif.id));
+              }
+              if (selectedStock?.id === aliment.id) {
+                setSelectedStock(null);
+              }
+            } catch (error: any) {
+              Alert.alert(
+                'Erreur',
+                error.message || "Erreur lors de la suppression de l'aliment"
+              );
             }
           },
         },
@@ -141,7 +168,9 @@ export default function NutritionStockComponent() {
   // Composant d'en-tête pour la FlatList
   const ListHeader = () => (
     <View>
-      <View style={[styles.summaryCard, { backgroundColor: colors.surface, ...colors.shadow.medium }]}>
+      <View
+        style={[styles.summaryCard, { backgroundColor: colors.surface, ...colors.shadow.medium }]}
+      >
         <View style={styles.summaryHeader}>
           <Text style={[styles.summaryTitle, { color: colors.text }]}>Suivi des stocks</Text>
           {canCreate('nutrition') && (
@@ -157,13 +186,26 @@ export default function NutritionStockComponent() {
         </View>
         <View style={styles.summaryStats}>
           <View style={styles.summaryItem}>
-            <Text style={[styles.summaryValue, { color: colors.text }]}>{(stocks || []).length}</Text>
-            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Aliments suivis</Text>
+            <Text style={[styles.summaryValue, { color: colors.text }]}>
+              {(stocks || []).length}
+            </Text>
+            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+              Aliments suivis
+            </Text>
           </View>
           <View style={[styles.dividerVertical, { backgroundColor: colors.border }]} />
           <View style={styles.summaryItem}>
-            <Text style={[styles.summaryValue, { color: alertes.length > 0 ? colors.error : colors.text }]}>{alertes.length}</Text>
-            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Alertes actives</Text>
+            <Text
+              style={[
+                styles.summaryValue,
+                { color: alertes.length > 0 ? colors.error : colors.text },
+              ]}
+            >
+              {alertes.length}
+            </Text>
+            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+              Alertes actives
+            </Text>
           </View>
         </View>
         {alertes.length > 0 && (
@@ -171,7 +213,8 @@ export default function NutritionStockComponent() {
             <Text style={[styles.alertTitle, { color: colors.error }]}>⚠️ Alertes stock bas</Text>
             {alertes.slice(0, 3).map((stock) => (
               <Text key={stock.id} style={[styles.alertText, { color: colors.text }]}>
-                • {stock.nom}: {stock.quantite_actuelle} {stock.unite} (seuil {stock.seuil_alerte} {stock.unite})
+                • {stock.nom}: {stock.quantite_actuelle} {stock.unite} (seuil {stock.seuil_alerte}{' '}
+                {stock.unite})
               </Text>
             ))}
             {alertes.length > 3 && (
@@ -182,7 +225,6 @@ export default function NutritionStockComponent() {
           </View>
         )}
       </View>
-
     </View>
   );
 
@@ -232,113 +274,133 @@ export default function NutritionStockComponent() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <FlatList
-            data={displayedStocks}
-            renderItem={({ item: stock }) => {
-              const pourcentage = stock.seuil_alerte
-                ? Math.min(100, Math.round((stock.quantite_actuelle / stock.seuil_alerte) * 100))
-                : null;
+        data={displayedStocks}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
+        renderItem={({ item: stock }) => {
+          const pourcentage = stock.seuil_alerte
+            ? Math.min(100, Math.round((stock.quantite_actuelle / stock.seuil_alerte) * 100))
+            : null;
 
-              return (
-                <View
-                  key={stock.id}
-                  style={[
-                    styles.card,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: selectedStock?.id === stock.id ? colors.primary : colors.borderLight,
-                      borderWidth: selectedStock?.id === stock.id ? 2 : 1,
-                      ...colors.shadow.small,
-                    },
-                  ]}
-                >
-                  <TouchableOpacity
-                    activeOpacity={0.7}
-                    onPress={() => setSelectedStock(stock)}
-                  >
-                    <View style={styles.cardHeader}>
-                      <View>
-                        <Text style={[styles.cardTitle, { color: colors.text }]}>{stock.nom}</Text>
-                        {stock.categorie ? (
-                          <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>{stock.categorie}</Text>
-                        ) : null}
-                      </View>
-                      {stock.alerte_active && <Text style={[styles.alertBadge, { color: colors.error }]}>Alerte</Text>}
+          return (
+            <View
+              key={stock.id}
+              style={[
+                styles.card,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: selectedStock?.id === stock.id ? colors.primary : colors.borderLight,
+                  borderWidth: selectedStock?.id === stock.id ? 2 : 1,
+                  ...colors.shadow.small,
+                },
+              ]}
+            >
+              <TouchableOpacity activeOpacity={0.7} onPress={() => setSelectedStock(stock)}>
+                <View style={styles.cardHeader}>
+                  <View>
+                    <Text style={[styles.cardTitle, { color: colors.text }]}>{stock.nom}</Text>
+                    {stock.categorie ? (
+                      <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
+                        {stock.categorie}
+                      </Text>
+                    ) : null}
+                  </View>
+                  {stock.alerte_active && (
+                    <Text style={[styles.alertBadge, { color: colors.error }]}>Alerte</Text>
+                  )}
+                </View>
+                <View style={styles.cardContent}>
+                  <View style={styles.cardRow}>
+                    <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>
+                      Stock actuel :
+                    </Text>
+                    <Text style={[styles.cardValue, { color: colors.text }]}>
+                      {stock.quantite_actuelle} {stock.unite}
+                    </Text>
+                  </View>
+                  {stock.seuil_alerte !== undefined && stock.seuil_alerte !== null && (
+                    <View style={styles.cardRow}>
+                      <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>
+                        Seuil d'alerte :
+                      </Text>
+                      <Text style={[styles.cardValue, { color: colors.text }]}>
+                        {stock.seuil_alerte} {stock.unite}
+                      </Text>
                     </View>
-                    <View style={styles.cardContent}>
-                      <View style={styles.cardRow}>
-                        <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Stock actuel :</Text>
-                        <Text style={[styles.cardValue, { color: colors.text }]}>
-                          {stock.quantite_actuelle} {stock.unite}
-                        </Text>
-                      </View>
-                      {stock.seuil_alerte !== undefined && stock.seuil_alerte !== null && (
-                        <View style={styles.cardRow}>
-                          <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Seuil d'alerte :</Text>
-                          <Text style={[styles.cardValue, { color: colors.text }]}>
-                            {stock.seuil_alerte} {stock.unite}
-                          </Text>
-                        </View>
-                      )}
-                      {pourcentage !== null && stock.seuil_alerte !== undefined && stock.seuil_alerte !== null && (
-                        <View style={[styles.progressBar, { backgroundColor: colors.border }]}>
-                          <View
-                            style={[styles.progressFill, {
+                  )}
+                  {pourcentage !== null &&
+                    stock.seuil_alerte !== undefined &&
+                    stock.seuil_alerte !== null && (
+                      <View style={[styles.progressBar, { backgroundColor: colors.border }]}>
+                        <View
+                          style={[
+                            styles.progressFill,
+                            {
                               width: `${Math.round(Math.min(100, pourcentage))}%`,
                               backgroundColor: stock.alerte_active ? colors.error : colors.primary,
-                            }]}
-                          />
-                        </View>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                  <View style={styles.cardActions}>
-                    {canCreate('nutrition') && (
-                      <Pressable
-                        style={({ pressed }) => [
-                          styles.actionButton,
-                          { backgroundColor: colors.primary + '12' },
-                          pressed && { opacity: 0.7 },
-                        ]}
-                        onPress={() => {
-                          setSelectedStock(stock);
-                          setShowMovementModal(true);
-                        }}
-                      >
-                        <Text style={[styles.actionButtonText, { color: colors.text }]}>Mouvement</Text>
-                      </Pressable>
+                            },
+                          ]}
+                        />
+                      </View>
                     )}
-                    {canUpdate('nutrition') && (
-                      <Pressable
-                        style={({ pressed }) => [
-                          styles.actionButton,
-                          { backgroundColor: colors.primary + '12' },
-                          pressed && { opacity: 0.7 },
-                        ]}
-                        onPress={() => {
-                          setSelectedStock(stock);
-                          setIsEditing(true);
-                          setShowAlimentModal(true);
-                        }}
-                      >
-                        <Text style={[styles.actionButtonText, { color: colors.text }]}>Modifier</Text>
-                      </Pressable>
-                    )}
-                    {canDelete('nutrition') && (
-                      <Pressable
-                        style={({ pressed }) => [
-                          styles.actionButton,
-                          { backgroundColor: colors.error + '15' },
-                          pressed && { opacity: 0.7 },
-                        ]}
-                        onPress={() => handleDelete(stock)}
-                      >
-                        <Text style={[styles.actionButtonText, { color: colors.error }]}>Supprimer</Text>
-                      </Pressable>
-                    )}
-                  </View>
                 </View>
-              );
-            }}
+              </TouchableOpacity>
+              <View style={styles.cardActions}>
+                {canCreate('nutrition') && (
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.actionButton,
+                      { backgroundColor: colors.primary + '12' },
+                      pressed && { opacity: 0.7 },
+                    ]}
+                    onPress={() => {
+                      setSelectedStock(stock);
+                      setShowMovementModal(true);
+                    }}
+                  >
+                    <Text style={[styles.actionButtonText, { color: colors.text }]}>Mouvement</Text>
+                  </Pressable>
+                )}
+                {canUpdate('nutrition') && (
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.actionButton,
+                      { backgroundColor: colors.primary + '12' },
+                      pressed && { opacity: 0.7 },
+                    ]}
+                    onPress={() => {
+                      setSelectedStock(stock);
+                      setIsEditing(true);
+                      setShowAlimentModal(true);
+                    }}
+                  >
+                    <Text style={[styles.actionButtonText, { color: colors.text }]}>Modifier</Text>
+                  </Pressable>
+                )}
+                {canDelete('nutrition') && (
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.actionButton,
+                      { backgroundColor: colors.error + '15' },
+                      pressed && { opacity: 0.7 },
+                    ]}
+                    onPress={() => handleDelete(stock)}
+                  >
+                    <Text style={[styles.actionButtonText, { color: colors.error }]}>
+                      Supprimer
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
+            </View>
+          );
+        }}
         keyExtractor={(item) => item.id}
         onEndReached={loadMoreStocks}
         onEndReachedThreshold={0.5}
@@ -365,13 +427,18 @@ export default function NutritionStockComponent() {
           setIsEditing(false);
           setSelectedStock(null);
         }}
-        onSuccess={async () => {
-          setShowAlimentModal(false);
+        onSuccess={() => {
+          // Le modal est déjà fermé par onClose dans StockAlimentFormModal
+          // Réinitialiser les états
           setIsEditing(false);
           setSelectedStock(null);
+          
+          // Recharger les stocks de manière asynchrone sans bloquer
           if (projetActif) {
-            // Recharger tous les stocks pour s'assurer que les données sont à jour
-            await dispatch(loadStocks(projetActif.id));
+            // Utiliser setTimeout pour laisser le modal se fermer complètement
+            setTimeout(() => {
+              dispatch(loadStocks(projetActif.id));
+            }, 150);
           }
         }}
         projetId={projetActif?.id || ''}
@@ -547,5 +614,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-
-

@@ -1,6 +1,6 @@
 /**
- * ProfilScreen - Écran de profil du fermier
- * Gestion des informations personnelles
+ * ProfilScreen - Écran de profil utilisateur simple
+ * Gestion des informations personnelles de base
  */
 
 import React, { useState, useEffect } from 'react';
@@ -13,79 +13,85 @@ import {
   TextInput,
   Image,
   Alert,
-  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-interface ProfilFermier {
-  nom: string;
-  prenom: string;
-  email: string;
-  telephone: string;
-  adresse: string;
-  photo_uri?: string;
-}
-
-const PROFIL_STORAGE_KEY = '@profil_fermier';
+import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
+import { databaseService } from '../services/database';
+import { loadUserFromStorageThunk } from '../store/slices/authSlice';
 
 export default function ProfilScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const { colors } = useTheme();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const dispatch = useAppDispatch();
+  
+  const { user } = useAppSelector((state) => state.auth);
 
-  const [profil, setProfil] = useState<ProfilFermier>({
-    nom: '',
-    prenom: '',
-    email: '',
-    telephone: '',
-    adresse: '',
-    photo_uri: undefined,
-  });
+  // Initialiser les champs à vide - ils seront chargés depuis la DB
+  const [nom, setNom] = useState('');
+  const [prenom, setPrenom] = useState('');
+  const [email, setEmail] = useState('');
+  const [telephone, setTelephone] = useState('');
+  const [photo, setPhoto] = useState('');
 
   const [loading, setLoading] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
+  const [loadingData, setLoadingData] = useState(true);
 
-  // Charger le profil depuis AsyncStorage
-  useEffect(() => {
-    loadProfil();
-  }, []);
-
-  const loadProfil = async () => {
-    try {
-      const stored = await AsyncStorage.getItem(PROFIL_STORAGE_KEY);
-      if (stored) {
-        setProfil(JSON.parse(stored));
-      }
-    } catch (error) {
-      console.error('Erreur chargement profil:', error);
-    }
-  };
-
-  const saveProfil = async () => {
-    if (!profil.nom.trim() || !profil.prenom.trim()) {
-      Alert.alert('Erreur', 'Le nom et le prénom sont obligatoires');
+  // Charger les données du profil depuis la base de données
+  const loadProfilData = async () => {
+    if (!user?.id) {
+      setLoadingData(false);
       return;
     }
 
-    setLoading(true);
     try {
-      await AsyncStorage.setItem(PROFIL_STORAGE_KEY, JSON.stringify(profil));
-      setHasChanges(false);
-      Alert.alert('Succès', 'Profil enregistré avec succès');
-    } catch (error) {
-      console.error('Erreur sauvegarde profil:', error);
-      Alert.alert('Erreur', 'Impossible de sauvegarder le profil');
+      setLoadingData(true);
+      // Charger directement depuis la base de données pour avoir les données à jour
+      const dbUser = await databaseService.getUserById(user.id);
+      
+      if (dbUser) {
+        // Remplir les champs avec les données de la base de données
+        setNom(dbUser.nom || '');
+        setPrenom(dbUser.prenom || '');
+        setEmail(dbUser.email || '');
+        setTelephone(dbUser.telephone || '');
+        setPhoto(dbUser.photo || '');
+      } else {
+        // Si l'utilisateur n'existe pas dans la DB, utiliser les données du state Redux
+        if (user) {
+          setNom(user.nom || '');
+          setPrenom(user.prenom || '');
+          setEmail(user.email || '');
+          setTelephone(user.telephone || '');
+          setPhoto(user.photo || '');
+        }
+      }
+    } catch (error: any) {
+      console.error('Erreur chargement profil:', error);
+      // En cas d'erreur, utiliser les données du state Redux comme fallback
+      if (user) {
+        setNom(user.nom || '');
+        setPrenom(user.prenom || '');
+        setEmail(user.email || '');
+        setTelephone(user.telephone || '');
+        setPhoto(user.photo || '');
+      }
     } finally {
-      setLoading(false);
+      setLoadingData(false);
     }
   };
+
+  // Charger les données au montage et quand l'écran revient au focus
+  useFocusEffect(
+    React.useCallback(() => {
+      loadProfilData();
+    }, [user?.id])
+  );
 
   const pickImage = async () => {
     try {
@@ -103,239 +109,199 @@ export default function ProfilScreen() {
       });
 
       if (!result.canceled && result.assets[0]) {
-        setProfil({ ...profil, photo_uri: result.assets[0].uri });
-        setHasChanges(true);
+        setPhoto(result.assets[0].uri);
       }
     } catch (error) {
-      console.error('Erreur sélection photo:', error);
-      Alert.alert('Erreur', 'Impossible de sélectionner la photo');
+      console.error('Erreur sélection image:', error);
+      Alert.alert('Erreur', 'Impossible de sélectionner l\'image');
     }
   };
 
-  const takePhoto = async () => {
+  const validateAndSave = async () => {
+    // Validation
+    if (!nom.trim() || !prenom.trim()) {
+      Alert.alert('Erreur', 'Le nom et le prénom sont obligatoires');
+      return;
+    }
+
+    setLoading(true);
     try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission refusée', 'Permission nécessaire pour utiliser la caméra');
+      if (!user) {
+        Alert.alert(
+          'Session expirée',
+          'Votre session a expiré. Veuillez vous reconnecter.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Retour à l'écran de connexion
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'Auth' }],
+                });
+              },
+            },
+          ]
+        );
+        setLoading(false);
         return;
       }
 
-      const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
+      // Mettre à jour dans la base de données
+      await databaseService.updateUser(user.id, {
+        nom,
+        prenom,
+        email: email || undefined,
+        telephone: telephone || undefined,
+        photo: photo || undefined,
       });
 
-      if (!result.canceled && result.assets[0]) {
-        setProfil({ ...profil, photo_uri: result.assets[0].uri });
-        setHasChanges(true);
+      // Recharger l'utilisateur dans le state Redux pour que les autres composants voient les changements
+      await dispatch(loadUserFromStorageThunk());
+
+      Alert.alert('Succès', 'Profil enregistré avec succès');
+
+      // Retour
+      if (navigation.canGoBack()) {
+        navigation.goBack();
       }
-    } catch (error) {
-      console.error('Erreur prise photo:', error);
-      Alert.alert('Erreur', 'Impossible de prendre la photo');
+    } catch (error: any) {
+      console.error('Erreur sauvegarde profil:', error);
+      Alert.alert('Erreur', error.message || 'Impossible de sauvegarder le profil');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handlePhotoOptions = () => {
-    Alert.alert(
-      'Photo de profil',
-      'Choisissez une option',
-      [
-        {
-          text: 'Prendre une photo',
-          onPress: takePhoto,
-        },
-        {
-          text: 'Choisir depuis la galerie',
-          onPress: pickImage,
-        },
-        {
-          text: 'Annuler',
-          style: 'cancel',
-        },
-      ]
-    );
-  };
-
-  const updateField = (field: keyof ProfilFermier, value: string) => {
-    setProfil({ ...profil, [field]: value });
-    setHasChanges(true);
-  };
-
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.content}>
-          {/* Bouton retour */}
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+        {navigation.canGoBack() && (
           <TouchableOpacity
-            style={[styles.backButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            style={styles.backButton}
             onPress={() => navigation.goBack()}
           >
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
+        )}
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Mon Profil</Text>
+        <View style={{ width: 40 }} />
+      </View>
 
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={[styles.title, { color: colors.text }]}>Mon Profil</Text>
-            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              Gérez vos informations personnelles
-            </Text>
-          </View>
-
-          {/* Photo de profil */}
-          <View style={styles.photoSection}>
-            <TouchableOpacity
-              style={[styles.photoContainer, { borderColor: colors.primary }]}
-              onPress={handlePhotoOptions}
-              activeOpacity={0.8}
-            >
-              {profil.photo_uri ? (
-                <Image source={{ uri: profil.photo_uri }} style={styles.photo} />
-              ) : (
-                <View style={[styles.photoPlaceholder, { backgroundColor: colors.primary + '15' }]}>
-                  {profil.nom && profil.prenom ? (
-                    <Text style={[styles.initialesText, { color: colors.primary }]}>
-                      {profil.prenom.charAt(0).toUpperCase()}{profil.nom.charAt(0).toUpperCase()}
-                    </Text>
-                  ) : (
-                    <Ionicons name="person" size={60} color={colors.primary} />
-                  )}
-                </View>
-              )}
-              <View style={[styles.photoEditBadge, { backgroundColor: colors.primary }]}>
-                <Ionicons name="camera" size={16} color="#FFF" />
-              </View>
-            </TouchableOpacity>
-            <Text style={[styles.photoHint, { color: colors.textSecondary }]}>
-              Appuyez pour modifier votre photo
-            </Text>
-          </View>
-
-          {/* Formulaire */}
-          <View style={[styles.formSection, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
-            {/* Nom */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                Nom <Text style={{ color: colors.error }}>*</Text>
-              </Text>
-              <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                <Ionicons name="person-outline" size={20} color={colors.textSecondary} />
-                <TextInput
-                  style={[styles.input, { color: colors.text }]}
-                  placeholder="Votre nom"
-                  placeholderTextColor={colors.textSecondary}
-                  value={profil.nom}
-                  onChangeText={(text) => updateField('nom', text)}
-                />
-              </View>
-            </View>
-
-            {/* Prénom */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                Prénom <Text style={{ color: colors.error }}>*</Text>
-              </Text>
-              <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                <Ionicons name="person-outline" size={20} color={colors.textSecondary} />
-                <TextInput
-                  style={[styles.input, { color: colors.text }]}
-                  placeholder="Votre prénom"
-                  placeholderTextColor={colors.textSecondary}
-                  value={profil.prenom}
-                  onChangeText={(text) => updateField('prenom', text)}
-                />
-              </View>
-            </View>
-
-            {/* Email */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.text }]}>Email</Text>
-              <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                <Ionicons name="mail-outline" size={20} color={colors.textSecondary} />
-                <TextInput
-                  style={[styles.input, { color: colors.text }]}
-                  placeholder="votre.email@exemple.com"
-                  placeholderTextColor={colors.textSecondary}
-                  value={profil.email}
-                  onChangeText={(text) => updateField('email', text)}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-              </View>
-            </View>
-
-            {/* Téléphone */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.text }]}>Téléphone</Text>
-              <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                <Ionicons name="call-outline" size={20} color={colors.textSecondary} />
-                <TextInput
-                  style={[styles.input, { color: colors.text }]}
-                  placeholder="+XXX XX XX XX XX"
-                  placeholderTextColor={colors.textSecondary}
-                  value={profil.telephone}
-                  onChangeText={(text) => updateField('telephone', text)}
-                  keyboardType="phone-pad"
-                />
-              </View>
-            </View>
-
-            {/* Adresse */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.text }]}>Adresse</Text>
-              <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                <Ionicons name="location-outline" size={20} color={colors.textSecondary} />
-                <TextInput
-                  style={[styles.input, { color: colors.text }]}
-                  placeholder="Votre adresse"
-                  placeholderTextColor={colors.textSecondary}
-                  value={profil.adresse}
-                  onChangeText={(text) => updateField('adresse', text)}
-                  multiline
-                />
-              </View>
-            </View>
-          </View>
-
-          {/* Informations du projet */}
-          {projetActif && (
-            <View style={[styles.projetSection, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' }]}>
-              <View style={styles.projetHeader}>
-                <Ionicons name="business" size={20} color={colors.primary} />
-                <Text style={[styles.projetTitle, { color: colors.primary }]}>
-                  Projet actif
-                </Text>
-              </View>
-              <Text style={[styles.projetNom, { color: colors.text }]}>
-                {projetActif.nom}
-              </Text>
-              {projetActif.description && (
-                <Text style={[styles.projetDescription, { color: colors.textSecondary }]}>
-                  {projetActif.description}
-                </Text>
-              )}
-            </View>
-          )}
-
-          {/* Bouton d'enregistrement */}
-          {hasChanges && (
-            <TouchableOpacity
-              style={[styles.saveButton, { backgroundColor: colors.primary }]}
-              onPress={saveProfil}
-              disabled={loading}
-            >
-              {loading ? (
-                <Text style={styles.saveButtonText}>Enregistrement...</Text>
-              ) : (
-                <>
-                  <Ionicons name="checkmark-circle" size={20} color="#FFF" />
-                  <Text style={styles.saveButtonText}>Enregistrer les modifications</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          )}
+      {loadingData ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+            Chargement du profil...
+          </Text>
         </View>
+      ) : (
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+        {/* Photo de profil */}
+        <View style={styles.photoSection}>
+          <TouchableOpacity
+            style={[styles.photoContainer, { borderColor: colors.border }]}
+            onPress={pickImage}
+          >
+            {photo ? (
+              <Image source={{ uri: photo }} style={styles.photo} resizeMode="cover" />
+            ) : (
+              <View style={[styles.photoPlaceholder, { backgroundColor: `${COLORS.primary}20` }]}>
+                <Ionicons name="person" size={48} color={COLORS.primary} />
+              </View>
+            )}
+            <View style={[styles.photoEditBadge, { backgroundColor: COLORS.primary }]}>
+              <Ionicons name="camera" size={16} color="#FFF" />
+            </View>
+          </TouchableOpacity>
+          <Text style={[styles.photoHint, { color: colors.textSecondary }]}>
+            Toucher pour modifier la photo
+          </Text>
+        </View>
+
+        {/* Informations personnelles */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            Informations personnelles
+          </Text>
+
+          <View style={styles.fieldContainer}>
+            <Text style={[styles.fieldLabel, { color: colors.text }]}>
+              Nom <Text style={{ color: COLORS.error }}>*</Text>
+            </Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]}
+              value={nom}
+              onChangeText={setNom}
+              placeholder="Nom"
+              placeholderTextColor={colors.textSecondary}
+            />
+          </View>
+
+          <View style={styles.fieldContainer}>
+            <Text style={[styles.fieldLabel, { color: colors.text }]}>
+              Prénom <Text style={{ color: COLORS.error }}>*</Text>
+            </Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]}
+              value={prenom}
+              onChangeText={setPrenom}
+              placeholder="Prénom"
+              placeholderTextColor={colors.textSecondary}
+            />
+          </View>
+
+          <View style={styles.fieldContainer}>
+            <Text style={[styles.fieldLabel, { color: colors.text }]}>Email</Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="email@example.com"
+              placeholderTextColor={colors.textSecondary}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </View>
+
+          <View style={styles.fieldContainer}>
+            <Text style={[styles.fieldLabel, { color: colors.text }]}>Téléphone</Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]}
+              value={telephone}
+              onChangeText={setTelephone}
+              placeholder="+225 XX XX XX XX XX"
+              placeholderTextColor={colors.textSecondary}
+              keyboardType="phone-pad"
+            />
+          </View>
+        </View>
+
+        {/* Bouton de sauvegarde */}
+        <TouchableOpacity
+          style={[
+            styles.saveButton,
+            { backgroundColor: COLORS.primary },
+            loading && styles.saveButtonDisabled,
+          ]}
+          onPress={validateAndSave}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#FFF" />
+          ) : (
+            <>
+              <Ionicons name="checkmark-circle" size={24} color="#FFF" />
+              <Text style={styles.saveButtonText}>Enregistrer les modifications</Text>
+            </>
+          )}
+        </TouchableOpacity>
       </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -344,29 +310,28 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  content: {
-    padding: SPACING.md,
-    paddingBottom: SPACING.xxl * 2,
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    borderBottomWidth: 1,
   },
   backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: BORDER_RADIUS.md,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    marginBottom: SPACING.md,
+    padding: SPACING.sm,
   },
-  header: {
-    marginBottom: SPACING.lg,
-  },
-  title: {
-    fontSize: FONT_SIZES.xxl,
+  headerTitle: {
+    fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: SPACING.xs,
+    ...FONTS.h2,
   },
-  subtitle: {
-    fontSize: FONT_SIZES.sm,
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: SPACING.lg,
+    paddingBottom: SPACING.xl * 2,
   },
   photoSection: {
     alignItems: 'center',
@@ -377,23 +342,20 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 60,
     borderWidth: 3,
-    overflow: 'hidden',
+    marginBottom: SPACING.sm,
     position: 'relative',
   },
   photo: {
     width: '100%',
     height: '100%',
+    borderRadius: 60,
   },
   photoPlaceholder: {
     width: '100%',
     height: '100%',
+    borderRadius: 60,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  initialesText: {
-    fontSize: 42,
-    fontWeight: 'bold',
-    letterSpacing: 2,
   },
   photoEditBadge: {
     position: 'absolute',
@@ -406,74 +368,61 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   photoHint: {
-    fontSize: FONT_SIZES.xs,
-    marginTop: SPACING.sm,
+    fontSize: 12,
+    fontStyle: 'italic',
+    ...FONTS.small,
   },
-  formSection: {
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
+  section: {
+    marginBottom: SPACING.xl,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
     marginBottom: SPACING.md,
-    borderWidth: 1,
+    ...FONTS.h3,
   },
-  inputGroup: {
+  fieldContainer: {
     marginBottom: SPACING.md,
   },
-  label: {
-    fontSize: FONT_SIZES.sm,
+  fieldLabel: {
+    fontSize: 14,
     fontWeight: '600',
     marginBottom: SPACING.xs,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: Platform.OS === 'ios' ? SPACING.sm : 0,
-    gap: SPACING.sm,
+    ...FONTS.body,
   },
   input: {
-    flex: 1,
-    fontSize: FONT_SIZES.md,
-    paddingVertical: SPACING.sm,
-  },
-  projetSection: {
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
     borderWidth: 1,
-  },
-  projetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-    marginBottom: SPACING.sm,
-  },
-  projetTitle: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  projetNom: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: 'bold',
-    marginBottom: SPACING.xs,
-  },
-  projetDescription: {
-    fontSize: FONT_SIZES.sm,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    fontSize: 16,
+    ...FONTS.body,
   },
   saveButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    borderRadius: BORDER_RADIUS.md,
+    marginTop: SPACING.lg,
     gap: SPACING.sm,
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
   },
   saveButtonText: {
     color: '#FFF',
-    fontSize: FONT_SIZES.md,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: 'bold',
+    ...FONTS.body,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  loadingText: {
+    fontSize: 14,
+    ...FONTS.body,
   },
 });
-

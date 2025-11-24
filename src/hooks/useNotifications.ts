@@ -23,16 +23,34 @@ export function useNotifications() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   // ✅ MÉMOÏSER les IDs pour éviter les re-renders inutiles (CRITIQUE !)
-  const gestationsIds = useMemo(() => 
-    Array.isArray(gestations) ? gestations.map(g => g.id).sort().join(',') : '', 
+  const gestationsIds = useMemo(
+    () =>
+      Array.isArray(gestations)
+        ? gestations
+            .map((g) => g.id)
+            .sort()
+            .join(',')
+        : '',
     [gestations]
   );
-  const planificationsIds = useMemo(() => 
-    Array.isArray(planifications) ? planifications.map(p => p.id).sort().join(',') : '', 
+  const planificationsIds = useMemo(
+    () =>
+      Array.isArray(planifications)
+        ? planifications
+            .map((p) => p.id)
+            .sort()
+            .join(',')
+        : '',
     [planifications]
   );
-  const stocksIds = useMemo(() => 
-    Array.isArray(stocks) ? stocks.map(s => s.id).sort().join(',') : '', 
+  const stocksIds = useMemo(
+    () =>
+      Array.isArray(stocks)
+        ? stocks
+            .map((s) => s.id)
+            .sort()
+            .join(',')
+        : '',
     [stocks]
   );
 
@@ -51,13 +69,16 @@ export function useNotifications() {
   useEffect(() => {
     const setupNotifications = async () => {
       if (!notificationsEnabled) return;
-      
+
       try {
         await configureNotifications();
       } catch (error) {
         // En mode développement, on log en warning plutôt qu'en erreur
         if (__DEV__) {
-          console.warn('Notifications: Configuration échouée (peut être normal dans Expo Go):', error);
+          console.warn(
+            'Notifications: Configuration échouée (peut être normal dans Expo Go):',
+            error
+          );
         } else {
           console.error('Erreur lors de la configuration des notifications:', error);
         }
@@ -69,12 +90,12 @@ export function useNotifications() {
 
   // ✅ Utiliser useRef pour éviter les chargements multiples
   const gestationsScheduledRef = useRef<string>('');
-  
+
   // Planifier les notifications de gestations
   useEffect(() => {
     if (!notificationsEnabled) return;
     if (!Array.isArray(gestations) || gestations.length === 0) return;
-    
+
     // ✅ Ne planifier que si les IDs ont changé
     if (gestationsScheduledRef.current === gestationsIds) return;
     gestationsScheduledRef.current = gestationsIds;
@@ -93,12 +114,12 @@ export function useNotifications() {
 
   // ✅ Utiliser useRef pour les planifications
   const planificationsScheduledRef = useRef<string>('');
-  
+
   // Planifier les notifications de tâches
   useEffect(() => {
     if (!notificationsEnabled) return;
     if (!Array.isArray(planifications) || planifications.length === 0) return;
-    
+
     // ✅ Ne planifier que si les IDs ont changé
     if (planificationsScheduledRef.current === planificationsIds) return;
     planificationsScheduledRef.current = planificationsIds;
@@ -117,12 +138,12 @@ export function useNotifications() {
 
   // ✅ Utiliser useRef pour les stocks
   const stocksScheduledRef = useRef<string>('');
-  
+
   // Planifier les notifications de stocks
   useEffect(() => {
     if (!notificationsEnabled) return;
     if (!Array.isArray(stocks) || stocks.length === 0) return;
-    
+
     // ✅ Ne planifier que si les IDs ont changé
     if (stocksScheduledRef.current === stocksIds) return;
     stocksScheduledRef.current = stocksIds;
@@ -144,7 +165,7 @@ export function useNotifications() {
 
     const cleanup = async () => {
       try {
-        const gestationsEnCours = Array.isArray(gestations) 
+        const gestationsEnCours = Array.isArray(gestations)
           ? gestations.filter((g) => g.statut === 'en_cours')
           : [];
         const tasksAFaire = Array.isArray(planifications)
@@ -161,14 +182,14 @@ export function useNotifications() {
     cleanup(); // Nettoyer immédiatement aussi
 
     return () => clearInterval(interval);
-  }, [gestationsIds, planificationsIds, notificationsEnabled, gestations, planifications]);  // ✅ Utiliser les IDs
+  }, [gestationsIds, planificationsIds, notificationsEnabled, gestations, planifications]); // ✅ Utiliser les IDs
 
   // Fonction pour annuler toutes les notifications
   const cancelAll = useCallback(async () => {
     try {
       await cancelAllNotifications();
     } catch (error) {
-      console.error('Erreur lors de l\'annulation des notifications:', error);
+      console.error("Erreur lors de l'annulation des notifications:", error);
     }
   }, []);
 
@@ -176,4 +197,3 @@ export function useNotifications() {
     cancelAll,
   };
 }
-

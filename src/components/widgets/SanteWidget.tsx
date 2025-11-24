@@ -3,13 +3,7 @@
  */
 
 import React from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAppSelector } from '../../store/hooks';
@@ -27,7 +21,7 @@ interface Props {
 
 export default function SanteWidget({ onPress }: Props) {
   const { colors } = useTheme();
-  
+
   const vaccinationsEnRetard = useAppSelector(selectNombreVaccinationsEnRetard);
   const maladiesEnCours = useAppSelector(selectNombreMaladiesEnCours);
   const traitementsEnCours = useAppSelector(selectNombreTraitementsEnCours);
@@ -219,4 +213,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

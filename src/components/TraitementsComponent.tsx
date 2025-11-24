@@ -3,7 +3,14 @@
  */
 
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControlProps } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  RefreshControlProps,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppSelector } from '../store/hooks';
@@ -19,9 +26,14 @@ export default function TraitementsComponent({ refreshControl }: Props) {
   const traitementsEnCours = useAppSelector(selectTraitementsEnCours);
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} refreshControl={refreshControl}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      refreshControl={refreshControl}
+    >
       <View style={styles.content}>
-        <Text style={[styles.title, { color: colors.text }]}>Traitements ({traitements.length})</Text>
+        <Text style={[styles.title, { color: colors.text }]}>
+          Traitements ({traitements.length})
+        </Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
           {traitementsEnCours.length} en cours
         </Text>
@@ -36,4 +48,3 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: '700' },
   subtitle: { fontSize: 14, marginTop: 4 },
 });
-

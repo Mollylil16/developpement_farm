@@ -16,13 +16,13 @@ interface UseShakeToCancelOptions {
 
 /**
  * Hook pour détecter une secousse du téléphone et déclencher une action
- * 
+ *
  * @param options - Configuration du hook
  * @param options.enabled - Active ou désactive la détection (par défaut: true)
  * @param options.onShake - Fonction appelée lors d'une secousse détectée
  * @param options.threshold - Seuil de détection (par défaut: 15)
  * @param options.cooldown - Délai entre deux détections (par défaut: 1000ms)
- * 
+ *
  * @example
  * ```typescript
  * useShakeToCancel({
@@ -56,7 +56,7 @@ export function useShakeToCancel({
     // Fonction pour calculer l'accélération totale
     const calculateAcceleration = (data: DeviceMotionMeasurement): number => {
       if (!data.acceleration) return 0;
-      
+
       const { x = 0, y = 0, z = 0 } = data.acceleration;
       return Math.sqrt(x * x + y * y + z * z);
     };
@@ -90,12 +90,12 @@ export function useShakeToCancel({
             // Vérifier le cooldown pour éviter les déclenchements multiples
             if (now - lastShakeTime.current > cooldown) {
               lastShakeTime.current = now;
-              
+
               console.log('🔔 Secousse détectée ! Accélération:', acceleration.toFixed(2));
-              
+
               // Déclencher un retour haptique fort
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-              
+
               // Appeler la fonction d'annulation
               onShake();
             }
@@ -120,7 +120,7 @@ export function useShakeToCancel({
 
 /**
  * Variante simplifiée pour une utilisation dans les modaux
- * 
+ *
  * @example
  * ```typescript
  * useShakeToCancelModal({
@@ -155,4 +155,3 @@ export function useShakeToCancelModal({
     },
   });
 }
-

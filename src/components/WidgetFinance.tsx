@@ -8,7 +8,10 @@ import { useAppSelector } from '../store/hooks';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { ChargeFixe, DepensePonctuelle } from '../types';
-import { selectAllChargesFixes, selectAllDepensesPonctuelles } from '../store/selectors/financeSelectors';
+import {
+  selectAllChargesFixes,
+  selectAllDepensesPonctuelles,
+} from '../store/selectors/financeSelectors';
 
 interface WidgetFinanceProps {
   onPress?: () => void;
@@ -44,25 +47,28 @@ export default function WidgetFinance({ onPress }: WidgetFinanceProps) {
     // Calculer les dépenses du mois précédent pour l'évolution
     const moisPrecedent = new Date();
     moisPrecedent.setMonth(moisPrecedent.getMonth() - 1);
-    const depensesMoisPrecedent = depensesPonctuelles.reduce((sum: number, dp: DepensePonctuelle) => {
-      const dateDepense = new Date(dp.date);
-      if (
-        dateDepense.getMonth() === moisPrecedent.getMonth() &&
-        dateDepense.getFullYear() === moisPrecedent.getFullYear()
-      ) {
-        return sum + dp.montant;
-      }
-      return sum;
-    }, 0);
+    const depensesMoisPrecedent = depensesPonctuelles.reduce(
+      (sum: number, dp: DepensePonctuelle) => {
+        const dateDepense = new Date(dp.date);
+        if (
+          dateDepense.getMonth() === moisPrecedent.getMonth() &&
+          dateDepense.getFullYear() === moisPrecedent.getFullYear()
+        ) {
+          return sum + dp.montant;
+        }
+        return sum;
+      },
+      0
+    );
 
     const budgetRestant = chargesFixesMensuelles - depensesMois;
-    const pourcentageUtilise = chargesFixesMensuelles > 0 
-      ? (depensesMois / chargesFixesMensuelles) * 100 
-      : 0;
+    const pourcentageUtilise =
+      chargesFixesMensuelles > 0 ? (depensesMois / chargesFixesMensuelles) * 100 : 0;
 
-    const evolution = depensesMoisPrecedent > 0
-      ? ((depensesMois - depensesMoisPrecedent) / depensesMoisPrecedent) * 100
-      : 0;
+    const evolution =
+      depensesMoisPrecedent > 0
+        ? ((depensesMois - depensesMoisPrecedent) / depensesMoisPrecedent) * 100
+        : 0;
 
     return {
       budgetMensuel: chargesFixesMensuelles,
@@ -86,7 +92,7 @@ export default function WidgetFinance({ onPress }: WidgetFinanceProps) {
   };
 
   return (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={[
         styles.container,
         {
@@ -94,7 +100,7 @@ export default function WidgetFinance({ onPress }: WidgetFinanceProps) {
           borderColor: colors.borderLight,
           ...colors.shadow.medium,
         },
-      ]} 
+      ]}
       onPress={onPress}
       activeOpacity={0.7}
     >
@@ -113,31 +119,38 @@ export default function WidgetFinance({ onPress }: WidgetFinanceProps) {
         <View style={styles.statRow}>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Dépenses:</Text>
           <Text style={[styles.statValue, { color: colors.text }]}>
-            {budgetInfo.depensesMois.toLocaleString('fr-FR')} FCFA ({budgetInfo.pourcentageUtilise.toFixed(0)}%)
+            {budgetInfo.depensesMois.toLocaleString('fr-FR')} FCFA (
+            {budgetInfo.pourcentageUtilise.toFixed(0)}%)
           </Text>
         </View>
 
         <View style={styles.statRow}>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Restant:</Text>
-          <Text style={[styles.statValue, { color: budgetInfo.budgetRestant >= 0 ? colors.success : colors.error }]}>
+          <Text
+            style={[
+              styles.statValue,
+              { color: budgetInfo.budgetRestant >= 0 ? colors.success : colors.error },
+            ]}
+          >
             {budgetInfo.budgetRestant.toLocaleString('fr-FR')} FCFA
           </Text>
         </View>
 
         <View style={styles.progressContainer}>
           <View style={[styles.progressBar, { backgroundColor: colors.borderLight }]}>
-            <View 
+            <View
               style={[
-                styles.progressFill, 
-                { 
+                styles.progressFill,
+                {
                   width: `${Math.round(Math.min(100, budgetInfo.pourcentageUtilise))}%`,
-                  backgroundColor: budgetInfo.pourcentageUtilise > 80 
-                    ? colors.error 
-                    : budgetInfo.pourcentageUtilise > 60 
-                    ? colors.warning 
-                    : colors.primary,
-                }
-              ]} 
+                  backgroundColor:
+                    budgetInfo.pourcentageUtilise > 80
+                      ? colors.error
+                      : budgetInfo.pourcentageUtilise > 60
+                        ? colors.warning
+                        : colors.primary,
+                },
+              ]}
             />
           </View>
           <Text style={[styles.progressText, { color: colors.textSecondary }]}>
@@ -146,7 +159,9 @@ export default function WidgetFinance({ onPress }: WidgetFinanceProps) {
         </View>
 
         <View style={[styles.evolutionContainer, { borderTopColor: colors.divider }]}>
-          <Text style={[styles.evolutionLabel, { color: colors.textSecondary }]}>📊 Évolution mensuelle:</Text>
+          <Text style={[styles.evolutionLabel, { color: colors.textSecondary }]}>
+            📊 Évolution mensuelle:
+          </Text>
           <Text style={[styles.evolutionValue, { color: getEvolutionColor() }]}>
             {getEvolutionIcon()} {Math.abs(budgetInfo.evolution).toFixed(1)}%
           </Text>
@@ -218,4 +233,3 @@ const styles = StyleSheet.create({
     fontWeight: FONT_WEIGHTS.bold,
   },
 });
-

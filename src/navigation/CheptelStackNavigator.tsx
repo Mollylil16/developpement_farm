@@ -50,4 +50,3 @@ export default function CheptelStackNavigator() {
     </Stack.Navigator>
   );
 }
-

@@ -33,7 +33,7 @@ interface ChapterContent {
 const CHAPTERS: ChapterContent[] = [
   {
     id: 1,
-    title: 'Types d\'élevage porcin',
+    title: "Types d'élevage porcin",
     icon: 'list-outline',
     content: `**Les 4 types principaux d'élevage porcin**
 
@@ -242,7 +242,7 @@ Surface recommandée : 500-1000 m² minimum`,
   },
   {
     id: 5,
-    title: 'Pilier 3 : Accès à l\'eau',
+    title: "Pilier 3 : Accès à l'eau",
     icon: 'water-outline',
     content: `**L'eau : élément vital de l'élevage**
 
@@ -1063,7 +1063,10 @@ export default function TrainingScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top']}
+    >
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.surface, ...colors.shadow.small }]}>
         <View style={styles.headerContent}>
@@ -1186,4 +1189,3 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
 });
-

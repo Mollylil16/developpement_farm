@@ -2,10 +2,11 @@
  * Composant pour afficher les statistiques du cheptel actif
  */
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
-import { useAppSelector } from '../../store/hooks';
-import { selectPeseesParAnimal } from '../../store/selectors/productionSelectors';
+import { useAppSelector, useAppDispatch } from '../../store/hooks';
+import { selectPeseesParAnimal, selectAllAnimaux } from '../../store/selectors/productionSelectors';
+import { loadProductionAnimaux } from '../../store/slices/productionSlice';
 import { SPACING, FONT_SIZES } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
@@ -16,9 +17,27 @@ const TAUX_CARCASSE = 0.75; // 75% du poids vif
 
 export default function LivestockStatsCard() {
   const { colors } = useTheme();
+  const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   const peseesParAnimal = useAppSelector(selectPeseesParAnimal);
+  const animaux = useAppSelector(selectAllAnimaux);
   const { animauxActifs } = useAnimauxActifs({ projetId: projetActif?.id });
+
+  // Charger les animaux uniquement si nécessaire (une seule fois par projet)
+  const animauxChargesRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!projetActif?.id) {
+      animauxChargesRef.current = null;
+      return;
+    }
+
+    // Vérifier si les animaux du projet sont déjà chargés
+    const animauxDuProjet = animaux.filter((a) => a.projet_id === projetActif.id);
+    if (animauxDuProjet.length === 0 && animauxChargesRef.current !== projetActif.id) {
+      animauxChargesRef.current = projetActif.id;
+      dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
+    }
+  }, [dispatch, projetActif?.id, animaux]);
 
   const statsCheptel = React.useMemo(() => {
     if (!projetActif) {
@@ -52,11 +71,15 @@ export default function LivestockStatsCard() {
 
   return (
     <Card style={StyleSheet.flatten([styles.statsCard, { backgroundColor: colors.surface }])}>
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>Statistiques du cheptel actif</Text>
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>
+        Statistiques du cheptel actif
+      </Text>
       <View style={styles.statsGrid}>
         <View style={styles.statItem}>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Nombre d'animaux</Text>
-          <Text style={[styles.statValue, { color: colors.text }]}>{statsCheptel.nombreAnimaux}</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>
+            {statsCheptel.nombreAnimaux}
+          </Text>
         </View>
         <View style={styles.statItem}>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Poids total vif</Text>
@@ -65,13 +88,17 @@ export default function LivestockStatsCard() {
           </Text>
         </View>
         <View style={styles.statItem}>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Poids total carcasse</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+            Poids total carcasse
+          </Text>
           <Text style={[styles.statValue, { color: colors.text }]}>
             {statsCheptel.poidsCarcasse.toFixed(1)} kg
           </Text>
         </View>
         <View style={styles.statItem}>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Poids moyen/animal</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+            Poids moyen/animal
+          </Text>
           <Text style={[styles.statValue, { color: colors.text }]}>
             {statsCheptel.poidsMoyen.toFixed(1)} kg
           </Text>
@@ -114,4 +141,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-

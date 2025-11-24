@@ -4,23 +4,48 @@
  */
 
 export type CategorieAnimal = 'porcelet' | 'truie' | 'verrat' | 'porc_croissance' | 'tous';
-export type TypeVaccin = 'rouget' | 'parvovirose' | 'mal_rouge' | 'circovirus' | 'mycoplasme' | 'grippe' | 'autre';
-export type TypeProphylaxie = 'vitamine' | 'deparasitant' | 'fer' | 'antibiotique_preventif' | 'vaccin_obligatoire' | 'autre_traitement';
-export type RaisonTraitement = 'suivi_normal' | 'renforcement_sanitaire' | 'prevention' | 'traitement_curatif' | 'urgence_sanitaire' | 'autre';
+export type TypeVaccin =
+  | 'rouget'
+  | 'parvovirose'
+  | 'mal_rouge'
+  | 'circovirus'
+  | 'mycoplasme'
+  | 'grippe'
+  | 'autre';
+export type TypeProphylaxie =
+  | 'vitamine'
+  | 'deparasitant'
+  | 'fer'
+  | 'antibiotique_preventif'
+  | 'vaccin_obligatoire'
+  | 'autre_traitement';
+export type RaisonTraitement =
+  | 'suivi_normal'
+  | 'renforcement_sanitaire'
+  | 'prevention'
+  | 'traitement_curatif'
+  | 'urgence_sanitaire'
+  | 'autre';
 export type StatutVaccination = 'planifie' | 'effectue' | 'en_retard' | 'annule';
-export type TypeMaladie = 
+export type TypeMaladie =
   | 'diarrhee'
-  | 'respiratoire' 
+  | 'respiratoire'
   | 'gale_parasites'
   | 'fievre'
   | 'boiterie'
   | 'digestive'
-  | 'cutanee' 
-  | 'reproduction' 
-  | 'neurologique' 
+  | 'cutanee'
+  | 'reproduction'
+  | 'neurologique'
   | 'autre';
 export type GraviteMaladie = 'faible' | 'moderee' | 'grave' | 'critique';
-export type TypeTraitement = 'antibiotique' | 'antiparasitaire' | 'anti_inflammatoire' | 'vitamine' | 'vaccin' | 'autre';
+export type TypeTraitement =
+  | 'antibiotique'
+  | 'antiparasitaire'
+  | 'anti_inflammatoire'
+  | 'vitamine'
+  | 'vaccin'
+  | 'autre';
 export type VoieAdministration = 'orale' | 'injectable' | 'topique' | 'alimentaire';
 
 /**
@@ -493,10 +518,11 @@ export const CALENDRIER_VACCINAL_TYPE: CalendrierTypeAge[] = [
     age_display: 'J3-5',
     type_prophylaxie: 'fer',
     nom_traitement: 'Fer dextran',
-    description: 'Injection de fer pour prévenir l\'anémie ferriprive',
+    description: "Injection de fer pour prévenir l'anémie ferriprive",
     obligatoire: true,
     dosage_recommande: '200mg (2ml)',
-    notes: 'Administration IM dans le cou ou la cuisse. Essentiel pour les porcelets nés en élevage intensif.',
+    notes:
+      'Administration IM dans le cou ou la cuisse. Essentiel pour les porcelets nés en élevage intensif.',
   },
   {
     age_jours: 7,
@@ -536,7 +562,7 @@ export const CALENDRIER_VACCINAL_TYPE: CalendrierTypeAge[] = [
     description: 'Protection contre le circovirus porcin type 2',
     obligatoire: true,
     dosage_recommande: '2ml IM',
-    notes: 'Moment critique : sevrage. Renforce l\'immunité lors du stress de séparation.',
+    notes: "Moment critique : sevrage. Renforce l'immunité lors du stress de séparation.",
   },
   {
     age_jours: 35,
@@ -546,7 +572,7 @@ export const CALENDRIER_VACCINAL_TYPE: CalendrierTypeAge[] = [
     description: 'Prévention des infections post-sevrage',
     obligatoire: false,
     dosage_recommande: 'Selon prescription vétérinaire',
-    notes: 'Uniquement si historique de problèmes sanitaires. Éviter l\'usage systématique.',
+    notes: "Uniquement si historique de problèmes sanitaires. Éviter l'usage systématique.",
   },
   {
     age_jours: 42,
@@ -555,7 +581,7 @@ export const CALENDRIER_VACCINAL_TYPE: CalendrierTypeAge[] = [
     nom_traitement: 'Renforcement vitaminique',
     description: 'Vitamines B-complex + Électrolytes',
     obligatoire: false,
-    dosage_recommande: 'Dans l\'eau de boisson',
+    dosage_recommande: "Dans l'eau de boisson",
     notes: 'Favorise la croissance et réduit le stress.',
   },
   {
@@ -585,7 +611,7 @@ export const CALENDRIER_VACCINAL_TYPE: CalendrierTypeAge[] = [
     nom_traitement: 'Bilan sanitaire',
     description: 'Examen général et ajustement du protocole',
     obligatoire: false,
-    notes: 'Moment idéal pour évaluer l\'état sanitaire global du lot.',
+    notes: "Moment idéal pour évaluer l'état sanitaire global du lot.",
   },
   {
     age_jours: 120,
@@ -605,17 +631,19 @@ export const CALENDRIER_VACCINAL_TYPE: CalendrierTypeAge[] = [
     description: 'Protection des futurs reproducteurs',
     obligatoire: true,
     dosage_recommande: '2ml IM',
-    notes: 'Uniquement pour les animaux destinés à la reproduction. Essentiel avant la mise à la reproduction.',
+    notes:
+      'Uniquement pour les animaux destinés à la reproduction. Essentiel avant la mise à la reproduction.',
   },
 ];
 
 /**
  * Fonction pour obtenir les traitements recommandés selon l'âge
  */
-export function getTraitementsParAge(ageJours: number, margeJours: number = 3): CalendrierTypeAge[] {
-  return CALENDRIER_VACCINAL_TYPE.filter(
-    (cal) => Math.abs(cal.age_jours - ageJours) <= margeJours
-  );
+export function getTraitementsParAge(
+  ageJours: number,
+  margeJours: number = 3
+): CalendrierTypeAge[] {
+  return CALENDRIER_VACCINAL_TYPE.filter((cal) => Math.abs(cal.age_jours - ageJours) <= margeJours);
 }
 
 /**
@@ -664,14 +692,14 @@ export const TYPE_MALADIE_LABELS: Record<TypeMaladie, string> = {
  * Mapping traitement → type de prophylaxie pour liaison automatique
  */
 export const TRAITEMENT_TO_PROPHYLAXIE_MAPPING: Record<string, TypeProphylaxie> = {
-  'antibiotique': 'antibiotique_preventif',
-  'antibiotic': 'antibiotique_preventif',
-  'deparasitant': 'deparasitant',
-  'déparasitant': 'deparasitant',
-  'vermifuge': 'deparasitant',
-  'vitamine': 'vitamine',
-  'fer': 'fer',
-  'iron': 'fer',
+  antibiotique: 'antibiotique_preventif',
+  antibiotic: 'antibiotique_preventif',
+  deparasitant: 'deparasitant',
+  déparasitant: 'deparasitant',
+  vermifuge: 'deparasitant',
+  vitamine: 'vitamine',
+  fer: 'fer',
+  iron: 'fer',
 };
 
 /**
@@ -712,4 +740,3 @@ export interface CreateMaladieAvecTraitementInput extends CreateMaladieInput {
   dosage_traitement?: string;
   date_administration?: string;
 }
-

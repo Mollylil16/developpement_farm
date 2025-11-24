@@ -5,7 +5,8 @@
 
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { normalize, denormalize, schema } from 'normalizr';
-import { databaseService } from '../../services/database';
+import { databaseService, getDatabase } from '../../services/database';
+import { VaccinationRepository } from '../../database/repositories';
 import {
   CalendrierVaccination,
   Vaccination,
@@ -186,7 +187,9 @@ export const initProtocolesVaccinationStandard = createAsyncThunk(
 export const loadVaccinations = createAsyncThunk(
   'sante/loadVaccinations',
   async (projetId: string) => {
-    const vaccinations = await databaseService.getVaccinationsByProjet(projetId);
+    const db = await getDatabase();
+    const vaccinationRepo = new VaccinationRepository(db);
+    const vaccinations = await vaccinationRepo.findByProjet(projetId);
     const normalized = normalize(vaccinations, [vaccinationSchema]);
     return normalized;
   }
@@ -195,7 +198,9 @@ export const loadVaccinations = createAsyncThunk(
 export const createVaccination = createAsyncThunk(
   'sante/createVaccination',
   async (input: CreateVaccinationInput) => {
-    const vaccination = await databaseService.createVaccination(input);
+    const db = await getDatabase();
+    const vaccinationRepo = new VaccinationRepository(db);
+    const vaccination = await vaccinationRepo.create(input);
     return vaccination;
   }
 );
@@ -203,18 +208,19 @@ export const createVaccination = createAsyncThunk(
 export const updateVaccination = createAsyncThunk(
   'sante/updateVaccination',
   async ({ id, updates }: { id: string; updates: Partial<Vaccination> }) => {
-    await databaseService.updateVaccination(id, updates);
+    const db = await getDatabase();
+    const vaccinationRepo = new VaccinationRepository(db);
+    await vaccinationRepo.update(id, updates);
     return { id, updates };
   }
 );
 
-export const deleteVaccination = createAsyncThunk(
-  'sante/deleteVaccination',
-  async (id: string) => {
-    await databaseService.deleteVaccination(id);
-    return id;
-  }
-);
+export const deleteVaccination = createAsyncThunk('sante/deleteVaccination', async (id: string) => {
+  const db = await getDatabase();
+  const vaccinationRepo = new VaccinationRepository(db);
+  await vaccinationRepo.delete(id);
+  return id;
+});
 
 export const loadVaccinationsEnRetard = createAsyncThunk(
   'sante/loadVaccinationsEnRetard',
@@ -238,14 +244,11 @@ export const loadVaccinationsAVenir = createAsyncThunk(
 // ACTIONS ASYNCHRONES - MALADIES
 // ============================================
 
-export const loadMaladies = createAsyncThunk(
-  'sante/loadMaladies',
-  async (projetId: string) => {
-    const maladies = await databaseService.getMaladiesByProjet(projetId);
-    const normalized = normalize(maladies, [maladieSchema]);
-    return normalized;
-  }
-);
+export const loadMaladies = createAsyncThunk('sante/loadMaladies', async (projetId: string) => {
+  const maladies = await databaseService.getMaladiesByProjet(projetId);
+  const normalized = normalize(maladies, [maladieSchema]);
+  return normalized;
+});
 
 export const createMaladie = createAsyncThunk(
   'sante/createMaladie',
@@ -263,13 +266,10 @@ export const updateMaladie = createAsyncThunk(
   }
 );
 
-export const deleteMaladie = createAsyncThunk(
-  'sante/deleteMaladie',
-  async (id: string) => {
-    await databaseService.deleteMaladie(id);
-    return id;
-  }
-);
+export const deleteMaladie = createAsyncThunk('sante/deleteMaladie', async (id: string) => {
+  await databaseService.deleteMaladie(id);
+  return id;
+});
 
 export const loadMaladiesEnCours = createAsyncThunk(
   'sante/loadMaladiesEnCours',
@@ -309,13 +309,10 @@ export const updateTraitement = createAsyncThunk(
   }
 );
 
-export const deleteTraitement = createAsyncThunk(
-  'sante/deleteTraitement',
-  async (id: string) => {
-    await databaseService.deleteTraitement(id);
-    return id;
-  }
-);
+export const deleteTraitement = createAsyncThunk('sante/deleteTraitement', async (id: string) => {
+  await databaseService.deleteTraitement(id);
+  return id;
+});
 
 export const loadTraitementsEnCours = createAsyncThunk(
   'sante/loadTraitementsEnCours',
@@ -511,9 +508,9 @@ const santeSlice = createSlice({
         }
       })
 
-    // ============================================
-    // VACCINATIONS
-    // ============================================
+      // ============================================
+      // VACCINATIONS
+      // ============================================
       .addCase(loadVaccinations.pending, (state) => {
         state.loading.vaccinations = true;
         state.error = null;
@@ -575,9 +572,9 @@ const santeSlice = createSlice({
         }
       })
 
-    // ============================================
-    // MALADIES
-    // ============================================
+      // ============================================
+      // MALADIES
+      // ============================================
       .addCase(loadMaladies.pending, (state) => {
         state.loading.maladies = true;
         state.error = null;
@@ -629,9 +626,9 @@ const santeSlice = createSlice({
         }
       })
 
-    // ============================================
-    // TRAITEMENTS
-    // ============================================
+      // ============================================
+      // TRAITEMENTS
+      // ============================================
       .addCase(loadTraitements.pending, (state) => {
         state.loading.traitements = true;
         state.error = null;
@@ -683,9 +680,9 @@ const santeSlice = createSlice({
         }
       })
 
-    // ============================================
-    // VISITES VÉTÉRINAIRES
-    // ============================================
+      // ============================================
+      // VISITES VÉTÉRINAIRES
+      // ============================================
       .addCase(loadVisitesVeterinaires.pending, (state) => {
         state.loading.visites = true;
         state.error = null;
@@ -725,14 +722,12 @@ const santeSlice = createSlice({
       .addCase(deleteVisiteVeterinaire.fulfilled, (state, action) => {
         const id = action.payload;
         delete state.entities.visites_veterinaires[id];
-        state.ids.visites_veterinaires = state.ids.visites_veterinaires.filter(
-          (vId) => vId !== id
-        );
+        state.ids.visites_veterinaires = state.ids.visites_veterinaires.filter((vId) => vId !== id);
       })
 
-    // ============================================
-    // RAPPELS VACCINATIONS
-    // ============================================
+      // ============================================
+      // RAPPELS VACCINATIONS
+      // ============================================
       .addCase(loadRappelsVaccinations.pending, (state) => {
         state.loading.rappels = true;
         state.error = null;
@@ -780,9 +775,9 @@ const santeSlice = createSlice({
         }
       })
 
-    // ============================================
-    // STATISTIQUES
-    // ============================================
+      // ============================================
+      // STATISTIQUES
+      // ============================================
       .addCase(loadStatistiquesVaccinations.pending, (state) => {
         state.loading.statistics = true;
       })
@@ -803,9 +798,9 @@ const santeSlice = createSlice({
         state.statistics.traitements = action.payload;
       })
 
-    // ============================================
-    // ALERTES
-    // ============================================
+      // ============================================
+      // ALERTES
+      // ============================================
       .addCase(loadAlertesSanitaires.pending, (state) => {
         state.loading.alertes = true;
       })

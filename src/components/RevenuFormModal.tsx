@@ -2,12 +2,14 @@
  * Composant formulaire modal pour revenu avec upload photos
  */
 
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert } from 'react-native';
+import React, { useState, useEffect, useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, TextInput, FlatList } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { createRevenu, updateRevenu } from '../store/slices/financeSlice';
-import { Revenu, CreateRevenuInput, CategorieRevenu } from '../types';
+import { createRevenu, updateRevenu, calculateAndSaveMargesVente } from '../store/slices/financeSlice';
+import { Revenu, CreateRevenuInput, CategorieRevenu, ProductionAnimal } from '../types';
+import { selectAllAnimaux } from '../store/selectors/productionSelectors';
+import { loadProductionAnimaux } from '../store/slices/productionSlice';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING, BORDER_RADIUS } from '../constants/theme';
@@ -20,6 +22,8 @@ interface RevenuFormModalProps {
   onSuccess: () => void;
   revenu?: Revenu | null;
   isEditing?: boolean;
+  animalId?: string; // ID de l'animal vendu (pour ouverture automatique depuis cheptel)
+  animalPoids?: number; // Poids de l'animal vendu (pour pré-remplir le champ)
 }
 
 export default function RevenuFormModal({
@@ -28,13 +32,22 @@ export default function RevenuFormModal({
   onSuccess,
   revenu,
   isEditing = false,
+  animalId,
+  animalPoids,
 }: RevenuFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
+  const animaux = useAppSelector(selectAllAnimaux);
   const { canCreate, canUpdate } = useActionPermissions();
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState<Omit<CreateRevenuInput, 'projet_id'> & { photos: string[] }>({
+  const [poidsKg, setPoidsKg] = useState<string>('');
+  const [selectedAnimalId, setSelectedAnimalId] = useState<string | undefined>(animalId);
+  const [searchAnimalQuery, setSearchAnimalQuery] = useState('');
+  const [showAnimalSearch, setShowAnimalSearch] = useState(false);
+  const [formData, setFormData] = useState<
+    Omit<CreateRevenuInput, 'projet_id'> & { photos: string[] }
+  >({
     montant: 0,
     categorie: 'vente_porc',
     libelle_categorie: '',
@@ -55,6 +68,8 @@ export default function RevenuFormModal({
         commentaire: revenu.commentaire || '',
         photos: revenu.photos || [],
       });
+      setPoidsKg(revenu.poids_kg?.toString() || '');
+      setSelectedAnimalId(revenu.animal_id);
     } else {
       // Reset form
       setFormData({
@@ -66,15 +81,44 @@ export default function RevenuFormModal({
         commentaire: '',
         photos: [],
       });
+      // Si animalId est fourni, pré-remplir avec le poids de l'animal
+      setPoidsKg(animalPoids ? animalPoids.toString() : '');
     }
-  }, [revenu, isEditing, visible]);
+  }, [revenu, isEditing, visible, animalId, animalPoids]);
+
+  // Charger les animaux si nécessaire (pour la recherche)
+  useEffect(() => {
+    if (visible && projetActif && !animalId) {
+      dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
+    }
+  }, [visible, projetActif?.id, animalId, dispatch]);
+
+  // Filtrer les animaux pour la recherche
+  const animauxFiltres = useMemo(() => {
+    if (!searchAnimalQuery.trim()) {
+      return animaux.filter((a) => a.statut === 'actif' || a.statut === 'vendu');
+    }
+    const query = searchAnimalQuery.toLowerCase();
+    return animaux.filter(
+      (a) =>
+        (a.statut === 'actif' || a.statut === 'vendu') &&
+        (a.code?.toLowerCase().includes(query) ||
+          a.nom?.toLowerCase().includes(query) ||
+          a.race?.toLowerCase().includes(query))
+    );
+  }, [animaux, searchAnimalQuery]);
+
+  // Trouver l'animal sélectionné
+  const selectedAnimal = useMemo(() => {
+    return selectedAnimalId ? animaux.find((a) => a.id === selectedAnimalId) : null;
+  }, [animaux, selectedAnimalId]);
 
   const requestImagePermission = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert(
         'Permission requise',
-        'L\'application a besoin de l\'accès à vos photos pour ajouter des factures.'
+        "L'application a besoin de l'accès à vos photos pour ajouter des factures."
       );
       return false;
     }
@@ -86,7 +130,7 @@ export default function RevenuFormModal({
     if (status !== 'granted') {
       Alert.alert(
         'Permission requise',
-        'L\'application a besoin de l\'accès à la caméra pour prendre des photos de factures.'
+        "L'application a besoin de l'accès à la caméra pour prendre des photos de factures."
       );
       return false;
     }
@@ -152,11 +196,11 @@ export default function RevenuFormModal({
   const handleSubmit = async () => {
     // Vérifier les permissions
     if (isEditing && !canUpdate('finance')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les revenus.');
+      Alert.alert('Permission refusée', "Vous n'avez pas la permission de modifier les revenus.");
       return;
     }
     if (!isEditing && !canCreate('finance')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de créer des revenus.');
+      Alert.alert('Permission refusée', "Vous n'avez pas la permission de créer des revenus.");
       return;
     }
 
@@ -169,43 +213,68 @@ export default function RevenuFormModal({
       Alert.alert('Erreur', 'Veuillez préciser le libellé de la catégorie');
       return;
     }
+    // Validation poids pour vente de porc
+    if (formData.categorie === 'vente_porc' && poidsKg && parseFloat(poidsKg) <= 0) {
+      Alert.alert('Erreur', 'Le poids doit être supérieur à 0');
+      return;
+    }
 
     setLoading(true);
     try {
       if (isEditing && revenu) {
-        await dispatch(updateRevenu({
-          id: revenu.id,
-          updates: {
-            montant: formData.montant,
-            categorie: formData.categorie,
-            libelle_categorie: formData.libelle_categorie,
-            date: formData.date,
-            description: formData.description,
-            commentaire: formData.commentaire,
-            photos: formData.photos || [],
-          },
-        })).unwrap();
+        await dispatch(
+          updateRevenu({
+            id: revenu.id,
+            updates: {
+              montant: formData.montant,
+              categorie: formData.categorie,
+              libelle_categorie: formData.libelle_categorie,
+              date: formData.date,
+              description: formData.description,
+              commentaire: formData.commentaire,
+              photos: formData.photos || [],
+              animal_id: selectedAnimalId || animalId,
+            },
+          })
+        ).unwrap();
+        
+        // Si vente de porc avec poids, calculer les marges
+        if (formData.categorie === 'vente_porc' && poidsKg && parseFloat(poidsKg) > 0) {
+          await dispatch(
+            calculateAndSaveMargesVente({
+              venteId: revenu.id,
+              poidsKg: parseFloat(poidsKg),
+            })
+          ).unwrap();
+        }
       } else {
         if (!projetActif) {
           Alert.alert('Erreur', 'Aucun projet actif');
           return;
         }
-        await dispatch(createRevenu({ ...formData, projet_id: projetActif.id })).unwrap();
+        const result = await dispatch(
+          createRevenu({ ...formData, projet_id: projetActif.id, animal_id: selectedAnimalId || animalId })
+        ).unwrap();
+        
+        // Si vente de porc avec poids, calculer les marges
+        if (formData.categorie === 'vente_porc' && poidsKg && parseFloat(poidsKg) > 0) {
+          await dispatch(
+            calculateAndSaveMargesVente({
+              venteId: result.id,
+              poidsKg: parseFloat(poidsKg),
+            })
+          ).unwrap();
+        }
       }
       onSuccess();
     } catch (error: any) {
-      Alert.alert('Erreur', error || 'Erreur lors de l\'enregistrement');
+      Alert.alert('Erreur', error || "Erreur lors de l'enregistrement");
     } finally {
       setLoading(false);
     }
   };
 
-  const categories: CategorieRevenu[] = [
-    'vente_porc',
-    'vente_autre',
-    'subvention',
-    'autre',
-  ];
+  const categories: CategorieRevenu[] = ['vente_porc', 'vente_autre', 'subvention', 'autre'];
 
   const getCategoryLabel = (cat: CategorieRevenu): string => {
     const labels: Record<CategorieRevenu, string> = {
@@ -230,9 +299,7 @@ export default function RevenuFormModal({
         <FormField
           label="Montant (CFA)"
           value={formData.montant.toString()}
-          onChangeText={(text) =>
-            setFormData({ ...formData, montant: parseFloat(text) || 0 })
-          }
+          onChangeText={(text) => setFormData({ ...formData, montant: parseFloat(text) || 0 })}
           placeholder="0"
           keyboardType="numeric"
           required
@@ -284,6 +351,135 @@ export default function RevenuFormModal({
           />
         )}
 
+        {formData.categorie === 'vente_porc' && (
+          <View>
+            {/* Sélection de porc (uniquement si pas d'animalId fourni) */}
+            {!animalId && (
+              <View style={styles.section}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                  Porc vendu (optionnel)
+                </Text>
+                <TouchableOpacity
+                  style={[
+                    styles.animalSelector,
+                    {
+                      borderColor: colors.border,
+                      backgroundColor: colors.background,
+                    },
+                  ]}
+                  onPress={() => setShowAnimalSearch(!showAnimalSearch)}
+                >
+                  <Text
+                    style={[
+                      styles.animalSelectorText,
+                      { color: selectedAnimal ? colors.text : colors.textSecondary },
+                    ]}
+                  >
+                    {selectedAnimal
+                      ? `${selectedAnimal.code}${selectedAnimal.nom ? ` - ${selectedAnimal.nom}` : ''}`
+                      : 'Rechercher un porc...'}
+                  </Text>
+                  <Text style={[styles.animalSelectorIcon, { color: colors.textSecondary }]}>
+                    {showAnimalSearch ? '▲' : '▼'}
+                  </Text>
+                </TouchableOpacity>
+                {showAnimalSearch && (
+                  <View
+                    style={[
+                      styles.animalSearchContainer,
+                      { backgroundColor: colors.surface, borderColor: colors.border },
+                    ]}
+                  >
+                    <TextInput
+                      style={[
+                        styles.animalSearchInput,
+                        { color: colors.text, borderColor: colors.border },
+                      ]}
+                      placeholder="Rechercher par code, nom ou race..."
+                      placeholderTextColor={colors.textSecondary}
+                      value={searchAnimalQuery}
+                      onChangeText={setSearchAnimalQuery}
+                    />
+                    <FlatList
+                      data={animauxFiltres}
+                      keyExtractor={(item) => item.id}
+                      renderItem={({ item }) => (
+                        <TouchableOpacity
+                          style={[
+                            styles.animalOption,
+                            {
+                              backgroundColor:
+                                selectedAnimalId === item.id ? colors.primary : colors.background,
+                            },
+                          ]}
+                          onPress={() => {
+                            setSelectedAnimalId(item.id);
+                            setPoidsKg(item.poids_actuel?.toString() || '');
+                            setShowAnimalSearch(false);
+                            setSearchAnimalQuery('');
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.animalOptionText,
+                              {
+                                color:
+                                  selectedAnimalId === item.id
+                                    ? colors.textOnPrimary
+                                    : colors.text,
+                              },
+                            ]}
+                          >
+                            {item.code}
+                            {item.nom ? ` - ${item.nom}` : ''}
+                            {item.race ? ` (${item.race})` : ''}
+                            {item.poids_actuel ? ` - ${item.poids_actuel} kg` : ''}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                      style={styles.animalList}
+                      maxHeight={200}
+                    />
+                  </View>
+                )}
+                {selectedAnimal && (
+                  <Text style={[styles.helperText, { color: colors.textSecondary, marginTop: 4 }]}>
+                    Porc sélectionné: {selectedAnimal.code}
+                    {selectedAnimal.nom ? ` (${selectedAnimal.nom})` : ''}
+                    {selectedAnimal.poids_actuel
+                      ? ` - Poids actuel: ${selectedAnimal.poids_actuel} kg`
+                      : ''}
+                  </Text>
+                )}
+              </View>
+            )}
+            {animalId && selectedAnimal && (
+              <View style={[styles.infoBox, { backgroundColor: `${colors.info}20` }]}>
+                <Text style={[styles.infoText, { color: colors.info }]}>
+                  Porc vendu: {selectedAnimal.code}
+                  {selectedAnimal.nom ? ` (${selectedAnimal.nom})` : ''}
+                </Text>
+              </View>
+            )}
+            <FormField
+              label="Poids du porc (kg)"
+              value={poidsKg}
+              onChangeText={setPoidsKg}
+              keyboardType="numeric"
+              placeholder="120"
+              helper="Nécessaire pour calculer automatiquement la marge de production"
+            />
+            <Text
+              style={[
+                styles.helperText,
+                { color: colors.textSecondary, marginTop: -8, marginBottom: 12 },
+              ]}
+            >
+              💡 Le système calculera automatiquement le coût réel et la marge en comparant avec vos coûts de production (OPEX + CAPEX amorti).
+            </Text>
+          </View>
+        )}
+
         <FormField
           label="Date"
           value={formData.date}
@@ -329,11 +525,27 @@ export default function RevenuFormModal({
           </View>
           {(formData.photos || []).length < 3 && (
             <View style={styles.photoActions}>
-              <TouchableOpacity style={[styles.photoButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={takePhoto}>
-                <Text style={[styles.photoButtonText, { color: colors.text }]}>📷 Prendre une photo</Text>
+              <TouchableOpacity
+                style={[
+                  styles.photoButton,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+                onPress={takePhoto}
+              >
+                <Text style={[styles.photoButtonText, { color: colors.text }]}>
+                  📷 Prendre une photo
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.photoButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={pickImageFromGallery}>
-                <Text style={[styles.photoButtonText, { color: colors.text }]}>📂 Choisir depuis la galerie</Text>
+              <TouchableOpacity
+                style={[
+                  styles.photoButton,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+                onPress={pickImageFromGallery}
+              >
+                <Text style={[styles.photoButtonText, { color: colors.text }]}>
+                  📂 Choisir depuis la galerie
+                </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -413,5 +625,61 @@ const styles = StyleSheet.create({
   photoButtonText: {
     fontSize: 14,
   },
+  helperText: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  animalSelector: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    marginBottom: SPACING.xs,
+  },
+  animalSelectorText: {
+    fontSize: 14,
+    flex: 1,
+  },
+  animalSelectorIcon: {
+    fontSize: 12,
+    marginLeft: SPACING.xs,
+  },
+  animalSearchContainer: {
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    marginTop: SPACING.xs,
+    padding: SPACING.xs,
+  },
+  animalSearchInput: {
+    padding: SPACING.sm,
+    borderRadius: BORDER_RADIUS.sm,
+    borderWidth: 1,
+    marginBottom: SPACING.xs,
+    fontSize: 14,
+  },
+  animalList: {
+    maxHeight: 200,
+  },
+  animalOption: {
+    padding: SPACING.sm,
+    borderRadius: BORDER_RADIUS.sm,
+    marginBottom: SPACING.xs,
+  },
+  animalOptionText: {
+    fontSize: 14,
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: SPACING.sm,
+  },
+  infoText: {
+    fontSize: 12,
+    flex: 1,
+  },
 });
-

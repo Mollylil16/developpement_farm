@@ -3,7 +3,15 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  Platform,
+} from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAppDispatch } from '../store/hooks';
 import { createPesee, updatePesee } from '../store/slices/productionSlice';
@@ -89,11 +97,11 @@ export default function ProductionPeseeFormModal({
   const handleSubmit = async () => {
     // Vérifier les permissions
     if (isEditing && !canUpdate('reproduction')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission de modifier les pesées.');
+      Alert.alert('Permission refusée', "Vous n'avez pas la permission de modifier les pesées.");
       return;
     }
     if (!isEditing && !canCreate('reproduction')) {
-      Alert.alert('Permission refusée', 'Vous n\'avez pas la permission d\'ajouter des pesées.');
+      Alert.alert('Permission refusée', "Vous n'avez pas la permission d'ajouter des pesées.");
       return;
     }
 
@@ -111,7 +119,10 @@ export default function ProductionPeseeFormModal({
       }
       onSuccess();
     } catch (error: any) {
-      Alert.alert('Erreur', error || `Erreur lors de ${isEditing ? 'la modification' : 'l\'enregistrement'} de la pesée.`);
+      Alert.alert(
+        'Erreur',
+        error || `Erreur lors de ${isEditing ? 'la modification' : "l'enregistrement"} de la pesée.`
+      );
     } finally {
       setLoading(false);
     }
@@ -139,7 +150,10 @@ export default function ProductionPeseeFormModal({
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Date de la pesée *</Text>
           <TouchableOpacity
-            style={[styles.dateButton, { borderColor: colors.border, backgroundColor: colors.background }]}
+            style={[
+              styles.dateButton,
+              { borderColor: colors.border, backgroundColor: colors.background },
+            ]}
             onPress={() => setShowDatePicker(true)}
           >
             <Text style={[styles.dateButtonText, { color: colors.text }]}>
@@ -230,4 +244,3 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.md,
   },
 });
-

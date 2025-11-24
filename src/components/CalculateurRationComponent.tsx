@@ -7,14 +7,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadIngredients } from '../store/slices/nutritionSlice';
-import { 
-  TypePorc, 
-  getTypePorcLabel, 
+import {
+  TypePorc,
+  getTypePorcLabel,
   RECOMMANDATIONS_NUTRITION,
   FORMULES_RECOMMANDEES,
   ResultatCalculRation,
   FormuleAlimentaire,
-  Ingredient
+  Ingredient,
 } from '../types';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -55,11 +55,12 @@ export default function CalculateurRationComponent() {
    */
   const matcherIngredients = (formule: FormuleAlimentaire): FormuleAlimentaire => {
     const formuleAvecPrix = { ...formule };
-    formuleAvecPrix.composition = formule.composition.map(comp => {
+    formuleAvecPrix.composition = formule.composition.map((comp) => {
       // Chercher l'ingrédient correspondant dans la BDD
-      const ingredientTrouve = ingredients.find(ing => 
-        ing.nom.toLowerCase().includes(comp.nom.toLowerCase()) ||
-        comp.nom.toLowerCase().includes(ing.nom.toLowerCase())
+      const ingredientTrouve = ingredients.find(
+        (ing) =>
+          ing.nom.toLowerCase().includes(comp.nom.toLowerCase()) ||
+          comp.nom.toLowerCase().includes(ing.nom.toLowerCase())
       );
 
       return {
@@ -115,7 +116,7 @@ export default function CalculateurRationComponent() {
     const quantiteTotaleKg = rationJournaliere * nbPorcs * duree;
 
     // 4. Calculer les quantités et coûts par ingrédient
-    const detailsIngredients = formuleAvecPrix.composition.map(comp => {
+    const detailsIngredients = formuleAvecPrix.composition.map((comp) => {
       const quantiteKg = (quantiteTotaleKg * comp.pourcentage) / 100;
       const coutTotal = quantiteKg * comp.prix_unitaire;
       return {
@@ -150,11 +151,11 @@ export default function CalculateurRationComponent() {
     setResultat(resultatCalcul);
 
     // Vérifier si certains ingrédients n'ont pas de prix
-    const ingredientsSansPrix = detailsIngredients.filter(ing => ing.prix_unitaire === 0);
+    const ingredientsSansPrix = detailsIngredients.filter((ing) => ing.prix_unitaire === 0);
     if (ingredientsSansPrix.length > 0) {
       Alert.alert(
         '⚠️ Prix manquants',
-        `Certains ingrédients n'ont pas de prix défini :\n\n${ingredientsSansPrix.map(i => '• ' + i.nom).join('\n')}\n\nAjoutez-les dans la section "Ingrédients" pour un calcul précis.`,
+        `Certains ingrédients n'ont pas de prix défini :\n\n${ingredientsSansPrix.map((i) => '• ' + i.nom).join('\n')}\n\nAjoutez-les dans la section "Ingrédients" pour un calcul précis.`,
         [{ text: 'Compris' }]
       );
     }
@@ -172,7 +173,7 @@ export default function CalculateurRationComponent() {
   }
 
   return (
-    <ScrollView 
+    <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.scrollContent}
     >
@@ -197,10 +198,10 @@ export default function CalculateurRationComponent() {
                 key={type}
                 style={[
                   styles.typeButton,
-                  { 
+                  {
                     backgroundColor: typePorc === type ? colors.primary : colors.surface,
                     borderColor: typePorc === type ? colors.primary : colors.border,
-                  }
+                  },
                 ]}
                 onPress={() => setTypePorc(type)}
                 activeOpacity={0.7}
@@ -208,7 +209,7 @@ export default function CalculateurRationComponent() {
                 <Text
                   style={[
                     styles.typeButtonText,
-                    { color: typePorc === type ? '#FFFFFF' : colors.text }
+                    { color: typePorc === type ? '#FFFFFF' : colors.text },
                   ]}
                 >
                   {getTypePorcLabel(type)}
@@ -259,9 +260,18 @@ export default function CalculateurRationComponent() {
       {resultat && (
         <>
           {/* Recommandation nutritionnelle */}
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.cardTitle, { color: colors.text }]}>💡 Recommandation Nutritionnelle</Text>
-            <View style={[styles.infoBox, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' }]}>
+          <View
+            style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          >
+            <Text style={[styles.cardTitle, { color: colors.text }]}>
+              💡 Recommandation Nutritionnelle
+            </Text>
+            <View
+              style={[
+                styles.infoBox,
+                { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' },
+              ]}
+            >
               <Text style={[styles.infoText, { color: colors.text }]}>
                 <Text style={{ fontWeight: 'bold' }}>Formule : </Text>
                 {resultat.formule_recommandee.nom}
@@ -278,10 +288,17 @@ export default function CalculateurRationComponent() {
           </View>
 
           {/* Composition de la formule */}
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.cardTitle, { color: colors.text }]}>📊 Composition Recommandée</Text>
+          <View
+            style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          >
+            <Text style={[styles.cardTitle, { color: colors.text }]}>
+              📊 Composition Recommandée
+            </Text>
             {resultat.details_ingredients.map((ing, index) => (
-              <View key={index} style={[styles.ingredientRow, { borderBottomColor: colors.border }]}>
+              <View
+                key={index}
+                style={[styles.ingredientRow, { borderBottomColor: colors.border }]}
+              >
                 <View style={styles.ingredientInfo}>
                   <Text style={[styles.ingredientNom, { color: colors.text }]}>{ing.nom}</Text>
                   <Text style={[styles.ingredientPourcentage, { color: colors.primary }]}>
@@ -292,11 +309,15 @@ export default function CalculateurRationComponent() {
                   <Text style={[styles.ingredientQuantite, { color: colors.text }]}>
                     {ing.quantite_kg.toFixed(1)} kg
                   </Text>
-                  <Text style={[styles.ingredientPrix, { color: ing.prix_unitaire > 0 ? colors.success : colors.error }]}>
-                    {ing.prix_unitaire > 0 
+                  <Text
+                    style={[
+                      styles.ingredientPrix,
+                      { color: ing.prix_unitaire > 0 ? colors.success : colors.error },
+                    ]}
+                  >
+                    {ing.prix_unitaire > 0
                       ? `${ing.prix_unitaire.toLocaleString('fr-FR')} FCFA/kg`
-                      : 'Prix non défini'
-                    }
+                      : 'Prix non défini'}
                   </Text>
                   {ing.prix_unitaire > 0 && (
                     <Text style={[styles.ingredientCout, { color: colors.success }]}>
@@ -309,11 +330,18 @@ export default function CalculateurRationComponent() {
           </View>
 
           {/* Résumé des coûts */}
-          <View style={[styles.card, { backgroundColor: colors.success + '10', borderColor: colors.success + '30' }]}>
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: colors.success + '10', borderColor: colors.success + '30' },
+            ]}
+          >
             <Text style={[styles.cardTitle, { color: colors.text }]}>💰 Résumé des Coûts</Text>
-            
+
             <View style={styles.summaryRow}>
-              <Text style={[styles.summaryLabel, { color: colors.text }]}>Quantité totale requise</Text>
+              <Text style={[styles.summaryLabel, { color: colors.text }]}>
+                Quantité totale requise
+              </Text>
               <Text style={[styles.summaryValue, { color: colors.text }]}>
                 {resultat.quantite_totale_kg.toFixed(0)} kg
               </Text>
@@ -329,14 +357,18 @@ export default function CalculateurRationComponent() {
             </View>
 
             <View style={styles.summaryRow}>
-              <Text style={[styles.summaryLabel, { color: colors.text }]}>Coût par kg d'aliment</Text>
+              <Text style={[styles.summaryLabel, { color: colors.text }]}>
+                Coût par kg d'aliment
+              </Text>
               <Text style={[styles.summaryValue, { color: colors.success }]}>
                 {resultat.cout_par_kg.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} FCFA/kg
               </Text>
             </View>
 
             <View style={styles.summaryRow}>
-              <Text style={[styles.summaryLabel, { color: colors.text }]}>Coût par porc ({resultat.duree_jours} jours)</Text>
+              <Text style={[styles.summaryLabel, { color: colors.text }]}>
+                Coût par porc ({resultat.duree_jours} jours)
+              </Text>
               <Text style={[styles.summaryValue, { color: colors.success }]}>
                 {resultat.cout_par_porc.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} FCFA
               </Text>
@@ -345,23 +377,34 @@ export default function CalculateurRationComponent() {
 
           {/* Bouton Nouveau calcul */}
           <TouchableOpacity
-            style={[styles.resetButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            style={[
+              styles.resetButton,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
             onPress={resetCalcul}
             activeOpacity={0.7}
           >
-            <Text style={[styles.resetButtonText, { color: colors.primary }]}>🔄 Nouveau calcul</Text>
+            <Text style={[styles.resetButtonText, { color: colors.primary }]}>
+              🔄 Nouveau calcul
+            </Text>
           </TouchableOpacity>
         </>
       )}
 
       {/* Message si pas d'ingrédients */}
       {ingredients.length === 0 && !resultat && (
-        <View style={[styles.warningBox, { backgroundColor: colors.warning + '15', borderColor: colors.warning + '30' }]}>
+        <View
+          style={[
+            styles.warningBox,
+            { backgroundColor: colors.warning + '15', borderColor: colors.warning + '30' },
+          ]}
+        >
           <Text style={[styles.warningText, { color: colors.warning }]}>
             ⚠️ Aucun ingrédient disponible
           </Text>
           <Text style={[styles.warningTextSmall, { color: colors.textSecondary }]}>
-            Ajoutez des ingrédients avec leurs prix dans la section "Ingrédients" pour utiliser le calculateur.
+            Ajoutez des ingrédients avec leurs prix dans la section "Ingrédients" pour utiliser le
+            calculateur.
           </Text>
         </View>
       )}
@@ -526,4 +569,3 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
   },
 });
-

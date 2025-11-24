@@ -91,9 +91,9 @@ export default function CalendrierVaccinalModal({ visible, onClose, typeProphyla
         (v) => v.animal_ids?.includes(animal.id) && v.type_prophylaxie === typeProphylaxie
       );
 
-      const dernierVaccin = vaccinationsAnimal
-        .sort((a, b) => new Date(b.date_vaccination).getTime() - new Date(a.date_vaccination).getTime())
-        [0];
+      const dernierVaccin = vaccinationsAnimal.sort(
+        (a, b) => new Date(b.date_vaccination).getTime() - new Date(a.date_vaccination).getTime()
+      )[0];
 
       // Déterminer le statut
       let statut: 'en_retard' | 'a_venir' | 'a_jour' | 'inconnu' = 'a_jour';
@@ -108,20 +108,26 @@ export default function CalendrierVaccinalModal({ visible, onClose, typeProphyla
           const dateVaccin = new Date(dernierVaccin.date_vaccination);
           if (dateVaccin < dateRequise) {
             statut = 'en_retard';
-            joursRestants = Math.floor((aujourdhui.getTime() - dateRequise.getTime()) / (1000 * 60 * 60 * 24));
+            joursRestants = Math.floor(
+              (aujourdhui.getTime() - dateRequise.getTime()) / (1000 * 60 * 60 * 24)
+            );
           } else {
             statut = 'a_jour';
           }
         } else {
           // Pas de vaccin, en retard
           statut = 'en_retard';
-          joursRestants = Math.floor((aujourdhui.getTime() - dateRequise.getTime()) / (1000 * 60 * 60 * 24));
+          joursRestants = Math.floor(
+            (aujourdhui.getTime() - dateRequise.getTime()) / (1000 * 60 * 60 * 24)
+          );
         }
       } else if (prochainTraitement) {
         // Prochain traitement à venir
         const dateProchaine = new Date(animal.date_naissance);
         dateProchaine.setDate(dateProchaine.getDate() + prochainTraitement.age_jours);
-        joursRestants = Math.floor((dateProchaine.getTime() - aujourdhui.getTime()) / (1000 * 60 * 60 * 24));
+        joursRestants = Math.floor(
+          (dateProchaine.getTime() - aujourdhui.getTime()) / (1000 * 60 * 60 * 24)
+        );
 
         if (joursRestants > 0 && joursRestants <= 30) {
           statut = 'a_venir';
@@ -139,8 +145,11 @@ export default function CalendrierVaccinalModal({ visible, onClose, typeProphyla
         dernier_vaccin: dernierVaccin?.date_vaccination,
         prochain_vaccin: prochainTraitement
           ? new Date(
-              new Date(animal.date_naissance).getTime() + prochainTraitement.age_jours * 24 * 60 * 60 * 1000
-            ).toISOString().split('T')[0]
+              new Date(animal.date_naissance).getTime() +
+                prochainTraitement.age_jours * 24 * 60 * 60 * 1000
+            )
+              .toISOString()
+              .split('T')[0]
           : undefined,
         traitement_requis: prochainTraitement || dernierTraitementReqis,
         statut,
@@ -229,20 +238,16 @@ export default function CalendrierVaccinalModal({ visible, onClose, typeProphyla
   };
 
   const handleVaccinerAnimal = (animalId: string) => {
-    Alert.alert(
-      'Vacciner',
-      'Voulez-vous enregistrer une vaccination pour cet animal ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Oui',
-          onPress: () => {
-            // TODO: Ouvrir le modal de vaccination pré-rempli
-            Alert.alert('À venir', 'Fonctionnalité en cours de développement');
-          },
+    Alert.alert('Vacciner', 'Voulez-vous enregistrer une vaccination pour cet animal ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Oui',
+        onPress: () => {
+          // TODO: Ouvrir le modal de vaccination pré-rempli
+          Alert.alert('À venir', 'Fonctionnalité en cours de développement');
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const renderAnimalItem = ({ item }: { item: AnimalCalendrier }) => {
@@ -262,7 +267,11 @@ export default function CalendrierVaccinalModal({ visible, onClose, typeProphyla
           <View style={[styles.statutBadge, { backgroundColor: `${couleurStatut}15` }]}>
             <Ionicons name={iconeStatut} size={16} color={couleurStatut} />
             <Text style={[styles.statutTexte, { color: couleurStatut }]}>
-              {item.statut === 'en_retard' ? 'En retard' : item.statut === 'a_venir' ? 'À venir' : 'À jour'}
+              {item.statut === 'en_retard'
+                ? 'En retard'
+                : item.statut === 'a_venir'
+                  ? 'À venir'
+                  : 'À jour'}
             </Text>
           </View>
         </View>
@@ -349,7 +358,11 @@ export default function CalendrierVaccinalModal({ visible, onClose, typeProphyla
     >
       <View style={styles.container}>
         {/* Filtres */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtresContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.filtresContainer}
+        >
           <TouchableOpacity
             style={[
               styles.filtreBouton,
@@ -360,7 +373,12 @@ export default function CalendrierVaccinalModal({ visible, onClose, typeProphyla
             ]}
             onPress={() => setFiltreStatut('tous')}
           >
-            <Text style={[styles.filtreBoutonTexte, { color: filtreStatut === 'tous' ? '#FFFFFF' : colors.text }]}>
+            <Text
+              style={[
+                styles.filtreBoutonTexte,
+                { color: filtreStatut === 'tous' ? '#FFFFFF' : colors.text },
+              ]}
+            >
               Tous ({compteurs.tous})
             </Text>
           </TouchableOpacity>
@@ -376,7 +394,10 @@ export default function CalendrierVaccinalModal({ visible, onClose, typeProphyla
             onPress={() => setFiltreStatut('en_retard')}
           >
             <Text
-              style={[styles.filtreBoutonTexte, { color: filtreStatut === 'en_retard' ? '#FFFFFF' : colors.text }]}
+              style={[
+                styles.filtreBoutonTexte,
+                { color: filtreStatut === 'en_retard' ? '#FFFFFF' : colors.text },
+              ]}
             >
               En retard ({compteurs.en_retard})
             </Text>
@@ -393,7 +414,10 @@ export default function CalendrierVaccinalModal({ visible, onClose, typeProphyla
             onPress={() => setFiltreStatut('a_venir_7j')}
           >
             <Text
-              style={[styles.filtreBoutonTexte, { color: filtreStatut === 'a_venir_7j' ? '#FFFFFF' : colors.text }]}
+              style={[
+                styles.filtreBoutonTexte,
+                { color: filtreStatut === 'a_venir_7j' ? '#FFFFFF' : colors.text },
+              ]}
             >
               7 jours ({compteurs.a_venir_7j})
             </Text>
@@ -410,7 +434,10 @@ export default function CalendrierVaccinalModal({ visible, onClose, typeProphyla
             onPress={() => setFiltreStatut('a_venir_30j')}
           >
             <Text
-              style={[styles.filtreBoutonTexte, { color: filtreStatut === 'a_venir_30j' ? '#FFFFFF' : colors.text }]}
+              style={[
+                styles.filtreBoutonTexte,
+                { color: filtreStatut === 'a_venir_30j' ? '#FFFFFF' : colors.text },
+              ]}
             >
               30 jours ({compteurs.a_venir_30j})
             </Text>
@@ -426,7 +453,12 @@ export default function CalendrierVaccinalModal({ visible, onClose, typeProphyla
             ]}
             onPress={() => setFiltreStatut('a_jour')}
           >
-            <Text style={[styles.filtreBoutonTexte, { color: filtreStatut === 'a_jour' ? '#FFFFFF' : colors.text }]}>
+            <Text
+              style={[
+                styles.filtreBoutonTexte,
+                { color: filtreStatut === 'a_jour' ? '#FFFFFF' : colors.text },
+              ]}
+            >
               À jour ({compteurs.a_jour})
             </Text>
           </TouchableOpacity>
@@ -442,7 +474,9 @@ export default function CalendrierVaccinalModal({ visible, onClose, typeProphyla
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <Ionicons name="calendar-clear" size={48} color={colors.textSecondary} />
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Aucun animal trouvé</Text>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                Aucun animal trouvé
+              </Text>
             </View>
           }
         />
@@ -565,4 +599,3 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
 });
-
