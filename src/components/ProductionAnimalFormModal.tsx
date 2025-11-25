@@ -347,7 +347,7 @@ export default function ProductionAnimalFormModal({
       >
         <ScrollView 
           style={styles.scrollView}
-          contentContainerStyle={{ padding: SPACING.lg, paddingBottom: SPACING.xl }}
+          contentContainerStyle={{ paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xl }}
           showsVerticalScrollIndicator={true}
           persistentScrollbar={true}
           keyboardShouldPersistTaps="handled"

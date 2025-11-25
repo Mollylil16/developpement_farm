@@ -226,8 +226,7 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.xl * 2, // Extra padding pour le clavier
   },
   content: {
-    flex: 1,
-    padding: SPACING.lg,
+    flexShrink: 1,
   },
   footer: {
     flexDirection: 'row',
