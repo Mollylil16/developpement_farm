@@ -462,32 +462,35 @@ export default function ProductionAnimalFormModal({
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Reproducteur ?</Text>
             <View style={styles.optionsContainer}>
-              {[true, false].map((value) => (
-                <TouchableOpacity
-                  key={value ? 'oui' : 'non'}
-                  style={[
-                    styles.option,
-                    {
-                      borderColor: formData.reproducteur === value ? colors.primary : colors.border,
-                      backgroundColor:
-                        formData.reproducteur === value ? colors.primary : colors.background,
-                    },
-                  ]}
-                  onPress={() => setFormData({ ...formData, reproducteur: value })}
-                >
-                  <Text
+              {['oui', 'non'].map((option) => {
+                const value = option === 'oui';
+                return (
+                  <TouchableOpacity
+                    key={option}
                     style={[
-                      styles.optionText,
+                      styles.option,
                       {
-                        color: formData.reproducteur === value ? colors.textOnPrimary : colors.text,
-                        fontWeight: formData.reproducteur === value ? '600' : 'normal',
+                        borderColor: formData.reproducteur === value ? colors.primary : colors.border,
+                        backgroundColor:
+                          formData.reproducteur === value ? colors.primary : colors.background,
                       },
                     ]}
+                    onPress={() => setFormData({ ...formData, reproducteur: value })}
                   >
-                    {value ? 'Oui' : 'Non'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={[
+                        styles.optionText,
+                        {
+                          color: formData.reproducteur === value ? colors.textOnPrimary : colors.text,
+                          fontWeight: formData.reproducteur === value ? '600' : 'normal',
+                        },
+                      ]}
+                    >
+                      {option === 'oui' ? 'Oui' : 'Non'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
 
