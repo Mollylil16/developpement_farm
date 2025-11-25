@@ -8,7 +8,6 @@ import { View, StyleSheet, ViewStyle, TouchableOpacity, Text } from 'react-nativ
 import { SPACING, TRANSITIONS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { getNeomorphismRaised, neomorphismToStyle } from '../utils/neomorphism';
-import { SafeTextWrapper } from '../utils/textRenderingGuard';
 
 interface CardProps {
   children: React.ReactNode;
@@ -70,18 +69,14 @@ export default function Card({
         onPress={onPress}
         activeOpacity={TRANSITIONS.opacity.pressed}
       >
-        <SafeTextWrapper componentName="Card" silent={true}>
-          {children}
-        </SafeTextWrapper>
+        {children}
       </TouchableOpacity>
     );
   }
 
   return (
     <View style={cardStyle}>
-      <SafeTextWrapper componentName="Card" silent={true}>
-        {children}
-      </SafeTextWrapper>
+      {children}
     </View>
   );
 }
