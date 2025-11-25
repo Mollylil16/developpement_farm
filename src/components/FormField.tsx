@@ -6,7 +6,6 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TextInputProps } from 'react-native';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, TRANSITIONS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { SafeTextWrapper } from '../utils/textRenderingGuard';
 
 interface FormFieldProps extends TextInputProps {
   label: string;
@@ -25,33 +24,31 @@ export default function FormField({
   const [isFocused, setIsFocused] = useState(false);
 
   return (
-    <SafeTextWrapper componentName="FormField">
-      <View style={styles.container}>
-        <Text style={[styles.label, { color: colors.text }]}>
-          {label}
-          {required && <Text style={{ color: colors.error }}> *</Text>}
-        </Text>
-        <View
-          style={[
-            styles.inputContainer,
-            {
-              borderColor: error ? colors.error : isFocused ? colors.primary : colors.border,
-              backgroundColor: colors.surface,
-              ...(isFocused && colors.shadow.small),
-            },
-          ]}
-        >
-          <TextInput
-            style={[styles.input, { color: colors.text }, style]}
-            placeholderTextColor={colors.textTertiary}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            {...textInputProps}
-          />
-        </View>
-        {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
+    <View style={styles.container}>
+      <Text style={[styles.label, { color: colors.text }]}>
+        {label}
+        {required && <Text style={{ color: colors.error }}> *</Text>}
+      </Text>
+      <View
+        style={[
+          styles.inputContainer,
+          {
+            borderColor: error ? colors.error : isFocused ? colors.primary : colors.border,
+            backgroundColor: colors.surface,
+            ...(isFocused && colors.shadow.small),
+          },
+        ]}
+      >
+        <TextInput
+          style={[styles.input, { color: colors.text }, style]}
+          placeholderTextColor={colors.textTertiary}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          {...textInputProps}
+        />
       </View>
-    </SafeTextWrapper>
+      {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
+    </View>
   );
 }
 
