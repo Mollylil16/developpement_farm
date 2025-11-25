@@ -18,7 +18,6 @@ import { loadSevrages } from '../store/slices/reproductionSlice';
 import { Gestation, Sevrage } from '../types';
 import { selectAllGestations, selectAllSevrages } from '../store/selectors/reproductionSelectors';
 import { AlertePlanningProduction } from '../types/planningProduction';
-import { SafeTextWrapper } from '../utils/textRenderingGuard';
 
 export interface Alerte {
   id: string;
@@ -273,17 +272,16 @@ export default function AlertesWidget() {
   }
 
   return (
-    <SafeTextWrapper componentName="AlertesWidget">
-      <View
-        style={[
-          styles.container,
-          {
-            backgroundColor: colors.surface,
-            borderColor: colors.warning + '30',
-            ...colors.shadow.medium,
-          },
-        ]}
-      >
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: colors.surface,
+          borderColor: colors.warning + '30',
+          ...colors.shadow.medium,
+        },
+      ]}
+    >
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.text }]}>
             ⚠️ {alertesLength} alerte{alertesLength > 1 ? 's' : ''}
@@ -351,8 +349,7 @@ export default function AlertesWidget() {
           </Text>
         </TouchableOpacity>
       )}
-      </View>
-    </SafeTextWrapper>
+    </View>
   );
 }
 
