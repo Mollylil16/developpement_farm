@@ -678,10 +678,10 @@ export default function ProductionAnimalFormModal({
             style={[
               styles.modalOption,
               { borderColor: colors.border, backgroundColor: colors.surface },
-              formData.pere_id === null && {
+              formData.pere_id === null ? {
                 borderColor: colors.primary,
                 backgroundColor: colors.primary + '12',
-              },
+              } : null,
             ]}
             onPress={() => handleSelectPere(null)}
           >
@@ -745,10 +745,10 @@ export default function ProductionAnimalFormModal({
             style={[
               styles.modalOption,
               { borderColor: colors.border, backgroundColor: colors.surface },
-              formData.mere_id === null && {
+              formData.mere_id === null ? {
                 borderColor: colors.primary,
                 backgroundColor: colors.primary + '12',
-              },
+              } : null,
             ]}
             onPress={() => handleSelectMere(null)}
           >

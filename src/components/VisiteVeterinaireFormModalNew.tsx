@@ -265,7 +265,7 @@ export default function VisiteVeterinaireFormModalNew({
               style={[
                 styles.typeChip,
                 { borderColor: colors.border },
-                motif === key && { backgroundColor: colors.primary, borderColor: colors.primary },
+                motif === key ? { backgroundColor: colors.primary, borderColor: colors.primary } : null,
               ]}
               onPress={() => setMotif(key)}
             >
