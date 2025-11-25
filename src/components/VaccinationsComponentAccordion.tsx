@@ -751,10 +751,11 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
                           </Text>
                           <Text style={[styles.animalDetails, { color: colors.textSecondary }]}>
                             {categorie}
-                            {codeAnimal && ` • ${codeAnimal}`}
-                            {animal.sexe &&
-                              ` • ${animal.sexe === 'male' ? 'Mâle' : animal.sexe === 'femelle' ? 'Femelle' : animal.sexe}`}
-                            {animal.reproducteur && ' • Reprod.'}
+                            {codeAnimal ? ` • ${codeAnimal}` : ''}
+                            {animal.sexe
+                              ? ` • ${animal.sexe === 'male' ? 'Mâle' : animal.sexe === 'femelle' ? 'Femelle' : animal.sexe}`
+                              : ''}
+                            {animal.reproducteur ? ' • Reprod.' : ''}
                           </Text>
                         </View>
                       </View>

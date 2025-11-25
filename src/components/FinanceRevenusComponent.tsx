@@ -14,6 +14,7 @@ import {
   Alert,
   RefreshControl,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadRevenus, deleteRevenu } from '../store/slices/financeSlice';
@@ -47,11 +48,14 @@ export default function FinanceRevenusComponent() {
 
   const { projetActif } = useAppSelector((state) => state.projet);
 
-  useEffect(() => {
-    if (projetActif) {
-      dispatch(loadRevenus(projetActif.id));
-    }
-  }, [dispatch, projetActif?.id]);
+  // Charger les données à chaque fois que l'écran est focus
+  useFocusEffect(
+    useCallback(() => {
+      if (projetActif) {
+        dispatch(loadRevenus(projetActif.id));
+      }
+    }, [dispatch, projetActif?.id])
+  );
 
   // Pagination: charger les premiers revenus
   useEffect(() => {
@@ -296,20 +300,24 @@ export default function FinanceRevenusComponent() {
                   </Text>
                 </View>
                 <View style={styles.cardActions}>
-                  {revenu.photos && revenu.photos.length > 0 && (
-                    <TouchableOpacity
-                      accessible={true}
-                      accessibilityLabel="Voir les photos de la facture"
-                      accessibilityRole="button"
-                      style={[styles.actionButton, { minHeight: 44, minWidth: 44 }]}
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        handleViewPhotos(revenu.photos!);
-                      }}
-                    >
-                      <Text style={styles.actionButtonText}>📷</Text>
-                    </TouchableOpacity>
-                  )}
+                  {(() => {
+                    // Filtrer les photos valides
+                    const photosValides = revenu.photos?.filter(p => p && p.trim() !== '') || [];
+                    return photosValides.length > 0 ? (
+                      <TouchableOpacity
+                        accessible={true}
+                        accessibilityLabel="Voir les photos de la facture"
+                        accessibilityRole="button"
+                        style={[styles.actionButton, { minHeight: 44, minWidth: 44 }]}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          handleViewPhotos(photosValides);
+                        }}
+                      >
+                        <Text style={styles.actionButtonText}>📷</Text>
+                      </TouchableOpacity>
+                    ) : null;
+                  })()}
                   {canUpdate('finance') && (
                     <TouchableOpacity
                       accessible={true}
@@ -371,13 +379,17 @@ export default function FinanceRevenusComponent() {
                     </Text>
                   </View>
                 )}
-                {revenu.photos && revenu.photos.length > 0 && (
-                  <View style={styles.photosContainer}>
-                    <Text style={[styles.photosLabel, { color: colors.textSecondary }]}>
-                      {revenu.photos.length} photo{revenu.photos.length > 1 ? 's' : ''} de facture
-                    </Text>
-                  </View>
-                )}
+                {(() => {
+                  // Filtrer les photos valides (non vides, non nulles)
+                  const photosValides = revenu.photos?.filter(p => p && p.trim() !== '') || [];
+                  return photosValides.length > 0 ? (
+                    <View style={styles.photosContainer}>
+                      <Text style={[styles.photosLabel, { color: colors.textSecondary }]}>
+                        {photosValides.length} photo{photosValides.length > 1 ? 's' : ''} de facture
+                      </Text>
+                    </View>
+                  ) : null;
+                })()}
 
                 {revenu.categorie === 'vente_porc' && revenu.poids_kg && revenu.poids_kg > 0 && (
                   <TouchableOpacity
@@ -436,7 +448,7 @@ export default function FinanceRevenusComponent() {
               </TouchableOpacity>
             </View>
             <ScrollView horizontal pagingEnabled>
-              {viewingPhotos.map((photo, index) => (
+              {viewingPhotos.filter(p => p && p.trim() !== '').map((photo, index) => (
                 <Image
                   key={index}
                   source={{ uri: photo }}

@@ -340,14 +340,13 @@ export default function CreateProjectScreen() {
                     </View>
                     <View style={styles.halfWidth}>
                       <FormField
-                        label="Âge moyen (jours)"
-                        placeholder="Ex: 90"
+                        label="Âge moyen (semaines)"
+                        placeholder="Ex: 12"
                         keyboardType="numeric"
                         value={formData.age_moyen_actuel.toString()}
                         onChangeText={(text) =>
                           setFormData({ ...formData, age_moyen_actuel: parseInt(text) || 0 })
                         }
-                        required
                       />
                     </View>
                   </View>

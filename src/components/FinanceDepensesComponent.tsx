@@ -294,14 +294,18 @@ export default function FinanceDepensesComponent() {
                   </Text>
                 </View>
                 <View style={styles.cardActions}>
-                  {depense.photos && depense.photos.length > 0 && (
-                    <TouchableOpacity
-                      style={styles.actionButton}
-                      onPress={() => handleViewPhotos(depense.photos!)}
-                    >
-                      <Text style={styles.actionButtonText}>📷</Text>
-                    </TouchableOpacity>
-                  )}
+                  {(() => {
+                    // Filtrer les photos valides
+                    const photosValides = depense.photos?.filter(p => p && p.trim() !== '') || [];
+                    return photosValides.length > 0 ? (
+                      <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={() => handleViewPhotos(photosValides)}
+                      >
+                        <Text style={styles.actionButtonText}>📷</Text>
+                      </TouchableOpacity>
+                    ) : null;
+                  })()}
                   {canUpdate('finance') && (
                     <TouchableOpacity
                       style={styles.actionButton}
@@ -347,13 +351,17 @@ export default function FinanceDepensesComponent() {
                     </Text>
                   </View>
                 )}
-                {depense.photos && depense.photos.length > 0 && (
-                  <View style={styles.photosContainer}>
-                    <Text style={[styles.photosLabel, { color: colors.textSecondary }]}>
-                      {depense.photos.length} photo{depense.photos.length > 1 ? 's' : ''} de reçu
-                    </Text>
-                  </View>
-                )}
+                {(() => {
+                  // Filtrer les photos valides (non vides, non nulles)
+                  const photosValides = depense.photos?.filter(p => p && p.trim() !== '') || [];
+                  return photosValides.length > 0 ? (
+                    <View style={styles.photosContainer}>
+                      <Text style={[styles.photosLabel, { color: colors.textSecondary }]}>
+                        {photosValides.length} photo{photosValides.length > 1 ? 's' : ''} de reçu
+                      </Text>
+                    </View>
+                  ) : null;
+                })()}
               </View>
             </View>
           )}
@@ -395,7 +403,7 @@ export default function FinanceDepensesComponent() {
               </TouchableOpacity>
             </View>
             <ScrollView horizontal pagingEnabled>
-              {viewingPhotos.map((photo, index) => (
+              {viewingPhotos.filter(p => p && p.trim() !== '').map((photo, index) => (
                 <Image
                   key={index}
                   source={{ uri: photo }}

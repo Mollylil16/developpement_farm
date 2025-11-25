@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { selectAllAnimaux } from '../store/selectors/productionSelectors';
 import { createProductionAnimal, updateProductionAnimal } from '../store/slices/productionSlice';
+import { savePhotoToAppStorage } from '../utils/photoUtils';
 import {
   ProductionAnimal,
   CreateProductionAnimalInput,
@@ -164,7 +165,18 @@ export default function ProductionAnimalFormModal({
     });
 
     if (!result.canceled && result.assets[0]) {
-      setPhotoUri(result.assets[0].uri);
+      try {
+        console.log('📸 URI temporaire reçue:', result.assets[0].uri);
+        // Copier vers le stockage permanent
+        const permanentUri = await savePhotoToAppStorage(result.assets[0].uri);
+        console.log('✅ URI permanente créée:', permanentUri);
+        setPhotoUri(permanentUri);
+      } catch (error) {
+        console.error('❌ Erreur sauvegarde photo:', error);
+        Alert.alert('Erreur', 'Impossible de sauvegarder la photo: ' + error);
+        // En cas d'erreur, utiliser quand même l'URI temporaire
+        setPhotoUri(result.assets[0].uri);
+      }
     }
   };
 
@@ -187,7 +199,18 @@ export default function ProductionAnimalFormModal({
     });
 
     if (!result.canceled && result.assets[0]) {
-      setPhotoUri(result.assets[0].uri);
+      try {
+        console.log('📸 URI temporaire reçue:', result.assets[0].uri);
+        // Copier vers le stockage permanent
+        const permanentUri = await savePhotoToAppStorage(result.assets[0].uri);
+        console.log('✅ URI permanente créée:', permanentUri);
+        setPhotoUri(permanentUri);
+      } catch (error) {
+        console.error('❌ Erreur sauvegarde photo:', error);
+        Alert.alert('Erreur', 'Impossible de sauvegarder la photo: ' + error);
+        // En cas d'erreur, utiliser quand même l'URI temporaire
+        setPhotoUri(result.assets[0].uri);
+      }
     }
   };
 
@@ -210,6 +233,8 @@ export default function ProductionAnimalFormModal({
 
   useEffect(() => {
     if (animal && isEditing) {
+      console.log('📋 Chargement animal dans modal:', animal.id);
+      console.log('📸 Photo URI de l\'animal:', animal.photo_uri);
       setFormData({
         projet_id: animal.projet_id,
         code: animal.code,
@@ -227,6 +252,7 @@ export default function ProductionAnimalFormModal({
         notes: animal.notes || '',
       });
       setPhotoUri(animal.photo_uri || null);
+      console.log('✅ Photo URI définie dans le state:', animal.photo_uri || 'null');
     } else {
       setFormData({
         projet_id: projetId,
@@ -264,21 +290,22 @@ export default function ProductionAnimalFormModal({
       return;
     }
 
-    const race = formData.race?.trim();
-    const normalizedData: CreateProductionAnimalInput = {
-      ...formData,
-      race: race ? race : undefined,
-      pere_id: formData.pere_id ?? null,
-      mere_id: formData.mere_id ?? null,
-      photo_uri: photoUri || undefined,
-    };
-
-    console.log('=== SAUVEGARDE ANIMAL ===');
-    console.log('Photo URI:', photoUri);
-    console.log('Données complètes:', normalizedData);
-
     setLoading(true);
     try {
+      const race = formData.race?.trim();
+      const normalizedData: CreateProductionAnimalInput = {
+        ...formData,
+        race: race ? race : undefined,
+        pere_id: formData.pere_id ?? null,
+        mere_id: formData.mere_id ?? null,
+        photo_uri: photoUri || undefined, // Photo déjà permanente
+      };
+
+      console.log('=== SAUVEGARDE ANIMAL ===');
+      console.log('📸 Photo URI à sauvegarder:', photoUri);
+      console.log('🔍 Type de photo URI:', typeof photoUri);
+      console.log('📦 Données complètes:', normalizedData);
+
       if (isEditing && animal) {
         const { projet_id: _omitProjet, ...updates } = normalizedData;
         await dispatch(
@@ -290,9 +317,16 @@ export default function ProductionAnimalFormModal({
       } else {
         await dispatch(createProductionAnimal(normalizedData)).unwrap();
       }
-      onSuccess();
+      
+      // Fermer le modal immédiatement
+      onClose();
+      
+      // Puis recharger les données en arrière-plan
+      setTimeout(() => {
+        onSuccess();
+      }, 100);
     } catch (error: any) {
-      Alert.alert('Erreur', error || "Erreur lors de l'enregistrement.");
+      Alert.alert('Erreur', error?.message || error || "Erreur lors de l'enregistrement.");
     } finally {
       setLoading(false);
     }
@@ -311,7 +345,16 @@ export default function ProductionAnimalFormModal({
         showButtons={true}
         loading={loading}
       >
-        <ScrollView style={styles.scrollView}>
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={{ paddingBottom: SPACING.md }}
+          showsVerticalScrollIndicator={true}
+          persistentScrollbar={true}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          bounces={true}
+          scrollEventThrottle={16}
+        >
           <FormField
             label="Code de l'animal *"
             value={formData.code}
@@ -620,7 +663,14 @@ export default function ProductionAnimalFormModal({
         title="Sélectionner le père"
         showButtons={false}
       >
-        <ScrollView style={styles.modalScroll}>
+        <ScrollView 
+          style={styles.modalScroll}
+          showsVerticalScrollIndicator={true}
+          persistentScrollbar={true}
+          keyboardShouldPersistTaps="handled"
+          bounces={true}
+          scrollEventThrottle={16}
+        >
           <TouchableOpacity
             style={[
               styles.modalOption,
@@ -680,7 +730,14 @@ export default function ProductionAnimalFormModal({
         title="Sélectionner la mère"
         showButtons={false}
       >
-        <ScrollView style={styles.modalScroll}>
+        <ScrollView 
+          style={styles.modalScroll}
+          showsVerticalScrollIndicator={true}
+          persistentScrollbar={true}
+          keyboardShouldPersistTaps="handled"
+          bounces={true}
+          scrollEventThrottle={16}
+        >
           <TouchableOpacity
             style={[
               styles.modalOption,
@@ -739,7 +796,7 @@ export default function ProductionAnimalFormModal({
 
 const styles = StyleSheet.create({
   scrollView: {
-    maxHeight: 500,
+    flex: 1,
   },
   section: {
     marginBottom: SPACING.md,

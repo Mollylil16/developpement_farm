@@ -18,6 +18,7 @@ import { loadSevrages } from '../store/slices/reproductionSlice';
 import { Gestation, Sevrage } from '../types';
 import { selectAllGestations, selectAllSevrages } from '../store/selectors/reproductionSelectors';
 import { AlertePlanningProduction } from '../types/planningProduction';
+import { SafeTextWrapper } from '../utils/textRenderingGuard';
 
 export interface Alerte {
   id: string;
@@ -272,27 +273,28 @@ export default function AlertesWidget() {
   }
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: colors.surface,
-          borderColor: colors.warning + '30',
-          ...colors.shadow.medium,
-        },
-      ]}
-    >
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.text }]}>
-          ⚠️ {alertesLength} alerte{alertesLength > 1 ? 's' : ''}
-        </Text>
-        {alertesLength > 3 && (
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            {alertesLength - 3} autre{alertesLength - 3 > 1 ? 's' : ''} non affichée
-            {alertesLength - 3 > 1 ? 's' : ''}
+    <SafeTextWrapper componentName="AlertesWidget">
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: colors.surface,
+            borderColor: colors.warning + '30',
+            ...colors.shadow.medium,
+          },
+        ]}
+      >
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: colors.text }]}>
+            ⚠️ {alertesLength} alerte{alertesLength > 1 ? 's' : ''}
           </Text>
-        )}
-      </View>
+          {alertesLength > 3 && (
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              {alertesLength - 3} autre{alertesLength - 3 > 1 ? 's' : ''} non affichée
+              {alertesLength - 3 > 1 ? 's' : ''}
+            </Text>
+          )}
+        </View>
 
       <ScrollView
         horizontal
@@ -349,7 +351,8 @@ export default function AlertesWidget() {
           </Text>
         </TouchableOpacity>
       )}
-    </View>
+      </View>
+    </SafeTextWrapper>
   );
 }
 

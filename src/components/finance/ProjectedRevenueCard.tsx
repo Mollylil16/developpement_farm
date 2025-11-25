@@ -60,7 +60,16 @@ export default function ProjectedRevenueCard({ type }: ProjectedRevenueCardProps
       revenusRealises,
       revenuRestant,
     };
-  }, [animauxActifs, peseesParAnimal, projetActif?.id, revenus, type]);
+  }, [
+    animauxActifs, 
+    peseesParAnimal, 
+    projetActif?.id, 
+    projetActif?.prix_kg_vif, 
+    projetActif?.prix_kg_carcasse, 
+    projetActif?.poids_moyen_actuel,
+    revenus, 
+    type
+  ]);
 
   const formatAmount = (amount: number) => {
     return new Intl.NumberFormat('fr-FR', {

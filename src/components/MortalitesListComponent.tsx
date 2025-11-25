@@ -15,6 +15,7 @@ import {
   ScrollView,
   Dimensions,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { PieChart, BarChart } from 'react-native-chart-kit';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
@@ -61,12 +62,17 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const ITEMS_PER_PAGE = 50;
 
-  useEffect(() => {
-    if (projetActif) {
-      dispatch(loadMortalitesParProjet(projetActif.id));
-      dispatch(loadStatistiquesMortalite(projetActif.id));
-    }
-  }, [dispatch, projetActif]);
+  // Charger les données au montage et à chaque fois que l'écran est focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log('🔄 [MortalitesListComponent] useFocusEffect déclenché');
+      if (projetActif) {
+        console.log('📊 Rechargement mortalités et statistiques pour projet:', projetActif.id);
+        dispatch(loadMortalitesParProjet(projetActif.id));
+        dispatch(loadStatistiquesMortalite(projetActif.id));
+      }
+    }, [dispatch, projetActif?.id])
+  );
 
   // Pull-to-refresh
   const onRefresh = useCallback(async () => {
@@ -372,60 +378,48 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
           style={styles.statsScrollView}
           contentContainerStyle={styles.statsScrollContent}
         >
-          <Card elevation="medium" padding="large" style={styles.statCard}>
-            <StatCard
-              value={statistiques.total_morts || 0}
-              label="Total morts"
-              icon={<Text style={styles.iconEmoji}>💀</Text>}
-              valueColor={colors.error}
-            />
-          </Card>
+          <StatCard
+            value={statistiques.total_morts || 0}
+            label="Total morts"
+            icon="💀"
+            valueColor={colors.error}
+          />
 
-          <Card elevation="medium" padding="large" style={styles.statCard}>
-            <StatCard
-              value={(statistiques.taux_mortalite ?? 0).toFixed(1)}
-              label="Taux de mortalité"
-              unit="%"
-              icon={<Text style={styles.iconEmoji}>📊</Text>}
-              valueColor={(statistiques.taux_mortalite ?? 0) > 5 ? colors.error : colors.success}
-            />
-          </Card>
+          <StatCard
+            value={(statistiques.taux_mortalite ?? 0).toFixed(1)}
+            label="Taux de mortalité"
+            unit="%"
+            icon="📊"
+            valueColor={(statistiques.taux_mortalite ?? 0) > 5 ? colors.error : colors.success}
+          />
 
-          <Card elevation="medium" padding="large" style={styles.statCard}>
-            <StatCard
-              value={statistiques.mortalites_par_categorie?.porcelet || 0}
-              label="Porcelets"
-              icon={<Text style={styles.iconEmoji}>🐷</Text>}
-              valueColor={colors.warning}
-            />
-          </Card>
+          <StatCard
+            value={statistiques.mortalites_par_categorie?.porcelet || 0}
+            label="Porcelets"
+            icon="🐷"
+            valueColor={colors.warning}
+          />
 
-          <Card elevation="medium" padding="large" style={styles.statCard}>
-            <StatCard
-              value={statistiques.mortalites_par_categorie?.truie || 0}
-              label="Truies"
-              icon={<Text style={styles.iconEmoji}>🐷</Text>}
-              valueColor={colors.error}
-            />
-          </Card>
+          <StatCard
+            value={statistiques.mortalites_par_categorie?.truie || 0}
+            label="Truies"
+            icon="🐷"
+            valueColor={colors.error}
+          />
 
-          <Card elevation="medium" padding="large" style={styles.statCard}>
-            <StatCard
-              value={statistiques.mortalites_par_categorie?.verrat || 0}
-              label="Verrats"
-              icon={<Text style={styles.iconEmoji}>🐷</Text>}
-              valueColor={colors.error}
-            />
-          </Card>
+          <StatCard
+            value={statistiques.mortalites_par_categorie?.verrat || 0}
+            label="Verrats"
+            icon="🐷"
+            valueColor={colors.error}
+          />
 
-          <Card elevation="medium" padding="large" style={styles.statCard}>
-            <StatCard
-              value={Object.keys(mortalitesParCause).length}
-              label="Causes différentes"
-              icon={<Text style={styles.iconEmoji}>📋</Text>}
-              valueColor={colors.primary}
-            />
-          </Card>
+          <StatCard
+            value={Object.keys(mortalitesParCause).length}
+            label="Causes différentes"
+            icon="📋"
+            valueColor={colors.primary}
+          />
         </ScrollView>
       </View>
     );
@@ -608,6 +602,8 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
           <Text style={[styles.sectionTitle, { color: colors.text }]}>📋 Liste des mortalités</Text>
           {canCreate('mortalites') && (
             <TouchableOpacity
+              activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               style={[styles.btnAjouter, { backgroundColor: colors.primary }]}
               onPress={() => {
                 setSelectedMortalite(null);
@@ -668,6 +664,8 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
                   <View style={styles.cardActions}>
                     {canUpdate('mortalites') && (
                       <TouchableOpacity
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                         style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
                         onPress={() => handleEdit(mortalite)}
                       >
@@ -676,6 +674,8 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
                     )}
                     {canDelete('mortalites') && (
                       <TouchableOpacity
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                         style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
                         onPress={() => handleDelete(mortalite.id)}
                       >
@@ -807,10 +807,7 @@ const styles = StyleSheet.create({
   },
   statsScrollContent: {
     gap: SPACING.md,
-  },
-  statCard: {
-    minWidth: 140,
-    marginRight: SPACING.md,
+    paddingHorizontal: SPACING.sm,
   },
   loadMoreButton: {
     paddingVertical: SPACING.md,

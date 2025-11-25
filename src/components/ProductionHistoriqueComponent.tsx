@@ -33,6 +33,12 @@ import Card from './Card';
 import { useNavigation } from '@react-navigation/native';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { calculerAge, getStatutColor } from '../utils/animalUtils';
+import { 
+  loadMortalitesParProjet, 
+  loadStatistiquesMortalite,
+  deleteMortalite,
+} from '../store/slices/mortalitesSlice';
+import { selectAllMortalites } from '../store/selectors/mortalitesSelectors';
 
 // Statuts qui doivent être dans l'historique
 const STATUTS_HISTORIQUE: StatutAnimal[] = ['vendu', 'offert', 'mort'];
@@ -45,6 +51,7 @@ export default function ProductionHistoriqueComponent() {
   const { projetActif } = useAppSelector((state) => state.projet);
   const animaux = useAppSelector(selectAllAnimaux);
   const loading = useAppSelector(selectProductionLoading);
+  const mortalites = useAppSelector(selectAllMortalites);
 
   const [showAnimalModal, setShowAnimalModal] = useState(false);
   const [selectedAnimal, setSelectedAnimal] = useState<ProductionAnimal | null>(null);
@@ -114,27 +121,65 @@ export default function ProductionHistoriqueComponent() {
       Alert.alert('Permission refusée', "Vous n'avez pas la permission de modifier les animaux.");
       return;
     }
+    
+    const messageSupplementaire = 
+      animal.statut === 'mort' && nouveauStatut === 'actif'
+        ? "\n\nL'entrée de mortalité associée sera supprimée."
+        : '';
+    
     Alert.alert(
       'Changer le statut',
-      `Voulez-vous changer le statut de ${animal.code}${animal.nom ? ` (${animal.nom})` : ''} en "${STATUT_ANIMAL_LABELS[nouveauStatut]}" ?`,
+      `Voulez-vous changer le statut de ${animal.code}${animal.nom ? ` (${animal.nom})` : ''} en "${STATUT_ANIMAL_LABELS[nouveauStatut]}" ?${messageSupplementaire}`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
           text: 'Confirmer',
           onPress: async () => {
             try {
+              if (!projetActif) {
+                Alert.alert('Erreur', 'Aucun projet actif');
+                return;
+              }
+
+              // 1. Si on passe de "mort" à "actif", supprimer l'entrée de mortalité
+              if (animal.statut === 'mort' && nouveauStatut === 'actif') {
+                // Trouver l'entrée de mortalité correspondant à cet animal
+                const mortaliteCorrespondante = mortalites.find(
+                  (m) => m.animal_code === animal.code && m.projet_id === projetActif.id
+                );
+                
+                if (mortaliteCorrespondante) {
+                  try {
+                    await dispatch(deleteMortalite(mortaliteCorrespondante.id)).unwrap();
+                  } catch (deleteError: any) {
+                    console.warn('Erreur lors de la suppression de la mortalité:', deleteError);
+                    // Ne pas bloquer si la suppression échoue
+                  }
+                }
+              }
+
+              // 2. Mettre à jour le statut de l'animal
               await dispatch(
                 updateProductionAnimal({
                   id: animal.id,
                   updates: { statut: nouveauStatut },
                 })
               ).unwrap();
-              // Recharger les animaux pour mettre à jour les listes
-              if (projetActif) {
-                dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
-                // Recharger les pesées récentes pour exclure celles des animaux retirés
-                dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 }));
+              
+              // 3. Recharger toutes les données pertinentes
+              await Promise.all([
+                dispatch(loadProductionAnimaux({ projetId: projetActif.id })).unwrap(),
+                dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 })).unwrap(),
+              ]);
+              
+              // Si on a touché au statut "mort", recharger les mortalités
+              if (animal.statut === 'mort' || nouveauStatut === 'mort') {
+                await Promise.all([
+                  dispatch(loadMortalitesParProjet(projetActif.id)).unwrap(),
+                  dispatch(loadStatistiquesMortalite(projetActif.id)).unwrap(),
+                ]);
               }
+              
               // Si le statut devient "actif", naviguer vers le cheptel
               if (nouveauStatut === 'actif') {
                 navigation.goBack();
@@ -169,7 +214,7 @@ export default function ProductionHistoriqueComponent() {
           <View style={styles.animalInfo}>
             <Text style={[styles.animalCode, { color: colors.text }]}>
               {item.code}
-              {item.nom && ` (${item.nom})`}
+              {item.nom ? ` (${item.nom})` : ''}
             </Text>
             <View style={[styles.statutBadge, { backgroundColor: statutColor + '15' }]}>
               <Text style={[styles.statutText, { color: statutColor }]}>
@@ -415,9 +460,7 @@ export default function ProductionHistoriqueComponent() {
             setSelectedAnimal(null);
           }}
           onSuccess={() => {
-            setShowAnimalModal(false);
-            setIsEditing(false);
-            setSelectedAnimal(null);
+            // Recharger les animaux pour afficher les modifications
             if (projetActif) {
               dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
             }

@@ -10,6 +10,7 @@ import {
   ScrollView,
   RefreshControl,
   Dimensions,
+  Text,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppSelector } from '../store/hooks';
@@ -19,6 +20,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { SCREENS } from '../navigation/types';
 import { SPACING } from '../constants/theme';
+import { SafeTextWrapper } from '../utils/textRenderingGuard';
 
 // Custom Hooks
 import { useDashboardData } from '../hooks/useDashboardData';
@@ -135,43 +137,47 @@ export default function DashboardScreen() {
           />
         }
       >
-        <View style={styles.content}>
-          {/* Header */}
-          <DashboardHeader
-            greeting={greeting}
-            profilPrenom={profil.profilPrenom}
-            profilPhotoUri={profil.profilPhotoUri}
-            profilInitiales={profil.profilInitiales}
-            currentDate={currentDate}
-            projetNom={projetActif.nom}
-            invitationsCount={
-              Array.isArray(invitationsEnAttente) ? invitationsEnAttente.length : 0
-            }
-            headerAnim={animations.headerAnim}
-            onPressPhoto={() => navigation.navigate(SCREENS.PROFIL as any)}
-            onPressInvitations={() => setInvitationsModalVisible(true)}
-          />
+        <SafeTextWrapper componentName="DashboardScreen">
+          <View style={styles.content}>
+            {/* Header */}
+            <DashboardHeader
+              greeting={greeting}
+              profilPrenom={profil.profilPrenom || ''}
+              profilPhotoUri={profil.profilPhotoUri}
+              profilInitiales={profil.profilInitiales || ''}
+              currentDate={currentDate}
+              projetNom={projetActif?.nom || ''}
+              invitationsCount={
+                Array.isArray(invitationsEnAttente) ? invitationsEnAttente.length : 0
+              }
+              headerAnim={animations.headerAnim}
+              onPressPhoto={() => {
+                navigation.navigate(SCREENS.PROFIL);
+              }}
+              onPressInvitations={() => setInvitationsModalVisible(true)}
+            />
 
-          {/* Secondary Widgets - Modules complémentaires en haut avec scroll horizontal */}
-          <DashboardSecondaryWidgets
-            widgets={secondaryWidgets()}
-            animations={animations.secondaryWidgetsAnim}
-            onPressWidget={handleNavigateToScreen}
-            horizontal={true}
-          />
+            {/* Secondary Widgets - Modules complémentaires en haut avec scroll horizontal */}
+            <DashboardSecondaryWidgets
+              widgets={secondaryWidgets()}
+              animations={animations.secondaryWidgetsAnim}
+              onPressWidget={handleNavigateToScreen}
+              horizontal={true}
+            />
 
-          {/* Alertes Widget */}
-          <View style={styles.alertesContainer}>
-            <AlertesWidget />
+            {/* Alertes Widget */}
+            <View style={styles.alertesContainer}>
+              <AlertesWidget />
+            </View>
+
+            {/* Main Widgets */}
+            <DashboardMainWidgets
+              projetId={projetActif.id}
+              animations={animations.mainWidgetsAnim}
+              isLoading={isInitialLoading}
+            />
           </View>
-
-          {/* Main Widgets */}
-          <DashboardMainWidgets
-            projetId={projetActif.id}
-            animations={animations.mainWidgetsAnim}
-            isLoading={isInitialLoading}
-          />
-        </View>
+        </SafeTextWrapper>
       </ScrollView>
 
       {/* Modals */}

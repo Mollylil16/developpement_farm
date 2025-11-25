@@ -19,6 +19,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
 import { startOfMonth, parseISO, isAfter } from 'date-fns';
 import { Mortalite } from '../../types';
+import { SafeTextWrapper } from '../../utils/textRenderingGuard';
 
 interface SecondaryWidgetProps {
   type: 'nutrition' | 'planning' | 'collaboration' | 'mortalites' | 'production' | 'sante';
@@ -204,36 +205,38 @@ function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
   }
 
   const WidgetContent = (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.emoji}>{widgetData.emoji || '📊'}</Text>
-        <Text style={[styles.title, { color: colors.text }]}>{widgetData.title || 'Widget'}</Text>
-      </View>
+    <SafeTextWrapper componentName="SecondaryWidget">
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.emoji}>{widgetData.emoji || '📊'}</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{widgetData.title || 'Widget'}</Text>
+        </View>
 
-      <View style={styles.statsRow}>
-        <View style={styles.statItem}>
-          <Text style={[styles.statValue, { color: colors.text }]}>
-            {widgetData.primary !== undefined && widgetData.primary !== null
-              ? widgetData.primary
-              : 0}
-          </Text>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-            {widgetData.labelPrimary || 'Total'}
-          </Text>
-        </View>
-        <View style={[styles.dividerVertical, { backgroundColor: colors.divider }]} />
-        <View style={styles.statItem}>
-          <Text style={[styles.statValue, { color: colors.text }]}>
-            {widgetData.secondary !== undefined && widgetData.secondary !== null
-              ? widgetData.secondary
-              : 0}
-          </Text>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-            {widgetData.labelSecondary || '-'}
-          </Text>
+        <View style={styles.statsRow}>
+          <View style={styles.statItem}>
+            <Text style={[styles.statValue, { color: colors.text }]}>
+              {widgetData.primary !== undefined && widgetData.primary !== null
+                ? widgetData.primary
+                : 0}
+            </Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+              {widgetData.labelPrimary || 'Total'}
+            </Text>
+          </View>
+          <View style={[styles.dividerVertical, { backgroundColor: colors.divider }]} />
+          <View style={styles.statItem}>
+            <Text style={[styles.statValue, { color: colors.text }]}>
+              {widgetData.secondary !== undefined && widgetData.secondary !== null
+                ? widgetData.secondary
+                : 0}
+            </Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+              {widgetData.labelSecondary || '-'}
+            </Text>
+          </View>
         </View>
       </View>
-    </View>
+    </SafeTextWrapper>
   );
 
   if (onPress) {

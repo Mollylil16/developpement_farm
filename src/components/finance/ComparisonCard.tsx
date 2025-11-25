@@ -52,7 +52,14 @@ export default function ComparisonCard() {
       pourcentageDifference,
       meilleureOption: difference > 0 ? ('carcasse' as const) : ('vif' as const),
     };
-  }, [animauxActifs, peseesParAnimal, projetActif]);
+  }, [
+    animauxActifs, 
+    peseesParAnimal, 
+    projetActif?.id,
+    projetActif?.prix_kg_vif, 
+    projetActif?.prix_kg_carcasse,
+    projetActif?.poids_moyen_actuel
+  ]);
 
   const formatAmount = (amount: number) => {
     return new Intl.NumberFormat('fr-FR', {
@@ -71,7 +78,13 @@ export default function ComparisonCard() {
       projetActif.poids_moyen_actuel || 0
     );
     return poidsTotal * (projetActif.prix_kg_vif || PRIX_KG_VIF_DEFAUT);
-  }, [animauxActifs, peseesParAnimal, projetActif]);
+  }, [
+    animauxActifs, 
+    peseesParAnimal, 
+    projetActif?.id,
+    projetActif?.prix_kg_vif,
+    projetActif?.poids_moyen_actuel
+  ]);
 
   if (revenuVifInitial === 0) return null;
 

@@ -20,6 +20,46 @@ export class RevenuRepository extends BaseRepository<Revenu> {
   constructor(db: SQLite.SQLiteDatabase) {
     super(db, 'revenus');
   }
+  
+  /**
+   * Parser les photos depuis JSON
+   */
+  private parsePhotos(photos: any): string[] | undefined {
+    if (!photos) return undefined;
+    if (Array.isArray(photos)) return photos;
+    if (typeof photos === 'string') {
+      try {
+        const parsed = JSON.parse(photos);
+        return Array.isArray(parsed) ? parsed : undefined;
+      } catch {
+        return undefined;
+      }
+    }
+    return undefined;
+  }
+  
+  /**
+   * Surcharge de findAll pour parser les photos
+   */
+  async findAll(projetId?: string): Promise<Revenu[]> {
+    const rows = await super.findAll(projetId);
+    return rows.map(row => ({
+      ...row,
+      photos: this.parsePhotos((row as any).photos)
+    }));
+  }
+  
+  /**
+   * Surcharge de findById pour parser les photos
+   */
+  async findById(id: string): Promise<Revenu | null> {
+    const row = await super.findById(id);
+    if (!row) return null;
+    return {
+      ...row,
+      photos: this.parsePhotos((row as any).photos)
+    };
+  }
 
   async create(data: Partial<Revenu>): Promise<Revenu> {
     const id = uuid.v4().toString();
@@ -114,12 +154,18 @@ export class RevenuRepository extends BaseRepository<Revenu> {
    * Récupérer les revenus par période
    */
   async findByPeriod(projetId: string, dateDebut: string, dateFin: string): Promise<Revenu[]> {
-    return this.query<Revenu>(
+    const rows = await this.query<any>(
       `SELECT * FROM revenus 
        WHERE projet_id = ? AND date >= ? AND date <= ?
        ORDER BY date DESC`,
       [projetId, dateDebut, dateFin]
     );
+    
+    // Parser les photos JSON
+    return rows.map(row => ({
+      ...row,
+      photos: this.parsePhotos(row.photos)
+    }));
   }
 
   /**
@@ -162,6 +208,46 @@ export class RevenuRepository extends BaseRepository<Revenu> {
 export class DepensePonctuelleRepository extends BaseRepository<DepensePonctuelle> {
   constructor(db: SQLite.SQLiteDatabase) {
     super(db, 'depenses_ponctuelles');
+  }
+  
+  /**
+   * Parser les photos depuis JSON
+   */
+  private parsePhotos(photos: any): string[] | undefined {
+    if (!photos) return undefined;
+    if (Array.isArray(photos)) return photos;
+    if (typeof photos === 'string') {
+      try {
+        const parsed = JSON.parse(photos);
+        return Array.isArray(parsed) ? parsed : undefined;
+      } catch {
+        return undefined;
+      }
+    }
+    return undefined;
+  }
+  
+  /**
+   * Surcharge de findAll pour parser les photos
+   */
+  async findAll(projetId?: string): Promise<DepensePonctuelle[]> {
+    const rows = await super.findAll(projetId);
+    return rows.map(row => ({
+      ...row,
+      photos: this.parsePhotos((row as any).photos)
+    }));
+  }
+  
+  /**
+   * Surcharge de findById pour parser les photos
+   */
+  async findById(id: string): Promise<DepensePonctuelle | null> {
+    const row = await super.findById(id);
+    if (!row) return null;
+    return {
+      ...row,
+      photos: this.parsePhotos((row as any).photos)
+    };
   }
 
   async create(data: Partial<DepensePonctuelle>): Promise<DepensePonctuelle> {
@@ -245,12 +331,18 @@ export class DepensePonctuelleRepository extends BaseRepository<DepensePonctuell
     dateDebut: string,
     dateFin: string
   ): Promise<DepensePonctuelle[]> {
-    return this.query<DepensePonctuelle>(
+    const rows = await this.query<any>(
       `SELECT * FROM depenses_ponctuelles 
        WHERE projet_id = ? AND date >= ? AND date <= ?
        ORDER BY date DESC`,
       [projetId, dateDebut, dateFin]
     );
+    
+    // Parser les photos JSON
+    return rows.map(row => ({
+      ...row,
+      photos: this.parsePhotos(row.photos)
+    }));
   }
 
   async getTotalByPeriod(projetId: string, dateDebut: string, dateFin: string): Promise<number> {

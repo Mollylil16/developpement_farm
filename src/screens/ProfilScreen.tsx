@@ -23,7 +23,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
 import { databaseService } from '../services/database';
-import { loadUserFromStorageThunk } from '../store/slices/authSlice';
+import { loadUserFromStorageThunk, signOut } from '../store/slices/authSlice';
 
 export default function ProfilScreen() {
   const navigation = useNavigation<any>();
@@ -51,18 +51,22 @@ export default function ProfilScreen() {
 
     try {
       setLoadingData(true);
+      
       // Charger directement depuis la base de données pour avoir les données à jour
       const dbUser = await databaseService.getUserById(user.id);
       
       if (dbUser) {
-        // Remplir les champs avec les données de la base de données
+        // Utilisateur trouvé dans la base de données
         setNom(dbUser.nom || '');
         setPrenom(dbUser.prenom || '');
         setEmail(dbUser.email || '');
         setTelephone(dbUser.telephone || '');
         setPhoto(dbUser.photo || '');
       } else {
-        // Si l'utilisateur n'existe pas dans la DB, utiliser les données du state Redux
+        // ⚠️ L'utilisateur n'existe pas dans la base de données
+        // Cela ne devrait pas arriver normalement (l'utilisateur a été déconnecté au démarrage)
+        console.warn('⚠️ Profil non trouvé dans la base de données');
+        // Utiliser les données du state Redux comme fallback temporaire
         if (user) {
           setNom(user.nom || '');
           setPrenom(user.prenom || '');
@@ -72,7 +76,7 @@ export default function ProfilScreen() {
         }
       }
     } catch (error: any) {
-      console.error('Erreur chargement profil:', error);
+      console.error('❌ Erreur chargement profil:', error);
       // En cas d'erreur, utiliser les données du state Redux comme fallback
       if (user) {
         setNom(user.nom || '');
@@ -124,9 +128,15 @@ export default function ProfilScreen() {
       return;
     }
 
+    // Validation: au moins email ou téléphone
+    if (!email?.trim() && !telephone?.trim()) {
+      Alert.alert('Erreur', 'Veuillez renseigner au moins un email ou un numéro de téléphone');
+      return;
+    }
+
     setLoading(true);
     try {
-      if (!user) {
+      if (!user?.id) {
         Alert.alert(
           'Session expirée',
           'Votre session a expiré. Veuillez vous reconnecter.',
@@ -149,10 +159,10 @@ export default function ProfilScreen() {
 
       // Mettre à jour dans la base de données
       await databaseService.updateUser(user.id, {
-        nom,
-        prenom,
-        email: email || undefined,
-        telephone: telephone || undefined,
+        nom: nom.trim(),
+        prenom: prenom.trim(),
+        email: email?.trim() || undefined,
+        telephone: telephone?.trim() || undefined,
         photo: photo || undefined,
       });
 
@@ -166,8 +176,32 @@ export default function ProfilScreen() {
         navigation.goBack();
       }
     } catch (error: any) {
-      console.error('Erreur sauvegarde profil:', error);
-      Alert.alert('Erreur', error.message || 'Impossible de sauvegarder le profil');
+      console.error('❌ Erreur sauvegarde profil:', error);
+      
+      // Vérifier si c'est une erreur de profil introuvable
+      if (error.message && error.message.includes('Profil introuvable')) {
+        // Proposer la déconnexion
+        Alert.alert(
+          'Profil introuvable',
+          'Votre profil n\'existe plus dans la base de données. Vous devez vous reconnecter.',
+          [
+            {
+              text: 'Se déconnecter',
+              onPress: async () => {
+                await dispatch(signOut());
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'Auth' }],
+                });
+              },
+            },
+          ],
+          { cancelable: false }
+        );
+      } else {
+        // Autre erreur
+        Alert.alert('Erreur', error.message || 'Impossible de sauvegarder le profil');
+      }
     } finally {
       setLoading(false);
     }

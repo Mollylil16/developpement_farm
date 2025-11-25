@@ -14,6 +14,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
 import { differenceInMonths, parseISO } from 'date-fns';
 import { countAnimalsByCategory } from '../../utils/animalUtils';
+import { SafeTextWrapper } from '../../utils/textRenderingGuard';
 
 interface OverviewWidgetProps {
   onPress?: () => void;
@@ -93,42 +94,44 @@ function OverviewWidget({ onPress }: OverviewWidgetProps) {
   }
 
   const WidgetContent = (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.emoji}>🏠</Text>
-        <Text style={[styles.title, { color: colors.text }]}>Vue d'ensemble</Text>
+    <SafeTextWrapper componentName="OverviewWidget">
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.emoji}>🏠</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Vue d'ensemble</Text>
+        </View>
+
+        <View style={[styles.divider, { backgroundColor: colors.divider }]} />
+
+        <View style={styles.statsGrid}>
+          <View style={styles.statItem}>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Truies</Text>
+            <View style={styles.statValueRow}>
+              <Text style={[styles.statValue, { color: colors.primary }]}>{stats.truies ?? 0}</Text>
+              <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
+            </View>
+          </View>
+
+          <View style={styles.statItem}>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Verrats</Text>
+            <View style={styles.statValueRow}>
+              <Text style={[styles.statValue, { color: colors.secondary }]}>
+                {stats.verrats ?? 0}
+              </Text>
+              <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
+            </View>
+          </View>
+
+          <View style={styles.statItem}>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Porcelets</Text>
+            <View style={styles.statValueRow}>
+              <Text style={[styles.statValue, { color: colors.accent }]}>{stats.porcelets ?? 0}</Text>
+              <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
+            </View>
+          </View>
+        </View>
       </View>
-
-      <View style={[styles.divider, { backgroundColor: colors.divider }]} />
-
-      <View style={styles.statsGrid}>
-        <View style={styles.statItem}>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Truies</Text>
-          <View style={styles.statValueRow}>
-            <Text style={[styles.statValue, { color: colors.primary }]}>{stats.truies ?? 0}</Text>
-            <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
-          </View>
-        </View>
-
-        <View style={styles.statItem}>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Verrats</Text>
-          <View style={styles.statValueRow}>
-            <Text style={[styles.statValue, { color: colors.secondary }]}>
-              {stats.verrats ?? 0}
-            </Text>
-            <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
-          </View>
-        </View>
-
-        <View style={styles.statItem}>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Porcelets</Text>
-          <View style={styles.statValueRow}>
-            <Text style={[styles.statValue, { color: colors.accent }]}>{stats.porcelets ?? 0}</Text>
-            <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
-          </View>
-        </View>
-      </View>
-    </View>
+    </SafeTextWrapper>
   );
 
   if (onPress) {

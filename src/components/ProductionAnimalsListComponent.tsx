@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { store } from '../store/store';
 import {
   selectAllAnimaux,
   selectPeseesParAnimal,
@@ -69,7 +70,8 @@ export default function ProductionAnimalsListComponent() {
   // Utiliser useRef pour tracker les chargements et éviter les boucles
   const aChargeRef = useRef<string | null>(null);
 
-  // Charger les données uniquement quand l'onglet est visible
+  // Charger les données quand l'onglet est visible
+  // TOUJOURS recharger pour garantir la synchronisation avec Cheptel
   useFocusEffect(
     React.useCallback(() => {
       if (!projetActif) {
@@ -77,12 +79,10 @@ export default function ProductionAnimalsListComponent() {
         return;
       }
 
-      // Charger uniquement si le projet a changé
-      if (aChargeRef.current !== projetActif.id) {
-        aChargeRef.current = projetActif.id;
-        dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
-        dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 }));
-      }
+      console.log('🔄 [ProductionAnimalsListComponent] Rechargement des animaux et pesées...');
+      dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
+      dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 }));
+      aChargeRef.current = projetActif.id;
     }, [dispatch, projetActif?.id])
   );
 
@@ -153,7 +153,7 @@ export default function ProductionAnimalsListComponent() {
     const initial = animauxFiltres.slice(0, ITEMS_PER_PAGE);
     setDisplayedAnimals(initial);
     setPage(1);
-  }, [animauxFiltres.length]); // Reset quand le nombre total d'animaux filtrés change
+  }, [animauxFiltres]); // Reset quand les animaux filtrés changent (nombre ou contenu)
 
   // Charger plus d'animaux
   const loadMore = useCallback(() => {
@@ -268,11 +268,6 @@ export default function ProductionAnimalsListComponent() {
       const { colors } = useTheme();
       const { animal, dernierePesee, gmqMoyen, nombrePesees } = item;
 
-      // Debug: Vérifier si photo_uri est présent
-      if (animal.photo_uri) {
-        console.log(`Animal ${animal.code} a une photo:`, animal.photo_uri);
-      }
-
       return (
         <TouchableOpacity
           style={[
@@ -290,11 +285,10 @@ export default function ProductionAnimalsListComponent() {
           <View style={styles.cardHeader}>
             {animal.photo_uri ? (
               <Image
+                key={`photo-${animal.id}-${animal.photo_uri}`}
                 source={{ uri: animal.photo_uri }}
                 style={styles.animalPhoto}
-                onError={(error) =>
-                  console.log('Erreur chargement photo:', error.nativeEvent.error)
-                }
+                resizeMode="cover"
               />
             ) : (
               <View
@@ -549,7 +543,7 @@ export default function ProductionAnimalsListComponent() {
             setSelectedAnimal(animal);
             setShowPeseeModal(true);
           }}
-          onEdit={(animal) => {
+          onEdit={async (animal) => {
             if (!canUpdate('reproduction')) {
               Alert.alert(
                 'Permission refusée',
@@ -557,7 +551,17 @@ export default function ProductionAnimalsListComponent() {
               );
               return;
             }
-            setSelectedAnimal(animal);
+            // Recharger les données pour avoir l'animal le plus à jour (avec photo)
+            if (projetActif) {
+              await dispatch(loadProductionAnimaux({ projetId: projetActif.id })).unwrap();
+              // Récupérer l'animal mis à jour depuis Redux (accès direct au store)
+              const state = store.getState();
+              const animauxMisAJour = selectAllAnimaux(state);
+              const animalMisAJour = animauxMisAJour.find(a => a.id === animal.id);
+              setSelectedAnimal(animalMisAJour || animal);
+            } else {
+              setSelectedAnimal(animal);
+            }
             setIsEditing(true);
             setShowAnimalModal(true);
           }}
@@ -914,11 +918,17 @@ export default function ProductionAnimalsListComponent() {
       {/* Modals */}
       <ProductionAnimalFormModal
         visible={showAnimalModal}
-        onClose={() => setShowAnimalModal(false)}
-        onSuccess={() => {
+        onClose={() => {
           setShowAnimalModal(false);
+          setIsEditing(false);
+          setSelectedAnimal(null);
+        }}
+        onSuccess={async () => {
+          // Recharger les animaux pour afficher les modifications (photos, etc.)
           if (projetActif) {
-            dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
+            await dispatch(loadProductionAnimaux({ projetId: projetActif.id })).unwrap();
+            // Forcer un re-render en réinitialisant la page d'affichage
+            setPage(1);
           }
         }}
         projetId={projetActif?.id || ''}

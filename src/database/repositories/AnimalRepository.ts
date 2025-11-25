@@ -27,8 +27,9 @@ export class AnimalRepository extends BaseRepository<ProductionAnimal> {
     await this.execute(
       `INSERT INTO production_animaux (
         id, projet_id, code, nom, sexe, race, date_naissance,
-        reproducteur, statut, date_creation, derniere_modification
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        reproducteur, statut, photo_uri, origine, date_entree, poids_initial, 
+        notes, pere_id, mere_id, date_creation, derniere_modification
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         data.projet_id,
@@ -39,6 +40,13 @@ export class AnimalRepository extends BaseRepository<ProductionAnimal> {
         data.date_naissance || null,
         data.reproducteur ? 1 : 0,
         data.statut || 'actif',
+        data.photo_uri || null,
+        data.origine || null,
+        data.date_entree || null,
+        data.poids_initial || null,
+        data.notes || null,
+        data.pere_id || null,
+        data.mere_id || null,
         now,
         now,
       ]
@@ -59,7 +67,11 @@ export class AnimalRepository extends BaseRepository<ProductionAnimal> {
     const fields: string[] = [];
     const values: any[] = [];
 
-    // Construire dynamiquement la requête UPDATE
+    // Construire dynamiquement la requête UPDATE - TOUS les champs supportés
+    if (data.code !== undefined) {
+      fields.push('code = ?');
+      values.push(data.code);
+    }
     if (data.nom !== undefined) {
       fields.push('nom = ?');
       values.push(data.nom);
@@ -84,12 +96,40 @@ export class AnimalRepository extends BaseRepository<ProductionAnimal> {
       fields.push('statut = ?');
       values.push(data.statut);
     }
+    if (data.photo_uri !== undefined) {
+      fields.push('photo_uri = ?');
+      values.push(data.photo_uri);
+    }
+    if (data.pere_id !== undefined) {
+      fields.push('pere_id = ?');
+      values.push(data.pere_id);
+    }
+    if (data.mere_id !== undefined) {
+      fields.push('mere_id = ?');
+      values.push(data.mere_id);
+    }
+    if (data.origine !== undefined) {
+      fields.push('origine = ?');
+      values.push(data.origine);
+    }
+    if (data.date_entree !== undefined) {
+      fields.push('date_entree = ?');
+      values.push(data.date_entree);
+    }
+    if (data.poids_initial !== undefined) {
+      fields.push('poids_initial = ?');
+      values.push(data.poids_initial);
+    }
+    if (data.notes !== undefined) {
+      fields.push('notes = ?');
+      values.push(data.notes);
+    }
 
     // Toujours mettre à jour derniere_modification
     fields.push('derniere_modification = ?');
     values.push(now);
 
-    if (fields.length === 0) {
+    if (fields.length === 1) { // Si seulement derniere_modification
       throw new Error('Aucune donnée à mettre à jour');
     }
 

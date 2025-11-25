@@ -96,11 +96,12 @@ class DatabaseService {
   }
 
   /**
-   * Détecte et répare une base de données corrompue
+   * Nettoie simplement les tables _old sans toucher aux données
+   * NE JAMAIS supprimer automatiquement les données principales !
    */
-  private async detectAndRepairCorruption(): Promise<boolean> {
+  private async cleanupOldTables(): Promise<void> {
     if (!this.db) {
-      return false;
+      return;
     }
 
     try {
@@ -110,85 +111,28 @@ class DatabaseService {
       );
 
       if (oldTables.length > 0) {
-        console.warn(`🚨 [DB] CORRUPTION DÉTECTÉE: ${oldTables.length} table(s) temporaire(s)`);
-        console.warn('🔧 [DB] Tentative de réparation automatique...');
+        console.log(`🧹 [DB] ${oldTables.length} table(s) temporaire(s) à nettoyer`);
 
-        // Tenter de supprimer chaque table _old
-        let failedDeletions = 0;
+        // Tenter de supprimer chaque table _old (mais sans forcer ni reconstruire)
         for (const table of oldTables) {
           try {
             await this.db.execAsync(`DROP TABLE IF EXISTS ${table.name};`);
             console.log(`   ✅ ${table.name} supprimée`);
           } catch (error: any) {
-            failedDeletions++;
-            console.error(`   ❌ ${table.name}: ${error?.message}`);
+            // Ignorer les erreurs - ne pas bloquer le démarrage
+            console.warn(`   ⚠️ ${table.name} non supprimée (ignoré)`);
           }
         }
-
-        // Si on n'a pas pu supprimer les tables, la base est verrouillée = corruption critique
-        if (failedDeletions > 0) {
-          console.error('🚨 [DB] CORRUPTION CRITIQUE: Impossible de nettoyer les tables');
-          console.error('🔄 [DB] Reconstruction complète nécessaire...');
-          return true; // Signaler qu'une reconstruction est nécessaire
-        }
       }
-
-      return false; // Pas de corruption ou réparation réussie
     } catch (error: any) {
-      console.error('❌ [DB] Erreur lors de la détection de corruption:', error?.message);
-      return false;
-    }
-  }
-
-  /**
-   * Reconstruit complètement la base de données
-   */
-  private async rebuildDatabase(): Promise<void> {
-    if (!this.db) {
-      return;
-    }
-
-    try {
-      console.warn('🔨 [DB] RECONSTRUCTION COMPLÈTE DE LA BASE...');
-
-      // Fermer la connexion actuelle
-      await this.db.closeAsync();
-      this.db = null;
-
-      // Attendre un peu pour s'assurer que le fichier est libéré
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Supprimer l'ancienne base (via expo-sqlite, on ne peut pas supprimer physiquement)
-      // On va plutôt recréer toutes les tables en DROP IF EXISTS
-      console.log('🗑️  [DB] Suppression de toutes les tables...');
-
-      // Rouvrir la base
-      this.db = await SQLite.openDatabaseAsync('fermier_pro.db');
-
-      // Supprimer TOUTES les tables existantes
-      const allTables = await this.db.getAllAsync<{ name: string }>(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
-      );
-
-      for (const table of allTables) {
-        try {
-          await this.db.execAsync(`DROP TABLE IF EXISTS ${table.name};`);
-          console.log(`   ✅ Table ${table.name} supprimée`);
-        } catch (error: any) {
-          console.warn(`   ⚠️  Impossible de supprimer ${table.name}: ${error?.message}`);
-        }
-      }
-
-      console.log('✅ [DB] Base reconstruite, recréation des tables...');
-
-    } catch (error: any) {
-      console.error('❌ [DB] Erreur lors de la reconstruction:', error?.message);
-      throw error;
+      // Ne rien faire en cas d'erreur - préserver les données avant tout
+      console.warn('⚠️ [DB] Impossible de nettoyer les tables temporaires (ignoré)');
     }
   }
 
   /**
    * Nettoie les tables temporaires (_old) laissées par des migrations échouées
+   * IMPORTANT: Ne supprime JAMAIS users_old - elle peut contenir les seules données valides
    */
   private async cleanupFailedMigrations(): Promise<void> {
     if (!this.db) {
@@ -198,31 +142,66 @@ class DatabaseService {
     try {
       console.log('🧹 [DB] Nettoyage des migrations échouées...');
 
-      // Détecter une corruption critique
-      const needsRebuild = await this.detectAndRepairCorruption();
+      // NE JAMAIS appeler rebuildDatabase automatiquement - cela détruit les données !
+      // Seulement nettoyer les tables _old sans toucher aux données principales
 
-      if (needsRebuild) {
-        // Reconstruction complète
-        await this.rebuildDatabase();
-        return; // Les tables seront recréées après
-      }
+      // Nettoyer les tables _old en douceur
+      await this.cleanupOldTables();
 
-      // Vérifier à nouveau s'il reste des tables _old
-      const oldTables = await this.db.getAllAsync<{ name: string }>(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%_old'"
+      // Vérifier spécifiquement si users_old existe encore (cas particulier)
+      const usersOldExists = await this.db.getFirstAsync<{ count: number }>(
+        "SELECT COUNT(*) as count FROM sqlite_master WHERE type='table' AND name='users_old'"
       );
 
-      if (oldTables.length === 0) {
-        console.log('✅ [DB] Aucune table temporaire trouvée');
+      if (usersOldExists && usersOldExists.count > 0) {
+        console.warn('⚠️ [DB] Table users_old existe encore');
+        
+        try {
+          const usersCount = await this.db.getFirstAsync<{ count: number }>(
+            'SELECT COUNT(*) as count FROM users WHERE is_active = 1'
+          );
+          const usersOldCount = await this.db.getFirstAsync<{ count: number }>(
+            'SELECT COUNT(*) as count FROM users_old WHERE is_active = 1'
+          );
+          
+          console.log(`📊 [DB] users: ${usersCount?.count || 0} utilisateurs actifs`);
+          console.log(`📊 [DB] users_old: ${usersOldCount?.count || 0} utilisateurs actifs`);
+          
+          // Si users est vide mais users_old a des données → RESTAURER depuis users_old
+          if ((usersCount?.count || 0) === 0 && (usersOldCount?.count || 0) > 0) {
+            console.warn('⚠️ [DB] Table users vide mais users_old contient des données');
+            console.warn('→ Restauration des utilisateurs depuis users_old');
+            
+            // Copier les données de users_old vers users
+            await this.db.execAsync(`
+              INSERT OR REPLACE INTO users (
+                id, email, telephone, nom, prenom, password_hash, provider,
+                provider_id, photo, date_creation, derniere_connexion, is_active
+              )
+              SELECT
+                id, email, telephone, nom, prenom, password_hash, provider,
+                provider_id, photo, date_creation, derniere_connexion, is_active
+              FROM users_old;
+            `);
+            
+            console.log('✅ [DB] Utilisateurs restaurés depuis users_old');
+          }
+          
+          // Ne supprimer users_old QUE si la table users contient au moins autant de données
+          if ((usersCount?.count || 0) >= (usersOldCount?.count || 0) && (usersCount?.count || 0) > 0) {
+            console.log('✅ [DB] Migration users confirmée, suppression de users_old');
+            await this.db.execAsync('DROP TABLE IF EXISTS users_old;');
+          } else {
+            console.warn('⚠️ [DB] Conservation de users_old par sécurité (données non migrées)');
+          }
+        } catch (error: any) {
+          console.error('❌ [DB] Erreur lors de la gestion de users_old:', error?.message);
+        }
       }
     } catch (error: any) {
       console.error('❌ [DB] Erreur lors du nettoyage:', error?.message || error);
-      // En cas d'erreur, tenter une reconstruction
-      try {
-        await this.rebuildDatabase();
-      } catch (rebuildError: any) {
-        console.error('❌ [DB] Impossible de reconstruire la base:', rebuildError?.message);
-      }
+      // NE PAS reconstruire automatiquement - cela peut détruire les données
+      console.error('→ Conservation de l\'état actuel de la base pour éviter toute perte de données');
     }
   }
 
@@ -270,8 +249,14 @@ class DatabaseService {
 
           if (emailColumn && emailColumn.notnull === 1) {
             console.log(
-              'Migration: Recréation de la table users pour permettre email ou téléphone facultatif'
+              '📋 [Migration] Mise à jour de la table users pour email/téléphone facultatif'
             );
+
+            // Compter les utilisateurs avant migration
+            const countBefore = await this.db.getFirstAsync<{ count: number }>(
+              'SELECT COUNT(*) as count FROM users WHERE is_active = 1'
+            );
+            console.log(`📊 [Migration] ${countBefore?.count || 0} utilisateurs actifs avant migration`);
 
             // Renommer l'ancienne table
             await this.db.execAsync(`ALTER TABLE users RENAME TO users_old;`);
@@ -320,10 +305,22 @@ class DatabaseService {
               FROM users_old;
             `);
 
-            // Supprimer l'ancienne table
+            // Vérifier que toutes les données ont été copiées
+            const countAfter = await this.db.getFirstAsync<{ count: number }>(
+              'SELECT COUNT(*) as count FROM users WHERE is_active = 1'
+            );
+            console.log(`📊 [Migration] ${countAfter?.count || 0} utilisateurs actifs après migration`);
+
+            if ((countBefore?.count || 0) !== (countAfter?.count || 0)) {
+              console.error('❌ [Migration] ERREUR: Nombre d\'utilisateurs différent après migration!');
+              console.error(`Avant: ${countBefore?.count}, Après: ${countAfter?.count}`);
+              throw new Error('Migration users échouée: données manquantes');
+            }
+
+            // Tout est OK, on peut supprimer users_old
             await this.db.execAsync(`DROP TABLE users_old;`);
 
-            // Migration: Table users recréée
+            console.log('✅ [Migration] Table users mise à jour avec succès');
           }
         }
       } catch (error: any) {
@@ -1197,7 +1194,7 @@ class DatabaseService {
               poids_initial REAL,
               date_entree TEXT,
               actif INTEGER DEFAULT 1,
-              statut TEXT DEFAULT 'actif' CHECK (statut IN ('actif', 'inactif', 'mort', 'vendu', 'offert', 'autre')),
+              statut TEXT DEFAULT 'actif' CHECK (statut IN ('actif', 'mort', 'vendu', 'offert', 'autre')),
               race TEXT,
               reproducteur INTEGER DEFAULT 0 CHECK (reproducteur IN (0, 1)),
               pere_id TEXT,
@@ -1226,6 +1223,13 @@ class DatabaseService {
           `);
 
           await this.db.execAsync(`DROP TABLE IF EXISTS production_animaux_old;`);
+          
+          // Corriger les données existantes avec statut='inactif' (ne devrait plus exister)
+          await this.db.execAsync(`
+            UPDATE production_animaux 
+            SET statut = 'autre' 
+            WHERE statut = 'inactif';
+          `);
         }
       } catch (error: any) {
         console.warn(
@@ -1398,6 +1402,112 @@ class DatabaseService {
         }
       } catch (error: any) {
         console.warn('⚠️  Erreur lors de l\'ajout de animal_id:', error?.message || error);
+        // La migration échoue silencieusement pour ne pas bloquer l'app
+      }
+
+      // ============================================
+      // Migration: Ajout de poids_kg dans revenus
+      // ============================================
+      try {
+        const revenusColumns = await this.db.getAllAsync<{ name: string }>(
+          "PRAGMA table_info('revenus')"
+        );
+        
+        const hasPoidsKg = revenusColumns.some((col) => col.name === 'poids_kg');
+        
+        if (!hasPoidsKg) {
+          await this.db.execAsync(`
+            ALTER TABLE revenus ADD COLUMN poids_kg REAL;
+          `);
+          console.log('✅ Colonne poids_kg ajoutée à la table revenus');
+        } else {
+          console.log('ℹ️  Colonne poids_kg déjà présente dans revenus');
+        }
+      } catch (error: any) {
+        console.warn('⚠️  Erreur lors de l\'ajout de poids_kg:', error?.message || error);
+        // La migration échoue silencieusement pour ne pas bloquer l'app
+      }
+
+      // ============================================
+      // Migration: Ajout de derniere_modification dans revenus
+      // ============================================
+      try {
+        const revenusColumns = await this.db.getAllAsync<{ name: string }>(
+          "PRAGMA table_info('revenus')"
+        );
+        
+        const hasDerniereModification = revenusColumns.some((col) => col.name === 'derniere_modification');
+        
+        if (!hasDerniereModification) {
+          await this.db.execAsync(`
+            ALTER TABLE revenus ADD COLUMN derniere_modification TEXT DEFAULT CURRENT_TIMESTAMP;
+          `);
+          console.log('✅ Colonne derniere_modification ajoutée à la table revenus');
+        } else {
+          console.log('ℹ️  Colonne derniere_modification déjà présente dans revenus');
+        }
+      } catch (error: any) {
+        console.warn('⚠️  Erreur lors de l\'ajout de derniere_modification:', error?.message || error);
+        // La migration échoue silencieusement pour ne pas bloquer l'app
+      }
+
+      // ============================================
+      // Migration: Ajout de derniere_modification dans depenses_ponctuelles
+      // ============================================
+      try {
+        const depensesColumns = await this.db.getAllAsync<{ name: string }>(
+          "PRAGMA table_info('depenses_ponctuelles')"
+        );
+        
+        const hasDerniereModification = depensesColumns.some((col) => col.name === 'derniere_modification');
+        
+        if (!hasDerniereModification) {
+          await this.db.execAsync(`
+            ALTER TABLE depenses_ponctuelles ADD COLUMN derniere_modification TEXT DEFAULT CURRENT_TIMESTAMP;
+          `);
+          console.log('✅ Colonne derniere_modification ajoutée à la table depenses_ponctuelles');
+        } else {
+          console.log('ℹ️  Colonne derniere_modification déjà présente dans depenses_ponctuelles');
+        }
+      } catch (error: any) {
+        console.warn('⚠️  Erreur lors de l\'ajout de derniere_modification dans depenses_ponctuelles:', error?.message || error);
+        // La migration échoue silencieusement pour ne pas bloquer l'app
+      }
+
+      // ============================================
+      // Migration: Ajout des colonnes de calcul de marge dans revenus
+      // ============================================
+      try {
+        const revenusColumns = await this.db.getAllAsync<{ name: string }>(
+          "PRAGMA table_info('revenus')"
+        );
+        
+        // Colonnes pour les coûts par kg
+        const columnsToAdd = [
+          { name: 'cout_kg_opex', type: 'REAL', description: 'Coût OPEX par kg' },
+          { name: 'cout_kg_complet', type: 'REAL', description: 'Coût complet par kg (OPEX + CAPEX amorti)' },
+          { name: 'cout_reel_opex', type: 'REAL', description: 'Coût réel OPEX' },
+          { name: 'cout_reel_complet', type: 'REAL', description: 'Coût réel complet' },
+          { name: 'marge_opex', type: 'REAL', description: 'Marge OPEX en valeur' },
+          { name: 'marge_complete', type: 'REAL', description: 'Marge complète en valeur' },
+          { name: 'marge_opex_pourcent', type: 'REAL', description: 'Marge OPEX en %' },
+          { name: 'marge_complete_pourcent', type: 'REAL', description: 'Marge complète en %' },
+        ];
+        
+        for (const column of columnsToAdd) {
+          const hasColumn = revenusColumns.some((col) => col.name === column.name);
+          
+          if (!hasColumn) {
+            await this.db.execAsync(`
+              ALTER TABLE revenus ADD COLUMN ${column.name} ${column.type};
+            `);
+            console.log(`✅ Colonne ${column.name} ajoutée à la table revenus`);
+          } else {
+            console.log(`ℹ️  Colonne ${column.name} déjà présente dans revenus`);
+          }
+        }
+      } catch (error: any) {
+        console.warn('⚠️  Erreur lors de l\'ajout des colonnes de marge dans revenus:', error?.message || error);
         // La migration échoue silencieusement pour ne pas bloquer l'app
       }
     } catch (error) {
@@ -1785,6 +1895,7 @@ class DatabaseService {
         commentaire TEXT,
         photos TEXT,
         date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+        derniere_modification TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (projet_id) REFERENCES projets(id)
       );
     `);
@@ -1801,7 +1912,18 @@ class DatabaseService {
         description TEXT,
         commentaire TEXT,
         photos TEXT,
+        poids_kg REAL,
+        animal_id TEXT,
+        cout_kg_opex REAL,
+        cout_kg_complet REAL,
+        cout_reel_opex REAL,
+        cout_reel_complet REAL,
+        marge_opex REAL,
+        marge_complete REAL,
+        marge_opex_pourcent REAL,
+        marge_complete_pourcent REAL,
         date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+        derniere_modification TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (projet_id) REFERENCES projets(id)
       );
     `);
@@ -1909,7 +2031,7 @@ class DatabaseService {
         poids_initial REAL,
         date_entree TEXT,
         actif INTEGER DEFAULT 1,
-          statut TEXT DEFAULT 'actif' CHECK (statut IN ('actif', 'inactif', 'mort', 'vendu', 'offert', 'autre')),
+        statut TEXT DEFAULT 'actif' CHECK (statut IN ('actif', 'mort', 'vendu', 'offert', 'autre')),
         race TEXT,
         reproducteur INTEGER DEFAULT 0 CHECK (reproducteur IN (0, 1)),
         pere_id TEXT,
@@ -4677,6 +4799,10 @@ class DatabaseService {
   /**
    * Mettre à jour un utilisateur
    */
+  /**
+   * Mettre à jour un utilisateur
+   * Note: Avec les migrations corrigées, l'utilisateur devrait toujours exister
+   */
   async updateUser(
     id: string,
     updates: {
@@ -4691,6 +4817,22 @@ class DatabaseService {
       throw new Error('Base de données non initialisée');
     }
 
+    // Vérifier que l'utilisateur existe dans la base de données
+    const existingUser = await this.getUserById(id);
+
+    if (!existingUser) {
+      // ⚠️ ERREUR GRAVE: L'utilisateur devrait exister
+      // Cela ne devrait jamais arriver avec les migrations corrigées
+      console.error('❌ Utilisateur introuvable dans la DB:', id);
+      console.error('→ Les migrations n\'ont pas fonctionné correctement');
+      
+      throw new Error(
+        'Profil introuvable dans la base de données. ' +
+        'Veuillez vous déconnecter et vous reconnecter.'
+      );
+    }
+
+    // L'utilisateur existe, on met à jour ses informations
     const fields: string[] = [];
     const values: any[] = [];
 
@@ -4714,27 +4856,10 @@ class DatabaseService {
       fields.push('photo = ?');
       values.push(updates.photo);
     }
-    /* DÉSACTIVÉ - profil_type
-    if (updates.profil_type !== undefined) {
-      fields.push('profil_type = ?');
-      values.push(updates.profil_type);
-    }
-    if (updates.localite_exercice !== undefined) {
-      fields.push('localite_exercice = ?');
-      values.push(updates.localite_exercice);
-    }
-    if (updates.photo_piece_identite !== undefined) {
-      fields.push('photo_piece_identite = ?');
-      values.push(updates.photo_piece_identite);
-    }
-    if (updates.photo_diplome_veterinaire !== undefined) {
-      fields.push('photo_diplome_veterinaire = ?');
-      values.push(updates.photo_diplome_veterinaire);
-    }
-    */ // FIN DÉSACTIVATION profil_type
 
     if (fields.length === 0) {
-      throw new Error('Aucun champ à mettre à jour');
+      // Aucun champ à mettre à jour, retourner l'utilisateur existant
+      return existingUser;
     }
 
     values.push(id);
@@ -4746,8 +4871,9 @@ class DatabaseService {
 
     const updatedUser = await this.getUserById(id);
     if (!updatedUser) {
-      throw new Error('Utilisateur non trouvé après mise à jour');
+      throw new Error('Erreur lors de la récupération du profil mis à jour');
     }
+    
     return updatedUser;
   }
 

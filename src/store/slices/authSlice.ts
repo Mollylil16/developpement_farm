@@ -60,6 +60,7 @@ export const loadUserFromStorageThunk = createAsyncThunk('auth/loadUserFromStora
       const dbUser = await databaseService.getUserById(storedUser.id);
 
       if (dbUser) {
+        // Utilisateur trouvé dans la DB
         // Vérifier si l'utilisateur est un collaborateur et le lier si nécessaire
         if (dbUser.email) {
           try {
@@ -73,16 +74,23 @@ export const loadUserFromStorageThunk = createAsyncThunk('auth/loadUserFromStora
           }
         }
 
-        // Si trouvé dans la DB, utiliser celui de la DB (plus à jour)
         return dbUser;
       } else {
-        // Si pas trouvé dans la DB, utiliser celui d'AsyncStorage
-        return storedUser;
+        // ⚠️ Utilisateur introuvable dans la DB
+        // Avec les migrations corrigées, cela ne devrait plus arriver
+        // Si cela arrive, c'est un problème grave
+        console.error('❌ Utilisateur absent de la base de données:', storedUser.id);
+        console.error('→ Les migrations n\'ont pas préservé les données correctement');
+        console.error('→ Déconnexion de l\'utilisateur pour réauthentification');
+        
+        await removeUserFromStorage();
+        return null;
       }
     } catch (error) {
-      // En cas d'erreur, utiliser celui d'AsyncStorage
-      console.warn('Erreur lors du chargement de l\'utilisateur depuis la DB:', error);
-      return storedUser;
+      // En cas d'erreur lors de la vérification DB
+      console.error('❌ Erreur lors du chargement de l\'utilisateur depuis la DB:', error);
+      await removeUserFromStorage();
+      return null;
     }
   }
 

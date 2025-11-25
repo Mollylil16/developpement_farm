@@ -3,7 +3,7 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, Animated, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, Animated, Alert, ScrollView } from 'react-native';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useShakeToCancel } from '../hooks/useShakeToCancel';
@@ -20,6 +20,7 @@ interface CustomModalProps {
   loading?: boolean;
   enableShakeToCancel?: boolean; // Activer le shake-to-cancel (par défaut: false pour éviter permissions intrusives)
   shakeThreshold?: number; // Sensibilité de la détection (par défaut: 15)
+  scrollEnabled?: boolean; // Activer le scroll intégré (par défaut: true)
 }
 
 export default function CustomModal({
@@ -34,6 +35,7 @@ export default function CustomModal({
   loading = false,
   enableShakeToCancel = false, // Désactivé par défaut pour éviter les permissions intrusive
   shakeThreshold = 15,
+  scrollEnabled = false, // Désactivé par défaut car beaucoup de modales ont leur propre ScrollView
 }: CustomModalProps) {
   const { colors } = useTheme();
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -85,74 +87,96 @@ export default function CustomModal({
       statusBarTranslucent
     >
       <Animated.View
-        style={[
-          styles.overlay,
-          {
-            opacity: fadeAnim,
-            backgroundColor: colors.overlay,
-          },
-        ]}
-      >
-        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
-        <Animated.View
           style={[
-            styles.modal,
+            styles.overlay,
             {
-              transform: [{ translateY: slideAnim }],
-              backgroundColor: colors.surface,
-              ...colors.shadow.large,
+              opacity: fadeAnim,
+              backgroundColor: colors.overlay,
             },
           ]}
-          onStartShouldSetResponder={() => true}
-          onResponderGrant={() => {}}
         >
-          <View style={[styles.header, { borderBottomColor: colors.divider }]}>
-            <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
-            <TouchableOpacity
-              onPress={onClose}
-              style={styles.closeButton}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Text style={[styles.closeButtonText, { color: colors.textSecondary }]}>✕</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.content}>{children}</View>
-
-          {showButtons && (
-            <View style={[styles.footer, { borderTopColor: colors.divider }]}>
+          <TouchableOpacity 
+            style={StyleSheet.absoluteFill} 
+            activeOpacity={1} 
+            onPress={onClose}
+          />
+          <Animated.View
+            style={[
+              styles.modal,
+              {
+                transform: [{ translateY: slideAnim }],
+                backgroundColor: colors.surface,
+                ...colors.shadow.large,
+              },
+            ]}
+            onStartShouldSetResponder={() => true}
+            onMoveShouldSetResponder={() => true}
+          >
+            <View style={[styles.header, { borderBottomColor: colors.divider }]}>
+              <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
               <TouchableOpacity
-                style={[
-                  styles.button,
-                  {
-                    backgroundColor: colors.surfaceVariant,
-                    ...colors.shadow.small,
-                  },
-                ]}
                 onPress={onClose}
-                disabled={loading}
+                style={styles.closeButton}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Text style={[styles.buttonCancelText, { color: colors.text }]}>{cancelText}</Text>
+                <Text style={[styles.closeButtonText, { color: colors.textSecondary }]}>✕</Text>
               </TouchableOpacity>
-              {onConfirm && (
+            </View>
+
+            {scrollEnabled ? (
+              <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={true}
+                persistentScrollbar={true}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                nestedScrollEnabled={true}
+                bounces={true}
+                scrollEventThrottle={16}
+              >
+                {children}
+              </ScrollView>
+            ) : (
+              <View style={styles.content}>
+                {children}
+              </View>
+            )}
+
+            {showButtons && (
+              <View style={[styles.footer, { borderTopColor: colors.divider }]}>
                 <TouchableOpacity
                   style={[
                     styles.button,
                     {
-                      backgroundColor: colors.primary,
+                      backgroundColor: colors.surfaceVariant,
                       ...colors.shadow.small,
                     },
-                    loading && styles.buttonDisabled,
                   ]}
-                  onPress={onConfirm}
+                  onPress={onClose}
                   disabled={loading}
                 >
-                  <Text style={[styles.buttonConfirmText, { color: colors.textOnPrimary }]}>
-                    {loading ? 'Chargement...' : confirmText}
-                  </Text>
+                  <Text style={[styles.buttonCancelText, { color: colors.text }]}>{cancelText}</Text>
                 </TouchableOpacity>
-              )}
-            </View>
+                {onConfirm && (
+                  <TouchableOpacity
+                    style={[
+                      styles.button,
+                      {
+                        backgroundColor: colors.primary,
+                        ...colors.shadow.small,
+                      },
+                      loading && styles.buttonDisabled,
+                    ]}
+                    onPress={onConfirm}
+                    disabled={loading}
+                  >
+                    <Text style={[styles.buttonConfirmText, { color: colors.textOnPrimary }]}>
+                      {loading ? 'Chargement...' : confirmText}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
           )}
         </Animated.View>
       </Animated.View>
@@ -171,7 +195,7 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.xl,
     width: '100%',
     maxWidth: 500,
-    maxHeight: '80%',
+    maxHeight: '85%',
     flexDirection: 'column',
   },
   header: {
@@ -193,6 +217,13 @@ const styles = StyleSheet.create({
   closeButtonText: {
     fontSize: FONT_SIZES.xl,
     fontWeight: FONT_WEIGHTS.bold,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: SPACING.lg,
+    paddingBottom: SPACING.xl * 2, // Extra padding pour le clavier
   },
   content: {
     padding: SPACING.lg,

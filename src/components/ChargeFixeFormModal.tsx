@@ -163,7 +163,16 @@ export default function ChargeFixeFormModal({
       onConfirm={handleSubmit}
       showButtons={true}
     >
-      <ScrollView style={styles.scrollView}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={true}
+        persistentScrollbar={true}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        bounces={true}
+        scrollEventThrottle={16}
+      >
         <FormField
           label="Libellé"
           value={formData.libelle}
@@ -292,6 +301,9 @@ export default function ChargeFixeFormModal({
 const styles = StyleSheet.create({
   scrollView: {
     maxHeight: 500,
+  },
+  scrollContent: {
+    paddingBottom: SPACING.md,
   },
   section: {
     marginBottom: SPACING.md,

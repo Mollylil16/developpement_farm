@@ -9,6 +9,7 @@ import { StatusBar } from 'expo-status-bar';
 import { View, Text, ActivityIndicator, StyleSheet, Animated, AppRegistry } from 'react-native';
 import { registerRootComponent } from 'expo';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { deactivateKeepAwake } from 'expo-keep-awake';
 import { store, persistor } from './src/store/store';
 import AppNavigator from './src/navigation/AppNavigator';
 import { databaseService } from './src/services/database';
@@ -78,6 +79,12 @@ function LoadingScreen({ message, error }: { message: string; error?: string }) 
 
 export default function App() {
   const [dbInitialized, setDbInitialized] = useState(false);
+
+  // Désactiver le "keep awake" pour économiser la batterie
+  // L'écran pourra se mettre en veille normalement
+  useEffect(() => {
+    deactivateKeepAwake();
+  }, []);
   const [dbError, setDbError] = useState<string | null>(null);
 
   useEffect(() => {

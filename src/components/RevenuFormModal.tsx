@@ -250,6 +250,7 @@ export default function RevenuFormModal({
       } else {
         if (!projetActif) {
           Alert.alert('Erreur', 'Aucun projet actif');
+          setLoading(false);
           return;
         }
         const result = await dispatch(
@@ -266,11 +267,20 @@ export default function RevenuFormModal({
           ).unwrap();
         }
       }
-      onSuccess();
-    } catch (error: any) {
-      Alert.alert('Erreur', error || "Erreur lors de l'enregistrement");
-    } finally {
+      
+      // Réinitialiser le loading avant d'appeler onSuccess
       setLoading(false);
+      
+      // Fermer le modal immédiatement
+      onClose();
+      
+      // Appeler onSuccess de manière asynchrone pour laisser le modal se fermer complètement
+      setTimeout(() => {
+        onSuccess();
+      }, 100);
+    } catch (error: any) {
+      setLoading(false);
+      Alert.alert('Erreur', error?.message || error || "Erreur lors de l'enregistrement");
     }
   };
 
@@ -294,8 +304,19 @@ export default function RevenuFormModal({
       confirmText={isEditing ? 'Modifier' : 'Enregistrer'}
       onConfirm={handleSubmit}
       showButtons={true}
+      loading={loading}
     >
-      <ScrollView style={styles.scrollView}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        nestedScrollEnabled={true}
+        showsVerticalScrollIndicator={true}
+        persistentScrollbar={true}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        bounces={true}
+        scrollEventThrottle={16}
+      >
         <FormField
           label="Montant (CFA)"
           value={formData.montant.toString()}
@@ -558,6 +579,9 @@ export default function RevenuFormModal({
 const styles = StyleSheet.create({
   scrollView: {
     maxHeight: 500,
+  },
+  scrollContent: {
+    paddingBottom: SPACING.md,
   },
   section: {
     marginBottom: SPACING.md,

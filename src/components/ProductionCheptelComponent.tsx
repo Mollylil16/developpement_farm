@@ -46,7 +46,13 @@ import { useActionPermissions } from '../hooks/useActionPermissions';
 import { getCategorieAnimal, calculerAge, getStatutColor } from '../utils/animalUtils';
 import { Ionicons } from '@expo/vector-icons';
 import RevenuFormModal from './RevenuFormModal';
-import { createMortalite, loadMortalitesParProjet } from '../store/slices/mortalitesSlice';
+import { 
+  createMortalite, 
+  loadMortalitesParProjet, 
+  loadStatistiquesMortalite,
+  deleteMortalite,
+} from '../store/slices/mortalitesSlice';
+import { selectAllMortalites } from '../store/selectors/mortalitesSelectors';
 
 export default function ProductionCheptelComponent() {
   const { colors } = useTheme();
@@ -61,6 +67,7 @@ export default function ProductionCheptelComponent() {
   const vaccinations = useAppSelector(selectAllVaccinations);
   const maladies = useAppSelector(selectAllMaladies);
   const traitements = useAppSelector(selectAllTraitements);
+  const mortalites = useAppSelector(selectAllMortalites);
 
   const [showAnimalModal, setShowAnimalModal] = useState(false);
   const [selectedAnimal, setSelectedAnimal] = useState<ProductionAnimal | null>(null);
@@ -85,8 +92,9 @@ export default function ProductionCheptelComponent() {
         return;
       }
 
-      // Charger uniquement une fois par projet (quand le projet change ou au premier focus)
+      // Charger uniquement une fois par projet (quand le projet change)
       if (aChargeRef.current !== projetActif.id) {
+        console.log('🔄 [ProductionCheptelComponent] Rechargement des animaux et données associées...');
         aChargeRef.current = projetActif.id;
         dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
         dispatch(loadVaccinations(projetActif.id));
@@ -243,30 +251,37 @@ export default function ProductionCheptelComponent() {
 
                   // 2. Créer automatiquement une mortalité
                   try {
-                    const categorie = getCategorieAnimal(animal);
+                    // Récupérer l'animal depuis allAnimaux pour avoir les données à jour
+                    const animalActuel = allAnimaux.find(a => a.id === animal.id) || animal;
+                    const categorie = getCategorieAnimal(animalActuel);
+                    
                     await dispatch(
                       createMortalite({
                         projet_id: projetActif.id,
                         nombre_porcs: 1,
                         date: new Date().toISOString().split('T')[0],
-                        categorie: categorie === 'truie' ? 'truie' : categorie === 'verrat' ? 'verrat' : 'porcelet',
-                        animal_code: animal.code || undefined,
+                        categorie: categorie, // Utiliser directement la catégorie détectée
+                        animal_code: animalActuel.code || undefined,
                         cause: 'Changement de statut',
-                        notes: `Mortalité enregistrée automatiquement lors du changement de statut de ${animal.code}${animal.nom ? ` (${animal.nom})` : ''}`,
+                        notes: `Mortalité enregistrée automatiquement lors du changement de statut de ${animalActuel.code}${animalActuel.nom ? ` (${animalActuel.nom})` : ''}`,
                       })
                     ).unwrap();
 
-                    // Recharger les mortalités
-                    dispatch(loadMortalitesParProjet(projetActif.id));
+                    // Recharger les mortalités ET les statistiques
+                    await Promise.all([
+                      dispatch(loadMortalitesParProjet(projetActif.id)).unwrap(),
+                      dispatch(loadStatistiquesMortalite(projetActif.id)).unwrap(),
+                    ]);
                   } catch (mortaliteError: any) {
                     console.warn('Erreur lors de la création de la mortalité:', mortaliteError);
                     // Ne pas bloquer si la création de mortalité échoue
                   }
 
                   // 3. Recharger les animaux pour mettre à jour les listes
-                  dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
-                  // Recharger les pesées récentes pour exclure celles des animaux retirés
-                  dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 }));
+                  await Promise.all([
+                    dispatch(loadProductionAnimaux({ projetId: projetActif.id })).unwrap(),
+                    dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 })).unwrap(),
+                  ]);
                 } catch (error: any) {
                   Alert.alert('Erreur', error || 'Erreur lors de la mise à jour du statut');
                 }
@@ -276,26 +291,71 @@ export default function ProductionCheptelComponent() {
         );
       } else {
         // Pour les autres changements de statut, comportement normal
+        const messageSupplementaire = 
+          animal.statut === 'mort' && nouveauStatut === 'actif'
+            ? "\n\nL'entrée de mortalité associée sera supprimée."
+            : '';
+        
         Alert.alert(
           'Changer le statut',
-          `Voulez-vous changer le statut de ${animal.code}${animal.nom ? ` (${animal.nom})` : ''} en "${STATUT_ANIMAL_LABELS[nouveauStatut]}" ?`,
+          `Voulez-vous changer le statut de ${animal.code}${animal.nom ? ` (${animal.nom})` : ''} en "${STATUT_ANIMAL_LABELS[nouveauStatut]}" ?${messageSupplementaire}`,
           [
             { text: 'Annuler', style: 'cancel' },
             {
               text: 'Confirmer',
               onPress: async () => {
                 try {
+                  if (!projetActif) {
+                    Alert.alert('Erreur', 'Aucun projet actif');
+                    return;
+                  }
+
+                  // 1. Si on passe de "mort" à "actif", supprimer l'entrée de mortalité
+                  if (animal.statut === 'mort' && nouveauStatut === 'actif') {
+                    console.log('🔄 Changement de statut: mort → actif pour', animal.code);
+                    // Trouver l'entrée de mortalité correspondant à cet animal
+                    const mortaliteCorrespondante = mortalites.find(
+                      (m) => m.animal_code === animal.code && m.projet_id === projetActif.id
+                    );
+                    
+                    console.log('🔍 Mortalité trouvée:', mortaliteCorrespondante?.id);
+                    
+                    if (mortaliteCorrespondante) {
+                      try {
+                        console.log('🗑️ Suppression de la mortalité:', mortaliteCorrespondante.id);
+                        await dispatch(deleteMortalite(mortaliteCorrespondante.id)).unwrap();
+                        console.log('✅ Mortalité supprimée avec succès');
+                      } catch (deleteError: any) {
+                        console.error('❌ Erreur lors de la suppression de la mortalité:', deleteError);
+                        // Ne pas bloquer si la suppression échoue
+                      }
+                    } else {
+                      console.warn('⚠️ Aucune mortalité trouvée pour', animal.code);
+                    }
+                  }
+
+                  // 2. Mettre à jour le statut de l'animal
                   await dispatch(
                     updateProductionAnimal({
                       id: animal.id,
                       updates: { statut: nouveauStatut },
                     })
                   ).unwrap();
-                  // Recharger les animaux pour mettre à jour les listes
-                  if (projetActif) {
-                    dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
-                    // Recharger les pesées récentes pour exclure celles des animaux retirés
-                    dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 }));
+                  
+                  // 3. Recharger toutes les données pertinentes
+                  await Promise.all([
+                    dispatch(loadProductionAnimaux({ projetId: projetActif.id })).unwrap(),
+                    dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 })).unwrap(),
+                  ]);
+                  
+                  // Si on a touché au statut "mort", recharger les mortalités
+                  if (animal.statut === 'mort' || nouveauStatut === 'mort') {
+                    console.log('📊 Rechargement des mortalités après changement de statut');
+                    await Promise.all([
+                      dispatch(loadMortalitesParProjet(projetActif.id)).unwrap(),
+                      dispatch(loadStatistiquesMortalite(projetActif.id)).unwrap(),
+                    ]);
+                    console.log('✅ Mortalités et statistiques rechargées');
                   }
                 } catch (error: any) {
                   Alert.alert('Erreur', error || 'Erreur lors de la mise à jour du statut');
@@ -306,7 +366,7 @@ export default function ProductionCheptelComponent() {
         );
       }
     },
-    [dispatch, projetActif?.id, canUpdate]
+    [dispatch, projetActif?.id, canUpdate, mortalites, allAnimaux]
   );
 
   const getParentLabel = useCallback(
@@ -335,7 +395,12 @@ export default function ProductionCheptelComponent() {
         <Card elevation="small" padding="medium" style={styles.animalCard}>
           <View style={styles.animalHeader}>
             {item.photo_uri ? (
-              <Image source={{ uri: item.photo_uri }} style={styles.animalPhoto} />
+              <Image 
+                key={`photo-${item.id}-${item.photo_uri}`}
+                source={{ uri: item.photo_uri }} 
+                style={styles.animalPhoto}
+                resizeMode="cover"
+              />
             ) : (
               <View
                 style={[
@@ -987,12 +1052,9 @@ export default function ProductionCheptelComponent() {
             setShowAnimalModal(false);
             setIsEditing(false);
             setSelectedAnimal(null);
-            // Recharger en arrière-plan sans bloquer l'interface
+            // Recharger les animaux pour afficher les modifications
             if (projetActif) {
-              // Utiliser setTimeout pour différer le chargement et ne pas bloquer
-              setTimeout(() => {
-                dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
-              }, 100);
+              dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
             }
           }}
           projetId={projetActif.id}

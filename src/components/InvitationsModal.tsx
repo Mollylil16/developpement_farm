@@ -133,7 +133,10 @@ export default function InvitationsModal({ visible, onClose }: InvitationsModalP
       title={`Invitations en attente (${invitationsEnAttente.length})`}
       showButtons={false}
     >
-      <ScrollView style={styles.scrollView}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={{ paddingBottom: SPACING.md }}
+      >
         {invitationsEnAttente.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>

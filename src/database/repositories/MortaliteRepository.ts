@@ -113,6 +113,13 @@ export class MortaliteRepository extends BaseRepository<Mortalite> {
     );
   }
 
+  /**
+   * Supprimer une mortalité par ID
+   */
+  async delete(id: string): Promise<void> {
+    await this.deleteById(id);
+  }
+
   async getStats(projetId: string): Promise<{
     total: number;
     parCause: Record<string, number>;
@@ -147,6 +154,82 @@ export class MortaliteRepository extends BaseRepository<Mortalite> {
       parCause,
       tauxMortalite,
       ageMoyen: 0, // Non disponible - la colonne age_jours n'existe pas dans la table
+    };
+  }
+
+  /**
+   * Obtenir les statistiques de mortalité par catégorie
+   */
+  async getStatistiquesMortalite(projetId: string): Promise<{
+    total_morts: number;
+    taux_mortalite: number;
+    mortalites_par_categorie: { truie: number; verrat: number; porcelet: number; autre: number };
+    mortalites_par_mois: Array<{ mois: string; nombre: number }>;
+  }> {
+    console.log('📊 [MortaliteRepository] Calcul des statistiques pour projet:', projetId);
+    
+    // Total des morts
+    const totalResult = await this.queryOne<{ total: number }>(
+      `SELECT SUM(nombre_porcs) as total FROM mortalites WHERE projet_id = ?`,
+      [projetId]
+    );
+    const total_morts = totalResult?.total || 0;
+    console.log('💀 Total morts calculé:', total_morts);
+
+    // Par catégorie
+    const parCategorieResult = await this.query<{ categorie: string; total: number }>(
+      `SELECT categorie, SUM(nombre_porcs) as total 
+       FROM mortalites 
+       WHERE projet_id = ? 
+       GROUP BY categorie`,
+      [projetId]
+    );
+
+    const mortalites_par_categorie = {
+      truie: 0,
+      verrat: 0,
+      porcelet: 0,
+      autre: 0,
+    };
+
+    parCategorieResult.forEach((row) => {
+      if (row.categorie === 'truie') mortalites_par_categorie.truie = row.total;
+      else if (row.categorie === 'verrat') mortalites_par_categorie.verrat = row.total;
+      else if (row.categorie === 'porcelet') mortalites_par_categorie.porcelet = row.total;
+      else mortalites_par_categorie.autre += row.total;
+    });
+    console.log('📈 Morts par catégorie:', mortalites_par_categorie);
+
+    // Calculer le taux de mortalité
+    // Compter tous les animaux du projet (actifs + morts + vendus + autres)
+    const totalAnimauxResult = await this.queryOne<{ count: number }>(
+      `SELECT COUNT(*) as count FROM production_animaux WHERE projet_id = ?`,
+      [projetId]
+    );
+    const totalAnimaux = totalAnimauxResult?.count || 0;
+    const taux_mortalite = totalAnimaux > 0 ? (total_morts / totalAnimaux) * 100 : 0;
+    console.log('📊 Taux de mortalité:', taux_mortalite.toFixed(2), '% (', total_morts, '/', totalAnimaux, ')');
+
+    // Évolution par mois (6 derniers mois)
+    const evolutionResult = await this.query<{ mois: string; nombre: number }>(
+      `SELECT strftime('%Y-%m', date) as mois, SUM(nombre_porcs) as nombre
+       FROM mortalites 
+       WHERE projet_id = ? AND date >= date('now', '-6 months')
+       GROUP BY strftime('%Y-%m', date)
+       ORDER BY mois ASC`,
+      [projetId]
+    );
+
+    const mortalites_par_mois = evolutionResult.map((row) => ({
+      mois: row.mois,
+      nombre: row.nombre,
+    }));
+
+    return {
+      total_morts,
+      taux_mortalite,
+      mortalites_par_categorie,
+      mortalites_par_mois,
     };
   }
 }

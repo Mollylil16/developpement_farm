@@ -105,18 +105,18 @@ export default function DashboardHeader({
           <Text style={[styles.title, { color: isDark ? '#FFFFFF' : colors.text }]}>
             {profilPrenom || 'Utilisateur'}
           </Text>
-          {currentDate && (
+          {currentDate ? (
             <Text style={[styles.date, { color: colors.textSecondary }]}>{currentDate}</Text>
-          )}
-          {projetNom && (
+          ) : null}
+          {projetNom ? (
             <Text style={[styles.projetNom, { color: colors.textSecondary }]}>
               Projet {projetNom}
             </Text>
-          )}
+          ) : null}
         </View>
 
         {/* Invitations à droite */}
-        {invitationsCount > 0 && (
+        {invitationsCount > 0 ? (
           <TouchableOpacity
             style={[
               styles.invitationBadge,
@@ -126,7 +126,7 @@ export default function DashboardHeader({
           >
             <Text style={styles.invitationBadgeText}>📬 {invitationsCount}</Text>
           </TouchableOpacity>
-        )}
+        ) : null}
       </View>
       <View style={[styles.headerDivider, { backgroundColor: colors.primaryLight + '30' }]} />
     </Animated.View>

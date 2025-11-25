@@ -24,6 +24,7 @@ import FormField from './FormField';
 import { SPACING } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useActionPermissions } from '../hooks/useActionPermissions';
+import { getCategorieAnimal } from '../utils/animalUtils';
 
 // Fonction helper pour convertir une date en format local YYYY-MM-DD
 const formatDateToLocal = (date: Date): string => {
@@ -82,21 +83,34 @@ export default function MortalitesFormModal({
     autre: 'Autre',
   };
 
-  // Filtrer les animaux actifs par code
+  // Filtrer les animaux actifs par code ET par catégorie sélectionnée
   const animauxFiltres = useMemo(() => {
     if (!Array.isArray(animaux)) {
       return [];
     }
-    if (!animalSearchQuery.trim()) {
-      return animaux.filter((a) => a.statut?.toLowerCase() === 'actif');
+    
+    // Filtrer par statut actif
+    let filteredAnimals = animaux.filter((a) => a.statut?.toLowerCase() === 'actif');
+    
+    // Filtrer par catégorie sélectionnée (sauf 'autre')
+    if (formData.categorie !== 'autre') {
+      filteredAnimals = filteredAnimals.filter((a) => {
+        const categorieAnimal = getCategorieAnimal(a);
+        return categorieAnimal === formData.categorie;
+      });
     }
-    const query = animalSearchQuery.toLowerCase().trim();
-    return animaux.filter(
-      (a) =>
-        a.statut?.toLowerCase() === 'actif' &&
-        (a.code?.toLowerCase().includes(query) || a.nom?.toLowerCase().includes(query))
-    );
-  }, [animaux, animalSearchQuery]);
+    
+    // Filtrer par recherche (code ou nom)
+    if (animalSearchQuery.trim()) {
+      const query = animalSearchQuery.toLowerCase().trim();
+      filteredAnimals = filteredAnimals.filter(
+        (a) =>
+          a.code?.toLowerCase().includes(query) || a.nom?.toLowerCase().includes(query)
+      );
+    }
+    
+    return filteredAnimals;
+  }, [animaux, animalSearchQuery, formData.categorie]);
 
   // Obtenir le label de l'animal sélectionné
   const getAnimalLabel = (code?: string) => {
@@ -200,7 +214,16 @@ export default function MortalitesFormModal({
       showButtons={true}
       loading={loading}
     >
-      <ScrollView style={styles.scrollView}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={{ paddingBottom: SPACING.md }}
+        showsVerticalScrollIndicator={true}
+        persistentScrollbar={true}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        bounces={true}
+        scrollEventThrottle={16}
+      >
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Informations</Text>
 
@@ -338,7 +361,15 @@ export default function MortalitesFormModal({
         title="Sélectionner le sujet"
         showButtons={false}
       >
-        <ScrollView style={styles.modalScroll}>
+        <ScrollView 
+          style={styles.modalScroll}
+          showsVerticalScrollIndicator={true}
+          persistentScrollbar={true}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          bounces={true}
+          scrollEventThrottle={16}
+        >
           <View style={styles.inputContainer}>
             <Text style={[styles.inputLabel, { color: colors.text }]}>Rechercher un sujet</Text>
             <TextInput
@@ -398,9 +429,19 @@ export default function MortalitesFormModal({
                     },
                   ]}
                   onPress={() => {
+                    // Auto-détecter la catégorie de l'animal sélectionné
+                    const categorieDetectee = getCategorieAnimal(animal);
+                    console.log('🐷 Animal sélectionné:', {
+                      code: animal.code,
+                      sexe: animal.sexe,
+                      reproducteur: animal.reproducteur,
+                      categorieDetectee,
+                    });
+                    
                     setFormData({
                       ...formData,
                       animal_code: animal.code,
+                      categorie: categorieDetectee, // Auto-update de la catégorie
                     });
                     setShowAnimalModal(false);
                     setAnimalSearchQuery('');

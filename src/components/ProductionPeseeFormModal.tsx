@@ -138,7 +138,16 @@ export default function ProductionPeseeFormModal({
       showButtons={true}
       loading={loading}
     >
-      <ScrollView style={styles.scrollView}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={{ paddingBottom: SPACING.md }}
+        showsVerticalScrollIndicator={true}
+        persistentScrollbar={true}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        bounces={true}
+        scrollEventThrottle={16}
+      >
         <View style={[styles.infoBox, { backgroundColor: colors.surfaceVariant }]}>
           <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Animal:</Text>
           <Text style={[styles.infoValue, { color: colors.primary }]}>

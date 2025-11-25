@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Revenu } from '../types';
 import CustomModal from './CustomModal';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
@@ -64,12 +64,14 @@ export default function VenteDetailModal({ visible, onClose, vente }: VenteDetai
       visible={visible}
       onClose={onClose}
       title="Détails de la vente"
-      confirmText="Fermer"
-      onConfirm={onClose}
-      showButtons={true}
-      cancelText=""
+      showButtons={false}
     >
-      <ScrollView style={styles.scrollView}>
+      <ScrollView 
+        showsVerticalScrollIndicator={true}
+        persistentScrollbar={true}
+        bounces={true}
+        contentContainerStyle={{ paddingBottom: SPACING.xl }}
+      >
         {/* Informations générales */}
         <View style={[styles.section, { backgroundColor: colors.background }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
@@ -275,14 +277,32 @@ export default function VenteDetailModal({ visible, onClose, vente }: VenteDetai
             </Text>
           </View>
         )}
+
+        {/* Bouton Fermer dans le ScrollView */}
+        <TouchableOpacity
+          style={[styles.closeButton, { backgroundColor: colors.primary }]}
+          onPress={onClose}
+        >
+          <Text style={[styles.closeButtonText, { color: colors.textOnPrimary }]}>
+            Fermer
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
     </CustomModal>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollView: {
-    maxHeight: 600,
+  closeButton: {
+    padding: SPACING.lg,
+    borderRadius: BORDER_RADIUS.md,
+    alignItems: 'center',
+    marginTop: SPACING.xl,
+    marginBottom: SPACING.md,
+  },
+  closeButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   section: {
     padding: SPACING.md,

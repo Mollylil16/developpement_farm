@@ -334,7 +334,7 @@ export default function ParametresProjetComponent() {
                   keyboardType="numeric"
                 />
                 <FormField
-                  label="Âge moyen actuel (jours)"
+                  label="Âge moyen actuel (semaines)"
                   value={editData.age_moyen_actuel?.toString() || '0'}
                   onChangeText={(text) =>
                     setEditData({ ...editData, age_moyen_actuel: parseInt(text) || 0 })

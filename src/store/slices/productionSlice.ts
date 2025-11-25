@@ -15,6 +15,7 @@ import {
 import { getDatabase } from '../../services/database';
 import { AnimalRepository, PeseeRepository } from '../../database/repositories';
 import { animauxSchema, peseesSchema, animalSchema, peseeSchema } from '../normalization/schemas';
+import type { RootState } from '../store';
 
 // Structure normalisée de l'état
 interface NormalizedEntities {
@@ -32,6 +33,7 @@ interface ProductionState {
   peseesRecents: string[]; // IDs des pesées récentes
   loading: boolean;
   error: string | null;
+  updateCounter: number; // Compteur pour invalider les caches
 }
 
 const initialState: ProductionState = {
@@ -47,6 +49,7 @@ const initialState: ProductionState = {
   peseesRecents: [],
   loading: false,
   error: null,
+  updateCounter: 0,
 };
 
 // Helper pour normaliser une liste d'animaux
@@ -126,9 +129,17 @@ export const deleteProductionAnimal = createAsyncThunk(
   'production/deleteAnimal',
   async (id: string, { rejectWithValue, dispatch, getState }) => {
     try {
+      // Récupérer l'animal avant de le supprimer pour obtenir l'URI de sa photo
+      const state = getState() as RootState;
+      const animal = state.production.entities.animaux[id];
+      
       const db = await getDatabase();
       const animalRepo = new AnimalRepository(db);
       await animalRepo.delete(id);
+      
+      // Note: Pas besoin de supprimer la photo manuellement
+      // Les URIs temporaires sont gérées automatiquement par le système
+      
       return id;
     } catch (error: any) {
       return rejectWithValue(error.message || "Erreur lors de la suppression de l'animal");
@@ -313,14 +324,19 @@ const productionSlice = createSlice({
       })
       .addCase(updateProductionAnimal.fulfilled, (state, action) => {
         console.log('🔄 [updateProductionAnimal.fulfilled] Animal mis à jour:', action.payload.id, action.payload.code);
-        console.log('🔄 [updateProductionAnimal.fulfilled] Nouveau statut:', action.payload.statut);
-        console.log('🔄 [updateProductionAnimal.fulfilled] ids.animaux AVANT:', state.ids.animaux.length);
+        console.log('🔄 [updateProductionAnimal.fulfilled] Photo URI:', action.payload.photo_uri);
         
         const normalized = normalizeAnimal(action.payload);
-        state.entities.animaux = { ...state.entities.animaux, ...normalized.entities.animaux };
+        const animalId = action.payload.id;
         
-        console.log('🔄 [updateProductionAnimal.fulfilled] ids.animaux APRÈS:', state.ids.animaux.length);
-        console.log('🔄 [updateProductionAnimal.fulfilled] entities.animaux count:', Object.keys(state.entities.animaux).length);
+        // Mise à jour ciblée - Redux Toolkit utilise Immer qui détecte les changements
+        // On ne modifie que l'animal concerné, pas tout l'objet entities
+        state.entities.animaux[animalId] = normalized.entities.animaux[animalId];
+        
+        // Incrémenter un compteur de version pour invalider les caches si nécessaire
+        state.updateCounter = (state.updateCounter || 0) + 1;
+        
+        console.log('✅ [updateProductionAnimal.fulfilled] Animal actualisé (version:', state.updateCounter, ')');
       })
       .addCase(updateProductionAnimal.rejected, (state, action) => {
         state.error = action.payload as string;

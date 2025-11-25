@@ -175,11 +175,11 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
                     return;
                   }
 
-                  // 1. Mettre à jour le statut de l'animal (inactif)
+                  // 1. Mettre à jour le statut de l'animal (mort)
                   await dispatch(
                     updateProductionAnimal({
                       id: animal.id,
-                      updates: { statut: 'inactif' },
+                      updates: { statut: 'mort' },
                     })
                   ).unwrap();
 

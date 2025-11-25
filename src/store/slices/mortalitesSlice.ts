@@ -94,10 +94,11 @@ export const loadStatistiquesMortalite = createAsyncThunk(
   async (projetId: string, { rejectWithValue }) => {
     try {
       const db = await getDatabase();
-      const databaseService = (await import('../../services/database')).default;
-      const stats = await databaseService.getStatistiquesMortalite(projetId);
+      const mortaliteRepo = new MortaliteRepository(db);
+      const stats = await mortaliteRepo.getStatistiquesMortalite(projetId);
       return stats;
     } catch (error: any) {
+      console.error('❌ Erreur chargement statistiques mortalité:', error);
       return rejectWithValue(error.message || 'Erreur lors du chargement des statistiques');
     }
   }

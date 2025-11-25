@@ -232,7 +232,16 @@ export default function DepenseFormModal({
       onConfirm={handleSubmit}
       showButtons={true}
     >
-      <ScrollView style={styles.scrollView}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={{ paddingBottom: SPACING.md }}
+        showsVerticalScrollIndicator={true}
+        persistentScrollbar={true}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        bounces={true}
+        scrollEventThrottle={16}
+      >
         <FormField
           label="Montant (CFA)"
           value={formData.montant.toString()}
