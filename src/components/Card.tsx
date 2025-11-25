@@ -70,7 +70,7 @@ export default function Card({
         onPress={onPress}
         activeOpacity={TRANSITIONS.opacity.pressed}
       >
-        <SafeTextWrapper componentName="Card" silent={false}>
+        <SafeTextWrapper componentName="Card" silent={true}>
           {children}
         </SafeTextWrapper>
       </TouchableOpacity>
@@ -79,7 +79,7 @@ export default function Card({
 
   return (
     <View style={cardStyle}>
-      <SafeTextWrapper componentName="Card" silent={false}>
+      <SafeTextWrapper componentName="Card" silent={true}>
         {children}
       </SafeTextWrapper>
     </View>

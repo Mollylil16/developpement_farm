@@ -51,14 +51,14 @@ export function SafeTextWrapper({
     return <Text>{children}</Text>;
   }
 
-  // Si children est un boolean, le wrapper dans un Text
+  // Si children est un boolean, ne rien rendre (les booléens ne devraient jamais être affichés)
   if (typeof children === 'boolean') {
     if (!silent) {
       console.warn(
-        `⚠️ [SafeTextWrapper] Boolean détecté dans ${componentName}, wrapping dans <Text>: ${children}`
+        `⚠️ [SafeTextWrapper] Boolean détecté dans ${componentName}, ignoré (les booléens ne sont pas affichés)`
       );
     }
-    return <Text>{children ? 'true' : 'false'}</Text>;
+    return null;
   }
 
   // Si children est un array, vérifier chaque élément

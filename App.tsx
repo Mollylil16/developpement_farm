@@ -17,6 +17,7 @@ import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import { LanguageProvider } from './src/contexts/LanguageContext';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS, LIGHT_COLORS } from './src/constants/theme';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import { GlobalTextRenderGuard } from './src/components/GlobalTextRenderGuard';
 
 function LoadingScreen({ message, error }: { message: string; error?: string }) {
   // Utiliser les couleurs par défaut car on n'est pas encore dans le ThemeProvider
@@ -120,9 +121,11 @@ export default function App() {
         } persistor={persistor}>
           <LanguageProvider>
             <ThemeProvider>
-              <ErrorBoundary>
-                <AppContent />
-              </ErrorBoundary>
+              <GlobalTextRenderGuard>
+                <ErrorBoundary>
+                  <AppContent />
+                </ErrorBoundary>
+              </GlobalTextRenderGuard>
             </ThemeProvider>
           </LanguageProvider>
         </PersistGate>
