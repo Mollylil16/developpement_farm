@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { createDepensePonctuelle, updateDepensePonctuelle } from '../store/slices/financeSlice';
@@ -231,17 +231,9 @@ export default function DepenseFormModal({
       confirmText={isEditing ? 'Modifier' : 'Enregistrer'}
       onConfirm={handleSubmit}
       showButtons={true}
+      scrollEnabled={true}
     >
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={{ paddingBottom: SPACING.md }}
-        showsVerticalScrollIndicator={true}
-        persistentScrollbar={true}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        bounces={true}
-        scrollEventThrottle={16}
-      >
+      <>
         <FormField
           label="Montant (CFA)"
           value={formData.montant.toString()}
@@ -394,15 +386,12 @@ export default function DepenseFormModal({
             </View>
           )}
         </View>
-      </ScrollView>
+      </>
     </CustomModal>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollView: {
-    maxHeight: 500,
-  },
   section: {
     marginBottom: SPACING.md,
   },

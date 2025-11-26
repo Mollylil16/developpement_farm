@@ -483,7 +483,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   scrollView: {
-    flex: 1,
+    maxHeight: 500,
     paddingHorizontal: 20,
   },
   ingredientCard: {

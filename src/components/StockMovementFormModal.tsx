@@ -172,8 +172,9 @@ export default function StockMovementFormModal({
       onConfirm={handleSubmit}
       showButtons
       loading={loading}
+      scrollEnabled={true}
     >
-      <ScrollView style={styles.scroll}>
+      <>
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Type de mouvement</Text>
           <View style={styles.optionsContainer}>
@@ -342,7 +343,7 @@ export default function StockMovementFormModal({
           loading={loading}
           variant="primary"
         />
-      </ScrollView>
+      </>
     </CustomModal>
   );
 }

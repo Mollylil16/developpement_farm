@@ -221,12 +221,9 @@ export default function VisiteVeterinaireFormModalNew({
       visible={visible}
       onClose={onClose}
       title={visite ? 'Modifier la visite' : 'Enregistrer une visite'}
+      scrollEnabled={true}
     >
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={true}
-      >
+      <>
         {/* Date de la visite */}
         <Text style={[styles.label, { color: colors.text }]}>Date de la visite *</Text>
         <TouchableOpacity
@@ -509,18 +506,12 @@ export default function VisiteVeterinaireFormModalNew({
             </Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      </>
     </CustomModal>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollView: {
-    maxHeight: '100%',
-  },
-  content: {
-    paddingBottom: SPACING.md,
-  },
   label: {
     fontSize: FONT_SIZES.sm,
     fontWeight: '600',

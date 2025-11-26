@@ -718,7 +718,7 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
   },
   scrollView: {
-    flex: 1,
+    maxHeight: 500,
   },
   scrollContent: {
     padding: SPACING.md,

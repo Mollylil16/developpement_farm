@@ -150,8 +150,9 @@ export default function IngredientFormModal({
       confirmText={isEditing ? 'Modifier' : 'Créer'}
       onConfirm={handleSubmit}
       showButtons={true}
+      scrollEnabled={true}
     >
-      <ScrollView style={styles.scrollView}>
+      <>
         <FormField
           label="Nom de l'ingrédient *"
           value={formData.nom}
@@ -278,7 +279,7 @@ export default function IngredientFormModal({
             </View>
           </View>
         )}
-      </ScrollView>
+      </>
     </CustomModal>
   );
 }

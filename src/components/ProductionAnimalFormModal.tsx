@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Image } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -304,7 +304,10 @@ export default function ProductionAnimalFormModal({
       console.log('=== SAUVEGARDE ANIMAL ===');
       console.log('📸 Photo URI à sauvegarder:', photoUri);
       console.log('🔍 Type de photo URI:', typeof photoUri);
-      console.log('📦 Données complètes:', normalizedData);
+      console.log('🔍 photoUri === null?', photoUri === null);
+      console.log('🔍 photoUri === undefined?', photoUri === undefined);
+      console.log('📦 normalizedData.photo_uri:', normalizedData.photo_uri);
+      console.log('📦 Données complètes:', JSON.stringify(normalizedData, null, 2));
 
       if (isEditing && animal) {
         const { projet_id: _omitProjet, ...updates } = normalizedData;
@@ -344,17 +347,9 @@ export default function ProductionAnimalFormModal({
         onConfirm={handleSubmit}
         showButtons={true}
         loading={loading}
+        scrollEnabled={true}
       >
-        <ScrollView 
-          style={styles.scrollView}
-          contentContainerStyle={{ paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xl }}
-          showsVerticalScrollIndicator={true}
-          persistentScrollbar={true}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          bounces={true}
-          scrollEventThrottle={16}
-        >
+        <>
           <FormField
             label="Code de l'animal *"
             value={formData.code}
@@ -657,7 +652,7 @@ export default function ProductionAnimalFormModal({
             multiline
             numberOfLines={3}
           />
-        </ScrollView>
+        </>
       </CustomModal>
 
       <CustomModal
@@ -665,15 +660,9 @@ export default function ProductionAnimalFormModal({
         onClose={() => setShowPereModal(false)}
         title="Sélectionner le père"
         showButtons={false}
+        scrollEnabled={true}
       >
-        <ScrollView 
-          style={styles.modalScroll}
-          showsVerticalScrollIndicator={true}
-          persistentScrollbar={true}
-          keyboardShouldPersistTaps="handled"
-          bounces={true}
-          scrollEventThrottle={16}
-        >
+        <>
           <TouchableOpacity
             style={[
               styles.modalOption,
@@ -724,7 +713,7 @@ export default function ProductionAnimalFormModal({
               );
             })
           )}
-        </ScrollView>
+        </>
       </CustomModal>
 
       <CustomModal
@@ -732,15 +721,9 @@ export default function ProductionAnimalFormModal({
         onClose={() => setShowMereModal(false)}
         title="Sélectionner la mère"
         showButtons={false}
+        scrollEnabled={true}
       >
-        <ScrollView 
-          style={styles.modalScroll}
-          showsVerticalScrollIndicator={true}
-          persistentScrollbar={true}
-          keyboardShouldPersistTaps="handled"
-          bounces={true}
-          scrollEventThrottle={16}
-        >
+        <>
           <TouchableOpacity
             style={[
               styles.modalOption,
@@ -791,16 +774,13 @@ export default function ProductionAnimalFormModal({
               );
             })
           )}
-        </ScrollView>
+        </>
       </CustomModal>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollView: {
-    flex: 1,
-  },
   section: {
     marginBottom: SPACING.md,
   },
@@ -858,9 +838,6 @@ const styles = StyleSheet.create({
   selectButtonValue: {
     fontSize: FONT_SIZES.md,
     fontWeight: '500',
-  },
-  modalScroll: {
-    maxHeight: 400,
   },
   modalOption: {
     borderWidth: 1,

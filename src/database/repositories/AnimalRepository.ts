@@ -63,6 +63,10 @@ export class AnimalRepository extends BaseRepository<ProductionAnimal> {
    * Mettre à jour un animal
    */
   async update(id: string, data: Partial<ProductionAnimal>): Promise<ProductionAnimal> {
+    console.log('🔄 [AnimalRepository.update] ID:', id);
+    console.log('🔄 [AnimalRepository.update] photo_uri dans data:', data.photo_uri);
+    console.log('🔄 [AnimalRepository.update] photo_uri === undefined?', data.photo_uri === undefined);
+    
     const now = new Date().toISOString();
     const fields: string[] = [];
     const values: any[] = [];
@@ -134,6 +138,10 @@ export class AnimalRepository extends BaseRepository<ProductionAnimal> {
     }
 
     values.push(id);
+    
+    console.log('🔄 [AnimalRepository.update] SQL:', `UPDATE production_animaux SET ${fields.join(', ')} WHERE id = ?`);
+    console.log('🔄 [AnimalRepository.update] Values:', values);
+    
     await this.execute(
       `UPDATE production_animaux SET ${fields.join(', ')} WHERE id = ?`,
       values
@@ -143,6 +151,8 @@ export class AnimalRepository extends BaseRepository<ProductionAnimal> {
     if (!updated) {
       throw new Error('Animal introuvable après mise à jour');
     }
+    
+    console.log('✅ [AnimalRepository.update] Animal mis à jour, photo_uri:', updated.photo_uri);
     return updated;
   }
 
@@ -150,12 +160,21 @@ export class AnimalRepository extends BaseRepository<ProductionAnimal> {
    * Récupérer tous les animaux d'un projet (actifs et inactifs)
    */
   async findByProjet(projetId: string): Promise<ProductionAnimal[]> {
-    return this.query<ProductionAnimal>(
+    const animaux = await this.query<ProductionAnimal>(
       `SELECT * FROM production_animaux 
        WHERE projet_id = ?
        ORDER BY date_creation DESC`,
       [projetId]
     );
+    
+    // Log des photos pour diagnostic
+    const animauxAvecPhoto = animaux.filter(a => a.photo_uri);
+    console.log(`📊 [AnimalRepository] ${animaux.length} animaux chargés, ${animauxAvecPhoto.length} avec photo`);
+    if (animauxAvecPhoto.length > 0) {
+      console.log('📸 Exemple photo URI:', animauxAvecPhoto[0].photo_uri);
+    }
+    
+    return animaux;
   }
 
   /**

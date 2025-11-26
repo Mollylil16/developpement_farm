@@ -202,8 +202,9 @@ export default function PlanificationFormModal({
       onConfirm={handleSubmit}
       showButtons={true}
       loading={loading}
+      scrollEnabled={true}
     >
-      <ScrollView style={styles.scrollView}>
+      <>
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Type de tâche</Text>
           <View style={styles.optionsContainer}>
@@ -511,7 +512,7 @@ export default function PlanificationFormModal({
           placeholder="Ajoutez des notes..."
           multiline
         />
-      </ScrollView>
+      </>
     </CustomModal>
   );
 }

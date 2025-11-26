@@ -170,8 +170,9 @@ export default function CollaborationFormModal({
       onConfirm={handleSubmit}
       showButtons={true}
       loading={loading}
+      scrollEnabled={true}
     >
-      <ScrollView style={styles.scrollView}>
+      <>
         <FormField
           label="Nom *"
           value={formData.nom}
@@ -303,7 +304,7 @@ export default function CollaborationFormModal({
           placeholder="Ajoutez des notes..."
           multiline
         />
-      </ScrollView>
+      </>
     </CustomModal>
   );
 }

@@ -1,6 +1,6 @@
 /**
  * Composant des widgets principaux du Dashboard
- * Affiche: Overview, Reproduction, Finance, Performance
+ * Affiche: Overview, Performance Globale, Reproduction, Finance
  */
 
 import React from 'react';
@@ -8,7 +8,6 @@ import { View, StyleSheet, Animated } from 'react-native';
 import OverviewWidget from '../widgets/OverviewWidget';
 import ReproductionWidget from '../widgets/ReproductionWidget';
 import FinanceWidget from '../widgets/FinanceWidget';
-import CoutProductionWidget from '../widgets/CoutProductionWidget';
 import PerformanceWidget from '../widgets/PerformanceWidget';
 import { SkeletonWidget } from '../SkeletonLoader';
 import { SPACING } from '../../constants/theme';
@@ -54,7 +53,7 @@ export default function DashboardMainWidgets({
         <OverviewWidget projetId={projetId} />
       </Animated.View>
 
-      {/* Widget 2: Reproduction */}
+      {/* Widget 2: Performance Globale - Coût de production vs Prix du marché */}
       <Animated.View
         style={[
           styles.widgetWrapper,
@@ -71,10 +70,10 @@ export default function DashboardMainWidgets({
           },
         ]}
       >
-        <ReproductionWidget projetId={projetId} />
+        <PerformanceWidget projetId={projetId} />
       </Animated.View>
 
-      {/* Widget 3: Finance */}
+      {/* Widget 3: Reproduction */}
       <Animated.View
         style={[
           styles.widgetWrapper,
@@ -91,47 +90,27 @@ export default function DashboardMainWidgets({
           },
         ]}
       >
+        <ReproductionWidget projetId={projetId} />
+      </Animated.View>
+
+      {/* Widget 4: Finance */}
+      <Animated.View
+        style={[
+          styles.widgetWrapper,
+          {
+            opacity: animations[3],
+            transform: [
+              {
+                scale: animations[3].interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.9, 1],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
         <FinanceWidget projetId={projetId} />
-      </Animated.View>
-
-      {/* Widget 4: Coût de Production (OPEX/CAPEX) */}
-      <Animated.View
-        style={[
-          styles.widgetWrapper,
-          {
-            opacity: animations[3],
-            transform: [
-              {
-                scale: animations[3].interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.9, 1],
-                }),
-              },
-            ],
-          },
-        ]}
-      >
-        <CoutProductionWidget projetId={projetId} />
-      </Animated.View>
-
-      {/* Widget 5: Performance */}
-      <Animated.View
-        style={[
-          styles.widgetWrapper,
-          {
-            opacity: animations[3],
-            transform: [
-              {
-                scale: animations[3].interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.9, 1],
-                }),
-              },
-            ],
-          },
-        ]}
-      >
-        <PerformanceWidget projetId={projetId} />
       </Animated.View>
     </View>
   );

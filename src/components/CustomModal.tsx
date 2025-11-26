@@ -2,8 +2,8 @@
  * Composant modal personnalisé avec animations fluides et shake-to-cancel
  */
 
-import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, Animated, Alert, ScrollView } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, Animated, Alert, ScrollView, Keyboard, Platform } from 'react-native';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useShakeToCancel } from '../hooks/useShakeToCancel';
@@ -40,6 +40,8 @@ export default function CustomModal({
   const { colors } = useTheme();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
+  const keyboardOffsetAnim = useRef(new Animated.Value(0)).current;
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   // Activer le shake-to-cancel si autorisé et modal visible
   useShakeToCancel({
@@ -56,6 +58,64 @@ export default function CustomModal({
       ]);
     },
   });
+
+  // Gérer l'apparition/disparition du clavier
+  useEffect(() => {
+    if (!visible) {
+      setKeyboardHeight(0);
+      keyboardOffsetAnim.setValue(0);
+      return;
+    }
+
+    let keyboardShowListener: any = null;
+    let keyboardHideListener: any = null;
+
+    try {
+      keyboardShowListener = Keyboard.addListener(
+        Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+        (e) => {
+          if (e?.endCoordinates?.height) {
+            const height = e.endCoordinates.height;
+            setKeyboardHeight(height);
+            // Animer le déplacement du modal vers le haut
+            Animated.timing(keyboardOffsetAnim, {
+              toValue: -height / 2, // Déplace le modal vers le haut de la moitié de la hauteur du clavier
+              duration: Platform.OS === 'ios' ? 250 : 200,
+              useNativeDriver: true,
+            }).start();
+          }
+        }
+      );
+
+      keyboardHideListener = Keyboard.addListener(
+        Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+        () => {
+          setKeyboardHeight(0);
+          // Animer le retour à la position normale
+          Animated.timing(keyboardOffsetAnim, {
+            toValue: 0,
+            duration: Platform.OS === 'ios' ? 250 : 200,
+            useNativeDriver: true,
+          }).start();
+        }
+      );
+    } catch (error) {
+      console.warn('Erreur lors de la configuration des listeners clavier:', error);
+    }
+
+    return () => {
+      try {
+        if (keyboardShowListener) {
+          keyboardShowListener.remove();
+        }
+        if (keyboardHideListener) {
+          keyboardHideListener.remove();
+        }
+      } catch (error) {
+        console.warn('Erreur lors du nettoyage des listeners clavier:', error);
+      }
+    };
+  }, [visible, keyboardOffsetAnim]);
 
   useEffect(() => {
     if (visible) {
@@ -75,6 +135,7 @@ export default function CustomModal({
     } else {
       fadeAnim.setValue(0);
       slideAnim.setValue(50);
+      setKeyboardHeight(0);
     }
   }, [visible, fadeAnim, slideAnim]);
 
@@ -87,31 +148,33 @@ export default function CustomModal({
       statusBarTranslucent
     >
       <Animated.View
+        style={[
+          styles.overlay,
+          {
+            opacity: fadeAnim,
+            backgroundColor: colors.overlay,
+          },
+        ]}
+        pointerEvents="box-none"
+      >
+        <TouchableOpacity 
+          style={StyleSheet.absoluteFill} 
+          activeOpacity={1} 
+          onPress={onClose}
+        />
+        <Animated.View
           style={[
-            styles.overlay,
+            styles.modal,
             {
-              opacity: fadeAnim,
-              backgroundColor: colors.overlay,
+              transform: [
+                { translateY: slideAnim },
+                { translateY: keyboardOffsetAnim }, // Déplace le modal vers le haut quand le clavier apparaît
+              ],
+              backgroundColor: colors.surface,
+              ...colors.shadow.large,
             },
           ]}
         >
-          <TouchableOpacity 
-            style={StyleSheet.absoluteFill} 
-            activeOpacity={1} 
-            onPress={onClose}
-          />
-          <Animated.View
-            style={[
-              styles.modal,
-              {
-                transform: [{ translateY: slideAnim }],
-                backgroundColor: colors.surface,
-                ...colors.shadow.large,
-              },
-            ]}
-            onStartShouldSetResponder={() => true}
-            onMoveShouldSetResponder={() => true}
-          >
             <View style={[styles.header, { borderBottomColor: colors.divider }]}>
               <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
               <TouchableOpacity
@@ -130,7 +193,7 @@ export default function CustomModal({
                 showsVerticalScrollIndicator={true}
                 persistentScrollbar={true}
                 keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="on-drag"
+                keyboardDismissMode="none"
                 nestedScrollEnabled={true}
                 bounces={true}
                 scrollEventThrottle={16}
@@ -177,9 +240,9 @@ export default function CustomModal({
                   </TouchableOpacity>
                 )}
               </View>
-          )}
+            )}
+          </Animated.View>
         </Animated.View>
-      </Animated.View>
     </Modal>
   );
 }
@@ -197,6 +260,7 @@ const styles = StyleSheet.create({
     maxWidth: 500,
     maxHeight: '85%',
     flexDirection: 'column',
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
@@ -219,14 +283,15 @@ const styles = StyleSheet.create({
     fontWeight: FONT_WEIGHTS.bold,
   },
   scrollView: {
-    flex: 1,
+    flexShrink: 1,
   },
   scrollContent: {
     padding: SPACING.lg,
-    paddingBottom: SPACING.xl * 2, // Extra padding pour le clavier
+    paddingBottom: SPACING.xl * 4, // Extra padding pour le clavier (augmenté)
   },
   content: {
     flexShrink: 1,
+    padding: SPACING.lg,
   },
   footer: {
     flexDirection: 'row',

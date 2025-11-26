@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { createChargeFixe, updateChargeFixe } from '../store/slices/financeSlice';
 import { ChargeFixe, CreateChargeFixeInput, CategorieChargeFixe, FrequenceCharge } from '../types';
@@ -162,17 +162,9 @@ export default function ChargeFixeFormModal({
       confirmText={isEditing ? 'Modifier' : 'Créer'}
       onConfirm={handleSubmit}
       showButtons={true}
+      scrollEnabled={true}
     >
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={true}
-        persistentScrollbar={true}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        bounces={true}
-        scrollEventThrottle={16}
-      >
+      <>
         <FormField
           label="Libellé"
           value={formData.libelle}
@@ -293,18 +285,12 @@ export default function ChargeFixeFormModal({
           multiline
           numberOfLines={4}
         />
-      </ScrollView>
+      </>
     </CustomModal>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollView: {
-    maxHeight: 500,
-  },
-  scrollContent: {
-    paddingBottom: SPACING.md,
-  },
   section: {
     marginBottom: SPACING.md,
   },

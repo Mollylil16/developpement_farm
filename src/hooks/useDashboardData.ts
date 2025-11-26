@@ -8,7 +8,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAppDispatch } from '../store/hooks';
-import { loadMortalitesParProjet } from '../store/slices/mortalitesSlice';
+import { loadMortalitesParProjet, loadStatistiquesMortalite } from '../store/slices/mortalitesSlice';
 import { loadProductionAnimaux, loadPeseesRecents } from '../store/slices/productionSlice';
 
 interface UseDashboardDataProps {
@@ -48,6 +48,7 @@ export function useDashboardData({
     try {
       await Promise.all([
         dispatch(loadMortalitesParProjet(projetId)).unwrap(),
+        dispatch(loadStatistiquesMortalite(projetId)).unwrap(),
         dispatch(
           loadProductionAnimaux({
             projetId,

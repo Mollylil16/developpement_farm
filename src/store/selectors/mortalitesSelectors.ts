@@ -54,6 +54,20 @@ export const selectStatistiquesMortalite = createSelector(
   (mortalitesState) => mortalitesState.statistiques
 );
 
+// Sélecteur pour le nombre total de mortalités
+export const selectNombreTotalMortalites = createSelector(
+  [selectStatistiquesMortalite],
+  (statistiques) => {
+    const total = statistiques?.total_morts || 0;
+    console.log('🔍 [selectNombreTotalMortalites] Statistiques:', {
+      statistiques,
+      total_morts: statistiques?.total_morts,
+      retour: total
+    });
+    return total;
+  }
+);
+
 // Sélecteurs pour le loading et l'erreur
 export const selectMortalitesLoading = createSelector(
   [selectMortalitesState],

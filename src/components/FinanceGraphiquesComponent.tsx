@@ -33,10 +33,8 @@ import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { format, subMonths, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import PriceConfigCard from './finance/PriceConfigCard';
 import LivestockStatsCard from './finance/LivestockStatsCard';
-import ProjectedRevenueCard from './finance/ProjectedRevenueCard';
-import ComparisonCard from './finance/ComparisonCard';
+import RevenueProjectionsCard from './finance/RevenueProjectionsCard';
 // OpexCapexChart déplacé dans FinanceBilanComptableComponent
 import { exportFinancePDF } from '../services/pdf/financePDF';
 
@@ -612,20 +610,11 @@ export default function FinanceGraphiquesComponent() {
           })()}
         </Animated.View>
 
-        {/* Configuration des prix de vente */}
-        <PriceConfigCard onPriceUpdate={handlePriceUpdate} />
-
         {/* Statistiques du cheptel actif */}
         <LivestockStatsCard />
 
-        {/* Revenus prévisionnels */}
-        <View style={styles.previsionnelsContainer}>
-          <ProjectedRevenueCard type="vif" />
-          <ProjectedRevenueCard type="carcasse" />
-        </View>
-
-        {/* Comparaison des options et recommandations */}
-        <ComparisonCard />
+        {/* Projections de revenus (Config + VIF + Carcasse + Comparaison) */}
+        <RevenueProjectionsCard onPriceUpdate={handlePriceUpdate} />
 
         {/* Graphique Planifié vs Réel */}
         <View style={[styles.chartSection, { backgroundColor: colors.surface }]}>

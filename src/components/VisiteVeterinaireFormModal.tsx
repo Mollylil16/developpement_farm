@@ -171,8 +171,9 @@ export default function VisiteVeterinaireFormModal({ visible, onClose, visite }:
       title={isEditing ? 'Modifier la visite' : 'Nouvelle visite vétérinaire'}
       enableShakeToCancel={true}
       showButtons={false}
+      scrollEnabled={true}
     >
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <>
         {error && (
           <View style={[styles.errorContainer, { backgroundColor: colors.error + '20' }]}>
             <Ionicons name="alert-circle" size={20} color={colors.error} />
@@ -413,14 +414,14 @@ export default function VisiteVeterinaireFormModal({ visible, onClose, visite }:
             </Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      </>
     </CustomModal>
   );
 }
 
 const styles = StyleSheet.create({
   scrollView: {
-    flex: 1,
+    maxHeight: 500,
   },
   errorContainer: {
     flexDirection: 'row',

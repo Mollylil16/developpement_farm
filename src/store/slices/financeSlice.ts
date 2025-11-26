@@ -152,11 +152,14 @@ export const loadDepensesPonctuelles = createAsyncThunk(
   'finance/loadDepensesPonctuelles',
   async (projetId: string, { rejectWithValue }) => {
     try {
+      console.log(`🔄 [financeSlice] loadDepensesPonctuelles appelé pour projetId: ${projetId}`);
       const db = await getDatabase();
       const depenseRepo = new DepensePonctuelleRepository(db);
       const depenses = await depenseRepo.findByProjet(projetId);
+      console.log(`✅ [financeSlice] ${depenses.length} dépenses chargées depuis la DB`);
       return depenses;
     } catch (error: any) {
+      console.error(`❌ [financeSlice] Erreur lors du chargement des dépenses:`, error);
       return rejectWithValue(error.message || 'Erreur lors du chargement des dépenses');
     }
   }
@@ -212,11 +215,14 @@ export const loadRevenus = createAsyncThunk(
   'finance/loadRevenus',
   async (projetId: string, { rejectWithValue }) => {
     try {
+      console.log(`🔄 [financeSlice] loadRevenus appelé pour projetId: ${projetId}`);
       const db = await getDatabase();
       const revenuRepo = new RevenuRepository(db);
       const revenus = await revenuRepo.findByProjet(projetId);
+      console.log(`✅ [financeSlice] ${revenus.length} revenus chargés depuis la DB`);
       return revenus;
     } catch (error: any) {
+      console.error(`❌ [financeSlice] Erreur lors du chargement des revenus:`, error);
       return rejectWithValue(error.message || 'Erreur lors du chargement des revenus');
     }
   }
@@ -474,12 +480,14 @@ const financeSlice = createSlice({
       })
       .addCase(loadDepensesPonctuelles.fulfilled, (state, action) => {
         state.loading = false;
+        console.log(`📦 [financeSlice] Stockage de ${action.payload.length} dépenses dans Redux`);
         const normalized = normalizeDepensesPonctuelles(action.payload);
         state.entities.depensesPonctuelles = {
           ...state.entities.depensesPonctuelles,
           ...normalized.entities.depensesPonctuelles,
         };
         state.ids.depensesPonctuelles = normalized.result;
+        console.log(`✅ [financeSlice] State Redux mis à jour: ${state.ids.depensesPonctuelles.length} dépenses`);
       })
       .addCase(loadDepensesPonctuelles.rejected, (state, action) => {
         state.loading = false;
@@ -526,9 +534,11 @@ const financeSlice = createSlice({
       })
       .addCase(loadRevenus.fulfilled, (state, action) => {
         state.loading = false;
+        console.log(`📦 [financeSlice] Stockage de ${action.payload.length} revenus dans Redux`);
         const normalized = normalizeRevenus(action.payload);
         state.entities.revenus = { ...state.entities.revenus, ...normalized.entities.revenus };
         state.ids.revenus = normalized.result;
+        console.log(`✅ [financeSlice] State Redux mis à jour: ${state.ids.revenus.length} revenus`);
       })
       .addCase(loadRevenus.rejected, (state, action) => {
         state.loading = false;

@@ -304,12 +304,9 @@ export default function VaccinationFormModalNew({
       onClose={onClose}
       title="Ajouter une vaccination"
       showButtons={false}
+      scrollEnabled={true}
     >
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
+      <>
         {/* Type de prophylaxie (lecture seule) */}
         <View style={styles.section}>
           <Text style={[styles.label, { color: colors.text }]}>Type de traitement</Text>
@@ -657,18 +654,12 @@ export default function VaccinationFormModalNew({
         </View>
 
         <View style={{ height: 32 }} />
-      </ScrollView>
+      </>
     </CustomModal>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    paddingBottom: 16,
-  },
   section: {
     marginBottom: 20,
   },

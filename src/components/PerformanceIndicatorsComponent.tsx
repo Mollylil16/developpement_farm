@@ -1,5 +1,6 @@
 /**
- * Composant indicateurs de performance avec calcul du coût de production
+ * Composant indicateurs de performance avec calcul du coût de production GLOBAL
+ * Utilise PerformanceGlobaleService pour des calculs harmonisés avec le Dashboard
  */
 
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
@@ -40,6 +41,8 @@ import LoadingSpinner from './LoadingSpinner';
 import { parseISO, differenceInMonths, differenceInDays, isAfter, isBefore } from 'date-fns';
 import { calculatePoidsTotalAnimauxActifs } from '../utils/animalUtils';
 import { exportRapportCompletPDF } from '../services/pdf/rapportCompletPDF';
+import { getDatabase } from '../services/database';
+import PerformanceGlobaleService from '../services/PerformanceGlobaleService';
 
 const areIndicatorsEqual = (
   a: IndicateursPerformance | null | undefined,
@@ -79,6 +82,7 @@ export default function PerformanceIndicatorsComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const [exportingPDF, setExportingPDF] = useState(false);
+  const [performanceGlobale, setPerformanceGlobale] = useState<any>(null);
   const { projetActif } = useAppSelector((state) => state.projet);
   const chargesFixes: ChargeFixe[] = useAppSelector(selectAllChargesFixes);
   const depensesPonctuelles: DepensePonctuelle[] = useAppSelector(selectAllDepensesPonctuelles);
@@ -94,6 +98,30 @@ export default function PerformanceIndicatorsComponent() {
   // Utiliser useRef pour tracker les chargements et éviter les boucles
   const aChargeRef = useRef<string | null>(null);
   const animauxChargesRef = useRef<Set<string>>(new Set());
+
+  // Charger la performance globale (coût de production global)
+  useEffect(() => {
+    if (!projetActif) {
+      setPerformanceGlobale(null);
+      return;
+    }
+
+    const loadPerformance = async () => {
+      try {
+        const db = await getDatabase();
+        PerformanceGlobaleService.setDatabase(db);
+        const result = await PerformanceGlobaleService.calculatePerformanceGlobale(
+          projetActif.id,
+          projetActif
+        );
+        setPerformanceGlobale(result);
+      } catch (error) {
+        console.error('Erreur chargement performance globale:', error);
+      }
+    };
+
+    loadPerformance();
+  }, [projetActif?.id]);
 
   // Charger les animaux de production et leurs pesées (une seule fois par projet)
   useEffect(() => {
@@ -761,17 +789,112 @@ export default function PerformanceIndicatorsComponent() {
               />
             </View>
 
-            {/* Coût de production */}
+            {/* Coût de production GLOBAL */}
             <View style={styles.costSection}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Coût de Production</Text>
-              <View style={[styles.costCard, { backgroundColor: colors.surface }]}>
-                <Text style={[styles.costLabel, { color: colors.textSecondary }]}>
-                  Coût par kilogramme:
-                </Text>
-                <Text style={[styles.costValue, { color: colors.text }]}>
-                  {formatAmount(calculatedIndicators.cout_production_kg)}
-                </Text>
-              </View>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                Coût de Production Global
+              </Text>
+              {performanceGlobale ? (
+                <>
+                  <View style={[styles.costCard, { backgroundColor: colors.surface }]}>
+                    <Text style={[styles.costLabel, { color: colors.textSecondary }]}>
+                      Coût OPEX par kilogramme:
+                    </Text>
+                    <Text style={[styles.costValue, { color: colors.text }]}>
+                      {formatAmount(performanceGlobale.cout_kg_opex_global)}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.costCard,
+                      { backgroundColor: colors.surface, marginTop: SPACING.md },
+                    ]}
+                  >
+                    <Text style={[styles.costLabel, { color: colors.textSecondary }]}>
+                      Prix du marché (kg carcasse):
+                    </Text>
+                    <Text style={[styles.costValue, { color: colors.primary }]}>
+                      {formatAmount(performanceGlobale.prix_kg_marche)}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.costCard,
+                      {
+                        backgroundColor:
+                          performanceGlobale.statut === 'rentable'
+                            ? colors.success + '15'
+                            : performanceGlobale.statut === 'fragile'
+                            ? colors.warning + '15'
+                            : colors.error + '15',
+                        marginTop: SPACING.md,
+                        borderWidth: 2,
+                        borderColor:
+                          performanceGlobale.statut === 'rentable'
+                            ? colors.success
+                            : performanceGlobale.statut === 'fragile'
+                            ? colors.warning
+                            : colors.error,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.costLabel, { color: colors.textSecondary }]}>
+                      Écart (Prix - Coût):
+                    </Text>
+                    <Text
+                      style={[
+                        styles.costValue,
+                        {
+                          color:
+                            performanceGlobale.statut === 'rentable'
+                              ? colors.success
+                              : performanceGlobale.statut === 'fragile'
+                              ? colors.warning
+                              : colors.error,
+                        },
+                      ]}
+                    >
+                      {performanceGlobale.ecart_absolu >= 0 ? '+' : ''}
+                      {formatAmount(performanceGlobale.ecart_absolu)}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.costLabel,
+                        {
+                          color:
+                            performanceGlobale.statut === 'rentable'
+                              ? colors.success
+                              : performanceGlobale.statut === 'fragile'
+                              ? colors.warning
+                              : colors.error,
+                        },
+                      ]}
+                    >
+                      ({performanceGlobale.ecart_pourcentage >= 0 ? '+' : ''}
+                      {performanceGlobale.ecart_pourcentage.toFixed(1)}%)
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.diagnosticCard,
+                      { backgroundColor: colors.surface, marginTop: SPACING.md },
+                    ]}
+                  >
+                    <Text style={[styles.costLabel, { color: colors.text, textAlign: 'center' }]}>
+                      {performanceGlobale.message_diagnostic}
+                    </Text>
+                  </View>
+                </>
+              ) : (
+                <View style={[styles.costCard, { backgroundColor: colors.surface }]}>
+                  <Text style={[styles.costLabel, { color: colors.textSecondary }]}>
+                    Coût par kilogramme (ancien calcul):
+                  </Text>
+                  <Text style={[styles.costValue, { color: colors.text }]}>
+                    {formatAmount(calculatedIndicators.cout_production_kg)}
+                  </Text>
+                </View>
+              )}
             </View>
 
             {/* Détails */}
@@ -917,6 +1040,11 @@ const styles = StyleSheet.create({
   costValue: {
     fontSize: FONT_SIZES.xxl,
     fontWeight: 'bold',
+  },
+  diagnosticCard: {
+    padding: SPACING.md,
+    borderRadius: 8,
+    alignItems: 'center',
   },
   detailsSection: {
     padding: SPACING.md,

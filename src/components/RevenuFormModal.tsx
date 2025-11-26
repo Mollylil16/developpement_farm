@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, TextInput, FlatList } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, TextInput, FlatList } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { createRevenu, updateRevenu, calculateAndSaveMargesVente } from '../store/slices/financeSlice';
@@ -305,18 +305,9 @@ export default function RevenuFormModal({
       onConfirm={handleSubmit}
       showButtons={true}
       loading={loading}
+      scrollEnabled={true}
     >
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        nestedScrollEnabled={true}
-        showsVerticalScrollIndicator={true}
-        persistentScrollbar={true}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        bounces={true}
-        scrollEventThrottle={16}
-      >
+      <>
         <FormField
           label="Montant (CFA)"
           value={formData.montant.toString()}
@@ -571,18 +562,12 @@ export default function RevenuFormModal({
             </View>
           )}
         </View>
-      </ScrollView>
+      </>
     </CustomModal>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollView: {
-    maxHeight: 500,
-  },
-  scrollContent: {
-    paddingBottom: SPACING.md,
-  },
   section: {
     marginBottom: SPACING.md,
   },

@@ -93,9 +93,11 @@ export const loadStatistiquesMortalite = createAsyncThunk(
   'mortalites/loadStatistiquesMortalite',
   async (projetId: string, { rejectWithValue }) => {
     try {
+      console.log('🔄 [loadStatistiquesMortalite] Début du chargement pour projet:', projetId);
       const db = await getDatabase();
       const mortaliteRepo = new MortaliteRepository(db);
       const stats = await mortaliteRepo.getStatistiquesMortalite(projetId);
+      console.log('✅ [loadStatistiquesMortalite] Stats retournées:', stats);
       return stats;
     } catch (error: any) {
       console.error('❌ Erreur chargement statistiques mortalité:', error);
@@ -200,6 +202,7 @@ const mortalitesSlice = createSlice({
       .addCase(loadStatistiquesMortalite.fulfilled, (state, action) => {
         state.loading = false;
         state.statistiques = action.payload;
+        console.log('📊 [mortalitesSlice] Statistiques chargées:', action.payload);
       })
       .addCase(loadStatistiquesMortalite.rejected, (state, action) => {
         state.loading = false;

@@ -14,6 +14,7 @@ import {
   selectNombreAlertesCritiques,
   selectSanteLoading,
 } from '../../store/selectors/santeSelectors';
+import { selectNombreTotalMortalites } from '../../store/selectors/mortalitesSelectors';
 
 interface Props {
   onPress?: () => void;
@@ -26,7 +27,19 @@ export default function SanteWidget({ onPress }: Props) {
   const maladiesEnCours = useAppSelector(selectNombreMaladiesEnCours);
   const traitementsEnCours = useAppSelector(selectNombreTraitementsEnCours);
   const alertesCritiques = useAppSelector(selectNombreAlertesCritiques);
+  const totalMortalites = useAppSelector(selectNombreTotalMortalites);
   const loading = useAppSelector(selectSanteLoading);
+
+  // Log pour déboguer
+  React.useEffect(() => {
+    console.log('🏥 [SanteWidget] Stats:', {
+      vaccinations: vaccinationsEnRetard,
+      maladies: maladiesEnCours,
+      mortalites: totalMortalites,
+      traitements: traitementsEnCours,
+      alertes: alertesCritiques,
+    });
+  }, [vaccinationsEnRetard, maladiesEnCours, totalMortalites, traitementsEnCours, alertesCritiques]);
 
   const hasAlertes = vaccinationsEnRetard > 0 || alertesCritiques > 0;
 
@@ -84,24 +97,67 @@ export default function SanteWidget({ onPress }: Props) {
           </View>
 
           {/* Maladies */}
-          {maladiesEnCours > 0 && (
-            <View style={styles.stat}>
-              <Ionicons name="bug-outline" size={18} color={colors.warning} />
-              <Text style={[styles.statText, { color: colors.warning }]}>
-                {maladiesEnCours} maladie(s) en cours
-              </Text>
-            </View>
-          )}
+          <View style={styles.stat}>
+            <Ionicons
+              name="bug-outline"
+              size={18}
+              color={maladiesEnCours > 0 ? colors.warning : colors.textSecondary}
+            />
+            <Text
+              style={[
+                styles.statText,
+                {
+                  color: maladiesEnCours > 0 ? colors.warning : colors.textSecondary,
+                },
+              ]}
+            >
+              {maladiesEnCours > 0
+                ? `${maladiesEnCours} maladie(s) en cours`
+                : '0 maladie'}
+            </Text>
+          </View>
+
+          {/* Mortalités */}
+          <View style={styles.stat}>
+            <Ionicons
+              name="skull-outline"
+              size={18}
+              color={totalMortalites > 0 ? colors.error : colors.textSecondary}
+            />
+            <Text
+              style={[
+                styles.statText,
+                {
+                  color: totalMortalites > 0 ? colors.error : colors.textSecondary,
+                },
+              ]}
+            >
+              {totalMortalites > 0
+                ? `${totalMortalites} mortalité(s)`
+                : '0 mortalité'}
+            </Text>
+          </View>
 
           {/* Traitements */}
-          {traitementsEnCours > 0 && (
-            <View style={styles.stat}>
-              <Ionicons name="bandage-outline" size={18} color={colors.info} />
-              <Text style={[styles.statText, { color: colors.info }]}>
-                {traitementsEnCours} traitement(s) actif(s)
-              </Text>
-            </View>
-          )}
+          <View style={styles.stat}>
+            <Ionicons
+              name="bandage-outline"
+              size={18}
+              color={traitementsEnCours > 0 ? colors.info : colors.textSecondary}
+            />
+            <Text
+              style={[
+                styles.statText,
+                {
+                  color: traitementsEnCours > 0 ? colors.info : colors.textSecondary,
+                },
+              ]}
+            >
+              {traitementsEnCours > 0
+                ? `${traitementsEnCours} traitement(s) actif(s)`
+                : '0 traitement'}
+            </Text>
+          </View>
 
           {/* Alertes critiques */}
           {alertesCritiques > 0 && (
@@ -117,11 +173,12 @@ export default function SanteWidget({ onPress }: Props) {
           {maladiesEnCours === 0 &&
             traitementsEnCours === 0 &&
             vaccinationsEnRetard === 0 &&
-            alertesCritiques === 0 && (
+            alertesCritiques === 0 &&
+            totalMortalites === 0 && (
               <View style={styles.stat}>
                 <Ionicons name="checkmark-circle-outline" size={18} color={colors.success} />
                 <Text style={[styles.statText, { color: colors.success }]}>
-                  Cheptel en bonne santé
+                  ✅ Excellent état sanitaire
                 </Text>
               </View>
             )}

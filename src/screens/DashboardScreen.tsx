@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppSelector } from '../store/hooks';
 import { useNavigation } from '@react-navigation/native';
+import type { NavigationProp } from '@react-navigation/native';
 import { format } from 'date-fns';
 import { useTheme } from '../contexts/ThemeContext';
 import { usePermissions } from '../hooks/usePermissions';
@@ -38,9 +39,19 @@ import AlertesWidget from '../components/AlertesWidget';
 import GlobalSearchModal from '../components/GlobalSearchModal';
 import InvitationsModal from '../components/InvitationsModal';
 
+// Type pour la navigation - définit toutes les routes possibles
+type RootStackParamList = {
+  [SCREENS.PROFIL]: undefined;
+  [SCREENS.WELCOME]: undefined;
+  [SCREENS.AUTH]: undefined;
+  [SCREENS.CREATE_PROJECT]: undefined;
+  [SCREENS.ADMIN]: undefined;
+  Main: { screen?: string };
+};
+
 export default function DashboardScreen() {
   const { colors } = useTheme();
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   
   // Redux State
   const { projetActif, loading } = useAppSelector((state) => state.projet);
@@ -86,6 +97,9 @@ export default function DashboardScreen() {
     if (hasPermission('sante')) {
       widgets.push({ type: 'sante', screen: SCREENS.SANTE });
     }
+    // Production juste après Santé
+    widgets.push({ type: 'production', screen: SCREENS.PRODUCTION });
+    
     if (hasPermission('nutrition')) {
       widgets.push({ type: 'nutrition', screen: SCREENS.NUTRITION });
     }
@@ -95,7 +109,6 @@ export default function DashboardScreen() {
     if (isProprietaire) {
       widgets.push({ type: 'collaboration', screen: SCREENS.COLLABORATION });
     }
-    widgets.push({ type: 'production', screen: SCREENS.PRODUCTION });
 
     return widgets;
   }, [hasPermission, isProprietaire]);

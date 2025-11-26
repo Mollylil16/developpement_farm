@@ -19,8 +19,8 @@ export default function ProductionScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
       <Tab.Navigator
-        lazy={true}
         screenOptions={{
+          lazy: true,
           tabBarActiveTintColor: colors.primary,
           tabBarInactiveTintColor: colors.textSecondary,
           tabBarIndicatorStyle: {

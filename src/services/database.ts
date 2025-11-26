@@ -1209,18 +1209,46 @@ class DatabaseService {
             );
           `);
 
-          await this.db.execAsync(`
-            INSERT INTO production_animaux (
-              id, projet_id, code, nom, origine, sexe, date_naissance, poids_initial, 
-              date_entree, actif, statut, race, reproducteur, pere_id, mere_id, notes,
-              date_creation, derniere_modification
-            )
-            SELECT 
-              id, projet_id, code, nom, origine, sexe, date_naissance, poids_initial,
-              date_entree, actif, statut, race, reproducteur, pere_id, mere_id, notes,
-              date_creation, derniere_modification
-            FROM production_animaux_old;
-          `);
+          // Vérifier si photo_uri existe dans l'ancienne table
+          let hasPhotoUri = false;
+          try {
+            const columns = await this.db.getAllAsync<{ name: string }>(
+              "PRAGMA table_info(production_animaux_old)"
+            );
+            hasPhotoUri = columns.some(col => col.name === 'photo_uri');
+          } catch (e) {
+            console.log('Vérification colonne photo_uri:', e);
+          }
+
+          if (hasPhotoUri) {
+            // Si photo_uri existe, la copier
+            await this.db.execAsync(`
+              INSERT INTO production_animaux (
+                id, projet_id, code, nom, origine, sexe, date_naissance, poids_initial, 
+                date_entree, actif, statut, race, reproducteur, pere_id, mere_id, notes,
+                photo_uri, date_creation, derniere_modification
+              )
+              SELECT 
+                id, projet_id, code, nom, origine, sexe, date_naissance, poids_initial,
+                date_entree, actif, statut, race, reproducteur, pere_id, mere_id, notes,
+                photo_uri, date_creation, derniere_modification
+              FROM production_animaux_old;
+            `);
+          } else {
+            // Sinon, ignorer photo_uri (sera NULL)
+            await this.db.execAsync(`
+              INSERT INTO production_animaux (
+                id, projet_id, code, nom, origine, sexe, date_naissance, poids_initial, 
+                date_entree, actif, statut, race, reproducteur, pere_id, mere_id, notes,
+                date_creation, derniere_modification
+              )
+              SELECT 
+                id, projet_id, code, nom, origine, sexe, date_naissance, poids_initial,
+                date_entree, actif, statut, race, reproducteur, pere_id, mere_id, notes,
+                date_creation, derniere_modification
+              FROM production_animaux_old;
+            `);
+          }
 
           await this.db.execAsync(`DROP TABLE IF EXISTS production_animaux_old;`);
           
@@ -1234,6 +1262,31 @@ class DatabaseService {
       } catch (error: any) {
         console.warn(
           'Erreur lors de la migration production_animaux statut:',
+          error?.message || error
+        );
+      }
+
+      // Migration: Ajouter la colonne photo_uri si elle n'existe pas
+      try {
+        console.log('🔄 Vérification colonne photo_uri dans production_animaux...');
+        const columns = await this.db.getAllAsync<{ name: string }>(
+          "PRAGMA table_info(production_animaux)"
+        );
+        const hasPhotoUri = columns.some(col => col.name === 'photo_uri');
+        
+        if (!hasPhotoUri) {
+          console.log('➕ Ajout de la colonne photo_uri...');
+          await this.db.execAsync(`
+            ALTER TABLE production_animaux 
+            ADD COLUMN photo_uri TEXT;
+          `);
+          console.log('✅ Colonne photo_uri ajoutée avec succès');
+        } else {
+          console.log('✅ Colonne photo_uri existe déjà');
+        }
+      } catch (error: any) {
+        console.warn(
+          'Erreur lors de la migration photo_uri:',
           error?.message || error
         );
       }

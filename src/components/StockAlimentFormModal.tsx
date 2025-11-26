@@ -266,8 +266,9 @@ export default function StockAlimentFormModal({
       onClose={onClose}
       title={isEditing ? 'Modifier un aliment' : 'Nouvel aliment'}
       showButtons={false}
+      scrollEnabled={true}
     >
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+      <>
         <FormField
           label="Nom de l'aliment"
           value={formData.nom}
@@ -658,7 +659,7 @@ export default function StockAlimentFormModal({
           loading={loading}
           variant="primary"
         />
-      </ScrollView>
+      </>
     </CustomModal>
   );
 }

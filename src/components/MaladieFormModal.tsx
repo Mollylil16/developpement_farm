@@ -7,7 +7,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   TextInput,
   Platform,
@@ -221,8 +220,9 @@ export default function MaladieFormModal({ visible, onClose, maladie, animalId }
       title={isEditing ? 'Modifier la maladie' : 'Nouvelle maladie'}
       enableShakeToCancel={true}
       showButtons={false}
+      scrollEnabled={true}
     >
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <>
         {error && (
           <View style={[styles.errorContainer, { backgroundColor: colors.error + '20' }]}>
             <Ionicons name="alert-circle" size={20} color={colors.error} />
@@ -463,15 +463,12 @@ export default function MaladieFormModal({ visible, onClose, maladie, animalId }
             </Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      </>
     </CustomModal>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollView: {
-    flex: 1,
-  },
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',

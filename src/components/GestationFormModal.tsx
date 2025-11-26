@@ -451,12 +451,9 @@ export default function GestationFormModal({
         confirmText={isEditing ? 'Modifier' : 'Créer'}
         onConfirm={handleSubmit}
         showButtons={true}
+        scrollEnabled={true}
       >
-        <ScrollView
-          style={styles.scrollView}
-          showsVerticalScrollIndicator={true}
-          nestedScrollEnabled={true}
-        >
+        <>
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Truie *</Text>
 
@@ -931,7 +928,7 @@ export default function GestationFormModal({
             multiline
             numberOfLines={4}
           />
-        </ScrollView>
+        </>
       </CustomModal>
     </>
   );

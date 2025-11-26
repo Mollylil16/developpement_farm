@@ -7,7 +7,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   Alert,
   Platform,
@@ -137,17 +136,9 @@ export default function ProductionPeseeFormModal({
       onConfirm={handleSubmit}
       showButtons={true}
       loading={loading}
+      scrollEnabled={true}
     >
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={{ paddingBottom: SPACING.md }}
-        showsVerticalScrollIndicator={true}
-        persistentScrollbar={true}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        bounces={true}
-        scrollEventThrottle={16}
-      >
+      <>
         <View style={[styles.infoBox, { backgroundColor: colors.surfaceVariant }]}>
           <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Animal:</Text>
           <Text style={[styles.infoValue, { color: colors.primary }]}>
@@ -211,15 +202,12 @@ export default function ProductionPeseeFormModal({
           multiline
           numberOfLines={3}
         />
-      </ScrollView>
+      </>
     </CustomModal>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollView: {
-    maxHeight: 500,
-  },
   infoBox: {
     padding: SPACING.md,
     borderRadius: BORDER_RADIUS.md,

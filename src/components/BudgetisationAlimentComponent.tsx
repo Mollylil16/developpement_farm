@@ -756,7 +756,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollView: {
-    flex: 1,
+    maxHeight: 500,
   },
   scrollContent: {
     padding: SPACING.md,

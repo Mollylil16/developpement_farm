@@ -42,7 +42,12 @@ export class RevenuRepository extends BaseRepository<Revenu> {
    * Surcharge de findAll pour parser les photos
    */
   async findAll(projetId?: string): Promise<Revenu[]> {
+    console.log(`🔍 [RevenuRepository] findAll appelé pour projetId: ${projetId}`);
     const rows = await super.findAll(projetId);
+    console.log(`📊 [RevenuRepository] ${rows.length} revenus trouvés dans la DB`);
+    if (rows.length > 0) {
+      console.log(`📋 [RevenuRepository] Premier revenu:`, rows[0]);
+    }
     return rows.map(row => ({
       ...row,
       photos: this.parsePhotos((row as any).photos)
@@ -61,9 +66,19 @@ export class RevenuRepository extends BaseRepository<Revenu> {
     };
   }
 
+  /**
+   * Récupérer tous les revenus d'un projet
+   */
+  async findByProjet(projetId: string): Promise<Revenu[]> {
+    console.log(`🔍 [RevenuRepository] findByProjet appelé pour projetId: ${projetId}`);
+    return this.findAll(projetId);
+  }
+
   async create(data: Partial<Revenu>): Promise<Revenu> {
     const id = uuid.v4().toString();
     const now = new Date().toISOString();
+
+    console.log(`💰 [RevenuRepository] Création d'un revenu pour projet: ${data.projet_id}, montant: ${data.montant}`);
 
     await this.execute(
       `INSERT INTO revenus (
@@ -92,6 +107,7 @@ export class RevenuRepository extends BaseRepository<Revenu> {
     if (!created) {
       throw new Error('Impossible de créer le revenu');
     }
+    console.log(`✅ [RevenuRepository] Revenu créé avec succès, ID: ${id}`);
     return created;
   }
 
@@ -231,7 +247,12 @@ export class DepensePonctuelleRepository extends BaseRepository<DepensePonctuell
    * Surcharge de findAll pour parser les photos
    */
   async findAll(projetId?: string): Promise<DepensePonctuelle[]> {
+    console.log(`🔍 [DepensePonctuelleRepository] findAll appelé pour projetId: ${projetId}`);
     const rows = await super.findAll(projetId);
+    console.log(`📊 [DepensePonctuelleRepository] ${rows.length} dépenses trouvées dans la DB`);
+    if (rows.length > 0) {
+      console.log(`📋 [DepensePonctuelleRepository] Première dépense:`, rows[0]);
+    }
     return rows.map(row => ({
       ...row,
       photos: this.parsePhotos((row as any).photos)
@@ -250,9 +271,19 @@ export class DepensePonctuelleRepository extends BaseRepository<DepensePonctuell
     };
   }
 
+  /**
+   * Récupérer toutes les dépenses d'un projet
+   */
+  async findByProjet(projetId: string): Promise<DepensePonctuelle[]> {
+    console.log(`🔍 [DepensePonctuelleRepository] findByProjet appelé pour projetId: ${projetId}`);
+    return this.findAll(projetId);
+  }
+
   async create(data: Partial<DepensePonctuelle>): Promise<DepensePonctuelle> {
     const id = uuid.v4().toString();
     const now = new Date().toISOString();
+
+    console.log(`💸 [DepensePonctuelleRepository] Création d'une dépense pour projet: ${data.projet_id}, montant: ${data.montant}`);
 
     await this.execute(
       `INSERT INTO depenses_ponctuelles (
@@ -277,6 +308,7 @@ export class DepensePonctuelleRepository extends BaseRepository<DepensePonctuell
     if (!created) {
       throw new Error('Impossible de créer la dépense');
     }
+    console.log(`✅ [DepensePonctuelleRepository] Dépense créée avec succès, ID: ${id}`);
     return created;
   }
 

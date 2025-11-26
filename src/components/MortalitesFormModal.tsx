@@ -213,19 +213,11 @@ export default function MortalitesFormModal({
       onConfirm={handleSubmit}
       showButtons={true}
       loading={loading}
+      scrollEnabled={true}
     >
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={{ paddingBottom: SPACING.md }}
-        showsVerticalScrollIndicator={true}
-        persistentScrollbar={true}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        bounces={true}
-        scrollEventThrottle={16}
-      >
+      <>
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Informations</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Informations</Text>
 
           <FormField
             label="Nombre de porcs"
@@ -349,7 +341,7 @@ export default function MortalitesFormModal({
             multiline
           />
         </View>
-      </ScrollView>
+      </>
 
       {/* Modal de sélection de l'animal */}
       <CustomModal
@@ -360,16 +352,9 @@ export default function MortalitesFormModal({
         }}
         title="Sélectionner le sujet"
         showButtons={false}
+        scrollEnabled={true}
       >
-        <ScrollView 
-          style={styles.modalScroll}
-          showsVerticalScrollIndicator={true}
-          persistentScrollbar={true}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          bounces={true}
-          scrollEventThrottle={16}
-        >
+        <>
           <View style={styles.inputContainer}>
             <Text style={[styles.inputLabel, { color: colors.text }]}>Rechercher un sujet</Text>
             <TextInput
@@ -463,7 +448,7 @@ export default function MortalitesFormModal({
               );
             })
           )}
-        </ScrollView>
+        </>
       </CustomModal>
     </CustomModal>
   );
