@@ -171,6 +171,12 @@ export default function DepenseFormModal({
       return;
     }
 
+    // Validation projet actif AVANT setLoading
+    if (!isEditing && !projetActif) {
+      Alert.alert('Erreur', 'Aucun projet actif');
+      return;
+    }
+
     setLoading(true);
     try {
       if (isEditing && depense) {
@@ -188,17 +194,20 @@ export default function DepenseFormModal({
           })
         ).unwrap();
       } else {
-        if (!projetActif) {
-          Alert.alert('Erreur', 'Aucun projet actif');
-          return;
-        }
         await dispatch(
-          createDepensePonctuelle({ ...formData, projet_id: projetActif.id })
+          createDepensePonctuelle({ ...formData, projet_id: projetActif!.id })
         ).unwrap();
       }
-      onSuccess();
+      
+      // Succès : fermer le modal puis appeler callback
+      onClose();
+      setTimeout(() => {
+        onSuccess();
+      }, 300); // Délai pour animation de fermeture
     } catch (error: any) {
-      Alert.alert('Erreur', error || "Erreur lors de l'enregistrement");
+      // Afficher le message d'erreur correct
+      const errorMessage = error?.message || error?.toString() || "Erreur lors de l'enregistrement";
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setLoading(false);
     }
