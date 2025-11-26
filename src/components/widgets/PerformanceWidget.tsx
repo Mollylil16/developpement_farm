@@ -9,6 +9,7 @@ import { useAppSelector } from '../../store/hooks';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
+import type { PerformanceGlobale } from '../../services/PerformanceGlobaleService';
 
 interface PerformanceWidgetProps {
   projetId: string;
@@ -20,7 +21,7 @@ function PerformanceWidget({ projetId, onPress }: PerformanceWidgetProps) {
   const { projetActif } = useAppSelector((state) => state.projet);
 
   const [loading, setLoading] = useState(true);
-  const [performance, setPerformance] = useState<any>(null);
+  const [performance, setPerformance] = useState<PerformanceGlobale | null>(null);
 
   useEffect(() => {
     // Chargement différé pour éviter les erreurs au démarrage
