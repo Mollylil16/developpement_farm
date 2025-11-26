@@ -29,6 +29,16 @@ export { MortaliteRepository } from './MortaliteRepository';
 // Nutrition
 export { StockRepository } from './StockRepository';
 
+// Marketplace Repositories
+export { MarketplaceListingRepository } from './MarketplaceListingRepository';
+export {
+  MarketplaceOfferRepository,
+  MarketplaceTransactionRepository,
+  MarketplaceRatingRepository,
+  MarketplaceNotificationRepository,
+  MarketplaceChatRepository,
+} from './MarketplaceRepositories';
+
 // À ajouter si nécessaire :
 // export { TraitementRepository } from './TraitementRepository';
 // export { MaladieRepository } from './MaladieRepository';
