@@ -374,6 +374,13 @@ export class MarketplaceNotificationRepository extends BaseRepository<Notificati
     );
   }
 
+  async delete(id: string): Promise<void> {
+    await this.db.runAsync(
+      `DELETE FROM ${this.tableName} WHERE id = ?`,
+      [id]
+    );
+  }
+
   private mapRow(row: any): Notification {
     return {
       id: row.id,
@@ -381,6 +388,7 @@ export class MarketplaceNotificationRepository extends BaseRepository<Notificati
       type: row.type,
       title: row.title,
       message: row.message,
+      body: row.message, // Alias pour compatibilité UI
       relatedId: row.related_id,
       relatedType: row.related_type,
       read: Boolean(row.read),
@@ -446,6 +454,13 @@ export class MarketplaceChatRepository extends BaseRepository<ChatConversation> 
     const id = uuid.v4() as string;
     const now = new Date().toISOString();
 
+    // Préparer les métadonnées incluant priceProposal si présent
+    const metadataJson = data.priceProposal 
+      ? JSON.stringify({ proposedPrice: data.priceProposal })
+      : data.attachments 
+      ? JSON.stringify({ attachments: data.attachments })
+      : null;
+
     await this.db.runAsync(
       `INSERT INTO marketplace_messages (
         id, conversation_id, sender_id, recipient_id,
@@ -456,9 +471,9 @@ export class MarketplaceChatRepository extends BaseRepository<ChatConversation> 
         data.conversationId,
         data.senderId,
         data.recipientId,
-        data.message,
-        data.messageType || 'text',
-        data.metadata ? JSON.stringify(data.metadata) : null,
+        data.content,
+        data.type || 'text',
+        metadataJson,
         now,
       ]
     );
@@ -466,12 +481,20 @@ export class MarketplaceChatRepository extends BaseRepository<ChatConversation> 
     // Mettre à jour la conversation
     await this.db.runAsync(
       `UPDATE marketplace_conversations SET last_message = ?, last_message_at = ? WHERE id = ?`,
-      [data.message, now, data.conversationId]
+      [data.content, now, data.conversationId]
     );
 
     const message = await this.findMessageById(id);
     if (!message) throw new Error('Failed to create message');
     return message;
+  }
+
+  // Méthode helper pour mettre à jour la conversation
+  async updateConversationLastMessage(conversationId: string, message: ChatMessage): Promise<void> {
+    await this.db.runAsync(
+      `UPDATE marketplace_conversations SET last_message = ?, last_message_at = ? WHERE id = ?`,
+      [message.content, message.createdAt, conversationId]
+    );
   }
 
   async findMessageById(id: string): Promise<ChatMessage | null> {
@@ -505,16 +528,20 @@ export class MarketplaceChatRepository extends BaseRepository<ChatConversation> 
   }
 
   private mapMessageRow(row: any): ChatMessage {
+    const metadata = row.metadata_json ? JSON.parse(row.metadata_json) : undefined;
+    
     return {
       id: row.id,
       conversationId: row.conversation_id,
       senderId: row.sender_id,
       recipientId: row.recipient_id,
-      message: row.message,
-      messageType: row.message_type,
-      metadata: row.metadata_json ? JSON.parse(row.metadata_json) : undefined,
+      content: row.message,
+      type: row.message_type,
+      attachments: metadata?.attachments,
+      priceProposal: metadata?.proposedPrice,
       read: Boolean(row.read),
       readAt: row.read_at,
+      sentAt: row.created_at, // On utilise createdAt comme sentAt
       createdAt: row.created_at,
     };
   }

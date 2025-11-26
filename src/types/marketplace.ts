@@ -111,6 +111,7 @@ export type TransactionStatus =
   | 'confirmed'           // Offre acceptée
   | 'preparing'           // En préparation
   | 'ready_for_delivery'  // Prêt pour livraison
+  | 'pending_delivery'    // Alias pour ready_for_delivery (compatibilité UI)
   | 'in_transit'          // En cours de livraison
   | 'delivered'           // Livré
   | 'completed'           // Terminé (double confirmation)
@@ -228,6 +229,7 @@ export interface Notification {
   type: NotificationType;
   title: string;
   message: string;
+  body?: string;                       // Alias pour message (détails supplémentaires)
   relatedId: string;                  // ID de l'offre, transaction, etc.
   relatedType: NotificationRelatedType;
   read: boolean;
@@ -269,12 +271,12 @@ export type MessageType = 'text' | 'price_proposal' | 'document' | 'action';
 export type MessageActionType = 'confirm_delivery' | 'schedule_delivery';
 
 /**
- * Métadonnées d'un message
+ * Pièce jointe
  */
-export interface MessageMetadata {
-  proposedPrice?: number;
-  documentUrl?: string;
-  actionType?: MessageActionType;
+export interface MessageAttachment {
+  type: 'image' | 'document';
+  url: string;
+  fileName?: string;
 }
 
 /**
@@ -285,11 +287,13 @@ export interface ChatMessage {
   conversationId: string;
   senderId: string;
   recipientId: string;
-  message: string;
-  messageType: MessageType;
-  metadata?: MessageMetadata;
+  content: string;
+  type: MessageType;
+  attachments?: MessageAttachment[];
+  priceProposal?: number;
   read: boolean;
   readAt?: string;
+  sentAt?: string;
   createdAt: string;
 }
 

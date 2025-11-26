@@ -87,10 +87,12 @@ export function useMarketplaceChat(transactionId: string) {
         const newMessage: Omit<ChatMessage, 'id' | 'createdAt'> = {
           conversationId: conversation.id,
           senderId: currentUserId,
+          recipientId: conversation.participants.find(p => p !== currentUserId) || '',
           content: content.trim(),
           type: 'text',
           read: false,
           sentAt: new Date().toISOString(),
+          readAt: undefined,
         };
 
         const createdMessage = await repo.createMessage(newMessage);
@@ -124,10 +126,12 @@ export function useMarketplaceChat(transactionId: string) {
         const newMessage: Omit<ChatMessage, 'id' | 'createdAt'> = {
           conversationId: conversation.id,
           senderId: currentUserId,
+          recipientId: conversation.participants.find(p => p !== currentUserId) || '',
           content: `Nouvelle proposition de prix : ${price.toLocaleString()} FCFA`,
           type: 'price_proposal',
           read: false,
           sentAt: new Date().toISOString(),
+          readAt: undefined,
           priceProposal: price,
         };
 

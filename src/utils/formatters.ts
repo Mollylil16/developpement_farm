@@ -160,9 +160,13 @@ export function calculatePercentage(
 /**
  * Formate une date au format français
  * @param date - Date à formater (string ISO ou Date)
- * @returns Chaîne formatée (ex: "26 nov. 2024")
+ * @param format - Format optionnel: 'HH:mm' pour heure, 'relative' pour relatif
+ * @returns Chaîne formatée (ex: "26 nov. 2024", "14:30", "il y a 2h")
  */
-export function formatDate(date: string | Date | undefined | null): string {
+export function formatDate(
+  date: string | Date | undefined | null,
+  format?: 'HH:mm' | 'relative'
+): string {
   if (!date) {
     return '-';
   }
@@ -174,6 +178,43 @@ export function formatDate(date: string | Date | undefined | null): string {
       return '-';
     }
 
+    // Format heure uniquement
+    if (format === 'HH:mm') {
+      return d.toLocaleTimeString('fr-FR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    }
+
+    // Format relatif (il y a X)
+    if (format === 'relative') {
+      const now = new Date();
+      const diffMs = now.getTime() - d.getTime();
+      const diffSec = Math.floor(diffMs / 1000);
+      const diffMin = Math.floor(diffSec / 60);
+      const diffHour = Math.floor(diffMin / 60);
+      const diffDay = Math.floor(diffHour / 24);
+
+      if (diffSec < 60) {
+        return 'À l\'instant';
+      } else if (diffMin < 60) {
+        return `Il y a ${diffMin} min`;
+      } else if (diffHour < 24) {
+        return `Il y a ${diffHour}h`;
+      } else if (diffDay === 1) {
+        return 'Hier';
+      } else if (diffDay < 7) {
+        return `Il y a ${diffDay}j`;
+      } else {
+        // Plus de 7 jours, afficher la date
+        return new Intl.DateTimeFormat('fr-FR', {
+          day: '2-digit',
+          month: 'short',
+        }).format(d);
+      }
+    }
+
+    // Format par défaut
     return new Intl.DateTimeFormat('fr-FR', {
       day: '2-digit',
       month: 'short',
