@@ -1563,6 +1563,30 @@ class DatabaseService {
         console.warn('⚠️  Erreur lors de l\'ajout des colonnes de marge dans revenus:', error?.message || error);
         // La migration échoue silencieusement pour ne pas bloquer l'app
       }
+
+      // ============================================
+      // Migration: Création des tables Marketplace
+      // ============================================
+      try {
+        const { createMarketplaceTables } = 
+          await import('../database/migrations/create_marketplace_tables');
+        
+        // Vérifier si les tables marketplace existent déjà
+        const marketplaceTablesExist = await this.db.getFirstAsync<{ name: string } | null>(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='marketplace_listings'"
+        );
+        
+        if (!marketplaceTablesExist) {
+          console.log('🛍️ [Migration] Création des tables Marketplace...');
+          await createMarketplaceTables(this.db);
+          console.log('✅ [Migration] Tables Marketplace créées avec succès');
+        } else {
+          console.log('ℹ️  Tables Marketplace déjà présentes');
+        }
+      } catch (error: any) {
+        console.warn('⚠️  Erreur lors de la création des tables Marketplace:', error?.message || error);
+        // La migration échoue silencieusement pour ne pas bloquer l'app
+      }
     } catch (error) {
       // Si la migration échoue, on continue quand même
       console.warn('Erreur lors de la migration des tables:', error);
