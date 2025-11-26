@@ -12,8 +12,8 @@ config.resolver.sourceExts = ['js', 'json', 'ts', 'tsx', 'jsx', 'cjs'];
 config.resolver.resolverMainFields = ['react-native', 'browser', 'main'];
 
 // Supprimer les warnings des packages avec exports invalides
-// Force la résolution basée sur les fichiers au lieu des exports package.json
-config.resolver.disableHierarchicalLookup = false;
+// Désactive la résolution via le champ "exports" dans package.json
+// Force Metro à utiliser la résolution classique basée sur les fichiers
 config.resolver.unstable_enablePackageExports = false;
 
 module.exports = config;
