@@ -497,6 +497,14 @@ export class MarketplaceChatRepository extends BaseRepository<ChatConversation> 
     );
   }
 
+  // Marquer un message comme lu
+  async markMessageAsRead(messageId: string): Promise<void> {
+    await this.db.runAsync(
+      `UPDATE marketplace_messages SET read = 1, read_at = ? WHERE id = ?`,
+      [new Date().toISOString(), messageId]
+    );
+  }
+
   async findMessageById(id: string): Promise<ChatMessage | null> {
     const row = await this.db.getFirstAsync<any>(
       `SELECT * FROM marketplace_messages WHERE id = ?`,

@@ -33,31 +33,33 @@ export function useMarketplaceChat(transactionId: string) {
       const db = await getDatabase();
       const repo = new MarketplaceChatRepository(db);
 
-      // Charger la conversation
-      const conv = await repo.findConversationByTransaction(transactionId);
-      setConversation(conv);
+      // Charger toutes les conversations de l'utilisateur
+      const conversations = await repo.findUserConversations(currentUserId);
+      
+      // Trouver la conversation liée à cette transaction (via offerId)
+      const conv = conversations.find(c => c.relatedOfferId === transactionId);
+      setConversation(conv || null);
 
       if (!conv) {
-        // Créer une nouvelle conversation si elle n'existe pas
-        // (normalement créée lors de l'acceptation de l'offre)
+        // Pas de conversation pour cette transaction
         setMessages([]);
         setLoading(false);
         return;
       }
 
       // Charger les messages
-      const chatMessages = await repo.findMessagesByConversation(conv.id);
+      const chatMessages = await repo.findConversationMessages(conv.id);
 
       // Trier par date (plus ancien en premier)
       const sortedMessages = chatMessages.sort(
-        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        (a: ChatMessage, b: ChatMessage) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
       );
 
       setMessages(sortedMessages);
 
       // Marquer les messages de l'autre utilisateur comme lus
       const unreadMessages = sortedMessages.filter(
-        (m) => m.senderId !== currentUserId && !m.read
+        (m: ChatMessage) => m.senderId !== currentUserId && !m.read
       );
 
       for (const message of unreadMessages) {
