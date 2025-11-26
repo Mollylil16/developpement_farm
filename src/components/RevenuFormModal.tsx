@@ -1,8 +1,9 @@
 /**
  * Composant formulaire modal pour revenu avec upload photos
+ * Intègre la validation Yup pour une robustesse maximale
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, TextInput, FlatList } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
@@ -15,6 +16,7 @@ import FormField from './FormField';
 import { SPACING, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useActionPermissions } from '../hooks/useActionPermissions';
+import { revenuSchema, validateWithSchema, validateField } from '../validation/financeSchemas';
 
 interface RevenuFormModalProps {
   visible: boolean;
@@ -45,6 +47,8 @@ export default function RevenuFormModal({
   const [selectedAnimalId, setSelectedAnimalId] = useState<string | undefined>(animalId);
   const [searchAnimalQuery, setSearchAnimalQuery] = useState('');
   const [showAnimalSearch, setShowAnimalSearch] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [formData, setFormData] = useState<
     Omit<CreateRevenuInput, 'projet_id'> & { photos: string[] }
   >({
@@ -56,6 +60,14 @@ export default function RevenuFormModal({
     commentaire: '',
     photos: [],
   });
+
+  // Réinitialiser les erreurs quand le modal se ferme/ouvre
+  useEffect(() => {
+    if (!visible) {
+      setValidationErrors({});
+      setTouched({});
+    }
+  }, [visible]);
 
   useEffect(() => {
     if (revenu && isEditing) {
@@ -85,6 +97,42 @@ export default function RevenuFormModal({
       setPoidsKg(animalPoids ? animalPoids.toString() : '');
     }
   }, [revenu, isEditing, visible, animalId, animalPoids]);
+
+  /**
+   * Validation d'un champ individuel (temps réel)
+   */
+  const validateSingleField = useCallback(
+    async (fieldName: keyof typeof formData, value: any) => {
+      try {
+        const error = await validateField(
+          revenuSchema,
+          fieldName,
+          value,
+          { ...formData, poids_kg: poidsKg ? parseFloat(poidsKg) : null }
+        );
+
+        setValidationErrors((prev) => {
+          const newErrors = { ...prev };
+          if (error) {
+            newErrors[fieldName] = error;
+          } else {
+            delete newErrors[fieldName];
+          }
+          return newErrors;
+        });
+      } catch (err) {
+        console.error('Erreur validation champ:', err);
+      }
+    },
+    [formData, poidsKg]
+  );
+
+  /**
+   * Marquer un champ comme touché (pour afficher les erreurs après blur)
+   */
+  const handleFieldBlur = useCallback((fieldName: string) => {
+    setTouched((prev) => ({ ...prev, [fieldName]: true }));
+  }, []);
 
   // Charger les animaux si nécessaire (pour la recherche)
   useEffect(() => {
@@ -204,18 +252,39 @@ export default function RevenuFormModal({
       return;
     }
 
-    // Validation
-    if (formData.montant <= 0) {
-      Alert.alert('Erreur', 'Le montant doit être supérieur à 0');
+    // Validation Yup complète
+    const dataToValidate = {
+      ...formData,
+      poids_kg: poidsKg ? parseFloat(poidsKg) : null,
+    };
+
+    const { isValid, errors } = await validateWithSchema(revenuSchema, dataToValidate);
+
+    if (!isValid) {
+      // Marquer tous les champs comme touchés pour afficher les erreurs
+      const allTouched = Object.keys(errors).reduce(
+        (acc, key) => ({ ...acc, [key]: true }),
+        {}
+      );
+      setTouched(allTouched);
+      setValidationErrors(errors);
+
+      // Afficher la première erreur dans une alerte
+      const firstError = Object.values(errors)[0];
+      Alert.alert('Erreur de validation', firstError);
       return;
     }
-    if (formData.categorie === 'autre' && !formData.libelle_categorie?.trim()) {
-      Alert.alert('Erreur', 'Veuillez préciser le libellé de la catégorie');
-      return;
-    }
-    // Validation poids pour vente de porc
+
+    // Validation poids pour vente de porc (règle métier supplémentaire)
     if (formData.categorie === 'vente_porc' && poidsKg && parseFloat(poidsKg) <= 0) {
       Alert.alert('Erreur', 'Le poids doit être supérieur à 0');
+      setValidationErrors((prev) => ({ ...prev, poids_kg: 'Le poids doit être supérieur à 0' }));
+      setTouched((prev) => ({ ...prev, poids_kg: true }));
+      return;
+    }
+
+    if (!projetActif && !isEditing) {
+      Alert.alert('Erreur', 'Aucun projet actif');
       return;
     }
 
@@ -311,10 +380,21 @@ export default function RevenuFormModal({
         <FormField
           label="Montant (CFA)"
           value={formData.montant.toString()}
-          onChangeText={(text) => setFormData({ ...formData, montant: parseFloat(text) || 0 })}
+          onChangeText={(text) => {
+            const newMontant = parseFloat(text) || 0;
+            setFormData({ ...formData, montant: newMontant });
+            if (touched.montant) {
+              validateSingleField('montant', newMontant);
+            }
+          }}
+          onBlur={() => {
+            handleFieldBlur('montant');
+            validateSingleField('montant', formData.montant);
+          }}
           placeholder="0"
           keyboardType="numeric"
           required
+          error={touched.montant ? validationErrors.montant : undefined}
         />
 
         <View style={styles.section}>
