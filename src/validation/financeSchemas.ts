@@ -52,9 +52,25 @@ export const depenseSchema = yup.object().shape({
     .positive('Le montant doit être positif')
     .max(1000000000, 'Le montant ne peut pas dépasser 1 milliard de FCFA'),
   
+  categorie: yup
+    .string()
+    .required('La catégorie est obligatoire')
+    .oneOf(
+      ['aliment', 'medicament', 'main_oeuvre', 'batiment', 'materiel', 'autre'],
+      'Catégorie invalide'
+    ),
+  
   libelle_categorie: yup
     .string()
-    .required('La catégorie est obligatoire'),
+    .nullable()
+    .when('categorie', {
+      is: 'autre',
+      then: (schema) => schema
+        .required('Le libellé de la catégorie est obligatoire')
+        .min(3, 'Le libellé doit contenir au moins 3 caractères')
+        .max(100, 'Le libellé ne peut pas dépasser 100 caractères'),
+      otherwise: (schema) => schema.nullable(),
+    }),
   
   type_depense: yup
     .string()

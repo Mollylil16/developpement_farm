@@ -1,9 +1,8 @@
 /**
  * Composant formulaire modal pour dépense ponctuelle avec upload photos
- * Intègre validation Yup robuste
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
@@ -15,8 +14,6 @@ import FormField from './FormField';
 import { SPACING, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useActionPermissions } from '../hooks/useActionPermissions';
-import { useFormValidationSimple } from '../hooks/useFormValidation';
-import { depenseSchema } from '../validation/financeSchemas';
 
 interface DepenseFormModalProps {
   visible: boolean;
@@ -38,16 +35,6 @@ export default function DepenseFormModal({
   const { projetActif } = useAppSelector((state) => state.projet);
   const { canCreate, canUpdate } = useActionPermissions();
   const [loading, setLoading] = useState(false);
-  
-  // Hook de validation Yup
-  const {
-    errors: validationErrors,
-    touched,
-    validateAllFields,
-    markFieldTouched,
-    resetValidation,
-  } = useFormValidationSimple(depenseSchema);
-  
   const [formData, setFormData] = useState<CreateDepensePonctuelleInput & { photos: string[] }>({
     projet_id: projetActif?.id || '',
     montant: 0,
@@ -56,16 +43,7 @@ export default function DepenseFormModal({
     date: new Date().toISOString().split('T')[0],
     commentaire: '',
     photos: [],
-    type_depense: 'OPEX', // Par défaut OPEX
-    duree_amortissement_mois: null,
   });
-
-  // Réinitialiser validation quand modal se ferme
-  useEffect(() => {
-    if (!visible) {
-      resetValidation();
-    }
-  }, [visible, resetValidation]);
 
   useEffect(() => {
     if (depense && isEditing) {
@@ -77,8 +55,6 @@ export default function DepenseFormModal({
         date: depense.date.split('T')[0],
         commentaire: depense.commentaire || '',
         photos: depense.photos || [],
-        type_depense: depense.type_depense || 'OPEX',
-        duree_amortissement_mois: depense.duree_amortissement_mois || null,
       });
     } else {
       // Reset form
@@ -90,8 +66,6 @@ export default function DepenseFormModal({
         date: new Date().toISOString().split('T')[0],
         commentaire: '',
         photos: [],
-        type_depense: 'OPEX',
-        duree_amortissement_mois: null,
       });
     }
   }, [depense, isEditing, visible, projetActif?.id]);
@@ -187,20 +161,13 @@ export default function DepenseFormModal({
       return;
     }
 
-    if (!projetActif && !isEditing) {
-      Alert.alert('Erreur', 'Aucun projet actif');
+    // Validation
+    if (formData.montant <= 0) {
+      Alert.alert('Erreur', 'Le montant doit être supérieur à 0');
       return;
     }
-
-    // Validation Yup complète
-    const { isValid, errors } = await validateAllFields(formData);
-
-    if (!isValid) {
-      console.log('❌ [DepenseFormModal] Erreurs de validation:', errors);
-      
-      // Afficher la première erreur
-      const firstError = Object.values(errors)[0];
-      Alert.alert('Erreur de validation', firstError || 'Veuillez corriger les erreurs du formulaire');
+    if (formData.categorie === 'autre' && !formData.libelle_categorie?.trim()) {
+      Alert.alert('Erreur', 'Veuillez préciser le libellé de la catégorie');
       return;
     }
 
@@ -217,38 +184,23 @@ export default function DepenseFormModal({
               date: formData.date,
               commentaire: formData.commentaire,
               photos: formData.photos || [],
-              type_depense: formData.type_depense,
-              duree_amortissement_mois: formData.duree_amortissement_mois,
             },
           })
         ).unwrap();
-        
-        console.log('✅ [DepenseFormModal] Dépense modifiée avec succès');
       } else {
+        if (!projetActif) {
+          Alert.alert('Erreur', 'Aucun projet actif');
+          return;
+        }
         await dispatch(
-          createDepensePonctuelle({ ...formData, projet_id: projetActif!.id })
+          createDepensePonctuelle({ ...formData, projet_id: projetActif.id })
         ).unwrap();
-        
-        console.log('✅ [DepenseFormModal] Dépense créée avec succès');
       }
-      
-      // Réinitialiser validation avant de fermer
-      resetValidation();
-      
-      // Fermer puis callback succès
-      setLoading(false);
-      onClose();
-      
-      setTimeout(() => {
-        onSuccess();
-      }, 100);
+      onSuccess();
     } catch (error: any) {
+      Alert.alert('Erreur', error || "Erreur lors de l'enregistrement");
+    } finally {
       setLoading(false);
-      console.error('❌ [DepenseFormModal] Erreur enregistrement:', error);
-      Alert.alert(
-        'Erreur',
-        error?.message || error || "Erreur lors de l'enregistrement"
-      );
     }
   };
 
@@ -285,15 +237,10 @@ export default function DepenseFormModal({
         <FormField
           label="Montant (CFA)"
           value={formData.montant.toString()}
-          onChangeText={(text) => {
-            const newMontant = parseFloat(text) || 0;
-            setFormData({ ...formData, montant: newMontant });
-          }}
-          onBlur={() => markFieldTouched('montant')}
+          onChangeText={(text) => setFormData({ ...formData, montant: parseFloat(text) || 0 })}
           placeholder="0"
           keyboardType="numeric"
           required
-          error={touched.montant ? validationErrors.montant : undefined}
         />
 
         <View style={styles.section}>
@@ -373,10 +320,8 @@ export default function DepenseFormModal({
             label="Libellé de la catégorie"
             value={formData.libelle_categorie || ''}
             onChangeText={(text) => setFormData({ ...formData, libelle_categorie: text })}
-            onBlur={() => markFieldTouched('libelle_categorie')}
             placeholder="Précisez la catégorie"
             required
-            error={touched.libelle_categorie ? validationErrors.libelle_categorie : undefined}
           />
         )}
 
@@ -384,21 +329,16 @@ export default function DepenseFormModal({
           label="Date"
           value={formData.date}
           onChangeText={(text) => setFormData({ ...formData, date: text })}
-          onBlur={() => markFieldTouched('date')}
           placeholder="YYYY-MM-DD"
-          required
-          error={touched.date ? validationErrors.date : undefined}
         />
 
         <FormField
           label="Commentaire"
-          value={formData.commentaire || ''}
+          value={formData.commentaire}
           onChangeText={(text) => setFormData({ ...formData, commentaire: text })}
-          onBlur={() => markFieldTouched('commentaire')}
-          placeholder="Commentaire optionnel (max 500 caractères)..."
+          placeholder="Commentaire optionnel..."
           multiline
           numberOfLines={4}
-          error={touched.commentaire ? validationErrors.commentaire : undefined}
         />
 
         {/* Section Photos */}
