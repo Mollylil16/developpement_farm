@@ -41,8 +41,8 @@ function PerformanceWidget({ projetId, onPress }: PerformanceWidgetProps) {
 
         const db = await getDatabase();
         
-        // Exécuter le diagnostic pour voir ce qui se passe
-        await diagnosticDepenses(db, projetId);
+        // Diagnostic désactivé temporairement (problème avec GROUP BY sur certains devices)
+        // await diagnosticDepenses(projetId);
 
         PerformanceGlobaleService.setDatabase(db);
         const result = await PerformanceGlobaleService.calculatePerformanceGlobale(
