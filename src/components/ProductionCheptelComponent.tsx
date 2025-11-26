@@ -434,6 +434,27 @@ export default function ProductionCheptelComponent() {
                   </Text>
                 </View>
               )}
+              {/* Badge Marketplace - En vente */}
+              {(item as any).marketplace_status === 'available' && (
+                <View
+                  style={[styles.marketplaceBadge, { backgroundColor: '#FF8C42' + '20', borderColor: '#FF8C42' }]}
+                >
+                  <Ionicons name="storefront-outline" size={12} color="#FF8C42" />
+                  <Text style={[styles.marketplaceText, { color: '#FF8C42' }]}>
+                    En vente
+                  </Text>
+                </View>
+              )}
+              {(item as any).marketplace_status === 'reserved' && (
+                <View
+                  style={[styles.marketplaceBadge, { backgroundColor: '#F39C12' + '20', borderColor: '#F39C12' }]}
+                >
+                  <Ionicons name="lock-closed-outline" size={12} color="#F39C12" />
+                  <Text style={[styles.marketplaceText, { color: '#F39C12' }]}>
+                    Réservé
+                  </Text>
+                </View>
+              )}
             </View>
             <View style={styles.animalActions}>
               {canUpdate('reproduction') && (
@@ -1224,6 +1245,21 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xs,
   },
   reproducteurText: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '600',
+  },
+  marketplaceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs / 2,
+    borderRadius: BORDER_RADIUS.sm,
+    marginTop: SPACING.xs,
+    borderWidth: 1,
+    gap: 4,
+  },
+  marketplaceText: {
     fontSize: FONT_SIZES.xs,
     fontWeight: '600',
   },

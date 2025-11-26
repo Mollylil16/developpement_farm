@@ -18,6 +18,7 @@ import collaborationReducer from './slices/collaborationSlice';
 import stocksReducer from './slices/stocksSlice';
 import productionReducer from './slices/productionSlice';
 import santeReducer from './slices/santeSlice';
+import marketplaceReducer from './slices/marketplaceSlice';
 
 // Configuration de la persistance
 const persistConfig = {
@@ -41,6 +42,7 @@ const rootReducer = combineReducers({
   planification: planificationReducer,
   planningProduction: planningProductionReducer,
   collaboration: collaborationReducer,
+  marketplace: marketplaceReducer,
 });
 
 // Reducer persisté
