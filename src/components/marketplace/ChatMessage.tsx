@@ -52,7 +52,7 @@ export default function ChatMessage({
               <TouchableOpacity
                 key={index}
                 style={[styles.documentAttachment, { backgroundColor: colors.surfaceLight }]}
-                onPress={() => alert('Téléchargement : ' + attachment.fileName)}
+                onPress={() => Alert.alert('Document', 'Téléchargement : ' + attachment.fileName)}
               >
                 <Ionicons name="document-outline" size={24} color={colors.primary} />
                 <Text
