@@ -121,17 +121,17 @@ export default function NotificationCard({
           {notification.title}
         </Text>
 
-        {notification.body && (
+        {notification.message && (
           <Text
             style={[styles.body, { color: colors.textSecondary }]}
             numberOfLines={2}
           >
-            {notification.body}
+            {notification.message}
           </Text>
         )}
 
         <Text style={[styles.timestamp, { color: colors.textLight }]}>
-          {formatDate(notification.createdAt, 'relative')}
+          {formatDate(notification.createdAt)}
         </Text>
       </View>
 

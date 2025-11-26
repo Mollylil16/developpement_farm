@@ -45,13 +45,17 @@ export default function DeliveryConfirmationModal({
   if (!transaction) return null;
 
   const isProducer = userRole === 'producer';
-  const alreadyConfirmed = isProducer
-    ? transaction.deliveryConfirmedByProducer
-    : transaction.deliveryConfirmedByBuyer;
+  const alreadyConfirmed = transaction.deliveryDetails
+    ? isProducer
+      ? transaction.deliveryDetails.producerConfirmed
+      : transaction.deliveryDetails.buyerConfirmed
+    : false;
 
-  const counterpartConfirmed = isProducer
-    ? transaction.deliveryConfirmedByBuyer
-    : transaction.deliveryConfirmedByProducer;
+  const counterpartConfirmed = transaction.deliveryDetails
+    ? isProducer
+      ? transaction.deliveryDetails.buyerConfirmed
+      : transaction.deliveryDetails.producerConfirmed
+    : false;
 
   const handleConfirm = async () => {
     Alert.alert(
@@ -158,59 +162,59 @@ export default function DeliveryConfirmationModal({
               </Text>
 
               <View style={[styles.statusBox, { backgroundColor: colors.surface }]}>
-                <View style={styles.statusRow}>
-                  <Ionicons
-                    name={
-                      transaction.deliveryConfirmedByProducer
-                        ? 'checkmark-circle'
-                        : 'ellipse-outline'
-                    }
-                    size={24}
-                    color={
-                      transaction.deliveryConfirmedByProducer
+              <View style={styles.statusRow}>
+                <Ionicons
+                  name={
+                    transaction.deliveryDetails?.producerConfirmed
+                      ? 'checkmark-circle'
+                      : 'ellipse-outline'
+                  }
+                  size={24}
+                  color={
+                    transaction.deliveryDetails?.producerConfirmed
+                      ? colors.success
+                      : colors.textSecondary
+                  }
+                />
+                <Text
+                  style={[
+                    styles.statusText,
+                    {
+                      color: transaction.deliveryDetails?.producerConfirmed
                         ? colors.success
-                        : colors.textSecondary
-                    }
-                  />
-                  <Text
-                    style={[
-                      styles.statusText,
-                      {
-                        color: transaction.deliveryConfirmedByProducer
-                          ? colors.success
-                          : colors.textSecondary,
-                      },
-                    ]}
-                  >
-                    Producteur
-                  </Text>
-                </View>
+                        : colors.textSecondary,
+                    },
+                  ]}
+                >
+                  Producteur
+                </Text>
+              </View>
 
-                <View style={styles.statusRow}>
-                  <Ionicons
-                    name={
-                      transaction.deliveryConfirmedByBuyer
-                        ? 'checkmark-circle'
-                        : 'ellipse-outline'
-                    }
-                    size={24}
-                    color={
-                      transaction.deliveryConfirmedByBuyer ? colors.success : colors.textSecondary
-                    }
-                  />
-                  <Text
-                    style={[
-                      styles.statusText,
-                      {
-                        color: transaction.deliveryConfirmedByBuyer
-                          ? colors.success
-                          : colors.textSecondary,
-                      },
-                    ]}
-                  >
-                    Acheteur
-                  </Text>
-                </View>
+              <View style={styles.statusRow}>
+                <Ionicons
+                  name={
+                    transaction.deliveryDetails?.buyerConfirmed
+                      ? 'checkmark-circle'
+                      : 'ellipse-outline'
+                  }
+                  size={24}
+                  color={
+                    transaction.deliveryDetails?.buyerConfirmed ? colors.success : colors.textSecondary
+                  }
+                />
+                <Text
+                  style={[
+                    styles.statusText,
+                    {
+                      color: transaction.deliveryDetails?.buyerConfirmed
+                        ? colors.success
+                        : colors.textSecondary,
+                    },
+                  ]}
+                >
+                  Acheteur
+                </Text>
+              </View>
               </View>
 
               {!alreadyConfirmed && (

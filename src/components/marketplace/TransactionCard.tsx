@@ -18,23 +18,33 @@ interface TransactionCardProps {
   onConfirmDelivery?: () => void;
 }
 
-type TransactionStatus = 'pending_payment' | 'pending_delivery' | 'delivered' | 'completed' | 'cancelled';
+type TransactionStatusDisplay = 'confirmed' | 'preparing' | 'ready_for_delivery' | 'in_transit' | 'delivered' | 'completed' | 'cancelled';
 
 const STATUS_CONFIG: Record<
-  TransactionStatus,
+  TransactionStatusDisplay,
   {
     label: string;
     icon: keyof typeof Ionicons.glyphMap;
     color: string;
   }
 > = {
-  pending_payment: {
-    label: 'En attente de paiement',
+  confirmed: {
+    label: 'Confirmé',
+    icon: 'checkmark-circle-outline',
+    color: MarketplaceTheme.colors.primary,
+  },
+  preparing: {
+    label: 'En préparation',
     icon: 'time-outline',
     color: MarketplaceTheme.colors.warning,
   },
-  pending_delivery: {
-    label: 'En attente de livraison',
+  ready_for_delivery: {
+    label: 'Prêt pour livraison',
+    icon: 'cube-outline',
+    color: MarketplaceTheme.colors.primary,
+  },
+  in_transit: {
+    label: 'En transit',
     icon: 'car-outline',
     color: MarketplaceTheme.colors.primary,
   },
@@ -64,15 +74,18 @@ export default function TransactionCard({
 }: TransactionCardProps) {
   const { colors, spacing, typography, borderRadius } = MarketplaceTheme;
 
-  const statusConfig = STATUS_CONFIG[transaction.status as TransactionStatus] || STATUS_CONFIG.pending_payment;
+  const statusConfig = STATUS_CONFIG[transaction.status as TransactionStatusDisplay] || STATUS_CONFIG.confirmed;
 
+  // Note: buyerName and producerName don't exist on Transaction type
+  // In production, fetch these from user repository
   const counterpartName =
-    userRole === 'producer' ? transaction.buyerName : transaction.producerName;
+    userRole === 'producer' ? 'Acheteur' : 'Producteur';
 
   const canConfirmDelivery =
-    transaction.status === 'pending_delivery' &&
-    ((userRole === 'producer' && !transaction.deliveryConfirmedByProducer) ||
-      (userRole === 'buyer' && !transaction.deliveryConfirmedByBuyer));
+    (transaction.status === 'in_transit' || transaction.status === 'delivered') &&
+    transaction.deliveryDetails &&
+    ((userRole === 'producer' && !transaction.deliveryDetails.producerConfirmed) ||
+      (userRole === 'buyer' && !transaction.deliveryDetails.buyerConfirmed));
 
   return (
     <TouchableOpacity
@@ -135,43 +148,50 @@ export default function TransactionCard({
       </View>
 
       {/* Confirmation de livraison */}
-      {transaction.status === 'pending_delivery' && (
-        <View style={[styles.deliverySection, { backgroundColor: colors.surfaceLight }]}>
-          <Text style={[styles.deliverySectionTitle, { color: colors.text }]}>
-            Confirmation de livraison
-          </Text>
-
-          <View style={styles.confirmationRow}>
-            <Ionicons
-              name={
-                transaction.deliveryConfirmedByProducer
-                  ? 'checkmark-circle'
-                  : 'ellipse-outline'
-              }
-              size={20}
-              color={
-                transaction.deliveryConfirmedByProducer ? colors.success : colors.textSecondary
-              }
-            />
-            <Text style={[styles.confirmationText, { color: colors.textSecondary }]}>
-              Producteur
+      {(transaction.status === 'in_transit' || transaction.status === 'delivered') &&
+        transaction.deliveryDetails && (
+          <View style={[styles.deliverySection, { backgroundColor: colors.surfaceLight }]}>
+            <Text style={[styles.deliverySectionTitle, { color: colors.text }]}>
+              Confirmation de livraison
             </Text>
-          </View>
 
-          <View style={styles.confirmationRow}>
-            <Ionicons
-              name={
-                transaction.deliveryConfirmedByBuyer ? 'checkmark-circle' : 'ellipse-outline'
-              }
-              size={20}
-              color={transaction.deliveryConfirmedByBuyer ? colors.success : colors.textSecondary}
-            />
-            <Text style={[styles.confirmationText, { color: colors.textSecondary }]}>
-              Acheteur
-            </Text>
+            <View style={styles.confirmationRow}>
+              <Ionicons
+                name={
+                  transaction.deliveryDetails.producerConfirmed
+                    ? 'checkmark-circle'
+                    : 'ellipse-outline'
+                }
+                size={20}
+                color={
+                  transaction.deliveryDetails.producerConfirmed
+                    ? colors.success
+                    : colors.textSecondary
+                }
+              />
+              <Text style={[styles.confirmationText, { color: colors.textSecondary }]}>
+                Producteur
+              </Text>
+            </View>
+
+            <View style={styles.confirmationRow}>
+              <Ionicons
+                name={
+                  transaction.deliveryDetails.buyerConfirmed
+                    ? 'checkmark-circle'
+                    : 'ellipse-outline'
+                }
+                size={20}
+                color={
+                  transaction.deliveryDetails.buyerConfirmed ? colors.success : colors.textSecondary
+                }
+              />
+              <Text style={[styles.confirmationText, { color: colors.textSecondary }]}>
+                Acheteur
+              </Text>
+            </View>
           </View>
-        </View>
-      )}
+        )}
 
       {/* Actions */}
       <View style={styles.actions}>

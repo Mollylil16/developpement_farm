@@ -179,4 +179,3 @@ export function useMarketplaceChat(transactionId: string) {
     refresh,
   };
 }
-
