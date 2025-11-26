@@ -68,6 +68,7 @@
     "yup": "^1.7.1"
   },
   "devDependencies": {
+    "@react-native-community/cli": "^20.0.2",
     "@react-native/assets-registry": "^0.82.1",
     "@testing-library/jest-native": "^5.4.3",
     "@testing-library/react-native": "^13.3.3",
