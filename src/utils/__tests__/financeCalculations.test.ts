@@ -2,7 +2,7 @@
  * Tests pour financeCalculations
  */
 
-import { formatMontant, calculateMargin, calculatePercentage } from '../financeCalculations';
+import { formatMontant, calculateMargin, calculatePercentage } from '../formatters';
 
 describe('financeCalculations', () => {
   describe('formatMontant', () => {
