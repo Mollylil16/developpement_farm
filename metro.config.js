@@ -9,7 +9,10 @@ config.resolver.extraNodeModules = {
 
 // Configuration pour forcer l'utilisation des versions CommonJS
 config.resolver.sourceExts = ['js', 'json', 'ts', 'tsx', 'jsx', 'cjs'];
-config.resolver.resolverMainFields = ['react-native', 'browser', 'main'];
+// Utiliser 'main' avant 'browser' pour éviter les redirections vers .mjs
+// Le champ "browser" de certains packages redirige vers .mjs (ex: make-plural)
+// En priorisant 'main', on force l'utilisation des fichiers .js/.cjs
+config.resolver.resolverMainFields = ['react-native', 'main'];
 
 // Configuration pour supprimer les warnings des packages Redux avec exports invalides
 // (@reduxjs/toolkit, redux, reselect, etc.)
