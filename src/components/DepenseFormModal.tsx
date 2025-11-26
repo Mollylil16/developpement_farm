@@ -171,7 +171,12 @@ export default function DepenseFormModal({
       return;
     }
 
-    // Validation projet actif AVANT setLoading
+    // Validations AVANT setLoading pour éviter loading bloqué
+    if (isEditing && !depense) {
+      Alert.alert('Erreur', 'Données de dépense manquantes');
+      return;
+    }
+    
     if (!isEditing && !projetActif) {
       Alert.alert('Erreur', 'Aucun projet actif');
       return;
@@ -194,8 +199,13 @@ export default function DepenseFormModal({
           })
         ).unwrap();
       } else {
+        // Mode création : double vérification pour TypeScript
+        if (!projetActif) {
+          throw new Error('Projet actif requis pour créer une dépense');
+        }
+        
         await dispatch(
-          createDepensePonctuelle({ ...formData, projet_id: projetActif!.id })
+          createDepensePonctuelle({ ...formData, projet_id: projetActif.id })
         ).unwrap();
       }
       
