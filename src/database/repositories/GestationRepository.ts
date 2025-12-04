@@ -11,8 +11,11 @@
 import * as SQLite from 'expo-sqlite';
 import { BaseRepository } from './BaseRepository';
 import { Gestation } from '../../types/reproduction';
+import { ProductionAnimal } from '../../types/production';
 import uuid from 'react-native-uuid';
 import { addDays, differenceInDays, parseISO } from 'date-fns';
+import { AnimalRepository } from './AnimalRepository';
+import { genererPlusieursNomsAleatoires } from '../../utils/nameGenerator';
 
 export class GestationRepository extends BaseRepository<Gestation> {
   constructor(db: SQLite.SQLiteDatabase) {
@@ -261,6 +264,133 @@ export class GestationRepository extends BaseRepository<Gestation> {
       [truieId]
     );
     return (result?.count || 0) > 0;
+  }
+
+  /**
+   * Créer automatiquement les porcelets dans la table production_animaux
+   * lorsqu'une gestation est terminée
+   * 
+   * Cette méthode est appelée automatiquement lors de la mise à jour d'une gestation
+   * pour créer les porcelets correspondants dans le cheptel.
+   */
+  async creerPorceletsDepuisGestation(gestation: Gestation): Promise<ProductionAnimal[]> {
+    // Vérifier que la gestation est bien terminée
+    if (
+      gestation.statut !== 'terminee' ||
+      !gestation.nombre_porcelets_reel ||
+      gestation.nombre_porcelets_reel <= 0
+    ) {
+      return [];
+    }
+
+    const animalRepo = new AnimalRepository(this.db);
+    const dateMiseBas = gestation.date_mise_bas_reelle || gestation.date_mise_bas_prevue;
+
+    // Vérifier si les porcelets n'ont pas déjà été créés pour cette gestation
+    const porceletsExistants = await animalRepo.query<ProductionAnimal>(
+      `SELECT * FROM production_animaux 
+       WHERE projet_id = ? 
+       AND mere_id = ? 
+       AND date_naissance = ? 
+       AND reproducteur = 0`,
+      [gestation.projet_id, gestation.truie_id, dateMiseBas]
+    );
+
+    if (porceletsExistants && porceletsExistants.length > 0) {
+      console.log(`Les porcelets pour la gestation ${gestation.id} ont déjà été créés.`);
+      return porceletsExistants;
+    }
+
+    // Récupérer tous les animaux du projet pour générer des codes uniques
+    const animauxExistants = await animalRepo.findByProjet(gestation.projet_id);
+
+    // Trouver les vrais IDs des parents dans production_animaux
+    // truie_id et verrat_id dans gestations peuvent être des codes ou des IDs
+    let mereIdReel: string | null = null;
+    let pereIdReel: string | null = null;
+
+    // Chercher la truie par ID ou par code
+    const truieTrouvee = animauxExistants.find(
+      (a) => a.id === gestation.truie_id || a.code === gestation.truie_id
+    );
+    if (truieTrouvee) {
+      mereIdReel = truieTrouvee.id;
+    }
+
+    // Chercher le verrat par ID ou par code (si renseigné)
+    if (gestation.verrat_id) {
+      const verratTrouve = animauxExistants.find(
+        (a) => a.id === gestation.verrat_id || a.code === gestation.verrat_id
+      );
+      if (verratTrouve) {
+        pereIdReel = verratTrouve.id;
+      }
+    }
+
+    // Trouver le prochain numéro de porcelet disponible
+    const codesPorcelets = animauxExistants
+      .map((a) => a.code)
+      .filter((code) => code.startsWith('P'))
+      .map((code) => {
+        const match = code.match(/P(\d+)/);
+        return match ? parseInt(match[1], 10) : 0;
+      })
+      .filter((num) => !isNaN(num));
+
+    const maxNumero = codesPorcelets.length > 0 ? Math.max(...codesPorcelets) : 0;
+    let prochainNumero = maxNumero + 1;
+
+    // Générer des noms uniques et aléatoires pour les porcelets
+    const nomsDejaUtilises = animauxExistants
+      .map((a) => a.nom)
+      .filter((nom): nom is string => nom !== undefined && nom !== null && nom !== '');
+
+    const nombrePorcelets = gestation.nombre_porcelets_reel;
+    const nomsAleatoires = genererPlusieursNomsAleatoires(
+      nombrePorcelets,
+      nomsDejaUtilises,
+      'tous',
+      'indetermine' // Les porcelets ont un sexe indéterminé à la naissance
+    );
+
+    // Créer les porcelets
+    const porceletsCreees: ProductionAnimal[] = [];
+
+    for (let i = 0; i < nombrePorcelets; i++) {
+      const codePorcelet = `P${String(prochainNumero).padStart(3, '0')}`;
+      const nomPorcelet = nomsAleatoires[i];
+
+      try {
+        const porcelet = await animalRepo.create({
+          projet_id: gestation.projet_id,
+          code: codePorcelet,
+          nom: nomPorcelet,
+          origine: 'Naissance',
+          sexe: 'indetermine',
+          date_naissance: dateMiseBas,
+          poids_initial: undefined,
+          date_entree: dateMiseBas,
+          statut: 'actif',
+          race: undefined,
+          reproducteur: false,
+          pere_id: pereIdReel,
+          mere_id: mereIdReel,
+          notes: `Né de la gestation ${gestation.truie_nom || gestation.truie_id}${gestation.verrat_nom ? ` x ${gestation.verrat_nom}` : ''}`,
+        });
+
+        porceletsCreees.push(porcelet);
+        prochainNumero++;
+      } catch (error) {
+        console.error(`Erreur lors de la création du porcelet ${codePorcelet}:`, error);
+        // Continuer avec les autres porcelets même en cas d'erreur
+      }
+    }
+
+    console.log(
+      `✅ ${porceletsCreees.length} porcelet(s) créé(s) automatiquement pour la gestation ${gestation.id}`
+    );
+
+    return porceletsCreees;
   }
 
   /**

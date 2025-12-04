@@ -18,7 +18,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { MarketplaceTheme } from '../../styles/marketplace.theme';
-import { formatPrice, formatDate } from '../../utils/formatters';
+import { formatDate } from '../../utils/formatters';
+import { formatPrice } from '../../services/PricingService';
 import type { Transaction } from '../../types/marketplace';
 
 interface DeliveryConfirmationModalProps {
@@ -140,7 +141,7 @@ export default function DeliveryConfirmationModal({
                 </View>
               </View>
 
-              {transaction.deliveryDate && (
+              {transaction.deliveryDetails?.scheduledDate && (
                 <View style={styles.infoRow}>
                   <Ionicons name="calendar-outline" size={20} color={colors.textSecondary} />
                   <View style={styles.infoContent}>
@@ -148,7 +149,7 @@ export default function DeliveryConfirmationModal({
                       Date de livraison
                     </Text>
                     <Text style={[styles.infoValue, { color: colors.text }]}>
-                      {formatDate(transaction.deliveryDate)}
+                      {formatDate(transaction.deliveryDetails.scheduledDate)}
                     </Text>
                   </View>
                 </View>
@@ -304,7 +305,7 @@ export default function DeliveryConfirmationModal({
 
             {/* Rappel conditions */}
             <View style={styles.section}>
-              <View style={[styles.reminderBox, { backgroundColor: colors.warningLight }]}>
+              <View style={[styles.reminderBox, { backgroundColor: colors.warning + '15' }]}>
                 <Ionicons name="alert-circle-outline" size={20} color={colors.warning} />
                 <Text style={[styles.reminderText, { color: colors.text }]}>
                   La transaction sera terminée une fois que les deux parties auront confirmé la

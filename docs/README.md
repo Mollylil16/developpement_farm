@@ -11,7 +11,17 @@ docs/
 ├── README.md                    # Ce fichier - Index documentation
 ├── CONTEXT.md                   # Architecture globale du projet
 │
-├── opex-capex/                  # 💰 Système OPEX/CAPEX (Nouveau !)
+├── architecture/                # 🏗️ Documentation architecture (Nouveau !)
+│   ├── README.md               # Index architecture
+│   ├── overview.md             # Vue d'ensemble
+│   ├── decisions/              # Architecture Decision Records (ADRs)
+│   │   ├── 001-repository-pattern.md
+│   │   ├── 002-redux-toolkit.md
+│   │   ├── 003-lazy-loading.md
+│   │   └── 004-feature-flags.md
+│   └── references/             # Références vers archive
+│
+├── opex-capex/                  # 💰 Système OPEX/CAPEX
 │   ├── OPEX_CAPEX_STATUS_FINAL.md
 │   ├── OPEX_CAPEX_IMPLEMENTATION_PLAN.md
 │   ├── OPEX_CAPEX_INTEGRATION_GUIDE.md
@@ -23,11 +33,13 @@ docs/
 │   ├── PHASE4_MIGRATION_SLICES_COMPLETE.md
 │   ├── PHASE5_UI_REFACTORING_COMPLETE.md
 │   ├── REFACTORING_SUMMARY.md
-│   └── ... (45+ documents)
+│   └── ... (129 documents)
 │
 └── guides/                      # 📖 Guides techniques
+    ├── FEATURE_FLAGS.md        # Feature Flags & A/B Testing
+    ├── LAZY_LOADING.md         # Lazy Loading & Code Splitting
+    ├── DEPENDENCY_MANAGEMENT.md # Gestion des dépendances
     ├── MIGRATION_REPOSITORIES.md
-    ├── TESTING_GUIDE.md
     └── ...
 ```
 
@@ -41,9 +53,10 @@ docs/
 3. **Racine:** [../README_OPEX_CAPEX.md](../README_OPEX_CAPEX.md) - Système OPEX/CAPEX
 
 ### Pour les Développeurs
-1. **Architecture:** [CONTEXT.md](CONTEXT.md)
-2. **OPEX/CAPEX:** [opex-capex/](opex-capex/)
-3. **Guides:** [guides/](guides/)
+1. **Architecture:** [architecture/](architecture/) - Documentation architecture centralisée
+2. **Contexte technique:** [CONTEXT.md](CONTEXT.md)
+3. **OPEX/CAPEX:** [opex-capex/](opex-capex/)
+4. **Guides:** [guides/](guides/)
 
 ### Pour l'Historique
 1. **Archive:** [archive/](archive/)

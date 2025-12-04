@@ -793,6 +793,7 @@ export default function ProductionAnimalsListComponent() {
               evolutionData={evolutionPoidsFerme}
               nombreAnimaux={poidsTotalCheptel.animauxActifs}
               gmqMoyenCheptel={poidsTotalCheptel.gmqMoyenCheptel}
+              periode={periodePoidsFerme}
             />
           </View>
         )}

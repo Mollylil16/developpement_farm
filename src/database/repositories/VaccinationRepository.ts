@@ -170,7 +170,7 @@ export class VaccinationRepository extends BaseRepository<Vaccination> {
   async findByAnimal(animalId: string): Promise<Vaccination[]> {
     const allVaccinations = await this.query<Vaccination>(
       `SELECT * FROM vaccinations 
-       ORDER BY date_administration DESC`
+       ORDER BY date_vaccination DESC`
     );
 
     // Filtrer côté application car animal_ids est JSON
@@ -200,11 +200,13 @@ export class VaccinationRepository extends BaseRepository<Vaccination> {
   }
 
   /**
-   * Récupérer les vaccinations nécessitant un rappel
+   * Récupérer les vaccinations nécessitant un rappel (à venir)
    */
   async findRappelsDus(projetId: string, joursAvance: number = 7): Promise<Vaccination[]> {
     const dateAujourdhui = new Date().toISOString();
-    const dateLimite = addDays(new Date(), joursAvance).toISOString();
+    const dateLimite = new Date();
+    dateLimite.setDate(dateLimite.getDate() + joursAvance);
+    const dateLimiteStr = dateLimite.toISOString();
 
     return this.query<Vaccination>(
       `SELECT * FROM vaccinations 
@@ -212,8 +214,47 @@ export class VaccinationRepository extends BaseRepository<Vaccination> {
        AND date_rappel IS NOT NULL
        AND date_rappel >= ?
        AND date_rappel <= ?
+       AND statut != 'annule'
        ORDER BY date_rappel ASC`,
-      [projetId, dateAujourdhui, dateLimite]
+      [projetId, dateAujourdhui, dateLimiteStr]
+    );
+  }
+
+  /**
+   * Récupérer les vaccinations en retard (date_rappel passée)
+   */
+  async findEnRetard(projetId: string): Promise<Vaccination[]> {
+    const today = new Date().toISOString().split('T')[0];
+
+    return this.query<Vaccination>(
+      `SELECT * FROM vaccinations 
+       WHERE projet_id = ? 
+       AND date_rappel IS NOT NULL 
+       AND date_rappel < ? 
+       AND statut != 'annule'
+       ORDER BY date_rappel ASC`,
+      [projetId, today]
+    );
+  }
+
+  /**
+   * Récupérer les vaccinations à venir (dans les X jours)
+   */
+  async findAVenir(projetId: string, joursAvance: number = 7): Promise<Vaccination[]> {
+    const today = new Date().toISOString().split('T')[0];
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + joursAvance);
+    const futureDateStr = futureDate.toISOString().split('T')[0];
+
+    return this.query<Vaccination>(
+      `SELECT * FROM vaccinations 
+       WHERE projet_id = ? 
+       AND date_rappel IS NOT NULL 
+       AND date_rappel >= ? 
+       AND date_rappel <= ?
+       AND statut != 'annule'
+       ORDER BY date_rappel ASC`,
+      [projetId, today, futureDateStr]
     );
   }
 
@@ -236,7 +277,52 @@ export class VaccinationRepository extends BaseRepository<Vaccination> {
   }
 
   /**
-   * Statistiques des vaccinations
+   * Statistiques des vaccinations (format compatible avec database.ts)
+   */
+  async getStatistiquesVaccinations(projetId: string): Promise<{
+    total: number;
+    effectuees: number;
+    enAttente: number;
+    enRetard: number;
+    tauxCouverture: number;
+    coutTotal: number;
+  }> {
+    const total = await this.count(projetId);
+
+    const effectuees = await this.queryOne<{ count: number }>(
+      "SELECT COUNT(*) as count FROM vaccinations WHERE projet_id = ? AND statut = 'effectue'",
+      [projetId]
+    );
+
+    const enAttente = await this.queryOne<{ count: number }>(
+      "SELECT COUNT(*) as count FROM vaccinations WHERE projet_id = ? AND statut = 'planifiee'",
+      [projetId]
+    );
+
+    const now = new Date().toISOString();
+    const enRetard = await this.queryOne<{ count: number }>(
+      `SELECT COUNT(*) as count FROM vaccinations 
+       WHERE projet_id = ? AND statut = 'planifiee' AND date_vaccination < ?`,
+      [projetId, now]
+    );
+
+    const cout = await this.queryOne<{ total: number }>(
+      'SELECT COALESCE(SUM(cout), 0) as total FROM vaccinations WHERE projet_id = ?',
+      [projetId]
+    );
+
+    return {
+      total: total || 0,
+      effectuees: effectuees?.count || 0,
+      enAttente: enAttente?.count || 0,
+      enRetard: enRetard?.count || 0,
+      tauxCouverture: total ? ((effectuees?.count || 0) / total) * 100 : 0,
+      coutTotal: cout?.total || 0,
+    };
+  }
+
+  /**
+   * Statistiques des vaccinations (format simplifié)
    */
   async getStats(projetId: string): Promise<{
     total: number;

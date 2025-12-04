@@ -21,6 +21,7 @@ import {
   getTypePorcLabel,
 } from '../types';
 import { useActionPermissions } from '../hooks/useActionPermissions';
+import { validateStockAliment } from '../validation/stocksSchemas';
 
 interface StockAlimentFormModalProps {
   visible: boolean;
@@ -161,23 +162,14 @@ export default function StockAlimentFormModal({
       return;
     }
 
-    if (!projetId) {
-      Alert.alert('Erreur', 'Aucun projet actif. Veuillez sélectionner un projet.');
-      return;
-    }
-
-    if (!formData.nom.trim()) {
-      Alert.alert('Champ requis', "Le nom de l'aliment est obligatoire");
-      return;
-    }
-
-    if (!formData.unite) {
-      Alert.alert('Champ requis', "Veuillez sélectionner l'unité");
-      return;
-    }
-
-    if (!isEditing && (formData.quantite_initiale ?? 0) < 0) {
-      Alert.alert('Valeur invalide', 'La quantité initiale doit être positive');
+    // Validation avec Yup
+    const { isValid, errors: validationErrors } = await validateStockAliment({
+      ...formData,
+      projet_id: projetId,
+    });
+    if (!isValid) {
+      const firstError = Object.values(validationErrors)[0];
+      Alert.alert('Erreur de validation', firstError || 'Veuillez corriger les erreurs du formulaire');
       return;
     }
 

@@ -53,7 +53,8 @@ export const createMortalite = createAsyncThunk(
     try {
       const db = await getDatabase();
       const mortaliteRepo = new MortaliteRepository(db);
-      const mortalite = await mortaliteRepo.create(input);
+      // Utiliser createWithAnimalUpdate pour inclure la logique de mise à jour des animaux
+      const mortalite = await mortaliteRepo.createWithAnimalUpdate(input);
       return mortalite;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la création de la mortalité');

@@ -12,7 +12,8 @@ import {
   CreateRationBudgetInput,
   UpdateRationBudgetInput,
 } from '../../types';
-import { databaseService } from '../../services/database';
+import { getDatabase } from '../../services/database';
+import { RationRepository } from '../../database/repositories';
 
 interface NutritionState {
   ingredients: Ingredient[];
@@ -35,7 +36,11 @@ export const createIngredient = createAsyncThunk(
   'nutrition/createIngredient',
   async (input: CreateIngredientInput, { rejectWithValue }) => {
     try {
-      const ingredient = await databaseService.createIngredient(input);
+      const { getDatabase } = await import('../../services/database');
+      const { IngredientRepository } = await import('../../database/repositories');
+      const db = await getDatabase();
+      const ingredientRepo = new IngredientRepository(db);
+      const ingredient = await ingredientRepo.create(input);
       return ingredient;
     } catch (error: any) {
       return rejectWithValue(error.message || "Erreur lors de la création de l'ingrédient");
@@ -47,7 +52,11 @@ export const loadIngredients = createAsyncThunk(
   'nutrition/loadIngredients',
   async (projetId: string, { rejectWithValue }) => {
     try {
-      const ingredients = await databaseService.getAllIngredients(projetId);
+      const { getDatabase } = await import('../../services/database');
+      const { IngredientRepository } = await import('../../database/repositories');
+      const db = await getDatabase();
+      const ingredientRepo = new IngredientRepository(db);
+      const ingredients = await ingredientRepo.getAllIngredients(projetId);
       return ingredients;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des ingrédients');
@@ -59,7 +68,11 @@ export const updateIngredient = createAsyncThunk(
   'nutrition/updateIngredient',
   async ({ id, updates }: { id: string; updates: Partial<Ingredient> }, { rejectWithValue }) => {
     try {
-      const ingredient = await databaseService.updateIngredient(id, updates);
+      const { getDatabase } = await import('../../services/database');
+      const { IngredientRepository } = await import('../../database/repositories');
+      const db = await getDatabase();
+      const ingredientRepo = new IngredientRepository(db);
+      const ingredient = await ingredientRepo.update(id, updates);
       return ingredient;
     } catch (error: any) {
       return rejectWithValue(error.message || "Erreur lors de la mise à jour de l'ingrédient");
@@ -71,7 +84,11 @@ export const deleteIngredient = createAsyncThunk(
   'nutrition/deleteIngredient',
   async (id: string, { rejectWithValue }) => {
     try {
-      await databaseService.deleteIngredient(id);
+      const { getDatabase } = await import('../../services/database');
+      const { IngredientRepository } = await import('../../database/repositories');
+      const db = await getDatabase();
+      const ingredientRepo = new IngredientRepository(db);
+      await ingredientRepo.deleteById(id);
       return id;
     } catch (error: any) {
       return rejectWithValue(error.message || "Erreur lors de la suppression de l'ingrédient");
@@ -84,8 +101,14 @@ export const createRation = createAsyncThunk(
   'nutrition/createRation',
   async (input: CreateRationInput, { rejectWithValue }) => {
     try {
+      const { getDatabase } = await import('../../services/database');
+      const { IngredientRepository, RationRepository } = await import('../../database/repositories');
+      const db = await getDatabase();
+      const ingredientRepo = new IngredientRepository(db);
+      const rationRepo = new RationRepository(db);
+
       // Calculer le coût total
-      const ingredients = await databaseService.getAllIngredients(input.projet_id);
+      const ingredients = await ingredientRepo.getAllIngredients(input.projet_id);
       let coutTotal = 0;
 
       input.ingredients.forEach((ing: { ingredient_id: string; quantite: number }) => {
@@ -97,7 +120,7 @@ export const createRation = createAsyncThunk(
 
       const coutParKg = input.poids_kg > 0 ? coutTotal / input.poids_kg : 0;
 
-      const ration = await databaseService.createRation({
+      const ration = await rationRepo.create({
         ...input,
         cout_total: coutTotal,
         cout_par_kg: coutParKg,
@@ -113,7 +136,11 @@ export const loadRations = createAsyncThunk(
   'nutrition/loadRations',
   async (projetId: string, { rejectWithValue }) => {
     try {
-      const rations = await databaseService.getAllRations(projetId);
+      const { getDatabase } = await import('../../services/database');
+      const { RationRepository } = await import('../../database/repositories');
+      const db = await getDatabase();
+      const rationRepo = new RationRepository(db);
+      const rations = await rationRepo.findByProjet(projetId);
       return rations;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des rations');
@@ -125,7 +152,11 @@ export const deleteRation = createAsyncThunk(
   'nutrition/deleteRation',
   async (id: string, { rejectWithValue }) => {
     try {
-      await databaseService.deleteRation(id);
+      const { getDatabase } = await import('../../services/database');
+      const { RationRepository } = await import('../../database/repositories');
+      const db = await getDatabase();
+      const rationRepo = new RationRepository(db);
+      await rationRepo.delete(id);
       return id;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la suppression de la ration');
@@ -138,7 +169,9 @@ export const createRationBudget = createAsyncThunk(
   'nutrition/createRationBudget',
   async (input: CreateRationBudgetInput, { rejectWithValue }) => {
     try {
-      const rationBudget = await databaseService.createRationBudget(input);
+      const db = await getDatabase();
+      const rationRepo = new RationRepository(db);
+      const rationBudget = await rationRepo.createRationBudget(input);
       return rationBudget;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la création de la ration budget');
@@ -150,7 +183,9 @@ export const loadRationsBudget = createAsyncThunk(
   'nutrition/loadRationsBudget',
   async (projetId: string, { rejectWithValue }) => {
     try {
-      const rationsBudget = await databaseService.getRationsBudgetByProjet(projetId);
+      const db = await getDatabase();
+      const rationRepo = new RationRepository(db);
+      const rationsBudget = await rationRepo.findRationsBudgetByProjet(projetId);
       return rationsBudget;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des rations budget');
@@ -165,7 +200,9 @@ export const updateRationBudget = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const rationBudget = await databaseService.updateRationBudget(id, updates);
+      const db = await getDatabase();
+      const rationRepo = new RationRepository(db);
+      const rationBudget = await rationRepo.updateRationBudget(id, updates);
       if (!rationBudget) {
         throw new Error('Ration budget non trouvée');
       }
@@ -180,7 +217,9 @@ export const deleteRationBudget = createAsyncThunk(
   'nutrition/deleteRationBudget',
   async (id: string, { rejectWithValue }) => {
     try {
-      await databaseService.deleteRationBudget(id);
+      const db = await getDatabase();
+      const rationRepo = new RationRepository(db);
+      await rationRepo.deleteRationBudget(id);
       return id;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la suppression de la ration budget');

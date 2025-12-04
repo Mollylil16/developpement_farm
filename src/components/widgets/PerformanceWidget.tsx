@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: FONT_SIZES.lg,
-    fontWeight: FONT_WEIGHTS.semibold as any,
+    fontWeight: FONT_WEIGHTS.semiBold,
   },
   loadingContainer: {
     paddingVertical: SPACING.xl,
@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: FONT_SIZES.xl,
-    fontWeight: FONT_WEIGHTS.bold as any,
+    fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.xs / 2,
   },
   statUnit: {
@@ -325,12 +325,12 @@ const styles = StyleSheet.create({
   },
   ecartValue: {
     fontSize: FONT_SIZES.xxl,
-    fontWeight: FONT_WEIGHTS.bold as any,
+    fontWeight: FONT_WEIGHTS.bold,
     textAlign: 'center',
   },
   ecartPourcent: {
     fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semibold as any,
+    fontWeight: FONT_WEIGHTS.semiBold,
     textAlign: 'center',
     marginTop: SPACING.xs / 2,
   },
@@ -350,7 +350,7 @@ const styles = StyleSheet.create({
   },
   suggestionsTitle: {
     fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semibold as any,
+    fontWeight: FONT_WEIGHTS.semiBold,
     marginBottom: SPACING.sm,
   },
   suggestionRow: {

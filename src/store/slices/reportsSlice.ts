@@ -9,7 +9,8 @@ import {
   IndicateursPerformance,
   Recommandation,
 } from '../../types';
-import { databaseService } from '../../services/database';
+import { getDatabase } from '../../services/database';
+import { RapportCroissanceRepository } from '../../database/repositories';
 
 interface ReportsState {
   rapportsCroissance: RapportCroissance[];
@@ -32,7 +33,9 @@ export const createRapportCroissance = createAsyncThunk(
   'reports/createRapportCroissance',
   async (input: CreateRapportCroissanceInput, { rejectWithValue }) => {
     try {
-      const rapport = await databaseService.createRapportCroissance(input);
+      const db = await getDatabase();
+      const rapportRepo = new RapportCroissanceRepository(db);
+      const rapport = await rapportRepo.create(input);
       return rapport;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la création du rapport');
@@ -44,7 +47,9 @@ export const loadRapportsCroissance = createAsyncThunk(
   'reports/loadRapportsCroissance',
   async (_, { rejectWithValue }) => {
     try {
-      const rapports = await databaseService.getAllRapportsCroissance();
+      const db = await getDatabase();
+      const rapportRepo = new RapportCroissanceRepository(db);
+      const rapports = await rapportRepo.findAll();
       return rapports;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des rapports');
@@ -56,7 +61,9 @@ export const loadRapportsCroissanceParProjet = createAsyncThunk(
   'reports/loadRapportsCroissanceParProjet',
   async (projetId: string, { rejectWithValue }) => {
     try {
-      const rapports = await databaseService.getRapportsCroissanceParProjet(projetId);
+      const db = await getDatabase();
+      const rapportRepo = new RapportCroissanceRepository(db);
+      const rapports = await rapportRepo.findByProjet(projetId);
       return rapports;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des rapports');
@@ -68,7 +75,9 @@ export const deleteRapportCroissance = createAsyncThunk(
   'reports/deleteRapportCroissance',
   async (id: string, { rejectWithValue }) => {
     try {
-      await databaseService.deleteRapportCroissance(id);
+      const db = await getDatabase();
+      const rapportRepo = new RapportCroissanceRepository(db);
+      await rapportRepo.delete(id);
       return id;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la suppression du rapport');

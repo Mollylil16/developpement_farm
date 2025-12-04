@@ -22,7 +22,6 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
-import { databaseService } from '../services/database';
 import { loadUserFromStorageThunk, signOut } from '../store/slices/authSlice';
 
 export default function ProfilScreen() {
@@ -53,7 +52,11 @@ export default function ProfilScreen() {
       setLoadingData(true);
       
       // Charger directement depuis la base de données pour avoir les données à jour
-      const dbUser = await databaseService.getUserById(user.id);
+      const { getDatabase } = await import('../services/database');
+      const { UserRepository } = await import('../database/repositories');
+      const db = await getDatabase();
+      const userRepo = new UserRepository(db);
+      const dbUser = await userRepo.findById(user.id);
       
       if (dbUser) {
         // Utilisateur trouvé dans la base de données
@@ -158,7 +161,11 @@ export default function ProfilScreen() {
       }
 
       // Mettre à jour dans la base de données
-      await databaseService.updateUser(user.id, {
+      const { getDatabase } = await import('../services/database');
+      const { UserRepository } = await import('../database/repositories');
+      const db = await getDatabase();
+      const userRepo = new UserRepository(db);
+      await userRepo.update(user.id, {
         nom: nom.trim(),
         prenom: prenom.trim(),
         email: email?.trim() || undefined,

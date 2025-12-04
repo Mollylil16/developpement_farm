@@ -3,7 +3,7 @@ module.exports = {
   setupFiles: ['<rootDir>/jest.setup.js'],
   setupFilesAfterEnv: ['@testing-library/jest-native/extend-expect'],
   transformIgnorePatterns: [
-    'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|react-native-reanimated)'
+    'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|react-native-reanimated|react-redux|@reduxjs/toolkit|immer|redux-persist)'
   ],
   moduleNameMapper: {
     'react-native-reanimated': require.resolve('react-native-reanimated/mock'),
@@ -17,19 +17,19 @@ module.exports = {
   ],
   coverageThreshold: {
     global: {
-      statements: 70,
-      branches: 60,
-      functions: 70,
-      lines: 70,
+      statements: 90,
+      branches: 85,
+      functions: 90,
+      lines: 90,
     },
-  },
-  moduleNameMapper: {
-    '\\.svg': '<rootDir>/__mocks__/svgMock.js',
   },
   testMatch: [
     '**/__tests__/**/*.[jt]s?(x)',
-    '**/?(*.)+(spec|test).[jt]s?(x)'
+    '**/?(*.)+(spec|test).[jt]s?(x)',
+    '**/e2e/**/*.e2e.[jt]s?(x)'
   ],
+  // Configuration pour les tests E2E (timeout plus long)
+  testTimeout: 30000,
 };
 
 

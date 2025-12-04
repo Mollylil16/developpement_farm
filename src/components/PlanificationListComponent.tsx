@@ -2,7 +2,7 @@
  * Composant liste des planifications avec filtres
  */
 
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,8 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  RefreshControl,
+  AppState,
 } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import {
@@ -49,14 +51,77 @@ export default function PlanificationListComponent() {
   const [filterStatut, setFilterStatut] = useState<StatutTache | 'tous'>('tous');
   const [displayedPlanifications, setDisplayedPlanifications] = useState<Planification[]>([]);
   const [page, setPage] = useState(1);
+  const [refreshing, setRefreshing] = useState(false);
   const ITEMS_PER_PAGE = 50;
+  const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const appStateRef = useRef(AppState.currentState);
 
+  // Fonction pour charger les planifications
+  const loadPlanifications = useCallback(async () => {
+    if (!projetActif?.id) return;
+    
+    try {
+      await Promise.all([
+        dispatch(loadPlanificationsParProjet(projetActif.id)).unwrap(),
+        dispatch(loadPlanificationsAVenir({ projetId: projetActif.id, jours: 7 })).unwrap(),
+      ]);
+    } catch (error) {
+      console.error('Erreur lors du chargement des planifications:', error);
+    }
+  }, [dispatch, projetActif?.id]);
+
+  // Chargement initial
   useEffect(() => {
     if (projetActif) {
-      dispatch(loadPlanificationsParProjet(projetActif.id));
-      dispatch(loadPlanificationsAVenir({ projetId: projetActif.id, jours: 7 }));
+      loadPlanifications();
     }
-  }, [dispatch, projetActif]);
+  }, [dispatch, projetActif?.id, loadPlanifications]);
+
+  // Synchronisation automatique toutes les 30 secondes quand l'app est active
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (
+        appStateRef.current.match(/inactive|background/) &&
+        nextAppState === 'active'
+      ) {
+        // L'app revient au premier plan, recharger immédiatement
+        if (projetActif?.id) {
+          loadPlanifications();
+        }
+      }
+      appStateRef.current = nextAppState;
+    });
+
+    // Démarrer le polling si l'app est active
+    if (projetActif?.id) {
+      syncIntervalRef.current = setInterval(() => {
+        if (appStateRef.current === 'active') {
+          loadPlanifications();
+        }
+      }, 30000); // 30 secondes
+    }
+
+    return () => {
+      subscription.remove();
+      if (syncIntervalRef.current) {
+        clearInterval(syncIntervalRef.current);
+      }
+    };
+  }, [projetActif?.id, loadPlanifications]);
+
+  // Fonction de refresh manuel
+  const onRefresh = useCallback(async () => {
+    if (!projetActif?.id) return;
+    
+    setRefreshing(true);
+    try {
+      await loadPlanifications();
+    } catch (error) {
+      console.error('Erreur lors du rafraîchissement:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [projetActif?.id, loadPlanifications]);
 
   const planificationsFiltrees = useMemo(() => {
     if (!planifications || !Array.isArray(planifications)) return [];
@@ -128,10 +193,8 @@ export default function PlanificationListComponent() {
         style: 'destructive',
         onPress: async () => {
           await dispatch(deletePlanification(id));
-          if (projetActif) {
-            dispatch(loadPlanificationsParProjet(projetActif.id));
-            dispatch(loadPlanificationsAVenir({ projetId: projetActif.id, jours: 7 }));
-          }
+          // Recharger les planifications après suppression
+          loadPlanifications();
         },
       },
     ]);
@@ -156,10 +219,8 @@ export default function PlanificationListComponent() {
               updates: { statut: 'terminee' },
             })
           );
-          if (projetActif) {
-            dispatch(loadPlanificationsParProjet(projetActif.id));
-            dispatch(loadPlanificationsAVenir({ projetId: projetActif.id, jours: 7 }));
-          }
+          // Recharger les planifications après mise à jour
+          loadPlanifications();
         },
       },
     ]);
@@ -173,10 +234,8 @@ export default function PlanificationListComponent() {
 
   const handleSuccess = () => {
     handleCloseModal();
-    if (projetActif) {
-      dispatch(loadPlanificationsParProjet(projetActif.id));
-      dispatch(loadPlanificationsAVenir({ projetId: projetActif.id, jours: 7 }));
-    }
+    // Recharger les planifications après création/modification
+    loadPlanifications();
   };
 
   const formatDate = (dateString: string) => {
@@ -348,6 +407,15 @@ export default function PlanificationListComponent() {
       ) : (
         <FlatList
           data={displayedPlanifications}
+          style={styles.flatList}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          }
           renderItem={({ item: planification }) => (
             <View
               style={[
@@ -479,69 +547,71 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.xl,
+    paddingVertical: SPACING.md,
     borderBottomWidth: 1,
   },
   title: {
-    fontSize: FONT_SIZES.xxl,
+    fontSize: FONT_SIZES.lg,
     fontWeight: 'bold',
   },
   addButton: {
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
     borderRadius: BORDER_RADIUS.md,
-    minHeight: 44,
+    minHeight: 32,
   },
   addButtonText: {
-    fontSize: FONT_SIZES.md,
+    fontSize: FONT_SIZES.sm,
     fontWeight: FONT_WEIGHTS.semiBold,
   },
   alertsContainer: {
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+    paddingVertical: SPACING.sm,
   },
   alertCard: {
-    padding: SPACING.lg,
+    padding: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
     borderLeftWidth: 4,
   },
   alertTitle: {
-    fontSize: FONT_SIZES.md,
+    fontSize: FONT_SIZES.sm,
     fontWeight: '600',
   },
   filtersContainer: {
-    paddingVertical: SPACING.lg,
+    paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.lg,
     borderBottomWidth: 1,
   },
   filterButton: {
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
     borderRadius: BORDER_RADIUS.md,
-    marginRight: SPACING.md,
+    marginRight: SPACING.sm,
     borderWidth: 1.5,
-    minHeight: 40,
+    minHeight: 32,
   },
   filterButtonText: {
-    fontSize: FONT_SIZES.sm,
+    fontSize: FONT_SIZES.xs,
+  },
+  flatList: {
+    flex: 1,
   },
   listContainer: {
-    flex: 1,
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+    paddingVertical: SPACING.sm,
   },
   card: {
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.sm,
+    marginBottom: SPACING.sm,
     borderWidth: 1,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.xs,
   },
   cardHeaderLeft: {
     flexDirection: 'row',
@@ -549,19 +619,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   typeBadge: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.md,
-    marginRight: SPACING.sm,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 2,
+    borderRadius: BORDER_RADIUS.sm,
+    marginRight: SPACING.xs,
   },
   typeBadgeText: {
     fontSize: FONT_SIZES.xs,
     fontWeight: '600',
   },
   statutBadge: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 2,
+    borderRadius: BORDER_RADIUS.sm,
   },
   statutBadgeText: {
     fontSize: FONT_SIZES.xs,
@@ -572,41 +642,41 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   actionButton: {
-    padding: SPACING.sm,
-    marginLeft: SPACING.sm,
+    padding: SPACING.xs,
+    marginLeft: SPACING.xs,
     borderRadius: BORDER_RADIUS.sm,
-    minWidth: 40,
-    minHeight: 40,
+    minWidth: 32,
+    minHeight: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },
   actionButtonText: {
-    fontSize: FONT_SIZES.md,
+    fontSize: FONT_SIZES.sm,
   },
   cardContent: {
-    marginTop: SPACING.sm,
+    marginTop: SPACING.xs,
   },
   titreText: {
-    fontSize: FONT_SIZES.lg,
+    fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.bold,
-    marginBottom: SPACING.sm,
-    lineHeight: 22,
+    marginBottom: SPACING.xs,
+    lineHeight: 20,
   },
   dateText: {
-    fontSize: FONT_SIZES.md,
-    marginBottom: SPACING.sm,
+    fontSize: FONT_SIZES.sm,
+    marginBottom: SPACING.xs,
   },
   descriptionText: {
-    fontSize: FONT_SIZES.md,
-    marginBottom: SPACING.sm,
-    lineHeight: 20,
+    fontSize: FONT_SIZES.sm,
+    marginBottom: SPACING.xs,
+    lineHeight: 18,
   },
   recurrenceText: {
     fontSize: FONT_SIZES.xs,
-    marginBottom: SPACING.xs,
+    marginBottom: 2,
   },
   notesText: {
-    fontSize: FONT_SIZES.sm,
+    fontSize: FONT_SIZES.xs,
     fontStyle: 'italic',
   },
 });

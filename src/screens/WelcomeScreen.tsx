@@ -2,13 +2,14 @@
  * Page de bienvenue avec thème élevage - Design convivial et accueillant amélioré
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, ScrollView, Dimensions, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import Button from '../components/Button';
+import { SCREENS } from '../navigation/types';
 
 const logoImage = require('../../assets/logo.jpeg');
 
@@ -294,7 +295,8 @@ export default function WelcomeScreen() {
   );
 
   const handleGetStarted = () => {
-    navigation.navigate('Auth');
+    // Naviguer vers l'écran de création de compte (première connexion)
+    navigation.navigate(SCREENS.ONBOARDING_AUTH as never);
   };
 
   return (

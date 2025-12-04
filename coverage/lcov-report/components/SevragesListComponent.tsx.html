@@ -25,28 +25,28 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/176</span>
+                <span class='fraction'>0/186</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/131</span>
+                <span class='fraction'>0/135</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/39</span>
+                <span class='fraction'>0/42</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/156</span>
+                <span class='fraction'>0/162</span>
             </div>
         
             
@@ -791,7 +791,14 @@
 <a name='L726'></a><a href='#L726'>726</a>
 <a name='L727'></a><a href='#L727'>727</a>
 <a name='L728'></a><a href='#L728'>728</a>
-<a name='L729'></a><a href='#L729'>729</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L729'></a><a href='#L729'>729</a>
+<a name='L730'></a><a href='#L730'>730</a>
+<a name='L731'></a><a href='#L731'>731</a>
+<a name='L732'></a><a href='#L732'>732</a>
+<a name='L733'></a><a href='#L733'>733</a>
+<a name='L734'></a><a href='#L734'>734</a>
+<a name='L735'></a><a href='#L735'>735</a>
+<a name='L736'></a><a href='#L736'>736</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -822,6 +829,13 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1552,9 +1566,16 @@ export default function <span class="fstat-no" title="function not covered" >Sev
   const { colors } = <span class="cstat-no" title="statement not covered" >useTheme();</span>
   const dispatch = <span class="cstat-no" title="statement not covered" >useAppDispatch();</span>
   const { canCreate, canDelete } = <span class="cstat-no" title="statement not covered" >useActionPermissions();</span>
-  const { sevrages = <span class="branch-0 cbranch-no" title="branch not covered" >[],</span> gestations = <span class="branch-0 cbranch-no" title="branch not covered" >[] </span>} = <span class="cstat-no" title="statement not covered" >useAppSelector(</span>
-<span class="fstat-no" title="function not covered" >    (s</span>tate) =&gt; <span class="cstat-no" title="statement not covered" >state.reproduction || { sevrages: [], gestations: [] }</span>
-  );
+  const gestations = <span class="cstat-no" title="statement not covered" >useAppSelector(<span class="fstat-no" title="function not covered" >(s</span>tate) =&gt; {</span>
+    const reproState = <span class="cstat-no" title="statement not covered" >state.reproduction;</span>
+<span class="cstat-no" title="statement not covered" >    if (!reproState?.entities?.gestations || !reproState?.ids?.gestations) <span class="cstat-no" title="statement not covered" >return [];</span></span>
+<span class="cstat-no" title="statement not covered" >    return reproState.ids.gestations.map(<span class="fstat-no" title="function not covered" >(i</span>d) =&gt; <span class="cstat-no" title="statement not covered" >reproState.entities.gestations[id])</span>.filter(Boolean);</span>
+  });
+  const sevrages = <span class="cstat-no" title="statement not covered" >useAppSelector(<span class="fstat-no" title="function not covered" >(s</span>tate) =&gt; {</span>
+    const reproState = <span class="cstat-no" title="statement not covered" >state.reproduction;</span>
+<span class="cstat-no" title="statement not covered" >    if (!reproState?.entities?.sevrages || !reproState?.ids?.sevrages) <span class="cstat-no" title="statement not covered" >return [];</span></span>
+<span class="cstat-no" title="statement not covered" >    return reproState.ids.sevrages.map(<span class="fstat-no" title="function not covered" >(i</span>d) =&gt; <span class="cstat-no" title="statement not covered" >reproState.entities.sevrages[id])</span>.filter(Boolean);</span>
+  });
   const [loading, setLoading] = <span class="cstat-no" title="statement not covered" >useState(false);</span>
   const [modalVisible, setModalVisible] = <span class="cstat-no" title="statement not covered" >useState(false);</span>
   const [selectedGestation, setSelectedGestation] = <span class="cstat-no" title="statement not covered" >useState&lt;Gestation | null&gt;(null);</span>
@@ -2254,7 +2275,7 @@ const styles = <span class="cstat-no" title="statement not covered" >StyleSheet.
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-26T03:39:32.595Z
+                at 2025-12-02T20:11:08.298Z
             </div>
         <script src="../prettify.js"></script>
         <script>

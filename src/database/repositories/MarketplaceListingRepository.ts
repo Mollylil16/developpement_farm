@@ -13,6 +13,48 @@ export class MarketplaceListingRepository extends BaseRepository<MarketplaceList
   }
 
   /**
+   * Override findAll pour utiliser updated_at si derniere_modification n'existe pas
+   */
+  async findAll(projetId?: string): Promise<MarketplaceListing[]> {
+    // Vérifier d'abord si la colonne derniere_modification existe
+    try {
+      const columns = await this.db.getAllAsync<{ name: string }>(
+        `PRAGMA table_info(${this.tableName})`
+      );
+      const hasDerniereModification = columns.some((col) => col.name === 'derniere_modification');
+      
+      if (hasDerniereModification) {
+        // Utiliser derniere_modification si elle existe
+        if (projetId) {
+          return this.query<MarketplaceListing>(
+            `SELECT * FROM ${this.tableName} WHERE farm_id = ? ORDER BY derniere_modification DESC, updated_at DESC`,
+            [projetId]
+          );
+        }
+        return this.query<MarketplaceListing>(`SELECT * FROM ${this.tableName} ORDER BY derniere_modification DESC, updated_at DESC`);
+      } else {
+        // Utiliser updated_at si derniere_modification n'existe pas
+        if (projetId) {
+          return this.query<MarketplaceListing>(
+            `SELECT * FROM ${this.tableName} WHERE farm_id = ? ORDER BY updated_at DESC`,
+            [projetId]
+          );
+        }
+        return this.query<MarketplaceListing>(`SELECT * FROM ${this.tableName} ORDER BY updated_at DESC`);
+      }
+    } catch (error: unknown) {
+      // En cas d'erreur, utiliser updated_at comme fallback
+      if (projetId) {
+        return this.query<MarketplaceListing>(
+          `SELECT * FROM ${this.tableName} WHERE farm_id = ? ORDER BY updated_at DESC`,
+          [projetId]
+        );
+      }
+      return this.query<MarketplaceListing>(`SELECT * FROM ${this.tableName} ORDER BY updated_at DESC`);
+    }
+  }
+
+  /**
    * Créer une nouvelle annonce
    */
   async create(data: {
@@ -28,39 +70,84 @@ export class MarketplaceListingRepository extends BaseRepository<MarketplaceList
     const id = uuid.v4() as string;
     const now = new Date().toISOString();
 
-    await this.db.runAsync(
-      `INSERT INTO marketplace_listings (
-        id, subject_id, producer_id, farm_id,
-        price_per_kg, calculated_price, status,
-        listed_at, updated_at, last_weight_date,
-        location_latitude, location_longitude,
-        location_address, location_city, location_region,
-        sale_terms_transport, sale_terms_slaughter,
-        sale_terms_payment, sale_terms_warranty, sale_terms_cancellation
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        data.subjectId,
-        data.producerId,
-        data.farmId,
-        data.pricePerKg,
-        data.calculatedPrice,
-        'available',
-        now,
-        now,
-        data.lastWeightDate,
-        data.location.latitude,
-        data.location.longitude,
-        data.location.address,
-        data.location.city,
-        data.location.region,
-        data.saleTerms.transport,
-        data.saleTerms.slaughter,
-        data.saleTerms.paymentTerms || 'on_delivery',
-        data.saleTerms.warranty,
-        data.saleTerms.cancellationPolicy,
-      ]
+    // Vérifier si la colonne derniere_modification existe
+    const columns = await this.db.getAllAsync<{ name: string }>(
+      `PRAGMA table_info(${this.tableName})`
     );
+    const hasDerniereModification = columns.some((col) => col.name === 'derniere_modification');
+
+    if (hasDerniereModification) {
+      await this.db.runAsync(
+        `INSERT INTO marketplace_listings (
+          id, subject_id, producer_id, farm_id,
+          price_per_kg, calculated_price, status,
+          listed_at, updated_at, last_weight_date,
+          location_latitude, location_longitude,
+          location_address, location_city, location_region,
+          sale_terms_transport, sale_terms_slaughter,
+          sale_terms_payment, sale_terms_warranty, sale_terms_cancellation,
+          derniere_modification
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          id,
+          data.subjectId,
+          data.producerId,
+          data.farmId,
+          data.pricePerKg,
+          data.calculatedPrice,
+          'available',
+          now,
+          now,
+          data.lastWeightDate,
+          data.location.latitude,
+          data.location.longitude,
+          data.location.address,
+          data.location.city,
+          data.location.region,
+          data.saleTerms.transport,
+          data.saleTerms.slaughter,
+          data.saleTerms.paymentTerms || 'on_delivery',
+          data.saleTerms.warranty,
+          data.saleTerms.cancellationPolicy,
+          now, // derniere_modification
+        ]
+      );
+    } else {
+      // Si la colonne n'existe pas, ne pas l'inclure dans l'INSERT
+      await this.db.runAsync(
+        `INSERT INTO marketplace_listings (
+          id, subject_id, producer_id, farm_id,
+          price_per_kg, calculated_price, status,
+          listed_at, updated_at, last_weight_date,
+          location_latitude, location_longitude,
+          location_address, location_city, location_region,
+          sale_terms_transport, sale_terms_slaughter,
+          sale_terms_payment, sale_terms_warranty, sale_terms_cancellation
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          id,
+          data.subjectId,
+          data.producerId,
+          data.farmId,
+          data.pricePerKg,
+          data.calculatedPrice,
+          'available',
+          now,
+          now,
+          data.lastWeightDate,
+          data.location.latitude,
+          data.location.longitude,
+          data.location.address,
+          data.location.city,
+          data.location.region,
+          data.saleTerms.transport,
+          data.saleTerms.slaughter,
+          data.saleTerms.paymentTerms || 'on_delivery',
+          data.saleTerms.warranty,
+          data.saleTerms.cancellationPolicy,
+        ]
+      );
+    }
 
     const listing = await this.findById(id);
     if (!listing) {
@@ -107,6 +194,18 @@ export class MarketplaceListingRepository extends BaseRepository<MarketplaceList
   }
 
   /**
+   * Récupérer toutes les annonces d'un sujet (animal)
+   */
+  async findBySubjectId(subjectId: string): Promise<MarketplaceListing[]> {
+    const rows = await this.db.getAllAsync<any>(
+      `SELECT * FROM ${this.tableName} WHERE subject_id = ? ORDER BY listed_at DESC`,
+      [subjectId]
+    );
+
+    return rows.map(row => this.mapRowToListing(row));
+  }
+
+  /**
    * Récupérer les annonces disponibles avec filtres
    */
   async findAvailable(filters?: MarketplaceFilters): Promise<MarketplaceListing[]> {
@@ -136,10 +235,34 @@ export class MarketplaceListingRepository extends BaseRepository<MarketplaceList
    * Mettre à jour le statut d'une annonce
    */
   async updateStatus(id: string, status: 'available' | 'reserved' | 'pending_delivery' | 'sold' | 'removed'): Promise<void> {
-    await this.db.runAsync(
-      `UPDATE ${this.tableName} SET status = ?, updated_at = ? WHERE id = ?`,
-      [status, new Date().toISOString(), id]
-    );
+    const now = new Date().toISOString();
+    
+    // Vérifier si la colonne derniere_modification existe
+    try {
+      const columns = await this.db.getAllAsync<{ name: string }>(
+        `PRAGMA table_info(${this.tableName})`
+      );
+      const hasDerniereModification = columns.some((col) => col.name === 'derniere_modification');
+      
+      if (hasDerniereModification) {
+        await this.db.runAsync(
+          `UPDATE ${this.tableName} SET status = ?, updated_at = ?, derniere_modification = ? WHERE id = ?`,
+          [status, now, now, id]
+        );
+      } else {
+        // Si la colonne n'existe pas, ne mettre à jour que status et updated_at
+        await this.db.runAsync(
+          `UPDATE ${this.tableName} SET status = ?, updated_at = ? WHERE id = ?`,
+          [status, now, id]
+        );
+      }
+    } catch (error) {
+      // En cas d'erreur, utiliser la version sans derniere_modification
+      await this.db.runAsync(
+        `UPDATE ${this.tableName} SET status = ?, updated_at = ? WHERE id = ?`,
+        [status, now, id]
+      );
+    }
   }
 
   /**

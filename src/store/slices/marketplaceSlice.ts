@@ -86,18 +86,24 @@ export const searchListings = createAsyncThunk(
       filters?: MarketplaceFilters;
       sort?: MarketplaceSortOption;
       page?: number;
+      userId?: string; // ID de l'utilisateur pour filtrer ses propres listings
     },
-    { rejectWithValue }
+    { rejectWithValue, getState }
   ) => {
     try {
       const db = await getDatabase();
       const service = getMarketplaceService(db);
       
+      // Récupérer le userId depuis le state si non fourni
+      const state = getState() as any;
+      const userId = params.userId || state?.auth?.user?.id;
+      
       const result = await service.searchListings(
         params.filters,
         params.sort,
         params.page || 1,
-        20
+        20,
+        userId
       );
       
       return result;

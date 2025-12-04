@@ -123,7 +123,10 @@ export function validatePrice(
 /**
  * Formater un prix pour l'affichage
  */
-export function formatPrice(price: number, currency: string = 'FCFA'): string {
+export function formatPrice(price: number | undefined | null, currency: string = 'FCFA'): string {
+  if (price === undefined || price === null || isNaN(price)) {
+    return `0 ${currency}`;
+  }
   return `${price.toLocaleString('fr-FR')} ${currency}`;
 }
 

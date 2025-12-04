@@ -25,28 +25,28 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/106</span>
+                <span class='fraction'>0/109</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/65</span>
+                <span class='fraction'>0/70</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/30</span>
+                <span class='fraction'>0/31</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/100</span>
+                <span class='fraction'>0/102</span>
             </div>
         
             
@@ -732,7 +732,14 @@
 <a name='L667'></a><a href='#L667'>667</a>
 <a name='L668'></a><a href='#L668'>668</a>
 <a name='L669'></a><a href='#L669'>669</a>
-<a name='L670'></a><a href='#L670'>670</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L670'></a><a href='#L670'>670</a>
+<a name='L671'></a><a href='#L671'>671</a>
+<a name='L672'></a><a href='#L672'>672</a>
+<a name='L673'></a><a href='#L673'>673</a>
+<a name='L674'></a><a href='#L674'>674</a>
+<a name='L675'></a><a href='#L675'>675</a>
+<a name='L676'></a><a href='#L676'>676</a>
+<a name='L677'></a><a href='#L677'>677</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -776,6 +783,13 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1437,14 +1451,21 @@ import EmptyState from './EmptyState';
 import LoadingSpinner from './LoadingSpinner';
 import CollaborationFormModal from './CollaborationFormModal';
 import StatCard from './StatCard';
-import { usePermissions } from '../hooks/usePermissions';
+import { useRole } from '../contexts/RoleContext';
 &nbsp;
 export default function <span class="fstat-no" title="function not covered" >CollaborationListComponent(</span>) {
   const { colors } = <span class="cstat-no" title="statement not covered" >useTheme();</span>
   const insets = <span class="cstat-no" title="statement not covered" >useSafeAreaInsets();</span>
   const dispatch = <span class="cstat-no" title="statement not covered" >useAppDispatch();</span>
-  const { isProprietaire } = <span class="cstat-no" title="statement not covered" >usePermissions();</span>
+  const { activeRole } = <span class="cstat-no" title="statement not covered" >useRole();</span>
   const { projetActif } = <span class="cstat-no" title="statement not covered" >useAppSelector(<span class="fstat-no" title="function not covered" >(s</span>tate) =&gt; <span class="cstat-no" title="statement not covered" >state.projet)</span>;</span>
+  const currentUser = <span class="cstat-no" title="statement not covered" >useAppSelector(<span class="fstat-no" title="function not covered" >(s</span>tate) =&gt; <span class="cstat-no" title="statement not covered" >state.auth.user)</span>;</span>
+  
+  // Vérifier si l'utilisateur est propriétaire du projet actif
+  const isProprietaire = <span class="cstat-no" title="statement not covered" >activeRole === 'producer' &amp;&amp; </span>
+    projetActif &amp;&amp; 
+    currentUser &amp;&amp; 
+    (projetActif.proprietaire_id === currentUser.id || (projetActif as any).user_id === currentUser.id);
   const { collaborateurs, loading } = <span class="cstat-no" title="statement not covered" >useAppSelector(<span class="fstat-no" title="function not covered" >(s</span>tate) =&gt; <span class="cstat-no" title="statement not covered" >state.collaboration)</span>;</span>
   const [selectedCollaborateur, setSelectedCollaborateur] = <span class="cstat-no" title="statement not covered" >useState&lt;Collaborateur | null&gt;(null);</span>
   const [modalVisible, setModalVisible] = <span class="cstat-no" title="statement not covered" >useState(false);</span>
@@ -2077,7 +2098,7 @@ const styles = <span class="cstat-no" title="statement not covered" >StyleSheet.
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-26T03:39:32.595Z
+                at 2025-12-02T20:11:08.298Z
             </div>
         <script src="../prettify.js"></script>
         <script>

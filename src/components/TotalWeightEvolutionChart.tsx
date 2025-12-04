@@ -9,13 +9,15 @@ import { LineChart } from 'react-native-chart-kit';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { SPACING } from '../constants/theme';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, startOfMonth, startOfWeek } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { evaluerGMQCheptel } from '../utils/gmqEvaluation';
 
 interface Props {
   evolutionData: Array<{ date: string; poidsTotal: number }>;
   nombreAnimaux: number;
   gmqMoyenCheptel?: number;
+  periode?: 7 | 30 | 90; // Période en jours pour déterminer le groupement
 }
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -24,6 +26,7 @@ export default function TotalWeightEvolutionChart({
   evolutionData,
   nombreAnimaux,
   gmqMoyenCheptel = 0,
+  periode = 30,
 }: Props) {
   const { colors } = useTheme();
 
@@ -32,28 +35,65 @@ export default function TotalWeightEvolutionChart({
     return evaluerGMQCheptel(gmqMoyenCheptel, nombreAnimaux);
   }, [gmqMoyenCheptel, nombreAnimaux]);
 
-  // Calculer les données du graphique
+  // Calculer les données du graphique avec groupement
   const chartData = useMemo(() => {
     if (!evolutionData || evolutionData.length === 0) {
       return null;
     }
 
-    // Extraire les poids totaux
-    const weights = evolutionData.map((d) => d.poidsTotal);
+    // Déterminer le type de groupement selon la période
+    const groupBy = periode <= 30 ? 'week' : 'month';
 
-    // Formater les dates pour les labels
-    const dates = evolutionData.map((d, idx) => {
-      // Afficher seulement quelques labels pour éviter la surcharge
-      if (evolutionData.length <= 7) {
-        return format(parseISO(d.date), 'dd/MM');
-      } else if (evolutionData.length <= 30) {
-        return idx % 5 === 0 ? format(parseISO(d.date), 'dd/MM') : '';
-      } else {
-        return idx % 15 === 0 ? format(parseISO(d.date), 'dd/MM') : '';
-      }
+    // Grouper les données par semaine ou mois
+    const grouped = evolutionData.reduce(
+      (
+        acc: Record<string, { poidsTotal: number[]; count: number; date: Date }>,
+        item: { date: string; poidsTotal: number }
+      ) => {
+        const dateItem = parseISO(item.date);
+        let key: string;
+        let dateReference: Date;
+
+        if (groupBy === 'week') {
+          const weekStart = startOfWeek(dateItem, { weekStartsOn: 1 }); // Lundi comme début de semaine
+          dateReference = weekStart;
+          key = format(weekStart, 'dd MMM', { locale: fr });
+        } else {
+          dateReference = startOfMonth(dateItem);
+          key = format(dateItem, 'MMM yyyy', { locale: fr });
+        }
+
+        if (!acc[key]) {
+          acc[key] = { poidsTotal: [], count: 0, date: dateReference };
+        }
+        acc[key].poidsTotal.push(item.poidsTotal);
+        acc[key].count++;
+        return acc;
+      },
+      {} as Record<string, { poidsTotal: number[]; count: number; date: Date }>
+    );
+
+    // Trier par date réelle (croissant : du plus ancien au plus récent)
+    const sortedKeys = Object.keys(grouped).sort((a, b) => {
+      return grouped[a].date.getTime() - grouped[b].date.getTime();
     });
 
-    // Calculer les statistiques
+    // Limiter le nombre de points affichés pour la lisibilité (comme dans TendancesChartsComponent)
+    const maxPoints = groupBy === 'week' ? 8 : 12; // 8 semaines ou 12 mois max
+    const keysToDisplay = sortedKeys.slice(-maxPoints);
+
+    // Calculer le poids moyen pour chaque période
+    const weights = keysToDisplay.map((key) => {
+      const group = grouped[key];
+      return Math.round(
+        (group.poidsTotal.reduce((a, b) => a + b, 0) / group.count) * 10
+      ) / 10;
+    });
+
+    // Formater les labels
+    const dates = keysToDisplay.map((key) => key);
+
+    // Calculer les statistiques sur les données groupées
     const minWeight = Math.min(...weights);
     const maxWeight = Math.max(...weights);
     const firstWeight = weights[0];
@@ -61,8 +101,13 @@ export default function TotalWeightEvolutionChart({
     const totalGain = lastWeight - firstWeight;
     const gainPercentage = firstWeight > 0 ? (totalGain / firstWeight) * 100 : 0;
 
-    // Calculer le gain moyen par jour
-    const nombreJours = evolutionData.length - 1;
+    // Calculer le gain moyen par jour (basé sur la période réelle)
+    const firstDate = grouped[keysToDisplay[0]].date;
+    const lastDate = grouped[keysToDisplay[keysToDisplay.length - 1]].date;
+    const nombreJours = Math.max(
+      1,
+      Math.floor((lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24))
+    );
     const gainMoyenParJour = nombreJours > 0 ? totalGain / nombreJours : 0;
 
     // Calculer le padding pour l'échelle
@@ -79,7 +124,7 @@ export default function TotalWeightEvolutionChart({
       gainPercentage,
       gainMoyenParJour,
     };
-  }, [evolutionData]);
+  }, [evolutionData, periode]);
 
   if (!chartData) {
     return (
@@ -152,7 +197,7 @@ export default function TotalWeightEvolutionChart({
               },
             ],
           }}
-          width={Math.max(SCREEN_WIDTH - SPACING.lg * 6, chartData.dates.length * 60)}
+          width={Math.max(SCREEN_WIDTH - SPACING.lg * 6, chartData.dates.length * 80)}
           height={220}
           yAxisSuffix=" kg"
           yAxisInterval={1}

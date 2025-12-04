@@ -3,7 +3,7 @@
  * Avec sélection de sujets, proposition de prix, et acceptation des conditions
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,9 +14,15 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  RefreshControl,
+  PanResponder,
+  Animated,
+  Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { MarketplaceTheme } from '../../styles/marketplace.theme';
+import { SPACING } from '../../constants/theme';
 import SaleTermsDisplay from './SaleTermsDisplay';
 import SubjectCard from './SubjectCard';
 import type { SubjectCard as SubjectCardType } from '../../types/marketplace';
@@ -29,7 +35,7 @@ interface OfferModalProps {
     subjectIds: string[];
     proposedPrice: number;
     message?: string;
-  }) => Promise<void>;
+  }, listingId: string) => Promise<void>;
   subjects: SubjectCardType[];
   listingId: string;
   originalPrice: number;
@@ -50,6 +56,49 @@ export default function OfferModal({
   const [message, setMessage] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  
+  // Animation pour le swipe
+  const pan = useRef(new Animated.ValueXY()).current;
+
+  // PanResponder pour le swipe gauche vers droite (uniquement depuis le bord gauche)
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: (evt) => {
+        // Activer uniquement si le touch commence depuis le bord gauche (premiers 20px)
+        return evt.nativeEvent.locationX < 20;
+      },
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Détecter le swipe horizontal depuis le bord gauche
+        return gestureState.dx > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        // Limiter le mouvement à droite uniquement
+        if (gestureState.dx > 0) {
+          pan.setValue({ x: gestureState.dx, y: 0 });
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        // Si le swipe est suffisant (> 100px), fermer le modal
+        if (gestureState.dx > 100) {
+          Animated.timing(pan, {
+            toValue: { x: 1000, y: 0 },
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            onClose();
+            pan.setValue({ x: 0, y: 0 });
+          });
+        } else {
+          // Sinon, revenir à la position initiale
+          Animated.spring(pan, {
+            toValue: { x: 0, y: 0 },
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+    })
+  ).current;
 
   // Reset au montage/démontage
   useEffect(() => {
@@ -58,9 +107,13 @@ export default function OfferModal({
       setProposedPrice('');
       setMessage('');
       setTermsAccepted(false);
+      pan.setValue({ x: 0, y: 0 });
     } else {
-      // Pré-sélectionner tous les sujets disponibles
-      setSelectedIds(new Set(subjects.filter((s) => s.available).map((s) => s.id)));
+      // Pré-sélectionner tous les sujets par défaut (ils sont tous disponibles puisqu'ils sont passés)
+      if (subjects.length > 0) {
+        const idsToSelect = subjects.map((s) => s.id);
+        setSelectedIds(new Set(idsToSelect));
+      }
       // Pré-remplir avec le prix original
       setProposedPrice(originalPrice.toString());
     }
@@ -99,6 +152,15 @@ export default function OfferModal({
     return ((getDifference() / originalPrice) * 100).toFixed(1);
   };
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    // Recharger les données si nécessaire
+    // Pour l'instant, juste un délai pour simuler le refresh
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 1000);
+  };
+
   const handleSubmit = async () => {
     // Validations
     if (selectedIds.size === 0) {
@@ -107,7 +169,7 @@ export default function OfferModal({
     }
 
     const price = parseFloat(proposedPrice);
-    if (!price || price <= 0) {
+    if (!price || price <= 0 || isNaN(price)) {
       Alert.alert('Erreur', 'Veuillez entrer un prix valide');
       return;
     }
@@ -126,7 +188,7 @@ export default function OfferModal({
         subjectIds: Array.from(selectedIds),
         proposedPrice: price,
         message: message.trim() || undefined,
-      });
+      }, listingId);
       
       Alert.alert(
         'Offre envoyée',
@@ -140,19 +202,48 @@ export default function OfferModal({
     }
   };
 
+  // Vérifier si le bouton doit être activé
+  const isSubmitEnabled = selectedIds.size > 0 && 
+    proposedPrice.trim() !== '' && 
+    !isNaN(parseFloat(proposedPrice)) && 
+    parseFloat(proposedPrice) > 0 && 
+    termsAccepted;
+
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        {/* Header */}
-        <View style={[styles.header, { backgroundColor: colors.surface }]}>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <Ionicons name="close" size={28} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Faire une offre</Text>
-          <View style={styles.placeholder} />
-        </View>
+      <Animated.View
+        style={[
+          styles.container,
+          { backgroundColor: colors.background },
+          {
+            transform: [{ translateX: pan.x }],
+          },
+        ]}
+        {...panResponder.panHandlers}
+      >
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
+          {/* Header fixe */}
+          <View style={[styles.header, { backgroundColor: colors.surface }]}>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="close" size={24} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>Faire une offre</Text>
+            <View style={styles.placeholder} />
+          </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={styles.content}
+            contentContainerStyle={styles.contentContainer}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={[colors.primary]}
+                tintColor={colors.primary}
+              />
+            }
+          >
           {/* Sélection des sujets */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
@@ -162,7 +253,7 @@ export default function OfferModal({
               Poids total : {getTotalWeight().toFixed(1)} kg
             </Text>
 
-            <View style={styles.subjectsList}>
+            <View style={styles.subjectsList} key="subjects-list">
               {subjects.map((subject) => (
                 <SubjectCard
                   key={subject.id}
@@ -199,7 +290,7 @@ export default function OfferModal({
 
             {/* Comparaison prix */}
             <View style={[styles.priceComparison, { backgroundColor: colors.surfaceLight }]}>
-              <View style={styles.comparisonRow}>
+              <View key="price-requested" style={styles.comparisonRow}>
                 <Text style={[styles.comparisonLabel, { color: colors.textSecondary }]}>
                   Prix demandé
                 </Text>
@@ -207,7 +298,7 @@ export default function OfferModal({
                   {formatPrice(originalPrice)}
                 </Text>
               </View>
-              <View style={styles.comparisonRow}>
+              <View key="price-offered" style={styles.comparisonRow}>
                 <Text style={[styles.comparisonLabel, { color: colors.textSecondary }]}>
                   Votre offre
                 </Text>
@@ -215,8 +306,8 @@ export default function OfferModal({
                   {formatPrice(getCalculatedTotal())}
                 </Text>
               </View>
-              <View style={[styles.divider, { backgroundColor: colors.divider }]} />
-              <View style={styles.comparisonRow}>
+              <View key="price-divider" style={[styles.divider, { backgroundColor: colors.divider }]} />
+              <View key="price-difference" style={styles.comparisonRow}>
                 <Text style={[styles.comparisonLabel, { color: colors.textSecondary }]}>
                   Différence
                 </Text>
@@ -294,7 +385,7 @@ export default function OfferModal({
             </TouchableOpacity>
 
             {!termsAccepted && (
-              <View style={[styles.warningBox, { backgroundColor: colors.warning + '15' }]}>
+              <View key="warning-box" style={[styles.warningBox, { backgroundColor: colors.warning + '15' }]}>
                 <Ionicons name="warning" size={16} color={colors.warning} />
                 <Text style={[styles.warningText, { color: colors.warning }]}>
                   Vous devez accepter les conditions pour continuer
@@ -304,7 +395,7 @@ export default function OfferModal({
           </View>
         </ScrollView>
 
-        {/* Footer */}
+        {/* Footer fixe */}
         <View style={[styles.footer, { backgroundColor: colors.surface }]}>
           <TouchableOpacity
             style={[styles.cancelButton, { borderColor: colors.border }]}
@@ -317,14 +408,12 @@ export default function OfferModal({
             style={[
               styles.submitButton,
               {
-                backgroundColor:
-                  selectedIds.size > 0 && proposedPrice && termsAccepted
-                    ? colors.primary
-                    : colors.textLight,
+                backgroundColor: isSubmitEnabled ? colors.primary : colors.textLight,
+                opacity: isSubmitEnabled ? 1 : 0.5,
               },
             ]}
             onPress={handleSubmit}
-            disabled={loading || selectedIds.size === 0 || !proposedPrice || !termsAccepted}
+            disabled={loading || !isSubmitEnabled}
           >
             {loading ? (
               <ActivityIndicator color={colors.textInverse} />
@@ -335,7 +424,8 @@ export default function OfferModal({
             )}
           </TouchableOpacity>
         </View>
-      </View>
+        </SafeAreaView>
+      </Animated.View>
     </Modal>
   );
 }
@@ -344,16 +434,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  safeArea: {
+    flex: 1,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: MarketplaceTheme.spacing.md,
-    paddingVertical: MarketplaceTheme.spacing.md,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: Platform.OS === 'ios' ? SPACING.xl + 8 : SPACING.lg + 16,
+    paddingBottom: SPACING.sm,
     ...MarketplaceTheme.shadows.small,
   },
   closeButton: {
     width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
   },
   headerTitle: {
     fontSize: MarketplaceTheme.typography.fontSizes.xl,
@@ -365,6 +462,10 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: MarketplaceTheme.spacing.md,
+    marginBottom: 80, // Espace pour le footer fixe
+  },
+  contentContainer: {
+    paddingBottom: MarketplaceTheme.spacing.xl,
   },
   section: {
     marginTop: MarketplaceTheme.spacing.lg,
@@ -380,6 +481,7 @@ const styles = StyleSheet.create({
   },
   subjectsList: {
     gap: MarketplaceTheme.spacing.sm,
+    marginBottom: MarketplaceTheme.spacing.md,
   },
   priceInputContainer: {
     padding: MarketplaceTheme.spacing.md,
@@ -474,6 +576,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: MarketplaceTheme.spacing.md,
     paddingVertical: MarketplaceTheme.spacing.md,
     ...MarketplaceTheme.shadows.medium,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
   },
   cancelButton: {
     flex: 1,

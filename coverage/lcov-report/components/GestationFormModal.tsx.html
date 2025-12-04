@@ -25,14 +25,14 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/205</span>
+                <span class='fraction'>0/201</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/271</span>
+                <span class='fraction'>0/268</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/191</span>
+                <span class='fraction'>0/187</span>
             </div>
         
             
@@ -1293,7 +1293,10 @@
 <a name='L1228'></a><a href='#L1228'>1228</a>
 <a name='L1229'></a><a href='#L1229'>1229</a>
 <a name='L1230'></a><a href='#L1230'>1230</a>
-<a name='L1231'></a><a href='#L1231'>1231</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L1231'></a><a href='#L1231'>1231</a>
+<a name='L1232'></a><a href='#L1232'>1232</a>
+<a name='L1233'></a><a href='#L1233'>1233</a>
+<a name='L1234'></a><a href='#L1234'>1234</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1353,6 +1356,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1641,7 +1645,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1649,10 +1652,8 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1714,6 +1715,11 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -2560,6 +2566,7 @@ import {
   ResultatConsanguinite,
   RisqueConsanguinite,
 } from '../utils/consanguiniteUtils';
+import { validateGestation } from '../validation/reproductionSchemas';
 &nbsp;
 interface GestationFormModalProps {
   visible: boolean;
@@ -2675,7 +2682,7 @@ export default function <span class="fstat-no" title="function not covered" >Ges
 <span class="fstat-no" title="function not covered" >      (a</span>: ProductionAnimal) =&gt;
 <span class="cstat-no" title="statement not covered" >        a.sexe === 'male' &amp;&amp;</span>
         a.statut?.toLowerCase() === 'actif' &amp;&amp;
-        (a.reproducteur === true || a.reproducteur === 1 || a.reproducteur === '1') &amp;&amp;
+        (a.reproducteur === true || (typeof a.reproducteur === 'number' &amp;&amp; a.reproducteur === 1) || (typeof a.reproducteur === 'string' &amp;&amp; a.reproducteur === '1')) &amp;&amp;
         a.projet_id === projetActif.id
     );
 &nbsp;
@@ -2870,21 +2877,18 @@ export default function <span class="fstat-no" title="function not covered" >Ges
 <span class="cstat-no" title="statement not covered" >      return;</span>
     }
 &nbsp;
-    // Validation
-<span class="cstat-no" title="statement not covered" >    if (!formData.projet_id) {</span>
-<span class="cstat-no" title="statement not covered" >      Alert.alert('Erreur', "Aucun projet actif n'est sélectionné pour cette gestation");</span>
+    // Validation avec Yup
+    const { isValid, errors: validationErrors } = <span class="cstat-no" title="statement not covered" >await validateGestation(formData);</span>
+<span class="cstat-no" title="statement not covered" >    if (!isValid) {</span>
+      // Afficher la première erreur trouvée
+      const firstError = <span class="cstat-no" title="statement not covered" >Object.values(validationErrors)[0];</span>
+<span class="cstat-no" title="statement not covered" >      Alert.alert('Erreur de validation', firstError || 'Veuillez corriger les erreurs du formulaire');</span>
 <span class="cstat-no" title="statement not covered" >      return;</span>
     }
+    
+    // Validation supplémentaire pour truie et verrat (peuvent être virtuels)
 <span class="cstat-no" title="statement not covered" >    if (!formData.truie_id &amp;&amp; !formData.truie_nom?.trim()) {</span>
 <span class="cstat-no" title="statement not covered" >      Alert.alert('Erreur', 'Veuillez sélectionner ou saisir le nom de la truie');</span>
-<span class="cstat-no" title="statement not covered" >      return;</span>
-    }
-<span class="cstat-no" title="statement not covered" >    if (!formData.date_sautage) {</span>
-<span class="cstat-no" title="statement not covered" >      Alert.alert('Erreur', 'La date de sautage est requise');</span>
-<span class="cstat-no" title="statement not covered" >      return;</span>
-    }
-<span class="cstat-no" title="statement not covered" >    if (formData.nombre_porcelets_prevu &lt;= 0) {</span>
-<span class="cstat-no" title="statement not covered" >      Alert.alert('Erreur', 'Le nombre de porcelets prévu doit être supérieur à 0');</span>
 <span class="cstat-no" title="statement not covered" >      return;</span>
     }
 <span class="cstat-no" title="statement not covered" >    if (!formData.verrat_id &amp;&amp; !formData.verrat_nom?.trim()) {</span>
@@ -2945,9 +2949,14 @@ export default function <span class="fstat-no" title="function not covered" >Ges
       } else {
 <span class="cstat-no" title="statement not covered" >        await dispatch(</span>
           createGestation({
-            ...formData,
-            truie_nom: formData.truie_nom || formData.truie_id,
-            verrat_nom: formData.verrat_nom || formData.verrat_id || undefined,
+            projet_id: formData.projet_id,
+            truie_id: formData.truie_id || '',
+            truie_nom: formData.truie_nom,
+            verrat_id: formData.verrat_id,
+            verrat_nom: formData.verrat_nom,
+            date_sautage: formData.date_sautage,
+            nombre_porcelets_prevu: formData.nombre_porcelets_prevu,
+            notes: formData.notes,
           })
         ).unwrap();
       }
@@ -3760,7 +3769,7 @@ const styles = <span class="cstat-no" title="statement not covered" >StyleSheet.
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-26T03:39:32.595Z
+                at 2025-12-02T20:11:08.298Z
             </div>
         <script src="../prettify.js"></script>
         <script>

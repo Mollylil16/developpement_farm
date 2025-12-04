@@ -22,23 +22,6 @@ export class RevenuRepository extends BaseRepository<Revenu> {
   }
   
   /**
-   * Parser les photos depuis JSON
-   */
-  private parsePhotos(photos: any): string[] | undefined {
-    if (!photos) return undefined;
-    if (Array.isArray(photos)) return photos;
-    if (typeof photos === 'string') {
-      try {
-        const parsed = JSON.parse(photos);
-        return Array.isArray(parsed) ? parsed : undefined;
-      } catch {
-        return undefined;
-      }
-    }
-    return undefined;
-  }
-  
-  /**
    * Surcharge de findAll pour parser les photos
    */
   async findAll(projetId?: string): Promise<Revenu[]> {
@@ -114,7 +97,7 @@ export class RevenuRepository extends BaseRepository<Revenu> {
   async update(id: string, data: Partial<Revenu>): Promise<Revenu> {
     const now = new Date().toISOString();
     const fields: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
 
     if (data.montant !== undefined) {
       fields.push('montant = ?');
@@ -168,6 +151,8 @@ export class RevenuRepository extends BaseRepository<Revenu> {
 
   /**
    * Récupérer les revenus par période
+   * ⚠️ Attention: Peut charger beaucoup de données en mémoire
+   * Utilisez findByPeriodPaginated() pour les longues périodes
    */
   async findByPeriod(projetId: string, dateDebut: string, dateFin: string): Promise<Revenu[]> {
     const rows = await this.query<any>(
@@ -182,6 +167,57 @@ export class RevenuRepository extends BaseRepository<Revenu> {
       ...row,
       photos: this.parsePhotos(row.photos)
     }));
+  }
+
+  /**
+   * Récupérer les revenus par période avec pagination
+   */
+  async findByPeriodPaginated(
+    projetId: string,
+    dateDebut: string,
+    dateFin: string,
+    options: {
+      limit?: number;
+      offset?: number;
+    } = {}
+  ): Promise<{
+    data: Revenu[];
+    total: number;
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  }> {
+    const { limit = 50, offset = 0 } = options;
+
+    // Compter le total
+    const countResult = await this.queryOne<{ count: number }>(
+      `SELECT COUNT(*) as count FROM revenus 
+       WHERE projet_id = ? AND date >= ? AND date <= ?`,
+      [projetId, dateDebut, dateFin]
+    );
+    const total = countResult?.count || 0;
+
+    // Récupérer les données paginées
+    const rows = await this.query<any>(
+      `SELECT * FROM revenus 
+       WHERE projet_id = ? AND date >= ? AND date <= ?
+       ORDER BY date DESC LIMIT ? OFFSET ?`,
+      [projetId, dateDebut, dateFin, limit, offset]
+    );
+
+    // Parser les photos JSON
+    const data = rows.map(row => ({
+      ...row,
+      photos: this.parsePhotos(row.photos)
+    }));
+
+    return {
+      data,
+      total,
+      limit,
+      offset,
+      hasMore: offset + data.length < total,
+    };
   }
 
   /**
@@ -206,7 +242,7 @@ export class RevenuRepository extends BaseRepository<Revenu> {
   ): Promise<Array<{ categorie: string; total: number; count: number }>> {
     let sql = `SELECT categorie, SUM(montant) as total, COUNT(*) as count
                FROM revenus WHERE projet_id = ?`;
-    const params: any[] = [projetId];
+    const params: unknown[] = [projetId];
 
     if (dateDebut && dateFin) {
       sql += ` AND date >= ? AND date <= ?`;
@@ -224,23 +260,6 @@ export class RevenuRepository extends BaseRepository<Revenu> {
 export class DepensePonctuelleRepository extends BaseRepository<DepensePonctuelle> {
   constructor(db: SQLite.SQLiteDatabase) {
     super(db, 'depenses_ponctuelles');
-  }
-  
-  /**
-   * Parser les photos depuis JSON
-   */
-  private parsePhotos(photos: any): string[] | undefined {
-    if (!photos) return undefined;
-    if (Array.isArray(photos)) return photos;
-    if (typeof photos === 'string') {
-      try {
-        const parsed = JSON.parse(photos);
-        return Array.isArray(parsed) ? parsed : undefined;
-      } catch {
-        return undefined;
-      }
-    }
-    return undefined;
   }
   
   /**
@@ -315,7 +334,7 @@ export class DepensePonctuelleRepository extends BaseRepository<DepensePonctuell
   async update(id: string, data: Partial<DepensePonctuelle>): Promise<DepensePonctuelle> {
     const now = new Date().toISOString();
     const fields: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
 
     if (data.montant !== undefined) {
       fields.push('montant = ?');
@@ -358,6 +377,11 @@ export class DepensePonctuelleRepository extends BaseRepository<DepensePonctuell
     return updated;
   }
 
+  /**
+   * Récupérer les dépenses par période
+   * ⚠️ Attention: Peut charger beaucoup de données en mémoire
+   * Utilisez findByPeriodPaginated() pour les longues périodes
+   */
   async findByPeriod(
     projetId: string,
     dateDebut: string,
@@ -377,6 +401,57 @@ export class DepensePonctuelleRepository extends BaseRepository<DepensePonctuell
     }));
   }
 
+  /**
+   * Récupérer les dépenses par période avec pagination
+   */
+  async findByPeriodPaginated(
+    projetId: string,
+    dateDebut: string,
+    dateFin: string,
+    options: {
+      limit?: number;
+      offset?: number;
+    } = {}
+  ): Promise<{
+    data: DepensePonctuelle[];
+    total: number;
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  }> {
+    const { limit = 50, offset = 0 } = options;
+
+    // Compter le total
+    const countResult = await this.queryOne<{ count: number }>(
+      `SELECT COUNT(*) as count FROM depenses_ponctuelles 
+       WHERE projet_id = ? AND date >= ? AND date <= ?`,
+      [projetId, dateDebut, dateFin]
+    );
+    const total = countResult?.count || 0;
+
+    // Récupérer les données paginées
+    const rows = await this.query<any>(
+      `SELECT * FROM depenses_ponctuelles 
+       WHERE projet_id = ? AND date >= ? AND date <= ?
+       ORDER BY date DESC LIMIT ? OFFSET ?`,
+      [projetId, dateDebut, dateFin, limit, offset]
+    );
+
+    // Parser les photos JSON
+    const data = rows.map(row => ({
+      ...row,
+      photos: this.parsePhotos(row.photos)
+    }));
+
+    return {
+      data,
+      total,
+      limit,
+      offset,
+      hasMore: offset + data.length < total,
+    };
+  }
+
   async getTotalByPeriod(projetId: string, dateDebut: string, dateFin: string): Promise<number> {
     const result = await this.queryOne<{ total: number }>(
       `SELECT SUM(montant) as total FROM depenses_ponctuelles 
@@ -393,7 +468,7 @@ export class DepensePonctuelleRepository extends BaseRepository<DepensePonctuell
   ): Promise<Array<{ categorie: string; total: number; count: number }>> {
     let sql = `SELECT categorie, SUM(montant) as total, COUNT(*) as count
                FROM depenses_ponctuelles WHERE projet_id = ?`;
-    const params: any[] = [projetId];
+    const params: unknown[] = [projetId];
 
     if (dateDebut && dateFin) {
       sql += ` AND date >= ? AND date <= ?`;
@@ -448,7 +523,7 @@ export class ChargeFixeRepository extends BaseRepository<ChargeFixe> {
   async update(id: string, data: Partial<ChargeFixe>): Promise<ChargeFixe> {
     const now = new Date().toISOString();
     const fields: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
 
     if (data.projet_id !== undefined) {
       fields.push('projet_id = ?');

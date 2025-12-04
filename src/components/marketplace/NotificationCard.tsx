@@ -92,7 +92,9 @@ export default function NotificationCard({
       style={[
         styles.container,
         {
-          backgroundColor: notification.read ? colors.surface : colors.primary + '05',
+          backgroundColor: notification.read 
+            ? (colors.surfaceSolid || '#FFFFFF') 
+            : colors.primary + '08',
           borderLeftColor: notification.read ? colors.divider : colors.primary,
         },
       ]}
@@ -101,7 +103,12 @@ export default function NotificationCard({
     >
       {/* Icône */}
       <View style={[styles.iconContainer, { backgroundColor: config.bgColor }]}>
-        <Ionicons name={config.icon} size={24} color={config.color} />
+        <Ionicons 
+          testID="notification-icon"
+          name={config.icon} 
+          size={24} 
+          color={config.color} 
+        />
       </View>
 
       {/* Contenu */}
@@ -121,17 +128,17 @@ export default function NotificationCard({
           {notification.title}
         </Text>
 
-        {notification.message && (
+        {notification.body && (
           <Text
             style={[styles.body, { color: colors.textSecondary }]}
             numberOfLines={2}
           >
-            {notification.message}
+            {notification.body}
           </Text>
         )}
 
         <Text style={[styles.timestamp, { color: colors.textLight }]}>
-          {formatDate(notification.createdAt)}
+          {formatDate(notification.createdAt, 'relative')}
         </Text>
       </View>
 
@@ -139,15 +146,21 @@ export default function NotificationCard({
       <View style={styles.actions}>
         {/* Indicateur non lu */}
         {!notification.read && (
-          <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} />
+          <View 
+            testID="unread-badge"
+            style={[styles.unreadDot, { backgroundColor: colors.primary }]} 
+          />
         )}
 
         {/* Bouton marquer comme lu */}
         {!notification.read && onMarkAsRead && (
           <TouchableOpacity
+            testID="mark-read-button"
             style={styles.markReadButton}
             onPress={(e) => {
-              e.stopPropagation();
+              if (e && typeof e.stopPropagation === 'function') {
+                e.stopPropagation();
+              }
               onMarkAsRead();
             }}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}

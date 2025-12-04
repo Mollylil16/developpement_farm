@@ -98,31 +98,34 @@ export default function TendancesChartsComponent() {
     const groupBy = periode === '7j' || periode === '30j' ? 'week' : 'month';
 
     const grouped = peseesFiltrees.reduce(
-      (acc: Record<string, { poids: number[]; count: number }>, pesee: ProductionPesee) => {
+      (acc: Record<string, { poids: number[]; count: number; date: Date }>, pesee: ProductionPesee) => {
         const datePesee = parseISO(pesee.date);
         let key: string;
+        let dateReference: Date;
 
         if (groupBy === 'week') {
           const weekStart = new Date(datePesee);
           weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+          dateReference = weekStart;
           key = format(weekStart, 'dd MMM', { locale: fr });
         } else {
+          dateReference = startOfMonth(datePesee);
           key = format(datePesee, 'MMM yyyy', { locale: fr });
         }
 
         if (!acc[key]) {
-          acc[key] = { poids: [], count: 0 };
+          acc[key] = { poids: [], count: 0, date: dateReference };
         }
         acc[key].poids.push(pesee.poids_kg);
         acc[key].count++;
         return acc;
       },
-      {} as Record<string, { poids: number[]; count: number }>
+      {} as Record<string, { poids: number[]; count: number; date: Date }>
     );
 
+    // Trier par date réelle (croissant : du plus ancien au plus récent)
     const labels = Object.keys(grouped).sort((a, b) => {
-      // Trier par date
-      return new Date(a).getTime() - new Date(b).getTime();
+      return grouped[a].date.getTime() - grouped[b].date.getTime();
     });
 
     const data = labels.map((key) => {

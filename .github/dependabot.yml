@@ -1,0 +1,66 @@
+# Configuration Dependabot pour mises à jour automatiques des dépendances
+# Documentation: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+updates:
+  # Mises à jour npm (dépendances principales)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly" # Vérifier chaque semaine
+      day: "monday" # Le lundi
+      time: "09:00" # À 9h
+    open-pull-requests-limit: 10 # Maximum 10 PR ouvertes en même temps
+    reviewers:
+      - "fermier-pro-team" # À remplacer par votre équipe
+    labels:
+      - "dependencies"
+      - "automated"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    # Groupement des mises à jour similaires
+    groups:
+      # Grouper les mises à jour Expo
+      expo-packages:
+        patterns:
+          - "expo*"
+          - "@expo/*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Grouper les mises à jour React Navigation
+      react-navigation:
+        patterns:
+          - "@react-navigation/*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Grouper les mises à jour React Native
+      react-native:
+        patterns:
+          - "react-native*"
+          - "@react-native*"
+        update-types:
+          - "minor"
+          - "patch"
+    # Ignorer certaines dépendances si nécessaire
+    ignore:
+      # Ignorer les mises à jour majeures automatiquement (à revoir manuellement)
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    # Mettre à jour les dépendances de sécurité immédiatement
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    # Versioning strategy
+    versioning-strategy: "increase"
+
+  # Mises à jour GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels:
+      - "github-actions"
+      - "automated"

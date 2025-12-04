@@ -2,7 +2,27 @@
  * Utilitaires pour la gestion des animaux
  */
 
-import { ProductionAnimal } from '../types';
+import { ProductionAnimal, ProductionPesee } from '../types';
+
+/**
+ * Récupère le poids actuel d'un animal
+ * @param animal L'animal
+ * @param pesees Liste des pesées de l'animal
+ * @returns Le poids actuel (dernière pesée ou poids initial)
+ */
+export function getAnimalCurrentWeight(
+  animal: ProductionAnimal,
+  pesees: ProductionPesee[]
+): number {
+  if (pesees.length > 0) {
+    // Trier les pesées par date (la plus récente en premier)
+    const peseesTriees = [...pesees].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+    return peseesTriees[0].poids_kg;
+  }
+  return animal.poids_initial || 0;
+}
 
 /**
  * Détermine la catégorie d'un animal (Truie, Verrat, ou Porcelet)

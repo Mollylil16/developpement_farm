@@ -3,7 +3,7 @@
  * Réduit de ~923 lignes à ~250 lignes
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -18,7 +18,8 @@ import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
 import { format } from 'date-fns';
 import { useTheme } from '../contexts/ThemeContext';
-import { usePermissions } from '../hooks/usePermissions';
+import { useRolePermissions } from '../hooks/useRolePermissions';
+import { useRole } from '../contexts/RoleContext';
 import { SCREENS } from '../navigation/types';
 import { SPACING } from '../constants/theme';
 import { SafeTextWrapper } from '../utils/textRenderingGuard';
@@ -28,6 +29,7 @@ import { useDashboardData } from '../hooks/useDashboardData';
 import { useDashboardAnimations } from '../hooks/useDashboardAnimations';
 import { useDashboardExport } from '../hooks/useDashboardExport';
 import { useProfilData } from '../hooks/useProfilData';
+import { useMarketplaceNotifications } from '../hooks/useMarketplaceNotifications';
 
 // Components
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -38,6 +40,8 @@ import DashboardSecondaryWidgets from '../components/dashboard/DashboardSecondar
 import AlertesWidget from '../components/AlertesWidget';
 import GlobalSearchModal from '../components/GlobalSearchModal';
 import InvitationsModal from '../components/InvitationsModal';
+import ProfileMenuModal from '../components/ProfileMenuModal';
+import { NotificationPanel } from '../components/marketplace';
 
 // Type pour la navigation - définit toutes les routes possibles
 type RootStackParamList = {
@@ -55,14 +59,72 @@ export default function DashboardScreen() {
   
   // Redux State
   const { projetActif, loading } = useAppSelector((state) => state.projet);
-  const { invitationsEnAttente } = useAppSelector((state) => state.collaboration);
+  const { invitationsEnAttente, collaborateurActuel } = useAppSelector((state) => state.collaboration);
+  const currentUser = useAppSelector((state) => state.auth.user);
   
-  // Permissions
-  const { hasPermission, isProprietaire } = usePermissions();
+  // Permissions basées sur les rôles
+  const { activeRole } = useRole();
+  const rolePermissions = useRolePermissions();
+  
+  // Helper pour vérifier les permissions par module (compatibilité avec l'ancien système)
+  const hasPermission = useCallback((module: string): boolean => {
+    if (activeRole === 'producer') {
+      // Pour les producteurs, tous les modules sont accessibles
+      return true;
+    }
+    
+    // Pour technicien et vétérinaire, vérifier les permissions de collaboration
+    if ((activeRole === 'technician' || activeRole === 'veterinarian') && collaborateurActuel) {
+      // Vérifier les permissions spécifiques à la ferme via la collaboration
+      switch (module) {
+        case 'reproduction':
+          return collaborateurActuel.permissions.reproduction;
+        case 'nutrition':
+          return collaborateurActuel.permissions.nutrition;
+        case 'planification':
+          return collaborateurActuel.permissions.planification;
+        case 'mortalites':
+          return collaborateurActuel.permissions.mortalites;
+        case 'finance':
+          return collaborateurActuel.permissions.finance;
+        case 'rapports':
+          return collaborateurActuel.permissions.rapports; // Permission spécifique à la ferme
+        case 'sante':
+          return collaborateurActuel.permissions.sante;
+        default:
+          return false;
+      }
+    }
+    
+    // Pour les autres rôles, utiliser les permissions spécifiques
+    switch (module) {
+      case 'reproduction':
+      case 'nutrition':
+      case 'planification':
+      case 'mortalites':
+        return rolePermissions.canViewHerd;
+      case 'finance':
+        return rolePermissions.canViewFinances;
+      case 'rapports':
+        return rolePermissions.canGenerateReports;
+      case 'sante':
+        return rolePermissions.canViewHealthRecords;
+      default:
+        return false;
+    }
+  }, [activeRole, rolePermissions, collaborateurActuel]);
+  
+  // Vérifier si l'utilisateur est propriétaire du projet actif
+  const isProprietaire = activeRole === 'producer' && 
+    projetActif && 
+    currentUser && 
+    (projetActif.proprietaire_id === currentUser.id || (projetActif as any).user_id === currentUser.id);
   
   // UI State (modals)
   const [searchModalVisible, setSearchModalVisible] = useState(false);
   const [invitationsModalVisible, setInvitationsModalVisible] = useState(false);
+  const [profileMenuVisible, setProfileMenuVisible] = useState(false);
+  const [notificationPanelVisible, setNotificationPanelVisible] = useState(false);
   
   // Greeting state
   const [greeting] = useState(() => {
@@ -80,18 +142,25 @@ export default function DashboardScreen() {
   });
   const animations = useDashboardAnimations();
   const { exportingPDF, handleExportPDF } = useDashboardExport(projetActif);
+  const {
+    notifications: marketplaceNotifications,
+    unreadCount: marketplaceUnreadCount,
+    markAsRead,
+    deleteNotification,
+  } = useMarketplaceNotifications();
 
-  // Date formatting
-  let currentDate = '';
-  try {
-    currentDate = format(new Date(), 'EEEE d MMMM yyyy');
-  } catch (error) {
-    console.error('Erreur formatage date:', error);
-    currentDate = new Date().toLocaleDateString('fr-FR');
-  }
+  // Date formatting - mémorisé pour éviter les recalculs
+  const currentDate = useMemo(() => {
+    try {
+      return format(new Date(), 'EEEE d MMMM yyyy');
+    } catch (error) {
+      console.error('Erreur formatage date:', error);
+      return new Date().toLocaleDateString('fr-FR');
+    }
+  }, []); // Ne change qu'une fois par jour, mais on le recalcule à chaque render pour l'instant
 
-  // Build secondary widgets list
-  const secondaryWidgets = useCallback(() => {
+  // Build secondary widgets list - mémorisé pour éviter les recalculs
+  const secondaryWidgets = useMemo(() => {
     const widgets: Array<{ type: any; screen: string }> = [];
 
     if (hasPermission('sante')) {
@@ -99,6 +168,9 @@ export default function DashboardScreen() {
     }
     // Production juste après Santé
     widgets.push({ type: 'production', screen: SCREENS.PRODUCTION });
+    
+    // Marketplace - Toujours accessible
+    widgets.push({ type: 'marketplace', screen: SCREENS.MARKETPLACE });
     
     if (hasPermission('nutrition')) {
       widgets.push({ type: 'nutrition', screen: SCREENS.NUTRITION });
@@ -113,11 +185,47 @@ export default function DashboardScreen() {
     return widgets;
   }, [hasPermission, isProprietaire]);
 
-  // Navigation handler
-  const handleNavigateToScreen = (screen: string) => {
+  // Navigation handler - mémorisé pour éviter les re-créations
+  const handleNavigateToScreen = useCallback((screen: string) => {
     // @ts-ignore - navigation typée
     navigation.navigate('Main', { screen });
-  };
+  }, [navigation]);
+
+  // Handlers pour les modals - mémorisés pour éviter les re-créations
+  const handleCloseSearchModal = useCallback(() => setSearchModalVisible(false), []);
+  const handleCloseInvitationsModal = useCallback(() => setInvitationsModalVisible(false), []);
+  const handleCloseProfileMenu = useCallback(() => setProfileMenuVisible(false), []);
+  const handleCloseNotificationPanel = useCallback(() => setNotificationPanelVisible(false), []);
+  
+  const handleNotificationPress = useCallback((notification: any) => {
+    setNotificationPanelVisible(false);
+    // Navigation vers l'écran approprié selon le type de notification
+    // @ts-ignore - navigation typée
+    if (notification.type === 'offer_accepted' && notification.relatedId && notification.relatedType === 'transaction') {
+      // @ts-ignore - navigation typée
+      navigation.navigate(SCREENS.MARKETPLACE_CHAT as never, { transactionId: notification.relatedId } as never);
+    } else if (notification.type === 'message_received' && notification.relatedId) {
+      // @ts-ignore - navigation typée
+      navigation.navigate(SCREENS.MARKETPLACE_CHAT as never, { transactionId: notification.relatedId } as never);
+    } else if (notification.type === 'offer_received') {
+      // @ts-ignore - navigation typée
+      navigation.navigate(SCREENS.MARKETPLACE as never);
+    }
+  }, [navigation]);
+
+  const handleMarkAllAsRead = useCallback(async () => {
+    // Marquer toutes les notifications comme lues
+    for (const notification of marketplaceNotifications) {
+      if (!notification.read) {
+        await markAsRead(notification.id);
+      }
+    }
+  }, [marketplaceNotifications, markAsRead]);
+
+  // Handlers pour les boutons du header
+  const handlePressPhoto = useCallback(() => setProfileMenuVisible(true), []);
+  const handlePressInvitations = useCallback(() => setInvitationsModalVisible(true), []);
+  const handlePressNotifications = useCallback(() => setNotificationPanelVisible(true), []);
 
   // Loading states
   if (loading && !projetActif) {
@@ -163,16 +271,16 @@ export default function DashboardScreen() {
               invitationsCount={
                 Array.isArray(invitationsEnAttente) ? invitationsEnAttente.length : 0
               }
+              notificationCount={marketplaceUnreadCount}
               headerAnim={animations.headerAnim}
-              onPressPhoto={() => {
-                navigation.navigate(SCREENS.PROFIL);
-              }}
-              onPressInvitations={() => setInvitationsModalVisible(true)}
+              onPressPhoto={handlePressPhoto}
+              onPressInvitations={handlePressInvitations}
+              onPressNotifications={handlePressNotifications}
             />
 
             {/* Secondary Widgets - Modules complémentaires en haut avec scroll horizontal */}
             <DashboardSecondaryWidgets
-              widgets={secondaryWidgets()}
+              widgets={secondaryWidgets}
               animations={animations.secondaryWidgetsAnim}
               onPressWidget={handleNavigateToScreen}
               horizontal={true}
@@ -197,12 +305,26 @@ export default function DashboardScreen() {
       {searchModalVisible && (
         <GlobalSearchModal
           visible={searchModalVisible}
-          onClose={() => setSearchModalVisible(false)}
+          onClose={handleCloseSearchModal}
         />
       )}
       <InvitationsModal
         visible={invitationsModalVisible}
-        onClose={() => setInvitationsModalVisible(false)}
+        onClose={handleCloseInvitationsModal}
+      />
+      <ProfileMenuModal
+        visible={profileMenuVisible}
+        onClose={handleCloseProfileMenu}
+      />
+      <NotificationPanel
+        visible={notificationPanelVisible}
+        notifications={marketplaceNotifications}
+        unreadCount={marketplaceUnreadCount}
+        onClose={handleCloseNotificationPanel}
+        onNotificationPress={handleNotificationPress}
+        onMarkAsRead={markAsRead}
+        onMarkAllAsRead={handleMarkAllAsRead}
+        onDelete={deleteNotification}
       />
     </SafeAreaView>
   );

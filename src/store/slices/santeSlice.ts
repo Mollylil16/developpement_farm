@@ -5,8 +5,15 @@
 
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { normalize, denormalize, schema } from 'normalizr';
-import { databaseService, getDatabase } from '../../services/database';
-import { VaccinationRepository } from '../../database/repositories';
+import { getDatabase } from '../../services/database';
+import {
+  VaccinationRepository,
+  CalendrierVaccinationRepository,
+  MaladieRepository,
+  TraitementRepository,
+  VisiteVeterinaireRepository,
+  RappelVaccinationRepository,
+} from '../../database/repositories';
 import {
   CalendrierVaccination,
   Vaccination,
@@ -140,7 +147,9 @@ const initialState: SanteState = {
 export const loadCalendrierVaccinations = createAsyncThunk(
   'sante/loadCalendrierVaccinations',
   async (projetId: string) => {
-    const calendriers = await databaseService.getCalendrierVaccinationsByProjet(projetId);
+    const db = await getDatabase();
+    const calendrierRepo = new CalendrierVaccinationRepository(db);
+    const calendriers = await calendrierRepo.findByProjet(projetId);
     const normalized = normalize(calendriers, [calendrierVaccinationSchema]);
     return normalized;
   }
@@ -149,15 +158,19 @@ export const loadCalendrierVaccinations = createAsyncThunk(
 export const createCalendrierVaccination = createAsyncThunk(
   'sante/createCalendrierVaccination',
   async (input: CreateCalendrierVaccinationInput) => {
-    const calendrier = await databaseService.createCalendrierVaccination(input);
+    const db = await getDatabase();
+    const calendrierRepo = new CalendrierVaccinationRepository(db);
+    const calendrier = await calendrierRepo.create(input);
     return calendrier;
   }
 );
 
 export const updateCalendrierVaccination = createAsyncThunk(
   'sante/updateCalendrierVaccination',
-  async ({ id, updates }: { id: string; updates: Partial<CalendrierVaccination> }) => {
-    await databaseService.updateCalendrierVaccination(id, updates);
+  async ({ id, updates }: { id: string; updates: Partial<CreateCalendrierVaccinationInput> }) => {
+    const db = await getDatabase();
+    const calendrierRepo = new CalendrierVaccinationRepository(db);
+    await calendrierRepo.update(id, updates);
     return { id, updates };
   }
 );
@@ -165,7 +178,9 @@ export const updateCalendrierVaccination = createAsyncThunk(
 export const deleteCalendrierVaccination = createAsyncThunk(
   'sante/deleteCalendrierVaccination',
   async (id: string) => {
-    await databaseService.deleteCalendrierVaccination(id);
+    const db = await getDatabase();
+    const calendrierRepo = new CalendrierVaccinationRepository(db);
+    await calendrierRepo.deleteById(id);
     return id;
   }
 );
@@ -173,8 +188,13 @@ export const deleteCalendrierVaccination = createAsyncThunk(
 export const initProtocolesVaccinationStandard = createAsyncThunk(
   'sante/initProtocolesVaccinationStandard',
   async (projetId: string) => {
-    await databaseService.initProtocolesVaccinationStandard(projetId);
-    const calendriers = await databaseService.getCalendrierVaccinationsByProjet(projetId);
+    const db = await getDatabase();
+    const { VaccinationInitializationService } = await import('../../services/VaccinationInitializationService');
+    const initService = new VaccinationInitializationService(db);
+    await initService.initProtocolesVaccinationStandard(projetId);
+    
+    const calendrierRepo = new CalendrierVaccinationRepository(db);
+    const calendriers = await calendrierRepo.findByProjet(projetId);
     const normalized = normalize(calendriers, [calendrierVaccinationSchema]);
     return normalized;
   }
@@ -225,7 +245,9 @@ export const deleteVaccination = createAsyncThunk('sante/deleteVaccination', asy
 export const loadVaccinationsEnRetard = createAsyncThunk(
   'sante/loadVaccinationsEnRetard',
   async (projetId: string) => {
-    const vaccinations = await databaseService.getVaccinationsEnRetard(projetId);
+    const db = await getDatabase();
+    const vaccinationRepo = new VaccinationRepository(db);
+    const vaccinations = await vaccinationRepo.findEnRetard(projetId);
     const normalized = normalize(vaccinations, [vaccinationSchema]);
     return normalized;
   }
@@ -234,7 +256,9 @@ export const loadVaccinationsEnRetard = createAsyncThunk(
 export const loadVaccinationsAVenir = createAsyncThunk(
   'sante/loadVaccinationsAVenir',
   async (projetId: string) => {
-    const vaccinations = await databaseService.getVaccinationsAVenir(projetId);
+    const db = await getDatabase();
+    const vaccinationRepo = new VaccinationRepository(db);
+    const vaccinations = await vaccinationRepo.findAVenir(projetId);
     const normalized = normalize(vaccinations, [vaccinationSchema]);
     return normalized;
   }
@@ -245,7 +269,9 @@ export const loadVaccinationsAVenir = createAsyncThunk(
 // ============================================
 
 export const loadMaladies = createAsyncThunk('sante/loadMaladies', async (projetId: string) => {
-  const maladies = await databaseService.getMaladiesByProjet(projetId);
+  const db = await getDatabase();
+  const maladieRepo = new MaladieRepository(db);
+  const maladies = await maladieRepo.findByProjet(projetId);
   const normalized = normalize(maladies, [maladieSchema]);
   return normalized;
 });
@@ -253,28 +279,36 @@ export const loadMaladies = createAsyncThunk('sante/loadMaladies', async (projet
 export const createMaladie = createAsyncThunk(
   'sante/createMaladie',
   async (input: CreateMaladieInput) => {
-    const maladie = await databaseService.createMaladie(input);
+    const db = await getDatabase();
+    const maladieRepo = new MaladieRepository(db);
+    const maladie = await maladieRepo.create(input);
     return maladie;
   }
 );
 
 export const updateMaladie = createAsyncThunk(
   'sante/updateMaladie',
-  async ({ id, updates }: { id: string; updates: Partial<Maladie> }) => {
-    await databaseService.updateMaladie(id, updates);
+  async ({ id, updates }: { id: string; updates: Partial<CreateMaladieInput> }) => {
+    const db = await getDatabase();
+    const maladieRepo = new MaladieRepository(db);
+    await maladieRepo.update(id, updates);
     return { id, updates };
   }
 );
 
 export const deleteMaladie = createAsyncThunk('sante/deleteMaladie', async (id: string) => {
-  await databaseService.deleteMaladie(id);
+  const db = await getDatabase();
+  const maladieRepo = new MaladieRepository(db);
+  await maladieRepo.delete(id);
   return id;
 });
 
 export const loadMaladiesEnCours = createAsyncThunk(
   'sante/loadMaladiesEnCours',
   async (projetId: string) => {
-    const maladies = await databaseService.getMaladiesEnCours(projetId);
+    const db = await getDatabase();
+    const maladieRepo = new MaladieRepository(db);
+    const maladies = await maladieRepo.findEnCours(projetId);
     const normalized = normalize(maladies, [maladieSchema]);
     return normalized;
   }
@@ -287,7 +321,9 @@ export const loadMaladiesEnCours = createAsyncThunk(
 export const loadTraitements = createAsyncThunk(
   'sante/loadTraitements',
   async (projetId: string) => {
-    const traitements = await databaseService.getTraitementsByProjet(projetId);
+    const db = await getDatabase();
+    const traitementRepo = new TraitementRepository(db);
+    const traitements = await traitementRepo.findByProjet(projetId);
     const normalized = normalize(traitements, [traitementSchema]);
     return normalized;
   }
@@ -296,28 +332,36 @@ export const loadTraitements = createAsyncThunk(
 export const createTraitement = createAsyncThunk(
   'sante/createTraitement',
   async (input: CreateTraitementInput) => {
-    const traitement = await databaseService.createTraitement(input);
+    const db = await getDatabase();
+    const traitementRepo = new TraitementRepository(db);
+    const traitement = await traitementRepo.create(input);
     return traitement;
   }
 );
 
 export const updateTraitement = createAsyncThunk(
   'sante/updateTraitement',
-  async ({ id, updates }: { id: string; updates: Partial<Traitement> }) => {
-    await databaseService.updateTraitement(id, updates);
+  async ({ id, updates }: { id: string; updates: Partial<CreateTraitementInput> }) => {
+    const db = await getDatabase();
+    const traitementRepo = new TraitementRepository(db);
+    await traitementRepo.update(id, updates);
     return { id, updates };
   }
 );
 
 export const deleteTraitement = createAsyncThunk('sante/deleteTraitement', async (id: string) => {
-  await databaseService.deleteTraitement(id);
+  const db = await getDatabase();
+  const traitementRepo = new TraitementRepository(db);
+  await traitementRepo.deleteById(id);
   return id;
 });
 
 export const loadTraitementsEnCours = createAsyncThunk(
   'sante/loadTraitementsEnCours',
   async (projetId: string) => {
-    const traitements = await databaseService.getTraitementsEnCours(projetId);
+    const db = await getDatabase();
+    const traitementRepo = new TraitementRepository(db);
+    const traitements = await traitementRepo.findEnCours(projetId);
     const normalized = normalize(traitements, [traitementSchema]);
     return normalized;
   }
@@ -330,7 +374,9 @@ export const loadTraitementsEnCours = createAsyncThunk(
 export const loadVisitesVeterinaires = createAsyncThunk(
   'sante/loadVisitesVeterinaires',
   async (projetId: string) => {
-    const visites = await databaseService.getVisitesVeterinairesByProjet(projetId);
+    const db = await getDatabase();
+    const visiteRepo = new VisiteVeterinaireRepository(db);
+    const visites = await visiteRepo.findByProjet(projetId);
     const normalized = normalize(visites, [visiteVeterinaireSchema]);
     return normalized;
   }
@@ -339,15 +385,19 @@ export const loadVisitesVeterinaires = createAsyncThunk(
 export const createVisiteVeterinaire = createAsyncThunk(
   'sante/createVisiteVeterinaire',
   async (input: CreateVisiteVeterinaireInput) => {
-    const visite = await databaseService.createVisiteVeterinaire(input);
+    const db = await getDatabase();
+    const visiteRepo = new VisiteVeterinaireRepository(db);
+    const visite = await visiteRepo.create(input);
     return visite;
   }
 );
 
 export const updateVisiteVeterinaire = createAsyncThunk(
   'sante/updateVisiteVeterinaire',
-  async ({ id, updates }: { id: string; updates: Partial<VisiteVeterinaire> }) => {
-    await databaseService.updateVisiteVeterinaire(id, updates);
+  async ({ id, updates }: { id: string; updates: Partial<CreateVisiteVeterinaireInput> }) => {
+    const db = await getDatabase();
+    const visiteRepo = new VisiteVeterinaireRepository(db);
+    await visiteRepo.update(id, updates);
     return { id, updates };
   }
 );
@@ -355,7 +405,9 @@ export const updateVisiteVeterinaire = createAsyncThunk(
 export const deleteVisiteVeterinaire = createAsyncThunk(
   'sante/deleteVisiteVeterinaire',
   async (id: string) => {
-    await databaseService.deleteVisiteVeterinaire(id);
+    const db = await getDatabase();
+    const visiteRepo = new VisiteVeterinaireRepository(db);
+    await visiteRepo.deleteById(id);
     return id;
   }
 );
@@ -367,8 +419,21 @@ export const deleteVisiteVeterinaire = createAsyncThunk(
 export const loadRappelsVaccinations = createAsyncThunk(
   'sante/loadRappelsVaccinations',
   async (projetId: string) => {
-    const rappels = await databaseService.getRappelsByProjet(projetId);
-    const normalized = normalize(rappels, [rappelVaccinationSchema]);
+    const db = await getDatabase();
+    // Récupérer toutes les vaccinations du projet pour obtenir leurs IDs
+    const vaccinationRepo = new VaccinationRepository(db);
+    const vaccinations = await vaccinationRepo.findByProjet(projetId);
+    const vaccinationIds = vaccinations.map((v) => v.id);
+    
+    // Récupérer tous les rappels de ces vaccinations
+    const rappelRepo = new RappelVaccinationRepository(db);
+    const allRappels: RappelVaccination[] = [];
+    for (const vaccinationId of vaccinationIds) {
+      const rappels = await rappelRepo.findByVaccination(vaccinationId);
+      allRappels.push(...rappels);
+    }
+    
+    const normalized = normalize(allRappels, [rappelVaccinationSchema]);
     return normalized;
   }
 );
@@ -376,7 +441,16 @@ export const loadRappelsVaccinations = createAsyncThunk(
 export const loadRappelsAVenir = createAsyncThunk(
   'sante/loadRappelsAVenir',
   async (projetId: string) => {
-    const rappels = await databaseService.getRappelsAVenir(projetId);
+    const db = await getDatabase();
+    // Récupérer toutes les vaccinations du projet
+    const vaccinationRepo = new VaccinationRepository(db);
+    const vaccinations = await vaccinationRepo.findByProjet(projetId);
+    const vaccinationIds = vaccinations.map((v) => v.id);
+    
+    // Récupérer les rappels à venir
+    const rappelRepo = new RappelVaccinationRepository(db);
+    const rappels = await rappelRepo.findAVenir(vaccinationIds);
+    
     const normalized = normalize(rappels, [rappelVaccinationSchema]);
     return normalized;
   }
@@ -385,7 +459,16 @@ export const loadRappelsAVenir = createAsyncThunk(
 export const loadRappelsEnRetard = createAsyncThunk(
   'sante/loadRappelsEnRetard',
   async (projetId: string) => {
-    const rappels = await databaseService.getRappelsEnRetard(projetId);
+    const db = await getDatabase();
+    // Récupérer toutes les vaccinations du projet
+    const vaccinationRepo = new VaccinationRepository(db);
+    const vaccinations = await vaccinationRepo.findByProjet(projetId);
+    const vaccinationIds = vaccinations.map((v) => v.id);
+    
+    // Récupérer les rappels en retard
+    const rappelRepo = new RappelVaccinationRepository(db);
+    const rappels = await rappelRepo.findEnRetard(vaccinationIds);
+    
     const normalized = normalize(rappels, [rappelVaccinationSchema]);
     return normalized;
   }
@@ -394,7 +477,9 @@ export const loadRappelsEnRetard = createAsyncThunk(
 export const marquerRappelEnvoye = createAsyncThunk(
   'sante/marquerRappelEnvoye',
   async (id: string) => {
-    await databaseService.marquerRappelEnvoye(id);
+    const db = await getDatabase();
+    const rappelRepo = new RappelVaccinationRepository(db);
+    await rappelRepo.marquerEnvoye(id);
     return id;
   }
 );
@@ -406,21 +491,27 @@ export const marquerRappelEnvoye = createAsyncThunk(
 export const loadStatistiquesVaccinations = createAsyncThunk(
   'sante/loadStatistiquesVaccinations',
   async (projetId: string) => {
-    return await databaseService.getStatistiquesVaccinations(projetId);
+    const db = await getDatabase();
+    const vaccinationRepo = new VaccinationRepository(db);
+    return await vaccinationRepo.getStatistiquesVaccinations(projetId);
   }
 );
 
 export const loadStatistiquesMaladies = createAsyncThunk(
   'sante/loadStatistiquesMaladies',
   async (projetId: string) => {
-    return await databaseService.getStatistiquesMaladies(projetId);
+    const db = await getDatabase();
+    const maladieRepo = new MaladieRepository(db);
+    return await maladieRepo.getStatistiquesMaladies(projetId);
   }
 );
 
 export const loadStatistiquesTraitements = createAsyncThunk(
   'sante/loadStatistiquesTraitements',
   async (projetId: string) => {
-    return await databaseService.getStatistiquesTraitements(projetId);
+    const db = await getDatabase();
+    const traitementRepo = new TraitementRepository(db);
+    return await traitementRepo.getStatistiquesTraitements(projetId);
   }
 );
 
@@ -431,7 +522,8 @@ export const loadStatistiquesTraitements = createAsyncThunk(
 export const loadAlertesSanitaires = createAsyncThunk(
   'sante/loadAlertesSanitaires',
   async (projetId: string) => {
-    return await databaseService.getAlertesSanitaires(projetId);
+    const { SanteAlertesService } = await import('../../services/sante/SanteAlertesService');
+    return await SanteAlertesService.getAlertesSanitaires(projetId);
   }
 );
 

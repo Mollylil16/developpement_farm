@@ -25,14 +25,14 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/111</span>
+                <span class='fraction'>0/104</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/159</span>
+                <span class='fraction'>0/151</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/104</span>
+                <span class='fraction'>0/97</span>
             </div>
         
             
@@ -912,15 +912,8 @@
 <a name='L847'></a><a href='#L847'>847</a>
 <a name='L848'></a><a href='#L848'>848</a>
 <a name='L849'></a><a href='#L849'>849</a>
-<a name='L850'></a><a href='#L850'>850</a>
-<a name='L851'></a><a href='#L851'>851</a>
-<a name='L852'></a><a href='#L852'>852</a>
-<a name='L853'></a><a href='#L853'>853</a>
-<a name='L854'></a><a href='#L854'>854</a>
-<a name='L855'></a><a href='#L855'>855</a>
-<a name='L856'></a><a href='#L856'>856</a>
-<a name='L857'></a><a href='#L857'>857</a>
-<a name='L858'></a><a href='#L858'>858</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L850'></a><a href='#L850'>850</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1083,21 +1076,12 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1800,6 +1784,7 @@ import {
   getTypePorcLabel,
 } from '../types';
 import { useActionPermissions } from '../hooks/useActionPermissions';
+import { validateStockAliment } from '../validation/stocksSchemas';
 &nbsp;
 interface StockAlimentFormModalProps {
   visible: boolean;
@@ -1940,23 +1925,14 @@ export default function <span class="fstat-no" title="function not covered" >Sto
 <span class="cstat-no" title="statement not covered" >      return;</span>
     }
 &nbsp;
-<span class="cstat-no" title="statement not covered" >    if (!projetId) {</span>
-<span class="cstat-no" title="statement not covered" >      Alert.alert('Erreur', 'Aucun projet actif. Veuillez sélectionner un projet.');</span>
-<span class="cstat-no" title="statement not covered" >      return;</span>
-    }
-&nbsp;
-<span class="cstat-no" title="statement not covered" >    if (!formData.nom.trim()) {</span>
-<span class="cstat-no" title="statement not covered" >      Alert.alert('Champ requis', "Le nom de l'aliment est obligatoire");</span>
-<span class="cstat-no" title="statement not covered" >      return;</span>
-    }
-&nbsp;
-<span class="cstat-no" title="statement not covered" >    if (!formData.unite) {</span>
-<span class="cstat-no" title="statement not covered" >      Alert.alert('Champ requis', "Veuillez sélectionner l'unité");</span>
-<span class="cstat-no" title="statement not covered" >      return;</span>
-    }
-&nbsp;
-<span class="cstat-no" title="statement not covered" >    if (!isEditing &amp;&amp; (formData.quantite_initiale ?? 0) &lt; 0) {</span>
-<span class="cstat-no" title="statement not covered" >      Alert.alert('Valeur invalide', 'La quantité initiale doit être positive');</span>
+    // Validation avec Yup
+    const { isValid, errors: validationErrors } = <span class="cstat-no" title="statement not covered" >await validateStockAliment({</span>
+      ...formData,
+      projet_id: projetId,
+    });
+<span class="cstat-no" title="statement not covered" >    if (!isValid) {</span>
+      const firstError = <span class="cstat-no" title="statement not covered" >Object.values(validationErrors)[0];</span>
+<span class="cstat-no" title="statement not covered" >      Alert.alert('Erreur de validation', firstError || 'Veuillez corriger les erreurs du formulaire');</span>
 <span class="cstat-no" title="statement not covered" >      return;</span>
     }
 &nbsp;
@@ -2641,7 +2617,7 @@ const styles = <span class="cstat-no" title="statement not covered" >StyleSheet.
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-26T03:39:32.595Z
+                at 2025-12-02T20:11:08.298Z
             </div>
         <script src="../prettify.js"></script>
         <script>

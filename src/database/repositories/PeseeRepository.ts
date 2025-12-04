@@ -131,6 +131,19 @@ export class PeseeRepository extends BaseRepository<ProductionPesee> {
   }
 
   /**
+   * Récupérer la dernière pesée d'un animal avant une date donnée
+   */
+  async findLastBeforeDate(animalId: string, date: string): Promise<ProductionPesee | null> {
+    return this.queryOne<ProductionPesee>(
+      `SELECT * FROM production_pesees 
+       WHERE animal_id = ? AND date <= ?
+       ORDER BY date DESC
+       LIMIT 1`,
+      [animalId, date]
+    );
+  }
+
+  /**
    * Récupérer les pesées par période pour un animal
    */
   async findByAnimalAndPeriod(

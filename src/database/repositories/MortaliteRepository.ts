@@ -11,7 +11,9 @@
 import * as SQLite from 'expo-sqlite';
 import { BaseRepository } from './BaseRepository';
 import { Mortalite } from '../../types/mortalite';
+import { ProductionAnimal } from '../../types/production';
 import uuid from 'react-native-uuid';
+import { AnimalRepository } from './AnimalRepository';
 
 export class MortaliteRepository extends BaseRepository<Mortalite> {
   constructor(db: SQLite.SQLiteDatabase) {
@@ -45,6 +47,97 @@ export class MortaliteRepository extends BaseRepository<Mortalite> {
       throw new Error('Impossible de créer la mortalité');
     }
     return created;
+  }
+
+  /**
+   * Créer une mortalité et mettre à jour automatiquement le statut des animaux concernés
+   * Cette méthode inclut la logique de validation et de mise à jour des animaux
+   */
+  async createWithAnimalUpdate(data: Partial<Mortalite>): Promise<Mortalite> {
+    if (!data.projet_id) {
+      throw new Error('projet_id est requis');
+    }
+
+    const animalRepo = new AnimalRepository(this.db);
+    const animauxProjet = await animalRepo.findByProjet(data.projet_id);
+    const animauxActifs = animauxProjet.filter((a) => a.statut?.toLowerCase() === 'actif');
+
+    // Fonction helper pour déterminer si un animal correspond à la catégorie
+    const animalCorrespondCategorie = (animal: ProductionAnimal, categorie: string): boolean => {
+      if (categorie === 'autre') return true; // Catégorie "autre" accepte tous les animaux
+
+      const isReproducteur = animal.reproducteur === true;
+      const isMale = animal.sexe === 'male';
+      const isFemelle = animal.sexe === 'femelle';
+
+      switch (categorie) {
+        case 'truie':
+          return isFemelle && isReproducteur;
+        case 'verrat':
+          return isMale && isReproducteur;
+        case 'porcelet':
+          return (
+            (isMale && !isReproducteur) ||
+            (isFemelle && !isReproducteur) ||
+            animal.sexe === 'indetermine'
+          );
+        default:
+          return true;
+      }
+    };
+
+    // Filtrer les animaux actifs correspondant à la catégorie
+    const animauxCorrespondants = animauxActifs.filter((a) =>
+      animalCorrespondCategorie(a, data.categorie || 'autre')
+    );
+
+    // Validation : vérifier qu'il y a assez d'animaux actifs disponibles
+    const nombrePorcs = data.nombre_porcs || 1;
+    if (nombrePorcs > animauxCorrespondants.length) {
+      throw new Error(
+        `Impossible d'enregistrer ${nombrePorcs} mortalité(s) de ${data.categorie || 'autre'}(s). ` +
+          `Il n'y a que ${animauxCorrespondants.length} ${data.categorie || 'autre'}(s) actif(s) disponible(s).`
+      );
+    }
+
+    // Créer la mortalité
+    const mortalite = await this.create(data);
+    const derniere_modification = new Date().toISOString();
+
+    // Mettre à jour le statut des animaux concernés
+    if (data.animal_code) {
+      // Cas 1 : Code d'animal spécifique renseigné
+      try {
+        const animal = animauxProjet.find(
+          (a) => a.code === data.animal_code && a.statut?.toLowerCase() === 'actif'
+        );
+
+        if (animal) {
+          // Changer le statut en "mort"
+          await animalRepo.update(animal.id, {
+            statut: 'mort' as const,
+            actif: false,
+          });
+        }
+      } catch (error) {
+        console.warn(
+          `Animal avec le code ${data.animal_code} non trouvé lors de la création de la mortalité`
+        );
+      }
+    } else {
+      // Cas 2 : Mortalité générique (sans code spécifique)
+      // Mettre à jour automatiquement les N premiers animaux actifs correspondant à la catégorie
+      const animauxAMarquer = animauxCorrespondants.slice(0, nombrePorcs);
+
+      for (const animal of animauxAMarquer) {
+        await animalRepo.update(animal.id, {
+          statut: 'mort',
+          actif: false,
+        });
+      }
+    }
+
+    return mortalite;
   }
 
   async update(id: string, data: Partial<Mortalite>): Promise<Mortalite> {

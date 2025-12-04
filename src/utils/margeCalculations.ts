@@ -6,6 +6,22 @@
 import { Revenu } from '../types';
 
 /**
+ * Calcule une marge simple (revenu - coût)
+ * Fonction utilitaire pour les calculs génériques
+ * @param revenu - Revenu
+ * @param cout - Coût
+ * @returns Marge calculée
+ */
+export function calculateMargin(
+  revenu: number | undefined | null,
+  cout: number | undefined | null
+): number {
+  const r = revenu ?? 0;
+  const c = cout ?? 0;
+  return r - c;
+}
+
+/**
  * Statut de la marge (pour code couleur)
  */
 export type StatutMarge = 'negative' | 'faible' | 'confortable';

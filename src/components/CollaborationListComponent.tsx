@@ -34,14 +34,21 @@ import EmptyState from './EmptyState';
 import LoadingSpinner from './LoadingSpinner';
 import CollaborationFormModal from './CollaborationFormModal';
 import StatCard from './StatCard';
-import { usePermissions } from '../hooks/usePermissions';
+import { useRole } from '../contexts/RoleContext';
 
 export default function CollaborationListComponent() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
-  const { isProprietaire } = usePermissions();
+  const { activeRole } = useRole();
   const { projetActif } = useAppSelector((state) => state.projet);
+  const currentUser = useAppSelector((state) => state.auth.user);
+  
+  // Vérifier si l'utilisateur est propriétaire du projet actif
+  const isProprietaire = activeRole === 'producer' && 
+    projetActif && 
+    currentUser && 
+    (projetActif.proprietaire_id === currentUser.id || (projetActif as any).user_id === currentUser.id);
   const { collaborateurs, loading } = useAppSelector((state) => state.collaboration);
   const [selectedCollaborateur, setSelectedCollaborateur] = useState<Collaborateur | null>(null);
   const [modalVisible, setModalVisible] = useState(false);

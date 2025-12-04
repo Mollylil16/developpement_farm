@@ -159,11 +159,25 @@ export const FONT_SIZES = {
   xxxl: 32,
 };
 
-export const FONT_WEIGHTS = {
-  regular: '400' as const,
-  medium: '500' as const,
-  semiBold: '600' as const,
-  bold: '700' as const,
+// Type pour les font weights acceptés par React Native
+export type FontWeight = 
+  | 'normal' 
+  | 'bold' 
+  | '100' 
+  | '200' 
+  | '300' 
+  | '400' 
+  | '500' 
+  | '600' 
+  | '700' 
+  | '800' 
+  | '900';
+
+export const FONT_WEIGHTS: Record<'regular' | 'medium' | 'semiBold' | 'bold', FontWeight> = {
+  regular: '400',
+  medium: '500',
+  semiBold: '600',
+  bold: '700',
 };
 
 // Styles de police réutilisables

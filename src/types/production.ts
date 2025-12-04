@@ -15,8 +15,8 @@ export interface ProductionAnimal {
   date_naissance?: string;
   poids_initial?: number;
   date_entree?: string;
-  actif: boolean; // Déprécié, utiliser statut à la place
-  statut: StatutAnimal;
+  actif: boolean; // Indique si l'animal est dans le cheptel actif (true) ou retiré (false). Utilisé pour filtres/comptages performants.
+  statut: StatutAnimal; // Détail du statut : 'actif' (sur ferme), 'mort', 'vendu', 'offert', 'autre' (retiré du cheptel mais dans historique)
   race?: string;
   reproducteur: boolean;
   pere_id?: string | null;

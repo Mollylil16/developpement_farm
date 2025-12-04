@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadDepensesPonctuelles } from '../store/slices/financeSlice';
+import { selectAllDepensesPonctuelles } from '../store/selectors/financeSelectors';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
 import Card from './Card';
 import { calculateAmortissementsParCategorie, AmortissementParCategorie } from '../utils/financeCalculations';
@@ -28,7 +29,8 @@ export default function FinanceBilanComptableComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
-  const { depensesPonctuelles, loading } = useAppSelector((state) => state.finance);
+  const depensesPonctuelles = useAppSelector(selectAllDepensesPonctuelles);
+  const loading = useAppSelector((state) => state.finance.loading);
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -366,7 +368,7 @@ const styles = StyleSheet.create({
   },
   categorieTitle: {
     fontSize: FONT_SIZES.lg,
-    fontWeight: FONT_WEIGHTS.semibold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as any,
     marginBottom: SPACING.xs / 2,
   },
   categorieSubtitle: {
@@ -388,14 +390,14 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semibold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as any,
   },
   depensesList: {
     marginTop: SPACING.md,
   },
   depensesListTitle: {
     fontSize: FONT_SIZES.sm,
-    fontWeight: FONT_WEIGHTS.semibold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as any,
     marginBottom: SPACING.sm,
   },
   depenseItem: {
@@ -423,7 +425,7 @@ const styles = StyleSheet.create({
   },
   depenseItemMontant: {
     fontSize: FONT_SIZES.sm,
-    fontWeight: FONT_WEIGHTS.semibold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as any,
     marginBottom: SPACING.xs / 2,
   },
   depenseItemAmortissement: {
@@ -459,7 +461,7 @@ const styles = StyleSheet.create({
   },
   noteTitle: {
     fontSize: FONT_SIZES.sm,
-    fontWeight: FONT_WEIGHTS.semibold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as any,
   },
   noteText: {
     fontSize: FONT_SIZES.xs,

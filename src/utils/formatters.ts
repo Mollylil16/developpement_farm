@@ -122,20 +122,6 @@ export function parseNombre(
   return isNaN(parsed) ? defaultValue : parsed;
 }
 
-/**
- * Calcule une marge (revenu - coût)
- * @param revenu - Revenu
- * @param cout - Coût
- * @returns Marge calculée
- */
-export function calculateMargin(
-  revenu: number | undefined | null,
-  cout: number | undefined | null
-): number {
-  const r = revenu ?? 0;
-  const c = cout ?? 0;
-  return r - c;
-}
 
 /**
  * Calcule un pourcentage (partie / total * 100)

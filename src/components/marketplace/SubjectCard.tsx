@@ -3,11 +3,11 @@
  * Affiche les informations d'un sujet (animal) disponible à la vente
  */
 
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { SubjectCard as SubjectCardType } from '../../types/marketplace';
-import { MarketplaceTheme, cardStyle, badgeStyle } from '../../styles/marketplace.theme';
+import { MarketplaceTheme, glassmorphismStyle, badgeStyle } from '../../styles/marketplace.theme';
 import { formatPrice } from '../../services/PricingService';
 
 interface SubjectCardProps {
@@ -25,7 +25,26 @@ export default function SubjectCard({
   selectable = false,
   onSelect,
 }: SubjectCardProps) {
-  const { colors, spacing, typography, borderRadius } = MarketplaceTheme;
+  const { colors, spacing, typography, borderRadius, animations } = MarketplaceTheme;
+  
+  // Animations glassmorphism (fade in + slide up)
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+  
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: animations.duration.normal,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: animations.duration.normal,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   // Couleur du statut de santé
   const getHealthColor = (status: 'good' | 'attention' | 'critical') => {
@@ -60,17 +79,25 @@ export default function SubjectCard({
   };
 
   return (
-    <TouchableOpacity
+    <Animated.View
       style={[
-        styles.container,
-        cardStyle(false),
-        selected && { borderColor: colors.primary, borderWidth: 2 },
-        !subject.available && { opacity: 0.6 },
+        {
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }],
+        },
       ]}
-      onPress={handlePress}
-      activeOpacity={0.8}
-      disabled={!subject.available}
     >
+      <TouchableOpacity
+        style={[
+          styles.container,
+          glassmorphismStyle(false),
+          selected && { borderColor: colors.primary, borderWidth: 2.5 },
+          !subject.available && !selected && { opacity: 0.6 },
+        ]}
+        onPress={handlePress}
+        activeOpacity={0.9}
+        disabled={!subject.available}
+      >
       {/* Checkbox pour sélection multiple */}
       {selectable && (
         <View style={styles.checkboxContainer}>
@@ -145,7 +172,7 @@ export default function SubjectCard({
             {formatPrice(subject.totalPrice)}
           </Text>
           <Text style={[styles.pricePerKg, { color: colors.textSecondary }]}>
-            {subject.pricePerKg.toLocaleString()} FCFA/kg
+            {subject.pricePerKg ? subject.pricePerKg.toLocaleString('fr-FR') : '0'} FCFA/kg
           </Text>
         </View>
 
@@ -165,7 +192,8 @@ export default function SubjectCard({
           </Text>
         </View>
       </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 

@@ -3,7 +3,7 @@
  * Affiche: Overview, Performance Globale, Reproduction, Finance
  */
 
-import React from 'react';
+import React, { memo } from 'react';
 import { View, StyleSheet, Animated } from 'react-native';
 import OverviewWidget from '../widgets/OverviewWidget';
 import ReproductionWidget from '../widgets/ReproductionWidget';
@@ -18,7 +18,7 @@ interface DashboardMainWidgetsProps {
   isLoading?: boolean;
 }
 
-export default function DashboardMainWidgets({
+const DashboardMainWidgets = memo(function DashboardMainWidgets({
   projetId,
   animations,
   isLoading = false,
@@ -50,7 +50,7 @@ export default function DashboardMainWidgets({
           },
         ]}
       >
-        <OverviewWidget projetId={projetId} />
+        <OverviewWidget />
       </Animated.View>
 
       {/* Widget 2: Performance Globale - Coût de production vs Prix du marché */}
@@ -90,7 +90,7 @@ export default function DashboardMainWidgets({
           },
         ]}
       >
-        <ReproductionWidget projetId={projetId} />
+        <ReproductionWidget />
       </Animated.View>
 
       {/* Widget 4: Finance */}
@@ -110,11 +110,11 @@ export default function DashboardMainWidgets({
           },
         ]}
       >
-        <FinanceWidget projetId={projetId} />
+        <FinanceWidget />
       </Animated.View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -124,4 +124,6 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
   },
 });
+
+export default DashboardMainWidgets;
 

@@ -3,6 +3,7 @@
  */
 
 export * from './auth';
+export * from './roles';
 export * from './projet';
 export * from './finance';
 export * from './reproduction';

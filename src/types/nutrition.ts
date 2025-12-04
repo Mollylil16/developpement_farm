@@ -540,10 +540,11 @@ export const FORMULES_RECOMMANDEES: Record<TypePorc, FormuleAlimentaire> = {
       {
         ingredient_id: '',
         nom: 'CMV (Complément Minéral Vitaminé)',
-        pourcentage: 5,
+        pourcentage: 4.7,
         prix_unitaire: 0,
       },
       { ingredient_id: '', nom: 'Lysine', pourcentage: 2, prix_unitaire: 0 },
+      { ingredient_id: '', nom: 'Sel', pourcentage: 0.3, prix_unitaire: 0 },
     ],
   },
   truie_gestante: {
@@ -560,7 +561,8 @@ export const FORMULES_RECOMMANDEES: Record<TypePorc, FormuleAlimentaire> = {
         pourcentage: 3,
         prix_unitaire: 0,
       },
-      { ingredient_id: '', nom: 'Carbonate de calcium', pourcentage: 2, prix_unitaire: 0 },
+      { ingredient_id: '', nom: 'Carbonate de calcium', pourcentage: 1.7, prix_unitaire: 0 },
+      { ingredient_id: '', nom: 'Sel', pourcentage: 0.3, prix_unitaire: 0 },
     ],
   },
   truie_allaitante: {
@@ -575,10 +577,11 @@ export const FORMULES_RECOMMANDEES: Record<TypePorc, FormuleAlimentaire> = {
       {
         ingredient_id: '',
         nom: 'CMV (Complément Minéral Vitaminé)',
-        pourcentage: 5,
+        pourcentage: 4.7,
         prix_unitaire: 0,
       },
       { ingredient_id: '', nom: 'Lysine', pourcentage: 2, prix_unitaire: 0 },
+      { ingredient_id: '', nom: 'Sel', pourcentage: 0.3, prix_unitaire: 0 },
     ],
   },
   verrat: {
@@ -592,10 +595,11 @@ export const FORMULES_RECOMMANDEES: Record<TypePorc, FormuleAlimentaire> = {
       {
         ingredient_id: '',
         nom: 'CMV (Complément Minéral Vitaminé)',
-        pourcentage: 3,
+        pourcentage: 2.7,
         prix_unitaire: 0,
       },
       { ingredient_id: '', nom: 'Lysine', pourcentage: 2, prix_unitaire: 0 },
+      { ingredient_id: '', nom: 'Sel', pourcentage: 0.3, prix_unitaire: 0 },
     ],
   },
   porc_croissance: {
@@ -609,10 +613,11 @@ export const FORMULES_RECOMMANDEES: Record<TypePorc, FormuleAlimentaire> = {
       {
         ingredient_id: '',
         nom: 'CMV (Complément Minéral Vitaminé)',
-        pourcentage: 3,
+        pourcentage: 2.7,
         prix_unitaire: 0,
       },
       { ingredient_id: '', nom: 'Lysine', pourcentage: 2, prix_unitaire: 0 },
+      { ingredient_id: '', nom: 'Sel', pourcentage: 0.3, prix_unitaire: 0 },
     ],
   },
 };

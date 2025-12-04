@@ -3,17 +3,23 @@
  * Affiche les informations d'une ferme avec ses sujets disponibles
  */
 
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Share, Alert, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { FarmCard as FarmCardType } from '../../types/marketplace';
-import { MarketplaceTheme, cardStyle } from '../../styles/marketplace.theme';
+import { MarketplaceTheme, glassmorphismStyle } from '../../styles/marketplace.theme';
+import { formatDate } from '../../utils/formatters';
+import { useAppSelector, useAppDispatch } from '../../store/hooks';
+import { getDatabase } from '../../services/database';
+import { UserRepository } from '../../database/repositories';
+import { loadUserFromStorageThunk } from '../../store/slices/authSlice';
 
 interface FarmCardProps {
   farm: FarmCardType;
   distance?: number | null;
   onPress: () => void;
   onConditionsPress?: () => void;
+  onFavoriteChange?: (farmId: string, isFavorite: boolean) => void;
 }
 
 export default function FarmCard({
@@ -21,8 +27,106 @@ export default function FarmCard({
   distance,
   onPress,
   onConditionsPress,
+  onFavoriteChange,
 }: FarmCardProps) {
-  const { colors, spacing, typography, borderRadius, shadows } = MarketplaceTheme;
+  const { colors, spacing, typography, borderRadius, shadows, animations } = MarketplaceTheme;
+  const { user } = useAppSelector((state) => state.auth);
+  const dispatch = useAppDispatch();
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);
+  
+  // Animations glassmorphism (fade in + slide up)
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+  
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: animations.duration.normal,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: animations.duration.normal,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  // Vérifier si la ferme est dans les favoris
+  useEffect(() => {
+    if (user?.saved_farms) {
+      setIsFavorite(user.saved_farms.includes(farm.farmId));
+    }
+  }, [user?.saved_farms, farm.farmId]);
+
+  // Fonction de partage
+  const handleShare = async () => {
+    try {
+      const locationText = farm.location.city 
+        ? `${farm.location.city}${farm.location.region ? `, ${farm.location.region}` : ''}`
+        : farm.location.region || 'Localisation non disponible';
+      
+      const totalSubjects = farm.totalSubjects || farm.aggregatedData?.totalSubjectsForSale || 0;
+      
+      const shareText = `🐖 Découvrez cette ferme porcine sur Fermier Pro
+
+Nom : ${farm.name}
+Localisation : ${locationText}
+Cheptel : ${totalSubjects} sujet${totalSubjects > 1 ? 's' : ''}
+
+Consultez la ferme via l'application Fermier Pro.
+ID Ferme: ${farm.farmId}`;
+
+      const result = await Share.share({
+        message: shareText,
+        title: `Ferme ${farm.name}`,
+      });
+
+      if (result.action === Share.sharedAction) {
+        console.log('Partage réussi');
+      }
+    } catch (error: any) {
+      console.error('Erreur lors du partage:', error);
+      Alert.alert('Erreur', 'Impossible de partager cette ferme');
+    }
+  };
+
+  // Fonction pour toggle favori
+  const handleToggleFavorite = async (e: any) => {
+    e?.stopPropagation?.();
+    
+    if (!user?.id) {
+      Alert.alert('Erreur', 'Vous devez être connecté pour sauvegarder une ferme');
+      return;
+    }
+
+    if (isTogglingFavorite) return;
+
+    try {
+      setIsTogglingFavorite(true);
+      const db = await getDatabase();
+      const userRepo = new UserRepository(db);
+      
+      const { user: updatedUser, isFavorite: newIsFavorite } = await userRepo.toggleSavedFarm(user.id, farm.farmId);
+      
+      setIsFavorite(newIsFavorite);
+      
+      // Recharger l'utilisateur dans Redux
+      await dispatch(loadUserFromStorageThunk());
+      
+      // Notifier le parent si callback fourni
+      if (onFavoriteChange) {
+        onFavoriteChange(farm.farmId, newIsFavorite);
+      }
+    } catch (error: any) {
+      console.error('Erreur lors du toggle favori:', error);
+      Alert.alert('Erreur', 'Impossible de sauvegarder cette ferme');
+    } finally {
+      setIsTogglingFavorite(false);
+    }
+  };
 
   // Couleur du badge de distance selon la proximité
   const getDistanceBadgeColor = (dist: number) => {
@@ -51,11 +155,19 @@ export default function FarmCard({
   };
 
   return (
-    <TouchableOpacity
-      style={[styles.container, cardStyle(false)]}
-      onPress={onPress}
-      activeOpacity={0.8}
+    <Animated.View
+      style={[
+        {
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }],
+        },
+      ]}
     >
+      <TouchableOpacity
+        style={[styles.container, glassmorphismStyle(false)]}
+        onPress={onPress}
+        activeOpacity={0.9}
+      >
       {/* Header avec photo et badges */}
       <View style={styles.header}>
         {/* Photo de la ferme */}
@@ -80,13 +192,46 @@ export default function FarmCard({
 
         {/* Infos principales */}
         <View style={styles.headerInfo}>
-          <Text
-            style={[styles.farmName, { color: colors.text }]}
-            numberOfLines={1}
-            ellipsizeMode="tail"
-          >
-            {farm.name}
-          </Text>
+          {/* Ligne avec nom de la ferme et boutons d'action */}
+          <View style={styles.farmNameRow}>
+            <Text
+              style={[styles.farmName, { color: colors.text }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {farm.name}
+            </Text>
+            {/* Boutons Partager et Favori - En haut à droite */}
+            <View style={styles.actionButtons}>
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: colors.surface + 'E6' }]}
+                onPress={(e) => {
+                  e?.stopPropagation?.();
+                  handleShare();
+                }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="share-outline" size={20} color={colors.text} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: colors.surface + 'E6' }]}
+                onPress={(e) => {
+                  e?.stopPropagation?.();
+                  handleToggleFavorite(e);
+                }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                activeOpacity={0.7}
+                disabled={isTogglingFavorite}
+              >
+                <Ionicons 
+                  name={isFavorite ? "bookmark" : "bookmark-outline"} 
+                  size={20} 
+                  color={isFavorite ? colors.primary : colors.text} 
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
 
           {/* Localisation */}
           <View style={styles.locationRow}>
@@ -108,25 +253,59 @@ export default function FarmCard({
             )}
           </View>
 
+          {/* Producteur */}
+          {farm.producerName && (
+            <View style={styles.producerRow}>
+              <Ionicons name="person-outline" size={14} color={colors.textSecondary} />
+              <Text style={[styles.producerText, { color: colors.textSecondary }]}>
+                {farm.producerName}
+              </Text>
+            </View>
+          )}
+
           {/* Rating */}
           <View style={styles.ratingRow}>
-            {renderStars(farm.averageRating)}
+            {renderStars(farm.producerRating?.overall || farm.averageRating)}
             <Text style={[styles.ratingText, { color: colors.textSecondary }]}>
-              {farm.averageRating.toFixed(1)} ({farm.stats.totalRatings})
+              {(farm.producerRating?.overall || farm.averageRating).toFixed(1)} ({farm.producerRating?.totalReviews || farm.stats.totalRatings})
             </Text>
           </View>
         </View>
       </View>
 
+      {/* Badges */}
+      {(farm.badges?.isNewProducer || farm.badges?.isCertified || farm.badges?.fastResponder) && (
+        <View style={styles.badgesRow}>
+          {farm.badges.isNewProducer && (
+            <View style={[styles.badge, { backgroundColor: colors.success + '20' }]}>
+              <Ionicons name="sparkles" size={12} color={colors.success} />
+              <Text style={[styles.badgeText, { color: colors.success }]}>Nouveau</Text>
+            </View>
+          )}
+          {farm.badges.isCertified && (
+            <View style={[styles.badge, { backgroundColor: colors.primary + '20' }]}>
+              <Ionicons name="checkmark-circle" size={12} color={colors.primary} />
+              <Text style={[styles.badgeText, { color: colors.primary }]}>Certifié</Text>
+            </View>
+          )}
+          {farm.badges.fastResponder && (
+            <View style={[styles.badge, { backgroundColor: colors.accent + '20' }]}>
+              <Ionicons name="flash" size={12} color={colors.accent} />
+              <Text style={[styles.badgeText, { color: colors.accent }]}>Réponse rapide</Text>
+            </View>
+          )}
+        </View>
+      )}
+
       {/* Divider */}
       <View style={[styles.divider, { backgroundColor: colors.divider }]} />
 
-      {/* Stats */}
+      {/* Stats avec prix */}
       <View style={styles.statsRow}>
         <View style={styles.statItem}>
           <Ionicons name="paw" size={20} color={colors.primary} />
           <Text style={[styles.statValue, { color: colors.text }]}>
-            {farm.totalSubjects}
+            {farm.aggregatedData?.totalSubjectsForSale || farm.totalSubjects}
           </Text>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
             Sujets
@@ -136,7 +315,7 @@ export default function FarmCard({
         <View style={styles.statItem}>
           <Ionicons name="scale-outline" size={20} color={colors.primary} />
           <Text style={[styles.statValue, { color: colors.text }]}>
-            {farm.totalWeight} kg
+            {farm.aggregatedData?.totalWeight || farm.totalWeight} kg
           </Text>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
             Poids total
@@ -144,15 +323,44 @@ export default function FarmCard({
         </View>
 
         <View style={styles.statItem}>
-          <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+          <Ionicons name="cash-outline" size={20} color={colors.primary} />
           <Text style={[styles.statValue, { color: colors.text }]}>
-            {farm.stats.completionRate}%
+            {farm.aggregatedData?.priceRange ? 
+              `${Math.round(farm.aggregatedData.priceRange.min)}-${Math.round(farm.aggregatedData.priceRange.max)}` :
+              'N/A'
+            }
           </Text>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-            Fiabilité
+            FCFA/kg
           </Text>
         </View>
       </View>
+
+      {/* Races disponibles */}
+      {farm.preview?.availableRaces && farm.preview.availableRaces.length > 0 && (
+        <View style={styles.racesRow}>
+          <Text style={[styles.racesLabel, { color: colors.textSecondary }]}>Races: </Text>
+          <View style={styles.racesContainer}>
+            {farm.preview.availableRaces.slice(0, 3).map((race, index) => (
+              <View key={index} style={[styles.raceTag, { backgroundColor: colors.surfaceLight }]}>
+                <Text style={[styles.raceText, { color: colors.text }]}>{race}</Text>
+              </View>
+            ))}
+            {farm.preview.availableRaces.length > 3 && (
+              <Text style={[styles.raceMore, { color: colors.textSecondary }]}>
+                +{farm.preview.availableRaces.length - 3}
+              </Text>
+            )}
+          </View>
+        </View>
+      )}
+
+      {/* Dernière mise à jour */}
+      {farm.lastUpdated && (
+        <Text style={[styles.lastUpdated, { color: colors.textLight }]}>
+          Mis à jour {formatDate(farm.lastUpdated, 'relative')}
+        </Text>
+      )}
 
       {/* Footer avec bouton conditions */}
       <View style={styles.footer}>
@@ -174,7 +382,8 @@ export default function FarmCard({
           <Ionicons name="chevron-forward" size={20} color={colors.primary} />
         </View>
       </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
@@ -220,16 +429,37 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'space-between',
   },
+  farmNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+    gap: MarketplaceTheme.spacing.sm,
+  },
   farmName: {
     fontSize: MarketplaceTheme.typography.fontSizes.lg,
     fontWeight: MarketplaceTheme.typography.fontWeights.bold,
-    marginBottom: 4,
+    flex: 1,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 6,
+    alignSelf: 'flex-start',
+  },
+  actionButton: {
+    width: 40,
+    height: 40,
+    borderRadius: MarketplaceTheme.borderRadius.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...MarketplaceTheme.shadows.small,
   },
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     marginBottom: 4,
+    marginTop: 4,
   },
   locationText: {
     fontSize: MarketplaceTheme.typography.fontSizes.sm,
@@ -239,6 +469,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: MarketplaceTheme.borderRadius.sm,
+    marginTop: 2,
   },
   distanceText: {
     fontSize: 12,
@@ -292,6 +523,67 @@ const styles = StyleSheet.create({
     height: 24,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  producerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
+  },
+  producerText: {
+    fontSize: MarketplaceTheme.typography.fontSizes.xs,
+  },
+  badgesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: MarketplaceTheme.spacing.sm,
+  },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: MarketplaceTheme.borderRadius.round,
+  },
+  badgeText: {
+    fontSize: MarketplaceTheme.typography.fontSizes.xs,
+    fontWeight: MarketplaceTheme.typography.fontWeights.medium,
+  },
+  racesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: MarketplaceTheme.spacing.xs,
+    marginBottom: MarketplaceTheme.spacing.xs,
+  },
+  racesLabel: {
+    fontSize: MarketplaceTheme.typography.fontSizes.xs,
+    marginRight: 4,
+  },
+  racesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    flex: 1,
+  },
+  raceTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: MarketplaceTheme.borderRadius.sm,
+  },
+  raceText: {
+    fontSize: MarketplaceTheme.typography.fontSizes.xs,
+    fontWeight: MarketplaceTheme.typography.fontWeights.medium,
+  },
+  raceMore: {
+    fontSize: MarketplaceTheme.typography.fontSizes.xs,
+    fontStyle: 'italic',
+  },
+  lastUpdated: {
+    fontSize: MarketplaceTheme.typography.fontSizes.xs,
+    marginTop: MarketplaceTheme.spacing.xs,
+    textAlign: 'right',
   },
 });
 

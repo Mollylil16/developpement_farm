@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/82</span>
+                <span class='fraction'>0/90</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/81</span>
+                <span class='fraction'>0/89</span>
             </div>
         
             
@@ -525,7 +525,14 @@
 <a name='L460'></a><a href='#L460'>460</a>
 <a name='L461'></a><a href='#L461'>461</a>
 <a name='L462'></a><a href='#L462'>462</a>
-<a name='L463'></a><a href='#L463'>463</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L463'></a><a href='#L463'>463</a>
+<a name='L464'></a><a href='#L464'>464</a>
+<a name='L465'></a><a href='#L465'>465</a>
+<a name='L466'></a><a href='#L466'>466</a>
+<a name='L467'></a><a href='#L467'>467</a>
+<a name='L468'></a><a href='#L468'>468</a>
+<a name='L469'></a><a href='#L469'>469</a>
+<a name='L470'></a><a href='#L470'>470</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -552,7 +559,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -580,7 +586,11 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -685,6 +695,10 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1011,7 +1025,6 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
-import { databaseService } from '../services/database';
 import { loadUserFromStorageThunk, signOut } from '../store/slices/authSlice';
 &nbsp;
 export default function <span class="fstat-no" title="function not covered" >ProfilScreen(</span>) {
@@ -1042,7 +1055,11 @@ export default function <span class="fstat-no" title="function not covered" >Pro
 <span class="cstat-no" title="statement not covered" >      setLoadingData(true);</span>
       
       // Charger directement depuis la base de données pour avoir les données à jour
-      const dbUser = <span class="cstat-no" title="statement not covered" >await databaseService.getUserById(user.id);</span>
+      const { getDatabase } = <span class="cstat-no" title="statement not covered" >await import('../services/database');</span>
+      const { UserRepository } = <span class="cstat-no" title="statement not covered" >await import('../database/repositories');</span>
+      const db = <span class="cstat-no" title="statement not covered" >await getDatabase();</span>
+      const userRepo = <span class="cstat-no" title="statement not covered" >new UserRepository(db);</span>
+      const dbUser = <span class="cstat-no" title="statement not covered" >await userRepo.findById(user.id);</span>
       
 <span class="cstat-no" title="statement not covered" >      if (dbUser) {</span>
         // Utilisateur trouvé dans la base de données
@@ -1147,7 +1164,11 @@ export default function <span class="fstat-no" title="function not covered" >Pro
       }
 &nbsp;
       // Mettre à jour dans la base de données
-<span class="cstat-no" title="statement not covered" >      await databaseService.updateUser(user.id, {</span>
+      const { getDatabase } = <span class="cstat-no" title="statement not covered" >await import('../services/database');</span>
+      const { UserRepository } = <span class="cstat-no" title="statement not covered" >await import('../database/repositories');</span>
+      const db = <span class="cstat-no" title="statement not covered" >await getDatabase();</span>
+      const userRepo = <span class="cstat-no" title="statement not covered" >new UserRepository(db);</span>
+<span class="cstat-no" title="statement not covered" >      await userRepo.update(user.id, {</span>
         nom: nom.trim(),
         prenom: prenom.trim(),
         email: email?.trim() || undefined,
@@ -1456,7 +1477,7 @@ const styles = <span class="cstat-no" title="statement not covered" >StyleSheet.
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-26T03:39:32.595Z
+                at 2025-12-02T20:11:08.298Z
             </div>
         <script src="../prettify.js"></script>
         <script>

@@ -1,5 +1,5 @@
 /**
- * Tests d'intégration pour financeSlice
+ * Tests d'integration pour financeSlice
  * Teste l'interaction entre les thunks, reducers, et la base de données
  */
 
@@ -17,7 +17,7 @@ import financeReducer, {
 jest.mock('../../services/database');
 jest.mock('../../database/repositories/FinanceRepository');
 
-describe('financeSlice - Tests d'intégration', () => {
+describe('financeSlice - Tests d\'intégration', () => {
   let store: ReturnType<typeof configureStore>;
 
   beforeEach(() => {

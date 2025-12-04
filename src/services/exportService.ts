@@ -10,6 +10,23 @@
 declare const FileSystem: any;
 declare const Sharing: any;
 import { databaseService } from './database';
+import { getDatabase } from './database';
+import { getErrorMessage } from '../types/common';
+import {
+  ProjetRepository,
+  GestationRepository,
+  SevrageRepository,
+  ChargeFixeRepository,
+  DepensePonctuelleRepository,
+  MortaliteRepository,
+  StockRepository,
+  AnimalRepository,
+  PeseeRepository,
+  IngredientRepository,
+  RationRepository,
+  PlanificationRepository,
+  CollaborateurRepository,
+} from '../database/repositories';
 
 export interface ExportData {
   version: string;
@@ -36,33 +53,50 @@ export interface ExportData {
 export async function exportAllDataJSON(projetId: string): Promise<string> {
   try {
     // Récupérer toutes les données depuis la base de données
-    const projet = await databaseService.getProjetById(projetId);
-    const gestations = await databaseService.getAllGestations(projetId);
-    const sevrages = await databaseService.getAllSevrages(projetId);
-    const chargesFixes = await databaseService.getAllChargesFixes(projetId);
-    const depensesPonctuelles = await databaseService.getAllDepensesPonctuelles(projetId);
-    const ingredients = await databaseService.getAllIngredients(projetId);
-    const rations = await databaseService.getAllRations(projetId);
-    const mortalites = await databaseService.getAllMortalites(projetId);
-    const planifications = await databaseService.getAllPlanifications(projetId);
-    const collaborateurs = await databaseService.getAllCollaborateurs(projetId);
-    const stocksAliments = await databaseService.getStocksParProjet(projetId);
+    const db = await getDatabase();
+    const projetRepo = new ProjetRepository(db);
+    const gestationRepo = new GestationRepository(db);
+    const sevrageRepo = new SevrageRepository(db);
+    const chargeFixeRepo = new ChargeFixeRepository(db);
+    const depenseRepo = new DepensePonctuelleRepository(db);
+    const mortaliteRepo = new MortaliteRepository(db);
+    const stockRepo = new StockRepository(db);
+    const animalRepo = new AnimalRepository(db);
+    const peseeRepo = new PeseeRepository(db);
+
+    const projet = await projetRepo.getById(projetId);
+    const gestations = await gestationRepo.findAll(projetId);
+    const sevrages = await sevrageRepo.findByProjet(projetId);
+    const chargesFixes = await chargeFixeRepo.findAll(projetId);
+    const depensesPonctuelles = await depenseRepo.findAll(projetId);
+    const mortalites = await mortaliteRepo.findByProjet(projetId);
+    const stocksAliments = await stockRepo.findByProjet(projetId);
 
     // Récupérer les mouvements de stock pour chaque aliment
     const stocksMouvements: any[] = [];
     for (const stock of stocksAliments) {
-      const mouvements = await databaseService.getMouvementsParAliment(stock.id, 100);
+      const mouvements = await stockRepo.getMouvements(stock.id, 100);
       stocksMouvements.push(...mouvements);
     }
 
-    const productionAnimaux = await databaseService.getProductionAnimaux(projetId, true);
+    const productionAnimaux = await animalRepo.findActiveByProjet(projetId);
 
     // Récupérer les pesées pour chaque animal
     const productionPesees: any[] = [];
     for (const animal of productionAnimaux) {
-      const pesees = await databaseService.getPeseesParAnimal(animal.id);
+      const pesees = await peseeRepo.findByAnimal(animal.id);
       productionPesees.push(...pesees);
     }
+
+    // Utiliser les nouveaux repositories
+    const ingredientRepo = new IngredientRepository(db);
+    const rationRepo = new RationRepository(db);
+    const planificationRepo = new PlanificationRepository(db);
+    const collaborateurRepo = new CollaborateurRepository(db);
+    const ingredients = await ingredientRepo.getAllIngredients(projetId);
+    const rations = await rationRepo.findByProjet(projetId);
+    const planifications = await planificationRepo.findByProjet(projetId);
+    const collaborateurs = await collaborateurRepo.findByProjet(projetId);
 
     const exportData: ExportData = {
       version: '1.0.0',
@@ -85,8 +119,8 @@ export async function exportAllDataJSON(projetId: string): Promise<string> {
 
     const json = JSON.stringify(exportData, null, 2);
     return json;
-  } catch (error: any) {
-    throw new Error(`Erreur lors de l'export : ${error.message}`);
+  } catch (error: unknown) {
+    throw new Error(`Erreur lors de l'export : ${getErrorMessage(error)}`);
   }
 }
 
@@ -109,7 +143,7 @@ export async function exportAndShareJSON(projetId: string): Promise<void> {
     } else {
       throw new Error("Le partage de fichiers n'est pas disponible sur cet appareil");
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     throw new Error(`Erreur lors de l'export et du partage : ${error.message}`);
   }
 }
@@ -121,8 +155,14 @@ export async function exportDataCSV(projetId: string, module?: string): Promise<
   try {
     let csv = '';
 
+    const db = await getDatabase();
+    const gestationRepo = new GestationRepository(db);
+    const mortaliteRepo = new MortaliteRepository(db);
+    const depenseRepo = new DepensePonctuelleRepository(db);
+    const animalRepo = new AnimalRepository(db);
+
     if (!module || module === 'gestations') {
-      const gestations = await databaseService.getAllGestations(projetId);
+      const gestations = await gestationRepo.findAll(projetId);
       csv += 'Module: Gestations\n';
       csv += 'ID,Truie,Date Sautage,Date Mise Bas Prévue,Statut\n';
       gestations.forEach((g) => {
@@ -132,7 +172,7 @@ export async function exportDataCSV(projetId: string, module?: string): Promise<
     }
 
     if (!module || module === 'mortalites') {
-      const mortalites = await databaseService.getAllMortalites(projetId);
+      const mortalites = await mortaliteRepo.findByProjet(projetId);
       csv += 'Module: Mortalités\n';
       csv += 'ID,Date,Nombre Porcs,Cause,Catégorie\n';
       mortalites.forEach((m) => {
@@ -142,7 +182,7 @@ export async function exportDataCSV(projetId: string, module?: string): Promise<
     }
 
     if (!module || module === 'finances') {
-      const depenses = await databaseService.getAllDepensesPonctuelles(projetId);
+      const depenses = await depenseRepo.findAll(projetId);
       csv += 'Module: Dépenses\n';
       csv += 'ID,Date,Montant,Description\n';
       depenses.forEach((d) => {
@@ -152,7 +192,7 @@ export async function exportDataCSV(projetId: string, module?: string): Promise<
     }
 
     if (!module || module === 'production') {
-      const animaux = await databaseService.getProductionAnimaux(projetId, true);
+      const animaux = await animalRepo.findActiveByProjet(projetId);
       csv += 'Module: Production - Animaux\n';
       csv += 'ID,Code,Nom,Poids Initial\n';
       animaux.forEach((a) => {
@@ -162,7 +202,7 @@ export async function exportDataCSV(projetId: string, module?: string): Promise<
     }
 
     return csv;
-  } catch (error: any) {
+  } catch (error: unknown) {
     throw new Error(`Erreur lors de l'export CSV : ${error.message}`);
   }
 }
@@ -186,7 +226,7 @@ export async function exportAndShareCSV(projetId: string, module?: string): Prom
     } else {
       throw new Error("Le partage de fichiers n'est pas disponible sur cet appareil");
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     throw new Error(`Erreur lors de l'export CSV : ${error.message}`);
   }
 }
@@ -205,11 +245,14 @@ export async function importDataFromJSON(jsonData: string): Promise<void> {
 
     // Importer les données dans l'ordre (projet d'abord, puis dépendances)
     if (data.projet) {
+      const db = await getDatabase();
+      const projetRepo = new ProjetRepository(db);
+      
       // Vérifier si le projet existe déjà
-      try {
-        const existingProjet = await databaseService.getProjetById(data.projet.id);
+      const existingProjet = await projetRepo.findById(data.projet.id);
+      if (existingProjet) {
         // Si existe, mettre à jour
-        await databaseService.updateProjet(data.projet.id, {
+        await projetRepo.update(data.projet.id, {
           nom: data.projet.nom,
           localisation: data.projet.localisation,
           nombre_truies: data.projet.nombre_truies,
@@ -219,12 +262,15 @@ export async function importDataFromJSON(jsonData: string): Promise<void> {
           age_moyen_actuel: data.projet.age_moyen_actuel,
           notes: data.projet.notes,
         });
-      } catch {
+      } else {
         // Si n'existe pas, créer
         // Note: createProjet nécessite proprietaire_id, mais on ne l'a pas dans les données exportées
         // Pour l'instant, on utilise 'user_1' par défaut
         // Une version améliorée pourrait demander à l'utilisateur de sélectionner un propriétaire
-        await databaseService.createProjet({
+        // La création des animaux initiaux est gérée automatiquement par ProjetRepository.create()
+        const { ProjetRepository } = await import('../database/repositories');
+        const projetRepo = new ProjetRepository(db);
+        await projetRepo.create({
           nom: data.projet.nom,
           localisation: data.projet.localisation,
           nombre_truies: data.projet.nombre_truies,
@@ -244,9 +290,11 @@ export async function importDataFromJSON(jsonData: string): Promise<void> {
     // Une version améliorée pourrait proposer de fusionner ou remplacer
 
     if (data.gestations) {
+      const db = await getDatabase();
+      const gestationRepo = new GestationRepository(db);
       for (const gestation of data.gestations) {
         try {
-          await databaseService.createGestation({
+          await gestationRepo.create({
             projet_id: gestation.projet_id || data.projet?.id || '',
             truie_id: gestation.truie_id,
             truie_nom: gestation.truie_nom,
@@ -268,7 +316,7 @@ export async function importDataFromJSON(jsonData: string): Promise<void> {
 
     // Pour l'instant, on importe seulement le projet et les gestations
     // Les autres modules peuvent être ajoutés de la même manière
-  } catch (error: any) {
+  } catch (error: unknown) {
     throw new Error(`Erreur lors de l'import : ${error.message}`);
   }
 }
@@ -280,7 +328,7 @@ export async function readJSONFile(uri: string): Promise<string> {
   try {
     const content = await FileSystem.readAsStringAsync(uri);
     return content;
-  } catch (error: any) {
+  } catch (error: unknown) {
     throw new Error(`Erreur lors de la lecture du fichier : ${error.message}`);
   }
 }

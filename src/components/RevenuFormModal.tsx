@@ -9,7 +9,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { createRevenu, updateRevenu, calculateAndSaveMargesVente } from '../store/slices/financeSlice';
 import { Revenu, CreateRevenuInput, CategorieRevenu, ProductionAnimal } from '../types';
-import { selectAllAnimaux } from '../store/selectors/productionSelectors';
+import { selectAllAnimaux, selectPeseesRecents } from '../store/selectors/productionSelectors';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
@@ -41,6 +41,7 @@ export default function RevenuFormModal({
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   const animaux = useAppSelector(selectAllAnimaux);
+  const peseesRecents = useAppSelector(selectPeseesRecents);
   const { canCreate, canUpdate } = useActionPermissions();
   const [loading, setLoading] = useState(false);
   const [poidsKg, setPoidsKg] = useState<string>('');
@@ -506,7 +507,8 @@ export default function RevenuFormModal({
                           ]}
                           onPress={() => {
                             setSelectedAnimalId(item.id);
-                            setPoidsKg(item.poids_actuel?.toString() || '');
+                            const poidsActuel = peseesRecents.find(p => p.animal_id === item.id)?.poids_kg || item.poids_initial || 0;
+                            setPoidsKg(poidsActuel.toString());
                             setShowAnimalSearch(false);
                             setSearchAnimalQuery('');
                           }}
@@ -525,7 +527,10 @@ export default function RevenuFormModal({
                             {item.code}
                             {item.nom ? ` - ${item.nom}` : ''}
                             {item.race ? ` (${item.race})` : ''}
-                            {item.poids_actuel ? ` - ${item.poids_actuel} kg` : ''}
+                            {(() => {
+                              const poidsActuel = peseesRecents.find(p => p.animal_id === item.id)?.poids_kg || item.poids_initial || 0;
+                              return poidsActuel > 0 ? ` - ${poidsActuel} kg` : '';
+                            })()}
                           </Text>
                         </TouchableOpacity>
                       )}
@@ -538,9 +543,10 @@ export default function RevenuFormModal({
                   <Text style={[styles.helperText, { color: colors.textSecondary, marginTop: 4 }]}>
                     Porc sélectionné: {selectedAnimal.code}
                     {selectedAnimal.nom ? ` (${selectedAnimal.nom})` : ''}
-                    {selectedAnimal.poids_actuel
-                      ? ` - Poids actuel: ${selectedAnimal.poids_actuel} kg`
-                      : ''}
+                    {(() => {
+                      const poidsActuel = peseesRecents.find(p => p.animal_id === selectedAnimal.id)?.poids_kg || selectedAnimal.poids_initial || 0;
+                      return poidsActuel > 0 ? ` - Poids actuel: ${poidsActuel} kg` : '';
+                    })()}
                   </Text>
                 )}
               </View>

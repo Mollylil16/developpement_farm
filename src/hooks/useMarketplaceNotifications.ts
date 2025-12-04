@@ -101,25 +101,26 @@ export function useMarketplaceNotifications() {
 
   /**
    * Supprimer une notification
-   * Note: La méthode delete n'existe pas sur MarketplaceNotificationRepository
-   * Cette fonctionnalité nécessiterait d'ajouter la méthode au repository
    */
   const deleteNotification = useCallback(async (notificationId: string) => {
     try {
-      // TODO: Implémenter repo.delete(notificationId) dans MarketplaceNotificationRepository
-      console.warn('Delete notification not implemented in repository');
+      const db = await getDatabase();
+      const repo = new MarketplaceNotificationRepository(db);
 
-      // Pour l'instant, on retire juste de l'état local
-      const notification = notifications.find((n) => n.id === notificationId);
-      if (notification && !notification.read) {
-        setUnreadCount((prev) => Math.max(0, prev - 1));
-      }
+      await repo.delete(notificationId);
 
-      setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
+      // Mettre à jour l'état local
+      setNotifications((prev) => {
+        const notification = prev.find((n) => n.id === notificationId);
+        if (notification && !notification.read) {
+          setUnreadCount((count) => Math.max(0, count - 1));
+        }
+        return prev.filter((n) => n.id !== notificationId);
+      });
     } catch (err: any) {
       console.error('Erreur suppression notification:', err);
     }
-  }, [notifications]);
+  }, []);
 
   /**
    * Rafraîchir les notifications

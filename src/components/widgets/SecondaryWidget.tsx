@@ -2,7 +2,7 @@
  * Widgets secondaires compacts pour le Dashboard
  */
 
-import React, { useMemo, useEffect, memo } from 'react';
+import React, { useMemo, useEffect, useState, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { loadRations, loadRationsBudget } from '../../store/slices/nutritionSlice';
@@ -11,7 +11,7 @@ import { loadCollaborateursParProjet } from '../../store/slices/collaborationSli
 import { loadMortalitesParProjet } from '../../store/slices/mortalitesSlice';
 import { loadProductionAnimaux, loadPeseesRecents } from '../../store/slices/productionSlice';
 import { loadVaccinations, loadMaladies } from '../../store/slices/santeSlice';
-import { selectAllAnimaux, selectPeseesRecents } from '../../store/selectors/productionSelectors';
+import { selectAllAnimaux, selectPeseesRecents, selectAnimauxActifs } from '../../store/selectors/productionSelectors';
 import { selectAllMortalites } from '../../store/selectors/mortalitesSelectors';
 import { selectAllVaccinations, selectAllMaladies } from '../../store/selectors/santeSelectors';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS } from '../../constants/theme';
@@ -22,7 +22,7 @@ import { Mortalite } from '../../types';
 import { SafeTextWrapper } from '../../utils/textRenderingGuard';
 
 interface SecondaryWidgetProps {
-  type: 'nutrition' | 'planning' | 'collaboration' | 'mortalites' | 'production' | 'sante';
+  type: 'nutrition' | 'planning' | 'collaboration' | 'mortalites' | 'production' | 'sante' | 'marketplace';
   onPress?: () => void;
 }
 
@@ -30,11 +30,13 @@ function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
+  const [marketplaceStats, setMarketplaceStats] = useState({ myListings: 0, available: 0 });
   const { rations, rationsBudget } = useAppSelector((state) => state.nutrition);
   const { planifications } = useAppSelector((state) => state.planification);
   const { collaborateurs } = useAppSelector((state) => state.collaboration);
   const mortalites = useAppSelector(selectAllMortalites);
   const animaux = useAppSelector(selectAllAnimaux);
+  const animauxActifs = useAppSelector(selectAnimauxActifs);
   const peseesRecents = useAppSelector(selectPeseesRecents);
   const vaccinations = useAppSelector(selectAllVaccinations);
   const maladies = useAppSelector(selectAllMaladies);
@@ -74,6 +76,36 @@ function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
       case 'production':
         dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
         dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 }));
+        break;
+      case 'marketplace':
+        // Charger les stats du marketplace
+        (async () => {
+          try {
+            const { getDatabase } = await import('../../services/database');
+            const db = await getDatabase();
+            const { MarketplaceListingRepository } = await import('../../database/repositories');
+            const listingRepo = new MarketplaceListingRepository(db);
+            
+            // Compter mes annonces actives
+            const myListings = await listingRepo.findByFarmId(projetActif.id);
+            const myActiveListings = myListings.filter(
+              l => l.status === 'available' || l.status === 'reserved'
+            ).length;
+            
+            // Compter les annonces disponibles (toutes sauf celles de l'utilisateur)
+            const allListings = await listingRepo.findAll();
+            const availableListings = allListings.filter(
+              l => (l.status === 'available' || l.status === 'reserved') && l.farmId !== projetActif.id
+            ).length;
+            
+            setMarketplaceStats({
+              myListings: myActiveListings,
+              available: availableListings,
+            });
+          } catch (error) {
+            console.error('Erreur chargement stats marketplace:', error);
+          }
+        })();
         break;
     }
   }, [dispatch, projetActif?.id, type]);
@@ -162,9 +194,6 @@ function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
         };
 
       case 'production':
-        const animauxActifs = (animaux as any[]).filter(
-          (a: any) => a.statut?.toLowerCase() === 'actif'
-        );
         return {
           emoji: '🐷',
           title: 'Production',
@@ -172,6 +201,16 @@ function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
           secondary: peseesRecentsLength,
           labelPrimary: 'Animaux',
           labelSecondary: 'Pesées',
+        };
+
+      case 'marketplace':
+        return {
+          emoji: '🏪',
+          title: 'Marketplace',
+          primary: marketplaceStats.myListings,
+          secondary: marketplaceStats.available,
+          labelPrimary: 'Annonces',
+          labelSecondary: 'Disponibles',
         };
 
       default:
@@ -198,6 +237,7 @@ function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
     mortalites,
     animaux,
     peseesRecents,
+    marketplaceStats,
   ]);
 
   if (!widgetData) {

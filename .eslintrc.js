@@ -40,7 +40,10 @@ module.exports = {
       varsIgnorePattern: '^_',
       caughtErrorsIgnorePattern: '^_',
     }],
-    '@typescript-eslint/no-explicit-any': 'warn',
+    '@typescript-eslint/no-explicit-any': ['warn', { 
+      fixToUnknown: true,
+      ignoreRestArgs: false,
+    }],
     '@typescript-eslint/explicit-module-boundary-types': 'off',
     '@typescript-eslint/ban-ts-comment': 'warn',
     '@typescript-eslint/no-floating-promises': 'error',

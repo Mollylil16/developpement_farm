@@ -6,7 +6,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAppSelector } from '../store/hooks';
 import { getDatabase } from '../services/database';
-import { MarketplaceChatRepository } from '../database/repositories';
+import { 
+  MarketplaceChatRepository,
+  MarketplaceTransactionRepository 
+} from '../database/repositories';
 import type { ChatMessage, ChatConversation } from '../types/marketplace';
 
 export function useMarketplaceChat(transactionId: string) {
@@ -33,11 +36,22 @@ export function useMarketplaceChat(transactionId: string) {
       const db = await getDatabase();
       const repo = new MarketplaceChatRepository(db);
 
+      // Récupérer la transaction pour obtenir son offerId
+      const transactionRepo = new MarketplaceTransactionRepository(db);
+      const transaction = await transactionRepo.findById(transactionId);
+
+      if (!transaction) {
+        setError('Transaction introuvable');
+        setMessages([]);
+        setLoading(false);
+        return;
+      }
+
       // Charger toutes les conversations de l'utilisateur
       const conversations = await repo.findUserConversations(currentUserId);
       
       // Trouver la conversation liée à cette transaction (via offerId)
-      const conv = conversations.find(c => c.relatedOfferId === transactionId);
+      const conv = conversations.find(c => c.relatedOfferId === transaction.offerId);
       setConversation(conv || null);
 
       if (!conv) {

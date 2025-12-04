@@ -17,6 +17,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../constants/theme';
 import { format, parseISO } from 'date-fns';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { ProductionAnimal, ProductionPesee } from '../types';
 
 const SEARCH_HISTORY_KEY = 'global_search_history';
 const MAX_HISTORY_ITEMS = 10;
@@ -53,17 +54,47 @@ export default function GlobalSearchComponent({
   const [query, setQuery] = useState('');
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
 
-  // Récupérer toutes les données depuis Redux
-  const { animaux = [], peseesRecents = [] } = useAppSelector((state) => state.production || {});
-  const { gestations = [], sevrages = [] } = useAppSelector((state) => state.reproduction || {});
-  const { stocks = [] } = useAppSelector((state) => state.stocks || {});
-  const { ingredients = [], rations = [] } = useAppSelector((state) => state.nutrition || {});
-  const { depensesPonctuelles = [], chargesFixes = [] } = useAppSelector(
-    (state) => state.finance || {}
-  );
-  const { planifications = [] } = useAppSelector((state) => state.planification || {});
-  const { collaborateurs = [] } = useAppSelector((state) => state.collaboration || {});
-  const { mortalites = [] } = useAppSelector((state) => state.mortalites || {});
+  // Récupérer toutes les données depuis Redux (utiliser les sélecteurs pour les données normalisées)
+  const animaux = useAppSelector((state) => {
+    const prodState = state.production;
+    if (!prodState?.entities?.animaux || !prodState?.ids?.animaux) return [];
+    return prodState.ids.animaux.map((id) => prodState.entities.animaux[id]).filter(Boolean);
+  });
+  const peseesRecents = useAppSelector((state) => {
+    const prodState = state.production;
+    if (!prodState?.entities?.pesees || !prodState?.peseesRecents) return [];
+    return prodState.peseesRecents.map((id) => prodState.entities.pesees[id]).filter(Boolean);
+  });
+  const gestations = useAppSelector((state) => {
+    const reproState = state.reproduction;
+    if (!reproState?.entities?.gestations || !reproState?.ids?.gestations) return [];
+    return reproState.ids.gestations.map((id) => reproState.entities.gestations[id]).filter(Boolean);
+  });
+  const sevrages = useAppSelector((state) => {
+    const reproState = state.reproduction;
+    if (!reproState?.entities?.sevrages || !reproState?.ids?.sevrages) return [];
+    return reproState.ids.sevrages.map((id) => reproState.entities.sevrages[id]).filter(Boolean);
+  });
+  const stocks = useAppSelector((state) => state.stocks?.stocks || []);
+  const ingredients = useAppSelector((state) => state.nutrition?.ingredients || []);
+  const rations = useAppSelector((state) => state.nutrition?.rations || []);
+  const depensesPonctuelles = useAppSelector((state) => {
+    const financeState = state.finance;
+    if (!financeState?.entities?.depensesPonctuelles || !financeState?.ids?.depensesPonctuelles) return [];
+    return financeState.ids.depensesPonctuelles.map((id) => financeState.entities.depensesPonctuelles[id]).filter(Boolean);
+  });
+  const chargesFixes = useAppSelector((state) => {
+    const financeState = state.finance;
+    if (!financeState?.entities?.chargesFixes || !financeState?.ids?.chargesFixes) return [];
+    return financeState.ids.chargesFixes.map((id) => financeState.entities.chargesFixes[id]).filter(Boolean);
+  });
+  const planifications = useAppSelector((state) => state.planification?.planifications || []);
+  const collaborateurs = useAppSelector((state) => state.collaboration?.collaborateurs || []);
+  const mortalites = useAppSelector((state) => {
+    const mortState = state.mortalites;
+    if (!mortState?.entities?.mortalites || !mortState?.ids?.mortalites) return [];
+    return mortState.ids.mortalites.map((id) => mortState.entities.mortalites[id]).filter(Boolean);
+  });
 
   // Charger l'historique de recherche
   useEffect(() => {
@@ -90,9 +121,9 @@ export default function GlobalSearchComponent({
     const results: SearchResult[] = [];
 
     // Recherche dans les animaux de production
-    animaux.forEach((animal) => {
+    animaux.forEach((animal: ProductionAnimal) => {
       // Trouver la dernière pesée pour cet animal
-      const dernierePesee = peseesRecents.find((p) => p.animal_id === animal.id);
+      const dernierePesee = peseesRecents.find((p: ProductionPesee) => p.animal_id === animal.id);
       const poidsActuel = dernierePesee?.poids_kg || animal.poids_initial || null;
 
       const matches =
@@ -181,7 +212,7 @@ export default function GlobalSearchComponent({
     });
 
     // Recherche dans les dépenses ponctuelles
-    depensesPonctuelles.forEach((depense) => {
+    depensesPonctuelles.forEach((depense: any) => {
       const matches =
         depense.libelle_categorie?.toLowerCase().includes(q) ||
         depense.categorie?.toLowerCase().includes(q) ||
@@ -201,7 +232,7 @@ export default function GlobalSearchComponent({
     });
 
     // Recherche dans les charges fixes
-    chargesFixes.forEach((charge) => {
+    chargesFixes.forEach((charge: any) => {
       const matches =
         charge.libelle?.toLowerCase().includes(q) ||
         charge.categorie?.toLowerCase().includes(q) ||
@@ -259,7 +290,7 @@ export default function GlobalSearchComponent({
     });
 
     // Recherche dans les mortalités
-    mortalites.forEach((mortalite) => {
+    mortalites.forEach((mortalite: any) => {
       const matches =
         mortalite.cause?.toLowerCase().includes(q) ||
         mortalite.categorie?.toLowerCase().includes(q) ||

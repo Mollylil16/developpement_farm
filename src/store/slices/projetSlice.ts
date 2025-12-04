@@ -4,7 +4,8 @@
 
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { Projet, CreateProjetInput } from '../../types';
-import { databaseService } from '../../services/database';
+import { getDatabase } from '../../services/database';
+import { ProjetRepository } from '../../database/repositories';
 
 interface ProjetState {
   projetActif: Projet | null;
@@ -26,22 +27,25 @@ export const createProjet = createAsyncThunk(
   async (input: CreateProjetInput & { proprietaire_id: string }, { rejectWithValue, getState }) => {
     try {
       const userId = input.proprietaire_id;
+      const db = await getDatabase();
+      const projetRepo = new ProjetRepository(db);
 
       // Archiver tous les autres projets actifs de l'utilisateur
-      const projets = await databaseService.getAllProjets(userId);
+      const projets = await projetRepo.findAllByUserId(userId);
       for (const projet of projets) {
         if (projet.statut === 'actif') {
-          await databaseService.updateProjet(projet.id, { statut: 'archive' }, userId);
+          await projetRepo.update(projet.id, { statut: 'archive' }, userId);
         }
       }
 
       // Créer le nouveau projet comme actif
-      const projet = await databaseService.createProjet({
+      // La création des animaux initiaux est gérée automatiquement par ProjetRepository.create()
+      const projet = await projetRepo.create({
         ...input,
         statut: 'actif',
       });
       return projet;
-    } catch (error: any) {
+    } catch (error: unknown) {
       return rejectWithValue(error.message || 'Erreur lors de la création du projet');
     }
   }
@@ -54,9 +58,11 @@ export const loadProjets = createAsyncThunk(
       // Récupérer l'ID de l'utilisateur actuel depuis le state
       const state = getState() as any;
       const userId = state.auth?.user?.id;
-      const projets = await databaseService.getAllProjets(userId);
+      const db = await getDatabase();
+      const projetRepo = new ProjetRepository(db);
+      const projets = userId ? await projetRepo.findAllByUserId(userId) : await projetRepo.findAll();
       return projets;
-    } catch (error: any) {
+    } catch (error: unknown) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des projets');
     }
   }
@@ -69,9 +75,14 @@ export const loadProjetActif = createAsyncThunk(
       // Récupérer l'ID de l'utilisateur actuel depuis le state
       const state = getState() as any;
       const userId = state.auth?.user?.id;
-      const projet = await databaseService.getProjetActif(userId);
+      if (!userId) {
+        return null;
+      }
+      const db = await getDatabase();
+      const projetRepo = new ProjetRepository(db);
+      const projet = await projetRepo.findActiveByUserId(userId);
       return projet;
-    } catch (error: any) {
+    } catch (error: unknown) {
       return rejectWithValue(error.message || 'Erreur lors du chargement du projet actif');
     }
   }
@@ -89,8 +100,11 @@ export const switchProjetActif = createAsyncThunk(
         return rejectWithValue('Utilisateur non authentifié');
       }
 
+      const db = await getDatabase();
+      const projetRepo = new ProjetRepository(db);
+
       // Vérifier que le projet appartient bien à l'utilisateur
-      const projets = await databaseService.getAllProjets(userId);
+      const projets = await projetRepo.findAllByUserId(userId);
       const projetExiste = projets.find((p) => p.id === projetId);
 
       if (!projetExiste) {
@@ -100,17 +114,17 @@ export const switchProjetActif = createAsyncThunk(
       // Marquer tous les projets de l'utilisateur comme non actifs
       for (const projet of projets) {
         if (projet.statut === 'actif' && projet.id !== projetId) {
-          await databaseService.updateProjet(projet.id, { statut: 'archive' }, userId);
+          await projetRepo.update(projet.id, { statut: 'archive' }, userId);
         }
       }
       // Activer le nouveau projet (userId déjà vérifié)
-      const nouveauProjet = await databaseService.updateProjet(
+      const nouveauProjet = await projetRepo.update(
         projetId,
         { statut: 'actif' },
         userId
       );
       return nouveauProjet;
-    } catch (error: any) {
+    } catch (error: unknown) {
       return rejectWithValue(error.message || 'Erreur lors du changement de projet');
     }
   }
@@ -131,9 +145,11 @@ export const updateProjet = createAsyncThunk(
         return rejectWithValue('Utilisateur non authentifié');
       }
 
-      const projet = await databaseService.updateProjet(id, updates, userId);
+      const db = await getDatabase();
+      const projetRepo = new ProjetRepository(db);
+      const projet = await projetRepo.update(id, updates, userId);
       return projet;
-    } catch (error: any) {
+    } catch (error: unknown) {
       return rejectWithValue(error.message || 'Erreur lors de la mise à jour du projet');
     }
   }

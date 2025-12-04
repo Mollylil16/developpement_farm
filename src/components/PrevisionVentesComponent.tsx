@@ -47,7 +47,7 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
     sailliesPlanifiees,
   } = useAppSelector((state) => state.planningProduction);
   const animaux = useAppSelector(selectAllAnimaux);
-  const projetActif = useAppSelector((state) => state.auth.projetActif);
+  const projetActif = useAppSelector((state) => state.projet.projetActif);
 
   const [vueListe, setVueListe] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -67,7 +67,7 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
     React.useCallback(() => {
       if (projetActif && !hasLoadedAnimaux.current) {
         console.log('🔄 PrevisionVentesComponent: Chargement des animaux...');
-        dispatch(loadProductionAnimaux(projetActif));
+        dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
         hasLoadedAnimaux.current = true;
       }
     }, [dispatch, projetActif])

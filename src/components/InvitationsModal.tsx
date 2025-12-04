@@ -15,7 +15,6 @@ import { Collaborateur, ROLE_LABELS } from '../types';
 import CustomModal from './CustomModal';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { databaseService } from '../services/database';
 
 interface InvitationsModalProps {
   visible: boolean;
@@ -38,7 +37,11 @@ export default function InvitationsModal({ visible, onClose }: InvitationsModalP
         const noms: Record<string, string> = {};
         for (const invitation of invitationsEnAttente) {
           try {
-            const projet = await databaseService.getProjetById(invitation.projet_id);
+            const { getDatabase } = await import('../services/database');
+            const { ProjetRepository } = await import('../database/repositories');
+            const db = await getDatabase();
+            const projetRepo = new ProjetRepository(db);
+            const projet = await projetRepo.getById(invitation.projet_id);
             if (projet) {
               noms[invitation.projet_id] = projet.nom;
             }

@@ -19,7 +19,8 @@ import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { usePermissions } from '../hooks/usePermissions';
+import { useRole } from '../contexts/RoleContext';
+import { validateCollaborateur } from '../validation/collaborationSchemas';
 
 interface CollaborationFormModalProps {
   visible: boolean;
@@ -39,7 +40,14 @@ export default function CollaborationFormModal({
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
-  const { isProprietaire } = usePermissions();
+  const { activeRole } = useRole();
+  const currentUser = useAppSelector((state) => state.auth.user);
+  
+  // Vérifier si l'utilisateur est propriétaire du projet actif
+  const isProprietaire = activeRole === 'producer' && 
+    projetActif && 
+    currentUser && 
+    (projetActif.proprietaire_id === currentUser.id || (projetActif as any).user_id === currentUser.id);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateCollaborateurInput>({
     projet_id: projetActif?.id || '',
@@ -109,25 +117,11 @@ export default function CollaborationFormModal({
       return;
     }
 
-    // Validation
-    if (!formData.projet_id) {
-      Alert.alert('Erreur', 'Aucun projet actif');
-      return;
-    }
-    if (!formData.nom.trim()) {
-      Alert.alert('Erreur', 'Le nom est requis');
-      return;
-    }
-    if (!formData.prenom.trim()) {
-      Alert.alert('Erreur', 'Le prénom est requis');
-      return;
-    }
-    if (!formData.email.trim()) {
-      Alert.alert('Erreur', "L'email est requis");
-      return;
-    }
-    if (!formData.email.includes('@')) {
-      Alert.alert('Erreur', 'Veuillez entrer un email valide');
+    // Validation avec Yup
+    const { isValid, errors: validationErrors } = await validateCollaborateur(formData);
+    if (!isValid) {
+      const firstError = Object.values(validationErrors)[0];
+      Alert.alert('Erreur de validation', firstError || 'Veuillez corriger les erreurs du formulaire');
       return;
     }
 
@@ -144,8 +138,9 @@ export default function CollaborationFormModal({
         await dispatch(createCollaborateur(formData)).unwrap();
       }
       onSuccess();
-    } catch (error: any) {
-      Alert.alert('Erreur', error || "Erreur lors de l'enregistrement");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error) || "Erreur lors de l'enregistrement";
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setLoading(false);
     }

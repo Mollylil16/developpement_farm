@@ -31,9 +31,16 @@ export default function SevragesListComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canDelete } = useActionPermissions();
-  const { sevrages = [], gestations = [] } = useAppSelector(
-    (state) => state.reproduction || { sevrages: [], gestations: [] }
-  );
+  const gestations = useAppSelector((state) => {
+    const reproState = state.reproduction;
+    if (!reproState?.entities?.gestations || !reproState?.ids?.gestations) return [];
+    return reproState.ids.gestations.map((id) => reproState.entities.gestations[id]).filter(Boolean);
+  });
+  const sevrages = useAppSelector((state) => {
+    const reproState = state.reproduction;
+    if (!reproState?.entities?.sevrages || !reproState?.ids?.sevrages) return [];
+    return reproState.ids.sevrages.map((id) => reproState.entities.sevrages[id]).filter(Boolean);
+  });
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedGestation, setSelectedGestation] = useState<Gestation | null>(null);

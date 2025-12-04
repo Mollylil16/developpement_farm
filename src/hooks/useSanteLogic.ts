@@ -11,14 +11,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import {
-  loadVaccinations,
-  loadMaladies,
-  loadTraitements,
   loadVisitesVeterinaires,
-  loadRappelsVaccinations,
-  loadStatistiquesVaccinations,
-  loadStatistiquesMaladies,
-  loadStatistiquesTraitements,
   loadAlertesSanitaires,
 } from '../store/slices/santeSlice';
 import {
@@ -27,6 +20,9 @@ import {
   selectNombreAlertesCritiques,
   selectNombreAlertesElevees,
 } from '../store/selectors/santeSelectors';
+import { useVaccinationsLogic } from './sante/useVaccinationsLogic';
+import { useMaladiesLogic } from './sante/useMaladiesLogic';
+import { useTraitementsLogic } from './sante/useTraitementsLogic';
 
 export type OngletType = 'vaccinations' | 'maladies' | 'traitements' | 'veterinaire' | 'mortalites';
 
@@ -67,6 +63,11 @@ export function useSanteLogic(): SanteLogicReturn {
   const alertes = useAppSelector(selectSanteAlertes);
   const nombreAlertesCritiques = useAppSelector(selectNombreAlertesCritiques);
   const nombreAlertesElevees = useAppSelector(selectNombreAlertesElevees);
+  
+  // Hooks spécialisés
+  const { chargerDonnees: chargerVaccinations } = useVaccinationsLogic();
+  const { chargerDonnees: chargerMaladies } = useMaladiesLogic();
+  const { chargerDonnees: chargerTraitements } = useTraitementsLogic();
   
   // État local
   const [ongletActif, setOngletActif] = useState<OngletType>('vaccinations');
@@ -113,16 +114,12 @@ export function useSanteLogic(): SanteLogicReturn {
   const chargerDonnees = useCallback(() => {
     if (!projetActif?.id) return;
     
-    dispatch(loadVaccinations(projetActif.id));
-    dispatch(loadMaladies(projetActif.id));
-    dispatch(loadTraitements(projetActif.id));
+    chargerVaccinations(projetActif.id);
+    chargerMaladies(projetActif.id);
+    chargerTraitements(projetActif.id);
     dispatch(loadVisitesVeterinaires(projetActif.id));
-    dispatch(loadRappelsVaccinations(projetActif.id));
-    dispatch(loadStatistiquesVaccinations(projetActif.id));
-    dispatch(loadStatistiquesMaladies(projetActif.id));
-    dispatch(loadStatistiquesTraitements(projetActif.id));
     dispatch(loadAlertesSanitaires(projetActif.id));
-  }, [projetActif?.id, dispatch]);
+  }, [projetActif?.id, dispatch, chargerVaccinations, chargerMaladies, chargerTraitements]);
   
   /**
    * Rafraîchir les données

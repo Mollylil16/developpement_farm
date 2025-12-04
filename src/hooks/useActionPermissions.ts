@@ -2,8 +2,11 @@
  * Hook pour gérer les permissions d'action (créer, modifier, supprimer)
  */
 
-import { usePermissions, PermissionType } from './usePermissions';
+import { useRolePermissions } from './useRolePermissions';
+import { useRole } from '../contexts/RoleContext';
+import { useAppSelector } from '../store/hooks';
 
+export type PermissionType = 'reproduction' | 'nutrition' | 'finance' | 'rapports' | 'planification' | 'mortalites' | 'sante';
 export type ActionType = 'create' | 'update' | 'delete';
 
 interface UseActionPermissionsReturn {
@@ -45,7 +48,38 @@ interface UseActionPermissionsReturn {
  * }
  */
 export function useActionPermissions(): UseActionPermissionsReturn {
-  const { hasPermission, isProprietaire } = usePermissions();
+  const { activeRole } = useRole();
+  const rolePermissions = useRolePermissions();
+  const projetActif = useAppSelector((state) => state.projet.projetActif);
+  const currentUser = useAppSelector((state) => state.auth.user);
+
+  // Vérifier si l'utilisateur est propriétaire du projet actif
+  const isProprietaire = activeRole === 'producer' && 
+    projetActif && 
+    currentUser && 
+    (projetActif.proprietaire_id === currentUser.id || (projetActif as any).user_id === currentUser.id);
+
+  // Helper pour vérifier les permissions par module
+  const hasPermission = (module: PermissionType): boolean => {
+    if (activeRole === 'producer') {
+      return true; // Les producteurs ont accès à tout
+    }
+    switch (module) {
+      case 'reproduction':
+      case 'nutrition':
+      case 'planification':
+      case 'mortalites':
+        return rolePermissions.canViewHerd;
+      case 'finance':
+        return rolePermissions.canViewFinances;
+      case 'rapports':
+        return rolePermissions.canGenerateReports;
+      case 'sante':
+        return rolePermissions.canViewHealthRecords;
+      default:
+        return false;
+    }
+  };
 
   const canPerformAction = (module: PermissionType, action: ActionType): boolean => {
     // Le propriétaire peut tout faire

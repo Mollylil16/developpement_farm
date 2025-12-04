@@ -3,7 +3,7 @@
  * Permet la sélection multiple depuis le cheptel
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,32 +14,135 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  RefreshControl,
+  Platform,
+  PanResponder,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { MarketplaceTheme } from '../../styles/marketplace.theme';
+import { SPACING } from '../../constants/theme';
 import SaleTermsDisplay from './SaleTermsDisplay';
 import type { ProductionAnimal } from '../../types/production';
+import { useAppSelector } from '../../store/hooks';
+import { selectAllAnimaux } from '../../store/selectors/productionSelectors';
+import { getDatabase } from '../../services/database';
+import { AnimalRepository } from '../../database/repositories';
+import { createListing } from '../../store/slices/marketplaceSlice';
+import { useAppDispatch } from '../../store/hooks';
+import { useGeolocation } from '../../hooks/useGeolocation';
 
 interface BatchAddModalProps {
   visible: boolean;
+  projetId: string;
   onClose: () => void;
-  onSubmit: (subjectIds: string[], pricePerKg: number) => Promise<void>;
-  availableSubjects: ProductionAnimal[];
+  onSuccess: () => void;
+  availableSubjects?: ProductionAnimal[]; // Optionnel, sera chargé si non fourni
 }
 
 export default function BatchAddModal({
   visible,
+  projetId,
   onClose,
-  onSubmit,
-  availableSubjects,
+  onSuccess,
+  availableSubjects: providedSubjects,
 }: BatchAddModalProps) {
   const { colors, spacing, typography, borderRadius } = MarketplaceTheme;
+  const dispatch = useAppDispatch();
+  
+  // Charger les animaux depuis Redux si non fournis
+  const allAnimaux = useAppSelector(selectAllAnimaux);
+  const { user } = useAppSelector((state) => state.auth);
+  const { getCurrentLocation } = useGeolocation();
+  const [localSubjects, setLocalSubjects] = useState<ProductionAnimal[]>([]);
+  const [loadingSubjects, setLoadingSubjects] = useState(false);
+  const [peseesParAnimal, setPeseesParAnimal] = useState<Record<string, Array<{ date: string; poids_kg: number }>>>({});
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pricePerKg, setPricePerKg] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // PanResponder pour le swipe de gauche à droite pour fermer
+  const panResponder = React.useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        // Activer si on bouge vers la droite depuis le bord gauche (premiers 50px)
+        return evt.nativeEvent.pageX < 50 && gestureState.dx > 30;
+      },
+      onPanResponderGrant: () => {
+        // Démarrer le geste
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        // Optionnel : animation pendant le swipe
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        // Si on a swipé assez vers la droite (au moins 80px), fermer le modal
+        if (gestureState.dx > 80) {
+          onClose();
+        }
+      },
+    })
+  ).current;
+
+  // Charger les animaux disponibles si non fournis
+  useEffect(() => {
+    if (visible) {
+      if (providedSubjects && providedSubjects.length > 0) {
+        setLocalSubjects(providedSubjects);
+      } else if (!providedSubjects) {
+        loadAvailableSubjects();
+      }
+    }
+  }, [visible, projetId, providedSubjects]);
+
+  const loadAvailableSubjects = async () => {
+    try {
+      setLoadingSubjects(true);
+      const db = await getDatabase();
+      const animalRepo = new AnimalRepository(db);
+      const { PeseeRepository } = await import('../../database/repositories');
+      const peseeRepo = new PeseeRepository(db);
+      
+      // Récupérer les animaux actifs du projet
+      const animaux = await animalRepo.findActiveByProjet(projetId);
+      
+      // Charger les pesées pour chaque animal pour obtenir le poids actuel
+      const peseesMap: Record<string, Array<{ date: string; poids_kg: number }>> = {};
+      for (const animal of animaux) {
+        const pesees = await peseeRepo.findByAnimal(animal.id);
+        peseesMap[animal.id] = pesees.map(p => ({ date: p.date, poids_kg: p.poids_kg }));
+      }
+      setPeseesParAnimal(peseesMap);
+      
+      // Filtrer pour ne garder que ceux qui ne sont pas déjà en vente
+      // Pour l'instant, on prend tous les actifs
+      setLocalSubjects(animaux);
+    } catch (error: any) {
+      console.error('Erreur chargement animaux:', error);
+      Alert.alert('Erreur', 'Impossible de charger les animaux disponibles');
+    } finally {
+      setLoadingSubjects(false);
+    }
+  };
+
+  // Fonction de rafraîchissement
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadAvailableSubjects();
+    } catch (error) {
+      console.error('Erreur lors du rafraîchissement:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [projetId, loadAvailableSubjects]);
+
+  // Utiliser les sujets fournis ou ceux chargés localement
+  const availableSubjects = providedSubjects || localSubjects;
 
   // Reset quand le modal se ferme
   useEffect(() => {
@@ -51,13 +154,38 @@ export default function BatchAddModal({
     }
   }, [visible]);
 
+  // Fonction helper pour calculer l'âge en mois
+  const calculateAgeInMonths = (dateNaissance?: string): number => {
+    if (!dateNaissance) return 0;
+    try {
+      const date = new Date(dateNaissance);
+      const maintenant = new Date();
+      const jours = Math.floor((maintenant.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+      if (jours < 0) return 0;
+      return Math.floor(jours / 30);
+    } catch {
+      return 0;
+    }
+  };
+
+  // Fonction helper pour obtenir le poids actuel
+  const getCurrentWeight = (animalId: string): number => {
+    const pesees = peseesParAnimal[animalId] || [];
+    if (pesees.length > 0) {
+      // Trier par date et prendre la plus récente
+      const sorted = [...pesees].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      return sorted[0].poids_kg;
+    }
+    return 0;
+  };
+
   // Filtrer les sujets selon la recherche
-  const filteredSubjects = availableSubjects.filter((subject) => {
+  const filteredSubjects = (availableSubjects || []).filter((subject) => {
     const query = searchQuery.toLowerCase();
     return (
-      subject.numero_identification?.toLowerCase().includes(query) ||
-      subject.race?.toLowerCase().includes(query) ||
-      subject.categorie?.toLowerCase().includes(query)
+      subject.code?.toLowerCase().includes(query) ||
+      subject.nom?.toLowerCase().includes(query) ||
+      subject.race?.toLowerCase().includes(query)
     );
   });
 
@@ -86,7 +214,7 @@ export default function BatchAddModal({
   const getTotalWeight = (): number => {
     return availableSubjects
       .filter((s) => selectedIds.has(s.id))
-      .reduce((sum, s) => sum + (s.poids_actuel || 0), 0);
+      .reduce((sum, s) => sum + getCurrentWeight(s.id), 0);
   };
 
   // Calculer le prix total estimé
@@ -119,11 +247,78 @@ export default function BatchAddModal({
 
     try {
       setLoading(true);
-      await onSubmit(Array.from(selectedIds), price);
+      
+      // Obtenir la connexion à la base de données une seule fois
+      const db = await getDatabase();
+      const { PeseeRepository } = await import('../../database/repositories');
+      const peseeRepo = new PeseeRepository(db);
+      const animalRepo = new AnimalRepository(db);
+      
+      // Créer un listing pour chaque sujet sélectionné
+      const subjectIds = Array.from(selectedIds);
+      
+      for (const subjectId of subjectIds) {
+        const subject = availableSubjects.find((s) => s.id === subjectId);
+        if (!subject) continue;
+
+        // Récupérer les informations nécessaires pour créer le listing
+        const animal = await animalRepo.findById(subjectId);
+        
+        if (!animal) continue;
+
+        // Récupérer la dernière pesée pour obtenir le poids actuel et la date
+        const dernierePesee = await peseeRepo.findLastByAnimal(animal.id);
+        const poidsActuel = dernierePesee?.poids_kg || animal.poids_initial || 0;
+        const lastWeightDate = dernierePesee?.date || new Date().toISOString();
+        
+        // Obtenir la localisation actuelle
+        const userLocation = await getCurrentLocation();
+        if (!userLocation) {
+          throw new Error('Impossible d\'obtenir votre localisation. Veuillez activer la géolocalisation.');
+        }
+
+        // Vérifier que l'utilisateur est connecté
+        if (!user || !user.id) {
+          throw new Error('Utilisateur non connecté');
+        }
+
+        // Créer le listing avec toutes les propriétés requises
+        try {
+          await dispatch(createListing({
+            subjectId: animal.id,
+            producerId: user.id,
+            farmId: projetId,
+            pricePerKg: price,
+            weight: poidsActuel,
+            lastWeightDate: lastWeightDate,
+            location: {
+              latitude: userLocation.latitude,
+              longitude: userLocation.longitude,
+              address: undefined,
+              city: userLocation.city,
+              region: userLocation.region,
+            },
+          })).unwrap();
+        } catch (error: any) {
+          // Améliorer le message d'erreur avec les informations de l'animal
+          const animalName = animal.nom || animal.code || 'sujet';
+          if (error && typeof error === 'string' && error.includes('déjà en vente')) {
+            throw new Error(`Le sujet "${animalName}" (${animal.code}) est déjà en vente sur le marketplace`);
+          }
+          if (error && typeof error === 'object' && error.message && error.message.includes('déjà en vente')) {
+            throw error;
+          }
+          throw error;
+        }
+      }
+
       Alert.alert(
         'Succès',
         `${selectedIds.size} sujet(s) mis en vente avec succès !`,
-        [{ text: 'OK', onPress: onClose }]
+        [{ text: 'OK', onPress: () => {
+          onClose();
+          onSuccess();
+        }}]
       );
     } catch (error: any) {
       Alert.alert('Erreur', error.message || 'Impossible de mettre en vente');
@@ -133,12 +328,23 @@ export default function BatchAddModal({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        {/* Header */}
+    <Modal 
+      visible={visible} 
+      animationType="slide" 
+      presentationStyle="fullScreen"
+      onRequestClose={onClose}
+      statusBarTranslucent={false}
+    >
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+        {/* Header fixe */}
         <View style={[styles.header, { backgroundColor: colors.surface }]}>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <Ionicons name="close" size={28} color={colors.text} />
+          <TouchableOpacity 
+            onPress={onClose} 
+            style={styles.closeButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="close" size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.text }]}>
             Ajouter des sujets en vente
@@ -146,7 +352,20 @@ export default function BatchAddModal({
           <View style={styles.placeholder} />
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.swipeArea} {...panResponder.panHandlers} />
+        <ScrollView 
+          style={styles.content}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          }
+        >
           {/* Barre de recherche */}
           <View style={[styles.searchContainer, { backgroundColor: colors.surface }]}>
             <Ionicons name="search" size={20} color={colors.textSecondary} />
@@ -198,7 +417,14 @@ export default function BatchAddModal({
 
           {/* Liste des sujets */}
           <View style={styles.subjectsList}>
-            {filteredSubjects.length === 0 ? (
+            {loadingSubjects ? (
+              <View style={styles.emptyState}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                  Chargement des animaux...
+                </Text>
+              </View>
+            ) : filteredSubjects.length === 0 ? (
               <View style={styles.emptyState}>
                 <Ionicons name="search-outline" size={48} color={colors.textSecondary} />
                 <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
@@ -236,11 +462,12 @@ export default function BatchAddModal({
                     </View>
                     <View style={styles.subjectInfo}>
                       <Text style={[styles.subjectCode, { color: colors.text }]}>
-                        #{subject.numero_identification}
+                        #{subject.code || subject.id}
                       </Text>
                       <Text style={[styles.subjectDetails, { color: colors.textSecondary }]}>
-                        {subject.race} • {subject.poids_actuel || 0} kg •{' '}
-                        {subject.age_en_mois || 0} mois
+                        {subject.nom ? `${subject.nom} • ` : ''}
+                        {subject.race || 'Race non spécifiée'} • {getCurrentWeight(subject.id).toFixed(1)} kg •{' '}
+                        {calculateAgeInMonths(subject.date_naissance)} mois
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -332,7 +559,7 @@ export default function BatchAddModal({
             )}
           </TouchableOpacity>
         </View>
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 }
@@ -341,16 +568,33 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  swipeArea: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    width: 30,
+    height: '100%',
+    zIndex: 0,
+    backgroundColor: 'transparent',
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: MarketplaceTheme.spacing.md,
-    paddingVertical: MarketplaceTheme.spacing.md,
+    paddingTop: Platform.OS === 'ios' ? SPACING.xl + 8 : SPACING.lg + 24,
+    paddingBottom: SPACING.sm,
+    position: 'relative',
+    zIndex: 10,
     ...MarketplaceTheme.shadows.small,
   },
   closeButton: {
     width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+    position: 'relative',
   },
   headerTitle: {
     fontSize: MarketplaceTheme.typography.fontSizes.lg,
@@ -361,7 +605,10 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  contentContainer: {
     paddingHorizontal: MarketplaceTheme.spacing.md,
+    paddingTop: MarketplaceTheme.spacing.sm,
   },
   searchContainer: {
     flexDirection: 'row',

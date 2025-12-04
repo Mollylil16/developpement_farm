@@ -19,6 +19,7 @@ import {
   loadRationsBudget,
   createRationBudget,
   deleteRationBudget,
+  updateRationBudget,
 } from '../store/slices/nutritionSlice';
 import {
   TypePorc,
@@ -218,22 +219,40 @@ export default function BudgetisationAlimentComponent() {
     try {
       if (isEditing && rationEnEdition) {
         // Mode édition : supprimer l'ancienne et créer la nouvelle
-        await dispatch(deleteRationBudget(rationEnEdition.id)).unwrap();
-        await dispatch(createRationBudget(input)).unwrap();
-        Alert.alert('✅ Succès', 'Ration modifiée avec succès');
+        // Utiliser une approche séquentielle pour éviter les conflits
+        try {
+          // D'abord supprimer l'ancienne ration
+          await dispatch(deleteRationBudget(rationEnEdition.id)).unwrap();
+          
+          // Ensuite créer la nouvelle avec les données mises à jour
+          await dispatch(createRationBudget(input)).unwrap();
+          
+          Alert.alert('✅ Succès', 'Ration modifiée avec succès');
+        } catch (error: any) {
+          console.error('Erreur lors de la modification de la ration:', error);
+          const errorMessage = error?.message || error || 'Impossible de modifier la ration';
+          Alert.alert('Erreur', errorMessage);
+          // Ne pas fermer le modal en cas d'erreur pour permettre à l'utilisateur de réessayer
+          return;
+        }
       } else {
         // Mode création
         await dispatch(createRationBudget(input)).unwrap();
         Alert.alert('✅ Succès', 'Ration créée avec succès');
       }
-      // Réinitialiser le formulaire
-      setShowModal(false);
+      
+      // Recharger les rations pour mettre à jour la liste
+      if (projetActif) {
+        await dispatch(loadRationsBudget(projetActif.id)).unwrap();
+      }
+      
+      // Réinitialiser le formulaire et fermer le modal
       resetForm();
+      setShowModal(false);
     } catch (error: any) {
-      Alert.alert(
-        'Erreur',
-        error || isEditing ? 'Impossible de modifier la ration' : 'Impossible de créer la ration'
-      );
+      console.error('Erreur lors de la création/modification de la ration:', error);
+      const errorMessage = error?.message || error || (isEditing ? 'Impossible de modifier la ration' : 'Impossible de créer la ration');
+      Alert.alert('Erreur', errorMessage);
     }
   };
 
@@ -545,7 +564,7 @@ export default function BudgetisationAlimentComponent() {
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
       >
         {/* Carte récapitulative */}
         <View
@@ -602,6 +621,15 @@ export default function BudgetisationAlimentComponent() {
           </View>
         </View>
 
+        {/* Bouton Créer une ration */}
+        <TouchableOpacity
+          style={[styles.createButton, { backgroundColor: colors.primary }]}
+          onPress={() => setShowModal(true)}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.createButtonText}>➕ Créer une ration</Text>
+        </TouchableOpacity>
+
         {/* Liste des rations */}
         {rationsBudget.length === 0 ? (
           <EmptyState
@@ -618,15 +646,6 @@ export default function BudgetisationAlimentComponent() {
         )}
       </ScrollView>
 
-      {/* Bouton Flottant */}
-      <TouchableOpacity
-        style={[styles.fab, { backgroundColor: colors.primary }]}
-        onPress={() => setShowModal(true)}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.fabIcon}>+</Text>
-      </TouchableOpacity>
-
       {/* Modal de création/édition */}
       <CustomModal
         visible={showModal}
@@ -635,6 +654,8 @@ export default function BudgetisationAlimentComponent() {
           resetForm();
         }}
         title={isEditing ? '✏️ Modifier la Ration' : '➕ Nouvelle Ration'}
+        showButtons={false}
+        scrollEnabled={false}
       >
         <ScrollView
           style={styles.modalContent}
@@ -756,11 +777,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollView: {
-    maxHeight: 500,
+    flex: 1,
   },
   scrollContent: {
     padding: SPACING.md,
-    paddingBottom: 80, // Pour le FAB
+    paddingBottom: SPACING.lg,
   },
   summaryCard: {
     padding: SPACING.lg,
@@ -820,16 +841,18 @@ const styles = StyleSheet.create({
   rationHeaderButtons: {
     flexDirection: 'row',
     gap: SPACING.xs,
+    alignItems: 'center',
   },
   actionButton: {
     padding: SPACING.sm,
     borderRadius: BORDER_RADIUS.md,
-    minWidth: 36,
+    minWidth: 40,
+    minHeight: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
   actionButtonText: {
-    fontSize: FONT_SIZES.md,
+    fontSize: FONT_SIZES.lg,
   },
   deleteButton: {
     padding: SPACING.sm,
@@ -915,25 +938,16 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.md,
     fontWeight: '700',
   },
-  fab: {
-    position: 'absolute',
-    right: SPACING.lg,
-    bottom: SPACING.lg,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
+  createButton: {
+    marginBottom: SPACING.lg,
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
     alignItems: 'center',
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
   },
-  fabIcon: {
-    fontSize: 28,
-    color: '#FFFFFF',
+  createButtonText: {
+    fontSize: FONT_SIZES.md,
     fontWeight: '600',
+    color: '#FFFFFF',
   },
   modalContent: {
     maxHeight: 500,
@@ -986,6 +1000,17 @@ const styles = StyleSheet.create({
     // backgroundColor défini dans le JSX
   },
   confirmButtonText: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  emptyStateButton: {
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    borderRadius: BORDER_RADIUS.md,
+    marginTop: SPACING.md,
+  },
+  emptyStateButtonText: {
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
     color: '#FFFFFF',

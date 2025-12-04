@@ -8,6 +8,7 @@ import uuid from 'react-native-uuid';
 import type {
   Offer,
   Transaction,
+  TransactionStatus,
   ProducerRating,
   Notification,
   ChatConversation,
@@ -78,7 +79,15 @@ export class MarketplaceOfferRepository extends BaseRepository<Offer> {
     return rows.map(r => this.mapRow(r));
   }
 
-  async updateStatus(id: string, status: 'accepted' | 'rejected' | 'countered' | 'expired'): Promise<void> {
+  async findByListingId(listingId: string): Promise<Offer[]> {
+    const rows = await this.db.getAllAsync<any>(
+      `SELECT * FROM ${this.tableName} WHERE listing_id = ? ORDER BY created_at DESC`,
+      [listingId]
+    );
+    return rows.map(r => this.mapRow(r));
+  }
+
+  async updateStatus(id: string, status: 'accepted' | 'rejected' | 'countered' | 'expired' | 'withdrawn'): Promise<void> {
     await this.db.runAsync(
       `UPDATE ${this.tableName} SET status = ?, responded_at = ? WHERE id = ?`,
       [status, new Date().toISOString(), id]
@@ -162,6 +171,16 @@ export class MarketplaceTransactionRepository extends BaseRepository<Transaction
       [producerId]
     );
     return rows.map(r => this.mapRow(r));
+  }
+
+  /**
+   * Mettre à jour le statut d'une transaction
+   */
+  async updateStatus(transactionId: string, status: TransactionStatus): Promise<void> {
+    await this.db.runAsync(
+      `UPDATE ${this.tableName} SET status = ? WHERE id = ?`,
+      [status, transactionId]
+    );
   }
 
   async confirmDelivery(id: string, role: 'producer' | 'buyer'): Promise<void> {

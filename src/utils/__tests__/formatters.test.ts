@@ -11,7 +11,6 @@ import {
   formatPourcentage,
   parseMontant,
   parseNombre,
-  calculateMargin,
   calculatePercentage,
   formatDate,
   formatDateCourt,
@@ -20,6 +19,7 @@ import {
   isValidNumber,
   toSafeNumber,
 } from '../formatters';
+import { calculateMargin } from '../margeCalculations';
 
 describe('formatters', () => {
   describe('formatMontant', () => {

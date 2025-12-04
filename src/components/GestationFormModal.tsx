@@ -35,6 +35,7 @@ import {
   ResultatConsanguinite,
   RisqueConsanguinite,
 } from '../utils/consanguiniteUtils';
+import { validateGestation } from '../validation/reproductionSchemas';
 
 interface GestationFormModalProps {
   visible: boolean;
@@ -150,7 +151,7 @@ export default function GestationFormModal({
       (a: ProductionAnimal) =>
         a.sexe === 'male' &&
         a.statut?.toLowerCase() === 'actif' &&
-        (a.reproducteur === true || a.reproducteur === 1 || a.reproducteur === '1') &&
+        (a.reproducteur === true || (typeof a.reproducteur === 'number' && a.reproducteur === 1) || (typeof a.reproducteur === 'string' && a.reproducteur === '1')) &&
         a.projet_id === projetActif.id
     );
 
@@ -345,21 +346,18 @@ export default function GestationFormModal({
       return;
     }
 
-    // Validation
-    if (!formData.projet_id) {
-      Alert.alert('Erreur', "Aucun projet actif n'est sélectionné pour cette gestation");
+    // Validation avec Yup
+    const { isValid, errors: validationErrors } = await validateGestation(formData);
+    if (!isValid) {
+      // Afficher la première erreur trouvée
+      const firstError = Object.values(validationErrors)[0];
+      Alert.alert('Erreur de validation', firstError || 'Veuillez corriger les erreurs du formulaire');
       return;
     }
+    
+    // Validation supplémentaire pour truie et verrat (peuvent être virtuels)
     if (!formData.truie_id && !formData.truie_nom?.trim()) {
       Alert.alert('Erreur', 'Veuillez sélectionner ou saisir le nom de la truie');
-      return;
-    }
-    if (!formData.date_sautage) {
-      Alert.alert('Erreur', 'La date de sautage est requise');
-      return;
-    }
-    if (formData.nombre_porcelets_prevu <= 0) {
-      Alert.alert('Erreur', 'Le nombre de porcelets prévu doit être supérieur à 0');
       return;
     }
     if (!formData.verrat_id && !formData.verrat_nom?.trim()) {
@@ -420,9 +418,14 @@ export default function GestationFormModal({
       } else {
         await dispatch(
           createGestation({
-            ...formData,
-            truie_nom: formData.truie_nom || formData.truie_id,
-            verrat_nom: formData.verrat_nom || formData.verrat_id || undefined,
+            projet_id: formData.projet_id,
+            truie_id: formData.truie_id || '',
+            truie_nom: formData.truie_nom,
+            verrat_id: formData.verrat_id,
+            verrat_nom: formData.verrat_nom,
+            date_sautage: formData.date_sautage,
+            nombre_porcelets_prevu: formData.nombre_porcelets_prevu,
+            notes: formData.notes,
           })
         ).unwrap();
       }

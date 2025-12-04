@@ -56,15 +56,22 @@ export const loadUserFromStorageThunk = createAsyncThunk('auth/loadUserFromStora
   if (storedUser) {
     // Vérifier si l'utilisateur existe toujours dans la base de données
     try {
-      const { databaseService } = await import('../../services/database');
-      const dbUser = await databaseService.getUserById(storedUser.id);
+      const { getDatabase } = await import('../../services/database');
+      const { UserRepository } = await import('../../database/repositories');
+      const db = await getDatabase();
+      const userRepo = new UserRepository(db);
+      const dbUser = await userRepo.findById(storedUser.id);
 
       if (dbUser) {
         // Utilisateur trouvé dans la DB
         // Vérifier si l'utilisateur est un collaborateur et le lier si nécessaire
         if (dbUser.email) {
           try {
-            await databaseService.lierCollaborateurAUtilisateur(dbUser.id, dbUser.email);
+            const { getDatabase } = await import('../../services/database');
+            const { CollaborateurRepository } = await import('../../database/repositories');
+            const db = await getDatabase();
+            const collaborateurRepo = new CollaborateurRepository(db);
+            await collaborateurRepo.lierCollaborateurAUtilisateur(dbUser.id, dbUser.email);
           } catch (error: any) {
             // Ne pas bloquer le chargement si la liaison échoue
             console.warn(
@@ -125,10 +132,13 @@ export const signUp = createAsyncThunk(
       }
 
       // Import dynamique pour éviter les dépendances circulaires
-      const { databaseService } = await import('../../services/database');
+      const { getDatabase } = await import('../../services/database');
+      const { UserRepository } = await import('../../database/repositories');
+      const db = await getDatabase();
+      const userRepo = new UserRepository(db);
 
       // Créer l'utilisateur dans la base de données
-      const user = await databaseService.createUser({
+      const user = await userRepo.create({
         email: input.email?.trim(),
         telephone: input.telephone?.replace(/\s+/g, ''),
         nom: input.nom.trim(),
@@ -141,7 +151,11 @@ export const signUp = createAsyncThunk(
       if (user.email) {
         try {
           // Chercher un collaborateur avec cet email et le lier
-          const collaborateur = await databaseService.lierCollaborateurAUtilisateur(
+          const { getDatabase } = await import('../../services/database');
+          const { CollaborateurRepository } = await import('../../database/repositories');
+          const db = await getDatabase();
+          const collaborateurRepo = new CollaborateurRepository(db);
+          const collaborateur = await collaborateurRepo.lierCollaborateurAUtilisateur(
             user.id,
             user.email
           );
@@ -187,10 +201,16 @@ export const signIn = createAsyncThunk(
       }
 
       // Import dynamique pour éviter les dépendances circulaires
-      const { databaseService } = await import('../../services/database');
+      const { getDatabase } = await import('../../services/database');
+      const { UserRepository } = await import('../../database/repositories');
+      const db = await getDatabase();
+      const userRepo = new UserRepository(db);
 
       // Se connecter avec email ou téléphone (sans mot de passe)
-      const user = await databaseService.loginUser(input.identifier.trim());
+      const user = await userRepo.findByIdentifier(input.identifier.trim());
+      if (user) {
+        await userRepo.updateLastConnection(user.id);
+      }
 
       if (!user) {
         return rejectWithValue(
@@ -200,10 +220,14 @@ export const signIn = createAsyncThunk(
 
       // Vérifier si l'utilisateur est un collaborateur et le lier
       // On vérifie seulement si l'utilisateur a un email (pas de téléphone pour les collaborateurs)
-      if (user.email) {
+      if (user && user.email) {
         try {
           // Chercher un collaborateur avec cet email et le lier
-          const collaborateur = await databaseService.lierCollaborateurAUtilisateur(
+          const { getDatabase } = await import('../../services/database');
+          const { CollaborateurRepository } = await import('../../database/repositories');
+          const db = await getDatabase();
+          const collaborateurRepo = new CollaborateurRepository(db);
+          const collaborateur = await collaborateurRepo.lierCollaborateurAUtilisateur(
             user.id,
             user.email
           );
@@ -236,36 +260,32 @@ export const signInWithGoogle = createAsyncThunk(
   'auth/signInWithGoogle',
   async (_, { rejectWithValue }) => {
     try {
-      const { databaseService } = await import('../../services/database');
+      const { getDatabase } = await import('../../services/database');
+      const { UserRepository } = await import('../../database/repositories');
+      const db = await getDatabase();
+      const userRepo = new UserRepository(db);
 
       // TODO: Implémenter avec expo-auth-session
       // Pour l'instant, simulation
       const googleEmail = 'user@gmail.com';
       
       // Vérifier si l'utilisateur existe déjà
-      const existingUser = await databaseService.getUserByEmail(googleEmail);
+      const existingUser = await userRepo.findByEmail(googleEmail);
       
       if (existingUser) {
         // Utilisateur existe, le connecter
+        await userRepo.updateLastConnection(existingUser.id);
         await saveUserToStorage(existingUser);
         return existingUser;
       }
       
       // Nouvel utilisateur, le créer dans la base
-      const newUserId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const user: User = {
-        id: newUserId,
+      const user = await userRepo.create({
         email: googleEmail,
         nom: 'Google',
         prenom: 'User',
         provider: 'google',
-        photo: undefined,
-        date_creation: new Date().toISOString(),
-        derniere_connexion: new Date().toISOString(),
-      };
-
-      // Enregistrer dans la base de données
-      await databaseService.createUser(user);
+      });
 
       await saveUserToStorage(user);
       return user;
@@ -280,36 +300,32 @@ export const signInWithApple = createAsyncThunk(
   'auth/signInWithApple',
   async (_, { rejectWithValue }) => {
     try {
-      const { databaseService } = await import('../../services/database');
+      const { getDatabase } = await import('../../services/database');
+      const { UserRepository } = await import('../../database/repositories');
+      const db = await getDatabase();
+      const userRepo = new UserRepository(db);
 
       // TODO: Implémenter avec expo-apple-authentication
       // Pour l'instant, simulation
       const appleEmail = 'user@icloud.com';
       
       // Vérifier si l'utilisateur existe déjà
-      const existingUser = await databaseService.getUserByEmail(appleEmail);
+      const existingUser = await userRepo.findByEmail(appleEmail);
       
       if (existingUser) {
         // Utilisateur existe, le connecter
+        await userRepo.updateLastConnection(existingUser.id);
         await saveUserToStorage(existingUser);
         return existingUser;
       }
       
       // Nouvel utilisateur, le créer dans la base
-      const newUserId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const user: User = {
-        id: newUserId,
+      const user = await userRepo.create({
         email: appleEmail,
         nom: 'Apple',
         prenom: 'User',
         provider: 'apple',
-        photo: undefined,
-        date_creation: new Date().toISOString(),
-        derniere_connexion: new Date().toISOString(),
-      };
-
-      // Enregistrer dans la base de données
-      await databaseService.createUser(user);
+      });
 
       await saveUserToStorage(user);
       return user;
@@ -335,6 +351,13 @@ const authSlice = createSlice({
   reducers: {
     clearError: (state) => {
       state.error = null;
+    },
+    updateUser: (state, action: PayloadAction<User>) => {
+      state.user = action.payload;
+      // Sauvegarder aussi dans AsyncStorage
+      saveUserToStorage(action.payload).catch((error) => {
+        console.error('Erreur lors de la sauvegarde de l\'utilisateur:', error);
+      });
     },
   },
   extraReducers: (builder) => {
@@ -431,5 +454,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { clearError } = authSlice.actions;
+export const { clearError, updateUser } = authSlice.actions;
 export default authSlice.reducer;

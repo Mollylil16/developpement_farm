@@ -18,18 +18,29 @@ export class AnimalRepository extends BaseRepository<ProductionAnimal> {
   }
 
   /**
+   * Synchroniser automatiquement actif avec statut
+   * actif = true si statut === 'actif', sinon false
+   */
+  private syncActifWithStatut(statut: string): boolean {
+    return statut === 'actif';
+  }
+
+  /**
    * Créer un nouvel animal
+   * Synchronise automatiquement actif avec statut
    */
   async create(data: Partial<ProductionAnimal>): Promise<ProductionAnimal> {
     const id = uuid.v4().toString();
     const now = new Date().toISOString();
+    const statut = data.statut || 'actif';
+    const actif = this.syncActifWithStatut(statut);
 
     await this.execute(
       `INSERT INTO production_animaux (
         id, projet_id, code, nom, sexe, race, date_naissance,
-        reproducteur, statut, photo_uri, origine, date_entree, poids_initial, 
+        reproducteur, statut, actif, photo_uri, origine, date_entree, poids_initial, 
         notes, pere_id, mere_id, date_creation, derniere_modification
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         data.projet_id,
@@ -39,7 +50,8 @@ export class AnimalRepository extends BaseRepository<ProductionAnimal> {
         data.race || null,
         data.date_naissance || null,
         data.reproducteur ? 1 : 0,
-        data.statut || 'actif',
+        statut,
+        actif ? 1 : 0,
         data.photo_uri || null,
         data.origine || null,
         data.date_entree || null,
@@ -69,7 +81,7 @@ export class AnimalRepository extends BaseRepository<ProductionAnimal> {
     
     const now = new Date().toISOString();
     const fields: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
 
     // Construire dynamiquement la requête UPDATE - TOUS les champs supportés
     if (data.code !== undefined) {
@@ -99,6 +111,14 @@ export class AnimalRepository extends BaseRepository<ProductionAnimal> {
     if (data.statut !== undefined) {
       fields.push('statut = ?');
       values.push(data.statut);
+      // Synchroniser automatiquement actif avec statut
+      fields.push('actif = ?');
+      values.push(this.syncActifWithStatut(data.statut) ? 1 : 0);
+    } else if (data.actif !== undefined) {
+      // Si actif est modifié directement, synchroniser statut (pour compatibilité)
+      // Mais préférer modifier statut pour maintenir la cohérence
+      fields.push('actif = ?');
+      values.push(data.actif ? 1 : 0);
     }
     if (data.photo_uri !== undefined) {
       fields.push('photo_uri = ?');
@@ -158,6 +178,8 @@ export class AnimalRepository extends BaseRepository<ProductionAnimal> {
 
   /**
    * Récupérer tous les animaux d'un projet (actifs et inactifs)
+   * ⚠️ Attention: Peut charger beaucoup de données en mémoire
+   * Utilisez findByProjetPaginated() pour les projets avec beaucoup d'animaux
    */
   async findByProjet(projetId: string): Promise<ProductionAnimal[]> {
     const animaux = await this.query<ProductionAnimal>(
@@ -178,12 +200,69 @@ export class AnimalRepository extends BaseRepository<ProductionAnimal> {
   }
 
   /**
+   * Récupérer les animaux d'un projet avec pagination
+   */
+  async findByProjetPaginated(
+    projetId: string,
+    options: {
+      limit?: number;
+      offset?: number;
+      actif?: boolean;
+      statut?: string;
+    } = {}
+  ): Promise<{
+    data: ProductionAnimal[];
+    total: number;
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  }> {
+    const { limit = 50, offset = 0, actif, statut } = options;
+
+    // Construire la clause WHERE
+    let whereClause = 'WHERE projet_id = ?';
+    const params: unknown[] = [projetId];
+
+    if (actif !== undefined) {
+      whereClause += ' AND actif = ?';
+      params.push(actif ? 1 : 0);
+    }
+
+    if (statut) {
+      whereClause += ' AND statut = ?';
+      params.push(statut);
+    }
+
+    // Compter le total
+    const countResult = await this.queryOne<{ count: number }>(
+      `SELECT COUNT(*) as count FROM production_animaux ${whereClause}`,
+      params
+    );
+    const total = countResult?.count || 0;
+
+    // Récupérer les données paginées
+    const data = await this.query<ProductionAnimal>(
+      `SELECT * FROM production_animaux ${whereClause} ORDER BY date_creation DESC LIMIT ? OFFSET ?`,
+      [...params, limit, offset]
+    );
+
+    return {
+      data,
+      total,
+      limit,
+      offset,
+      hasMore: offset + data.length < total,
+    };
+  }
+
+  /**
    * Récupérer les animaux actifs d'un projet
+   * Utilise actif (booléen) pour meilleures performances
    */
   async findActiveByProjet(projetId: string): Promise<ProductionAnimal[]> {
     return this.query<ProductionAnimal>(
       `SELECT * FROM production_animaux 
-       WHERE projet_id = ? AND statut = 'actif'
+       WHERE projet_id = ? AND actif = 1
        ORDER BY date_creation DESC`,
       [projetId]
     );
@@ -191,14 +270,15 @@ export class AnimalRepository extends BaseRepository<ProductionAnimal> {
 
   /**
    * Récupérer les reproducteurs (truies et verrats)
+   * Utilise actif (booléen) pour meilleures performances
    */
   async findReproducteursByProjet(
     projetId: string,
     sexe?: 'male' | 'femelle'
   ): Promise<ProductionAnimal[]> {
     let sql = `SELECT * FROM production_animaux 
-               WHERE projet_id = ? AND reproducteur = 1 AND statut = 'actif'`;
-    const params: any[] = [projetId];
+               WHERE projet_id = ? AND reproducteur = 1 AND actif = 1`;
+    const params: unknown[] = [projetId];
 
     if (sexe) {
       sql += ` AND sexe = ?`;
@@ -230,7 +310,7 @@ export class AnimalRepository extends BaseRepository<ProductionAnimal> {
    */
   async codeExists(code: string, projetId?: string, excludeId?: string): Promise<boolean> {
     let sql = `SELECT COUNT(*) as count FROM production_animaux WHERE code = ?`;
-    const params: any[] = [code];
+      const params: unknown[] = [code];
 
     if (projetId) {
       sql += ` AND projet_id = ?`;
@@ -248,6 +328,7 @@ export class AnimalRepository extends BaseRepository<ProductionAnimal> {
 
   /**
    * Statistiques du cheptel
+   * Utilise actif (booléen) pour meilleures performances dans les comptages
    */
   async getStats(projetId: string): Promise<{
     total: number;
@@ -261,10 +342,10 @@ export class AnimalRepository extends BaseRepository<ProductionAnimal> {
     const stats = await this.queryOne<any>(
       `SELECT 
         COUNT(*) as total,
-        SUM(CASE WHEN statut = 'actif' THEN 1 ELSE 0 END) as actifs,
-        SUM(CASE WHEN sexe = 'femelle' AND reproducteur = 1 AND statut = 'actif' THEN 1 ELSE 0 END) as truies,
-        SUM(CASE WHEN sexe = 'male' AND reproducteur = 1 AND statut = 'actif' THEN 1 ELSE 0 END) as verrats,
-        SUM(CASE WHEN reproducteur = 0 AND statut = 'actif' THEN 1 ELSE 0 END) as porcelets,
+        SUM(CASE WHEN actif = 1 THEN 1 ELSE 0 END) as actifs,
+        SUM(CASE WHEN sexe = 'femelle' AND reproducteur = 1 AND actif = 1 THEN 1 ELSE 0 END) as truies,
+        SUM(CASE WHEN sexe = 'male' AND reproducteur = 1 AND actif = 1 THEN 1 ELSE 0 END) as verrats,
+        SUM(CASE WHEN reproducteur = 0 AND actif = 1 THEN 1 ELSE 0 END) as porcelets,
         SUM(CASE WHEN statut = 'vendu' THEN 1 ELSE 0 END) as vendus,
         SUM(CASE WHEN statut = 'mort' THEN 1 ELSE 0 END) as morts
        FROM production_animaux

@@ -108,6 +108,16 @@ export const updateGestation = createAsyncThunk(
       const db = await getDatabase();
       const gestationRepo = new GestationRepository(db);
       const gestation = await gestationRepo.update(id, updates);
+      
+      // Si la gestation est terminée avec des porcelets, créer automatiquement les porcelets
+      if (
+        gestation.statut === 'terminee' &&
+        gestation.nombre_porcelets_reel &&
+        gestation.nombre_porcelets_reel > 0
+      ) {
+        await gestationRepo.creerPorceletsDepuisGestation(gestation);
+      }
+      
       return gestation;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la mise à jour de la gestation');
@@ -221,7 +231,11 @@ export const deleteSevrage = createAsyncThunk(
   'reproduction/deleteSevrage',
   async (id: string, { rejectWithValue }) => {
     try {
-      await databaseService.deleteSevrage(id);
+      const { getDatabase } = await import('../../services/database');
+      const { SevrageRepository } = await import('../../database/repositories');
+      const db = await getDatabase();
+      const sevrageRepo = new SevrageRepository(db);
+      await sevrageRepo.delete(id);
       return id;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la suppression du sevrage');

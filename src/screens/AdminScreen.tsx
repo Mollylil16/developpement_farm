@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppSelector } from '../store/hooks';
-import { databaseService } from '../services/database';
 import { User } from '../types';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -40,7 +39,13 @@ export default function AdminScreen() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const allUsers = await databaseService.getAllUsers();
+      const { getDatabase } = await import('../services/database');
+      const { UserRepository, ProjetRepository } = await import('../database/repositories');
+      const db = await getDatabase();
+      const userRepo = new UserRepository(db);
+      const projetRepo = new ProjetRepository(db);
+      
+      const allUsers = await userRepo.findAll();
       setUsers(allUsers);
 
       // Calculer les statistiques
@@ -51,7 +56,7 @@ export default function AdminScreen() {
       let totalProjets = 0;
       for (const u of allUsers) {
         try {
-          const projets = await databaseService.getAllProjets(u.id);
+          const projets = await projetRepo.findAllByUserId(u.id);
           totalProjets += projets.length;
         } catch (error) {
           // Ignorer les erreurs

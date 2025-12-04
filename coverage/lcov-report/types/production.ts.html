@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/4</span>
+                <span class='fraction'>4/4</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/2</span>
+                <span class='fraction'>2/2</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/2</span>
+                <span class='fraction'>2/2</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/4</span>
+                <span class='fraction'>4/4</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line low'></div>
+    <div class='status-line high'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -209,7 +209,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -284,7 +284,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -293,8 +293,8 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-yes">8x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">/**
@@ -314,8 +314,8 @@ export interface ProductionAnimal {
   date_naissance?: string;
   poids_initial?: number;
   date_entree?: string;
-  actif: boolean; // Déprécié, utiliser statut à la place
-  statut: StatutAnimal;
+  actif: boolean; // Indique si l'animal est dans le cheptel actif (true) ou retiré (false). Utilisé pour filtres/comptages performants.
+  statut: StatutAnimal; // Détail du statut : 'actif' (sur ferme), 'mort', 'vendu', 'offert', 'autre' (retiré du cheptel mais dans historique)
   race?: string;
   reproducteur: boolean;
   pere_id?: string | null;
@@ -326,7 +326,7 @@ export interface ProductionAnimal {
   derniere_modification: string;
 }
 &nbsp;
-export const STATUT_ANIMAL_LABELS: Record&lt;StatutAnimal, string&gt; = <span class="cstat-no" title="statement not covered" >{</span>
+export const STATUT_ANIMAL_LABELS: Record&lt;StatutAnimal, string&gt; = {
   actif: 'Actif',
   mort: 'Mort',
   vendu: 'Vendu',
@@ -401,7 +401,7 @@ export interface ProductionStandardGMQ {
 /**
  * Standards GMQ approximatifs (exemple) en g/jour
  */
-export const GMQ_STANDARDS: ProductionStandardGMQ[] = <span class="cstat-no" title="statement not covered" >[</span>
+export const GMQ_STANDARDS: ProductionStandardGMQ[] = [
   { min_poids: 0, max_poids: 20, gmq_cible: 350 },
   { min_poids: 20, max_poids: 50, gmq_cible: 550 },
   { min_poids: 50, max_poids: 80, gmq_cible: 650 },
@@ -409,9 +409,9 @@ export const GMQ_STANDARDS: ProductionStandardGMQ[] = <span class="cstat-no" tit
   { min_poids: 120, max_poids: 200, gmq_cible: 700 },
 ];
 &nbsp;
-export function <span class="fstat-no" title="function not covered" >getStandardGMQ(</span>poids: number): ProductionStandardGMQ | undefined {
-<span class="cstat-no" title="statement not covered" >  return GMQ_STANDARDS.find(</span>
-<span class="fstat-no" title="function not covered" >    (s</span>tandard) =&gt; <span class="cstat-no" title="statement not covered" >poids &gt;= standard.min_poids &amp;&amp; poids &lt; standard.max_poids</span>
+export function getStandardGMQ(poids: number): ProductionStandardGMQ | undefined {
+  return GMQ_STANDARDS.find(
+    (standard) =&gt; poids &gt;= standard.min_poids &amp;&amp; poids &lt; standard.max_poids
   );
 }
 &nbsp;</pre></td></tr></table></pre>
@@ -421,7 +421,7 @@ export function <span class="fstat-no" title="function not covered" >getStandard
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-26T03:39:32.595Z
+                at 2025-12-02T20:11:08.298Z
             </div>
         <script src="../prettify.js"></script>
         <script>

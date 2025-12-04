@@ -1,0 +1,62 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "packageRules": [
+    {
+      "description": "Grouper les mises à jour Expo",
+      "matchPackagePatterns": ["^expo", "^@expo/"],
+      "groupName": "expo packages",
+      "schedule": ["before 10am on monday"]
+    },
+    {
+      "description": "Grouper les mises à jour React Navigation",
+      "matchPackagePatterns": ["^@react-navigation/"],
+      "groupName": "react-navigation packages",
+      "schedule": ["before 10am on monday"]
+    },
+    {
+      "description": "Grouper les mises à jour React Native",
+      "matchPackagePatterns": ["^react-native", "^@react-native/"],
+      "groupName": "react-native packages",
+      "schedule": ["before 10am on monday"]
+    },
+    {
+      "description": "Mises à jour de sécurité en priorité",
+      "matchUpdateTypes": ["security"],
+      "automerge": true,
+      "automergeType": "pr",
+      "labels": ["security", "automated"]
+    },
+    {
+      "description": "Auto-merge des patches",
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "automergeType": "pr",
+      "labels": ["dependencies", "patch", "automated"]
+    },
+    {
+      "description": "Ne pas auto-merge les mises à jour majeures",
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "labels": ["dependencies", "major", "breaking"]
+    }
+  ],
+  "schedule": ["before 10am on monday"],
+  "timezone": "Europe/Paris",
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "labels": ["dependencies", "automated"],
+  "commitMessagePrefix": "chore:",
+  "commitMessageAction": "update",
+  "commitMessageTopic": "{{depName}}",
+  "commitMessageExtra": "to {{newVersion}}",
+  "semanticCommits": "enabled",
+  "rangeStrategy": "update-lockfile",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 10am on the first day of the month"]
+  }
+}
+

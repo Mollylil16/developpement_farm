@@ -4,7 +4,6 @@
 
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { Planification, CreatePlanificationInput, UpdatePlanificationInput } from '../../types';
-import { databaseService } from '../../services/database';
 
 interface PlanificationState {
   planifications: Planification[];
@@ -25,7 +24,11 @@ export const createPlanification = createAsyncThunk(
   'planification/createPlanification',
   async (input: CreatePlanificationInput, { rejectWithValue }) => {
     try {
-      const planification = await databaseService.createPlanification({
+      const { getDatabase } = await import('../../services/database');
+      const { PlanificationRepository } = await import('../../database/repositories');
+      const db = await getDatabase();
+      const planificationRepo = new PlanificationRepository(db);
+      const planification = await planificationRepo.create({
         ...input,
         statut: 'a_faire',
       });
@@ -40,7 +43,11 @@ export const loadPlanifications = createAsyncThunk(
   'planification/loadPlanifications',
   async (projetId: string, { rejectWithValue }) => {
     try {
-      const planifications = await databaseService.getAllPlanifications(projetId);
+      const { getDatabase } = await import('../../services/database');
+      const { PlanificationRepository } = await import('../../database/repositories');
+      const db = await getDatabase();
+      const planificationRepo = new PlanificationRepository(db);
+      const planifications = await planificationRepo.findByProjet(projetId);
       return planifications;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des planifications');
@@ -52,7 +59,11 @@ export const loadPlanificationsParProjet = createAsyncThunk(
   'planification/loadPlanificationsParProjet',
   async (projetId: string, { rejectWithValue }) => {
     try {
-      const planifications = await databaseService.getPlanificationsParProjet(projetId);
+      const { getDatabase } = await import('../../services/database');
+      const { PlanificationRepository } = await import('../../database/repositories');
+      const db = await getDatabase();
+      const planificationRepo = new PlanificationRepository(db);
+      const planifications = await planificationRepo.findByProjet(projetId);
       return planifications;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des planifications');
@@ -64,7 +75,11 @@ export const loadPlanificationsAVenir = createAsyncThunk(
   'planification/loadPlanificationsAVenir',
   async ({ projetId, jours }: { projetId: string; jours?: number }, { rejectWithValue }) => {
     try {
-      const planifications = await databaseService.getPlanificationsAVenir(projetId, jours);
+      const { getDatabase } = await import('../../services/database');
+      const { PlanificationRepository } = await import('../../database/repositories');
+      const db = await getDatabase();
+      const planificationRepo = new PlanificationRepository(db);
+      const planifications = await planificationRepo.findAVenir(projetId, jours);
       return planifications;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des planifications');
@@ -79,7 +94,11 @@ export const updatePlanification = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const planification = await databaseService.updatePlanification(id, updates);
+      const { getDatabase } = await import('../../services/database');
+      const { PlanificationRepository } = await import('../../database/repositories');
+      const db = await getDatabase();
+      const planificationRepo = new PlanificationRepository(db);
+      const planification = await planificationRepo.update(id, updates);
       return planification;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la mise à jour de la planification');
@@ -91,7 +110,11 @@ export const deletePlanification = createAsyncThunk(
   'planification/deletePlanification',
   async (id: string, { rejectWithValue }) => {
     try {
-      await databaseService.deletePlanification(id);
+      const { getDatabase } = await import('../../services/database');
+      const { PlanificationRepository } = await import('../../database/repositories');
+      const db = await getDatabase();
+      const planificationRepo = new PlanificationRepository(db);
+      await planificationRepo.deleteById(id);
       return id;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la suppression de la planification');
@@ -108,10 +131,15 @@ export const createPlanificationsBatch = createAsyncThunk(
     try {
       console.log(`📋 [BATCH] Création de ${inputs.length} tâches...`);
 
+      const { getDatabase } = await import('../../services/database');
+      const { PlanificationRepository } = await import('../../database/repositories');
+      const db = await getDatabase();
+      const planificationRepo = new PlanificationRepository(db);
+
       const planifications: Planification[] = [];
 
       for (const input of inputs) {
-        const planification = await databaseService.createPlanification({
+        const planification = await planificationRepo.create({
           ...input,
           statut: 'a_faire',
         });

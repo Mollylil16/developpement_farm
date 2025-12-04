@@ -28,7 +28,7 @@ describe('PerformanceGlobaleService', () => {
         .mockResolvedValueOnce([]) // Dépenses
         .mockResolvedValueOnce([]); // Ventes
 
-      const result = await PerformanceGlobaleService.getPerformanceGlobale(
+      const result = await PerformanceGlobaleService.calculatePerformanceGlobale(
         'test-projet',
         mockProjet as any
       );
@@ -64,7 +64,7 @@ describe('PerformanceGlobaleService', () => {
         .mockResolvedValueOnce(depenses) // Dépenses
         .mockResolvedValueOnce(ventes); // Ventes
 
-      const result = await PerformanceGlobaleService.getPerformanceGlobale(
+      const result = await PerformanceGlobaleService.calculatePerformanceGlobale(
         'test-projet',
         mockProjet as any
       );
@@ -103,7 +103,7 @@ describe('PerformanceGlobaleService', () => {
         .mockResolvedValueOnce(depenses)
         .mockResolvedValueOnce(ventes);
 
-      const result = await PerformanceGlobaleService.getPerformanceGlobale(
+      const result = await PerformanceGlobaleService.calculatePerformanceGlobale(
         'test-projet',
         mockProjet as any
       );
@@ -141,7 +141,7 @@ describe('PerformanceGlobaleService', () => {
         .mockResolvedValueOnce(depenses)
         .mockResolvedValueOnce(ventes);
 
-      const result = await PerformanceGlobaleService.getPerformanceGlobale(
+      const result = await PerformanceGlobaleService.calculatePerformanceGlobale(
         'test-projet',
         mockProjet as any
       );
@@ -270,7 +270,7 @@ describe('PerformanceGlobaleService', () => {
         .mockResolvedValueOnce(depenses)
         .mockResolvedValueOnce(ventes);
 
-      const result = await PerformanceGlobaleService.getPerformanceGlobale(
+      const result = await PerformanceGlobaleService.calculatePerformanceGlobale(
         'test-projet',
         mockProjet as any
       );
@@ -308,7 +308,7 @@ describe('PerformanceGlobaleService', () => {
         .mockResolvedValueOnce(depenses)
         .mockResolvedValueOnce(ventes);
 
-      const result = await PerformanceGlobaleService.getPerformanceGlobale(
+      const result = await PerformanceGlobaleService.calculatePerformanceGlobale(
         'test-projet',
         mockProjet as any
       );

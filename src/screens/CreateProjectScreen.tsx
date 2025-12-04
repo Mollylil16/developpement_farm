@@ -20,15 +20,19 @@ import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { createProjet } from '../store/slices/projetSlice';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { useRole } from '../contexts/RoleContext';
 import { CreateProjetInput } from '../types';
 import Button from '../components/Button';
 import FormField from '../components/FormField';
 import Card from '../components/Card';
-import { signOut } from '../store/slices/authSlice';
+import { signOut, updateUser } from '../store/slices/authSlice';
 import { SCREENS } from '../navigation/types';
 import InvitationsModal from '../components/InvitationsModal';
 import { loadInvitationsEnAttente } from '../store/slices/collaborationSlice';
 import { loadProjets } from '../store/slices/projetSlice';
+import { getOnboardingService } from '../services/OnboardingService';
+import { getDatabase } from '../services/database';
+import { UserRepository } from '../database/repositories';
 
 export default function CreateProjectScreen() {
   const { colors } = useTheme();
@@ -38,9 +42,11 @@ export default function CreateProjectScreen() {
   const { user } = useAppSelector((state) => state.auth);
   const { projetActif } = useAppSelector((state) => state.projet);
   const { invitationsEnAttente } = useAppSelector((state) => state.collaboration);
+  const { switchRole } = useRole();
   const [loading, setLoading] = useState(false);
   const [invitationsModalVisible, setInvitationsModalVisible] = useState(false);
   const hasShownInvitationsRef = useRef(false);
+  const { identifier, isEmail } = (route.params as { identifier?: string; isEmail?: boolean }) || {};
   const [formData, setFormData] = useState<CreateProjetInput>({
     nom: '',
     localisation: '',
@@ -115,7 +121,25 @@ export default function CreateProjectScreen() {
 
     setLoading(true);
     try {
-      if (!user?.id) {
+      let finalUserId = user?.id;
+
+      // Si pas d'utilisateur mais qu'on a identifier, créer le compte d'abord
+      if (!finalUserId && identifier) {
+        const onboardingService = await getOnboardingService();
+        const newUser = await onboardingService.createUser({
+          email: isEmail ? identifier : undefined,
+          phone: !isEmail ? identifier : undefined,
+          firstName: '', // Sera complété plus tard
+          lastName: '', // Sera complété plus tard
+          password: '', // Pas de mot de passe pour l'instant
+          profileType: 'producer',
+        });
+        finalUserId = newUser.id;
+        // Mettre à jour l'utilisateur dans le store Redux
+        dispatch(updateUser(newUser));
+      }
+
+      if (!finalUserId) {
         Alert.alert('Erreur', 'Vous devez être connecté pour créer un projet');
         return;
       }
@@ -126,9 +150,68 @@ export default function CreateProjectScreen() {
       await dispatch(
         createProjet({
           ...formData,
-          proprietaire_id: user.id, // Récupéré depuis l'authentification
+          proprietaire_id: finalUserId, // Récupéré depuis l'authentification ou créé
         })
       ).unwrap();
+
+      // S'assurer que le rôle actif est "producer" après la création d'un projet
+      // et que le profil producteur existe
+      if (finalUserId) {
+        const db = await getDatabase();
+        const userRepo = new UserRepository(db);
+        const currentUser = await userRepo.findById(finalUserId);
+        
+        if (currentUser) {
+          // Vérifier si le profil producteur existe, sinon le créer
+          let updatedRoles = currentUser.roles || {};
+          if (!updatedRoles.producer) {
+            updatedRoles = {
+              ...updatedRoles,
+              producer: {
+                isActive: true,
+                activatedAt: new Date().toISOString(),
+                farmName: formData.nom,
+                farmType: 'individual',
+                capacity: {
+                  totalCapacity: 0,
+                  currentOccupancy: 0,
+                },
+                stats: {
+                  totalSales: 0,
+                  totalRevenue: 0,
+                  averageRating: 0,
+                  totalReviews: 0,
+                },
+                marketplaceSettings: {
+                  defaultPricePerKg: 450,
+                  autoAcceptOffers: false,
+                  minimumOfferPercentage: 80,
+                  notificationsEnabled: true,
+                },
+              },
+            };
+          }
+
+          // Mettre à jour le rôle actif à "producer"
+          // Les informations de base (nom, prénom, email, téléphone, photo) sont déjà au niveau User
+          // donc elles sont automatiquement synchronisées entre tous les profils
+          await userRepo.update(finalUserId, {
+            roles: updatedRoles,
+            activeRole: 'producer',
+            // Les informations de base (nom, prénom, email, téléphone, photo) ne sont pas modifiées ici
+            // car elles sont déjà au niveau User et partagées entre tous les profils
+          });
+
+          // Recharger l'utilisateur mis à jour pour Redux
+          const updatedUser = await userRepo.findById(finalUserId);
+          if (updatedUser) {
+            dispatch(updateUser(updatedUser));
+          }
+
+          // Utiliser switchRole pour mettre à jour le contexte
+          await switchRole('producer');
+        }
+      }
 
       // Si l'utilisateur a déjà un projet actif, il vient probablement des paramètres
       // Dans ce cas, on revient aux paramètres pour qu'il puisse voir son nouveau projet

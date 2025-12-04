@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/139</span>
+                <span class='fraction'>0/141</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/129</span>
+                <span class='fraction'>0/131</span>
             </div>
         
             
@@ -597,7 +597,10 @@
 <a name='L532'></a><a href='#L532'>532</a>
 <a name='L533'></a><a href='#L533'>533</a>
 <a name='L534'></a><a href='#L534'>534</a>
-<a name='L535'></a><a href='#L535'>535</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L535'></a><a href='#L535'>535</a>
+<a name='L536'></a><a href='#L536'>536</a>
+<a name='L537'></a><a href='#L537'>537</a>
+<a name='L538'></a><a href='#L538'>538</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -701,12 +704,15 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -719,8 +725,8 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1231,31 +1237,34 @@ export default function <span class="fstat-no" title="function not covered" >Ten
     const groupBy = <span class="cstat-no" title="statement not covered" >periode === '7j' || periode === '30j' ? 'week' : 'month';</span>
 &nbsp;
     const grouped = <span class="cstat-no" title="statement not covered" >peseesFiltrees.reduce(</span>
-<span class="fstat-no" title="function not covered" >      (a</span>cc: Record&lt;string, { poids: number[]; count: number }&gt;, pesee: ProductionPesee) =&gt; {
+<span class="fstat-no" title="function not covered" >      (a</span>cc: Record&lt;string, { poids: number[]; count: number; date: Date }&gt;, pesee: ProductionPesee) =&gt; {
         const datePesee = <span class="cstat-no" title="statement not covered" >parseISO(pesee.date);</span>
         let key: string;
+        let dateReference: Date;
 &nbsp;
 <span class="cstat-no" title="statement not covered" >        if (groupBy === 'week') {</span>
           const weekStart = <span class="cstat-no" title="statement not covered" >new Date(datePesee);</span>
 <span class="cstat-no" title="statement not covered" >          weekStart.setDate(weekStart.getDate() - weekStart.getDay());</span>
+<span class="cstat-no" title="statement not covered" >          dateReference = weekStart;</span>
 <span class="cstat-no" title="statement not covered" >          key = format(weekStart, 'dd MMM', { locale: fr });</span>
         } else {
+<span class="cstat-no" title="statement not covered" >          dateReference = startOfMonth(datePesee);</span>
 <span class="cstat-no" title="statement not covered" >          key = format(datePesee, 'MMM yyyy', { locale: fr });</span>
         }
 &nbsp;
 <span class="cstat-no" title="statement not covered" >        if (!acc[key]) {</span>
-<span class="cstat-no" title="statement not covered" >          acc[key] = { poids: [], count: 0 };</span>
+<span class="cstat-no" title="statement not covered" >          acc[key] = { poids: [], count: 0, date: dateReference };</span>
         }
 <span class="cstat-no" title="statement not covered" >        acc[key].poids.push(pesee.poids_kg);</span>
 <span class="cstat-no" title="statement not covered" >        acc[key].count++;</span>
 <span class="cstat-no" title="statement not covered" >        return acc;</span>
       },
-      {} as Record&lt;string, { poids: number[]; count: number }&gt;
+      {} as Record&lt;string, { poids: number[]; count: number; date: Date }&gt;
     );
 &nbsp;
+    // Trier par date réelle (croissant : du plus ancien au plus récent)
     const labels = <span class="cstat-no" title="statement not covered" >Object.keys(grouped).sort(<span class="fstat-no" title="function not covered" >(a</span>, b) =&gt; {</span>
-      // Trier par date
-<span class="cstat-no" title="statement not covered" >      return new Date(a).getTime() - new Date(b).getTime();</span>
+<span class="cstat-no" title="statement not covered" >      return grouped[a].date.getTime() - grouped[b].date.getTime();</span>
     });
 &nbsp;
     const data = <span class="cstat-no" title="statement not covered" >labels.map(<span class="fstat-no" title="function not covered" >(k</span>ey) =&gt; {</span>
@@ -1672,7 +1681,7 @@ const styles = <span class="cstat-no" title="statement not covered" >StyleSheet.
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-26T03:39:32.595Z
+                at 2025-12-02T20:11:08.298Z
             </div>
         <script src="../prettify.js"></script>
         <script>

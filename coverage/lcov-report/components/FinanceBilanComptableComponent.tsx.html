@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/42</span>
+                <span class='fraction'>0/43</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/38</span>
+                <span class='fraction'>0/39</span>
             </div>
         
             
@@ -532,7 +532,9 @@
 <a name='L467'></a><a href='#L467'>467</a>
 <a name='L468'></a><a href='#L468'>468</a>
 <a name='L469'></a><a href='#L469'>469</a>
-<a name='L470'></a><a href='#L470'>470</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L470'></a><a href='#L470'>470</a>
+<a name='L471'></a><a href='#L471'>471</a>
+<a name='L472'></a><a href='#L472'>472</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -559,6 +561,8 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1019,6 +1023,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadDepensesPonctuelles } from '../store/slices/financeSlice';
+import { selectAllDepensesPonctuelles } from '../store/selectors/financeSelectors';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
 import Card from './Card';
 import { calculateAmortissementsParCategorie, AmortissementParCategorie } from '../utils/financeCalculations';
@@ -1031,7 +1036,8 @@ export default function <span class="fstat-no" title="function not covered" >Fin
   const { colors } = <span class="cstat-no" title="statement not covered" >useTheme();</span>
   const dispatch = <span class="cstat-no" title="statement not covered" >useAppDispatch();</span>
   const { projetActif } = <span class="cstat-no" title="statement not covered" >useAppSelector(<span class="fstat-no" title="function not covered" >(s</span>tate) =&gt; <span class="cstat-no" title="statement not covered" >state.projet)</span>;</span>
-  const { depensesPonctuelles, loading } = <span class="cstat-no" title="statement not covered" >useAppSelector(<span class="fstat-no" title="function not covered" >(s</span>tate) =&gt; <span class="cstat-no" title="statement not covered" >state.finance)</span>;</span>
+  const depensesPonctuelles = <span class="cstat-no" title="statement not covered" >useAppSelector(selectAllDepensesPonctuelles);</span>
+  const loading = <span class="cstat-no" title="statement not covered" >useAppSelector(<span class="fstat-no" title="function not covered" >(s</span>tate) =&gt; <span class="cstat-no" title="statement not covered" >state.finance.loading)</span>;</span>
 &nbsp;
   const [refreshing, setRefreshing] = <span class="cstat-no" title="statement not covered" >useState(false);</span>
 &nbsp;
@@ -1369,7 +1375,7 @@ const styles = <span class="cstat-no" title="statement not covered" >StyleSheet.
   },
   categorieTitle: {
     fontSize: FONT_SIZES.lg,
-    fontWeight: FONT_WEIGHTS.semibold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as any,
     marginBottom: SPACING.xs / 2,
   },
   categorieSubtitle: {
@@ -1391,14 +1397,14 @@ const styles = <span class="cstat-no" title="statement not covered" >StyleSheet.
   },
   statValue: {
     fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semibold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as any,
   },
   depensesList: {
     marginTop: SPACING.md,
   },
   depensesListTitle: {
     fontSize: FONT_SIZES.sm,
-    fontWeight: FONT_WEIGHTS.semibold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as any,
     marginBottom: SPACING.sm,
   },
   depenseItem: {
@@ -1426,7 +1432,7 @@ const styles = <span class="cstat-no" title="statement not covered" >StyleSheet.
   },
   depenseItemMontant: {
     fontSize: FONT_SIZES.sm,
-    fontWeight: FONT_WEIGHTS.semibold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as any,
     marginBottom: SPACING.xs / 2,
   },
   depenseItemAmortissement: {
@@ -1462,7 +1468,7 @@ const styles = <span class="cstat-no" title="statement not covered" >StyleSheet.
   },
   noteTitle: {
     fontSize: FONT_SIZES.sm,
-    fontWeight: FONT_WEIGHTS.semibold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as any,
   },
   noteText: {
     fontSize: FONT_SIZES.xs,
@@ -1477,7 +1483,7 @@ const styles = <span class="cstat-no" title="statement not covered" >StyleSheet.
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-26T03:39:32.595Z
+                at 2025-12-02T20:11:08.298Z
             </div>
         <script src="../prettify.js"></script>
         <script>

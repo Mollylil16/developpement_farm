@@ -27,6 +27,7 @@ import IngredientFormModal from './IngredientFormModal';
 import PriceScannerModal from './PriceScannerModal';
 import LoadingSpinner from './LoadingSpinner';
 import { useActionPermissions } from '../hooks/useActionPermissions';
+import { FORMULES_RECOMMANDEES, getValeursNutritionnelles } from '../types';
 
 export default function IngredientsComponent() {
   const { colors, isDark } = useTheme();
@@ -46,6 +47,74 @@ export default function IngredientsComponent() {
       dispatch(loadIngredients(projetActif.id));
     }
   }, [dispatch, projetActif?.id]);
+
+  // Enrichir automatiquement la liste avec les ingrédients des formulations industrielles
+  useEffect(() => {
+    if (!projetActif || !canCreate('nutrition') || ingredients.length === 0) {
+      return;
+    }
+
+    const enrichirIngredients = async () => {
+      // Extraire tous les ingrédients uniques des formulations recommandées
+      const ingredientsFormulations = new Set<string>();
+      Object.values(FORMULES_RECOMMANDEES).forEach((formule) => {
+        formule.composition.forEach((comp) => {
+          ingredientsFormulations.add(comp.nom);
+        });
+      });
+
+      // Vérifier quels ingrédients manquent
+      const ingredientsExistants = new Set(
+        ingredients.map((ing) => ing.nom.toLowerCase().trim())
+      );
+      const ingredientsManquants = Array.from(ingredientsFormulations).filter(
+        (nom) => !ingredientsExistants.has(nom.toLowerCase().trim())
+      );
+
+      // Créer les ingrédients manquants
+      if (ingredientsManquants.length > 0) {
+        let successCount = 0;
+        for (const nomIngredient of ingredientsManquants) {
+          try {
+            // Vérifier à nouveau si l'ingrédient n'existe pas (éviter les doublons)
+            const existeDeja = ingredients.some(
+              (ing) => ing.nom.toLowerCase().trim() === nomIngredient.toLowerCase().trim()
+            );
+            if (existeDeja) continue;
+
+            // Obtenir les valeurs nutritionnelles si disponibles
+            const valeursNutri = getValeursNutritionnelles(nomIngredient);
+
+            await dispatch(
+              createIngredient({
+                nom: nomIngredient,
+                unite: 'kg', // Par défaut, l'utilisateur pourra modifier
+                prix_unitaire: 0, // L'utilisateur devra renseigner le prix
+                proteine_pourcent: valeursNutri?.proteine_pourcent,
+                energie_kcal: valeursNutri?.energie_kcal,
+              })
+            ).unwrap();
+            successCount++;
+          } catch (error) {
+            // Ignorer les erreurs silencieusement
+            console.warn(`Erreur lors de la création de ${nomIngredient}:`, error);
+          }
+        }
+
+        // Recharger la liste si des ingrédients ont été créés
+        if (successCount > 0) {
+          dispatch(loadIngredients(projetActif.id));
+        }
+      }
+    };
+
+    // Attendre un peu pour éviter les conflits avec le chargement initial
+    const timer = setTimeout(() => {
+      enrichirIngredients();
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [projetActif?.id, ingredients.length, canCreate, dispatch]);
 
   const onRefresh = useCallback(async () => {
     if (!projetActif?.id) return;

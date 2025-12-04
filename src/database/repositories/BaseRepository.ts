@@ -22,7 +22,7 @@ export abstract class BaseRepository<T> {
   /**
    * Exécuter une requête SELECT et retourner tous les résultats
    */
-  protected async query<R = T>(sql: string, params: any[] = []): Promise<R[]> {
+  protected async query<R = T>(sql: string, params: unknown[] = []): Promise<R[]> {
     try {
       const result = await this.db.getAllAsync<R>(sql, params);
       return result;
@@ -37,7 +37,7 @@ export abstract class BaseRepository<T> {
   /**
    * Exécuter une requête SELECT et retourner un seul résultat
    */
-  protected async queryOne<R = T>(sql: string, params: any[] = []): Promise<R | null> {
+  protected async queryOne<R = T>(sql: string, params: unknown[] = []): Promise<R | null> {
     try {
       const result = await this.db.getFirstAsync<R>(sql, params);
       return result || null;
@@ -52,7 +52,7 @@ export abstract class BaseRepository<T> {
   /**
    * Exécuter une requête INSERT, UPDATE, DELETE
    */
-  protected async execute(sql: string, params: any[] = []): Promise<SQLite.SQLiteRunResult> {
+  protected async execute(sql: string, params: unknown[] = []): Promise<SQLite.SQLiteRunResult> {
     try {
       const result = await this.db.runAsync(sql, params);
       return result;
@@ -80,6 +80,8 @@ export abstract class BaseRepository<T> {
 
   /**
    * Récupérer tous les enregistrements d'une table
+   * ⚠️ Attention: Peut charger beaucoup de données en mémoire
+   * Utilisez findAllPaginated() pour les grandes tables
    */
   async findAll(projetId?: string): Promise<T[]> {
     if (projetId) {
@@ -89,6 +91,63 @@ export abstract class BaseRepository<T> {
       );
     }
     return this.query<T>(`SELECT * FROM ${this.tableName} ORDER BY derniere_modification DESC`);
+  }
+
+  /**
+   * Récupérer les enregistrements avec pagination
+   * @param options - Options de pagination
+   * @returns Résultats paginés avec métadonnées
+   */
+  async findAllPaginated(options: {
+    projetId?: string;
+    limit?: number;
+    offset?: number;
+    orderBy?: string;
+    orderDirection?: 'ASC' | 'DESC';
+  }): Promise<{
+    data: T[];
+    total: number;
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  }> {
+    const {
+      projetId,
+      limit = 50,
+      offset = 0,
+      orderBy = 'derniere_modification',
+      orderDirection = 'DESC',
+    } = options;
+
+    // Construire la clause WHERE
+    let whereClause = '';
+    const params: any[] = [];
+
+    if (projetId) {
+      whereClause = 'WHERE projet_id = ?';
+      params.push(projetId);
+    }
+
+    // Compter le total
+    const countResult = await this.queryOne<{ count: number }>(
+      `SELECT COUNT(*) as count FROM ${this.tableName} ${whereClause}`,
+      params
+    );
+    const total = countResult?.count || 0;
+
+    // Récupérer les données paginées
+    const data = await this.query<T>(
+      `SELECT * FROM ${this.tableName} ${whereClause} ORDER BY ${orderBy} ${orderDirection} LIMIT ? OFFSET ?`,
+      [...params, limit, offset]
+    );
+
+    return {
+      data,
+      total,
+      limit,
+      offset,
+      hasMore: offset + data.length < total,
+    };
   }
 
   /**
@@ -131,6 +190,26 @@ export abstract class BaseRepository<T> {
       [id]
     );
     return (result?.count || 0) > 0;
+  }
+
+  /**
+   * Parser les photos depuis JSON
+   * Gère les cas où les photos sont stockées en JSON string dans la DB
+   * @param photos - Photos à parser (peut être string JSON, array, null, ou undefined)
+   * @returns Array de strings (URIs) ou undefined si invalide
+   */
+  protected parsePhotos(photos: any): string[] | undefined {
+    if (!photos) return undefined;
+    if (Array.isArray(photos)) return photos;
+    if (typeof photos === 'string') {
+      try {
+        const parsed = JSON.parse(photos);
+        return Array.isArray(parsed) ? parsed : undefined;
+      } catch {
+        return undefined;
+      }
+    }
+    return undefined;
   }
 
   /**

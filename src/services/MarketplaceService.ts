@@ -4,6 +4,7 @@
  */
 
 import type { SQLiteDatabase } from 'expo-sqlite';
+import { getErrorMessage, isError } from '../types/common';
 import type {
   MarketplaceListing,
   Offer,
@@ -13,6 +14,7 @@ import type {
   MarketplaceSearchResult,
   ProducerStats,
   Location,
+  FarmCard,
 } from '../types/marketplace';
 import {
   MarketplaceListingRepository,
@@ -53,14 +55,35 @@ export class MarketplaceService {
     lastWeightDate: string;
     location: Location;
   }): Promise<MarketplaceListing> {
+    // ✅ VALIDATION: Vérifier que le poids n'est pas nul
+    if (!data.weight || data.weight <= 0) {
+      throw new Error('Impossible de mettre en vente un sujet dont le poids est nul ou négatif. Veuillez d\'abord enregistrer une pesée pour ce sujet.');
+    }
+
     // Vérifier que le producteur ne met pas déjà ce sujet en vente
     const existingListings = await this.listingRepo.findByFarmId(data.farmId);
-    const alreadyListed = existingListings.some(
+    const alreadyListed = existingListings.find(
       (l) => l.subjectId === data.subjectId && l.status === 'available'
     );
 
     if (alreadyListed) {
-      throw new Error('Ce sujet est déjà en vente sur le marketplace');
+      // Récupérer les informations du sujet pour un message d'erreur plus précis
+      try {
+        const { AnimalRepository } = await import('../database/repositories');
+        const animalRepo = new AnimalRepository(this.db);
+        const animal = await animalRepo.findById(data.subjectId);
+        
+        const subjectName = animal?.nom || animal?.code || 'sujet';
+        const subjectCode = animal?.code || data.subjectId;
+        throw new Error(`Le sujet "${subjectName}" (${subjectCode}) est déjà en vente sur le marketplace`);
+      } catch (error: unknown) {
+        // Si l'erreur est déjà notre message personnalisé, la relancer
+        if (isError(error) && error.message.includes('déjà en vente')) {
+          throw error;
+        }
+        // Sinon, utiliser un message générique
+        throw new Error('Ce sujet est déjà en vente sur le marketplace');
+      }
     }
 
     // Calculer le prix total
@@ -86,31 +109,347 @@ export class MarketplaceService {
       },
     });
 
-    // TODO: Mettre à jour le statut du sujet dans production_animaux
-    // marketplace_status = 'available', marketplace_listing_id = listing.id
+    // Mettre à jour le statut du sujet dans production_animaux
+    try {
+      const { AnimalRepository } = await import('../database/repositories');
+      const animalRepo = new AnimalRepository(this.db);
+      
+      // Vérifier si la colonne existe avant de mettre à jour
+      await this.db.runAsync(
+        `UPDATE production_animaux 
+         SET marketplace_status = ?, marketplace_listing_id = ? 
+         WHERE id = ?`,
+        ['available', listing.id, data.subjectId]
+      );
+    } catch (error) {
+      console.warn('Erreur mise à jour statut marketplace dans production_animaux:', error);
+      // Ne pas bloquer si la mise à jour échoue
+    }
 
     return listing;
   }
 
   /**
+   * Récupérer un listing par ID
+   */
+  async getListingById(listingId: string): Promise<MarketplaceListing> {
+    const listing = await this.listingRepo.findById(listingId);
+    if (!listing) {
+      throw new Error('Listing introuvable');
+    }
+    return listing;
+  }
+
+  /**
    * Rechercher des annonces avec filtres et pagination
+   * @param userId - ID de l'utilisateur pour filtrer ses propres listings (optionnel)
    */
   async searchListings(
     filters?: MarketplaceFilters,
     sort?: MarketplaceSortOption,
     page: number = 1,
-    limit: number = 20
+    limit: number = 20,
+    userId?: string
   ): Promise<MarketplaceSearchResult> {
     const { listings, total } = await this.listingRepo.search(filters, sort, page, limit);
-    const totalPages = Math.ceil(total / limit);
+    
+    // Filtrer les listings de l'utilisateur si userId fourni
+    let filteredListings = listings;
+    if (userId) {
+      const { getMarketplacePermissions } = await import('./MarketplacePermissions');
+      const permissions = getMarketplacePermissions(this.db);
+      filteredListings = await permissions.filterListingsForUser(userId, listings);
+    }
+    
+    // Enrichir les listings avec les données des animaux
+    const { AnimalRepository } = await import('../database/repositories');
+    const { PeseeRepository } = await import('../database/repositories');
+    const { VaccinationRepository } = await import('../database/repositories');
+    const animalRepo = new AnimalRepository(this.db);
+    const peseeRepo = new PeseeRepository(this.db);
+    const vaccinationRepo = new VaccinationRepository(this.db);
+    
+    const enrichedListings = await Promise.all(
+      filteredListings.map(async (listing) => {
+        try {
+          // Récupérer les données de l'animal
+          const animal = await animalRepo.findById(listing.subjectId);
+          if (!animal) {
+            return null; // Ignorer les listings avec animaux introuvables
+          }
+
+          // Récupérer la dernière pesée pour le poids actuel
+          const dernierePesee = await peseeRepo.findLastByAnimal(animal.id);
+          const poidsActuel = dernierePesee?.poids_kg || animal.poids_initial || 0;
+
+          // Calculer l'âge en mois
+          const ageEnMois = animal.date_naissance
+            ? Math.floor(
+                (new Date().getTime() - new Date(animal.date_naissance).getTime()) /
+                  (1000 * 60 * 60 * 24 * 30)
+              )
+            : 0;
+
+          // Vérifier le statut des vaccinations
+          const vaccinations = await vaccinationRepo.findByAnimal(animal.id);
+          const vaccinationsAJour = vaccinations.length > 0 && 
+            vaccinations.every(v => v.date_rappel === null || new Date(v.date_rappel) > new Date());
+
+          // Déterminer le statut de santé (simplifié)
+          let healthStatus: 'good' | 'attention' | 'critical' = 'good';
+          if (animal.statut === 'mort' || animal.statut === 'malade') {
+            healthStatus = 'critical';
+          } else if (!vaccinationsAJour) {
+            healthStatus = 'attention';
+          }
+
+          // Créer un objet enrichi qui peut être utilisé comme SubjectCard ou MarketplaceListing
+          return {
+            ...listing,
+            type: 'subject' as const,
+            // Propriétés pour SubjectCard
+            code: animal.code || animal.numero_identification || `#${animal.id.slice(0, 8)}`,
+            race: animal.race || 'Non spécifiée',
+            weight: poidsActuel,
+            weightDate: dernierePesee?.date_pesee || listing.lastWeightDate,
+            age: ageEnMois,
+            totalPrice: listing.calculatedPrice,
+            healthStatus,
+            vaccinations: vaccinationsAJour,
+            available: listing.status === 'available',
+          };
+        } catch (error) {
+          console.error(`Erreur lors de l'enrichissement du listing ${listing.id}:`, error);
+          return null;
+        }
+      })
+    );
+
+    // Filtrer les nulls
+    const validListings = enrichedListings.filter((l): l is NonNullable<typeof l> => l !== null);
+    const totalPages = Math.ceil(validListings.length / limit);
 
     return {
-      listings,
-      total,
+      listings: validListings,
+      total: validListings.length, // Ajuster le total après filtrage
       page,
       totalPages,
       hasMore: page < totalPages,
     };
+  }
+
+  /**
+   * Grouper les listings par ferme et créer des FarmCards
+   * @param userId - ID de l'utilisateur pour filtrer ses propres listings (optionnel)
+   */
+  async groupListingsByFarm(
+    listings: MarketplaceListing[],
+    buyerLocation?: { latitude: number; longitude: number },
+    userId?: string
+  ): Promise<FarmCard[]> {
+    // Récupérer les favoris de l'utilisateur si userId fourni
+    let savedFarms: string[] = [];
+    if (userId) {
+      try {
+        const { UserRepository } = await import('../database/repositories');
+        const userRepo = new UserRepository(this.db);
+        const user = await userRepo.findById(userId);
+        if (user?.saved_farms) {
+          savedFarms = user.saved_farms;
+        }
+      } catch (error) {
+        console.warn('Erreur récupération favoris:', error);
+      }
+    }
+    // Filtrer les listings de l'utilisateur si userId fourni
+    let filteredListings = listings;
+    if (userId) {
+      const { getMarketplacePermissions } = await import('./MarketplacePermissions');
+      const permissions = getMarketplacePermissions(this.db);
+      filteredListings = await permissions.filterListingsForUser(userId, listings);
+    }
+    // Grouper par farmId
+    const farmGroups = new Map<string, MarketplaceListing[]>();
+    
+    for (const listing of filteredListings) {
+      if (listing.status !== 'available') continue;
+      
+      const existing = farmGroups.get(listing.farmId) || [];
+      existing.push(listing);
+      farmGroups.set(listing.farmId, existing);
+    }
+
+    // Créer les FarmCards
+    const { UserRepository } = await import('../database/repositories');
+    const { ProjetRepository } = await import('../database/repositories');
+    const { MarketplaceRatingRepository } = await import('../database/repositories');
+    const { AnimalRepository } = await import('../database/repositories');
+    
+    const userRepo = new UserRepository(this.db);
+    const projetRepo = new ProjetRepository(this.db);
+    const ratingRepo = new MarketplaceRatingRepository(this.db);
+    const animalRepo = new AnimalRepository(this.db);
+
+    const farmCards: FarmCard[] = [];
+
+    for (const [farmId, farmListings] of farmGroups.entries()) {
+      try {
+        // Récupérer les infos de la ferme
+        const projet = await projetRepo.findById(farmId);
+        if (!projet) continue;
+
+        // Récupérer les infos du producteur
+        const producerId = farmListings[0].producerId;
+        const producer = await userRepo.findById(producerId);
+        if (!producer) continue;
+
+        // Calculer les données agrégées
+        const weights = farmListings.map(l => l.weight || 0);
+        const prices = farmListings.map(l => l.pricePerKg);
+        const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+        const totalSubjects = farmListings.length;
+        const minPrice = Math.min(...prices);
+        const maxPrice = Math.max(...prices);
+        const avgPrice = prices.reduce((sum, p) => sum + p, 0) / prices.length;
+
+        // Récupérer les races disponibles
+        const subjectIds = farmListings.map(l => l.subjectId);
+        const races = new Set<string>();
+        const photos: string[] = [];
+        
+        for (const subjectId of subjectIds.slice(0, 4)) {
+          const animal = await animalRepo.findById(subjectId);
+          if (animal) {
+            if (animal.race) races.add(animal.race);
+            if (animal.photo_uri) photos.push(animal.photo_uri);
+          }
+        }
+
+        // Récupérer les ratings
+        const ratings = await ratingRepo.findByProducerId(producerId);
+        const avgRating = ratings.length > 0
+          ? ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length
+          : 0;
+
+        // Calculer la distance si location fournie
+        let distance: number | undefined;
+        if (buyerLocation && farmListings[0].location.latitude) {
+          distance = this.calculateDistance(
+            buyerLocation.latitude,
+            buyerLocation.longitude,
+            farmListings[0].location.latitude,
+            farmListings[0].location.longitude
+          );
+        }
+
+        // Déterminer les badges
+        const now = new Date();
+        const firstListingDate = new Date(farmListings[0].listedAt);
+        const monthsSinceFirstListing = (now.getTime() - firstListingDate.getTime()) / (1000 * 60 * 60 * 24 * 30);
+        const isNewProducer = monthsSinceFirstListing < 3;
+
+        // Calculer fastResponder depuis les stats
+        const producerStats = await this.getProducerStats(producerId);
+        const fastResponder = producerStats.responseTime > 0 && producerStats.responseTime < 24; // Répond en moins de 24h
+        const isCertified = false; // À implémenter avec système de certifications
+
+        const farmCard: FarmCard = {
+          id: farmId,
+          farmId,
+          name: projet.nom,
+          location: farmListings[0].location,
+          distance,
+          totalSubjects,
+          totalWeight,
+          averageRating: avgRating,
+          photoUrl: photos[0],
+          isNew: isNewProducer,
+          stats: {
+            totalListings: totalSubjects,
+            totalSales: producerStats.totalSales,
+            averageRating: avgRating,
+            totalRatings: ratings.length,
+            responseTime: producerStats.responseTime,
+            completionRate: producerStats.completionRate,
+          },
+          producerId,
+          producerName: producer.nom || producer.email || 'Producteur',
+          producerAvatar: producer.photo_uri,
+          aggregatedData: {
+            totalSubjectsForSale: totalSubjects,
+            totalWeight,
+            priceRange: {
+              min: minPrice,
+              max: maxPrice,
+            },
+            averagePricePerKg: avgPrice,
+          },
+          producerRating: {
+            overall: avgRating,
+            totalReviews: ratings.length,
+          },
+          badges: {
+            isNewProducer,
+            isCertified,
+            fastResponder,
+          },
+          preview: {
+            subjectPhotos: photos.slice(0, 4),
+            availableRaces: Array.from(races),
+          },
+          lastUpdated: new Date(
+            Math.max(...farmListings.map(l => new Date(l.updatedAt).getTime()))
+          ),
+        };
+
+        farmCards.push(farmCard);
+      } catch (error) {
+        console.error(`Erreur lors de la création de la FarmCard pour ${farmId}:`, error);
+      }
+    }
+
+    // Filtrer les FarmCards de l'utilisateur si userId fourni
+    let filteredFarmCards = farmCards;
+    if (userId) {
+      const { getMarketplacePermissions } = await import('./MarketplacePermissions');
+      const permissions = getMarketplacePermissions(this.db);
+      filteredFarmCards = await permissions.filterFarmCardsForUser(userId, farmCards);
+    }
+
+    // Trier les fermes : favoris en premier, puis les autres
+    filteredFarmCards.sort((a, b) => {
+      const aIsFavorite = savedFarms.includes(a.farmId);
+      const bIsFavorite = savedFarms.includes(b.farmId);
+      
+      if (aIsFavorite && !bIsFavorite) return -1;
+      if (!aIsFavorite && bIsFavorite) return 1;
+      
+      // Si les deux sont favoris ou non favoris, trier par nom
+      return a.name.localeCompare(b.name);
+    });
+
+    return filteredFarmCards;
+  }
+
+  /**
+   * Calculer la distance entre deux points (formule de Haversine)
+   */
+  private calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const R = 6371; // Rayon de la Terre en km
+    const dLat = this.toRad(lat2 - lat1);
+    const dLon = this.toRad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(this.toRad(lat1)) *
+        Math.cos(this.toRad(lat2)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  private toRad(degrees: number): number {
+    return degrees * (Math.PI / 180);
   }
 
   /**
@@ -142,9 +481,9 @@ export class MarketplaceService {
     }
 
     // Vérifier qu'il n'y a pas d'offres en attente
-    const offers = await this.offerRepo.findByBuyerId(producerId);
+    const offers = await this.offerRepo.findByListingId(listingId);
     const pendingOffers = offers.filter(
-      (o) => o.listingId === listingId && o.status === 'pending'
+      (o) => o.status === 'pending'
     );
 
     if (pendingOffers.length > 0) {
@@ -164,6 +503,68 @@ export class MarketplaceService {
   // ========================================
 
   /**
+   * Vérifie si un utilisateur peut faire une offre sur une annonce
+   * 
+   * RÈGLE CRITIQUE: Un utilisateur ne peut JAMAIS acheter ses propres sujets,
+   * quel que soit son rôle/profil actif (producteur, acheteur, vétérinaire, technicien).
+   * 
+   * Cette vérification se fait au niveau du producteur (producerId), pas du rôle actif.
+   * 
+   * @param userId - ID de l'utilisateur
+   * @param listingId - ID de l'annonce
+   * @returns Objet avec allowed (boolean) et reason (string optionnel)
+   */
+  async canUserMakeOffer(
+    userId: string,
+    listingId: string
+  ): Promise<{ allowed: boolean; reason?: string }> {
+    const listing = await this.listingRepo.findById(listingId);
+
+    if (!listing) {
+      return {
+        allowed: false,
+        reason: 'Annonce introuvable',
+      };
+    }
+
+    // ✅ RÈGLE CRITIQUE: Vérifier si l'utilisateur est le producteur
+    // Peu importe son rôle actif, un utilisateur ne peut pas acheter ses propres sujets
+    // On vérifie via les projets (farmId) car le producerId est l'ID du projet
+    try {
+      const { ProjetRepository } = await import('../database/repositories');
+      const projetRepo = new ProjetRepository(this.db);
+      const projet = await projetRepo.findById(listing.farmId);
+      
+      if (projet && projet.proprietaire_id === userId) {
+        return {
+          allowed: false,
+          reason: 'Vous ne pouvez pas faire d\'offre sur vos propres sujets, quel que soit votre rôle actif.',
+        };
+      }
+    } catch (error) {
+      console.error('Erreur lors de la vérification du propriétaire:', error);
+      // En cas d'erreur, on fait une vérification de secours
+      // Si le producerId correspond directement à l'userId (ancien système), bloquer aussi
+      if (listing.producerId === userId) {
+        return {
+          allowed: false,
+          reason: 'Vous ne pouvez pas faire d\'offre sur vos propres sujets, quel que soit votre rôle actif.',
+        };
+      }
+    }
+
+    // Vérifier que l'annonce est disponible
+    if (listing.status !== 'available') {
+      return {
+        allowed: false,
+        reason: 'Cette annonce n\'est plus disponible',
+      };
+    }
+
+    return { allowed: true };
+  }
+
+  /**
    * Créer une offre
    */
   async createOffer(data: {
@@ -173,6 +574,12 @@ export class MarketplaceService {
     proposedPrice: number;
     message?: string;
   }): Promise<Offer> {
+    // Vérifier si l'utilisateur peut faire une offre
+    const canMakeOffer = await this.canUserMakeOffer(data.buyerId, data.listingId);
+    if (!canMakeOffer.allowed) {
+      throw new Error(canMakeOffer.reason || 'Vous ne pouvez pas faire d\'offre sur cette annonce');
+    }
+
     const listing = await this.listingRepo.findById(data.listingId);
 
     if (!listing) {
@@ -183,9 +590,43 @@ export class MarketplaceService {
       throw new Error('Cette annonce n\'est plus disponible');
     }
 
-    // Vérifier que l'acheteur n'est pas le producteur (auto-achat interdit)
-    if (data.buyerId === listing.producerId) {
-      throw new Error('Vous ne pouvez pas acheter vos propres sujets');
+    // ✅ RÈGLE CRITIQUE: Vérification supplémentaire (redondante mais sécurisée)
+    // La vérification principale est déjà faite dans canUserMakeOffer, mais on la refait ici
+    // pour une sécurité maximale. On vérifie via les projets (farmId) car le producerId est l'ID du projet
+    try {
+      const { ProjetRepository } = await import('../database/repositories');
+      const projetRepo = new ProjetRepository(this.db);
+      const projet = await projetRepo.findById(listing.farmId);
+      
+      if (projet && projet.proprietaire_id === data.buyerId) {
+        throw new Error('Vous ne pouvez pas acheter vos propres sujets, quel que soit votre rôle actif.');
+      }
+    } catch (error: unknown) {
+      // Si l'erreur est déjà notre message personnalisé, la relancer
+      if (isError(error) && error.message.includes('ne pouvez pas acheter')) {
+        throw error;
+      }
+      // En cas d'erreur de vérification, faire une vérification de secours
+      // (pour compatibilité avec l'ancien système où producerId pourrait être l'userId)
+      if (data.buyerId === listing.producerId) {
+        throw new Error('Vous ne pouvez pas acheter vos propres sujets, quel que soit votre rôle actif.');
+      }
+    }
+
+    // Vérifier si l'acheteur a déjà fait une offre pour ce sujet
+    const existingOffers = await this.offerRepo.findByBuyerId(data.buyerId);
+    const hasExistingOffer = existingOffers.some(offer => {
+      // Vérifier si l'offre existe pour le même listing et contient au moins un des mêmes sujets
+      if (offer.listingId === data.listingId && offer.status === 'pending') {
+        // Vérifier si au moins un sujet est en commun
+        const commonSubjects = offer.subjectIds.filter(id => data.subjectIds.includes(id));
+        return commonSubjects.length > 0;
+      }
+      return false;
+    });
+
+    if (hasExistingOffer) {
+      throw new Error('Vous avez déjà fait une offre pour ce sujet. Veuillez retirer votre offre existante avant d\'en créer une nouvelle.');
     }
 
     // Calculer la date d'expiration (7 jours)
@@ -257,7 +698,7 @@ export class MarketplaceService {
     // Mettre à jour le statut du listing
     await this.listingRepo.updateStatus(offer.listingId, 'reserved');
 
-    // Notifier l'acheteur
+    // Notifier l'acheteur qui a fait l'offre acceptée
     await this.notificationRepo.create({
       userId: offer.buyerId,
       type: 'offer_accepted',
@@ -266,6 +707,33 @@ export class MarketplaceService {
       relatedId: transaction.id,
       relatedType: 'transaction',
     });
+
+    // Notifier les autres acheteurs qui ont fait des offres pour les mêmes sujets
+    // que ces sujets ne sont plus disponibles
+    const allOffersForListing = await this.offerRepo.findByListingId(offer.listingId);
+    const otherPendingOffers = allOffersForListing.filter(
+      o => o.id !== offer.id && o.status === 'pending' && o.buyerId !== offer.buyerId
+    );
+
+    // Vérifier si les autres offres concernent les mêmes sujets
+    for (const otherOffer of otherPendingOffers) {
+      // Vérifier si au moins un sujet est en commun
+      const commonSubjects = otherOffer.subjectIds.filter(id => offer.subjectIds.includes(id));
+      if (commonSubjects.length > 0) {
+        // Marquer l'offre comme expirée/invalide
+        await this.offerRepo.updateStatus(otherOffer.id, 'expired');
+
+        // Notifier l'acheteur que son offre n'est plus valable
+        await this.notificationRepo.create({
+          userId: otherOffer.buyerId,
+          type: 'offer_expired',
+          title: 'Sujet non disponible',
+          message: 'Un sujet pour lequel vous avez fait une offre a été acheté par un autre acheteur. Votre offre n\'est plus valable.',
+          relatedId: otherOffer.id,
+          relatedType: 'offer',
+        });
+      }
+    }
 
     return transaction;
   }
@@ -292,6 +760,38 @@ export class MarketplaceService {
       type: 'offer_rejected',
       title: 'Offre refusée',
       message: 'Votre offre a été refusée par le producteur',
+      relatedId: offerId,
+      relatedType: 'offer',
+    });
+  }
+
+  /**
+   * Retirer une offre (par l'acheteur)
+   */
+  async withdrawOffer(offerId: string, buyerId: string): Promise<void> {
+    const offer = await this.offerRepo.findById(offerId);
+
+    if (!offer) {
+      throw new Error('Offre introuvable');
+    }
+
+    if (offer.buyerId !== buyerId) {
+      throw new Error('Vous n\'êtes pas autorisé à retirer cette offre');
+    }
+
+    if (offer.status !== 'pending') {
+      throw new Error('Vous ne pouvez retirer que les offres en attente');
+    }
+
+    // Mettre à jour le statut de l'offre à 'withdrawn' pour indiquer qu'elle a été retirée par l'acheteur
+    await this.offerRepo.updateStatus(offerId, 'withdrawn');
+
+    // Notifier le producteur
+    await this.notificationRepo.create({
+      userId: offer.producerId,
+      type: 'offer_withdrawn',
+      title: 'Offre retirée',
+      message: 'Un acheteur a retiré son offre',
       relatedId: offerId,
       relatedType: 'offer',
     });
@@ -337,7 +837,25 @@ export class MarketplaceService {
       // Mettre à jour le listing
       await this.listingRepo.updateStatus(transaction.listingId, 'sold');
 
-      // TODO: Retirer le sujet du cheptel (inHerd = false)
+      // Retirer les sujets du cheptel et mettre à jour leur statut
+      const { AnimalRepository } = await import('../database/repositories');
+      const animalRepo = new AnimalRepository(this.db);
+      
+      for (const subjectId of transaction.subjectIds) {
+        try {
+          // Mettre à jour le statut marketplace
+          await this.db.runAsync(
+            `UPDATE production_animaux 
+             SET marketplace_status = 'sold', 
+                 marketplace_listing_id = NULL,
+                 statut = 'vendu'
+             WHERE id = ?`,
+            [subjectId]
+          );
+        } catch (error) {
+          console.warn(`Erreur mise à jour sujet ${subjectId} après vente:`, error);
+        }
+      }
 
       // Notifier les deux parties
       await this.notificationRepo.create({
@@ -398,11 +916,24 @@ export class MarketplaceService {
         ? (completedTransactions.length / totalTransactions) * 100
         : 0;
 
+    // Calculer le temps de réponse moyen (en heures)
+    let responseTime = 0;
+    const offers = await this.offerRepo.findByProducerId(producerId);
+    const offersWithResponse = offers.filter((o) => o.respondedAt && o.createdAt);
+    if (offersWithResponse.length > 0) {
+      const totalResponseTime = offersWithResponse.reduce((sum, offer) => {
+        const created = new Date(offer.createdAt).getTime();
+        const responded = new Date(offer.respondedAt!).getTime();
+        return sum + (responded - created);
+      }, 0);
+      responseTime = Math.round(totalResponseTime / offersWithResponse.length / (1000 * 60 * 60)); // Convertir en heures
+    }
+
     return {
       totalSales: completedTransactions.length,
       averageRating: Math.round(averageRating * 10) / 10, // Arrondir à 1 décimale
       totalRatings: ratings.length,
-      responseTime: 24, // TODO: Calculer le temps de réponse moyen
+      responseTime,
       completionRate: Math.round(completionRate),
     };
   }
@@ -426,11 +957,44 @@ export class MarketplaceService {
     canList: boolean;
     reason?: string;
   }> {
-    // TODO: Vérifier dans production_animaux:
-    // - Le sujet existe
-    // - Le sujet est actif (statut = 'actif')
-    // - Le sujet n'est pas déjà en vente
-    // - Le sujet a une pesée récente (< 30 jours)
+    // Vérifier que le sujet existe et est actif
+    const { AnimalRepository } = await import('../database/repositories');
+    const animalRepo = new AnimalRepository(this.db);
+    const animal = await animalRepo.findById(subjectId);
+
+    if (!animal) {
+      return { canList: false, reason: 'Le sujet n\'existe pas' };
+    }
+
+    if (animal.statut?.toLowerCase() !== 'actif') {
+      return { canList: false, reason: 'Le sujet doit être actif pour être mis en vente' };
+    }
+
+    // Vérifier que le sujet n'est pas déjà en vente
+    const existingListings = await this.listingRepo.findBySubjectId(subjectId);
+    const activeListing = existingListings.find(
+      (l) => l.status === 'available' || l.status === 'reserved'
+    );
+    if (activeListing) {
+      return { canList: false, reason: 'Ce sujet est déjà en vente' };
+    }
+
+    // Vérifier qu'il y a une pesée récente (< 30 jours)
+    const { PeseeRepository } = await import('../database/repositories');
+    const peseeRepo = new PeseeRepository(this.db);
+    const pesees = await peseeRepo.findByAnimal(subjectId);
+    const dernierePesee = pesees.sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    )[0];
+
+    if (!dernierePesee) {
+      return { canList: false, reason: 'Aucune pesée enregistrée. Une pesée récente est requise pour mettre en vente' };
+    }
+
+    const joursDepuisPesee = (new Date().getTime() - new Date(dernierePesee.date).getTime()) / (1000 * 60 * 60 * 24);
+    if (joursDepuisPesee > 30) {
+      return { canList: false, reason: 'La dernière pesée date de plus de 30 jours. Une pesée récente est requise' };
+    }
 
     return { canList: true };
   }

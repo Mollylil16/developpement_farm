@@ -135,3 +135,11 @@ export const selectProductionError = createSelector(
   [selectProductionState],
   (productionState) => productionState.error
 );
+
+// Sélecteur pour obtenir uniquement les animaux actifs
+export const selectAnimauxActifs = createSelector(
+  [selectAllAnimaux],
+  (animaux): ProductionAnimal[] => {
+    return animaux.filter((animal) => animal.statut?.toLowerCase() === 'actif');
+  }
+);

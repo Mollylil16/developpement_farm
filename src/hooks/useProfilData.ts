@@ -10,7 +10,8 @@
 import { useState, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppSelector } from '../store/hooks';
-import { databaseService } from '../services/database';
+import { getDatabase } from '../services/database';
+import { UserRepository } from '../database/repositories';
 
 interface UseProfilDataReturn {
   profilPhotoUri: string | null;
@@ -39,7 +40,9 @@ export function useProfilData(): UseProfilDataReturn {
       }
 
       // Charger depuis la base de données
-      const dbUser = await databaseService.getUserById(user.id);
+      const db = await getDatabase();
+      const userRepo = new UserRepository(db);
+      const dbUser = await userRepo.findById(user.id);
       
       if (dbUser) {
         // Mettre à jour les états avec les données de la DB

@@ -189,7 +189,7 @@ export default function ChatScreen({
 
         {/* Champ texte */}
         <TextInput
-          style={[styles.textInput, { backgroundColor: colors.backgroundSecondary, color: colors.text }]}
+          style={[styles.textInput, { backgroundColor: colors.surfaceLight, color: colors.text }]}
           placeholder="Écrivez un message..."
           placeholderTextColor={colors.textLight}
           value={inputText}
