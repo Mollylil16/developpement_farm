@@ -33,8 +33,8 @@ export const createPlanification = createAsyncThunk(
         statut: 'a_faire',
       });
       return planification;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la création de la planification');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création de la planification');
     }
   }
 );
@@ -49,8 +49,8 @@ export const loadPlanifications = createAsyncThunk(
       const planificationRepo = new PlanificationRepository(db);
       const planifications = await planificationRepo.findByProjet(projetId);
       return planifications;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement des planifications');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des planifications');
     }
   }
 );
@@ -65,8 +65,8 @@ export const loadPlanificationsParProjet = createAsyncThunk(
       const planificationRepo = new PlanificationRepository(db);
       const planifications = await planificationRepo.findByProjet(projetId);
       return planifications;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement des planifications');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des planifications');
     }
   }
 );
@@ -81,8 +81,8 @@ export const loadPlanificationsAVenir = createAsyncThunk(
       const planificationRepo = new PlanificationRepository(db);
       const planifications = await planificationRepo.findAVenir(projetId, jours);
       return planifications;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement des planifications');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des planifications');
     }
   }
 );
@@ -100,8 +100,8 @@ export const updatePlanification = createAsyncThunk(
       const planificationRepo = new PlanificationRepository(db);
       const planification = await planificationRepo.update(id, updates);
       return planification;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la mise à jour de la planification');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la mise à jour de la planification');
     }
   }
 );
@@ -116,8 +116,8 @@ export const deletePlanification = createAsyncThunk(
       const planificationRepo = new PlanificationRepository(db);
       await planificationRepo.deleteById(id);
       return id;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la suppression de la planification');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la suppression de la planification');
     }
   }
 );
@@ -148,9 +148,9 @@ export const createPlanificationsBatch = createAsyncThunk(
 
       console.log(`✅ [BATCH] ${planifications.length} tâches créées avec succès`);
       return planifications;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [BATCH] Erreur:', error);
-      return rejectWithValue(error.message || 'Erreur lors de la création des planifications');
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création des planifications');
     }
   }
 );

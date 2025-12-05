@@ -17,6 +17,7 @@ import { useAppSelector } from '../store/hooks';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
 import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { useTheme } from '../contexts/ThemeContext';
 import { useRolePermissions } from '../hooks/useRolePermissions';
 import { useRole } from '../contexts/RoleContext';
@@ -74,23 +75,23 @@ export default function DashboardScreen() {
     }
     
     // Pour technicien et vétérinaire, vérifier les permissions de collaboration
-    if ((activeRole === 'technician' || activeRole === 'veterinarian') && collaborateurActuel) {
+    if ((activeRole === 'technician' || activeRole === 'veterinarian') && collaborateurActuel?.permissions) {
       // Vérifier les permissions spécifiques à la ferme via la collaboration
       switch (module) {
         case 'reproduction':
-          return collaborateurActuel.permissions.reproduction;
+          return collaborateurActuel.permissions.reproduction ?? false;
         case 'nutrition':
-          return collaborateurActuel.permissions.nutrition;
+          return collaborateurActuel.permissions.nutrition ?? false;
         case 'planification':
-          return collaborateurActuel.permissions.planification;
+          return collaborateurActuel.permissions.planification ?? false;
         case 'mortalites':
-          return collaborateurActuel.permissions.mortalites;
+          return collaborateurActuel.permissions.mortalites ?? false;
         case 'finance':
-          return collaborateurActuel.permissions.finance;
+          return collaborateurActuel.permissions.finance ?? false;
         case 'rapports':
-          return collaborateurActuel.permissions.rapports; // Permission spécifique à la ferme
+          return collaborateurActuel.permissions.rapports ?? false; // Permission spécifique à la ferme
         case 'sante':
-          return collaborateurActuel.permissions.sante;
+          return collaborateurActuel.permissions.sante ?? false;
         default:
           return false;
       }
@@ -152,7 +153,7 @@ export default function DashboardScreen() {
   // Date formatting - mémorisé pour éviter les recalculs
   const currentDate = useMemo(() => {
     try {
-      return format(new Date(), 'EEEE d MMMM yyyy');
+      return format(new Date(), 'EEEE d MMMM yyyy', { locale: fr });
     } catch (error) {
       console.error('Erreur formatage date:', error);
       return new Date().toLocaleDateString('fr-FR');

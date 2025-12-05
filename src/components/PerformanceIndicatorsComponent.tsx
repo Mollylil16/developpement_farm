@@ -381,9 +381,10 @@ export default function PerformanceIndicatorsComponent() {
     let poidsTotalProduit = 0;
     let animauxAvecPesee = 0;
 
-    // Filtrer uniquement les animaux actifs
+    // Filtrer uniquement les animaux actifs non reproducteurs
+    // Les reproducteurs ne sont pas comptés dans le poids produit car ils ne sont généralement pas vendus
     const animauxActifsPourPoids = animauxProjet.filter(
-      (animal) => animal.statut?.toLowerCase() === 'actif'
+      (animal) => animal.statut?.toLowerCase() === 'actif' && !animal.reproducteur
     );
 
     animauxActifsPourPoids.forEach((animal) => {
@@ -854,7 +855,7 @@ export default function PerformanceIndicatorsComponent() {
                         },
                       ]}
                     >
-                      {performanceGlobale.ecart_absolu >= 0 ? '+' : ''}
+                      {performanceGlobale.ecart_absolu >= 0 ? '+' : null}
                       {formatAmount(performanceGlobale.ecart_absolu)}
                     </Text>
                     <Text
@@ -870,7 +871,7 @@ export default function PerformanceIndicatorsComponent() {
                         },
                       ]}
                     >
-                      ({performanceGlobale.ecart_pourcentage >= 0 ? '+' : ''}
+                      ({performanceGlobale.ecart_pourcentage >= 0 ? '+' : null}
                       {performanceGlobale.ecart_pourcentage.toFixed(1)}%)
                     </Text>
                   </View>

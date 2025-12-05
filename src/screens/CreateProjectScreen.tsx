@@ -53,6 +53,7 @@ export default function CreateProjectScreen() {
     nombre_truies: 0,
     nombre_verrats: 0,
     nombre_porcelets: 0,
+    nombre_croissance: 0,
     poids_moyen_actuel: 0,
     age_moyen_actuel: 0,
     notes: '',
@@ -384,16 +385,32 @@ export default function CreateProjectScreen() {
                     </View>
                   </View>
 
-                  <FormField
-                    label="Porcelets"
-                    placeholder="Ex: 120"
-                    keyboardType="numeric"
-                    value={formData.nombre_porcelets.toString()}
-                    onChangeText={(text) =>
-                      setFormData({ ...formData, nombre_porcelets: parseInt(text) || 0 })
-                    }
-                    required
-                  />
+                  <View style={styles.row}>
+                    <View style={styles.halfWidth}>
+                      <FormField
+                        label="Porcelets"
+                        placeholder="Ex: 120"
+                        keyboardType="numeric"
+                        value={formData.nombre_porcelets.toString()}
+                        onChangeText={(text) =>
+                          setFormData({ ...formData, nombre_porcelets: parseInt(text) || 0 })
+                        }
+                        required
+                      />
+                    </View>
+                    <View style={styles.halfWidth}>
+                      <FormField
+                        label="Porcs en croissance"
+                        placeholder="Ex: 80"
+                        keyboardType="numeric"
+                        value={(formData.nombre_croissance || 0).toString()}
+                        onChangeText={(text) =>
+                          setFormData({ ...formData, nombre_croissance: parseInt(text) || 0 })
+                        }
+                        required
+                      />
+                    </View>
+                  </View>
                 </View>
               </Card>
 

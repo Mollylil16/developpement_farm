@@ -5,6 +5,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User, AuthState, SignUpInput, SignInInput, AuthProvider } from '../../types';
+import { getErrorMessage } from '../../types/common';
 import { setProjetActif } from './projetSlice';
 
 const AUTH_STORAGE_KEY = '@fermier_pro:auth';
@@ -72,11 +73,11 @@ export const loadUserFromStorageThunk = createAsyncThunk('auth/loadUserFromStora
             const db = await getDatabase();
             const collaborateurRepo = new CollaborateurRepository(db);
             await collaborateurRepo.lierCollaborateurAUtilisateur(dbUser.id, dbUser.email);
-          } catch (error: any) {
+          } catch (error: unknown) {
             // Ne pas bloquer le chargement si la liaison échoue
             console.warn(
               'Avertissement lors de la liaison du collaborateur au démarrage:',
-              error?.message || error
+              getErrorMessage(error)
             );
           }
         }
@@ -167,11 +168,11 @@ export const signUp = createAsyncThunk(
             );
             // Le projet sera chargé automatiquement dans loadProjetActif
           }
-        } catch (error: any) {
+        } catch (error: unknown) {
           // Ne pas bloquer l'inscription si la liaison échoue
           console.warn(
             "Avertissement lors de la liaison du collaborateur à l'inscription:",
-            error?.message || error
+            getErrorMessage(error)
           );
         }
       }
@@ -184,8 +185,8 @@ export const signUp = createAsyncThunk(
       dispatch(setProjetActif(null));
 
       return user;
-    } catch (error: any) {
-      return rejectWithValue(error.message || "Erreur lors de l'inscription");
+    } catch (error: unknown) {
+        return rejectWithValue(getErrorMessage(error));
     }
   }
 );
@@ -236,11 +237,11 @@ export const signIn = createAsyncThunk(
             console.log("✅ Collaborateur lié à l'utilisateur:", collaborateur.id);
             // Le projet sera chargé automatiquement dans loadProjetActif
           }
-        } catch (error: any) {
+        } catch (error: unknown) {
           // Ne pas bloquer la connexion si la liaison échoue
           console.warn(
             'Avertissement lors de la liaison du collaborateur:',
-            error?.message || error
+            getErrorMessage(error)
           );
         }
       }
@@ -249,8 +250,8 @@ export const signIn = createAsyncThunk(
       await saveUserToStorage(user);
 
       return user;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la connexion');
+    } catch (error: unknown) {
+        return rejectWithValue(getErrorMessage(error));
     }
   }
 );
@@ -289,8 +290,8 @@ export const signInWithGoogle = createAsyncThunk(
 
       await saveUserToStorage(user);
       return user;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la connexion avec Google');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error));
     }
   }
 );
@@ -329,8 +330,8 @@ export const signInWithApple = createAsyncThunk(
 
       await saveUserToStorage(user);
       return user;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la connexion avec Apple');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error));
     }
   }
 );

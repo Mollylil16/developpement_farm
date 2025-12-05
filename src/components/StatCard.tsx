@@ -46,7 +46,11 @@ export default function StatCard({
           style,
         ]}
       >
-        {icon && <View style={styles.iconContainer}>{icon}</View>}
+        {icon && (
+          <View style={styles.iconContainer}>
+            {typeof icon === 'string' ? <Text>{icon}</Text> : icon}
+          </View>
+        )}
         <Text style={[styles.value, { color: finalValueColor }]}>
           {safeValue}
           {unit && <Text style={styles.unit}> {unit}</Text>}

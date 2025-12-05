@@ -37,8 +37,8 @@ export const createRapportCroissance = createAsyncThunk(
       const rapportRepo = new RapportCroissanceRepository(db);
       const rapport = await rapportRepo.create(input);
       return rapport;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la création du rapport');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création du rapport');
     }
   }
 );
@@ -51,8 +51,8 @@ export const loadRapportsCroissance = createAsyncThunk(
       const rapportRepo = new RapportCroissanceRepository(db);
       const rapports = await rapportRepo.findAll();
       return rapports;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement des rapports');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des rapports');
     }
   }
 );
@@ -65,8 +65,8 @@ export const loadRapportsCroissanceParProjet = createAsyncThunk(
       const rapportRepo = new RapportCroissanceRepository(db);
       const rapports = await rapportRepo.findByProjet(projetId);
       return rapports;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement des rapports');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des rapports');
     }
   }
 );
@@ -79,8 +79,8 @@ export const deleteRapportCroissance = createAsyncThunk(
       const rapportRepo = new RapportCroissanceRepository(db);
       await rapportRepo.delete(id);
       return id;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la suppression du rapport');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la suppression du rapport');
     }
   }
 );

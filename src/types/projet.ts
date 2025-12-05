@@ -9,6 +9,7 @@ export interface Projet {
   nombre_truies: number;
   nombre_verrats: number;
   nombre_porcelets: number;
+  nombre_croissance: number; // Nombre initial de porcs en croissance
   poids_moyen_actuel: number;
   age_moyen_actuel: number;
   prix_kg_vif?: number;
@@ -31,6 +32,7 @@ export interface CreateProjetInput {
   nombre_truies: number;
   nombre_verrats: number;
   nombre_porcelets: number;
+  nombre_croissance?: number; // Nombre initial de porcs en croissance (défaut: 0)
   poids_moyen_actuel: number;
   age_moyen_actuel: number;
   prix_kg_vif?: number;

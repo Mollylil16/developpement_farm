@@ -2,13 +2,15 @@
  * Vue détaillée - Préférences
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../../../constants/theme';
 import ThemeSelector from '../../ThemeSelector';
+import CurrencySettingsModal from './modals/CurrencySettingsModal';
+import UnitsSettingsModal from './modals/UnitsSettingsModal';
 
 interface SettingsPreferencesViewProps {
   onBack: () => void;
@@ -17,6 +19,8 @@ interface SettingsPreferencesViewProps {
 export default function SettingsPreferencesView({ onBack }: SettingsPreferencesViewProps) {
   const { colors } = useTheme();
   const { language, setLanguage, t } = useLanguage();
+  const [showCurrencyModal, setShowCurrencyModal] = useState(false);
+  const [showUnitsModal, setShowUnitsModal] = useState(false);
 
   const handleChangeLanguage = async (lang: 'fr' | 'en') => {
     try {
@@ -129,7 +133,7 @@ export default function SettingsPreferencesView({ onBack }: SettingsPreferencesV
         <View style={styles.list}>
           <TouchableOpacity
             style={[styles.item, { borderBottomColor: colors.border }]}
-            onPress={() => Alert.alert('En développement', 'Devise')}
+            onPress={() => setShowCurrencyModal(true)}
           >
             <Text style={[styles.itemText, { color: colors.text }]}>Devise</Text>
             <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
@@ -137,13 +141,23 @@ export default function SettingsPreferencesView({ onBack }: SettingsPreferencesV
 
           <TouchableOpacity
             style={styles.item}
-            onPress={() => Alert.alert('En développement', 'Unités de mesure')}
+            onPress={() => setShowUnitsModal(true)}
           >
             <Text style={[styles.itemText, { color: colors.text }]}>Unités de mesure</Text>
             <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Modals */}
+      <CurrencySettingsModal
+        visible={showCurrencyModal}
+        onClose={() => setShowCurrencyModal(false)}
+      />
+      <UnitsSettingsModal
+        visible={showUnitsModal}
+        onClose={() => setShowUnitsModal(false)}
+      />
     </View>
   );
 }

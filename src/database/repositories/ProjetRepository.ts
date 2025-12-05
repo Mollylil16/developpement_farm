@@ -26,10 +26,10 @@ export class ProjetRepository extends BaseRepository<Projet> {
 
     await this.execute(
       `INSERT INTO projets (
-        id, nom, localisation, nombre_truies, nombre_verrats, nombre_porcelets,
+        id, nom, localisation, nombre_truies, nombre_verrats, nombre_porcelets, nombre_croissance,
         poids_moyen_actuel, age_moyen_actuel, prix_kg_vif, prix_kg_carcasse, notes, statut, proprietaire_id,
         duree_amortissement_par_defaut_mois, date_creation, derniere_modification
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         input.nom,
@@ -37,6 +37,7 @@ export class ProjetRepository extends BaseRepository<Projet> {
         input.nombre_truies,
         input.nombre_verrats,
         input.nombre_porcelets,
+        input.nombre_croissance || 0,
         input.poids_moyen_actuel,
         input.age_moyen_actuel,
         input.prix_kg_vif || null,
@@ -59,7 +60,8 @@ export class ProjetRepository extends BaseRepository<Projet> {
     if (
       created.nombre_truies > 0 ||
       created.nombre_verrats > 0 ||
-      created.nombre_porcelets > 0
+      created.nombre_porcelets > 0 ||
+      (created.nombre_croissance || 0) > 0
     ) {
       const { ProjetInitializationService } = await import('../../services/ProjetInitializationService');
       const initService = new ProjetInitializationService(this.db);
@@ -67,6 +69,7 @@ export class ProjetRepository extends BaseRepository<Projet> {
         nombre_truies: created.nombre_truies,
         nombre_verrats: created.nombre_verrats,
         nombre_porcelets: created.nombre_porcelets,
+        nombre_croissance: created.nombre_croissance || 0,
       });
     }
 

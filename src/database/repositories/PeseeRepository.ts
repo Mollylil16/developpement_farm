@@ -13,6 +13,8 @@ import { BaseRepository } from './BaseRepository';
 import { ProductionPesee } from '../../types/production';
 import uuid from 'react-native-uuid';
 import { differenceInDays, parseISO } from 'date-fns';
+import { getCategoriePoids } from '../../utils/animalUtils';
+import { AnimalRepository } from './AnimalRepository';
 
 export class PeseeRepository extends BaseRepository<ProductionPesee> {
   constructor(db: SQLite.SQLiteDatabase) {
@@ -55,6 +57,9 @@ export class PeseeRepository extends BaseRepository<ProductionPesee> {
 
     // Calculer et mettre à jour le GMQ pour cette pesée et les suivantes
     await this.updateGMQForAnimal(data.animal_id);
+
+    // Mettre à jour la catégorie de poids de l'animal selon le nouveau poids
+    await this.updateCategoriePoidsAnimal(data.animal_id, data.poids_kg);
 
     const created = await this.findById(id);
     if (!created) {
@@ -99,6 +104,11 @@ export class PeseeRepository extends BaseRepository<ProductionPesee> {
 
     // Recalculer le GMQ pour cet animal (car date ou poids a pu changer)
     await this.updateGMQForAnimal(updated.animal_id);
+
+    // Mettre à jour la catégorie de poids si le poids a changé
+    if (data.poids_kg !== undefined) {
+      await this.updateCategoriePoidsAnimal(updated.animal_id, data.poids_kg);
+    }
 
     // Recharger la pesée avec le GMQ mis à jour
     const final = await this.findById(id);
@@ -334,6 +344,26 @@ export class PeseeRepository extends BaseRepository<ProductionPesee> {
   }
 
   /**
+   * Supprimer une pesée par ID
+   * Recalcule le GMQ pour l'animal après suppression
+   */
+  async delete(id: string): Promise<void> {
+    // Récupérer la pesée avant suppression pour obtenir l'animal_id
+    const pesee = await this.findById(id);
+    if (!pesee) {
+      throw new Error('Pesée introuvable');
+    }
+
+    const animalId = pesee.animal_id;
+
+    // Supprimer la pesée
+    await this.deleteById(id);
+
+    // Recalculer le GMQ pour cet animal après suppression
+    await this.updateGMQForAnimal(animalId);
+  }
+
+  /**
    * Supprimer toutes les pesées d'un animal
    */
   async deleteByAnimal(animalId: string): Promise<void> {
@@ -388,6 +418,63 @@ export class PeseeRepository extends BaseRepository<ProductionPesee> {
     const poidsEstime = dernierePesee.poids_kg + (gmq * joursDepuisPesee) / 1000;
 
     return Math.round(poidsEstime * 10) / 10; // Arrondir à 1 décimale
+  }
+
+  /**
+   * Met à jour la catégorie de poids d'un animal selon son poids actuel
+   * Appelé automatiquement après chaque pesée
+   */
+  async updateCategoriePoidsAnimal(animalId: string, poidsKg: number): Promise<void> {
+    const animalRepo = new AnimalRepository(this.db);
+    const animal = await animalRepo.findById(animalId);
+    
+    if (!animal) {
+      return; // Animal introuvable
+    }
+
+    // Ne pas mettre à jour la catégorie pour les reproducteurs
+    if (animal.reproducteur) {
+      return;
+    }
+
+    // Calculer la nouvelle catégorie selon le poids
+    const nouvelleCategorie = getCategoriePoids(poidsKg);
+    
+    // Mettre à jour uniquement si la catégorie a changé
+    if (animal.categorie_poids !== nouvelleCategorie) {
+      await animalRepo.update(animalId, { categorie_poids: nouvelleCategorie });
+      
+      // Si l'animal passe de porcelet à croissance, mettre à jour son code pour commencer par "C"
+      if (animal.categorie_poids === 'porcelet' && nouvelleCategorie === 'croissance') {
+        // Générer un nouveau code avec préfixe "C"
+        const nouveauCode = await this.generateCodeCroissance(animal.projet_id);
+        await animalRepo.update(animalId, { code: nouveauCode });
+      }
+    }
+  }
+
+  /**
+   * Génère un code unique pour un porc en croissance (préfixe "C")
+   */
+  private async generateCodeCroissance(projetId: string): Promise<string> {
+    const animalRepo = new AnimalRepository(this.db);
+    const animauxProjet = await animalRepo.findByProjet(projetId);
+    
+    // Trouver le numéro le plus élevé parmi les codes commençant par "C"
+    let maxNum = 0;
+    animauxProjet.forEach((animal) => {
+      const codeUpper = animal.code.toUpperCase();
+      if (codeUpper.startsWith('C')) {
+        const num = parseInt(codeUpper.substring(1));
+        if (!isNaN(num) && num > maxNum) {
+          maxNum = num;
+        }
+      }
+    });
+
+    // Générer le nouveau code
+    const nouveauNum = maxNum + 1;
+    return `C${String(nouveauNum).padStart(3, '0')}`;
   }
 }
 

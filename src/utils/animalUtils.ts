@@ -99,14 +99,21 @@ export function filterActiveAnimals(
  * @param animaux Liste des animaux
  * @param peseesParAnimal Objet contenant les pesées par animal (id -> pesées[])
  * @param poidsMoyenProjet Poids moyen du projet à utiliser comme fallback
+ * @param exclureReproducteurs Si true, exclut les reproducteurs du calcul (par défaut: false)
  * @returns Poids total en kg
  */
 export function calculatePoidsTotalAnimauxActifs(
   animaux: ProductionAnimal[],
   peseesParAnimal: Record<string, Array<{ date: string; poids_kg: number }>>,
-  poidsMoyenProjet: number = 0
+  poidsMoyenProjet: number = 0,
+  exclureReproducteurs: boolean = false
 ): number {
-  const animauxActifs = animaux.filter((animal) => animal.statut?.toLowerCase() === 'actif');
+  let animauxActifs = animaux.filter((animal) => animal.statut?.toLowerCase() === 'actif');
+  
+  // Exclure les reproducteurs si demandé (pour les calculs de revenus prévisionnels)
+  if (exclureReproducteurs) {
+    animauxActifs = animauxActifs.filter((animal) => !animal.reproducteur);
+  }
 
   let poidsTotal = 0;
 
@@ -192,4 +199,78 @@ export function getStatutColor(
     default:
       return safeColors.textSecondary;
   }
+}
+
+/**
+ * Détermine la catégorie de poids d'un animal selon son poids actuel
+ * Règles métier :
+ * - Porcelet : poids entre 7 kg et 25 kg (inclus)
+ * - Croissance : poids entre 25 kg (exclus) et 60 kg (inclus)
+ * - Finition : poids supérieur à 60 kg
+ * 
+ * @param poidsKg Le poids de l'animal en kilogrammes
+ * @returns La catégorie de poids : 'porcelet' | 'croissance' | 'finition'
+ */
+export function getCategoriePoids(poidsKg: number): 'porcelet' | 'croissance' | 'finition' {
+  if (poidsKg < 7) {
+    // Si le poids est inférieur à 7 kg, on considère comme porcelet (nouveau-né)
+    return 'porcelet';
+  } else if (poidsKg >= 7 && poidsKg <= 25) {
+    return 'porcelet';
+  } else if (poidsKg > 25 && poidsKg <= 60) {
+    return 'croissance';
+  } else {
+    // poidsKg > 60
+    return 'finition';
+  }
+}
+
+/**
+ * Compte les animaux par catégorie de poids (Porcelets, Croissance, Finition)
+ * @param animaux Liste des animaux à compter
+ * @param peseesParAnimal Objet contenant les pesées par animal (id -> pesées[])
+ * @returns Objet avec le nombre de porcelets, croissance et finition
+ */
+export function countAnimalsByPoidsCategory(
+  animaux: ProductionAnimal[],
+  peseesParAnimal: Record<string, Array<{ date: string; poids_kg: number }>>
+): {
+  porcelets: number;
+  croissance: number;
+  finition: number;
+} {
+  let porcelets = 0;
+  let croissance = 0;
+  let finition = 0;
+
+  animaux.forEach((animal) => {
+    // Ne compter que les animaux actifs et non reproducteurs
+    if (animal.statut?.toLowerCase() !== 'actif' || animal.reproducteur) {
+      return;
+    }
+
+    // Récupérer le poids actuel
+    const pesees = peseesParAnimal[animal.id] || [];
+    let poidsActuel = animal.poids_initial || 0;
+
+    if (pesees.length > 0) {
+      // Trier les pesées par date (la plus récente en premier)
+      const peseesTriees = [...pesees].sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      poidsActuel = peseesTriees[0].poids_kg;
+    }
+
+    // Déterminer la catégorie selon le poids
+    const categorie = getCategoriePoids(poidsActuel);
+    if (categorie === 'porcelet') {
+      porcelets++;
+    } else if (categorie === 'croissance') {
+      croissance++;
+    } else {
+      finition++;
+    }
+  });
+
+  return { porcelets, croissance, finition };
 }

@@ -99,6 +99,8 @@ const permissionsByRole: Record<RoleType, RolePermissions> = {
 export const useRolePermissions = (): RolePermissions => {
   const { activeRole } = useRole();
 
-  return permissionsByRole[activeRole];
+  // S'assurer que activeRole est valide, sinon utiliser 'producer' par défaut
+  const validRole = activeRole && permissionsByRole[activeRole] ? activeRole : 'producer';
+  return permissionsByRole[validRole];
 };
 

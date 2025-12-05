@@ -28,7 +28,13 @@ export default function SettingsMarketplaceView({ onBack }: SettingsMarketplaceV
       <View style={styles.list}>
         <TouchableOpacity
           style={[styles.item, { borderBottomColor: colors.border }]}
-          onPress={() => Alert.alert('En développement', 'Conditions de vente par défaut')}
+          onPress={() => {
+            Alert.alert(
+              'Conditions de vente par défaut',
+              'Configurez les conditions de vente par défaut pour vos annonces sur le marketplace (prix au kg, mode de paiement, etc.). Cette fonctionnalité sera disponible prochainement.',
+              [{ text: 'OK' }]
+            );
+          }}
         >
           <Text style={[styles.itemText, { color: colors.text }]}>
             Conditions de vente par défaut
@@ -38,7 +44,13 @@ export default function SettingsMarketplaceView({ onBack }: SettingsMarketplaceV
 
         <TouchableOpacity
           style={[styles.item, { borderBottomColor: colors.border }]}
-          onPress={() => Alert.alert('En développement', 'Notifications marketplace')}
+          onPress={() => {
+            Alert.alert(
+              'Notifications marketplace',
+              'Configurez les notifications liées au marketplace (nouvelles offres, demandes, messages, etc.). Cette fonctionnalité sera disponible prochainement.',
+              [{ text: 'OK' }]
+            );
+          }}
         >
           <Text style={[styles.itemText, { color: colors.text }]}>Notifications marketplace</Text>
           <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
@@ -46,7 +58,13 @@ export default function SettingsMarketplaceView({ onBack }: SettingsMarketplaceV
 
         <TouchableOpacity
           style={styles.item}
-          onPress={() => Alert.alert('En développement', 'Préférences d\'affichage')}
+          onPress={() => {
+            Alert.alert(
+              'Préférences d\'affichage',
+              'Personnalisez l\'affichage du marketplace (tri par défaut, nombre d\'éléments par page, etc.). Cette fonctionnalité sera disponible prochainement.',
+              [{ text: 'OK' }]
+            );
+          }}
         >
           <Text style={[styles.itemText, { color: colors.text }]}>Préférences d'affichage</Text>
           <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />

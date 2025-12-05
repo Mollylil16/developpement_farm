@@ -218,12 +218,16 @@ const styles = StyleSheet.create({
   headerTextContainer: {
     flex: 1,
     marginLeft: SPACING.md,
+    marginRight: SPACING.sm,
+    flexShrink: 1,
+    minWidth: 0,
   },
   headerFirstLine: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.xs,
     marginBottom: 2,
+    flexWrap: 'wrap',
   },
   greeting: {
     fontSize: FONT_SIZES.sm,
@@ -267,6 +271,9 @@ const styles = StyleSheet.create({
   headerRightActions: {
     flexDirection: 'column',
     alignItems: 'flex-end',
+    justifyContent: 'flex-start',
+    marginLeft: SPACING.sm,
+    flexShrink: 0,
     gap: SPACING.xs,
     justifyContent: 'flex-start',
   },

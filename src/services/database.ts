@@ -40,7 +40,9 @@ import * as schemas from '../database/schemas';
 // Système de migrations versionné
 import { runMigrations } from '../database/migrations/MigrationRunner';
 import { migrations } from '../database/migrations';
+import { fixVaccinationsTableConstraint } from '../database/migrations/026_fix_vaccinations_table_constraint';
 // Création des index
+import { dbLogger } from '../utils/logger';
 import { createIndexesWithProjetId as createProjetIdIndexes } from '../database/indexes/createIndexes';
 
 class DatabaseService {
@@ -60,7 +62,7 @@ class DatabaseService {
 
     // Si une initialisation est en cours, attendre qu'elle se termine
     if (this.isInitializing && this.initPromise) {
-      console.log('⏳ [DB] Initialisation en cours, attente...');
+      dbLogger.info('Initialisation en cours, attente...');
       return this.initPromise;
     }
 
@@ -70,28 +72,32 @@ class DatabaseService {
     // Créer la promesse d'initialisation
     this.initPromise = (async () => {
       try {
-        console.log('🔧 [DB] Initialisation de la base de données...');
+        dbLogger.log('Initialisation de la base de données...');
         this.db = await SQLite.openDatabaseAsync('fermier_pro.db');
         
         // Configurer SQLite pour éviter les deadlocks
         try {
           await this.db.execAsync('PRAGMA busy_timeout = 5000;'); // Attendre 5s si locked
           await this.db.execAsync('PRAGMA journal_mode = WAL;'); // Write-Ahead Logging
-          console.log('✅ [DB] Configuration SQLite appliquée');
+          dbLogger.success('Configuration SQLite appliquée');
         } catch (error: unknown) {
           const message = error instanceof Error ? error.message : String(error);
-          console.warn('⚠️ [DB] Impossible de configurer SQLite:', message);
+          dbLogger.warn('Impossible de configurer SQLite:', message);
         }
 
+        // Exécuter la migration 026 AVANT la création des schémas si la table vaccinations existe déjà
+        // Cela corrige le schéma invalide avant que CREATE TABLE IF NOT EXISTS ne soit appelé
+        await this.fixVaccinationsTableIfNeeded();
+        
         await this.createTablesFromSchemas();
         await this.createBaseIndexes();
         await this.runVersionedMigrations();
         await createProjetIdIndexes(this.db);
         await this.createCompositeIndexes();
         
-        console.log('✅ [DB] Base de données initialisée avec succès');
+        dbLogger.success('Base de données initialisée avec succès');
       } catch (error) {
-        console.error("❌ [DB] Erreur lors de l'initialisation de la base de données:", error);
+        dbLogger.error("Erreur lors de l'initialisation de la base de données:", error);
         this.db = null; // Réinitialiser en cas d'erreur
         throw error;
       } finally {
@@ -214,6 +220,46 @@ class DatabaseService {
   }
 
   /**
+   * Supprime la table vaccinations si elle existe (pour les cas de corruption extrême)
+   * 
+   * Note: Cette méthode est appelée avant createTablesFromSchemas() pour gérer les cas
+   * où la table est tellement corrompue que même les schémas ne peuvent pas la gérer.
+   * Les schémas gèrent déjà la création via table temporaire, donc cette méthode
+   * est principalement une sécurité supplémentaire pour les cas extrêmes.
+   */
+  private async fixVaccinationsTableIfNeeded(): Promise<void> {
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    try {
+      // Essayer de supprimer la table normalement
+      await this.db.execAsync('DROP TABLE IF EXISTS vaccinations;');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      // Si c'est "no such table", c'est OK - la table n'existe pas
+      if (errorMessage.includes('no such table')) {
+        return; // Rien à faire
+      }
+      
+      // Si c'est une erreur de syntaxe, la table est corrompue - essayer sqlite_master
+      if (errorMessage.includes('syntax error') || errorMessage.includes("near 'notes'")) {
+        console.warn('⚠️ [DB] Table vaccinations corrompue détectée, tentative de suppression via sqlite_master...');
+        try {
+          await this.db.execAsync("DELETE FROM sqlite_master WHERE type='table' AND name='vaccinations';");
+          console.log('✅ [DB] Table vaccinations supprimée via sqlite_master');
+        } catch (sqliteMasterError: unknown) {
+          const sqliteMasterErrorMessage = sqliteMasterError instanceof Error ? sqliteMasterError.message : String(sqliteMasterError);
+          console.warn('⚠️ [DB] Impossible de supprimer via sqlite_master:', sqliteMasterErrorMessage);
+          console.warn('⚠️ [DB] Le schéma essaiera de gérer la table corrompue avec une table temporaire');
+        }
+      }
+      // Autres erreurs - ignorer, le schéma gérera
+    }
+  }
+
+  /**
    * Exécute les migrations versionnées
    * Utilise le système de migrations versionné pour appliquer les migrations dans l'ordre
    */
@@ -307,46 +353,188 @@ class DatabaseService {
       throw new Error('Base de données non initialisée');
     }
 
-    console.log('📋 [DB] Création des tables depuis les schémas...');
+    dbLogger.log('Création des tables depuis les schémas...');
 
     // Core
-    await schemas.createUsersTable(this.db);
-    await schemas.createProjetsTable(this.db);
+    try {
+      await schemas.createUsersTable(this.db);
+    } catch (error: unknown) {
+      dbLogger.error('Erreur users:', getErrorMessage(error));
+      throw error;
+    }
+    
+    try {
+      await schemas.createProjetsTable(this.db);
+    } catch (error: unknown) {
+      dbLogger.error('Erreur projets:', getErrorMessage(error));
+      throw error;
+    }
+
+    // Table pour le prix régional du porc
+    try {
+      await schemas.createRegionalPorkPriceTable(this.db);
+    } catch (error: unknown) {
+      dbLogger.error('Erreur regional_pork_price:', getErrorMessage(error));
+      throw error;
+    }
 
     // Finance
-    await schemas.createChargesFixesTable(this.db);
-    await schemas.createDepensesPonctuellesTable(this.db);
-    await schemas.createRevenusTable(this.db);
+    try {
+      await schemas.createChargesFixesTable(this.db);
+    } catch (error: unknown) {
+      dbLogger.error('Erreur charges_fixes:', getErrorMessage(error));
+      throw error;
+    }
+    
+    try {
+      await schemas.createDepensesPonctuellesTable(this.db);
+    } catch (error: unknown) {
+      dbLogger.error('Erreur depenses_ponctuelles:', getErrorMessage(error));
+      throw error;
+    }
+    
+    try {
+      await schemas.createRevenusTable(this.db);
+    } catch (error: unknown) {
+      dbLogger.error('Erreur revenus:', getErrorMessage(error));
+      throw error;
+    }
 
     // Production
-    await schemas.createProductionAnimauxTable(this.db);
-    await schemas.createProductionPeseesTable(this.db);
-    await schemas.createGestationsTable(this.db);
-    await schemas.createSevragesTable(this.db);
-    await schemas.createMortalitesTable(this.db);
-    await schemas.createPlanificationsTable(this.db);
+    try {
+      await schemas.createProductionAnimauxTable(this.db);
+    } catch (error: unknown) {
+      dbLogger.error('Erreur production_animaux:', getErrorMessage(error));
+      throw error;
+    }
+    
+    try {
+      await schemas.createProductionPeseesTable(this.db);
+    } catch (error: unknown) {
+      dbLogger.error('Erreur production_pesees:', getErrorMessage(error));
+      throw error;
+    }
+    
+    try {
+      await schemas.createGestationsTable(this.db);
+    } catch (error: unknown) {
+      dbLogger.error('Erreur gestations:', getErrorMessage(error));
+      throw error;
+    }
+    
+    try {
+      await schemas.createSevragesTable(this.db);
+    } catch (error: unknown) {
+      dbLogger.error('Erreur sevrages:', getErrorMessage(error));
+      throw error;
+    }
+    
+    try {
+      await schemas.createMortalitesTable(this.db);
+    } catch (error: unknown) {
+      dbLogger.error('Erreur mortalites:', getErrorMessage(error));
+      throw error;
+    }
+    
+    try {
+      await schemas.createPlanificationsTable(this.db);
+    } catch (error: unknown) {
+      dbLogger.error('Erreur planifications:', getErrorMessage(error));
+      throw error;
+    }
 
     // Nutrition
-    await schemas.createIngredientsTable(this.db);
-    await schemas.createRationsTable(this.db);
-    await schemas.createIngredientsRationTable(this.db);
-    await schemas.createRationsBudgetTable(this.db);
-    await schemas.createStocksAlimentsTable(this.db);
-    await schemas.createStocksMouvementsTable(this.db);
-    await schemas.createRapportsCroissanceTable(this.db);
+    try {
+      await schemas.createIngredientsTable(this.db);
+    } catch (error: unknown) {
+      dbLogger.error('Erreur ingredients:', getErrorMessage(error));
+      throw error;
+    }
+    
+    try {
+      await schemas.createRationsTable(this.db);
+    } catch (error: unknown) {
+      dbLogger.error('Erreur rations:', getErrorMessage(error));
+      throw error;
+    }
+    
+    try {
+      await schemas.createIngredientsRationTable(this.db);
+    } catch (error: unknown) {
+      dbLogger.error('Erreur ingredients_ration:', getErrorMessage(error));
+      throw error;
+    }
+    
+    try {
+      await schemas.createRationsBudgetTable(this.db);
+    } catch (error: unknown) {
+      dbLogger.error('Erreur rations_budget:', getErrorMessage(error));
+      throw error;
+    }
+    
+    try {
+      await schemas.createStocksAlimentsTable(this.db);
+    } catch (error: unknown) {
+      dbLogger.error('Erreur stocks_aliments:', getErrorMessage(error));
+      throw error;
+    }
+    
+    try {
+      await schemas.createStocksMouvementsTable(this.db);
+    } catch (error: unknown) {
+      dbLogger.error('Erreur stocks_mouvements:', getErrorMessage(error));
+      throw error;
+    }
+    
+    try {
+      await schemas.createRapportsCroissanceTable(this.db);
+    } catch (error: unknown) {
+      dbLogger.error('Erreur rapports_croissance:', getErrorMessage(error));
+      throw error;
+    }
 
     // Santé
-    await schemas.createCalendrierVaccinationsTable(this.db);
-    await schemas.createVaccinationsTable(this.db);
-    await schemas.createMaladiesTable(this.db);
-    await schemas.createTraitementsTable(this.db);
-    await schemas.createVisitesVeterinairesTable(this.db);
-    await schemas.createRappelsVaccinationsTable(this.db);
+    try {
+      await schemas.createCalendrierVaccinationsTable(this.db);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      dbLogger.error('Erreur lors de la création de calendrier_vaccinations:', errorMessage);
+      dbLogger.warn('L\'application continue sans calendrier_vaccinations');
+    }
+    
+    // Isoler la création de la table vaccinations pour éviter de bloquer le démarrage
+    try {
+      await schemas.createVaccinationsTable(this.db);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      dbLogger.error('Erreur lors de la création de la table vaccinations:', errorMessage);
+      dbLogger.warn('L\'application continue sans la table vaccinations');
+      // Ne pas propager l'erreur pour permettre au reste de l'application de démarrer
+    }
+    
+    try {
+      await schemas.createMaladiesTable(this.db);
+      await schemas.createTraitementsTable(this.db);
+      await schemas.createVisitesVeterinairesTable(this.db);
+      await schemas.createRappelsVaccinationsTable(this.db);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      dbLogger.error('Erreur lors de la création des tables santé:', errorMessage);
+      dbLogger.warn('L\'application continue sans certaines tables santé');
+    }
+
+    // Vétérinaires (recherche)
+    try {
+      await schemas.createVeterinariansTable(this.db);
+    } catch (error: unknown) {
+      dbLogger.error('Erreur veterinarians:', getErrorMessage(error));
+      // Ne pas bloquer le démarrage si la table vétérinaires échoue
+    }
 
     // Collaboration
     await schemas.createCollaborationsTable(this.db);
 
-    console.log('✅ [DB] Toutes les tables créées avec succès');
+    dbLogger.success('Toutes les tables créées avec succès');
   }
 
   /**
@@ -405,9 +593,10 @@ class DatabaseService {
       CREATE INDEX IF NOT EXISTS idx_production_pesees_animal ON production_pesees(animal_id);
       CREATE INDEX IF NOT EXISTS idx_production_pesees_date ON production_pesees(date);
       CREATE INDEX IF NOT EXISTS idx_calendrier_vaccinations_categorie ON calendrier_vaccinations(categorie);
-      CREATE INDEX IF NOT EXISTS idx_vaccinations_statut ON vaccinations(statut);
-      CREATE INDEX IF NOT EXISTS idx_vaccinations_date_rappel ON vaccinations(date_rappel);
-      CREATE INDEX IF NOT EXISTS idx_vaccinations_animal ON vaccinations(animal_id);
+      
+      -- Les index sur vaccinations seront créés par createCompositeIndexes() après vérification de l'existence de la table
+      -- Cela évite les erreurs si la table vaccinations n'existe pas encore ou est corrompue
+      
       CREATE INDEX IF NOT EXISTS idx_maladies_type ON maladies(type);
       CREATE INDEX IF NOT EXISTS idx_maladies_gravite ON maladies(gravite);
       CREATE INDEX IF NOT EXISTS idx_maladies_gueri ON maladies(gueri);

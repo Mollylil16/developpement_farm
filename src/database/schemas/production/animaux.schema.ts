@@ -24,6 +24,7 @@ export async function createProductionAnimauxTable(db: SQLite.SQLiteDatabase): P
       statut TEXT DEFAULT 'actif' CHECK (statut IN ('actif', 'mort', 'vendu', 'offert', 'autre')),
       race TEXT,
       reproducteur INTEGER DEFAULT 0 CHECK (reproducteur IN (0, 1)),
+      categorie_poids TEXT CHECK (categorie_poids IN ('porcelet', 'croissance', 'finition')),
       pere_id TEXT,
       mere_id TEXT,
       notes TEXT,

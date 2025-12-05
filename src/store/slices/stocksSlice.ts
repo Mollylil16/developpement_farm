@@ -35,8 +35,8 @@ export const loadStocks = createAsyncThunk(
       const stockRepo = new StockRepository(db);
       const stocks = await stockRepo.findByProjet(projetId);
       return stocks;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement des stocks');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des stocks');
     }
   }
 );
@@ -49,8 +49,8 @@ export const createStockAliment = createAsyncThunk(
       const stockRepo = new StockRepository(db);
       const stock = await stockRepo.create(input);
       return stock;
-    } catch (error: any) {
-      return rejectWithValue(error.message || "Erreur lors de la création de l'aliment");
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || "Erreur lors de la création de l'aliment");
     }
   }
 );
@@ -66,8 +66,8 @@ export const updateStockAliment = createAsyncThunk(
       const stockRepo = new StockRepository(db);
       const stock = await stockRepo.update(id, updates);
       return stock;
-    } catch (error: any) {
-      return rejectWithValue(error.message || "Erreur lors de la mise à jour de l'aliment");
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || "Erreur lors de la mise à jour de l'aliment");
     }
   }
 );
@@ -80,8 +80,8 @@ export const deleteStockAliment = createAsyncThunk(
       const stockRepo = new StockRepository(db);
       await stockRepo.delete(id);
       return id;
-    } catch (error: any) {
-      return rejectWithValue(error.message || "Erreur lors de la suppression de l'aliment");
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || "Erreur lors de la suppression de l'aliment");
     }
   }
 );
@@ -140,8 +140,8 @@ export const createStockMouvement = createAsyncThunk(
         } as StockMouvement,
         stock,
       };
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la création du mouvement');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création du mouvement');
     }
   }
 );
@@ -154,8 +154,8 @@ export const loadMouvementsParAliment = createAsyncThunk(
       const stockRepo = new StockRepository(db);
       const mouvements = await stockRepo.getMouvements(alimentId, limit);
       return { alimentId, mouvements };
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement des mouvements');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des mouvements');
     }
   }
 );
@@ -169,8 +169,8 @@ export const loadStockStats = createAsyncThunk(
       const stockRepo = new StockRepository(db);
       const stats = await stockRepo.getStats(projetId);
       return stats;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement des statistiques');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des statistiques');
     }
   }
 );
@@ -183,8 +183,8 @@ export const loadValeurTotaleStock = createAsyncThunk(
       const stockRepo = new StockRepository(db);
       const valeur = await stockRepo.getValeurTotaleStock(projetId);
       return valeur;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du calcul de la valeur');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du calcul de la valeur');
     }
   }
 );
@@ -197,8 +197,8 @@ export const loadStocksEnAlerte = createAsyncThunk(
       const stockRepo = new StockRepository(db);
       const stocks = await stockRepo.findEnAlerte(projetId);
       return stocks;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement des stocks en alerte');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des stocks en alerte');
     }
   }
 );

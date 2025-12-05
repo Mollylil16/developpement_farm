@@ -562,7 +562,7 @@ const santeSlice = createSlice({
       })
       .addCase(loadCalendrierVaccinations.rejected, (state, action) => {
         state.loading.calendrier = false;
-        state.error = action.error.message || 'Erreur lors du chargement du calendrier';
+        state.error = getErrorMessage(action.error) || 'Erreur lors du chargement du calendrier';
       })
 
       .addCase(createCalendrierVaccination.fulfilled, (state, action) => {
@@ -618,7 +618,7 @@ const santeSlice = createSlice({
       })
       .addCase(loadVaccinations.rejected, (state, action) => {
         state.loading.vaccinations = false;
-        state.error = action.error.message || 'Erreur lors du chargement des vaccinations';
+        state.error = getErrorMessage(action.error) || 'Erreur lors du chargement des vaccinations';
       })
 
       .addCase(createVaccination.fulfilled, (state, action) => {
@@ -682,7 +682,7 @@ const santeSlice = createSlice({
       })
       .addCase(loadMaladies.rejected, (state, action) => {
         state.loading.maladies = false;
-        state.error = action.error.message || 'Erreur lors du chargement des maladies';
+        state.error = getErrorMessage(action.error) || 'Erreur lors du chargement des maladies';
       })
 
       .addCase(createMaladie.fulfilled, (state, action) => {
@@ -736,7 +736,7 @@ const santeSlice = createSlice({
       })
       .addCase(loadTraitements.rejected, (state, action) => {
         state.loading.traitements = false;
-        state.error = action.error.message || 'Erreur lors du chargement des traitements';
+        state.error = getErrorMessage(action.error) || 'Erreur lors du chargement des traitements';
       })
 
       .addCase(createTraitement.fulfilled, (state, action) => {
@@ -790,7 +790,7 @@ const santeSlice = createSlice({
       })
       .addCase(loadVisitesVeterinaires.rejected, (state, action) => {
         state.loading.visites = false;
-        state.error = action.error.message || 'Erreur lors du chargement des visites';
+        state.error = getErrorMessage(action.error) || 'Erreur lors du chargement des visites';
       })
 
       .addCase(createVisiteVeterinaire.fulfilled, (state, action) => {
@@ -835,7 +835,7 @@ const santeSlice = createSlice({
       })
       .addCase(loadRappelsVaccinations.rejected, (state, action) => {
         state.loading.rappels = false;
-        state.error = action.error.message || 'Erreur lors du chargement des rappels';
+        state.error = getErrorMessage(action.error) || 'Erreur lors du chargement des rappels';
       })
 
       .addCase(loadRappelsAVenir.fulfilled, (state, action) => {
@@ -879,7 +879,7 @@ const santeSlice = createSlice({
       })
       .addCase(loadStatistiquesVaccinations.rejected, (state, action) => {
         state.loading.statistics = false;
-        state.error = action.error.message || 'Erreur lors du chargement des statistiques';
+        state.error = getErrorMessage(action.error) || 'Erreur lors du chargement des statistiques';
       })
 
       .addCase(loadStatistiquesMaladies.fulfilled, (state, action) => {
@@ -902,7 +902,7 @@ const santeSlice = createSlice({
       })
       .addCase(loadAlertesSanitaires.rejected, (state, action) => {
         state.loading.alertes = false;
-        state.error = action.error.message || 'Erreur lors du chargement des alertes';
+        state.error = getErrorMessage(action.error) || 'Erreur lors du chargement des alertes';
       });
   },
 });

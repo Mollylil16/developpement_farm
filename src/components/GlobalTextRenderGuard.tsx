@@ -33,7 +33,31 @@ export class GlobalTextRenderGuard extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     if (error.message && error.message.includes('Text strings must be rendered')) {
-      console.error('🔴 [GlobalTextRenderGuard] Component Stack:', errorInfo.componentStack);
+      console.error('🔴 [GlobalTextRenderGuard] ERREUR DE RENDU DE TEXTE DÉTECTÉE:', {
+        error: error.toString(),
+        message: error.message,
+        stack: error.stack,
+        componentStack: errorInfo.componentStack,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Extraire TOUS les composants depuis le componentStack
+      const componentMatches = errorInfo.componentStack?.matchAll(/at\s+(\w+)\s*\(/g);
+      if (componentMatches) {
+        const components = Array.from(componentMatches, m => m[1]);
+        console.error(`🔍 [GlobalTextRenderGuard] Composants dans la stack (ordre d'appel):`, components);
+      }
+
+      // Extraire les lignes de code depuis le stack trace
+      const stackLines = error.stack?.split('\n') || [];
+      console.error('📋 [GlobalTextRenderGuard] Stack trace complet (premières 30 lignes):', stackLines.slice(0, 30));
+
+      // Extraire les fichiers depuis le componentStack
+      const fileMatches = errorInfo.componentStack?.matchAll(/\(([^)]+\.tsx?):(\d+):(\d+)\)/g);
+      if (fileMatches) {
+        const files = Array.from(fileMatches, m => ({ file: m[1], line: m[2], col: m[3] }));
+        console.error('📁 [GlobalTextRenderGuard] Fichiers dans la stack:', files);
+      }
     }
   }
 

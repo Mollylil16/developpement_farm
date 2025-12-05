@@ -12,6 +12,7 @@ import {
   Pressable,
   Alert,
   RefreshControl,
+  Dimensions,
 } from 'react-native';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import {
@@ -28,6 +29,10 @@ import StockAlimentFormModal from './StockAlimentFormModal';
 import StockMovementFormModal from './StockMovementFormModal';
 import Button from './Button';
 import { useActionPermissions } from '../hooks/useActionPermissions';
+
+const screenWidth = Dimensions.get('window').width;
+// Largeur fixe pour les cartes : largeur écran - (padding horizontal * 2)
+const CARD_FIXED_WIDTH = screenWidth - SPACING.xl * 2;
 
 export default function NutritionStockComponent() {
   const { colors } = useTheme();
@@ -208,7 +213,7 @@ export default function NutritionStockComponent() {
             </Text>
           </View>
         </View>
-        {alertes.length > 0 && (
+        {alertes.length > 0 ? (
           <View style={[styles.alertBox, { backgroundColor: colors.error + '15' }]}>
             <Text style={[styles.alertTitle, { color: colors.error }]}>⚠️ Alertes stock bas</Text>
             {alertes.slice(0, 3).map((stock) => (
@@ -223,7 +228,7 @@ export default function NutritionStockComponent() {
               </Text>
             )}
           </View>
-        )}
+        ) : null}
       </View>
     </View>
   );
@@ -484,6 +489,15 @@ const styles = StyleSheet.create({
     marginHorizontal: SPACING.xl,
     marginTop: SPACING.lg + 10,
     marginBottom: SPACING.lg,
+    // Largeur fixe identique aux cartes détaillées
+    width: CARD_FIXED_WIDTH,
+    alignSelf: 'center', // Centre la carte
+    // Hauteur minimale fixe pour garantir une dimension stable
+    // Calcul: padding (32*2=64) + header (~50) + stats (~70) = ~184px minimum
+    // On utilise minHeight pour permettre l'expansion si nécessaire (alertes)
+    // mais garantir une hauteur minimale stable
+    minHeight: 180,
+    flexShrink: 0, // Empêche la carte de rétrécir
   },
   summaryHeader: {
     flexDirection: 'row',
@@ -537,7 +551,7 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xs,
   },
   listContainer: {
-    paddingHorizontal: SPACING.xl,
+    paddingHorizontal: 0, // Pas de padding horizontal car les cartes ont déjà une largeur fixe
     paddingBottom: 100, // Espace pour la barre de navigation
   },
   card: {
@@ -546,6 +560,9 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
     borderWidth: 1,
     overflow: 'hidden',
+    // Largeur fixe identique à la carte "Suivi des stocks"
+    width: CARD_FIXED_WIDTH,
+    alignSelf: 'center', // Centre la carte
   },
   cardSelectable: {
     marginBottom: SPACING.md,

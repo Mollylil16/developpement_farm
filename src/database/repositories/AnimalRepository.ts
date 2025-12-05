@@ -39,8 +39,8 @@ export class AnimalRepository extends BaseRepository<ProductionAnimal> {
       `INSERT INTO production_animaux (
         id, projet_id, code, nom, sexe, race, date_naissance,
         reproducteur, statut, actif, photo_uri, origine, date_entree, poids_initial, 
-        notes, pere_id, mere_id, date_creation, derniere_modification
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        categorie_poids, notes, pere_id, mere_id, date_creation, derniere_modification
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         data.projet_id,
@@ -56,6 +56,7 @@ export class AnimalRepository extends BaseRepository<ProductionAnimal> {
         data.origine || null,
         data.date_entree || null,
         data.poids_initial || null,
+        data.categorie_poids || null,
         data.notes || null,
         data.pere_id || null,
         data.mere_id || null,
@@ -142,11 +143,16 @@ export class AnimalRepository extends BaseRepository<ProductionAnimal> {
     }
     if (data.poids_initial !== undefined) {
       fields.push('poids_initial = ?');
-      values.push(data.poids_initial);
+      // Convertir 0 en null pour respecter la contrainte CHECK (poids_initial IS NULL OR poids_initial > 0)
+      values.push(data.poids_initial === 0 || data.poids_initial === null ? null : data.poids_initial);
     }
     if (data.notes !== undefined) {
       fields.push('notes = ?');
       values.push(data.notes);
+    }
+    if (data.categorie_poids !== undefined) {
+      fields.push('categorie_poids = ?');
+      values.push(data.categorie_poids);
     }
 
     // Toujours mettre à jour derniere_modification

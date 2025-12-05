@@ -39,6 +39,7 @@ export { TraitementRepository } from './TraitementRepository';
 export { VisiteVeterinaireRepository } from './VisiteVeterinaireRepository';
 export { RappelVaccinationRepository, CreateRappelVaccinationInput } from './RappelVaccinationRepository';
 export { MortaliteRepository } from './MortaliteRepository';
+export { VeterinarianRepository } from './VeterinarianRepository';
 
 // Nutrition
 export { StockRepository } from './StockRepository';

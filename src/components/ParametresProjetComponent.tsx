@@ -80,6 +80,7 @@ export default function ParametresProjetComponent() {
         nombre_truies: projetActif.nombre_truies,
         nombre_verrats: projetActif.nombre_verrats,
         nombre_porcelets: projetActif.nombre_porcelets,
+        nombre_croissance: projetActif.nombre_croissance || 0,
         poids_moyen_actuel: projetActif.poids_moyen_actuel,
         age_moyen_actuel: projetActif.age_moyen_actuel,
         prix_kg_vif: projetActif.prix_kg_vif,
@@ -322,6 +323,14 @@ export default function ParametresProjetComponent() {
                   value={editData.nombre_porcelets?.toString() || '0'}
                   onChangeText={(text) =>
                     setEditData({ ...editData, nombre_porcelets: parseInt(text) || 0 })
+                  }
+                  keyboardType="numeric"
+                />
+                <FormField
+                  label="Nombre de porcs en croissance"
+                  value={(editData.nombre_croissance || 0).toString()}
+                  onChangeText={(text) =>
+                    setEditData({ ...editData, nombre_croissance: parseInt(text) || 0 })
                   }
                   keyboardType="numeric"
                 />

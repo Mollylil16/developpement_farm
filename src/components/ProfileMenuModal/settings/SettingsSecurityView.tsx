@@ -28,7 +28,13 @@ export default function SettingsSecurityView({ onBack }: SettingsSecurityViewPro
       <View style={styles.list}>
         <TouchableOpacity
           style={[styles.item, { borderBottomColor: colors.border }]}
-          onPress={() => Alert.alert('En développement', 'Historique de connexion')}
+          onPress={() => {
+            Alert.alert(
+              'Historique de connexion',
+              'L\'historique de connexion affiche les dernières connexions à votre compte. Cette fonctionnalité sera disponible prochainement.',
+              [{ text: 'OK' }]
+            );
+          }}
         >
           <Text style={[styles.itemText, { color: colors.text }]}>Historique de connexion</Text>
           <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
@@ -36,7 +42,13 @@ export default function SettingsSecurityView({ onBack }: SettingsSecurityViewPro
 
         <TouchableOpacity
           style={[styles.item, { borderBottomColor: colors.border }]}
-          onPress={() => Alert.alert('En développement', 'Appareils connectés')}
+          onPress={() => {
+            Alert.alert(
+              'Appareils connectés',
+              'Gérez les appareils connectés à votre compte. Vous pouvez voir tous les appareils actifs et les déconnecter si nécessaire. Cette fonctionnalité sera disponible prochainement.',
+              [{ text: 'OK' }]
+            );
+          }}
         >
           <Text style={[styles.itemText, { color: colors.text }]}>Appareils connectés</Text>
           <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
@@ -44,7 +56,13 @@ export default function SettingsSecurityView({ onBack }: SettingsSecurityViewPro
 
         <TouchableOpacity
           style={styles.item}
-          onPress={() => Alert.alert('En développement', 'Authentification 2FA')}
+          onPress={() => {
+            Alert.alert(
+              'Authentification 2FA',
+              'L\'authentification à deux facteurs (2FA) ajoute une couche de sécurité supplémentaire à votre compte. Cette fonctionnalité sera disponible prochainement.',
+              [{ text: 'OK' }]
+            );
+          }}
         >
           <Text style={[styles.itemText, { color: colors.text }]}>Authentification 2FA</Text>
           <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />

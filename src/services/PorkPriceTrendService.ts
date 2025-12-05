@@ -17,10 +17,11 @@ import { MarketplaceListingRepository } from '../database/repositories/Marketpla
 import { AnimalRepository } from '../database/repositories/AnimalRepository';
 import { PeseeRepository } from '../database/repositories/PeseeRepository';
 import type { Transaction, Offer, MarketplaceListing } from '../types/marketplace';
+import { getRegionalPriceService } from './RegionalPriceService';
 
 /**
  * Prix moyen régional par défaut (FCFA/kg)
- * Peut être mis à jour manuellement ou via une API externe
+ * Utilisé comme fallback si le service de prix régional n'est pas disponible
  */
 const DEFAULT_REGIONAL_PRICE = 2300; // FCFA/kg
 
@@ -182,7 +183,16 @@ export class PorkPriceTrendService {
     }
 
     // 4. Prix régional (fallback)
-    const avgPriceRegional = DEFAULT_REGIONAL_PRICE;
+    // Récupérer le prix régional depuis le service (qui peut utiliser une API)
+    let avgPriceRegional: number;
+    try {
+      const regionalPriceService = getRegionalPriceService(this.db);
+      avgPriceRegional = await regionalPriceService.getCurrentRegionalPrice();
+    } catch (error) {
+      console.warn('⚠️ [PorkPriceTrendService] Erreur lors de la récupération du prix régional, utilisation du prix par défaut:', error);
+      avgPriceRegional = DEFAULT_REGIONAL_PRICE;
+    }
+
     let sourcePriority: 'platform' | 'offers' | 'listings' | 'regional' = 'platform';
     if (!avgPricePlatform) {
       avgPricePlatform = avgPriceRegional;

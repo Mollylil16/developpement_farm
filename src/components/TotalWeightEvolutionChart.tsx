@@ -9,7 +9,7 @@ import { LineChart } from 'react-native-chart-kit';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { SPACING } from '../constants/theme';
-import { format, parseISO, startOfMonth, startOfWeek } from 'date-fns';
+import { format, parseISO, startOfMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { evaluerGMQCheptel } from '../utils/gmqEvaluation';
 
@@ -41,27 +41,18 @@ export default function TotalWeightEvolutionChart({
       return null;
     }
 
-    // Déterminer le type de groupement selon la période
-    const groupBy = periode <= 30 ? 'week' : 'month';
+    // Toujours grouper par mois
+    const groupBy = 'month';
 
-    // Grouper les données par semaine ou mois
+    // Grouper les données par mois
     const grouped = evolutionData.reduce(
       (
         acc: Record<string, { poidsTotal: number[]; count: number; date: Date }>,
         item: { date: string; poidsTotal: number }
       ) => {
         const dateItem = parseISO(item.date);
-        let key: string;
-        let dateReference: Date;
-
-        if (groupBy === 'week') {
-          const weekStart = startOfWeek(dateItem, { weekStartsOn: 1 }); // Lundi comme début de semaine
-          dateReference = weekStart;
-          key = format(weekStart, 'dd MMM', { locale: fr });
-        } else {
-          dateReference = startOfMonth(dateItem);
-          key = format(dateItem, 'MMM yyyy', { locale: fr });
-        }
+        const dateReference = startOfMonth(dateItem);
+        const key = format(dateItem, 'MMM yyyy', { locale: fr });
 
         if (!acc[key]) {
           acc[key] = { poidsTotal: [], count: 0, date: dateReference };
@@ -78,8 +69,8 @@ export default function TotalWeightEvolutionChart({
       return grouped[a].date.getTime() - grouped[b].date.getTime();
     });
 
-    // Limiter le nombre de points affichés pour la lisibilité (comme dans TendancesChartsComponent)
-    const maxPoints = groupBy === 'week' ? 8 : 12; // 8 semaines ou 12 mois max
+    // Limiter le nombre de points affichés pour la lisibilité
+    const maxPoints = 12; // 12 mois max
     const keysToDisplay = sortedKeys.slice(-maxPoints);
 
     // Calculer le poids moyen pour chaque période

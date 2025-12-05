@@ -46,7 +46,7 @@ export const createProjet = createAsyncThunk(
       });
       return projet;
     } catch (error: unknown) {
-      return rejectWithValue(error.message || 'Erreur lors de la création du projet');
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création du projet');
     }
   }
 );
@@ -63,7 +63,7 @@ export const loadProjets = createAsyncThunk(
       const projets = userId ? await projetRepo.findAllByUserId(userId) : await projetRepo.findAll();
       return projets;
     } catch (error: unknown) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement des projets');
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des projets');
     }
   }
 );
@@ -83,7 +83,7 @@ export const loadProjetActif = createAsyncThunk(
       const projet = await projetRepo.findActiveByUserId(userId);
       return projet;
     } catch (error: unknown) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement du projet actif');
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement du projet actif');
     }
   }
 );
@@ -125,7 +125,7 @@ export const switchProjetActif = createAsyncThunk(
       );
       return nouveauProjet;
     } catch (error: unknown) {
-      return rejectWithValue(error.message || 'Erreur lors du changement de projet');
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du changement de projet');
     }
   }
 );
@@ -150,7 +150,7 @@ export const updateProjet = createAsyncThunk(
       const projet = await projetRepo.update(id, updates, userId);
       return projet;
     } catch (error: unknown) {
-      return rejectWithValue(error.message || 'Erreur lors de la mise à jour du projet');
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la mise à jour du projet');
     }
   }
 );

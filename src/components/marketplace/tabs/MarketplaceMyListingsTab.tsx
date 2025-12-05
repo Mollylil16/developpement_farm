@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useAppSelector } from '../../../store/hooks';
+import { selectAllAnimaux } from '../../../store/selectors/productionSelectors';
 import { getDatabase } from '../../../services/database';
 import { getMarketplaceService } from '../../../services/MarketplaceService';
 import { MarketplaceTheme } from '../../../styles/marketplace.theme';
@@ -32,11 +33,7 @@ export default function MarketplaceMyListingsTab({
 }: MarketplaceMyListingsTabProps) {
   const marketplaceColors = MarketplaceTheme.colors;
   const { user } = useAppSelector((state) => state.auth);
-  const allAnimaux = useAppSelector((state) => {
-    const prodState = state.production;
-    if (!prodState?.entities?.animaux || !prodState?.ids?.animaux) return [];
-    return prodState.ids.animaux.map((id) => prodState.entities.animaux[id]).filter(Boolean);
-  });
+  const allAnimaux = useAppSelector(selectAllAnimaux);
 
   const handleRemove = async (listing: MarketplaceListing) => {
     Alert.alert(
@@ -76,7 +73,7 @@ export default function MarketplaceMyListingsTab({
         <View style={styles.header}>
           <Text style={[styles.code, { color: marketplaceColors.text }]}>
             {animal?.code || item.code || `#${item.subjectId.slice(0, 8)}`}
-            {animal?.nom ? ` (${animal.nom})` : ''}
+            {animal?.nom ? ` (${animal.nom})` : null}
           </Text>
           <View style={styles.actions}>
             <TouchableOpacity

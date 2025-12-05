@@ -304,6 +304,7 @@ export default function RevenuFormModal({
               commentaire: formData.commentaire,
               photos: formData.photos || [],
               animal_id: selectedAnimalId || animalId,
+              poids_kg: poidsKg ? parseFloat(poidsKg) : null,
             },
           })
         ).unwrap();
@@ -324,7 +325,12 @@ export default function RevenuFormModal({
           return;
         }
         const result = await dispatch(
-          createRevenu({ ...formData, projet_id: projetActif.id, animal_id: selectedAnimalId || animalId })
+          createRevenu({ 
+            ...formData, 
+            projet_id: projetActif.id, 
+            animal_id: selectedAnimalId || animalId,
+            poids_kg: poidsKg ? parseFloat(poidsKg) : null
+          })
         ).unwrap();
         
         // Si vente de porc avec poids, calculer les marges

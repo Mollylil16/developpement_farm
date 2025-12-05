@@ -3,7 +3,7 @@
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, RefreshControl } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadChargesFixes, deleteChargeFixe, updateChargeFixe } from '../store/slices/financeSlice';
 import { ChargeFixe, StatutChargeFixe } from '../types';
@@ -13,20 +13,20 @@ import EmptyState from './EmptyState';
 import LoadingSpinner from './LoadingSpinner';
 import ChargeFixeFormModal from './ChargeFixeFormModal';
 import { useActionPermissions } from '../hooks/useActionPermissions';
-import { selectAllChargesFixes } from '../store/selectors/financeSelectors';
+import { selectAllChargesFixes, selectFinanceLoading } from '../store/selectors/financeSelectors';
+import { selectProjetActif } from '../store/selectors/projetSelectors';
 
 export default function FinanceChargesFixesComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const chargesFixes: ChargeFixe[] = useAppSelector(selectAllChargesFixes);
-  const loading = useAppSelector((state) => state.finance.loading);
+  const loading = useAppSelector(selectFinanceLoading);
+  const projetActif = useAppSelector(selectProjetActif);
   const [selectedCharge, setSelectedCharge] = useState<ChargeFixe | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-
-  const { projetActif } = useAppSelector((state) => state.projet);
 
   useEffect(() => {
     if (projetActif) {
@@ -167,8 +167,99 @@ export default function FinanceChargesFixesComponent() {
         )}
       </View>
 
-      <ScrollView 
-        style={styles.scrollView} 
+      <FlatList
+        data={chargesFixes}
+        renderItem={({ item: charge }) => (
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                ...colors.shadow.small,
+              },
+            ]}
+          >
+            <View style={styles.cardHeader}>
+              <View style={styles.cardHeaderLeft}>
+                <Text style={[styles.cardTitle, { color: colors.text }]}>{charge.libelle}</Text>
+                <View
+                  style={[styles.statusBadge, { backgroundColor: getStatusColor(charge.statut) }]}
+                >
+                  <Text style={[styles.statusText, { color: colors.background }]}>
+                    {getStatusLabel(charge.statut)}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.cardActions}>
+                {canUpdate('finance') && (
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => handleSuspend(charge)}
+                  >
+                    <Text style={styles.actionButtonText}>
+                      {charge.statut === 'actif' ? '⏸' : '▶'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                {canUpdate('finance') && (
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => handleEdit(charge)}
+                  >
+                    <Text style={styles.actionButtonText}>✏️</Text>
+                  </TouchableOpacity>
+                )}
+                {canDelete('finance') && (
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => handleDelete(charge.id)}
+                  >
+                    <Text style={styles.actionButtonText}>🗑️</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            <View style={styles.cardContent}>
+              <View style={styles.infoRow}>
+                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                  Catégorie:
+                </Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>{charge.categorie}</Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Montant:</Text>
+                <Text style={[styles.infoValue, styles.amount, { color: colors.primary }]}>
+                  {formatAmount(charge.montant)}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                  Fréquence:
+                </Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>{charge.frequence}</Text>
+              </View>
+              {charge.jour_paiement && (
+                <View style={styles.infoRow}>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                    Jour de paiement:
+                  </Text>
+                  <Text style={[styles.infoValue, { color: colors.text }]}>
+                    Le {charge.jour_paiement} de chaque mois
+                  </Text>
+                </View>
+              )}
+              {charge.notes && (
+                <View style={[styles.notesContainer, { borderTopColor: colors.border }]}>
+                  <Text style={[styles.notesLabel, { color: colors.textSecondary }]}>Notes:</Text>
+                  <Text style={[styles.notesText, { color: colors.text }]}>{charge.notes}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
@@ -178,8 +269,7 @@ export default function FinanceChargesFixesComponent() {
             tintColor={colors.primary}
           />
         }
-      >
-        {chargesFixes.length === 0 ? (
+        ListEmptyComponent={
           <EmptyState
             title="Aucune charge fixe"
             message="Ajoutez votre première charge fixe pour commencer"
@@ -200,100 +290,15 @@ export default function FinanceChargesFixesComponent() {
               ) : null
             }
           />
-        ) : (
-          chargesFixes.map((charge) => (
-            <View
-              key={charge.id}
-              style={[
-                styles.card,
-                {
-                  backgroundColor: colors.surface,
-                  borderColor: colors.border,
-                  ...colors.shadow.small,
-                },
-              ]}
-            >
-              <View style={styles.cardHeader}>
-                <View style={styles.cardHeaderLeft}>
-                  <Text style={[styles.cardTitle, { color: colors.text }]}>{charge.libelle}</Text>
-                  <View
-                    style={[styles.statusBadge, { backgroundColor: getStatusColor(charge.statut) }]}
-                  >
-                    <Text style={[styles.statusText, { color: colors.background }]}>
-                      {getStatusLabel(charge.statut)}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.cardActions}>
-                  {canUpdate('finance') && (
-                    <TouchableOpacity
-                      style={styles.actionButton}
-                      onPress={() => handleSuspend(charge)}
-                    >
-                      <Text style={styles.actionButtonText}>
-                        {charge.statut === 'actif' ? '⏸' : '▶'}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                  {canUpdate('finance') && (
-                    <TouchableOpacity
-                      style={styles.actionButton}
-                      onPress={() => handleEdit(charge)}
-                    >
-                      <Text style={styles.actionButtonText}>✏️</Text>
-                    </TouchableOpacity>
-                  )}
-                  {canDelete('finance') && (
-                    <TouchableOpacity
-                      style={styles.actionButton}
-                      onPress={() => handleDelete(charge.id)}
-                    >
-                      <Text style={styles.actionButtonText}>🗑️</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-
-              <View style={styles.cardContent}>
-                <View style={styles.infoRow}>
-                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
-                    Catégorie:
-                  </Text>
-                  <Text style={[styles.infoValue, { color: colors.text }]}>{charge.categorie}</Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Montant:</Text>
-                  <Text style={[styles.infoValue, styles.amount, { color: colors.primary }]}>
-                    {formatAmount(charge.montant)}
-                  </Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
-                    Fréquence:
-                  </Text>
-                  <Text style={[styles.infoValue, { color: colors.text }]}>{charge.frequence}</Text>
-                </View>
-                {charge.jour_paiement && (
-                  <View style={styles.infoRow}>
-                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
-                      Jour de paiement:
-                    </Text>
-                    <Text style={[styles.infoValue, { color: colors.text }]}>
-                      Le {charge.jour_paiement} de chaque mois
-                    </Text>
-                  </View>
-                )}
-                {charge.notes && (
-                  <View style={[styles.notesContainer, { borderTopColor: colors.border }]}>
-                    <Text style={[styles.notesLabel, { color: colors.textSecondary }]}>Notes:</Text>
-                    <Text style={[styles.notesText, { color: colors.text }]}>{charge.notes}</Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          ))
-        )}
-      </ScrollView>
+        }
+        // Optimisations de performance
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        initialNumToRender={10}
+        updateCellsBatchingPeriod={50}
+        showsVerticalScrollIndicator={false}
+      />
 
       <ChargeFixeFormModal
         visible={modalVisible}

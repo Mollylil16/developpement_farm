@@ -31,6 +31,12 @@ import { updateIngredientsUnit } from './022_update_ingredients_unit';
 import { recalculateGmq } from './023_recalculate_gmq';
 import { addPermissionSanteToCollaborations } from './024_add_permission_sante_to_collaborations';
 import { createMarketplaceAdditionalTables } from './025_create_marketplace_additional_tables';
+import { fixVaccinationsTableConstraint } from './026_fix_vaccinations_table_constraint';
+import { addDureeAmortissementToProjets } from './027_add_duree_amortissement_to_projets';
+import { createMarketplaceTables } from './create_marketplace_tables';
+import { updateDepensesPonctuellesCategorieCheck } from './029_update_depenses_ponctuelles_categorie_check';
+import { createVeterinariansTableMigration } from './030_create_veterinarians_table';
+import { addCategoriePoidsAndNombreCroissance } from './032_add_categorie_poids_and_nombre_croissance';
 
 /**
  * Liste de toutes les migrations dans l'ordre d'exécution
@@ -161,6 +167,36 @@ export const migrations: Migration[] = [
     version: 25,
     name: 'create_marketplace_additional_tables',
     up: createMarketplaceAdditionalTables,
+  },
+  {
+    version: 26,
+    name: 'fix_vaccinations_table_constraint',
+    up: fixVaccinationsTableConstraint,
+  },
+  {
+    version: 27,
+    name: 'add_duree_amortissement_to_projets',
+    up: addDureeAmortissementToProjets,
+  },
+  {
+    version: 28,
+    name: 'create_marketplace_tables',
+    up: createMarketplaceTables,
+  },
+  {
+    version: 29,
+    name: 'update_depenses_ponctuelles_categorie_check',
+    up: updateDepensesPonctuellesCategorieCheck,
+  },
+  {
+    version: 30,
+    name: 'create_veterinarians_table',
+    up: createVeterinariansTableMigration,
+  },
+  {
+    version: 32,
+    name: 'add_categorie_poids_and_nombre_croissance',
+    up: addCategoriePoidsAndNombreCroissance,
   },
 ];
 

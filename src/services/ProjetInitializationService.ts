@@ -23,7 +23,7 @@ export class ProjetInitializationService {
    */
   async createAnimauxInitials(
     projetId: string,
-    effectifs: { nombre_truies: number; nombre_verrats: number; nombre_porcelets: number }
+    effectifs: { nombre_truies: number; nombre_verrats: number; nombre_porcelets: number; nombre_croissance?: number }
   ): Promise<void> {
     const animalRepo = new AnimalRepository(this.db);
 
@@ -54,6 +54,7 @@ export class ProjetInitializationService {
     let truieCount = 0;
     let verratCount = 0;
     let porceletCount = 0;
+    let croissanceCount = 0;
 
     // Compter les animaux existants par type pour la numérotation
     animauxExistants.forEach((animal) => {
@@ -67,6 +68,9 @@ export class ProjetInitializationService {
       } else if (codeUpper.startsWith('P')) {
         const num = parseInt(codeUpper.substring(1));
         if (!isNaN(num) && num > porceletCount) porceletCount = num;
+      } else if (codeUpper.startsWith('C')) {
+        const num = parseInt(codeUpper.substring(1));
+        if (!isNaN(num) && num > croissanceCount) croissanceCount = num;
       }
     });
 
@@ -89,10 +93,17 @@ export class ProjetInitializationService {
       'tous',
       'indetermine'
     );
+    const nomsCroissance = genererPlusieursNomsAleatoires(
+      effectifs.nombre_croissance || 0,
+      [...nomsDejaUtilises, ...nomsFeminins, ...nomsMasculins, ...nomsPorcelets], // Éviter les doublons
+      'tous',
+      'indetermine'
+    );
 
     let nomFemininIndex = 0;
     let nomMasculinIndex = 0;
     let nomPorceletIndex = 0;
+    let nomCroissanceIndex = 0;
 
     // Créer les truies
     for (let i = 0; i < effectifs.nombre_truies; i++) {
@@ -155,6 +166,32 @@ export class ProjetInitializationService {
         sexe: 'indetermine',
         reproducteur: false,
         statut: 'actif',
+        categorie_poids: 'porcelet',
+        date_naissance: undefined,
+        poids_initial: undefined,
+        date_entree: undefined,
+        race: undefined,
+        origine: undefined,
+        notes: "Créé lors de l'initialisation du projet",
+        pere_id: null,
+        mere_id: null,
+      });
+    }
+
+    // Créer les porcs en croissance
+    for (let i = 0; i < (effectifs.nombre_croissance || 0); i++) {
+      croissanceCount++;
+      const code = generateUniqueCode('C', croissanceCount);
+      const nom = nomsCroissance[nomCroissanceIndex++];
+
+      await animalRepo.create({
+        projet_id: projetId,
+        code,
+        nom,
+        sexe: 'indetermine',
+        reproducteur: false,
+        statut: 'actif',
+        categorie_poids: 'croissance',
         date_naissance: undefined,
         poids_initial: undefined,
         date_entree: undefined,

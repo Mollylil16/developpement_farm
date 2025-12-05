@@ -72,20 +72,3 @@ export function usePreloadScreens() {
   }, [isAuthenticated, activeRole, projetActif]);
 }
 
-/**
- * Précharge un écran spécifique
- */
-export function usePreloadScreen(screenPath: string) {
-  useEffect(() => {
-    const preload = async () => {
-      try {
-        await import(screenPath);
-      } catch (error) {
-        console.warn(`[Preload] Erreur lors du préchargement de ${screenPath}:`, error);
-      }
-    };
-
-    preload();
-  }, [screenPath]);
-}
-

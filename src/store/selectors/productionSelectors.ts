@@ -102,6 +102,8 @@ export const selectPeseesRecents = createSelector(
 
 // Sélecteur pour obtenir peseesParAnimal (compatible avec l'ancien format)
 // Utiliser une comparaison personnalisée pour éviter les recalculs inutiles
+// Le sélecteur retourne toujours une nouvelle référence, mais c'est normal car c'est un objet complexe
+// Les composants doivent utiliser useMemo pour mémoriser les résultats dérivés
 
 export const selectPeseesParAnimal = createSelector(
   [selectPeseesParAnimalIds, selectPeseesEntities],

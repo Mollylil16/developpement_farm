@@ -37,10 +37,13 @@ export default function ProjectedRevenueCard({ type }: ProjectedRevenueCardProps
       };
     }
 
+    // Exclure les reproducteurs du calcul du poids total pour les revenus prévisionnels
+    // car les reproducteurs ne sont généralement pas vendus
     const poidsTotal = calculatePoidsTotalAnimauxActifs(
       animauxActifs,
       peseesParAnimal,
-      projetActif.poids_moyen_actuel || 0
+      projetActif.poids_moyen_actuel || 0,
+      true // exclureReproducteurs = true
     );
 
     const prixKg =

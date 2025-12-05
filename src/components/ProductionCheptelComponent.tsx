@@ -5,12 +5,15 @@
 
 import React, { useState, useRef, useCallback } from 'react';
 import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import {
   loadProductionAnimaux,
   loadPeseesRecents,
 } from '../store/slices/productionSlice';
 import { selectProductionLoading, selectAllAnimaux, selectPeseesRecents } from '../store/selectors/productionSelectors';
+import { selectProjetActif } from '../store/selectors/projetSelectors';
 import {
   selectAllVaccinations,
   selectAllMaladies,
@@ -35,9 +38,10 @@ import CheptelHeader from './production/CheptelHeader';
 
 export default function ProductionCheptelComponent() {
   const { colors } = useTheme();
+  const navigation = useNavigation<StackNavigationProp<any>>();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const projetActif = useAppSelector(selectProjetActif);
   const loading = useAppSelector(selectProductionLoading);
   const vaccinations = useAppSelector(selectAllVaccinations);
   const maladies = useAppSelector(selectAllMaladies);
@@ -204,7 +208,7 @@ export default function ProductionCheptelComponent() {
             onFilterChange={setFilterCategorie}
             onSearchChange={setSearchQuery}
             onNavigateToHistorique={() => {
-              // TODO: Navigate to historique screen
+              navigation.navigate('Historique');
             }}
             onAddAnimal={() => {
               setSelectedAnimal(null);

@@ -6,6 +6,7 @@
 import React, { useEffect, useState, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useAppSelector } from '../../store/hooks';
+import { selectAllRevenus } from '../../store/selectors/financeSelectors';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
@@ -19,6 +20,7 @@ interface PerformanceWidgetProps {
 function PerformanceWidget({ projetId, onPress }: PerformanceWidgetProps) {
   const { colors } = useTheme();
   const { projetActif } = useAppSelector((state) => state.projet);
+  const revenus = useAppSelector(selectAllRevenus);
 
   const [loading, setLoading] = useState(true);
   const [performance, setPerformance] = useState<PerformanceGlobale | null>(null);
@@ -59,7 +61,7 @@ function PerformanceWidget({ projetId, onPress }: PerformanceWidgetProps) {
     };
 
     loadPerformance();
-  }, [projetId, projetActif?.id]);
+  }, [projetId, projetActif?.id, revenus.length]);
 
   const formatMontant = (montant: number | undefined | null) => {
     if (montant === undefined || montant === null || isNaN(montant)) {

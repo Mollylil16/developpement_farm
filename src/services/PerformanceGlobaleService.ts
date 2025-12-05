@@ -238,9 +238,14 @@ class PerformanceGlobaleService {
     // 1. Calculer total_kg_vendus_global
     const total_kg_vendus_global = this.calculateTotalKgVendus(ventes);
 
-    // Gérer le cas où il n'y a pas de ventes
+    // Gérer le cas où il n'y a pas de ventes ou pas de poids renseigné
     if (total_kg_vendus_global === 0) {
-      console.log('⚠️ [PerformanceGlobale] Aucun kg vendu, impossible de calculer');
+      const ventesAvecPoids = ventes.filter(v => v.poids_kg && v.poids_kg > 0);
+      console.log('⚠️ [PerformanceGlobale] Aucun kg vendu, impossible de calculer', {
+        totalVentes: ventes.length,
+        ventesAvecPoids: ventesAvecPoids.length,
+        ventesSansPoids: ventes.length - ventesAvecPoids.length
+      });
       return null; // Pas assez de données
     }
 

@@ -17,11 +17,15 @@ export async function createProjetsTable(db: SQLite.SQLiteDatabase): Promise<voi
       nombre_truies INTEGER NOT NULL,
       nombre_verrats INTEGER NOT NULL,
       nombre_porcelets INTEGER NOT NULL,
+      nombre_croissance INTEGER NOT NULL DEFAULT 0,
       poids_moyen_actuel REAL NOT NULL,
       age_moyen_actuel INTEGER NOT NULL,
+      prix_kg_vif REAL,
+      prix_kg_carcasse REAL,
       notes TEXT,
       statut TEXT NOT NULL CHECK (statut IN ('actif', 'archive', 'suspendu')),
       proprietaire_id TEXT NOT NULL,
+      duree_amortissement_par_defaut_mois INTEGER DEFAULT 36,
       date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
       derniere_modification TEXT DEFAULT CURRENT_TIMESTAMP
     );

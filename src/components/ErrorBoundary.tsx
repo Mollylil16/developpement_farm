@@ -71,6 +71,7 @@ class ErrorBoundaryClass extends Component<Props, State> {
                                  error.message.includes('must be rendered within a <Text>');
 
     if (isTextRenderingError) {
+      // Log détaillé avec call stack complet
       console.error('🔴 [ErrorBoundary] ERREUR DE RENDU DE TEXTE DÉTECTÉE:', {
         error: error.toString(),
         message: error.message,
@@ -81,10 +82,22 @@ class ErrorBoundaryClass extends Component<Props, State> {
         suggestion: 'Vérifiez les composants dans componentStack ci-dessus. Cherchez les valeurs primitives (string/number) rendues directement dans des <View> ou autres composants non-Text.',
       });
 
-      // Extraire le nom du composant problématique depuis le componentStack
-      const componentMatch = errorInfo.componentStack?.match(/at\s+(\w+)\s*\(/);
-      if (componentMatch) {
-        console.error(`🔍 Composant suspect: ${componentMatch[1]}`);
+      // Extraire TOUS les composants depuis le componentStack
+      const componentMatches = errorInfo.componentStack?.matchAll(/at\s+(\w+)\s*\(/g);
+      if (componentMatches) {
+        const components = Array.from(componentMatches, m => m[1]);
+        console.error(`🔍 Composants dans la stack (ordre d\'appel):`, components);
+      }
+
+      // Extraire les lignes de code depuis le stack trace
+      const stackLines = error.stack?.split('\n') || [];
+      console.error('📋 Stack trace complet (premières 20 lignes):', stackLines.slice(0, 20));
+
+      // Extraire les fichiers depuis le componentStack
+      const fileMatches = errorInfo.componentStack?.matchAll(/\(([^)]+\.tsx?):(\d+):(\d+)\)/g);
+      if (fileMatches) {
+        const files = Array.from(fileMatches, m => ({ file: m[1], line: m[2], col: m[3] }));
+        console.error('📁 Fichiers dans la stack:', files);
       }
     }
 

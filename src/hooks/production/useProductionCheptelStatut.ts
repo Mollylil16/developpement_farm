@@ -17,6 +17,7 @@ import {
   deleteMortalite,
 } from '../../store/slices/mortalitesSlice';
 import { selectAllAnimaux } from '../../store/selectors/productionSelectors';
+import { selectAllMortalites } from '../../store/selectors/mortalitesSelectors';
 import { ProductionAnimal, StatutAnimal, STATUT_ANIMAL_LABELS } from '../../types';
 import { getCategorieAnimal } from '../../utils/animalUtils';
 import { useActionPermissions } from '../useActionPermissions';
@@ -26,7 +27,7 @@ export function useProductionCheptelStatut() {
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   const allAnimaux = useAppSelector(selectAllAnimaux);
-  const mortalites = useAppSelector((state) => state.mortalites.mortalites || []);
+  const mortalites = useAppSelector(selectAllMortalites);
   const { canUpdate } = useActionPermissions();
 
   const handleChangeStatut = useCallback(

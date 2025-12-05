@@ -2,13 +2,15 @@
  * Vue détaillée - Compte
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppDispatch } from '../../../store/hooks';
 import { signOut } from '../../../store/slices/authSlice';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../../../constants/theme';
+import ChangeEmailModal from './modals/ChangeEmailModal';
+import ChangePasswordModal from './modals/ChangePasswordModal';
 
 interface SettingsAccountViewProps {
   onBack: () => void;
@@ -17,6 +19,8 @@ interface SettingsAccountViewProps {
 export default function SettingsAccountView({ onBack }: SettingsAccountViewProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
+  const [showChangeEmailModal, setShowChangeEmailModal] = useState(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
 
   const handleSignOut = () => {
     Alert.alert('Déconnexion', 'Êtes-vous sûr de vouloir vous déconnecter ?', [
@@ -46,7 +50,7 @@ export default function SettingsAccountView({ onBack }: SettingsAccountViewProps
       <View style={styles.list}>
         <TouchableOpacity
           style={[styles.item, { borderBottomColor: colors.border }]}
-          onPress={() => Alert.alert('En développement', 'Modifier email')}
+          onPress={() => setShowChangeEmailModal(true)}
         >
           <Text style={[styles.itemText, { color: colors.text }]}>Modifier email</Text>
           <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
@@ -54,7 +58,7 @@ export default function SettingsAccountView({ onBack }: SettingsAccountViewProps
 
         <TouchableOpacity
           style={[styles.item, { borderBottomColor: colors.border }]}
-          onPress={() => Alert.alert('En développement', 'Changer mot de passe')}
+          onPress={() => setShowChangePasswordModal(true)}
         >
           <Text style={[styles.itemText, { color: colors.text }]}>Changer mot de passe</Text>
           <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
@@ -62,7 +66,13 @@ export default function SettingsAccountView({ onBack }: SettingsAccountViewProps
 
         <TouchableOpacity
           style={[styles.item, { borderBottomColor: colors.border }]}
-          onPress={() => Alert.alert('En développement', 'Gérer authentification')}
+          onPress={() => {
+            Alert.alert(
+              'Gérer authentification',
+              'Les méthodes d\'authentification disponibles sont gérées lors de la connexion. Vous pouvez vous connecter avec email/mot de passe, Google, Apple ou téléphone.',
+              [{ text: 'OK' }]
+            );
+          }}
         >
           <Text style={[styles.itemText, { color: colors.text }]}>Gérer authentification</Text>
           <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
@@ -220,6 +230,16 @@ export default function SettingsAccountView({ onBack }: SettingsAccountViewProps
           </Text>
         </View>
       </View>
+
+      {/* Modals */}
+      <ChangeEmailModal
+        visible={showChangeEmailModal}
+        onClose={() => setShowChangeEmailModal(false)}
+      />
+      <ChangePasswordModal
+        visible={showChangePasswordModal}
+        onClose={() => setShowChangePasswordModal(false)}
+      />
     </View>
   );
 }

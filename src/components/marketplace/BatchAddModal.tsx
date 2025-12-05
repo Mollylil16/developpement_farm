@@ -31,6 +31,7 @@ import { AnimalRepository } from '../../database/repositories';
 import { createListing } from '../../store/slices/marketplaceSlice';
 import { useAppDispatch } from '../../store/hooks';
 import { useGeolocation } from '../../hooks/useGeolocation';
+import { getErrorMessage } from '../../types/common';
 
 interface BatchAddModalProps {
   visible: boolean;
@@ -299,14 +300,12 @@ export default function BatchAddModal({
               region: userLocation.region,
             },
           })).unwrap();
-        } catch (error: any) {
+        } catch (error: unknown) {
           // Améliorer le message d'erreur avec les informations de l'animal
           const animalName = animal.nom || animal.code || 'sujet';
-          if (error && typeof error === 'string' && error.includes('déjà en vente')) {
+          const errorMsg = getErrorMessage(error);
+          if (errorMsg.includes('déjà en vente')) {
             throw new Error(`Le sujet "${animalName}" (${animal.code}) est déjà en vente sur le marketplace`);
-          }
-          if (error && typeof error === 'object' && error.message && error.message.includes('déjà en vente')) {
-            throw error;
           }
           throw error;
         }
@@ -320,8 +319,8 @@ export default function BatchAddModal({
           onSuccess();
         }}]
       );
-    } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Impossible de mettre en vente');
+    } catch (error: unknown) {
+      Alert.alert('Erreur', getErrorMessage(error) || 'Impossible de mettre en vente');
     } finally {
       setLoading(false);
     }

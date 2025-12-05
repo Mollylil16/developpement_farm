@@ -71,6 +71,40 @@ const indexes: IndexDefinition[] = [
     additionalColumns: 'code',
     critical: true,
   },
+  {
+    name: 'idx_production_pesees_animal_date',
+    table: 'production_pesees',
+    column: 'animal_id',
+    additionalColumns: 'date',
+    critical: true,
+  },
+  {
+    name: 'idx_traitements_animal',
+    table: 'traitements',
+    column: 'animal_id',
+    additionalColumns: 'date_debut',
+    critical: true,
+  },
+  {
+    name: 'idx_traitements_maladie',
+    table: 'traitements',
+    column: 'maladie_id',
+    critical: true,
+  },
+  {
+    name: 'idx_charges_fixes_projet_statut',
+    table: 'charges_fixes',
+    column: 'projet_id',
+    additionalColumns: 'statut',
+    critical: true,
+  },
+  {
+    name: 'idx_depenses_ponctuelles_projet_date',
+    table: 'depenses_ponctuelles',
+    column: 'projet_id',
+    additionalColumns: 'date',
+    critical: true,
+  },
 ];
 
 /**

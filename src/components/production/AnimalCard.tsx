@@ -38,7 +38,7 @@ interface AnimalCardProps {
   getParentLabel?: (id?: string | null) => string;
 }
 
-export default function AnimalCard({
+const AnimalCard = React.memo(function AnimalCard({
   animal,
   vaccinations = [],
   maladies = [],
@@ -93,7 +93,7 @@ export default function AnimalCard({
         <View style={styles.info}>
           <Text style={[styles.code, { color: colors.text }]} numberOfLines={2}>
             {animal.code}
-            {animal.nom ? ` (${animal.nom})` : ''}
+            {animal.nom ? ` (${animal.nom})` : null}
           </Text>
           <View style={styles.badgesRow}>
             <View style={[styles.statutBadge, { backgroundColor: statutColor + '15' }]}>
@@ -175,7 +175,7 @@ export default function AnimalCard({
         {animal.origine && (
           <View style={styles.detailRow}>
             <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Origine:</Text>
-            <Text style={[styles.detailValue, { color: colors.text }]}>{animal.origine}</Text>
+            <Text style={[styles.detailValue, { color: colors.text }]}>{animal.origine || 'Non renseigné'}</Text>
           </View>
         )}
         {age && (
@@ -199,7 +199,7 @@ export default function AnimalCard({
         {animal.race && (
           <View style={styles.detailRow}>
             <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Race:</Text>
-            <Text style={[styles.detailValue, { color: colors.text }]}>{animal.race}</Text>
+            <Text style={[styles.detailValue, { color: colors.text }]}>{animal.race || 'Non renseigné'}</Text>
           </View>
         )}
         <View style={styles.detailRow}>
@@ -263,7 +263,7 @@ export default function AnimalCard({
                           </View>
                           <Text style={[styles.historiqueItemTitle, { color: colors.text }]}>{v.produit_administre || 'Produit non spécifié'}</Text>
                           <Text style={[styles.historiqueItemDetail, { color: colors.textSecondary }]}>
-                            Dosage: {v.dosage || 'Non spécifié'} {v.unite_dosage || ''}
+                            Dosage: {v.dosage || 'Non spécifié'}{v.unite_dosage ? ` ${v.unite_dosage}` : null}
                           </Text>
                         </View>
                       );
@@ -283,9 +283,9 @@ export default function AnimalCard({
                       <View key={m.id} style={[styles.historiqueItem, { backgroundColor: colors.warning + '08', borderLeftColor: colors.warning }]}>
                         <Text style={[styles.historiqueItemDate, { color: colors.textSecondary }]}>
                           {format(parseISO(m.date_debut), 'dd MMM yyyy', { locale: fr })}
-                          {m.gueri && m.date_fin && ` → ${format(parseISO(m.date_fin), 'dd MMM yyyy', { locale: fr })}`}
+                          {m.gueri && m.date_fin ? ` → ${format(parseISO(m.date_fin), 'dd MMM yyyy', { locale: fr })}` : null}
                         </Text>
-                        <Text style={[styles.historiqueItemTitle, { color: colors.text }]}>{m.nom_maladie}</Text>
+                        <Text style={[styles.historiqueItemTitle, { color: colors.text }]}>{m.nom_maladie || 'Maladie non spécifiée'}</Text>
                         {m.symptomes && (
                           <Text style={[styles.historiqueItemDetail, { color: colors.textSecondary }]} numberOfLines={2}>
                             {m.symptomes}
@@ -308,11 +308,11 @@ export default function AnimalCard({
                       <View key={t.id} style={[styles.historiqueItem, { backgroundColor: colors.info + '08', borderLeftColor: colors.info }]}>
                         <Text style={[styles.historiqueItemDate, { color: colors.textSecondary }]}>
                           {format(parseISO(t.date_debut), 'dd MMM yyyy', { locale: fr })}
-                          {t.date_fin && ` → ${format(parseISO(t.date_fin), 'dd MMM yyyy', { locale: fr })}`}
+                          {t.date_fin ? ` → ${format(parseISO(t.date_fin), 'dd MMM yyyy', { locale: fr })}` : null}
                         </Text>
-                        <Text style={[styles.historiqueItemTitle, { color: colors.text }]}>{t.nom_medicament}</Text>
+                        <Text style={[styles.historiqueItemTitle, { color: colors.text }]}>{t.nom_medicament || 'Médicament non spécifié'}</Text>
                         <Text style={[styles.historiqueItemDetail, { color: colors.textSecondary }]}>
-                          {t.dosage} • {t.voie_administration} • {t.frequence}
+                          {t.dosage || 'N/A'} • {t.voie_administration || 'N/A'} • {t.frequence || 'N/A'}
                         </Text>
                       </View>
                     ))}
@@ -373,7 +373,22 @@ export default function AnimalCard({
       )}
     </Card>
   );
-}
+}, (prevProps, nextProps) => {
+  // Comparaison personnalisée pour éviter les re-renders inutiles
+  return (
+    prevProps.animal.id === nextProps.animal.id &&
+    prevProps.animal.statut === nextProps.animal.statut &&
+    prevProps.expandedHistorique === nextProps.expandedHistorique &&
+    prevProps.togglingMarketplace === nextProps.togglingMarketplace &&
+    prevProps.canUpdate === nextProps.canUpdate &&
+    prevProps.canDelete === nextProps.canDelete &&
+    prevProps.vaccinations?.length === nextProps.vaccinations?.length &&
+    prevProps.maladies?.length === nextProps.maladies?.length &&
+    prevProps.traitements?.length === nextProps.traitements?.length
+  );
+});
+
+export default AnimalCard;
 
 const styles = StyleSheet.create({
   card: {

@@ -14,7 +14,7 @@ export async function createDepensesPonctuellesTable(db: SQLite.SQLiteDatabase):
       id TEXT PRIMARY KEY,
       projet_id TEXT NOT NULL,
       montant REAL NOT NULL CHECK (montant >= 0),
-      categorie TEXT NOT NULL CHECK (categorie IN ('aliment', 'medicament', 'equipement', 'maintenance', 'transport', 'autre')),
+      categorie TEXT NOT NULL CHECK (categorie IN ('vaccins', 'medicaments', 'alimentation', 'veterinaire', 'entretien', 'equipements', 'amenagement_batiment', 'equipement_lourd', 'achat_sujet', 'autre')),
       libelle_categorie TEXT,
       type_opex_capex TEXT CHECK (type_opex_capex IN ('opex', 'capex')),
       duree_amortissement_mois INTEGER CHECK (duree_amortissement_mois IS NULL OR duree_amortissement_mois > 0),

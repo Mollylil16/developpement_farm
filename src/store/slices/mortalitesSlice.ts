@@ -4,6 +4,7 @@
  */
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { getErrorMessage } from '../../types/common';
 import { normalize } from 'normalizr';
 import {
   Mortalite,
@@ -56,8 +57,8 @@ export const createMortalite = createAsyncThunk(
       // Utiliser createWithAnimalUpdate pour inclure la logique de mise à jour des animaux
       const mortalite = await mortaliteRepo.createWithAnimalUpdate(input);
       return mortalite;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la création de la mortalité');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création de la mortalité');
     }
   }
 );
@@ -70,8 +71,8 @@ export const loadMortalites = createAsyncThunk(
       const mortaliteRepo = new MortaliteRepository(db);
       const mortalites = await mortaliteRepo.findByProjet(projetId);
       return mortalites;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement des mortalités');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des mortalités');
     }
   }
 );
@@ -84,8 +85,8 @@ export const loadMortalitesParProjet = createAsyncThunk(
       const mortaliteRepo = new MortaliteRepository(db);
       const mortalites = await mortaliteRepo.findByProjet(projetId);
       return mortalites;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement des mortalités');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des mortalités');
     }
   }
 );
@@ -100,9 +101,9 @@ export const loadStatistiquesMortalite = createAsyncThunk(
       const stats = await mortaliteRepo.getStatistiquesMortalite(projetId);
       console.log('✅ [loadStatistiquesMortalite] Stats retournées:', stats);
       return stats;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ Erreur chargement statistiques mortalité:', error);
-      return rejectWithValue(error.message || 'Erreur lors du chargement des statistiques');
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des statistiques');
     }
   }
 );
@@ -115,8 +116,8 @@ export const updateMortalite = createAsyncThunk(
       const mortaliteRepo = new MortaliteRepository(db);
       const mortalite = await mortaliteRepo.update(id, updates);
       return mortalite;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la mise à jour de la mortalité');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la mise à jour de la mortalité');
     }
   }
 );
@@ -129,8 +130,8 @@ export const deleteMortalite = createAsyncThunk(
       const mortaliteRepo = new MortaliteRepository(db);
       await mortaliteRepo.delete(id);
       return id;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la suppression de la mortalité');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la suppression de la mortalité');
     }
   }
 );

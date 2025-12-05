@@ -4,6 +4,7 @@
  */
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { getErrorMessage } from '../../types/common';
 import { normalize, denormalize } from 'normalizr';
 import {
   ProductionAnimal,
@@ -87,9 +88,9 @@ export const loadProductionAnimaux = createAsyncThunk(
         : await animalRepo.findActiveByProjet(projetId);
 
       return animaux;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [loadProductionAnimaux] Erreur:', error);
-      return rejectWithValue(error.message || 'Erreur lors du chargement des animaux');
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des animaux');
     }
   }
 );
@@ -102,8 +103,8 @@ export const createProductionAnimal = createAsyncThunk(
       const animalRepo = new AnimalRepository(db);
       const animal = await animalRepo.create(input);
       return animal;
-    } catch (error: any) {
-      return rejectWithValue(error.message || "Erreur lors de la création de l'animal");
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || "Erreur lors de la création de l'animal");
     }
   }
 );
@@ -119,8 +120,8 @@ export const updateProductionAnimal = createAsyncThunk(
       const animalRepo = new AnimalRepository(db);
       const animal = await animalRepo.update(id, updates);
       return animal;
-    } catch (error: any) {
-      return rejectWithValue(error.message || "Erreur lors de la mise à jour de l'animal");
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || "Erreur lors de la mise à jour de l'animal");
     }
   }
 );
@@ -141,8 +142,8 @@ export const deleteProductionAnimal = createAsyncThunk(
       // Les URIs temporaires sont gérées automatiquement par le système
       
       return id;
-    } catch (error: any) {
-      return rejectWithValue(error.message || "Erreur lors de la suppression de l'animal");
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || "Erreur lors de la suppression de l'animal");
     }
   }
 );
@@ -155,8 +156,8 @@ export const createPesee = createAsyncThunk(
       const peseeRepo = new PeseeRepository(db);
       const pesee = await peseeRepo.create(input);
       return pesee;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la création de la pesée');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création de la pesée');
     }
   }
 );
@@ -172,8 +173,8 @@ export const updatePesee = createAsyncThunk(
       const peseeRepo = new PeseeRepository(db);
       const pesee = await peseeRepo.update(id, updates);
       return pesee;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la modification de la pesée');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la modification de la pesée');
     }
   }
 );
@@ -186,8 +187,8 @@ export const deletePesee = createAsyncThunk(
       const peseeRepo = new PeseeRepository(db);
       await peseeRepo.delete(id);
       return { id, animalId };
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la suppression de la pesée');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la suppression de la pesée');
     }
   }
 );
@@ -200,8 +201,8 @@ export const loadPeseesParAnimal = createAsyncThunk(
       const peseeRepo = new PeseeRepository(db);
       const pesees = await peseeRepo.findByAnimal(animalId);
       return { animalId, pesees };
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement des pesées');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des pesées');
     }
   }
 );
@@ -214,8 +215,8 @@ export const loadPeseesRecents = createAsyncThunk(
       const peseeRepo = new PeseeRepository(db);
       const pesees = await peseeRepo.findRecentsByProjet(projetId, limit);
       return pesees;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement des pesées récentes');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des pesées récentes');
     }
   }
 );
@@ -229,8 +230,8 @@ export const calculateGMQ = createAsyncThunk(
       const peseeRepo = new PeseeRepository(db);
       const gmq = await peseeRepo.calculateGMQ(animalId);
       return { animalId, gmq };
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du calcul du GMQ');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du calcul du GMQ');
     }
   }
 );
@@ -243,8 +244,8 @@ export const getEvolutionPoids = createAsyncThunk(
       const peseeRepo = new PeseeRepository(db);
       const evolution = await peseeRepo.getEvolutionPoids(animalId);
       return { animalId, evolution };
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du calcul de l\'évolution');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du calcul de l\'évolution');
     }
   }
 );
@@ -257,8 +258,8 @@ export const getPoidsActuelEstime = createAsyncThunk(
       const peseeRepo = new PeseeRepository(db);
       const poids = await peseeRepo.getPoidsActuelEstime(animalId);
       return { animalId, poids };
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de l\'estimation du poids');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de l\'estimation du poids');
     }
   }
 );
@@ -278,8 +279,8 @@ export const loadStatsProjet = createAsyncThunk(
         animaux: statsAnimaux,
         pesees: statsPesees,
       };
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement des statistiques');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des statistiques');
     }
   }
 );

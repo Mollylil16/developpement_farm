@@ -107,8 +107,8 @@ export const searchListings = createAsyncThunk(
       );
       
       return result;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la recherche');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la recherche');
     }
   }
 );
@@ -137,8 +137,8 @@ export const createListing = createAsyncThunk(
       const listing = await service.createListing(data);
       
       return listing;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la mise en vente');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la mise en vente');
     }
   }
 );
@@ -165,8 +165,8 @@ export const createOffer = createAsyncThunk(
       const offer = await service.createOffer(data);
       
       return offer;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la création de l\'offre');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création de l\'offre');
     }
   }
 );
@@ -187,8 +187,8 @@ export const acceptOffer = createAsyncThunk(
       const transaction = await service.acceptOffer(data.offerId, data.producerId);
       
       return transaction;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de l\'acceptation');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de l\'acceptation');
     }
   }
 );
@@ -209,8 +209,8 @@ export const rejectOffer = createAsyncThunk(
       await service.rejectOffer(data.offerId, data.producerId);
       
       return data.offerId;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du rejet');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du rejet');
     }
   }
 );
@@ -231,8 +231,8 @@ export const confirmDelivery = createAsyncThunk(
       await service.confirmDelivery(data.transactionId, data.userId, data.role);
       
       return { transactionId: data.transactionId, role: data.role };
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la confirmation');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la confirmation');
     }
   }
 );

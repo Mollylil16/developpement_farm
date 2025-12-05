@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     marginHorizontal: SPACING.md,
     marginBottom: SPACING.md,
-    borderWidth: 1,
+    borderWidth: 1.5,
     elevation: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },

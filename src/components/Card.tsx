@@ -45,10 +45,11 @@ export default function Card({
     neomorphism
       ? {
           ...neomorphismStyle,
+          borderColor: colors.border,
         }
       : {
           backgroundColor: colors.surface,
-          borderColor: colors.borderLight,
+          borderColor: colors.border,
           ...elevationMap[elevation],
         },
     styles[paddingMap[padding]],
@@ -73,7 +74,7 @@ export default function Card({
 const styles = StyleSheet.create({
   card: {
     borderRadius: 16,
-    borderWidth: 1,
+    borderWidth: 1.5,
   },
   paddingNone: {
     padding: 0,

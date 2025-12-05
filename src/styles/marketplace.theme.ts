@@ -7,13 +7,13 @@ import { Platform } from 'react-native';
 
 /**
  * Palette de couleurs Marketplace
- * Palette violette professionnelle et moderne avec Glassmorphism
+ * Palette bleue professionnelle et moderne avec Glassmorphism
  */
 export const MarketplaceColors = {
-  // Couleurs primaires - Palette violette #9333EA
-  primary: '#9333EA',           // Violet principal (nouveau)
-  primaryLight: '#A855F7',      // Violet clair
-  primaryDark: '#7E22CE',       // Violet foncé
+  // Couleurs primaires - Palette bleue #2563EB
+  primary: '#2563EB',           // Bleu principal
+  primaryLight: '#3B82F6',      // Bleu clair
+  primaryDark: '#1D4ED8',       // Bleu foncé
   
   // Couleurs secondaires
   secondary: '#8B4513',         // Brun
@@ -23,16 +23,16 @@ export const MarketplaceColors = {
   accent: '#FF8C42',            // Orange chaleureux
   accentLight: '#FFA366',       // Orange clair
   gold: '#DAA520',              // Or/Ambre
-  sage: '#A78BFA',              // Violet sauge (ton violet-gris)
+  sage: '#60A5FA',              // Bleu sauge (ton bleu-gris)
   
   // États
-  success: '#9333EA',           // Violet pour succès
+  success: '#2563EB',           // Bleu pour succès
   warning: '#F39C12',           // Jaune/Orange
   error: '#E74C3C',             // Rouge
   info: '#3498DB',              // Bleu info
   
   // Fond et surfaces (Glassmorphism)
-  background: '#F5F3FF',        // Fond violet très clair pour glassmorphism
+  background: '#EFF6FF',        // Fond bleu très clair pour glassmorphism
   surface: 'rgba(255, 255, 255, 0.15)',  // Surface translucide pour glassmorphism
   surfaceLight: 'rgba(255, 255, 255, 0.1)', // Surface très translucide
   surfaceSolid: '#FFFFFF',     // Surface solide pour contenu
@@ -47,25 +47,25 @@ export const MarketplaceColors = {
   badgeAvailable: '#FF8C42',    // Orange
   badgeReserved: '#F39C12',     // Jaune
   badgeSold: '#95A5A6',         // Gris
-  badgeNew: '#8B5CF6',          // Violet (au lieu de vert)
+  badgeNew: '#3B82F6',          // Bleu (au lieu de vert)
   badgeConditions: '#3498DB',   // Bleu
   
   // Bordures et dividers (Glassmorphism)
-  border: 'rgba(147, 51, 234, 0.6)',  // Bordure violette translucide
-  divider: 'rgba(147, 51, 234, 0.2)', // Divider violet translucide
+  border: 'rgba(37, 99, 235, 0.6)',  // Bordure bleue translucide
+  divider: 'rgba(37, 99, 235, 0.2)', // Divider bleu translucide
   
   // Overlay
   overlay: 'rgba(0, 0, 0, 0.5)',
   overlayLight: 'rgba(0, 0, 0, 0.3)',
   
-  // Gradients (pour les cartes premium) - Palette violette
-  gradientStart: '#9333EA',
-  gradientEnd: '#A855F7',
+  // Gradients (pour les cartes premium) - Palette bleue
+  gradientStart: '#2563EB',
+  gradientEnd: '#3B82F6',
   
   // Glassmorphism
   glassBackground: 'rgba(255, 255, 255, 0.15)',
-  glassBorder: 'rgba(147, 51, 234, 0.6)',
-  glassShadow: 'rgba(147, 51, 234, 0.3)',
+  glassBorder: 'rgba(37, 99, 235, 0.6)',
+  glassShadow: 'rgba(37, 99, 235, 0.3)',
 } as const;
 
 /**
@@ -128,7 +128,7 @@ export const MarketplaceBorderRadius = {
 } as const;
 
 /**
- * Ombres (Glassmorphism avec teinte violette)
+ * Ombres (Glassmorphism avec teinte bleue)
  */
 export const MarketplaceShadows = {
   none: {
@@ -140,7 +140,7 @@ export const MarketplaceShadows = {
   },
   
   small: {
-    shadowColor: 'rgba(147, 51, 234, 0.2)',
+    shadowColor: 'rgba(37, 99, 235, 0.2)',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -148,7 +148,7 @@ export const MarketplaceShadows = {
   },
   
   medium: {
-    shadowColor: 'rgba(147, 51, 234, 0.3)',
+    shadowColor: 'rgba(37, 99, 235, 0.3)',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
@@ -156,16 +156,16 @@ export const MarketplaceShadows = {
   },
   
   large: {
-    shadowColor: 'rgba(147, 51, 234, 0.4)',
+    shadowColor: 'rgba(37, 99, 235, 0.4)',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.2,
     shadowRadius: 20,
     elevation: 8,
   },
   
-  // Effet hover (élévation) avec teinte violette
+  // Effet hover (élévation) avec teinte bleue
   hover: {
-    shadowColor: 'rgba(147, 51, 234, 0.5)',
+    shadowColor: 'rgba(37, 99, 235, 0.5)',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.25,
     shadowRadius: 24,
@@ -174,7 +174,7 @@ export const MarketplaceShadows = {
   
   // Glassmorphism shadow
   glass: {
-    shadowColor: 'rgba(147, 51, 234, 0.3)',
+    shadowColor: 'rgba(37, 99, 235, 0.3)',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 16,

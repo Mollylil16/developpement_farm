@@ -19,6 +19,7 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
@@ -35,6 +36,10 @@ import { loadCollaborateurs } from '../store/slices/collaborationSlice';
 import { formatDisplayDate, getCurrentLocalDate, addDays } from '../utils/dateUtils';
 import { VisiteVeterinaire, CreateVisiteVeterinaireInput } from '../types/sante';
 import VisiteVeterinaireFormModalNew from './VisiteVeterinaireFormModalNew';
+import SearchVetModal from './SearchVetModal';
+import Button from './Button';
+import { SCREENS } from '../navigation/types';
+import { Veterinarian } from '../types/veterinarian';
 
 interface VeterinaireComponentProps {
   refreshControl?: React.ReactElement<RefreshControlProps>;
@@ -76,6 +81,7 @@ const PERIODICITE_JOURS: Record<Periodicite, number> = {
 export default function VeterinaireComponent({ refreshControl }: VeterinaireComponentProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
+  const navigation = useNavigation<any>();
 
   const projetActif = useAppSelector((state) => state.projet.projetActif);
   const collaborateurs = useAppSelector((state) => selectAllCollaborateurs(state));
@@ -88,6 +94,7 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
   const [visiteSelectionnee, setVisiteSelectionnee] = useState<VisiteVeterinaire | null>(null);
   const [visiteDetailsOuverte, setVisiteDetailsOuverte] = useState<string | null>(null);
   const [modeEdition, setModeEdition] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
 
   // États planning
   const [periodicite, setPeriodicite] = useState<Periodicite>('mensuel');
@@ -297,13 +304,28 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
             <Text style={[styles.emptyVetoSubtext, { color: colors.textSecondary }]}>
               Invitez un vétérinaire pour assurer le suivi sanitaire de votre cheptel
             </Text>
-            <TouchableOpacity
-              style={[styles.btnInviter, { backgroundColor: colors.primary }]}
-              onPress={() => Alert.alert('Info', 'Redirection vers Collaborations')}
-            >
-              <Ionicons name="mail-outline" size={20} color="#FFF" />
-              <Text style={styles.btnInviterText}>Inviter un vétérinaire</Text>
-            </TouchableOpacity>
+            <View style={styles.buttonGroup}>
+              <Button
+                title="Inviter un vétérinaire"
+                onPress={() => {
+                  navigation.navigate(SCREENS.COLLABORATION, {
+                    preselectedRole: 'veterinaire',
+                  });
+                }}
+                icon={<Ionicons name="person-add" size={20} color={colors.background} />}
+                style={styles.inviteButton}
+              />
+              <Button
+                title="Rechercher un vétérinaire"
+                onPress={() => {
+                  console.log('🔍 [VeterinaireComponent] Bouton recherche cliqué, ouverture modal...');
+                  setShowSearchModal(true);
+                }}
+                variant="outline"
+                icon={<Ionicons name="search" size={20} color={colors.primary} />}
+                style={styles.searchButton}
+              />
+            </View>
           </View>
         </View>
       );
@@ -861,18 +883,43 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
     </View>
   );
 
+  // Handler pour inviter un vétérinaire depuis la recherche
+  const handleInviteVet = useCallback(
+    (vet: Veterinarian) => {
+      // Rediriger vers Collaborations avec les infos préchargées
+      navigation.navigate(SCREENS.COLLABORATION, {
+        preselectedRole: 'veterinaire',
+        suggestedVet: {
+          name: `${vet.firstName} ${vet.lastName}`,
+          phone: vet.phone,
+          email: vet.email,
+        },
+      });
+    },
+    [navigation]
+  );
+
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={refreshControl}
-      showsVerticalScrollIndicator={false}
-    >
-      {renderCarteVeterinaire()}
-      {renderHistorique()}
-      {renderPlanning()}
-      <View style={styles.bottomSpacer} />
-    </ScrollView>
+    <>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        refreshControl={refreshControl}
+        showsVerticalScrollIndicator={false}
+      >
+        {renderCarteVeterinaire()}
+        {renderHistorique()}
+        {renderPlanning()}
+        <View style={styles.bottomSpacer} />
+      </ScrollView>
+
+      {/* Modal Recherche Vétérinaire */}
+      <SearchVetModal
+        visible={showSearchModal}
+        onClose={() => setShowSearchModal(false)}
+        onInvite={handleInviteVet}
+      />
+    </>
   );
 }
 
@@ -1335,6 +1382,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
+  buttonGroup: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginTop: SPACING.md,
+    width: '100%',
+  },
+  inviteButton: {
+    flex: 1,
+  },
+  searchButton: {
+    flex: 1,
+  },
   bottomSpacer: {
     height: SPACING.xl,
   },

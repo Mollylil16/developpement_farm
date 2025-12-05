@@ -8,8 +8,8 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 export async function createMarketplaceTables(db: SQLiteDatabase): Promise<void> {
   console.log('🛍️ [Migration] Création des tables Marketplace...');
 
+  // Note: Les transactions sont gérées par MigrationRunner, ne pas démarrer de transaction ici
   try {
-    await db.execAsync('BEGIN TRANSACTION');
 
     // ========================================
     // 1. TABLE: marketplace_listings
@@ -374,10 +374,10 @@ export async function createMarketplaceTables(db: SQLiteDatabase): Promise<void>
       }
     }
 
-    await db.execAsync('COMMIT');
+    // Note: COMMIT est géré par MigrationRunner
     console.log('✅ [Migration] Tables Marketplace créées avec succès');
   } catch (error) {
-    await db.execAsync('ROLLBACK');
+    // Note: ROLLBACK est géré par MigrationRunner
     console.error('❌ [Migration] Erreur création tables Marketplace:', error);
     throw error;
   }

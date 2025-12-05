@@ -87,9 +87,9 @@ export const simulerProduction = createAsyncThunk(
       };
 
       return result;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [REDUX] simulerProduction - Erreur:', error);
-      return rejectWithValue(error.message || 'Erreur lors de la simulation');
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la simulation');
     }
   }
 );
@@ -370,8 +370,8 @@ export const genererPlanSaillies = createAsyncThunk(
       }
 
       return saillies;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la generation du plan');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la generation du plan');
     }
   }
 );
@@ -426,8 +426,8 @@ export const genererPrevisionsVentes = createAsyncThunk(
       });
 
       return synthese;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la generation des previsions');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la generation des previsions');
     }
   }
 );
@@ -460,9 +460,9 @@ export const genererPrevisionsFuturesVentes = createAsyncThunk(
       });
 
       return synthese;
-    } catch (error: any) {
+    } catch (error: unknown) {
       return rejectWithValue(
-        error.message || 'Erreur lors de la generation des previsions futures'
+        getErrorMessage(error) || 'Erreur lors de la generation des previsions futures'
       );
     }
   }
@@ -558,9 +558,9 @@ export const validerPlanningSaillies = createAsyncThunk(
       } else {
         throw new Error('Échec de la création des tâches');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ [VALIDATION] Erreur:', error);
-      return rejectWithValue(error.message || 'Erreur lors de la validation du planning');
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la validation du planning');
     }
   }
 );

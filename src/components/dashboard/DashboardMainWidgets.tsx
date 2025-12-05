@@ -9,6 +9,7 @@ import OverviewWidget from '../widgets/OverviewWidget';
 import ReproductionWidget from '../widgets/ReproductionWidget';
 import FinanceWidget from '../widgets/FinanceWidget';
 import PerformanceWidget from '../widgets/PerformanceWidget';
+import TransitionPorceletCroissanceWidget from '../widgets/TransitionPorceletCroissanceWidget';
 import { SkeletonWidget } from '../SkeletonLoader';
 import { SPACING } from '../../constants/theme';
 
@@ -53,7 +54,7 @@ const DashboardMainWidgets = memo(function DashboardMainWidgets({
         <OverviewWidget />
       </Animated.View>
 
-      {/* Widget 2: Performance Globale - Coût de production vs Prix du marché */}
+      {/* Widget 2: Passage Porcelets → Croissance */}
       <Animated.View
         style={[
           styles.widgetWrapper,
@@ -70,10 +71,10 @@ const DashboardMainWidgets = memo(function DashboardMainWidgets({
           },
         ]}
       >
-        <PerformanceWidget projetId={projetId} />
+        <TransitionPorceletCroissanceWidget />
       </Animated.View>
 
-      {/* Widget 3: Reproduction */}
+      {/* Widget 3: Performance Globale - Coût de production vs Prix du marché */}
       <Animated.View
         style={[
           styles.widgetWrapper,
@@ -90,10 +91,10 @@ const DashboardMainWidgets = memo(function DashboardMainWidgets({
           },
         ]}
       >
-        <ReproductionWidget />
+        <PerformanceWidget projetId={projetId} />
       </Animated.View>
 
-      {/* Widget 4: Finance */}
+      {/* Widget 4: Reproduction */}
       <Animated.View
         style={[
           styles.widgetWrapper,
@@ -102,6 +103,26 @@ const DashboardMainWidgets = memo(function DashboardMainWidgets({
             transform: [
               {
                 scale: animations[3].interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.9, 1],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <ReproductionWidget />
+      </Animated.View>
+
+      {/* Widget 5: Finance */}
+      <Animated.View
+        style={[
+          styles.widgetWrapper,
+          {
+            opacity: animations[4],
+            transform: [
+              {
+                scale: animations[4].interpolate({
                   inputRange: [0, 1],
                   outputRange: [0.9, 1],
                 }),

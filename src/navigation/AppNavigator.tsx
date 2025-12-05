@@ -20,10 +20,7 @@ import { useRole } from '../contexts/RoleContext';
 import { useRolePermissions } from '../hooks/useRolePermissions';
 import LoadingSpinner from '../components/LoadingSpinner';
 import NotificationsManager from '../components/NotificationsManager';
-import { LazyScreenWrapper } from '../components/LazyScreenWrapper';
-import { usePreloadScreens } from '../hooks/usePreloadScreens';
-
-// Lazy-loaded screens - Améliore les performances en chargeant les écrans à la demande
+// Import direct des écrans (React.lazy() n'est pas supporté par React Native)
 import * as LazyScreens from './lazyScreens';
 
 import { COLORS } from '../constants/theme';
@@ -53,23 +50,23 @@ function MainTabs() {
     }
     
     // Pour technicien et vétérinaire, vérifier les permissions de collaboration
-    if ((activeRole === 'technician' || activeRole === 'veterinarian') && collaborateurActuel) {
+    if ((activeRole === 'technician' || activeRole === 'veterinarian') && collaborateurActuel?.permissions) {
       // Vérifier les permissions spécifiques à la ferme via la collaboration
       switch (module) {
         case 'reproduction':
-          return collaborateurActuel.permissions.reproduction;
+          return collaborateurActuel.permissions.reproduction ?? false;
         case 'nutrition':
-          return collaborateurActuel.permissions.nutrition;
+          return collaborateurActuel.permissions.nutrition ?? false;
         case 'planification':
-          return collaborateurActuel.permissions.planification;
+          return collaborateurActuel.permissions.planification ?? false;
         case 'mortalites':
-          return collaborateurActuel.permissions.mortalites;
+          return collaborateurActuel.permissions.mortalites ?? false;
         case 'finance':
-          return collaborateurActuel.permissions.finance;
+          return collaborateurActuel.permissions.finance ?? false;
         case 'rapports':
-          return collaborateurActuel.permissions.rapports; // Permission spécifique à la ferme
+          return collaborateurActuel.permissions.rapports ?? false; // Permission spécifique à la ferme
         case 'sante':
-          return collaborateurActuel.permissions.sante;
+          return collaborateurActuel.permissions.sante ?? false;
         default:
           return false;
       }
@@ -160,11 +157,7 @@ function MainTabs() {
             tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>🏠</Text>,
           }}
         >
-          {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.DashboardScreen />
-            </LazyScreenWrapper>
-          )}
+          {() => <LazyScreens.DashboardScreen />}
         </Tab.Screen>
       )}
       {activeRole === 'buyer' && (
@@ -176,9 +169,7 @@ function MainTabs() {
           }}
         >
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.DashboardBuyerScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.DashboardBuyerScreen />
           )}
         </Tab.Screen>
       )}
@@ -191,9 +182,7 @@ function MainTabs() {
           }}
         >
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.DashboardVetScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.DashboardVetScreen />
           )}
         </Tab.Screen>
       )}
@@ -206,9 +195,7 @@ function MainTabs() {
           }}
         >
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.DashboardTechScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.DashboardTechScreen />
           )}
         </Tab.Screen>
       )}
@@ -223,9 +210,7 @@ function MainTabs() {
           }}
         >
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.ReproductionScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.ReproductionScreen />
           )}
         </Tab.Screen>
       )}
@@ -240,9 +225,7 @@ function MainTabs() {
           }}
         >
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.FinanceScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.FinanceScreen />
           )}
         </Tab.Screen>
       )}
@@ -257,9 +240,7 @@ function MainTabs() {
           }}
         >
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.ReportsScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.ReportsScreen />
           )}
         </Tab.Screen>
       )}
@@ -274,9 +255,7 @@ function MainTabs() {
           }}
         >
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.MarketplaceScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.MarketplaceScreen />
           )}
         </Tab.Screen>
       )}
@@ -292,9 +271,7 @@ function MainTabs() {
           }}
         >
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.NutritionScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.NutritionScreen />
           )}
         </Tab.Screen>
       )}
@@ -308,9 +285,7 @@ function MainTabs() {
           }}
         >
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.PlanningProductionScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.PlanningProductionScreen />
           )}
         </Tab.Screen>
       )}
@@ -324,9 +299,7 @@ function MainTabs() {
           }}
         >
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.CollaborationScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.CollaborationScreen />
           )}
         </Tab.Screen>
       )}
@@ -340,9 +313,7 @@ function MainTabs() {
           }}
         >
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.MortalitesScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.MortalitesScreen />
           )}
         </Tab.Screen>
       )}
@@ -355,9 +326,7 @@ function MainTabs() {
         }}
       >
         {() => (
-          <LazyScreenWrapper>
-            <LazyScreens.ProductionScreen />
-          </LazyScreenWrapper>
+          <LazyScreens.ProductionScreen />
         )}
       </Tab.Screen>
 
@@ -370,9 +339,7 @@ function MainTabs() {
           }}
         >
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.SanteScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.SanteScreen />
           )}
         </Tab.Screen>
       )}
@@ -385,9 +352,7 @@ function MainTabs() {
         }}
       >
         {() => (
-          <LazyScreenWrapper>
-            <LazyScreens.ParametresScreen />
-          </LazyScreenWrapper>
+          <LazyScreens.ParametresScreen />
         )}
       </Tab.Screen>
 
@@ -399,9 +364,7 @@ function MainTabs() {
         }}
       >
         {() => (
-          <LazyScreenWrapper>
-            <LazyScreens.ChatScreen />
-          </LazyScreenWrapper>
+          <LazyScreens.ChatScreen />
         )}
       </Tab.Screen>
     </Tab.Navigator>
@@ -417,8 +380,8 @@ export default function AppNavigator() {
   const navigationRef = React.useRef<any>(null);
   const lastRouteRef = React.useRef<string | null>(null);
 
-  // Précharger intelligemment les écrans selon le rôle
-  usePreloadScreens();
+  // Note: usePreloadScreens() supprimé car React.lazy() n'est pas supporté par React Native
+  // Les écrans sont maintenant chargés directement via des imports statiques
 
   useEffect(() => {
     // Charger l'utilisateur depuis le stockage au démarrage
@@ -579,137 +542,99 @@ export default function AppNavigator() {
       >
         <Stack.Screen name={SCREENS.WELCOME}>
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.WelcomeScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.WelcomeScreen />
           )}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.AUTH}>
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.AuthScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.AuthScreen />
           )}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.CREATE_PROJECT}>
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.CreateProjectScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.CreateProjectScreen />
           )}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.PROFIL}>
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.ProfilScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.ProfilScreen />
           )}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.DOCUMENTS}>
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.DocumentsScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.DocumentsScreen />
           )}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.ADMIN} options={{ headerShown: false }}>
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.AdminScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.AdminScreen />
           )}
         </Stack.Screen>
         {/* 🆕 Écrans d'onboarding */}
         <Stack.Screen name={SCREENS.ONBOARDING_AUTH}>
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.OnboardingAuthScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.OnboardingAuthScreen />
           )}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.PROFILE_SELECTION}>
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.ProfileSelectionScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.ProfileSelectionScreen />
           )}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.BUYER_INFO_COMPLETION}>
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.BuyerInfoCompletionScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.BuyerInfoCompletionScreen />
           )}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.VETERINARIAN_INFO_COMPLETION}>
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.VeterinarianInfoCompletionScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.VeterinarianInfoCompletionScreen />
           )}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.VET_PROPOSE_FARMS}>
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.VetProposeFarmsScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.VetProposeFarmsScreen />
           )}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.SERVICE_PROPOSAL_NOTIFICATIONS}>
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.ServiceProposalNotificationsScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.ServiceProposalNotificationsScreen />
           )}
         </Stack.Screen>
         {/* 🆕 Écrans spécifiques aux rôles */}
         <Stack.Screen name={SCREENS.MY_PURCHASES}>
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.MyPurchasesScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.MyPurchasesScreen />
           )}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.MY_CLIENTS}>
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.MyClientsScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.MyClientsScreen />
           )}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.CONSULTATIONS}>
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.ConsultationsScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.ConsultationsScreen />
           )}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.MY_FARMS}>
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.MyFarmsScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.MyFarmsScreen />
           )}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.TASKS}>
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.TasksScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.TasksScreen />
           )}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.RECORDS}>
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.RecordsScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.RecordsScreen />
           )}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.OFFERS}>
           {() => (
-            <LazyScreenWrapper>
-              <LazyScreens.MarketplaceScreen />
-            </LazyScreenWrapper>
+            <LazyScreens.MarketplaceScreen />
           )}
         </Stack.Screen>
         <Stack.Screen name="Main" component={MainTabs} />
@@ -717,3 +642,4 @@ export default function AppNavigator() {
     </NavigationContainer>
   );
 }
+

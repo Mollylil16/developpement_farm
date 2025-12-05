@@ -14,6 +14,7 @@ import {
   configureNotifications,
 } from '../../../services/notificationsService';
 import { NOTIFICATIONS_ENABLED_KEY } from '../../../constants/notifications';
+import NotificationTypesModal from './modals/NotificationTypesModal';
 
 interface SettingsNotificationsViewProps {
   onBack: () => void;
@@ -23,6 +24,7 @@ export default function SettingsNotificationsView({ onBack }: SettingsNotificati
   const { colors } = useTheme();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [scheduledCount, setScheduledCount] = useState(0);
+  const [showNotificationTypeModal, setShowNotificationTypeModal] = useState<'push' | 'email' | 'sms' | null>(null);
 
   useEffect(() => {
     // Charger la préférence des notifications
@@ -118,7 +120,7 @@ export default function SettingsNotificationsView({ onBack }: SettingsNotificati
         <View style={styles.list}>
           <TouchableOpacity
             style={[styles.item, { borderBottomColor: colors.border }]}
-            onPress={() => Alert.alert('En développement', 'Notifications push')}
+            onPress={() => setShowNotificationTypeModal('push')}
           >
             <Text style={[styles.itemText, { color: colors.text }]}>Notifications push</Text>
             <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
@@ -126,7 +128,7 @@ export default function SettingsNotificationsView({ onBack }: SettingsNotificati
 
           <TouchableOpacity
             style={[styles.item, { borderBottomColor: colors.border }]}
-            onPress={() => Alert.alert('En développement', 'Notifications email')}
+            onPress={() => setShowNotificationTypeModal('email')}
           >
             <Text style={[styles.itemText, { color: colors.text }]}>Notifications email</Text>
             <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
@@ -134,13 +136,22 @@ export default function SettingsNotificationsView({ onBack }: SettingsNotificati
 
           <TouchableOpacity
             style={styles.item}
-            onPress={() => Alert.alert('En développement', 'Notifications SMS')}
+            onPress={() => setShowNotificationTypeModal('sms')}
           >
             <Text style={[styles.itemText, { color: colors.text }]}>Notifications SMS</Text>
             <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Modals */}
+      {showNotificationTypeModal && (
+        <NotificationTypesModal
+          visible={showNotificationTypeModal !== null}
+          onClose={() => setShowNotificationTypeModal(null)}
+          type={showNotificationTypeModal}
+        />
+      )}
     </View>
   );
 }

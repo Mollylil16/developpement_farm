@@ -4,13 +4,17 @@
  */
 
 import * as SQLite from 'expo-sqlite';
+import { createTableSafely } from '../utils';
 
 /**
  * Crée la table maladies si elle n'existe pas
+ * Préserve les données existantes sauf si la table est corrompue
  */
 export async function createMaladiesTable(db: SQLite.SQLiteDatabase): Promise<void> {
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS maladies (
+  await createTableSafely(
+    db,
+    'maladies',
+    `CREATE TABLE maladies (
       id TEXT PRIMARY KEY,
       projet_id TEXT NOT NULL,
       animal_id TEXT,
@@ -27,14 +31,14 @@ export async function createMaladiesTable(db: SQLite.SQLiteDatabase): Promise<vo
       nombre_deces INTEGER CHECK (nombre_deces IS NULL OR nombre_deces >= 0),
       veterinaire TEXT,
       cout_traitement REAL CHECK (cout_traitement IS NULL OR cout_traitement >= 0),
-      CHECK (date_fin IS NULL OR date_fin >= date_debut),
       gueri INTEGER DEFAULT 0 CHECK (gueri IN (0, 1)),
       notes TEXT,
       date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
       derniere_modification TEXT DEFAULT CURRENT_TIMESTAMP,
+      CHECK (date_fin IS NULL OR date_fin >= date_debut),
       FOREIGN KEY (projet_id) REFERENCES projets(id) ON DELETE CASCADE,
       FOREIGN KEY (animal_id) REFERENCES production_animaux(id) ON DELETE SET NULL
-    );
-  `);
+    );`
+  );
 }
 

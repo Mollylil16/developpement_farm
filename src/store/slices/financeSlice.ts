@@ -85,8 +85,8 @@ export const createChargeFixe = createAsyncThunk(
         statut: 'actif',
       });
       return charge;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la création de la charge fixe');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création de la charge fixe');
     }
   }
 );
@@ -99,8 +99,8 @@ export const loadChargesFixes = createAsyncThunk(
       const chargeRepo = new ChargeFixeRepository(db);
       const charges = await chargeRepo.findByProjet(projetId);
       return charges;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement des charges fixes');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des charges fixes');
     }
   }
 );
@@ -113,8 +113,8 @@ export const updateChargeFixe = createAsyncThunk(
       const chargeRepo = new ChargeFixeRepository(db);
       const charge = await chargeRepo.update(id, updates);
       return charge;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la mise à jour de la charge fixe');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la mise à jour de la charge fixe');
     }
   }
 );
@@ -127,8 +127,8 @@ export const deleteChargeFixe = createAsyncThunk(
       const chargeRepo = new ChargeFixeRepository(db);
       await chargeRepo.delete(id);
       return id;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la suppression de la charge fixe');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la suppression de la charge fixe');
     }
   }
 );
@@ -142,8 +142,8 @@ export const createDepensePonctuelle = createAsyncThunk(
       const depenseRepo = new DepensePonctuelleRepository(db);
       const depense = await depenseRepo.create(input);
       return depense;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la création de la dépense');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création de la dépense');
     }
   }
 );
@@ -158,9 +158,9 @@ export const loadDepensesPonctuelles = createAsyncThunk(
       const depenses = await depenseRepo.findByProjet(projetId);
       console.log(`✅ [financeSlice] ${depenses.length} dépenses chargées depuis la DB`);
       return depenses;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(`❌ [financeSlice] Erreur lors du chargement des dépenses:`, error);
-      return rejectWithValue(error.message || 'Erreur lors du chargement des dépenses');
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des dépenses');
     }
   }
 );
@@ -176,8 +176,8 @@ export const updateDepensePonctuelle = createAsyncThunk(
       const depenseRepo = new DepensePonctuelleRepository(db);
       const depense = await depenseRepo.update(id, updates);
       return depense;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la mise à jour de la dépense');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la mise à jour de la dépense');
     }
   }
 );
@@ -190,8 +190,8 @@ export const deleteDepensePonctuelle = createAsyncThunk(
       const depenseRepo = new DepensePonctuelleRepository(db);
       await depenseRepo.delete(id);
       return id;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la suppression de la dépense');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la suppression de la dépense');
     }
   }
 );
@@ -205,8 +205,8 @@ export const createRevenu = createAsyncThunk(
       const revenuRepo = new RevenuRepository(db);
       const revenu = await revenuRepo.create(input);
       return revenu;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la création du revenu');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création du revenu');
     }
   }
 );
@@ -221,9 +221,9 @@ export const loadRevenus = createAsyncThunk(
       const revenus = await revenuRepo.findByProjet(projetId);
       console.log(`✅ [financeSlice] ${revenus.length} revenus chargés depuis la DB`);
       return revenus;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(`❌ [financeSlice] Erreur lors du chargement des revenus:`, error);
-      return rejectWithValue(error.message || 'Erreur lors du chargement des revenus');
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des revenus');
     }
   }
 );
@@ -236,8 +236,8 @@ export const updateRevenu = createAsyncThunk(
       const revenuRepo = new RevenuRepository(db);
       const revenu = await revenuRepo.update(id, updates);
       return revenu;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la mise à jour du revenu');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la mise à jour du revenu');
     }
   }
 );
@@ -250,8 +250,8 @@ export const deleteRevenu = createAsyncThunk(
       const revenuRepo = new RevenuRepository(db);
       await revenuRepo.delete(id);
       return id;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la suppression du revenu');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la suppression du revenu');
     }
   }
 );
@@ -295,8 +295,8 @@ export const calculateAndSaveMargesVente = createAsyncThunk(
       );
 
       return venteUpdated;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du calcul des marges');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du calcul des marges');
     }
   }
 );
@@ -336,8 +336,8 @@ export const recalculerMargesPeriode = createAsyncThunk(
       const revenus = await revenuRepo.findByProjet(projetId);
 
       return { nombreVentesRecalculees, revenus };
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du recalcul des marges');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du recalcul des marges');
     }
   }
 );
@@ -365,8 +365,8 @@ export const loadStatistiquesMoisActuel = createAsyncThunk(
       const stats = await CoutProductionService.getStatistiquesMoisActuel(projetId, projet);
 
       return stats;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement des statistiques');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des statistiques');
     }
   }
 );

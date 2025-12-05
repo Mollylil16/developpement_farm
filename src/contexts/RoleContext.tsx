@@ -156,11 +156,30 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 /**
  * Hook pour utiliser le contexte des rôles
+ * Retourne des valeurs par défaut si le contexte n'est pas disponible (pour éviter les erreurs lors du lazy loading)
  */
 export const useRole = (): RoleContextType => {
   const context = useContext(RoleContext);
   if (!context) {
-    throw new Error('useRole doit être utilisé dans RoleProvider');
+    // Au lieu de lancer une erreur, retourner des valeurs par défaut
+    // Cela peut arriver lors du lazy loading avant que le provider ne soit monté
+    // En mode production, ne pas logger pour améliorer les performances
+    if (__DEV__) {
+      console.warn('useRole appelé en dehors de RoleProvider, utilisation des valeurs par défaut');
+    }
+    return {
+      currentUser: null,
+      activeRole: 'producer',
+      availableRoles: ['producer'],
+      switchRole: async () => {
+        throw new Error('RoleProvider non disponible');
+      },
+      hasRole: () => false,
+      isProducer: true,
+      isBuyer: false,
+      isVeterinarian: false,
+      isTechnician: false,
+    };
   }
   return context;
 };

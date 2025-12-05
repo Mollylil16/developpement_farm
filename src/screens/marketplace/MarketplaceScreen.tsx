@@ -1319,6 +1319,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexDirection: 'row',
     gap: SPACING.xs,
+    minHeight: 48,
   },
   activeTab: {
     borderBottomWidth: 2,
@@ -1326,6 +1327,8 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
     fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    textAlign: 'center',
+    lineHeight: MarketplaceTheme.typography.fontSizes.md * 1.2,
   },
   tabBadge: {
     minWidth: 20,
@@ -1334,6 +1337,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 6,
+    alignSelf: 'center',
   },
   tabBadgeText: {
     fontSize: 10,

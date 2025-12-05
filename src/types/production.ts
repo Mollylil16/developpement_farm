@@ -5,6 +5,8 @@
 export type SexeAnimal = 'male' | 'femelle' | 'indetermine';
 export type StatutAnimal = 'actif' | 'mort' | 'vendu' | 'offert' | 'autre';
 
+export type CategoriePoids = 'porcelet' | 'croissance' | 'finition';
+
 export interface ProductionAnimal {
   id: string;
   projet_id: string;
@@ -19,6 +21,7 @@ export interface ProductionAnimal {
   statut: StatutAnimal; // Détail du statut : 'actif' (sur ferme), 'mort', 'vendu', 'offert', 'autre' (retiré du cheptel mais dans historique)
   race?: string;
   reproducteur: boolean;
+  categorie_poids?: CategoriePoids; // Catégorie basée sur le poids : porcelet (7-25kg), croissance (25-60kg), finition (>60kg)
   pere_id?: string | null;
   mere_id?: string | null;
   notes?: string;
@@ -65,6 +68,7 @@ export interface UpdateProductionAnimalInput {
   statut?: StatutAnimal;
   race?: string | null;
   reproducteur?: boolean;
+  categorie_poids?: CategoriePoids;
   pere_id?: string | null;
   mere_id?: string | null;
   notes?: string | null;

@@ -220,7 +220,7 @@ export default function CollaborationListComponent() {
           styles.header,
           {
             backgroundColor: colors.surface,
-            paddingTop: insets.top + SPACING.lg,
+            paddingTop: insets.top + SPACING.md,
             ...colors.shadow.medium,
           },
         ]}
@@ -500,8 +500,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.xl,
-    paddingBottom: SPACING.lg,
+    paddingVertical: SPACING.md,
+    paddingBottom: SPACING.md,
   },
   title: {
     fontSize: FONT_SIZES.xxl,
@@ -532,16 +532,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
   },
   filterButton: {
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.lg,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.md,
     marginRight: SPACING.sm,
-    borderWidth: 1.5,
-    minHeight: 40,
+    borderWidth: 1,
+    minHeight: 36,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   filterButtonText: {
     fontSize: FONT_SIZES.sm,
+    fontWeight: '500',
   },
   listContainer: {
     flex: 1,

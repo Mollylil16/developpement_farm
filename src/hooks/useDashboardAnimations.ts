@@ -19,9 +19,10 @@ export function useDashboardAnimations(): UseDashboardAnimationsReturn {
   // Animation du header
   const headerAnim = useRef(new Animated.Value(0)).current;
 
-  // Animations pour les 4 widgets principaux
+  // Animations pour les 5 widgets principaux
   const mainWidgetsAnim = useMemo(
     () => [
+      new Animated.Value(0),
       new Animated.Value(0),
       new Animated.Value(0),
       new Animated.Value(0),

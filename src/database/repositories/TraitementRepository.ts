@@ -280,7 +280,7 @@ export class TraitementRepository extends BaseRepository<Traitement> {
     );
 
     const efficacite = await this.queryOne<{ avg: number }>(
-      'SELECT COALESCE(AVG(efficacite), 0) as avg FROM traitements WHERE projet_id = ? AND efficacite IS NOT NULL',
+      'SELECT COALESCE(AVG(efficace), 0) as avg FROM traitements WHERE projet_id = ? AND efficace IS NOT NULL',
       [projetId]
     );
 

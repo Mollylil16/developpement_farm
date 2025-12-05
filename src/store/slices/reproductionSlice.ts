@@ -4,6 +4,7 @@
  */
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { getErrorMessage } from '../../types/common';
 import { normalize } from 'normalizr';
 import { Gestation, Sevrage, CreateGestationInput, CreateSevrageInput } from '../../types';
 import { getDatabase } from '../../services/database';
@@ -67,8 +68,8 @@ export const createGestation = createAsyncThunk(
         statut: 'en_cours',
       });
       return gestation;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la création de la gestation');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création de la gestation');
     }
   }
 );
@@ -81,8 +82,8 @@ export const loadGestations = createAsyncThunk(
       const gestationRepo = new GestationRepository(db);
       const gestations = await gestationRepo.findByProjet(projetId);
       return gestations;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement des gestations');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des gestations');
     }
   }
 );
@@ -95,8 +96,8 @@ export const loadGestationsEnCours = createAsyncThunk(
       const gestationRepo = new GestationRepository(db);
       const gestations = await gestationRepo.findEnCoursByProjet(projetId);
       return gestations;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement des gestations en cours');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des gestations en cours');
     }
   }
 );
@@ -119,8 +120,8 @@ export const updateGestation = createAsyncThunk(
       }
       
       return gestation;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la mise à jour de la gestation');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la mise à jour de la gestation');
     }
   }
 );
@@ -133,8 +134,8 @@ export const deleteGestation = createAsyncThunk(
       const gestationRepo = new GestationRepository(db);
       await gestationRepo.delete(id);
       return id;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la suppression de la gestation');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la suppression de la gestation');
     }
   }
 );
@@ -148,8 +149,8 @@ export const createSevrage = createAsyncThunk(
       const sevrageRepo = new SevrageRepository(db);
       const sevrage = await sevrageRepo.create(input);
       return sevrage;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la création du sevrage');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création du sevrage');
     }
   }
 );
@@ -162,8 +163,8 @@ export const loadSevrages = createAsyncThunk(
       const sevrageRepo = new SevrageRepository(db);
       const sevrages = await sevrageRepo.findByProjet(projetId);
       return sevrages;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement des sevrages');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des sevrages');
     }
   }
 );
@@ -178,8 +179,8 @@ export const loadSevragesParGestation = createAsyncThunk(
       // Retourner en array pour compatibilité avec l'ancien format
       const sevrages = sevrage ? [sevrage] : [];
       return { gestationId, sevrages };
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement des sevrages');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des sevrages');
     }
   }
 );
@@ -193,8 +194,8 @@ export const loadGestationStats = createAsyncThunk(
       const gestationRepo = new GestationRepository(db);
       const stats = await gestationRepo.getStats(projetId);
       return stats;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement des statistiques');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des statistiques');
     }
   }
 );
@@ -207,8 +208,8 @@ export const loadSevrageStats = createAsyncThunk(
       const sevrageRepo = new SevrageRepository(db);
       const stats = await sevrageRepo.getStats(projetId);
       return stats;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement des statistiques');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des statistiques');
     }
   }
 );
@@ -221,8 +222,8 @@ export const loadTauxSurvie = createAsyncThunk(
       const sevrageRepo = new SevrageRepository(db);
       const tauxSurvie = await sevrageRepo.getTauxSurvie(projetId);
       return tauxSurvie;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du calcul du taux de survie');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du calcul du taux de survie');
     }
   }
 );
@@ -237,8 +238,8 @@ export const deleteSevrage = createAsyncThunk(
       const sevrageRepo = new SevrageRepository(db);
       await sevrageRepo.delete(id);
       return id;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la suppression du sevrage');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la suppression du sevrage');
     }
   }
 );

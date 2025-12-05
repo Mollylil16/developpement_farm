@@ -42,8 +42,8 @@ export const createIngredient = createAsyncThunk(
       const ingredientRepo = new IngredientRepository(db);
       const ingredient = await ingredientRepo.create(input);
       return ingredient;
-    } catch (error: any) {
-      return rejectWithValue(error.message || "Erreur lors de la création de l'ingrédient");
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || "Erreur lors de la création de l'ingrédient");
     }
   }
 );
@@ -58,8 +58,8 @@ export const loadIngredients = createAsyncThunk(
       const ingredientRepo = new IngredientRepository(db);
       const ingredients = await ingredientRepo.getAllIngredients(projetId);
       return ingredients;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement des ingrédients');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des ingrédients');
     }
   }
 );
@@ -74,8 +74,8 @@ export const updateIngredient = createAsyncThunk(
       const ingredientRepo = new IngredientRepository(db);
       const ingredient = await ingredientRepo.update(id, updates);
       return ingredient;
-    } catch (error: any) {
-      return rejectWithValue(error.message || "Erreur lors de la mise à jour de l'ingrédient");
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || "Erreur lors de la mise à jour de l'ingrédient");
     }
   }
 );
@@ -90,8 +90,8 @@ export const deleteIngredient = createAsyncThunk(
       const ingredientRepo = new IngredientRepository(db);
       await ingredientRepo.deleteById(id);
       return id;
-    } catch (error: any) {
-      return rejectWithValue(error.message || "Erreur lors de la suppression de l'ingrédient");
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || "Erreur lors de la suppression de l'ingrédient");
     }
   }
 );
@@ -126,8 +126,8 @@ export const createRation = createAsyncThunk(
         cout_par_kg: coutParKg,
       });
       return ration;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la création de la ration');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création de la ration');
     }
   }
 );
@@ -142,8 +142,8 @@ export const loadRations = createAsyncThunk(
       const rationRepo = new RationRepository(db);
       const rations = await rationRepo.findByProjet(projetId);
       return rations;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement des rations');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des rations');
     }
   }
 );
@@ -158,8 +158,8 @@ export const deleteRation = createAsyncThunk(
       const rationRepo = new RationRepository(db);
       await rationRepo.delete(id);
       return id;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la suppression de la ration');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la suppression de la ration');
     }
   }
 );
@@ -173,8 +173,8 @@ export const createRationBudget = createAsyncThunk(
       const rationRepo = new RationRepository(db);
       const rationBudget = await rationRepo.createRationBudget(input);
       return rationBudget;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la création de la ration budget');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création de la ration budget');
     }
   }
 );
@@ -187,8 +187,8 @@ export const loadRationsBudget = createAsyncThunk(
       const rationRepo = new RationRepository(db);
       const rationsBudget = await rationRepo.findRationsBudgetByProjet(projetId);
       return rationsBudget;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors du chargement des rations budget');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des rations budget');
     }
   }
 );
@@ -207,8 +207,8 @@ export const updateRationBudget = createAsyncThunk(
         throw new Error('Ration budget non trouvée');
       }
       return rationBudget;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la mise à jour de la ration budget');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la mise à jour de la ration budget');
     }
   }
 );
@@ -221,8 +221,8 @@ export const deleteRationBudget = createAsyncThunk(
       const rationRepo = new RationRepository(db);
       await rationRepo.deleteRationBudget(id);
       return id;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Erreur lors de la suppression de la ration budget');
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la suppression de la ration budget');
     }
   }
 );

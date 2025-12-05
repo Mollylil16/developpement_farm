@@ -1,68 +1,71 @@
 /**
  * Lazy-loaded screens
  * 
- * Tous les écrans sont chargés de manière lazy pour réduire le bundle initial
- * et améliorer les temps de démarrage
+ * IMPORTANT: React.lazy() n'est pas supporté par React Native.
+ * On utilise une approche alternative avec des imports conditionnels.
+ * 
+ * Pour React Native, on charge tous les écrans normalement mais on peut
+ * optimiser avec des imports dynamiques si nécessaire.
  */
 
-import { lazy } from 'react';
+// Écrans principaux
+export { default as WelcomeScreen } from '../screens/WelcomeScreen';
+export { default as AuthScreen } from '../screens/AuthScreen';
+export { default as CreateProjectScreen } from '../screens/CreateProjectScreen';
 
-// Écrans principaux (chargés au démarrage)
-export const WelcomeScreen = lazy(() => import('../screens/WelcomeScreen'));
-export const AuthScreen = lazy(() => import('../screens/AuthScreen'));
-export const CreateProjectScreen = lazy(() => import('../screens/CreateProjectScreen'));
-
-// Dashboards (chargés selon le rôle)
-export const DashboardScreen = lazy(() => import('../screens/DashboardScreen'));
-export const DashboardBuyerScreen = lazy(() => import('../screens/DashboardBuyerScreen'));
-export const DashboardVetScreen = lazy(() => import('../screens/DashboardVetScreen'));
-export const DashboardTechScreen = lazy(() => import('../screens/DashboardTechScreen'));
+// Dashboards
+export { default as DashboardScreen } from '../screens/DashboardScreen';
+export { default as DashboardBuyerScreen } from '../screens/DashboardBuyerScreen';
+export { default as DashboardVetScreen } from '../screens/DashboardVetScreen';
+export { default as DashboardTechScreen } from '../screens/DashboardTechScreen';
 
 // Modules principaux
-export const ProductionScreen = lazy(() => import('../screens/ProductionScreen'));
-export const ReproductionScreen = lazy(() => import('../screens/ReproductionScreen'));
-export const NutritionScreen = lazy(() => import('../screens/NutritionScreen'));
-export const FinanceScreen = lazy(() => import('../screens/FinanceScreen'));
-export const SanteScreen = lazy(() => import('../screens/SanteScreen'));
-export const PlanningProductionScreen = lazy(() => import('../screens/PlanningProductionScreen'));
-export const PlanificationScreen = lazy(() => import('../screens/PlanificationScreen'));
-export const MortalitesScreen = lazy(() => import('../screens/MortalitesScreen'));
+export { default as ProductionScreen } from '../screens/ProductionScreen';
+export { default as ReproductionScreen } from '../screens/ReproductionScreen';
+export { default as NutritionScreen } from '../screens/NutritionScreen';
+export { default as FinanceScreen } from '../screens/FinanceScreen';
+export { default as SanteScreen } from '../screens/SanteScreen';
+export { default as PlanningProductionScreen } from '../screens/PlanningProductionScreen';
+export { default as PlanificationScreen } from '../screens/PlanificationScreen';
+export { default as MortalitesScreen } from '../screens/MortalitesScreen';
 
 // Profil et paramètres
-export const ProfilScreen = lazy(() => import('../screens/ProfilScreen'));
-export const ParametresScreen = lazy(() => import('../screens/ParametresScreen'));
-export const CollaborationScreen = lazy(() => import('../screens/CollaborationScreen'));
+export { default as ProfilScreen } from '../screens/ProfilScreen';
+export { default as ParametresScreen } from '../screens/ParametresScreen';
+export { default as CollaborationScreen } from '../screens/CollaborationScreen';
 
 // Rapports et documents
-export const ReportsScreen = lazy(() => import('../screens/ReportsScreen'));
-export const DocumentsScreen = lazy(() => import('../screens/DocumentsScreen'));
-export const RecordsScreen = lazy(() => import('../screens/RecordsScreen'));
+export { default as ReportsScreen } from '../screens/ReportsScreen';
+export { default as DocumentsScreen } from '../screens/DocumentsScreen';
+export { default as RecordsScreen } from '../screens/RecordsScreen';
 
 // Admin
-export const AdminScreen = lazy(() => import('../screens/AdminScreen'));
+export { default as AdminScreen } from '../screens/AdminScreen';
 
 // Marketplace
-export const MarketplaceScreen = lazy(() => import('../screens/marketplace/MarketplaceScreen'));
-export const ChatScreen = lazy(() => import('../screens/marketplace/ChatScreen'));
-export const ProducerOffersScreen = lazy(() => import('../screens/marketplace/ProducerOffersScreen'));
+export { default as MarketplaceScreen } from '../screens/marketplace/MarketplaceScreen';
+export { default as ChatScreen } from '../screens/marketplace/ChatScreen';
+export { default as ProducerOffersScreen } from '../screens/marketplace/ProducerOffersScreen';
 
 // Onboarding
-export const OnboardingAuthScreen = lazy(() => import('../screens/OnboardingAuthScreen'));
-export const ProfileSelectionScreen = lazy(() => import('../screens/ProfileSelectionScreen'));
-export const BuyerInfoCompletionScreen = lazy(() => import('../screens/BuyerInfoCompletionScreen'));
-export const VeterinarianInfoCompletionScreen = lazy(() => import('../screens/VeterinarianInfoCompletionScreen'));
-export const VetProposeFarmsScreen = lazy(() => import('../screens/VetProposeFarmsScreen'));
-export const ServiceProposalNotificationsScreen = lazy(() => import('../screens/ServiceProposalNotificationsScreen'));
+export { default as OnboardingAuthScreen } from '../screens/OnboardingAuthScreen';
+export { default as ProfileSelectionScreen } from '../screens/ProfileSelectionScreen';
+export { default as BuyerInfoCompletionScreen } from '../screens/BuyerInfoCompletionScreen';
+export { default as VeterinarianInfoCompletionScreen } from '../screens/VeterinarianInfoCompletionScreen';
+export { default as VetProposeFarmsScreen } from '../screens/VetProposeFarmsScreen';
+export { default as ServiceProposalNotificationsScreen } from '../screens/ServiceProposalNotificationsScreen';
 
 // Rôles spécifiques
-export const MyPurchasesScreen = lazy(() => import('../screens/MyPurchasesScreen'));
-export const MyClientsScreen = lazy(() => import('../screens/MyClientsScreen'));
-export const ConsultationsScreen = lazy(() => import('../screens/ConsultationsScreen'));
-export const MyFarmsScreen = lazy(() => import('../screens/MyFarmsScreen'));
-export const TasksScreen = lazy(() => import('../screens/TasksScreen'));
+export { default as MyPurchasesScreen } from '../screens/MyPurchasesScreen';
+export { default as MyClientsScreen } from '../screens/MyClientsScreen';
+export { default as ConsultationsScreen } from '../screens/ConsultationsScreen';
+export { default as MyFarmsScreen } from '../screens/MyFarmsScreen';
+export { default as TasksScreen } from '../screens/TasksScreen';
 
 // Autres
-export const CalculateurNavigationScreen = lazy(() => import('../screens/CalculateurNavigationScreen'));
-export const TrainingScreen = lazy(() => import('../screens/TrainingScreen'));
-export const VaccinationScreen = lazy(() => import('../screens/VaccinationScreen'));
+export { default as CalculateurNavigationScreen } from '../screens/CalculateurNavigationScreen';
+export { default as TrainingScreen } from '../screens/TrainingScreen';
+export { default as VaccinationScreen } from '../screens/VaccinationScreen';
 
+// Note: Les écrans de détails et d'ajout sont chargés dynamiquement
+// lorsqu'ils sont nécessaires, pas besoin de les exporter ici
