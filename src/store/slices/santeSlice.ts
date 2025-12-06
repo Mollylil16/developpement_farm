@@ -218,7 +218,7 @@ export const updateVaccination = createAsyncThunk(
 export const deleteVaccination = createAsyncThunk('sante/deleteVaccination', async (id: string) => {
   const db = await getDatabase();
   const vaccinationRepo = new VaccinationRepository(db);
-  await vaccinationRepo.delete(id);
+  await vaccinationRepo.deleteById(id);
   return id;
 });
 

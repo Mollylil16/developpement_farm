@@ -13,7 +13,7 @@ import CollaborationListComponent from '../components/CollaborationListComponent
 
 function CollaborationScreenContent() {
   const { colors } = useTheme();
-  const invitations = useAppSelector((state) => state.collaboration.invitationsRecues);
+  const invitations = useAppSelector((state) => state.collaboration.invitationsEnAttente);
   const invitationsEnAttente = Array.isArray(invitations)
     ? invitations.filter((inv: any) => inv.statut === 'en_attente').length
     : 0;

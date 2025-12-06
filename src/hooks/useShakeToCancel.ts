@@ -4,6 +4,7 @@
  */
 
 import { useEffect, useRef } from 'react';
+import { Alert } from 'react-native';
 import { DeviceMotion, DeviceMotionMeasurement } from 'expo-sensors';
 import * as Haptics from 'expo-haptics';
 
@@ -144,10 +145,10 @@ export function useShakeToCancelModal({
     onShake: () => {
       if (confirmMessage) {
         // Afficher une confirmation avant d'annuler
-        const confirmed = confirm(confirmMessage);
-        if (confirmed) {
-          onClose();
-        }
+        Alert.alert('Confirmation', confirmMessage, [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Confirmer', onPress: onClose },
+        ]);
       } else {
         // Fermer directement
         onClose();

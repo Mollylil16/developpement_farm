@@ -10,7 +10,7 @@
 
 import * as SQLite from 'expo-sqlite';
 import { BaseRepository } from './BaseRepository';
-import { Revenu, DepensePonctuelle, ChargeFixe } from '../../types/finance';
+import { Revenu, DepensePonctuelle, ChargeFixe, StatutChargeFixe } from '../../types/finance';
 import uuid from 'react-native-uuid';
 
 /**
@@ -544,7 +544,7 @@ export class ChargeFixeRepository extends BaseRepository<ChargeFixe> {
     if (!charge) {
       throw new Error('Charge fixe introuvable');
     }
-    const newStatus = charge.statut === 'actif' ? 'inactif' : 'actif';
+    const newStatus: StatutChargeFixe = charge.statut === 'actif' ? 'suspendu' : 'actif';
     return this.update(id, { statut: newStatus });
   }
 }

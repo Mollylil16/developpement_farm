@@ -12,6 +12,7 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
+  RefreshControlProps,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
@@ -32,7 +33,7 @@ import { loadProductionAnimaux } from '../store/slices/productionSlice';
 import { RACES_PERFORMANCES, calculerMoyennePorceletsSelonRaces } from '../constants/races';
 
 interface Props {
-  refreshControl: React.ReactElement;
+  refreshControl?: React.ReactElement<RefreshControlProps>;
 }
 
 export default function SimulateurProductionComponent({ refreshControl }: Props) {

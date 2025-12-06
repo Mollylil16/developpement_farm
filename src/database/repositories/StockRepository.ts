@@ -10,7 +10,7 @@
 
 import * as SQLite from 'expo-sqlite';
 import { BaseRepository } from './BaseRepository';
-import { StockAliment, MouvementStock, CreateStockAlimentInput } from '../../types/nutrition';
+import { StockAliment, StockMouvement, CreateStockAlimentInput } from '../../types/nutrition';
 import uuid from 'react-native-uuid';
 
 export class StockRepository extends BaseRepository<StockAliment> {
@@ -26,7 +26,7 @@ export class StockRepository extends BaseRepository<StockAliment> {
     const quantiteActuelle = 
       'quantite_initiale' in data 
         ? (data.quantite_initiale ?? 0)
-        : (data.quantite_actuelle ?? 0);
+        : ('quantite_actuelle' in data ? (data.quantite_actuelle ?? 0) : 0);
 
     // Activer l'alerte par défaut si seuil défini
     const seuilAlerte = data.seuil_alerte;
@@ -330,26 +330,26 @@ export class StockRepository extends BaseRepository<StockAliment> {
   /**
    * Récupérer les mouvements de stock pour un aliment
    */
-  async getMouvements(stockId: string, limit?: number): Promise<MouvementStock[]> {
+  async getMouvements(stockId: string, limit?: number): Promise<StockMouvement[]> {
     const sql = `SELECT * FROM stocks_mouvements 
                  WHERE aliment_id = ? 
                  ORDER BY date DESC 
                  ${limit ? `LIMIT ${limit}` : ''}`;
     
-    return this.query<MouvementStock>(sql, [stockId]);
+    return this.query<StockMouvement>(sql, [stockId]);
   }
 
   /**
    * Récupérer tous les mouvements pour un projet
    */
-  async getAllMouvementsByProjet(projetId: string, limit?: number): Promise<MouvementStock[]> {
+  async getAllMouvementsByProjet(projetId: string, limit?: number): Promise<StockMouvement[]> {
     const sql = `SELECT m.* FROM stocks_mouvements m
                  INNER JOIN stocks_aliments s ON m.aliment_id = s.id
                  WHERE s.projet_id = ?
                  ORDER BY m.date DESC
                  ${limit ? `LIMIT ${limit}` : ''}`;
     
-    return this.query<MouvementStock>(sql, [projetId]);
+    return this.query<StockMouvement>(sql, [projetId]);
   }
 
   /**

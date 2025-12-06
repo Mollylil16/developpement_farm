@@ -356,8 +356,6 @@ const styles = StyleSheet.create({
     padding: SPACING.sm,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
     ...FONTS.h2,
   },
   scrollView: {
@@ -402,7 +400,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   photoHint: {
-    fontSize: 12,
     fontStyle: 'italic',
     ...FONTS.small,
   },
@@ -410,8 +407,6 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xl,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
     marginBottom: SPACING.md,
     ...FONTS.h3,
   },
@@ -419,16 +414,14 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   fieldLabel: {
-    fontSize: 14,
-    fontWeight: '600',
     marginBottom: SPACING.xs,
     ...FONTS.body,
+    fontWeight: '600',
   },
   input: {
     borderWidth: 1,
     borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md,
-    fontSize: 16,
     ...FONTS.body,
   },
   saveButton: {
@@ -445,9 +438,8 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
     ...FONTS.body,
+    fontWeight: 'bold',
   },
   loadingContainer: {
     flex: 1,
@@ -456,7 +448,6 @@ const styles = StyleSheet.create({
     gap: SPACING.md,
   },
   loadingText: {
-    fontSize: 14,
     ...FONTS.body,
   },
 });

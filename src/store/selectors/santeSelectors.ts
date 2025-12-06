@@ -117,7 +117,11 @@ export const selectVaccinationById = (id: string) =>
 
 export const selectVaccinationsByAnimal = (animalId: string) =>
   createSelector([selectAllVaccinations], (vaccinations): Vaccination[] =>
-    vaccinations.filter((v) => v.animal_id === animalId)
+    vaccinations.filter((v) => {
+      if (!v.animal_ids) return false;
+      const ids = Array.isArray(v.animal_ids) ? v.animal_ids : JSON.parse(v.animal_ids as any);
+      return Array.isArray(ids) && ids.includes(animalId);
+    })
   );
 
 export const selectVaccinationsByStatut = (
@@ -276,11 +280,11 @@ export const selectProchainesVisitesVeterinaires = createSelector(
   (visites): VisiteVeterinaire[] => {
     const now = new Date();
     return visites
-      .filter((v) => v.prochaine_visite_prevue && new Date(v.prochaine_visite_prevue) >= now)
+      .filter((v) => v.prochaine_visite && new Date(v.prochaine_visite) >= now)
       .sort(
         (a, b) =>
-          new Date(a.prochaine_visite_prevue!).getTime() -
-          new Date(b.prochaine_visite_prevue!).getTime()
+          new Date(a.prochaine_visite!).getTime() -
+          new Date(b.prochaine_visite!).getTime()
       );
   }
 );

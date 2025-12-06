@@ -347,7 +347,7 @@ export function generateRapportCompletHTML(data: RapportCompletData): string {
                 (depense) => `
               <tr>
                 <td>${formatDate(depense.date)}</td>
-                <td>${depense.libelle}</td>
+                <td>${depense.libelle_categorie || depense.commentaire || depense.categorie}</td>
                 <td><span class="badge badge-warning">${depense.categorie}</span></td>
                 <td class="text-right">${formatCurrency(depense.montant)}</td>
               </tr>

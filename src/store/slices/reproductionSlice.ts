@@ -79,7 +79,7 @@ export const loadGestations = createAsyncThunk(
     try {
       const db = await getDatabase();
       const gestationRepo = new GestationRepository(db);
-      const gestations = await gestationRepo.findByProjet(projetId);
+      const gestations = await gestationRepo.findAll(projetId);
       return gestations;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors du chargement des gestations');
@@ -121,7 +121,7 @@ export const deleteGestation = createAsyncThunk(
     try {
       const db = await getDatabase();
       const gestationRepo = new GestationRepository(db);
-      await gestationRepo.delete(id);
+      await gestationRepo.deleteById(id);
       return id;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la suppression de la gestation');
@@ -221,7 +221,9 @@ export const deleteSevrage = createAsyncThunk(
   'reproduction/deleteSevrage',
   async (id: string, { rejectWithValue }) => {
     try {
-      await databaseService.deleteSevrage(id);
+      const db = await getDatabase();
+      const sevrageRepo = new SevrageRepository(db);
+      await sevrageRepo.deleteById(id);
       return id;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la suppression du sevrage');
@@ -381,7 +383,7 @@ const reproductionSlice = createSlice({
         state.entities.sevrages = { ...state.entities.sevrages, ...normalized.entities.sevrages };
         state.sevragesParGestation[gestationId] = normalized.result;
         // Ajouter les IDs de sevrages à la liste globale si pas déjà présents
-        normalized.result.forEach((sevrageId) => {
+        normalized.result.forEach((sevrageId: string) => {
           if (!state.ids.sevrages.includes(sevrageId)) {
             state.ids.sevrages.push(sevrageId);
           }

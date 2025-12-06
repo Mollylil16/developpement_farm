@@ -117,7 +117,21 @@ export const updateProductionAnimal = createAsyncThunk(
     try {
       const db = await getDatabase();
       const animalRepo = new AnimalRepository(db);
-      const animal = await animalRepo.update(id, updates);
+      // Convertir null en undefined pour compatibilité avec ProductionAnimal
+      const updatesNormalized = {
+        ...updates,
+        nom: updates.nom === null ? undefined : updates.nom,
+        origine: updates.origine === null ? undefined : updates.origine,
+        date_naissance: updates.date_naissance === null ? undefined : updates.date_naissance,
+        date_entree: updates.date_entree === null ? undefined : updates.date_entree,
+        poids_initial: updates.poids_initial === null ? undefined : updates.poids_initial,
+        race: updates.race === null ? undefined : updates.race,
+        notes: updates.notes === null ? undefined : updates.notes,
+        photo_uri: updates.photo_uri === null ? undefined : updates.photo_uri,
+        pere_id: updates.pere_id === null ? undefined : updates.pere_id,
+        mere_id: updates.mere_id === null ? undefined : updates.mere_id,
+      };
+      const animal = await animalRepo.update(id, updatesNormalized);
       return animal;
     } catch (error: any) {
       return rejectWithValue(error.message || "Erreur lors de la mise à jour de l'animal");
@@ -135,7 +149,7 @@ export const deleteProductionAnimal = createAsyncThunk(
       
       const db = await getDatabase();
       const animalRepo = new AnimalRepository(db);
-      await animalRepo.delete(id);
+      await animalRepo.deleteById(id);
       
       // Note: Pas besoin de supprimer la photo manuellement
       // Les URIs temporaires sont gérées automatiquement par le système
@@ -184,7 +198,7 @@ export const deletePesee = createAsyncThunk(
     try {
       const db = await getDatabase();
       const peseeRepo = new PeseeRepository(db);
-      await peseeRepo.delete(id);
+      await peseeRepo.deleteById(id);
       return { id, animalId };
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la suppression de la pesée');
@@ -331,7 +345,9 @@ const productionSlice = createSlice({
         
         // Mise à jour ciblée - Redux Toolkit utilise Immer qui détecte les changements
         // On ne modifie que l'animal concerné, pas tout l'objet entities
-        state.entities.animaux[animalId] = normalized.entities.animaux[animalId];
+        if (normalized.entities.animaux && normalized.entities.animaux[animalId]) {
+          state.entities.animaux[animalId] = normalized.entities.animaux[animalId];
+        }
         
         // Incrémenter un compteur de version pour invalider les caches si nécessaire
         state.updateCounter = (state.updateCounter || 0) + 1;
@@ -421,7 +437,7 @@ const productionSlice = createSlice({
         state.entities.pesees = { ...state.entities.pesees, ...normalized.entities.pesees };
         state.peseesParAnimal[animalId] = normalized.result;
         // Ajouter les IDs de pesées à la liste globale si pas déjà présents
-        normalized.result.forEach((peseeId) => {
+        normalized.result.forEach((peseeId: string) => {
           if (!state.ids.pesees.includes(peseeId)) {
             state.ids.pesees.push(peseeId);
           }
@@ -441,7 +457,7 @@ const productionSlice = createSlice({
         state.entities.pesees = { ...state.entities.pesees, ...normalized.entities.pesees };
         state.peseesRecents = normalized.result;
         // Ajouter les IDs de pesées à la liste globale si pas déjà présents
-        normalized.result.forEach((peseeId) => {
+        normalized.result.forEach((peseeId: string) => {
           if (!state.ids.pesees.includes(peseeId)) {
             state.ids.pesees.push(peseeId);
           }

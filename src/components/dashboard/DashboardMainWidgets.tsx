@@ -50,7 +50,7 @@ export default function DashboardMainWidgets({
           },
         ]}
       >
-        <OverviewWidget projetId={projetId} />
+        <OverviewWidget />
       </Animated.View>
 
       {/* Widget 2: Performance Globale - Coût de production vs Prix du marché */}
@@ -90,7 +90,7 @@ export default function DashboardMainWidgets({
           },
         ]}
       >
-        <ReproductionWidget projetId={projetId} />
+        <ReproductionWidget />
       </Animated.View>
 
       {/* Widget 4: Finance */}
@@ -110,7 +110,7 @@ export default function DashboardMainWidgets({
           },
         ]}
       >
-        <FinanceWidget projetId={projetId} />
+        <FinanceWidget />
       </Animated.View>
     </View>
   );

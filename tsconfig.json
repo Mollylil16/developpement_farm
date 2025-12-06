@@ -8,5 +8,16 @@
     "skipLibCheck": true,
     "lib": ["ES2020"],
     "types": []
-  }
+  },
+  "exclude": [
+    "backend/**/*",
+    "node_modules",
+    "dist",
+    "coverage",
+    "**/__tests__/**/*",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx"
+  ]
 }

@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
   },
   errorTitle: {
     fontSize: FONT_SIZES.sm,
-    fontWeight: FONT_WEIGHTS.semibold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as any,
     color: LIGHT_COLORS.error,
     marginBottom: SPACING.xs,
   },
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#FFFFFF',
     fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semibold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as any,
   },
   tipsBox: {
     width: '100%',
@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
   },
   tipsTitle: {
     fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semibold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as any,
     color: LIGHT_COLORS.info,
     marginBottom: SPACING.sm,
   },

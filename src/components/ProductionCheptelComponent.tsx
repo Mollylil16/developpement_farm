@@ -1095,7 +1095,7 @@ export default function ProductionCheptelComponent() {
             setAnimalVendu(null);
           }}
           animalId={animalVendu?.id}
-          animalPoids={animalVendu?.poids_actuel}
+          animalPoids={animalVendu?.poids_initial}
         />
       )}
     </View>

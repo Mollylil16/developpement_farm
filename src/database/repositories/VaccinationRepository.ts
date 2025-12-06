@@ -10,7 +10,8 @@
 
 import * as SQLite from 'expo-sqlite';
 import { BaseRepository } from './BaseRepository';
-import { Vaccination } from '../../types/veterinaire';
+import { Vaccination } from '../../types/sante';
+import { addDays } from 'date-fns';
 import uuid from 'react-native-uuid';
 
 export class VaccinationRepository extends BaseRepository<Vaccination> {
@@ -41,11 +42,11 @@ export class VaccinationRepository extends BaseRepository<Vaccination> {
         id,
         data.projet_id,
         JSON.stringify(data.animal_ids || []),
-        data.vaccin || data.type_vaccin || null,
+        data.vaccin || null,
         data.nom_vaccin || null,
-        data.date_vaccination || data.date_administration || now,
-        data.numero_lot_vaccin || data.lot_numero || null,
-        data.veterinaire || data.veterinaire_id || null,
+        data.date_vaccination || now,
+        data.numero_lot_vaccin || null,
+        data.veterinaire || null,
         dateRappel,
         data.notes || null,
         data.type_prophylaxie || 'vitamine',
@@ -79,25 +80,25 @@ export class VaccinationRepository extends BaseRepository<Vaccination> {
       fields.push('animal_ids = ?');
       values.push(JSON.stringify(data.animal_ids));
     }
-    if (data.vaccin !== undefined || data.type_vaccin !== undefined) {
+    if (data.vaccin !== undefined) {
       fields.push('vaccin = ?');
-      values.push(data.vaccin || data.type_vaccin);
+      values.push(data.vaccin);
     }
     if (data.nom_vaccin !== undefined) {
       fields.push('nom_vaccin = ?');
       values.push(data.nom_vaccin);
     }
-    if (data.date_vaccination !== undefined || data.date_administration !== undefined) {
+    if (data.date_vaccination !== undefined) {
       fields.push('date_vaccination = ?');
-      values.push(data.date_vaccination || data.date_administration);
+      values.push(data.date_vaccination);
     }
-    if (data.numero_lot_vaccin !== undefined || data.lot_numero !== undefined) {
+    if (data.numero_lot_vaccin !== undefined) {
       fields.push('numero_lot_vaccin = ?');
-      values.push(data.numero_lot_vaccin || data.lot_numero);
+      values.push(data.numero_lot_vaccin);
     }
-    if (data.veterinaire !== undefined || data.veterinaire_id !== undefined) {
+    if (data.veterinaire !== undefined) {
       fields.push('veterinaire = ?');
-      values.push(data.veterinaire || data.veterinaire_id);
+      values.push(data.veterinaire);
     }
     if (data.date_rappel !== undefined) {
       fields.push('date_rappel = ?');
@@ -346,11 +347,15 @@ export class VaccinationRepository extends BaseRepository<Vaccination> {
     return this.create({
       projet_id: originale.projet_id,
       animal_ids: typeof originale.animal_ids === 'string' ? JSON.parse(originale.animal_ids) : originale.animal_ids,
-      vaccin: originale.vaccin || originale.type_vaccin,
+      type_prophylaxie: originale.type_prophylaxie,
+      produit_administre: originale.produit_administre,
+      dosage: originale.dosage,
+      raison_traitement: originale.raison_traitement,
+      vaccin: originale.vaccin,
       nom_vaccin: originale.nom_vaccin,
       date_vaccination: new Date().toISOString(),
       numero_lot_vaccin: undefined, // Nouveau lot
-      veterinaire: originale.veterinaire || originale.veterinaire_id,
+      veterinaire: originale.veterinaire,
       notes: `Rappel de vaccination ${originale.id}`,
     });
   }

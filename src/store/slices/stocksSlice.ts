@@ -64,7 +64,13 @@ export const updateStockAliment = createAsyncThunk(
     try {
       const db = await getDatabase();
       const stockRepo = new StockRepository(db);
-      const stock = await stockRepo.update(id, updates);
+      // Convertir null en undefined pour compatibilité avec StockAliment
+      const updatesNormalized = {
+        ...updates,
+        seuil_alerte: updates.seuil_alerte === null ? undefined : updates.seuil_alerte,
+        notes: updates.notes === null ? undefined : updates.notes,
+      };
+      const stock = await stockRepo.update(id, updatesNormalized);
       return stock;
     } catch (error: any) {
       return rejectWithValue(error.message || "Erreur lors de la mise à jour de l'aliment");

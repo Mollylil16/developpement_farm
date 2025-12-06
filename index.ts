@@ -3,9 +3,11 @@ import { Buffer } from 'buffer';
 
 // Déclaration du type global pour TypeScript
 declare global {
-  var Buffer: typeof Buffer;
+  // eslint-disable-next-line no-var
+  var Buffer: typeof import('buffer').Buffer;
 }
 
+// @ts-ignore - Buffer polyfill
 global.Buffer = Buffer;
 
 // L'enregistrement de l'application est maintenant fait directement dans App.tsx

@@ -80,7 +80,7 @@ export function useVaccinationLogic(): VaccinationLogicReturn {
     try {
       await Promise.all([
         dispatch(loadVaccinations(projetActif.id)).unwrap(),
-        dispatch(loadProductionAnimaux(projetActif.id)).unwrap(),
+        dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: false })).unwrap(),
       ]);
     } catch (error) {
       console.error('Erreur chargement données vaccination:', error);
@@ -152,10 +152,10 @@ export function useVaccinationLogic(): VaccinationLogicReturn {
   const statParType = useMemo((): StatistiquesProphylaxieParType[] => {
     const types: TypeProphylaxie[] = [
       'vitamine',
-      'vaccin',
-      'antiparasitaire',
-      'antibiotique',
-      'autre',
+      'vaccin_obligatoire',
+      'deparasitant',
+      'antibiotique_preventif',
+      'autre_traitement',
     ];
     
     return types.map((type) => {
@@ -179,13 +179,14 @@ export function useVaccinationLogic(): VaccinationLogicReturn {
           : 0;
       
       return {
-        type,
-        label: TYPE_PROPHYLAXIE_LABELS[type],
-        totalVaccinations,
-        effectues,
-        enRetard,
-        tauxCouverture,
-        totalAnimauxConcernes,
+        type_prophylaxie: type,
+        nom_type: TYPE_PROPHYLAXIE_LABELS[type] || type,
+        total_vaccinations: totalVaccinations,
+        porcs_vaccines: effectues,
+        total_porcs: statsGlobales.totalAnimaux,
+        taux_couverture: tauxCouverture,
+        en_retard: enRetard,
+        cout_total: vaccinationsType.reduce((sum, v) => sum + (v.cout || 0), 0),
       };
     });
   }, [vaccinations, statsGlobales.totalAnimaux]);

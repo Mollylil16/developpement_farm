@@ -17,7 +17,7 @@ export { default as MarketplaceFilters } from './MarketplaceFilters';
 export { default as SaleTermsDisplay } from './SaleTermsDisplay';
 export { default as BatchAddModal } from './BatchAddModal';
 export { default as OfferModal } from './OfferModal';
-export { default as OfferResponseModal } from './OfferResponseModal';
+// export { default as OfferResponseModal } from './OfferResponseModal'; // Fichier vide
 export { default as DeliveryConfirmationModal } from './DeliveryConfirmationModal';
 export { default as RatingModal } from './RatingModal';
 

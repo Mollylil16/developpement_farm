@@ -322,8 +322,8 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
       >
         <View style={styles.vetoHeader}>
           <View style={styles.vetoAvatar}>
-            {veterinaire.photo ? (
-              <Image source={{ uri: veterinaire.photo }} style={styles.vetoAvatarImage} />
+            {false ? (
+              <Image source={{ uri: '' }} style={styles.vetoAvatarImage} />
             ) : (
               <View style={[styles.vetoAvatarPlaceholder, { backgroundColor: colors.primary }]}>
                 <Text style={styles.vetoAvatarInitiales}>
@@ -401,8 +401,7 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
       {/* Modal Ajouter/Modifier Visite */}
       <VisiteVeterinaireFormModalNew
         visible={showModalVisite}
-        visite={visiteSelectionnee}
-        isEditing={modeEdition}
+        visite={visiteSelectionnee || undefined}
         onClose={() => {
           setShowModalVisite(false);
           setVisiteSelectionnee(null);

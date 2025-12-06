@@ -7,7 +7,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { MarketplaceTheme } from '../../styles/marketplace.theme';
-import { formatPrice, formatDate } from '../../utils/formatters';
+import { formatMontantAvecDevise, formatDate } from '../../utils/formatters';
 import type { Transaction } from '../../types/marketplace';
 
 interface TransactionCardProps {
@@ -106,7 +106,7 @@ export default function TransactionCard({
 
         {/* Prix */}
         <Text style={[styles.price, { color: colors.primary }]}>
-          {formatPrice(transaction.finalPrice)}
+          {formatMontantAvecDevise(transaction.finalPrice)}
         </Text>
       </View>
 
@@ -136,12 +136,12 @@ export default function TransactionCard({
           </Text>
         </View>
 
-        {transaction.deliveryDate && (
+        {transaction.deliveryDetails?.scheduledDate && (
           <View style={styles.infoRow}>
             <Ionicons name="car-outline" size={16} color={colors.textSecondary} />
             <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Livraison:</Text>
             <Text style={[styles.infoValue, { color: colors.text }]}>
-              {formatDate(transaction.deliveryDate)}
+              {formatDate(transaction.deliveryDetails.scheduledDate)}
             </Text>
           </View>
         )}

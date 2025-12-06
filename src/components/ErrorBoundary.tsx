@@ -82,9 +82,11 @@ class ErrorBoundaryClass extends Component<Props, State> {
       });
 
       // Extraire le nom du composant problématique depuis le componentStack
-      const componentMatch = errorInfo.componentStack.match(/at\s+(\w+)\s*\(/);
-      if (componentMatch) {
-        console.error(`🔍 Composant suspect: ${componentMatch[1]}`);
+      if (errorInfo.componentStack) {
+        const componentMatch = errorInfo.componentStack.match(/at\s+(\w+)\s*\(/);
+        if (componentMatch) {
+          console.error(`🔍 Composant suspect: ${componentMatch[1]}`);
+        }
       }
     }
 
@@ -340,8 +342,8 @@ function ErrorFallback({
   // Fonction pour copier le texte dans le presse-papier
   const copyToClipboard = async (text: string) => {
     try {
-      if (Platform.OS === 'web' && typeof window !== 'undefined' && window.navigator?.clipboard) {
-        await window.navigator.clipboard.writeText(text);
+      if (Platform.OS === 'web' && typeof (global as any).window !== 'undefined' && (global as any).window.navigator?.clipboard) {
+        await (global as any).window.navigator.clipboard.writeText(text);
       } else {
         Clipboard.setString(text);
       }

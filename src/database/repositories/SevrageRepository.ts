@@ -36,8 +36,8 @@ export class SevrageRepository extends BaseRepository<Sevrage> {
         data.projet_id,
         data.gestation_id,
         data.date_sevrage || now,
-        data.nombre_porcelets || 0,
-        data.poids_moyen_kg || null,
+        data.nombre_porcelets_sevres || 0,
+        data.poids_moyen_sevrage || null,
         data.notes || null,
         now,
         now,
@@ -63,13 +63,13 @@ export class SevrageRepository extends BaseRepository<Sevrage> {
       fields.push('date_sevrage = ?');
       values.push(data.date_sevrage);
     }
-    if (data.nombre_porcelets !== undefined) {
-      fields.push('nombre_porcelets = ?');
-      values.push(data.nombre_porcelets);
+    if (data.nombre_porcelets_sevres !== undefined) {
+      fields.push('nombre_porcelets_sevres = ?');
+      values.push(data.nombre_porcelets_sevres);
     }
-    if (data.poids_moyen_kg !== undefined) {
-      fields.push('poids_moyen_kg = ?');
-      values.push(data.poids_moyen_kg);
+    if (data.poids_moyen_sevrage !== undefined) {
+      fields.push('poids_moyen_sevrage = ?');
+      values.push(data.poids_moyen_sevrage);
     }
     if (data.notes !== undefined) {
       fields.push('notes = ?');

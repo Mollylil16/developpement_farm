@@ -383,4 +383,14 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.semiBold,
   },
+  infoBox: {
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    marginTop: SPACING.md,
+  },
+  infoText: {
+    fontSize: FONT_SIZES.sm,
+    lineHeight: 20,
+  },
 });

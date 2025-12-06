@@ -15,16 +15,17 @@ export class MarketplaceListingRepository extends BaseRepository<MarketplaceList
   /**
    * Créer une nouvelle annonce
    */
-  async create(data: {
-    subjectId: string;
-    producerId: string;
-    farmId: string;
-    pricePerKg: number;
-    calculatedPrice: number;
-    lastWeightDate: string;
-    location: Location;
-    saleTerms: SaleTerms;
-  }): Promise<MarketplaceListing> {
+  async create(data: Partial<MarketplaceListing>): Promise<MarketplaceListing> {
+    const createData = data as {
+      subjectId: string;
+      producerId: string;
+      farmId: string;
+      pricePerKg: number;
+      calculatedPrice: number;
+      lastWeightDate: string;
+      location: Location;
+      saleTerms: SaleTerms;
+    };
     const id = uuid.v4() as string;
     const now = new Date().toISOString();
 
@@ -40,25 +41,25 @@ export class MarketplaceListingRepository extends BaseRepository<MarketplaceList
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
-        data.subjectId,
-        data.producerId,
-        data.farmId,
-        data.pricePerKg,
-        data.calculatedPrice,
+        createData.subjectId,
+        createData.producerId,
+        createData.farmId,
+        createData.pricePerKg,
+        createData.calculatedPrice,
         'available',
         now,
         now,
-        data.lastWeightDate,
-        data.location.latitude,
-        data.location.longitude,
-        data.location.address,
-        data.location.city,
-        data.location.region,
-        data.saleTerms.transport,
-        data.saleTerms.slaughter,
-        data.saleTerms.paymentTerms || 'on_delivery',
-        data.saleTerms.warranty,
-        data.saleTerms.cancellationPolicy,
+        createData.lastWeightDate,
+        createData.location.latitude,
+        createData.location.longitude,
+        createData.location.address,
+        createData.location.city,
+        createData.location.region,
+        createData.saleTerms.transport,
+        createData.saleTerms.slaughter,
+        createData.saleTerms.paymentTerms || 'on_delivery',
+        createData.saleTerms.warranty,
+        createData.saleTerms.cancellationPolicy,
       ]
     );
 
@@ -133,13 +134,78 @@ export class MarketplaceListingRepository extends BaseRepository<MarketplaceList
   }
 
   /**
+   * Mettre à jour une annonce
+   */
+  async update(id: string, data: Partial<MarketplaceListing>): Promise<MarketplaceListing> {
+    const updates: string[] = [];
+    const params: any[] = [];
+
+    if (data.pricePerKg !== undefined) {
+      updates.push('price_per_kg = ?');
+      params.push(data.pricePerKg);
+    }
+    if (data.calculatedPrice !== undefined) {
+      updates.push('calculated_price = ?');
+      params.push(data.calculatedPrice);
+    }
+    if (data.status !== undefined) {
+      updates.push('status = ?');
+      params.push(data.status);
+    }
+    if (data.lastWeightDate !== undefined) {
+      updates.push('last_weight_date = ?');
+      params.push(data.lastWeightDate);
+    }
+    if (data.location !== undefined) {
+      updates.push('location_latitude = ?', 'location_longitude = ?', 'location_address = ?', 'location_city = ?', 'location_region = ?');
+      params.push(
+        data.location.latitude,
+        data.location.longitude,
+        data.location.address,
+        data.location.city,
+        data.location.region
+      );
+    }
+    if (data.saleTerms !== undefined) {
+      updates.push('sale_terms_transport = ?', 'sale_terms_slaughter = ?', 'sale_terms_payment = ?', 'sale_terms_warranty = ?', 'sale_terms_cancellation = ?');
+      params.push(
+        data.saleTerms.transport,
+        data.saleTerms.slaughter,
+        data.saleTerms.paymentTerms || 'on_delivery',
+        data.saleTerms.warranty,
+        data.saleTerms.cancellationPolicy
+      );
+    }
+
+    if (updates.length === 0) {
+      const existing = await this.findById(id);
+      if (!existing) {
+        throw new Error('Listing not found');
+      }
+      return existing;
+    }
+
+    updates.push('updated_at = ?');
+    params.push(new Date().toISOString());
+    params.push(id);
+
+    await this.db.runAsync(
+      `UPDATE ${this.tableName} SET ${updates.join(', ')} WHERE id = ?`,
+      params
+    );
+
+    const updated = await this.findById(id);
+    if (!updated) {
+      throw new Error('Failed to update listing');
+    }
+    return updated;
+  }
+
+  /**
    * Mettre à jour le statut d'une annonce
    */
   async updateStatus(id: string, status: 'available' | 'reserved' | 'pending_delivery' | 'sold' | 'removed'): Promise<void> {
-    await this.db.runAsync(
-      `UPDATE ${this.tableName} SET status = ?, updated_at = ? WHERE id = ?`,
-      [status, new Date().toISOString(), id]
-    );
+    await this.update(id, { status });
   }
 
   /**

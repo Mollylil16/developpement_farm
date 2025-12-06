@@ -84,9 +84,9 @@ export default function VaccinationFormModal({ visible, onClose, vaccination, an
     if (vaccination) {
       setFormData({
         calendrier_id: vaccination.calendrier_id || '',
-        animal_id: vaccination.animal_id || '',
+        animal_id: vaccination.animal_ids && vaccination.animal_ids.length > 0 ? vaccination.animal_ids[0] : '',
         lot_id: vaccination.lot_id || '',
-        vaccin: vaccination.vaccin,
+        vaccin: vaccination.vaccin || 'autre',
         nom_vaccin: vaccination.nom_vaccin || '',
         date_vaccination: vaccination.date_vaccination,
         date_rappel: vaccination.date_rappel || '',
@@ -140,7 +140,7 @@ export default function VaccinationFormModal({ visible, onClose, vaccination, an
             id: vaccination.id,
             updates: {
               calendrier_id: formData.calendrier_id || undefined,
-              animal_id: formData.animal_id || undefined,
+              animal_ids: formData.animal_id ? [formData.animal_id] : undefined,
               lot_id: formData.lot_id || undefined,
               vaccin: formData.vaccin,
               nom_vaccin: formData.nom_vaccin || undefined,
@@ -166,8 +166,12 @@ export default function VaccinationFormModal({ visible, onClose, vaccination, an
         const input: CreateVaccinationInput = {
           projet_id: projetActif.id,
           calendrier_id: formData.calendrier_id || undefined,
-          animal_id: formData.animal_id || undefined,
+          animal_ids: formData.animal_id ? [formData.animal_id] : undefined,
           lot_id: formData.lot_id || undefined,
+          type_prophylaxie: 'vaccin_obligatoire', // Valeur par défaut
+          produit_administre: formData.nom_vaccin || 'Vaccin non spécifié',
+          dosage: '1 dose', // Valeur par défaut
+          raison_traitement: 'prevention', // Valeur par défaut
           vaccin: formData.vaccin,
           nom_vaccin: formData.nom_vaccin || undefined,
           date_vaccination: formData.date_vaccination,

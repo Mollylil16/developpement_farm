@@ -77,10 +77,10 @@ export function useDashboardExport(
 
       // Calculer les stats de reproduction
       const gestationsEnCours = gestations.filter(
-        (g) => !g.date_fin && !g.date_mise_bas_effective
+        (g) => g.statut === 'en_cours'
       );
       const sevragesTotalPorcelets = sevrages.reduce(
-        (sum, s) => sum + (s.nombre_porcelets || 0),
+        (sum, s) => sum + (s.nombre_porcelets_sevres || 0),
         0
       );
 
@@ -124,7 +124,7 @@ export function useDashboardExport(
         })),
         gestationsActives: gestationsEnCours.map((g) => ({
           truieCode: animaux.find((a) => a.id === g.truie_id)?.code || '',
-          dateSaillie: g.date_saillie,
+          dateSaillie: g.date_sautage,
           dateMiseBasPrevue: g.date_mise_bas_prevue,
         })),
       };

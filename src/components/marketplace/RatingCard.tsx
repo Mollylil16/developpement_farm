@@ -183,7 +183,7 @@ export default function RatingCard({ rating, compact = false }: RatingCardProps)
             />
           ))}
           {rating.photos.length > 3 && (
-            <View style={[styles.morePhotos, { backgroundColor: colors.backgroundSecondary }]}>
+            <View style={[styles.morePhotos, { backgroundColor: colors.surface }]}>
               <Text style={[styles.morePhotosText, { color: colors.text }]}>
                 +{rating.photos.length - 3}
               </Text>

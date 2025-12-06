@@ -13,6 +13,7 @@ import {
   FlatList,
   Alert,
   TextInput,
+  RefreshControlProps,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Calendar, DateData } from 'react-native-calendars';
@@ -32,7 +33,7 @@ import { loadProductionAnimaux } from '../store/slices/productionSlice';
 import { useFocusEffect } from '@react-navigation/native';
 
 interface Props {
-  refreshControl: React.ReactElement;
+  refreshControl?: React.ReactElement<RefreshControlProps>;
 }
 
 export default function PrevisionVentesComponent({ refreshControl }: Props) {
@@ -47,7 +48,7 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
     sailliesPlanifiees,
   } = useAppSelector((state) => state.planningProduction);
   const animaux = useAppSelector(selectAllAnimaux);
-  const projetActif = useAppSelector((state) => state.auth.projetActif);
+  const projetActif = useAppSelector((state) => state.projet.projetActif);
 
   const [vueListe, setVueListe] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -544,7 +545,7 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
 
         <TouchableOpacity
           style={styles.deleteButton}
-          onPress={() => handleSupprimerPrevision(item.id)}
+          onPress={() => handleSupprimerPrevision(item.animal_id)}
         >
           <Ionicons name="trash-outline" size={18} color={colors.error} />
         </TouchableOpacity>

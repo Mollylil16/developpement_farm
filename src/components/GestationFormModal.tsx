@@ -150,7 +150,7 @@ export default function GestationFormModal({
       (a: ProductionAnimal) =>
         a.sexe === 'male' &&
         a.statut?.toLowerCase() === 'actif' &&
-        (a.reproducteur === true || a.reproducteur === 1 || a.reproducteur === '1') &&
+        a.reproducteur === true &&
         a.projet_id === projetActif.id
     );
 

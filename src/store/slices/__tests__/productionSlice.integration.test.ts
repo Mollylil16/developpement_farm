@@ -19,7 +19,7 @@ jest.mock('../../../services/database');
 jest.mock('../../../database/repositories/AnimalRepository');
 jest.mock('../../../database/repositories/PeseeRepository');
 
-describe('productionSlice - Tests d'intégration', () => {
+describe("productionSlice - Tests d'intégration", () => {
   let store: ReturnType<typeof configureStore>;
 
   beforeEach(() => {

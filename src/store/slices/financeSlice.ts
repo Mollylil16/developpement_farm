@@ -125,7 +125,7 @@ export const deleteChargeFixe = createAsyncThunk(
     try {
       const db = await getDatabase();
       const chargeRepo = new ChargeFixeRepository(db);
-      await chargeRepo.delete(id);
+      await chargeRepo.deleteById(id);
       return id;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la suppression de la charge fixe');
@@ -188,7 +188,7 @@ export const deleteDepensePonctuelle = createAsyncThunk(
     try {
       const db = await getDatabase();
       const depenseRepo = new DepensePonctuelleRepository(db);
-      await depenseRepo.delete(id);
+      await depenseRepo.deleteById(id);
       return id;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la suppression de la dépense');
@@ -248,7 +248,7 @@ export const deleteRevenu = createAsyncThunk(
     try {
       const db = await getDatabase();
       const revenuRepo = new RevenuRepository(db);
-      await revenuRepo.delete(id);
+      await revenuRepo.deleteById(id);
       return id;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Erreur lors de la suppression du revenu');
@@ -385,17 +385,23 @@ const financeSlice = createSlice({
         // Ancienne structure: arrays directs
         if (Array.isArray(legacyState.chargesFixes)) {
           const normalized = normalizeChargesFixes(legacyState.chargesFixes);
-          state.entities.chargesFixes = normalized.entities.chargesFixes;
+          if (normalized.entities.chargesFixes) {
+            state.entities.chargesFixes = normalized.entities.chargesFixes;
+          }
           state.ids.chargesFixes = normalized.result;
         }
         if (Array.isArray(legacyState.depensesPonctuelles)) {
           const normalized = normalizeDepensesPonctuelles(legacyState.depensesPonctuelles);
-          state.entities.depensesPonctuelles = normalized.entities.depensesPonctuelles;
+          if (normalized.entities.depensesPonctuelles) {
+            state.entities.depensesPonctuelles = normalized.entities.depensesPonctuelles;
+          }
           state.ids.depensesPonctuelles = normalized.result;
         }
         if (Array.isArray(legacyState.revenus)) {
           const normalized = normalizeRevenus(legacyState.revenus);
-          state.entities.revenus = normalized.entities.revenus;
+          if (normalized.entities.revenus) {
+            state.entities.revenus = normalized.entities.revenus;
+          }
           state.ids.revenus = normalized.result;
         }
       }
@@ -587,7 +593,9 @@ const financeSlice = createSlice({
         // Recharger tous les revenus avec les nouvelles marges
         const { revenus } = action.payload;
         const normalized = normalizeRevenus(revenus);
-        state.entities.revenus = normalized.entities.revenus;
+        if (normalized.entities.revenus) {
+          state.entities.revenus = normalized.entities.revenus;
+        }
         state.ids.revenus = normalized.result;
       })
       .addCase(recalculerMargesPeriode.rejected, (state, action) => {

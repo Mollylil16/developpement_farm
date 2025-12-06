@@ -152,6 +152,10 @@ export function simulerProduction(
 
   // Faisabilité
   const est_faisable = truiesDisponibles >= nombre_truies_necessaires && verratsDisponibles >= 1;
+  const ecart_truies = nombre_truies_necessaires - truiesDisponibles;
+  const taux_utilisation = truiesDisponibles > 0 
+    ? (nombre_truies_necessaires / truiesDisponibles) * 100 
+    : 0;
 
   // Recommandations
   const recommandations: RecommandationStrategique[] = [];
@@ -159,30 +163,31 @@ export function simulerProduction(
   if (!est_faisable) {
     if (truiesDisponibles < nombre_truies_necessaires) {
       recommandations.push({
-        type: 'acquisition_animaux',
-        priorite: 'haute',
+        type: 'truies',
+        priorite: 'elevee',
+        titre: 'Truies insuffisantes',
         message: `Il manque ${nombre_truies_necessaires - truiesDisponibles} truie(s) reproductrice(s) pour atteindre l'objectif.`,
-        impact_production: `Réduction de ${Math.round(
-          ((nombre_truies_necessaires - truiesDisponibles) / nombre_truies_necessaires) * 100
-        )}%`,
+        actions: [],
       });
     }
     if (verratsDisponibles < 1) {
       recommandations.push({
-        type: 'acquisition_animaux',
+        type: 'verrats',
         priorite: 'critique',
+        titre: 'Verrat manquant',
         message: 'Aucun verrat disponible. Achat ou location urgente nécessaire.',
-        impact_production: 'Production impossible',
+        actions: [],
       });
     }
   }
 
   if (nombre_saillies_par_mois > truiesDisponibles) {
     recommandations.push({
-      type: 'optimisation_cycles',
+      type: 'optimisation',
       priorite: 'moyenne',
+      titre: 'Optimisation des cycles',
       message: `Le rythme de ${nombre_saillies_par_mois} saillie(s)/mois nécessite une gestion optimale des cycles.`,
-      impact_production: 'Risque de surcharge',
+      actions: [],
     });
   }
 
@@ -194,15 +199,19 @@ export function simulerProduction(
     nombre_porcs_necessaires,
     nombre_saillies_par_mois,
     est_faisable,
+    ecart_truies,
+    taux_utilisation,
     recommandations,
+    truies_disponibles: truiesDisponibles,
+    truies_en_gestation: truiesEnGestation,
+    truies_en_lactation: truiesEnLactation,
+    verrats_disponibles: verratsDisponibles,
     details: {
-      truies_disponibles: truiesDisponibles,
-      truies_en_gestation: truiesEnGestation,
-      truies_en_lactation: truiesEnLactation,
-      verrats_disponibles: verratsDisponibles,
       porcelets_par_portee_moyen: PORCELETS_PAR_PORTEE,
-      poids_moyen_vente_kg,
-      taux_survie_prevu: CONST.TAUX_SURVIE_MOYEN * 100,
+      taux_survie: CONST.TAUX_SURVIE_MOYEN,
+      cycles_par_truie_par_an: CONST.CYCLES_PAR_AN,
+      duree_gestation_jours: CONST.DUREE_GESTATION_JOURS,
+      duree_lactation_jours: CONST.DUREE_LACTATION_JOURS,
     },
   };
 }
@@ -221,11 +230,11 @@ export function genererRecommandationsStrategiques(
   const recommandations: RecommandationStrategique[] = [];
 
   const truiesNecessaires = simulation.nombre_truies_necessaires;
-  const verratsDisponibles = simulation.details.verrats_disponibles;
+  const verratsDisponibles = simulation.verrats_disponibles;
   const porteesNecessaires = simulation.nombre_portees_necessaires;
   const porceletsTotaux = porteesNecessaires * simulation.details.porcelets_par_portee_moyen;
   const porceletsSurvivants = Math.floor(
-    porceletsTotaux * (simulation.details.taux_survie_prevu / 100)
+    porceletsTotaux * simulation.details.taux_survie
   );
   const ecartTruies = truiesNecessaires - truiesDisponibles;
   const tauxUtilisation = (truiesNecessaires / Math.max(1, truiesDisponibles)) * 100;

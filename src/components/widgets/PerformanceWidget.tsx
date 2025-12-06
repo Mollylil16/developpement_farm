@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: FONT_SIZES.lg,
-    fontWeight: FONT_WEIGHTS.semibold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as any,
   },
   loadingContainer: {
     paddingVertical: SPACING.xl,
@@ -330,7 +330,7 @@ const styles = StyleSheet.create({
   },
   ecartPourcent: {
     fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semibold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as any,
     textAlign: 'center',
     marginTop: SPACING.xs / 2,
   },
@@ -350,7 +350,7 @@ const styles = StyleSheet.create({
   },
   suggestionsTitle: {
     fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semibold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as any,
     marginBottom: SPACING.sm,
   },
   suggestionRow: {

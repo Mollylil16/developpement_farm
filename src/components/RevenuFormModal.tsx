@@ -506,7 +506,7 @@ export default function RevenuFormModal({
                           ]}
                           onPress={() => {
                             setSelectedAnimalId(item.id);
-                            setPoidsKg(item.poids_actuel?.toString() || '');
+                            setPoidsKg(item.poids_initial?.toString() || '');
                             setShowAnimalSearch(false);
                             setSearchAnimalQuery('');
                           }}
@@ -525,12 +525,11 @@ export default function RevenuFormModal({
                             {item.code}
                             {item.nom ? ` - ${item.nom}` : ''}
                             {item.race ? ` (${item.race})` : ''}
-                            {item.poids_actuel ? ` - ${item.poids_actuel} kg` : ''}
+                            {item.poids_initial ? ` - ${item.poids_initial} kg` : ''}
                           </Text>
                         </TouchableOpacity>
                       )}
-                      style={styles.animalList}
-                      maxHeight={200}
+                      style={[styles.animalList, { maxHeight: 200 }]}
                     />
                   </View>
                 )}
@@ -538,8 +537,8 @@ export default function RevenuFormModal({
                   <Text style={[styles.helperText, { color: colors.textSecondary, marginTop: 4 }]}>
                     Porc sélectionné: {selectedAnimal.code}
                     {selectedAnimal.nom ? ` (${selectedAnimal.nom})` : ''}
-                    {selectedAnimal.poids_actuel
-                      ? ` - Poids actuel: ${selectedAnimal.poids_actuel} kg`
+                    {selectedAnimal.poids_initial
+                      ? ` - Poids initial: ${selectedAnimal.poids_initial} kg`
                       : ''}
                   </Text>
                 )}

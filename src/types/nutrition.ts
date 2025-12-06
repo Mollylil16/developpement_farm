@@ -335,7 +335,7 @@ export interface UpdateStockAlimentInput {
   nom?: string;
   categorie?: string;
   unite?: UniteStock;
-  seuil_alerte?: number | null;
+  seuil_alerte?: number | null | undefined;
   notes?: string | null;
 }
 

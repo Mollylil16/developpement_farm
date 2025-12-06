@@ -90,6 +90,7 @@ export function usePermissions(): UsePermissionsReturn {
           rapports: true,
           planification: true,
           mortalites: true,
+          sante: true,
         },
         role: null,
       };

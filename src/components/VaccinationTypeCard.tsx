@@ -35,9 +35,9 @@ export default function VaccinationTypeCard({
           <Ionicons name={icone} size={32} color={couleur} />
         </View>
         <View style={styles.headerText}>
-          <Text style={[styles.titre, { color: colors.text }]}>{stat.label}</Text>
+          <Text style={[styles.titre, { color: colors.text }]}>{stat.nom_type}</Text>
           <Text style={[styles.sousTitre, { color: colors.textSecondary }]}>
-            {stat.totalVaccinations} administration{stat.totalVaccinations > 1 ? 's' : ''}
+            {stat.total_vaccinations} administration{stat.total_vaccinations > 1 ? 's' : ''}
           </Text>
         </View>
       </View>
@@ -49,7 +49,7 @@ export default function VaccinationTypeCard({
             <Ionicons name="checkmark-circle" size={16} color={colors.success} />
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Effectués</Text>
           </View>
-          <Text style={[styles.statValue, { color: colors.text }]}>{stat.effectues}</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>{stat.porcs_vaccines}</Text>
         </View>
         
         <View style={styles.statItem}>
@@ -57,7 +57,7 @@ export default function VaccinationTypeCard({
             <Ionicons name="alert-circle" size={16} color={colors.error} />
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>En retard</Text>
           </View>
-          <Text style={[styles.statValue, { color: colors.text }]}>{stat.enRetard}</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>{stat.en_retard}</Text>
         </View>
         
         <View style={styles.statItem}>
@@ -65,7 +65,7 @@ export default function VaccinationTypeCard({
             <Ionicons name="shield-checkmark" size={16} color={couleur} />
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Couverture</Text>
           </View>
-          <Text style={[styles.statValue, { color: colors.text }]}>{stat.tauxCouverture}%</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>{stat.taux_couverture}%</Text>
         </View>
       </View>
       
@@ -75,7 +75,7 @@ export default function VaccinationTypeCard({
           style={[
             styles.progressFill,
             {
-              width: `${stat.tauxCouverture}%`,
+              width: `${stat.taux_couverture}%`,
               backgroundColor: couleur,
             },
           ]}
@@ -86,7 +86,7 @@ export default function VaccinationTypeCard({
       <View style={styles.actions}>
         <TouchableOpacity
           style={[styles.button, { backgroundColor: couleur + '20' }]}
-          onPress={() => onAjouter(stat.type)}
+          onPress={() => onAjouter(stat.type_prophylaxie)}
         >
           <Ionicons name="add-circle-outline" size={20} color={couleur} />
           <Text style={[styles.buttonText, { color: couleur }]}>Ajouter</Text>
@@ -94,7 +94,7 @@ export default function VaccinationTypeCard({
         
         <TouchableOpacity
           style={[styles.button, { backgroundColor: colors.background }]}
-          onPress={() => onVoirCalendrier(stat.type)}
+          onPress={() => onVoirCalendrier(stat.type_prophylaxie)}
         >
           <Ionicons name="calendar-outline" size={20} color={colors.textSecondary} />
           <Text style={[styles.buttonText, { color: colors.textSecondary }]}>Calendrier</Text>

@@ -55,9 +55,9 @@ export default function BatchAddModal({
   const filteredSubjects = availableSubjects.filter((subject) => {
     const query = searchQuery.toLowerCase();
     return (
-      subject.numero_identification?.toLowerCase().includes(query) ||
+      subject.code?.toLowerCase().includes(query) ||
       subject.race?.toLowerCase().includes(query) ||
-      subject.categorie?.toLowerCase().includes(query)
+      subject.nom?.toLowerCase().includes(query)
     );
   });
 
@@ -86,7 +86,7 @@ export default function BatchAddModal({
   const getTotalWeight = (): number => {
     return availableSubjects
       .filter((s) => selectedIds.has(s.id))
-      .reduce((sum, s) => sum + (s.poids_actuel || 0), 0);
+      .reduce((sum, s) => sum + (s.poids_initial || 0), 0);
   };
 
   // Calculer le prix total estimé
@@ -236,11 +236,10 @@ export default function BatchAddModal({
                     </View>
                     <View style={styles.subjectInfo}>
                       <Text style={[styles.subjectCode, { color: colors.text }]}>
-                        #{subject.numero_identification}
+                        #{subject.code}
                       </Text>
                       <Text style={[styles.subjectDetails, { color: colors.textSecondary }]}>
-                        {subject.race} • {subject.poids_actuel || 0} kg •{' '}
-                        {subject.age_en_mois || 0} mois
+                        {subject.race || 'N/A'} • {subject.poids_initial || 0} kg
                       </Text>
                     </View>
                   </TouchableOpacity>

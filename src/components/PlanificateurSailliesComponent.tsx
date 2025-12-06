@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   Alert,
   FlatList,
+  RefreshControlProps,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Calendar, DateData } from 'react-native-calendars';
@@ -29,7 +30,7 @@ import { selectAllAnimaux } from '../store/selectors/productionSelectors';
 import { getCategorieAnimal } from '../utils/animalUtils';
 
 interface Props {
-  refreshControl: React.ReactElement;
+  refreshControl?: React.ReactElement<RefreshControlProps>;
 }
 
 export default function PlanificateurSailliesComponent({ refreshControl }: Props) {

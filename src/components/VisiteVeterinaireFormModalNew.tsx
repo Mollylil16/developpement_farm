@@ -63,11 +63,11 @@ export default function VisiteVeterinaireFormModalNew({
     (visite?.motif as TypeIntervention) || 'consultation_generale'
   );
   const [animauxSelectionnes, setAnimauxSelectionnes] = useState<string[]>(
-    visite?.animaux_examines || []
+    visite?.animaux_examines ? visite.animaux_examines.split(',').map(s => s.trim()).filter(s => s) : []
   );
   const [rechercheAnimal, setRechercheAnimal] = useState('');
   const [diagnostic, setDiagnostic] = useState(visite?.diagnostic || '');
-  const [traitement, setTraitement] = useState(visite?.traitement || '');
+  const [traitement, setTraitement] = useState(visite?.prescriptions || '');
   const [cout, setCout] = useState(visite?.cout?.toString() || '');
   const [notes, setNotes] = useState(visite?.notes || '');
   const [photos, setPhotos] = useState<string[]>([]);
@@ -184,11 +184,12 @@ export default function VisiteVeterinaireFormModalNew({
       const input: CreateVisiteVeterinaireInput = {
         projet_id: projetActif.id,
         date_visite: dateVisite,
+        veterinaire: visite?.veterinaire || 'Vétérinaire non spécifié',
         motif: TYPE_INTERVENTION_LABELS[motif],
         animaux_examines: animauxSelectionnes.length > 0 ? nomsAnimaux : undefined,
         diagnostic: diagnostic.trim(),
-        traitement: traitement.trim() || undefined,
-        cout: cout ? parseFloat(cout) : undefined,
+        prescriptions: traitement.trim() || undefined,
+        cout: cout ? parseFloat(cout) : 0,
         notes: notes.trim() || undefined,
       };
 

@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: FONT_SIZES.lg,
-    fontWeight: FONT_WEIGHTS.semibold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as any,
   },
   loadingContainer: {
     paddingVertical: SPACING.xl,
@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
   },
   margeStatut: {
     fontSize: FONT_SIZES.sm,
-    fontWeight: FONT_WEIGHTS.semibold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as any,
     textAlign: 'center',
   },
   infoContainer: {

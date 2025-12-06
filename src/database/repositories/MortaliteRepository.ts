@@ -10,7 +10,7 @@
 
 import * as SQLite from 'expo-sqlite';
 import { BaseRepository } from './BaseRepository';
-import { Mortalite } from '../../types/mortalite';
+import { Mortalite } from '../../types/mortalites';
 import uuid from 'react-native-uuid';
 
 export class MortaliteRepository extends BaseRepository<Mortalite> {

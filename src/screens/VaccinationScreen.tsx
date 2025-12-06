@@ -46,10 +46,10 @@ export default function VaccinationScreen() {
         {/* Cartes par type de prophylaxie */}
         {logic.statParType.map((stat) => (
           <VaccinationTypeCard
-            key={stat.type}
+            key={stat.type_prophylaxie}
             stat={stat}
-            icone={getIconeType(stat.type)}
-            couleur={getCouleurType(stat.type)}
+            icone={getIconeType(stat.type_prophylaxie)}
+            couleur={getCouleurType(stat.type_prophylaxie)}
             onAjouter={logic.handleOuvrirModalAjout}
             onVoirCalendrier={logic.handleOuvrirCalendrier}
           />
@@ -59,18 +59,21 @@ export default function VaccinationScreen() {
       </ScrollView>
       
       {/* Modale d'ajout de vaccination */}
-      <VaccinationFormModal
-        visible={logic.modalAddVisible}
-        onClose={() => logic.setModalAddVisible(false)}
-        typeInitial={logic.typeSelectionne}
-      />
+      {logic.typeSelectionne && (
+        <VaccinationFormModal
+          visible={logic.modalAddVisible}
+          onClose={() => logic.setModalAddVisible(false)}
+        />
+      )}
       
       {/* Modale du calendrier vaccinal */}
-      <CalendrierVaccinalModal
-        visible={logic.modalCalendrierVisible}
-        onClose={() => logic.setModalCalendrierVisible(false)}
-        typeFiltre={logic.typeSelectionne}
-      />
+      {logic.typeSelectionne && (
+        <CalendrierVaccinalModal
+          visible={logic.modalCalendrierVisible}
+          onClose={() => logic.setModalCalendrierVisible(false)}
+          typeProphylaxie={logic.typeSelectionne}
+        />
+      )}
     </SafeAreaView>
   );
 }

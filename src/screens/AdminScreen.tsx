@@ -44,8 +44,8 @@ export default function AdminScreen() {
       setUsers(allUsers);
 
       // Calculer les statistiques
-      const usersWithEmail = allUsers.filter((u) => u.email).length;
-      const usersWithPhone = allUsers.filter((u) => u.telephone).length;
+      const usersWithEmail = allUsers.filter((u: User) => u.email).length;
+      const usersWithPhone = allUsers.filter((u: User) => u.telephone).length;
 
       // Compter les projets (tous les projets de tous les utilisateurs)
       let totalProjets = 0;

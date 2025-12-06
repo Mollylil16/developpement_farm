@@ -180,7 +180,7 @@ export default function TraitementFormModal({
               veterinaire: formData.veterinaire || undefined,
               cout: formData.cout ? parseFloat(formData.cout) : undefined,
               termine: formData.termine,
-              efficace: formData.efficace ? parseInt(formData.efficace) : undefined,
+              efficace: formData.efficace ? (parseInt(formData.efficace) >= 4) : undefined,
               effets_secondaires: formData.effets_secondaires || undefined,
               notes: formData.notes || undefined,
             },
@@ -206,7 +206,7 @@ export default function TraitementFormModal({
           veterinaire: formData.veterinaire || undefined,
           cout: formData.cout ? parseFloat(formData.cout) : undefined,
           termine: formData.termine,
-          efficace: formData.efficace ? parseInt(formData.efficace) : undefined,
+          efficace: formData.efficace ? (parseInt(formData.efficace) >= 4) : undefined,
           effets_secondaires: formData.effets_secondaires || undefined,
           notes: formData.notes || undefined,
         };

@@ -23,7 +23,8 @@ export class MarketplaceOfferRepository extends BaseRepository<Offer> {
     super(db, 'marketplace_offers');
   }
 
-  async create(data: Omit<Offer, 'id' | 'createdAt' | 'status'>): Promise<Offer> {
+  async create(data: Partial<Offer>): Promise<Offer> {
+    const createData = data as Omit<Offer, 'id' | 'createdAt' | 'status'>;
     const id = uuid.v4() as string;
     const now = new Date().toISOString();
 
@@ -35,17 +36,17 @@ export class MarketplaceOfferRepository extends BaseRepository<Offer> {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
       [
         id,
-        data.listingId,
-        JSON.stringify(data.subjectIds),
-        data.buyerId,
-        data.producerId,
-        data.proposedPrice,
-        data.originalPrice,
-        data.message || null,
-        data.termsAccepted ? 1 : 0,
-        data.termsAcceptedAt || null,
+        createData.listingId,
+        JSON.stringify(createData.subjectIds),
+        createData.buyerId,
+        createData.producerId,
+        createData.proposedPrice,
+        createData.originalPrice,
+        createData.message || null,
+        createData.termsAccepted ? 1 : 0,
+        createData.termsAcceptedAt || null,
         now,
-        data.expiresAt,
+        createData.expiresAt,
       ]
     );
 
@@ -78,11 +79,48 @@ export class MarketplaceOfferRepository extends BaseRepository<Offer> {
     return rows.map(r => this.mapRow(r));
   }
 
-  async updateStatus(id: string, status: 'accepted' | 'rejected' | 'countered' | 'expired'): Promise<void> {
+  async update(id: string, data: Partial<Offer>): Promise<Offer> {
+    const updates: string[] = [];
+    const params: any[] = [];
+
+    if (data.status !== undefined) {
+      updates.push('status = ?');
+      params.push(data.status);
+      updates.push('responded_at = ?');
+      params.push(new Date().toISOString());
+    }
+    if (data.proposedPrice !== undefined) {
+      updates.push('proposed_price = ?');
+      params.push(data.proposedPrice);
+    }
+    if (data.message !== undefined) {
+      updates.push('message = ?');
+      params.push(data.message);
+    }
+    if (data.termsAccepted !== undefined) {
+      updates.push('terms_accepted = ?');
+      params.push(data.termsAccepted ? 1 : 0);
+    }
+
+    if (updates.length === 0) {
+      const existing = await this.findById(id);
+      if (!existing) throw new Error('Offer not found');
+      return existing;
+    }
+
+    params.push(id);
     await this.db.runAsync(
-      `UPDATE ${this.tableName} SET status = ?, responded_at = ? WHERE id = ?`,
-      [status, new Date().toISOString(), id]
+      `UPDATE ${this.tableName} SET ${updates.join(', ')} WHERE id = ?`,
+      params
     );
+
+    const updated = await this.findById(id);
+    if (!updated) throw new Error('Failed to update offer');
+    return updated;
+  }
+
+  async updateStatus(id: string, status: 'accepted' | 'rejected' | 'countered' | 'expired'): Promise<void> {
+    await this.update(id, { status });
   }
 
   private mapRow(row: any): Offer {
@@ -113,7 +151,8 @@ export class MarketplaceTransactionRepository extends BaseRepository<Transaction
     super(db, 'marketplace_transactions');
   }
 
-  async create(data: Omit<Transaction, 'id' | 'createdAt'>): Promise<Transaction> {
+  async create(data: Partial<Transaction>): Promise<Transaction> {
+    const createData = data as Omit<Transaction, 'id' | 'createdAt'>;
     const id = uuid.v4() as string;
     const now = new Date().toISOString();
 
@@ -124,13 +163,13 @@ export class MarketplaceTransactionRepository extends BaseRepository<Transaction
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
-        data.offerId,
-        data.listingId,
-        JSON.stringify(data.subjectIds),
-        data.buyerId,
-        data.producerId,
-        data.finalPrice,
-        data.status || 'confirmed',
+        createData.offerId,
+        createData.listingId,
+        JSON.stringify(createData.subjectIds),
+        createData.buyerId,
+        createData.producerId,
+        createData.finalPrice,
+        createData.status || 'confirmed',
         now,
       ]
     );
@@ -162,6 +201,44 @@ export class MarketplaceTransactionRepository extends BaseRepository<Transaction
       [producerId]
     );
     return rows.map(r => this.mapRow(r));
+  }
+
+  async update(id: string, data: Partial<Transaction>): Promise<Transaction> {
+    const updates: string[] = [];
+    const params: any[] = [];
+
+    if (data.status !== undefined) {
+      updates.push('status = ?');
+      params.push(data.status);
+    }
+    if (data.finalPrice !== undefined) {
+      updates.push('final_price = ?');
+      params.push(data.finalPrice);
+    }
+    if (data.deliveryDetails !== undefined) {
+      updates.push('delivery_scheduled_date = ?', 'delivery_location = ?', 'delivery_transport_info = ?');
+      params.push(
+        data.deliveryDetails.scheduledDate,
+        data.deliveryDetails.location,
+        data.deliveryDetails.transportInfo
+      );
+    }
+
+    if (updates.length === 0) {
+      const existing = await this.findById(id);
+      if (!existing) throw new Error('Transaction not found');
+      return existing;
+    }
+
+    params.push(id);
+    await this.db.runAsync(
+      `UPDATE ${this.tableName} SET ${updates.join(', ')} WHERE id = ?`,
+      params
+    );
+
+    const updated = await this.findById(id);
+    if (!updated) throw new Error('Failed to update transaction');
+    return updated;
   }
 
   async confirmDelivery(id: string, role: 'producer' | 'buyer'): Promise<void> {
@@ -224,7 +301,8 @@ export class MarketplaceRatingRepository extends BaseRepository<ProducerRating> 
     super(db, 'marketplace_ratings');
   }
 
-  async create(data: Omit<ProducerRating, 'id' | 'createdAt' | 'status'>): Promise<ProducerRating> {
+  async create(data: Partial<ProducerRating>): Promise<ProducerRating> {
+    const createData = data as Omit<ProducerRating, 'id' | 'createdAt' | 'status'>;
     const id = uuid.v4() as string;
     const now = new Date().toISOString();
 
@@ -236,16 +314,16 @@ export class MarketplaceRatingRepository extends BaseRepository<ProducerRating> 
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'published', ?)`,
       [
         id,
-        data.producerId,
-        data.buyerId,
-        data.transactionId,
-        data.ratings.quality,
-        data.ratings.professionalism,
-        data.ratings.timeliness,
-        data.ratings.communication,
-        data.overall,
-        data.comment || null,
-        data.photos ? JSON.stringify(data.photos) : null,
+        createData.producerId,
+        createData.buyerId,
+        createData.transactionId,
+        createData.ratings.quality,
+        createData.ratings.professionalism,
+        createData.ratings.timeliness,
+        createData.ratings.communication,
+        createData.overall,
+        createData.comment || null,
+        createData.photos ? JSON.stringify(createData.photos) : null,
         now,
       ]
     );
@@ -269,6 +347,49 @@ export class MarketplaceRatingRepository extends BaseRepository<ProducerRating> 
       [producerId]
     );
     return rows.map(r => this.mapRow(r));
+  }
+
+  async update(id: string, data: Partial<ProducerRating>): Promise<ProducerRating> {
+    const updates: string[] = [];
+    const params: any[] = [];
+
+    if (data.status !== undefined) {
+      updates.push('status = ?');
+      params.push(data.status);
+    }
+    if (data.comment !== undefined) {
+      updates.push('comment = ?');
+      params.push(data.comment);
+    }
+    if (data.ratings !== undefined) {
+      updates.push('rating_quality = ?', 'rating_professionalism = ?', 'rating_timeliness = ?', 'rating_communication = ?');
+      params.push(
+        data.ratings.quality,
+        data.ratings.professionalism,
+        data.ratings.timeliness,
+        data.ratings.communication
+      );
+    }
+    if (data.overall !== undefined) {
+      updates.push('overall = ?');
+      params.push(data.overall);
+    }
+
+    if (updates.length === 0) {
+      const existing = await this.findById(id);
+      if (!existing) throw new Error('Rating not found');
+      return existing;
+    }
+
+    params.push(id);
+    await this.db.runAsync(
+      `UPDATE ${this.tableName} SET ${updates.join(', ')} WHERE id = ?`,
+      params
+    );
+
+    const updated = await this.findById(id);
+    if (!updated) throw new Error('Failed to update rating');
+    return updated;
   }
 
   async getAverageRating(producerId: string): Promise<number> {
@@ -314,7 +435,8 @@ export class MarketplaceNotificationRepository extends BaseRepository<Notificati
     super(db, 'marketplace_notifications');
   }
 
-  async create(data: Omit<Notification, 'id' | 'createdAt' | 'read'>): Promise<Notification> {
+  async create(data: Partial<Notification>): Promise<Notification> {
+    const createData = data as Omit<Notification, 'id' | 'createdAt' | 'read'>;
     const id = uuid.v4() as string;
     const now = new Date().toISOString();
 
@@ -325,13 +447,13 @@ export class MarketplaceNotificationRepository extends BaseRepository<Notificati
       ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
       [
         id,
-        data.userId,
-        data.type,
-        data.title,
-        data.message,
-        data.relatedId,
-        data.relatedType,
-        data.actionUrl || null,
+        createData.userId,
+        createData.type,
+        createData.title,
+        createData.message,
+        createData.relatedId,
+        createData.relatedType,
+        createData.actionUrl || null,
         now,
       ]
     );
@@ -374,6 +496,44 @@ export class MarketplaceNotificationRepository extends BaseRepository<Notificati
     );
   }
 
+  async update(id: string, data: Partial<Notification>): Promise<Notification> {
+    const updates: string[] = [];
+    const params: any[] = [];
+
+    if (data.read !== undefined) {
+      updates.push('read = ?');
+      params.push(data.read ? 1 : 0);
+      if (data.read) {
+        updates.push('read_at = ?');
+        params.push(new Date().toISOString());
+      }
+    }
+    if (data.title !== undefined) {
+      updates.push('title = ?');
+      params.push(data.title);
+    }
+    if (data.message !== undefined) {
+      updates.push('message = ?');
+      params.push(data.message);
+    }
+
+    if (updates.length === 0) {
+      const existing = await this.findById(id);
+      if (!existing) throw new Error('Notification not found');
+      return existing;
+    }
+
+    params.push(id);
+    await this.db.runAsync(
+      `UPDATE ${this.tableName} SET ${updates.join(', ')} WHERE id = ?`,
+      params
+    );
+
+    const updated = await this.findById(id);
+    if (!updated) throw new Error('Failed to update notification');
+    return updated;
+  }
+
   async delete(id: string): Promise<void> {
     await this.db.runAsync(
       `DELETE FROM ${this.tableName} WHERE id = ?`,
@@ -407,7 +567,8 @@ export class MarketplaceChatRepository extends BaseRepository<ChatConversation> 
     super(db, 'marketplace_conversations');
   }
 
-  async createConversation(data: Omit<ChatConversation, 'id' | 'createdAt'>): Promise<ChatConversation> {
+  async create(data: Partial<ChatConversation>): Promise<ChatConversation> {
+    const createData = data as Omit<ChatConversation, 'id' | 'createdAt'>;
     const id = uuid.v4() as string;
     const now = new Date().toISOString();
 
@@ -418,13 +579,13 @@ export class MarketplaceChatRepository extends BaseRepository<ChatConversation> 
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
-        JSON.stringify(data.participants),
-        data.relatedListingId,
-        data.relatedOfferId || null,
-        data.lastMessage,
-        data.lastMessageAt,
-        JSON.stringify(data.unreadCount),
-        data.status || 'active',
+        JSON.stringify(createData.participants),
+        createData.relatedListingId,
+        createData.relatedOfferId || null,
+        createData.lastMessage,
+        createData.lastMessageAt,
+        JSON.stringify(createData.unreadCount),
+        createData.status || 'active',
         now,
       ]
     );
@@ -448,6 +609,48 @@ export class MarketplaceChatRepository extends BaseRepository<ChatConversation> 
       [`%${userId}%`]
     );
     return rows.map(r => this.mapConversationRow(r));
+  }
+
+  async update(id: string, data: Partial<ChatConversation>): Promise<ChatConversation> {
+    const updates: string[] = [];
+    const params: any[] = [];
+
+    if (data.status !== undefined) {
+      updates.push('status = ?');
+      params.push(data.status);
+    }
+    if (data.lastMessage !== undefined) {
+      updates.push('last_message = ?');
+      params.push(data.lastMessage);
+    }
+    if (data.lastMessageAt !== undefined) {
+      updates.push('last_message_at = ?');
+      params.push(data.lastMessageAt);
+    }
+    if (data.unreadCount !== undefined) {
+      updates.push('unread_count_json = ?');
+      params.push(JSON.stringify(data.unreadCount));
+    }
+
+    if (updates.length === 0) {
+      const existing = await this.findConversationById(id);
+      if (!existing) throw new Error('Conversation not found');
+      return existing;
+    }
+
+    params.push(id);
+    await this.db.runAsync(
+      `UPDATE ${this.tableName} SET ${updates.join(', ')} WHERE id = ?`,
+      params
+    );
+
+    const updated = await this.findConversationById(id);
+    if (!updated) throw new Error('Failed to update conversation');
+    return updated;
+  }
+
+  async createConversation(data: Omit<ChatConversation, 'id' | 'createdAt'>): Promise<ChatConversation> {
+    return this.create(data);
   }
 
   async createMessage(data: Omit<ChatMessage, 'id' | 'createdAt' | 'read'>): Promise<ChatMessage> {

@@ -17,6 +17,7 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadSevrages, deleteSevrage, createSevrage } from '../store/slices/reproductionSlice';
+import { selectAllSevrages, selectAllGestations } from '../store/selectors/reproductionSelectors';
 import { Sevrage, Gestation } from '../types';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -31,9 +32,8 @@ export default function SevragesListComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canDelete } = useActionPermissions();
-  const { sevrages = [], gestations = [] } = useAppSelector(
-    (state) => state.reproduction || { sevrages: [], gestations: [] }
-  );
+  const sevrages = useAppSelector(selectAllSevrages);
+  const gestations = useAppSelector(selectAllGestations);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedGestation, setSelectedGestation] = useState<Gestation | null>(null);

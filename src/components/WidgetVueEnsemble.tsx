@@ -7,6 +7,8 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
 import { selectAllAnimaux } from '../store/selectors/productionSelectors';
+import { selectAllGestations } from '../store/selectors/reproductionSelectors';
+import { selectAllChargesFixes, selectAllDepensesPonctuelles } from '../store/selectors/financeSelectors';
 import { countAnimalsByCategory } from '../utils/animalUtils';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -19,8 +21,9 @@ export default function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
-  const { gestations } = useAppSelector((state) => state.reproduction);
-  const { chargesFixes, depensesPonctuelles } = useAppSelector((state) => state.finance);
+  const gestations = useAppSelector(selectAllGestations);
+  const chargesFixes = useAppSelector(selectAllChargesFixes);
+  const depensesPonctuelles = useAppSelector(selectAllDepensesPonctuelles);
   const { indicateursPerformance } = useAppSelector((state) => state.reports);
   const animaux = useAppSelector(selectAllAnimaux);
 
@@ -55,7 +58,7 @@ export default function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
     const dans7Jours = new Date();
     dans7Jours.setDate(aujourdhui.getDate() + 7);
 
-    return gestations.filter((g) => {
+    return gestations.filter((g: any) => {
       if (g.statut !== 'en_cours') return false;
       const dateMiseBas = new Date(g.date_mise_bas_prevue);
       return dateMiseBas >= aujourdhui && dateMiseBas <= dans7Jours;
@@ -65,14 +68,14 @@ export default function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
   // Calculer le budget restant
   const budgetInfo = useMemo(() => {
     const chargesFixesActives = chargesFixes.filter((cf) => cf.statut === 'actif');
-    const chargesFixesMensuelles = chargesFixesActives.reduce((sum, cf) => {
+    const chargesFixesMensuelles = chargesFixesActives.reduce((sum: number, cf: any) => {
       if (cf.frequence === 'mensuel') return sum + cf.montant;
       if (cf.frequence === 'trimestriel') return sum + cf.montant / 3;
       if (cf.frequence === 'annuel') return sum + cf.montant / 12;
       return sum;
     }, 0);
 
-    const depensesMois = depensesPonctuelles.reduce((sum, dp) => {
+    const depensesMois = depensesPonctuelles.reduce((sum: number, dp: any) => {
       const dateDepense = new Date(dp.date);
       const maintenant = new Date();
       if (

@@ -17,7 +17,7 @@ import financeReducer, {
 jest.mock('../../services/database');
 jest.mock('../../database/repositories/FinanceRepository');
 
-describe('financeSlice - Tests d'intégration', () => {
+describe("financeSlice - Tests d'intégration", () => {
   let store: ReturnType<typeof configureStore>;
 
   beforeEach(() => {

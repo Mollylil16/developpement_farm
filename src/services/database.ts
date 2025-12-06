@@ -1,10 +1,12 @@
 /**
- * Service de base de données SQLite
- * Gère toutes les opérations de base de données pour l'application
+ * Service de base de données
+ * Utilise soit SQLite (local) soit l'API backend (PostgreSQL)
  */
 
 import * as SQLite from 'expo-sqlite';
 import uuid from 'react-native-uuid';
+import { apiClient } from './api-client';
+import { API_CONFIG } from '../config/api.config';
 import {
   Projet,
   ChargeFixe,
@@ -34,7 +36,26 @@ import {
   ProductionStandardGMQ,
   getStandardGMQ,
   User,
+  CalendrierVaccination,
+  CreateCalendrierVaccinationInput,
+  Vaccination,
+  CreateVaccinationInput,
+  Maladie,
+  CreateMaladieInput,
+  Traitement,
+  CreateTraitementInput,
+  VisiteVeterinaire,
+  CreateVisiteVeterinaireInput,
+  RappelVaccination,
 } from '../types';
+
+// Type pour CreateRappelVaccinationInput (non exporté dans types)
+interface CreateRappelVaccinationInput {
+  vaccination_id: string;
+  date_rappel: string;
+  envoi?: boolean;
+  date_envoi?: string;
+}
 import { calculerDateMiseBasPrevue } from '../types/reproduction';
 import { genererPlusieursNomsAleatoires } from '../utils/nameGenerator';
 
@@ -48,6 +69,12 @@ class DatabaseService {
    * Utilise un verrou pour éviter les initialisations parallèles
    */
   async initialize(): Promise<void> {
+    // Si on utilise l'API, pas besoin d'initialiser SQLite
+    if (API_CONFIG.USE_API) {
+      console.log('🌐 [DB] Mode API activé - connexion au backend');
+      return;
+    }
+
     // Si déjà initialisé, ne rien faire
     if (this.db) {
       return;
@@ -65,7 +92,7 @@ class DatabaseService {
     // Créer la promesse d'initialisation
     this.initPromise = (async () => {
       try {
-        console.log('🔧 [DB] Initialisation de la base de données...');
+        console.log('🔧 [DB] Initialisation de la base de données SQLite...');
         this.db = await SQLite.openDatabaseAsync('fermier_pro.db');
         
         // Configurer SQLite pour éviter les deadlocks
@@ -81,7 +108,7 @@ class DatabaseService {
         await this.migrateTables();
         await this.createIndexesWithProjetId();
         
-        console.log('✅ [DB] Base de données initialisée avec succès');
+        console.log('✅ [DB] Base de données SQLite initialisée avec succès');
       } catch (error) {
         console.error("❌ [DB] Erreur lors de l'initialisation de la base de données:", error);
         this.db = null; // Réinitialiser en cas d'erreur
@@ -1718,7 +1745,7 @@ class DatabaseService {
           if (attempt < maxRetries) {
             // Délai progressif plus long pour les tentatives suivantes
             const delay = Math.min(200 * attempt, 1000); // Max 1 seconde
-            await new Promise((resolve) => setTimeout(resolve, delay));
+            await new Promise<void>((resolve) => setTimeout(() => resolve(), delay));
             console.warn(
               `⚠ Tentative ${attempt}/${maxRetries} échouée pour ${index.name}, réessai dans ${delay}ms...`,
               errorMessage
@@ -1851,6 +1878,11 @@ class DatabaseService {
    * Vérifie et répare les index manquants (peut être appelé périodiquement)
    */
   async repairMissingIndexes(): Promise<{ repaired: number; failed: number }> {
+    // Cette méthode est spécifique à SQLite, pas nécessaire pour l'API
+    if (API_CONFIG.USE_API) {
+      return { repaired: 0, failed: 0 };
+    }
+
     if (!this.db) {
       return { repaired: 0, failed: 0 };
     }
@@ -2482,6 +2514,10 @@ class DatabaseService {
   async createCalendrierVaccination(
     input: CreateCalendrierVaccinationInput
   ): Promise<CalendrierVaccination> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.createCalendrierVaccination(input) as Promise<CalendrierVaccination>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -2491,17 +2527,16 @@ class DatabaseService {
 
     await this.db.runAsync(
       `INSERT INTO calendrier_vaccinations (
-        id, projet_id, vaccin, nom_vaccin, categorie_animal, age_min_jours,
-        age_max_jours, frequence_jours, obligatoire, notes, date_creation, derniere_modification
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, projet_id, vaccin, nom_vaccin, categorie, age_jours,
+        frequence_jours, obligatoire, notes, date_creation, derniere_modification
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         input.projet_id,
         input.vaccin,
         input.nom_vaccin || null,
-        input.categorie_animal,
-        input.age_min_jours || null,
-        input.age_max_jours || null,
+        input.categorie,
+        input.age_jours || null,
         input.frequence_jours || null,
         input.obligatoire ? 1 : 0,
         input.notes || null,
@@ -2515,14 +2550,12 @@ class DatabaseService {
       projet_id: input.projet_id,
       vaccin: input.vaccin,
       nom_vaccin: input.nom_vaccin,
-      categorie_animal: input.categorie_animal,
-      age_min_jours: input.age_min_jours,
-      age_max_jours: input.age_max_jours,
+      categorie: input.categorie,
+      age_jours: input.age_jours,
       frequence_jours: input.frequence_jours,
       obligatoire: input.obligatoire || false,
       notes: input.notes,
       date_creation: now,
-      derniere_modification: now,
     };
   }
 
@@ -2530,6 +2563,10 @@ class DatabaseService {
    * Récupérer tous les protocoles de vaccination d'un projet
    */
   async getCalendrierVaccinationsByProjet(projetId: string): Promise<CalendrierVaccination[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getCalendrierVaccinations(projetId) as Promise<CalendrierVaccination[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -2537,7 +2574,7 @@ class DatabaseService {
     const rows = await this.db.getAllAsync<any>(
       `SELECT * FROM calendrier_vaccinations 
        WHERE projet_id = ? 
-       ORDER BY categorie_animal, age_min_jours`,
+       ORDER BY categorie, age_jours`,
       [projetId]
     );
 
@@ -2546,14 +2583,12 @@ class DatabaseService {
       projet_id: row.projet_id,
       vaccin: row.vaccin,
       nom_vaccin: row.nom_vaccin,
-      categorie_animal: row.categorie_animal,
-      age_min_jours: row.age_min_jours,
-      age_max_jours: row.age_max_jours,
+      categorie: row.categorie || row.categorie_animal, // Support ancien nom
+      age_jours: row.age_jours || row.age_min_jours, // Support ancien nom
       frequence_jours: row.frequence_jours,
       obligatoire: Boolean(row.obligatoire),
       notes: row.notes,
       date_creation: row.date_creation,
-      derniere_modification: row.derniere_modification,
     }));
   }
 
@@ -2561,6 +2596,10 @@ class DatabaseService {
    * Récupérer un protocole de vaccination par ID
    */
   async getCalendrierVaccinationById(id: string): Promise<CalendrierVaccination | null> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getCalendrierVaccinationById(id) as Promise<CalendrierVaccination | null>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -2577,14 +2616,12 @@ class DatabaseService {
       projet_id: row.projet_id,
       vaccin: row.vaccin,
       nom_vaccin: row.nom_vaccin,
-      categorie_animal: row.categorie_animal,
-      age_min_jours: row.age_min_jours,
-      age_max_jours: row.age_max_jours,
+      categorie: row.categorie || row.categorie_animal,
+      age_jours: row.age_jours || row.age_min_jours,
       frequence_jours: row.frequence_jours,
       obligatoire: Boolean(row.obligatoire),
       notes: row.notes,
       date_creation: row.date_creation,
-      derniere_modification: row.derniere_modification,
     };
   }
 
@@ -2594,7 +2631,11 @@ class DatabaseService {
   async updateCalendrierVaccination(
     id: string,
     updates: Partial<CreateCalendrierVaccinationInput>
-  ): Promise<void> {
+  ): Promise<CalendrierVaccination> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.updateCalendrierVaccination(id, updates) as Promise<CalendrierVaccination>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -2610,17 +2651,13 @@ class DatabaseService {
       fields.push('nom_vaccin = ?');
       values.push(updates.nom_vaccin);
     }
-    if (updates.categorie_animal !== undefined) {
-      fields.push('categorie_animal = ?');
-      values.push(updates.categorie_animal);
+    if (updates.categorie !== undefined) {
+      fields.push('categorie = ?');
+      values.push(updates.categorie);
     }
-    if (updates.age_min_jours !== undefined) {
-      fields.push('age_min_jours = ?');
-      values.push(updates.age_min_jours);
-    }
-    if (updates.age_max_jours !== undefined) {
-      fields.push('age_max_jours = ?');
-      values.push(updates.age_max_jours);
+    if (updates.age_jours !== undefined) {
+      fields.push('age_jours = ?');
+      values.push(updates.age_jours);
     }
     if (updates.frequence_jours !== undefined) {
       fields.push('frequence_jours = ?');
@@ -2635,7 +2672,11 @@ class DatabaseService {
       values.push(updates.notes);
     }
 
-    if (fields.length === 0) return;
+    if (fields.length === 0) {
+      const existing = await this.getCalendrierVaccinationById(id);
+      if (!existing) throw new Error('Calendrier de vaccination introuvable');
+      return existing;
+    }
 
     fields.push('derniere_modification = ?');
     values.push(new Date().toISOString());
@@ -2645,12 +2686,21 @@ class DatabaseService {
       `UPDATE calendrier_vaccinations SET ${fields.join(', ')} WHERE id = ?`,
       values
     );
+
+    const updated = await this.getCalendrierVaccinationById(id);
+    if (!updated) throw new Error('Erreur lors de la mise à jour');
+    return updated;
   }
 
   /**
    * Supprimer un protocole de vaccination
    */
   async deleteCalendrierVaccination(id: string): Promise<void> {
+    if (API_CONFIG.USE_API) {
+      await apiClient.deleteCalendrierVaccination(id);
+      return;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -2686,6 +2736,10 @@ class DatabaseService {
    * Créer une vaccination
    */
   async createVaccination(input: CreateVaccinationInput): Promise<Vaccination> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.createVaccination(input) as Promise<Vaccination>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -2737,10 +2791,9 @@ class DatabaseService {
     // Créer un rappel si date_rappel est fournie
     if (input.date_rappel) {
       await this.createRappelVaccination({
-        projet_id: input.projet_id,
         vaccination_id: id,
         date_rappel: input.date_rappel,
-        statut: 'en_attente',
+        envoi: false,
       });
     }
 
@@ -2776,6 +2829,10 @@ class DatabaseService {
    * Récupérer toutes les vaccinations d'un projet
    */
   async getVaccinationsByProjet(projetId: string): Promise<Vaccination[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getVaccinations(projetId) as Promise<Vaccination[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -2819,6 +2876,11 @@ class DatabaseService {
    * Récupérer une vaccination par ID
    */
   async getVaccinationById(id: string): Promise<Vaccination | null> {
+    if (API_CONFIG.USE_API) {
+      const result = await apiClient.request<Vaccination>(`/vaccinations/${id}`);
+      return result || null;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -2831,13 +2893,17 @@ class DatabaseService {
       id: row.id,
       projet_id: row.projet_id,
       calendrier_id: row.calendrier_id,
-      animal_id: row.animal_id,
+      animal_ids: row.animal_id ? [row.animal_id] : undefined,
       lot_id: row.lot_id,
+      type_prophylaxie: row.type_prophylaxie || 'autre_traitement',
       vaccin: row.vaccin,
       nom_vaccin: row.nom_vaccin,
+      produit_administre: row.produit_administre || row.nom_vaccin || '',
       date_vaccination: row.date_vaccination,
       date_rappel: row.date_rappel,
       numero_lot_vaccin: row.numero_lot_vaccin,
+      dosage: row.dosage || '',
+      raison_traitement: row.raison_traitement || 'autre',
       veterinaire: row.veterinaire,
       cout: row.cout,
       statut: row.statut,
@@ -2852,6 +2918,10 @@ class DatabaseService {
    * Récupérer les vaccinations d'un animal
    */
   async getVaccinationsByAnimal(animalId: string): Promise<Vaccination[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getVaccinations(undefined, animalId) as Promise<Vaccination[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -2867,13 +2937,17 @@ class DatabaseService {
       id: row.id,
       projet_id: row.projet_id,
       calendrier_id: row.calendrier_id,
-      animal_id: row.animal_id,
+      animal_ids: row.animal_id ? [row.animal_id] : undefined,
       lot_id: row.lot_id,
+      type_prophylaxie: row.type_prophylaxie || 'autre_traitement',
       vaccin: row.vaccin,
       nom_vaccin: row.nom_vaccin,
+      produit_administre: row.produit_administre || row.nom_vaccin || '',
       date_vaccination: row.date_vaccination,
       date_rappel: row.date_rappel,
       numero_lot_vaccin: row.numero_lot_vaccin,
+      dosage: row.dosage || '',
+      raison_traitement: row.raison_traitement || 'autre',
       veterinaire: row.veterinaire,
       cout: row.cout,
       statut: row.statut,
@@ -2888,6 +2962,10 @@ class DatabaseService {
    * Récupérer les vaccinations en retard
    */
   async getVaccinationsEnRetard(projetId: string): Promise<Vaccination[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getVaccinations(projetId, undefined, true) as Promise<Vaccination[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -2908,13 +2986,17 @@ class DatabaseService {
       id: row.id,
       projet_id: row.projet_id,
       calendrier_id: row.calendrier_id,
-      animal_id: row.animal_id,
+      animal_ids: row.animal_id ? [row.animal_id] : undefined,
       lot_id: row.lot_id,
+      type_prophylaxie: row.type_prophylaxie || 'autre_traitement',
       vaccin: row.vaccin,
       nom_vaccin: row.nom_vaccin,
+      produit_administre: row.produit_administre || row.nom_vaccin || '',
       date_vaccination: row.date_vaccination,
       date_rappel: row.date_rappel,
       numero_lot_vaccin: row.numero_lot_vaccin,
+      dosage: row.dosage || '',
+      raison_traitement: row.raison_traitement || 'autre',
       veterinaire: row.veterinaire,
       cout: row.cout,
       statut: row.statut,
@@ -2929,6 +3011,10 @@ class DatabaseService {
    * Récupérer les vaccinations à venir (dans les 7 prochains jours)
    */
   async getVaccinationsAVenir(projetId: string, joursAvance: number = 7): Promise<Vaccination[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getVaccinations(projetId, undefined, false, true, joursAvance) as Promise<Vaccination[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -2953,13 +3039,17 @@ class DatabaseService {
       id: row.id,
       projet_id: row.projet_id,
       calendrier_id: row.calendrier_id,
-      animal_id: row.animal_id,
+      animal_ids: row.animal_id ? [row.animal_id] : undefined,
       lot_id: row.lot_id,
+      type_prophylaxie: row.type_prophylaxie || 'autre_traitement',
       vaccin: row.vaccin,
       nom_vaccin: row.nom_vaccin,
+      produit_administre: row.produit_administre || row.nom_vaccin || '',
       date_vaccination: row.date_vaccination,
       date_rappel: row.date_rappel,
       numero_lot_vaccin: row.numero_lot_vaccin,
+      dosage: row.dosage || '',
+      raison_traitement: row.raison_traitement || 'autre',
       veterinaire: row.veterinaire,
       cout: row.cout,
       statut: row.statut,
@@ -2974,6 +3064,11 @@ class DatabaseService {
    * Mettre à jour une vaccination
    */
   async updateVaccination(id: string, updates: Partial<CreateVaccinationInput>): Promise<void> {
+    if (API_CONFIG.USE_API) {
+      await apiClient.request(`/vaccinations/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+      return;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -2985,9 +3080,9 @@ class DatabaseService {
       fields.push('calendrier_id = ?');
       values.push(updates.calendrier_id);
     }
-    if (updates.animal_id !== undefined) {
+    if (updates.animal_ids !== undefined) {
       fields.push('animal_id = ?');
-      values.push(updates.animal_id);
+      values.push(Array.isArray(updates.animal_ids) ? updates.animal_ids[0] || null : null);
     }
     if (updates.lot_id !== undefined) {
       fields.push('lot_id = ?');
@@ -3047,6 +3142,11 @@ class DatabaseService {
    * Supprimer une vaccination
    */
   async deleteVaccination(id: string): Promise<void> {
+    if (API_CONFIG.USE_API) {
+      await apiClient.request(`/vaccinations/${id}`, { method: 'DELETE' });
+      return;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3064,6 +3164,10 @@ class DatabaseService {
    * Créer une maladie
    */
   async createMaladie(input: CreateMaladieInput): Promise<Maladie> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.createMaladie(input) as Promise<Maladie>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3119,6 +3223,10 @@ class DatabaseService {
    * Récupérer toutes les maladies d'un projet
    */
   async getMaladiesByProjet(projetId: string): Promise<Maladie[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getMaladies(projetId) as Promise<Maladie[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3151,6 +3259,11 @@ class DatabaseService {
    * Récupérer une maladie par ID
    */
   async getMaladieById(id: string): Promise<Maladie | null> {
+    if (API_CONFIG.USE_API) {
+      const result = await apiClient.request<Maladie>(`/maladies/${id}`);
+      return result || null;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3182,6 +3295,10 @@ class DatabaseService {
    * Récupérer toutes les maladies d'un animal
    */
   async getMaladiesByAnimal(animalId: string): Promise<Maladie[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getMaladies(undefined, animalId) as Promise<Maladie[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3214,6 +3331,10 @@ class DatabaseService {
    * Récupérer les maladies en cours (non guéries)
    */
   async getMaladiesEnCours(projetId: string): Promise<Maladie[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getMaladies(projetId, undefined, true) as Promise<Maladie[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3246,6 +3367,11 @@ class DatabaseService {
    * Mettre à jour une maladie
    */
   async updateMaladie(id: string, updates: Partial<CreateMaladieInput>): Promise<void> {
+    if (API_CONFIG.USE_API) {
+      await apiClient.request(`/maladies/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+      return;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3311,6 +3437,11 @@ class DatabaseService {
    * Supprimer une maladie
    */
   async deleteMaladie(id: string): Promise<void> {
+    if (API_CONFIG.USE_API) {
+      await apiClient.request(`/maladies/${id}`, { method: 'DELETE' });
+      return;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3330,6 +3461,10 @@ class DatabaseService {
    * Créer un traitement
    */
   async createTraitement(input: CreateTraitementInput): Promise<Traitement> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.createTraitement(input) as Promise<Traitement>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3350,16 +3485,16 @@ class DatabaseService {
         input.maladie_id || null,
         input.animal_id || null,
         input.lot_id || null,
-        input.medicament,
+        input.nom_medicament,
         input.dosage || null,
         input.frequence || null,
         input.voie_administration || null,
         input.date_debut,
         input.date_fin || null,
         input.duree_jours || null,
-        input.temps_attente_abattage_jours || null,
+        input.temps_attente_jours || null,
         input.cout || null,
-        input.efficacite || null,
+        input.efficace ? 1 : 0,
         input.effets_secondaires || null,
         input.termine ? 1 : 0,
         input.notes || null,
@@ -3374,16 +3509,17 @@ class DatabaseService {
       maladie_id: input.maladie_id,
       animal_id: input.animal_id,
       lot_id: input.lot_id,
-      medicament: input.medicament,
+      type: input.type || 'autre',
+      nom_medicament: input.nom_medicament,
       dosage: input.dosage,
       frequence: input.frequence,
       voie_administration: input.voie_administration,
       date_debut: input.date_debut,
       date_fin: input.date_fin,
       duree_jours: input.duree_jours,
-      temps_attente_abattage_jours: input.temps_attente_abattage_jours,
+      temps_attente_jours: input.temps_attente_jours,
       cout: input.cout,
-      efficacite: input.efficacite,
+      efficace: input.efficace,
       effets_secondaires: input.effets_secondaires,
       termine: input.termine || false,
       notes: input.notes,
@@ -3396,6 +3532,10 @@ class DatabaseService {
    * Récupérer tous les traitements d'un projet
    */
   async getTraitementsByProjet(projetId: string): Promise<Traitement[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getTraitements(projetId) as Promise<Traitement[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3411,16 +3551,17 @@ class DatabaseService {
       maladie_id: row.maladie_id || undefined,
       animal_id: row.animal_id || undefined,
       lot_id: row.lot_id || undefined,
-      medicament: row.medicament,
+      type: row.type || 'autre',
+      nom_medicament: row.medicament || row.nom_medicament,
       dosage: row.dosage || undefined,
       frequence: row.frequence || undefined,
       voie_administration: row.voie_administration || undefined,
       date_debut: row.date_debut,
       date_fin: row.date_fin || undefined,
       duree_jours: row.duree_jours || undefined,
-      temps_attente_abattage_jours: row.temps_attente_abattage_jours || undefined,
+      temps_attente_jours: row.temps_attente_abattage_jours || row.temps_attente_jours || undefined,
       cout: row.cout || undefined,
-      efficacite: row.efficacite || undefined,
+      efficace: row.efficacite === 1 || row.efficace === true,
       effets_secondaires: row.effets_secondaires || undefined,
       termine: row.termine === 1,
       notes: row.notes || undefined,
@@ -3433,6 +3574,11 @@ class DatabaseService {
    * Récupérer un traitement par ID
    */
   async getTraitementById(id: string): Promise<Traitement | null> {
+    if (API_CONFIG.USE_API) {
+      const result = await apiClient.request<Traitement>(`/traitements/${id}`);
+      return result || null;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3447,16 +3593,17 @@ class DatabaseService {
       maladie_id: row.maladie_id || undefined,
       animal_id: row.animal_id || undefined,
       lot_id: row.lot_id || undefined,
-      medicament: row.medicament,
+      type: row.type || 'autre',
+      nom_medicament: row.medicament || row.nom_medicament,
       dosage: row.dosage || undefined,
       frequence: row.frequence || undefined,
       voie_administration: row.voie_administration || undefined,
       date_debut: row.date_debut,
       date_fin: row.date_fin || undefined,
       duree_jours: row.duree_jours || undefined,
-      temps_attente_abattage_jours: row.temps_attente_abattage_jours || undefined,
+      temps_attente_jours: row.temps_attente_abattage_jours || row.temps_attente_jours || undefined,
       cout: row.cout || undefined,
-      efficacite: row.efficacite || undefined,
+      efficace: row.efficacite === 1 || row.efficace === true,
       effets_secondaires: row.effets_secondaires || undefined,
       termine: row.termine === 1,
       notes: row.notes || undefined,
@@ -3469,6 +3616,10 @@ class DatabaseService {
    * Récupérer les traitements d'une maladie
    */
   async getTraitementsByMaladie(maladieId: string): Promise<Traitement[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getTraitements(undefined, maladieId) as Promise<Traitement[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3484,16 +3635,17 @@ class DatabaseService {
       maladie_id: row.maladie_id || undefined,
       animal_id: row.animal_id || undefined,
       lot_id: row.lot_id || undefined,
-      medicament: row.medicament,
+      type: row.type || 'autre',
+      nom_medicament: row.medicament || row.nom_medicament,
       dosage: row.dosage || undefined,
       frequence: row.frequence || undefined,
       voie_administration: row.voie_administration || undefined,
       date_debut: row.date_debut,
       date_fin: row.date_fin || undefined,
       duree_jours: row.duree_jours || undefined,
-      temps_attente_abattage_jours: row.temps_attente_abattage_jours || undefined,
+      temps_attente_jours: row.temps_attente_abattage_jours || row.temps_attente_jours || undefined,
       cout: row.cout || undefined,
-      efficacite: row.efficacite || undefined,
+      efficace: row.efficacite === 1 || row.efficace === true,
       effets_secondaires: row.effets_secondaires || undefined,
       termine: row.termine === 1,
       notes: row.notes || undefined,
@@ -3506,6 +3658,10 @@ class DatabaseService {
    * Récupérer les traitements d'un animal
    */
   async getTraitementsByAnimal(animalId: string): Promise<Traitement[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getTraitements(undefined, undefined, animalId) as Promise<Traitement[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3521,16 +3677,17 @@ class DatabaseService {
       maladie_id: row.maladie_id || undefined,
       animal_id: row.animal_id || undefined,
       lot_id: row.lot_id || undefined,
-      medicament: row.medicament,
+      type: row.type || 'autre',
+      nom_medicament: row.medicament || row.nom_medicament,
       dosage: row.dosage || undefined,
       frequence: row.frequence || undefined,
       voie_administration: row.voie_administration || undefined,
       date_debut: row.date_debut,
       date_fin: row.date_fin || undefined,
       duree_jours: row.duree_jours || undefined,
-      temps_attente_abattage_jours: row.temps_attente_abattage_jours || undefined,
+      temps_attente_jours: row.temps_attente_abattage_jours || row.temps_attente_jours || undefined,
       cout: row.cout || undefined,
-      efficacite: row.efficacite || undefined,
+      efficace: row.efficacite === 1 || row.efficace === true,
       effets_secondaires: row.effets_secondaires || undefined,
       termine: row.termine === 1,
       notes: row.notes || undefined,
@@ -3543,6 +3700,10 @@ class DatabaseService {
    * Récupérer les traitements en cours (non terminés)
    */
   async getTraitementsEnCours(projetId: string): Promise<Traitement[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getTraitements(projetId, undefined, undefined, true) as Promise<Traitement[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3558,16 +3719,17 @@ class DatabaseService {
       maladie_id: row.maladie_id || undefined,
       animal_id: row.animal_id || undefined,
       lot_id: row.lot_id || undefined,
-      medicament: row.medicament,
+      type: row.type || 'autre',
+      nom_medicament: row.medicament || row.nom_medicament,
       dosage: row.dosage || undefined,
       frequence: row.frequence || undefined,
       voie_administration: row.voie_administration || undefined,
       date_debut: row.date_debut,
       date_fin: row.date_fin || undefined,
       duree_jours: row.duree_jours || undefined,
-      temps_attente_abattage_jours: row.temps_attente_abattage_jours || undefined,
+      temps_attente_jours: row.temps_attente_abattage_jours || row.temps_attente_jours || undefined,
       cout: row.cout || undefined,
-      efficacite: row.efficacite || undefined,
+      efficace: row.efficacite === 1 || row.efficace === true,
       effets_secondaires: row.effets_secondaires || undefined,
       termine: false,
       notes: row.notes || undefined,
@@ -3580,6 +3742,11 @@ class DatabaseService {
    * Mettre à jour un traitement
    */
   async updateTraitement(id: string, updates: Partial<CreateTraitementInput>): Promise<void> {
+    if (API_CONFIG.USE_API) {
+      await apiClient.request(`/traitements/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+      return;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3599,9 +3766,9 @@ class DatabaseService {
       fields.push('lot_id = ?');
       values.push(updates.lot_id || null);
     }
-    if (updates.medicament !== undefined) {
+    if (updates.nom_medicament !== undefined) {
       fields.push('medicament = ?');
-      values.push(updates.medicament);
+      values.push(updates.nom_medicament);
     }
     if (updates.dosage !== undefined) {
       fields.push('dosage = ?');
@@ -3627,17 +3794,17 @@ class DatabaseService {
       fields.push('duree_jours = ?');
       values.push(updates.duree_jours || null);
     }
-    if (updates.temps_attente_abattage_jours !== undefined) {
+    if (updates.temps_attente_jours !== undefined) {
       fields.push('temps_attente_abattage_jours = ?');
-      values.push(updates.temps_attente_abattage_jours || null);
+      values.push(updates.temps_attente_jours || null);
     }
     if (updates.cout !== undefined) {
       fields.push('cout = ?');
       values.push(updates.cout || null);
     }
-    if (updates.efficacite !== undefined) {
+    if (updates.efficace !== undefined) {
       fields.push('efficacite = ?');
-      values.push(updates.efficacite || null);
+      values.push(updates.efficace ? 1 : 0);
     }
     if (updates.effets_secondaires !== undefined) {
       fields.push('effets_secondaires = ?');
@@ -3665,6 +3832,11 @@ class DatabaseService {
    * Supprimer un traitement
    */
   async deleteTraitement(id: string): Promise<void> {
+    if (API_CONFIG.USE_API) {
+      await apiClient.request(`/traitements/${id}`, { method: 'DELETE' });
+      return;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3682,6 +3854,10 @@ class DatabaseService {
    * Créer une visite vétérinaire
    */
   async createVisiteVeterinaire(input: CreateVisiteVeterinaireInput): Promise<VisiteVeterinaire> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.createVisiteVeterinaire(input) as Promise<VisiteVeterinaire>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3705,7 +3881,7 @@ class DatabaseService {
         input.prescriptions || null,
         input.cout || null,
         input.animaux_examines ? JSON.stringify(input.animaux_examines) : null,
-        input.prochaine_visite_prevue || null,
+        input.prochaine_visite || null,
         input.notes || null,
         now,
         now,
@@ -3722,7 +3898,7 @@ class DatabaseService {
       prescriptions: input.prescriptions,
       cout: input.cout,
       animaux_examines: input.animaux_examines,
-      prochaine_visite_prevue: input.prochaine_visite_prevue,
+      prochaine_visite: input.prochaine_visite,
       notes: input.notes,
       date_creation: now,
       derniere_modification: now,
@@ -3733,6 +3909,10 @@ class DatabaseService {
    * Récupérer toutes les visites vétérinaires d'un projet
    */
   async getVisitesVeterinairesByProjet(projetId: string): Promise<VisiteVeterinaire[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getVisitesVeterinaires(projetId) as Promise<VisiteVeterinaire[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3752,7 +3932,7 @@ class DatabaseService {
       prescriptions: row.prescriptions || undefined,
       cout: row.cout || undefined,
       animaux_examines: row.animaux_examines ? JSON.parse(row.animaux_examines) : undefined,
-      prochaine_visite_prevue: row.prochaine_visite_prevue || undefined,
+      prochaine_visite: row.prochaine_visite_prevue || row.prochaine_visite || undefined,
       notes: row.notes || undefined,
       date_creation: row.date_creation,
       derniere_modification: row.derniere_modification,
@@ -3763,6 +3943,11 @@ class DatabaseService {
    * Récupérer une visite vétérinaire par ID
    */
   async getVisiteVeterinaireById(id: string): Promise<VisiteVeterinaire | null> {
+    if (API_CONFIG.USE_API) {
+      const result = await apiClient.request<VisiteVeterinaire>(`/visites-veterinaires/${id}`);
+      return result || null;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3784,7 +3969,7 @@ class DatabaseService {
       prescriptions: row.prescriptions || undefined,
       cout: row.cout || undefined,
       animaux_examines: row.animaux_examines ? JSON.parse(row.animaux_examines) : undefined,
-      prochaine_visite_prevue: row.prochaine_visite_prevue || undefined,
+      prochaine_visite: row.prochaine_visite_prevue || row.prochaine_visite || undefined,
       notes: row.notes || undefined,
       date_creation: row.date_creation,
       derniere_modification: row.derniere_modification,
@@ -3795,6 +3980,10 @@ class DatabaseService {
    * Récupérer la prochaine visite prévue
    */
   async getProchainVisitePrevue(projetId: string): Promise<VisiteVeterinaire | null> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getVisitesVeterinaires(projetId, true) as Promise<VisiteVeterinaire | null>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3818,7 +4007,7 @@ class DatabaseService {
       prescriptions: row.prescriptions || undefined,
       cout: row.cout || undefined,
       animaux_examines: row.animaux_examines ? JSON.parse(row.animaux_examines) : undefined,
-      prochaine_visite_prevue: row.prochaine_visite_prevue || undefined,
+      prochaine_visite: row.prochaine_visite_prevue || row.prochaine_visite || undefined,
       notes: row.notes || undefined,
       date_creation: row.date_creation,
       derniere_modification: row.derniere_modification,
@@ -3832,6 +4021,11 @@ class DatabaseService {
     id: string,
     updates: Partial<CreateVisiteVeterinaireInput>
   ): Promise<void> {
+    if (API_CONFIG.USE_API) {
+      await apiClient.request(`/visites-veterinaires/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+      return;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3867,9 +4061,9 @@ class DatabaseService {
       fields.push('animaux_examines = ?');
       values.push(updates.animaux_examines ? JSON.stringify(updates.animaux_examines) : null);
     }
-    if (updates.prochaine_visite_prevue !== undefined) {
+    if (updates.prochaine_visite !== undefined) {
       fields.push('prochaine_visite_prevue = ?');
-      values.push(updates.prochaine_visite_prevue || null);
+      values.push(updates.prochaine_visite || null);
     }
     if (updates.notes !== undefined) {
       fields.push('notes = ?');
@@ -3892,6 +4086,11 @@ class DatabaseService {
    * Supprimer une visite vétérinaire
    */
   async deleteVisiteVeterinaire(id: string): Promise<void> {
+    if (API_CONFIG.USE_API) {
+      await apiClient.request(`/visites-veterinaires/${id}`, { method: 'DELETE' });
+      return;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3909,6 +4108,10 @@ class DatabaseService {
    * Créer un rappel de vaccination (automatique lors d'une vaccination)
    */
   async createRappelVaccination(input: CreateRappelVaccinationInput): Promise<RappelVaccination> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.createRappelVaccination(input) as Promise<RappelVaccination>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3918,15 +4121,14 @@ class DatabaseService {
 
     await this.db.runAsync(
       `INSERT INTO rappels_vaccinations (
-        id, projet_id, vaccination_id, date_rappel, statut_envoi,
+        id, vaccination_id, date_rappel, statut_envoi,
         date_envoi, date_creation
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?)`,
       [
         id,
-        input.projet_id,
         input.vaccination_id,
         input.date_rappel,
-        input.statut_envoi || 'en_attente',
+        input.envoi ? 1 : 0,
         input.date_envoi || null,
         now,
       ]
@@ -3934,12 +4136,10 @@ class DatabaseService {
 
     return {
       id,
-      projet_id: input.projet_id,
       vaccination_id: input.vaccination_id,
       date_rappel: input.date_rappel,
-      statut_envoi: input.statut_envoi || 'en_attente',
+      envoi: input.envoi || false,
       date_envoi: input.date_envoi,
-      date_creation: now,
     };
   }
 
@@ -3947,6 +4147,10 @@ class DatabaseService {
    * Récupérer tous les rappels d'un projet
    */
   async getRappelsByProjet(projetId: string): Promise<RappelVaccination[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getRappelsVaccinations(projetId) as Promise<RappelVaccination[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3961,7 +4165,7 @@ class DatabaseService {
       projet_id: row.projet_id,
       vaccination_id: row.vaccination_id,
       date_rappel: row.date_rappel,
-      statut_envoi: row.statut_envoi,
+      envoi: row.statut_envoi === 1 || row.envoi === true,
       date_envoi: row.date_envoi || undefined,
       date_creation: row.date_creation,
     }));
@@ -3971,6 +4175,10 @@ class DatabaseService {
    * Récupérer les rappels à venir (dans les X jours)
    */
   async getRappelsAVenir(projetId: string, joursAvance: number = 7): Promise<RappelVaccination[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getRappelsVaccinations(projetId, true, false, joursAvance) as Promise<RappelVaccination[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -3990,7 +4198,7 @@ class DatabaseService {
       projet_id: row.projet_id,
       vaccination_id: row.vaccination_id,
       date_rappel: row.date_rappel,
-      statut_envoi: row.statut_envoi,
+      envoi: row.statut_envoi === 1 || row.envoi === true,
       date_envoi: row.date_envoi || undefined,
       date_creation: row.date_creation,
     }));
@@ -4000,6 +4208,10 @@ class DatabaseService {
    * Récupérer les rappels en retard
    */
   async getRappelsEnRetard(projetId: string): Promise<RappelVaccination[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getRappelsVaccinations(projetId, false, true) as Promise<RappelVaccination[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -4018,7 +4230,7 @@ class DatabaseService {
       projet_id: row.projet_id,
       vaccination_id: row.vaccination_id,
       date_rappel: row.date_rappel,
-      statut_envoi: row.statut_envoi,
+      envoi: row.statut_envoi === 1 || row.envoi === true,
       date_envoi: row.date_envoi || undefined,
       date_creation: row.date_creation,
     }));
@@ -4055,6 +4267,17 @@ class DatabaseService {
     tauxCouverture: number;
     coutTotal: number;
   }> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getStatistiquesVaccinations(projetId) as Promise<{
+        total: number;
+        effectuees: number;
+        enAttente: number;
+        enRetard: number;
+        tauxCouverture: number;
+        coutTotal: number;
+      }>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -4107,6 +4330,17 @@ class DatabaseService {
     parGravite: { [key: string]: number };
     tauxGuerison: number;
   }> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getStatistiquesMaladies(projetId) as Promise<{
+        total: number;
+        enCours: number;
+        gueries: number;
+        parType: { [key: string]: number };
+        parGravite: { [key: string]: number };
+        tauxGuerison: number;
+      }>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -4156,6 +4390,16 @@ class DatabaseService {
     coutTotal: number;
     efficaciteMoyenne: number;
   }> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getStatistiquesTraitements(projetId) as Promise<{
+        total: number;
+        enCours: number;
+        termines: number;
+        coutTotal: number;
+        efficaciteMoyenne: number;
+      }>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -4203,6 +4447,15 @@ class DatabaseService {
     visites: number;
     total: number;
   }> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getCoutsVeterinaires(projetId) as Promise<{
+        vaccinations: number;
+        traitements: number;
+        visites: number;
+        total: number;
+      }>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -4244,6 +4497,14 @@ class DatabaseService {
       pourcentage: number;
     }>
   > {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getTauxMortaliteParCause(projetId) as Promise<{
+        cause: string;
+        nombre: number;
+        pourcentage: number;
+      }[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -4276,6 +4537,15 @@ class DatabaseService {
       data?: any;
     }>
   > {
+    if (API_CONFIG.USE_API) {
+      return (await apiClient.getRecommandationsSanitaires(projetId)) as {
+        type: 'vaccination' | 'traitement' | 'visite' | 'alerte';
+        priorite: 'haute' | 'moyenne' | 'basse';
+        message: string;
+        data?: any;
+      }[];
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -4340,7 +4610,7 @@ class DatabaseService {
       recommendations.push({
         type: 'visite',
         priorite: 'basse',
-        message: `Visite vétérinaire prévue le ${new Date(prochaineVisite.prochaine_visite_prevue!).toLocaleDateString()}`,
+        message: `Visite vétérinaire prévue le ${new Date(prochaineVisite.prochaine_visite!).toLocaleDateString()}`,
         data: { visite: prochaineVisite },
       });
     }
@@ -4360,6 +4630,16 @@ class DatabaseService {
       data?: any;
     }>
   > {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getAlertesSanitaires(projetId) as Promise<{
+        type: 'rappel_retard' | 'maladie_critique' | 'epidemie' | 'mortalite_elevee';
+        gravite: 'critique' | 'elevee' | 'moyenne';
+        message: string;
+        date: string;
+        data?: any;
+      }[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -4443,6 +4723,15 @@ class DatabaseService {
     traitements: Traitement[];
     visites: VisiteVeterinaire[];
   }> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getHistoriqueMedicalAnimal(animalId) as Promise<{
+        vaccinations: Vaccination[];
+        maladies: Maladie[];
+        traitements: Traitement[];
+        visites: VisiteVeterinaire[];
+      }>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -4473,7 +4762,7 @@ class DatabaseService {
         prescriptions: row.prescriptions || undefined,
         cout: row.cout || undefined,
         animaux_examines: row.animaux_examines ? JSON.parse(row.animaux_examines) : undefined,
-        prochaine_visite_prevue: row.prochaine_visite_prevue || undefined,
+        prochaine_visite: row.prochaine_visite_prevue || row.prochaine_visite || undefined,
         notes: row.notes || undefined,
         date_creation: row.date_creation,
         derniere_modification: row.derniere_modification,
@@ -4492,6 +4781,15 @@ class DatabaseService {
       jours_restants: number;
     }>
   > {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getAnimauxTempsAttente(projetId) as Promise<{
+        animal_id: string;
+        traitement: Traitement;
+        date_fin_attente: string;
+        jours_restants: number;
+      }[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -4516,7 +4814,7 @@ class DatabaseService {
 
     for (const row of traitements) {
       const dateDebut = new Date(row.date_debut);
-      const tempsAttente = row.temps_attente_abattage_jours;
+      const tempsAttente = row.temps_attente_abattage_jours || row.temps_attente_jours;
       const dateFinAttente = new Date(dateDebut.getTime() + tempsAttente * 24 * 60 * 60 * 1000);
 
       // Vérifier si le temps d'attente est toujours actif
@@ -4533,16 +4831,17 @@ class DatabaseService {
             maladie_id: row.maladie_id || undefined,
             animal_id: row.animal_id || undefined,
             lot_id: row.lot_id || undefined,
-            medicament: row.medicament,
+            type: row.type || 'autre',
+      nom_medicament: row.medicament || row.nom_medicament,
             dosage: row.dosage || undefined,
             frequence: row.frequence || undefined,
             voie_administration: row.voie_administration || undefined,
             date_debut: row.date_debut,
             date_fin: row.date_fin || undefined,
             duree_jours: row.duree_jours || undefined,
-            temps_attente_abattage_jours: row.temps_attente_abattage_jours || undefined,
+            temps_attente_jours: row.temps_attente_abattage_jours || row.temps_attente_jours || undefined,
             cout: row.cout || undefined,
-            efficacite: row.efficacite || undefined,
+            efficace: row.efficacite === 1 || row.efficace === true,
             effets_secondaires: row.effets_secondaires || undefined,
             termine: row.termine === 1,
             notes: row.notes || undefined,
@@ -4576,6 +4875,20 @@ class DatabaseService {
       visites: VisiteVeterinaire[];
     };
   }> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getCoutsVeterinairesPeriode(projetId, dateDebut, dateFin) as Promise<{
+        vaccinations: number;
+        traitements: number;
+        visites: number;
+        total: number;
+        details: {
+          vaccinations: Vaccination[];
+          traitements: Traitement[];
+          visites: VisiteVeterinaire[];
+        };
+      }>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -4615,13 +4928,17 @@ class DatabaseService {
           id: row.id,
           projet_id: row.projet_id,
           calendrier_id: row.calendrier_id || undefined,
-          animal_id: row.animal_id || undefined,
+          animal_ids: row.animal_id ? [row.animal_id] : undefined,
           lot_id: row.lot_id || undefined,
+          type_prophylaxie: row.type_prophylaxie || 'autre_traitement',
           vaccin: row.vaccin,
           nom_vaccin: row.nom_vaccin || undefined,
+          produit_administre: row.produit_administre || row.nom_vaccin || '',
           date_vaccination: row.date_vaccination,
           date_rappel: row.date_rappel || undefined,
           numero_lot_vaccin: row.numero_lot_vaccin || undefined,
+          dosage: row.dosage || '',
+          raison_traitement: row.raison_traitement || 'autre',
           veterinaire: row.veterinaire || undefined,
           cout: row.cout || undefined,
           statut: row.statut,
@@ -4636,16 +4953,17 @@ class DatabaseService {
           maladie_id: row.maladie_id || undefined,
           animal_id: row.animal_id || undefined,
           lot_id: row.lot_id || undefined,
-          medicament: row.medicament,
+          type: row.type || 'autre',
+      nom_medicament: row.medicament || row.nom_medicament,
           dosage: row.dosage || undefined,
           frequence: row.frequence || undefined,
           voie_administration: row.voie_administration || undefined,
           date_debut: row.date_debut,
           date_fin: row.date_fin || undefined,
           duree_jours: row.duree_jours || undefined,
-          temps_attente_abattage_jours: row.temps_attente_abattage_jours || undefined,
+          temps_attente_jours: row.temps_attente_abattage_jours || row.temps_attente_jours || undefined,
           cout: row.cout || undefined,
-          efficacite: row.efficacite || undefined,
+          efficace: row.efficacite === 1 || row.efficace === true,
           effets_secondaires: row.effets_secondaires || undefined,
           termine: row.termine === 1,
           notes: row.notes || undefined,
@@ -4662,7 +4980,7 @@ class DatabaseService {
           prescriptions: row.prescriptions || undefined,
           cout: row.cout || undefined,
           animaux_examines: row.animaux_examines ? JSON.parse(row.animaux_examines) : undefined,
-          prochaine_visite_prevue: row.prochaine_visite_prevue || undefined,
+          prochaine_visite: row.prochaine_visite_prevue || row.prochaine_visite || undefined,
           notes: row.notes || undefined,
           date_creation: row.date_creation,
           derniere_modification: row.derniere_modification,
@@ -4689,6 +5007,10 @@ class DatabaseService {
     provider_id?: string;
     photo?: string;
   }): Promise<User> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.createUser(input) as Promise<User>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -4763,6 +5085,9 @@ class DatabaseService {
 
     console.log('✅ Utilisateur créé avec succès:', id);
     const createdUser = await this.getUserById(id);
+    if (!createdUser) {
+      throw new Error('Erreur lors de la création de l\'utilisateur');
+    }
     console.log('📋 Utilisateur récupéré:', {
       id: createdUser.id,
       email: createdUser.email,
@@ -4775,6 +5100,10 @@ class DatabaseService {
    * Récupérer un utilisateur par email
    */
   async getUserByEmail(email: string): Promise<User | null> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getUserByEmail(email) as Promise<User | null>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -4808,6 +5137,10 @@ class DatabaseService {
    * Récupérer un utilisateur par téléphone
    */
   async getUserByTelephone(telephone: string): Promise<User | null> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getUserByTelephone(telephone) as Promise<User | null>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -4828,6 +5161,10 @@ class DatabaseService {
    * Récupérer un utilisateur par email ou téléphone
    */
   async getUserByIdentifier(identifier: string): Promise<User | null> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getUserByIdentifier(identifier) as Promise<User | null>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -4853,6 +5190,10 @@ class DatabaseService {
    * Retourne null si l'utilisateur n'existe pas au lieu de lancer une erreur
    */
   async getUserById(id: string): Promise<User | null> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getUserById(id) as Promise<User | null>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -4874,6 +5215,25 @@ class DatabaseService {
   }
 
   /**
+   * Récupérer tous les utilisateurs
+   */
+  async getAllUsers(): Promise<User[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getAllUsers() as Promise<User[]>;
+    }
+
+    if (!this.db) {
+      throw new Error('Base de données non initialisée');
+    }
+
+    const rows = await this.db.getAllAsync<any>(
+      'SELECT * FROM users WHERE is_active = 1 ORDER BY date_creation DESC'
+    );
+
+    return rows.map((row) => this.mapRowToUser(row));
+  }
+
+  /**
    * Mettre à jour un utilisateur
    */
   /**
@@ -4890,6 +5250,10 @@ class DatabaseService {
       photo?: string;
     }
   ): Promise<User> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.updateUser(id, updates) as Promise<User>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -4958,6 +5322,15 @@ class DatabaseService {
    * Connecter un utilisateur par email ou téléphone (sans mot de passe)
    */
   async loginUser(identifier: string): Promise<User | null> {
+    if (API_CONFIG.USE_API) {
+      const user = await this.getUserByIdentifier(identifier);
+      if (user) {
+        // Mettre à jour la dernière connexion
+        await this.updateUser(user.id, {});
+      }
+      return user;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5015,6 +5388,10 @@ class DatabaseService {
   async createProjet(
     projet: Omit<Projet, 'id' | 'date_creation' | 'derniere_modification'>
   ): Promise<Projet> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.createProjet(projet) as Promise<Projet>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5218,6 +5595,10 @@ class DatabaseService {
   }
 
   async getProjetById(id: string): Promise<Projet> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getProjetById(id) as Promise<Projet>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5235,6 +5616,10 @@ class DatabaseService {
    * Obtenir tous les projets d'un utilisateur (propriétaire + collaborateur)
    */
   async getAllProjets(userId?: string): Promise<Projet[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getAllProjets(userId) as Promise<Projet[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5260,6 +5645,11 @@ class DatabaseService {
    * Obtenir le projet actif d'un utilisateur (propriétaire ou collaborateur)
    */
   async getProjetActif(userId?: string): Promise<Projet | null> {
+    if (API_CONFIG.USE_API) {
+      if (!userId) return null;
+      return apiClient.getProjetActif(userId) as Promise<Projet | null>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5283,6 +5673,10 @@ class DatabaseService {
   }
 
   async updateProjet(id: string, updates: Partial<Projet>, userId?: string): Promise<Projet> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.updateProjet(id, updates) as Promise<Projet>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5328,6 +5722,10 @@ class DatabaseService {
   async createChargeFixe(
     charge: Omit<ChargeFixe, 'id' | 'date_creation' | 'derniere_modification'>
   ): Promise<ChargeFixe> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.createChargeFixe(charge) as Promise<ChargeFixe>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5360,6 +5758,12 @@ class DatabaseService {
   }
 
   async getChargeFixeById(id: string): Promise<ChargeFixe> {
+    if (API_CONFIG.USE_API) {
+      const result = await apiClient.request<ChargeFixe>(`/charges-fixes/${id}`);
+      if (!result) throw new Error(`Charge fixe avec l'id ${id} non trouvée`);
+      return result;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5377,6 +5781,10 @@ class DatabaseService {
   }
 
   async getAllChargesFixes(projetId: string): Promise<ChargeFixe[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getChargesFixes(projetId) as Promise<ChargeFixe[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5388,6 +5796,10 @@ class DatabaseService {
   }
 
   async getChargesFixesActives(projetId: string): Promise<ChargeFixe[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getChargesFixes(projetId, true) as Promise<ChargeFixe[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5399,6 +5811,10 @@ class DatabaseService {
   }
 
   async updateChargeFixe(id: string, updates: Partial<ChargeFixe>): Promise<ChargeFixe> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.request(`/charges-fixes/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5428,6 +5844,11 @@ class DatabaseService {
   }
 
   async deleteChargeFixe(id: string): Promise<void> {
+    if (API_CONFIG.USE_API) {
+      await apiClient.request(`/charges-fixes/${id}`, { method: 'DELETE' });
+      return;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5444,6 +5865,10 @@ class DatabaseService {
   async createDepensePonctuelle(
     depense: Omit<DepensePonctuelle, 'id' | 'date_creation'>
   ): Promise<DepensePonctuelle> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.createDepense(depense) as Promise<DepensePonctuelle>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5474,6 +5899,12 @@ class DatabaseService {
   }
 
   async getDepensePonctuelleById(id: string): Promise<DepensePonctuelle> {
+    if (API_CONFIG.USE_API) {
+      const result = await apiClient.request<DepensePonctuelle>(`/depenses/${id}`);
+      if (!result) throw new Error(`Dépense ponctuelle avec l'id ${id} non trouvée`);
+      return result;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5494,6 +5925,10 @@ class DatabaseService {
   }
 
   async getAllDepensesPonctuelles(projetId: string): Promise<DepensePonctuelle[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getDepenses(projetId) as Promise<DepensePonctuelle[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5513,6 +5948,12 @@ class DatabaseService {
     dateDebut: string,
     dateFin: string
   ): Promise<DepensePonctuelle[]> {
+    if (API_CONFIG.USE_API) {
+      // Nécessite projetId, on doit le récupérer depuis les dépenses
+      const depenses = (await apiClient.getDepenses('', dateDebut, dateFin)) as DepensePonctuelle[];
+      return depenses.filter((d: DepensePonctuelle) => d.date >= dateDebut && d.date <= dateFin);
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5532,6 +5973,10 @@ class DatabaseService {
     id: string,
     updates: UpdateDepensePonctuelleInput
   ): Promise<DepensePonctuelle> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.request(`/depenses/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5562,6 +6007,11 @@ class DatabaseService {
   }
 
   async deleteDepensePonctuelle(id: string): Promise<void> {
+    if (API_CONFIG.USE_API) {
+      await apiClient.request(`/depenses/${id}`, { method: 'DELETE' });
+      return;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5576,6 +6026,10 @@ class DatabaseService {
    */
 
   async createRevenu(revenu: Omit<Revenu, 'id' | 'date_creation'>): Promise<Revenu> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.createRevenu(revenu) as Promise<Revenu>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5607,6 +6061,12 @@ class DatabaseService {
   }
 
   async getRevenuById(id: string): Promise<Revenu> {
+    if (API_CONFIG.USE_API) {
+      const result = await apiClient.request<Revenu>(`/revenus/${id}`);
+      if (!result) throw new Error(`Revenu avec l'id ${id} non trouvé`);
+      return result;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5624,6 +6084,10 @@ class DatabaseService {
   }
 
   async getAllRevenus(projetId: string): Promise<Revenu[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getRevenus(projetId) as Promise<Revenu[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5660,6 +6124,10 @@ class DatabaseService {
   }
 
   async updateRevenu(id: string, updates: UpdateRevenuInput): Promise<Revenu> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.request(`/revenus/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5692,6 +6160,11 @@ class DatabaseService {
   }
 
   async deleteRevenu(id: string): Promise<void> {
+    if (API_CONFIG.USE_API) {
+      await apiClient.request(`/revenus/${id}`, { method: 'DELETE' });
+      return;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5711,6 +6184,10 @@ class DatabaseService {
       'id' | 'date_creation' | 'derniere_modification' | 'date_mise_bas_prevue'
     >
   ): Promise<Gestation> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.createGestation(gestation) as Promise<Gestation>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5746,6 +6223,12 @@ class DatabaseService {
   }
 
   async getGestationById(id: string): Promise<Gestation> {
+    if (API_CONFIG.USE_API) {
+      const result = await apiClient.request<Gestation>(`/gestations/${id}`);
+      if (!result) throw new Error(`Gestation avec l'id ${id} non trouvée`);
+      return result;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5762,6 +6245,10 @@ class DatabaseService {
   }
 
   async getAllGestations(projetId: string): Promise<Gestation[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getGestations(projetId) as Promise<Gestation[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5773,6 +6260,10 @@ class DatabaseService {
   }
 
   async getGestationsEnCours(projetId: string): Promise<Gestation[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getGestations(projetId, true) as Promise<Gestation[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5784,6 +6275,12 @@ class DatabaseService {
   }
 
   async getGestationsParDateMiseBas(dateDebut: string, dateFin: string): Promise<Gestation[]> {
+    if (API_CONFIG.USE_API) {
+      // Nécessite projetId, on doit le récupérer depuis les gestations
+      const gestations = (await apiClient.getGestations('', false, dateDebut, dateFin)) as Gestation[];
+      return gestations.filter((g: Gestation) => g.date_mise_bas_prevue >= dateDebut && g.date_mise_bas_prevue <= dateFin);
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5795,6 +6292,10 @@ class DatabaseService {
   }
 
   async updateGestation(id: string, updates: Partial<Gestation>): Promise<Gestation> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.request(`/gestations/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5834,6 +6335,11 @@ class DatabaseService {
   }
 
   async deleteGestation(id: string): Promise<void> {
+    if (API_CONFIG.USE_API) {
+      await apiClient.request(`/gestations/${id}`, { method: 'DELETE' });
+      return;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -5973,6 +6479,10 @@ class DatabaseService {
    */
 
   async createSevrage(sevrage: Omit<Sevrage, 'id' | 'date_creation'>): Promise<Sevrage> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.createSevrage(sevrage) as Promise<Sevrage>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6007,6 +6517,12 @@ class DatabaseService {
   }
 
   async getSevrageById(id: string): Promise<Sevrage> {
+    if (API_CONFIG.USE_API) {
+      const result = await apiClient.request<Sevrage>(`/sevrages/${id}`);
+      if (!result) throw new Error(`Sevrage avec l'id ${id} non trouvé`);
+      return result;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6023,6 +6539,10 @@ class DatabaseService {
   }
 
   async getAllSevrages(projetId: string): Promise<Sevrage[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getSevrages(projetId) as Promise<Sevrage[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6034,6 +6554,12 @@ class DatabaseService {
   }
 
   async getSevragesParGestation(gestationId: string): Promise<Sevrage[]> {
+    if (API_CONFIG.USE_API) {
+      // Nécessite projetId, on doit le récupérer depuis la gestation
+      const gestation = await apiClient.request<Gestation>(`/gestations/${gestationId}`);
+      return apiClient.getSevrages(gestation.projet_id, gestationId) as Promise<Sevrage[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6045,6 +6571,12 @@ class DatabaseService {
   }
 
   async getSevragesParDateRange(dateDebut: string, dateFin: string): Promise<Sevrage[]> {
+    if (API_CONFIG.USE_API) {
+      // Nécessite projetId, on doit le récupérer depuis les sevrages
+      const sevrages = (await apiClient.getSevrages('', undefined, dateDebut, dateFin)) as Sevrage[];
+      return sevrages.filter((s: Sevrage) => s.date_sevrage >= dateDebut && s.date_sevrage <= dateFin);
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6056,6 +6588,11 @@ class DatabaseService {
   }
 
   async deleteSevrage(id: string): Promise<void> {
+    if (API_CONFIG.USE_API) {
+      await apiClient.request(`/sevrages/${id}`, { method: 'DELETE' });
+      return;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6072,6 +6609,10 @@ class DatabaseService {
   async createIngredient(
     ingredient: Omit<Ingredient, 'id' | 'date_creation'>
   ): Promise<Ingredient> {
+    if (API_CONFIG.USE_API) {
+      return (await apiClient.createIngredient(ingredient)) as Ingredient;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6098,6 +6639,12 @@ class DatabaseService {
   }
 
   async getIngredientById(id: string): Promise<Ingredient> {
+    if (API_CONFIG.USE_API) {
+      const result = await apiClient.request<Ingredient>(`/ingredients/${id}`);
+      if (!result) throw new Error(`Ingrédient avec l'id ${id} non trouvé`);
+      return result;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6115,6 +6662,10 @@ class DatabaseService {
   }
 
   async getAllIngredients(projetId: string): Promise<Ingredient[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getIngredients() as Promise<Ingredient[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6124,6 +6675,10 @@ class DatabaseService {
   }
 
   async updateIngredient(id: string, updates: Partial<Ingredient>): Promise<Ingredient> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.request(`/ingredients/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6150,6 +6705,11 @@ class DatabaseService {
   }
 
   async deleteIngredient(id: string): Promise<void> {
+    if (API_CONFIG.USE_API) {
+      await apiClient.request(`/ingredients/${id}`, { method: 'DELETE' });
+      return;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6166,6 +6726,10 @@ class DatabaseService {
   async createRationBudget(
     input: import('../types/nutrition').CreateRationBudgetInput
   ): Promise<import('../types/nutrition').RationBudget> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.createRationBudget(input) as Promise<import('../types/nutrition').RationBudget>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6209,6 +6773,11 @@ class DatabaseService {
   }
 
   async getRationBudgetById(id: string): Promise<import('../types/nutrition').RationBudget | null> {
+    if (API_CONFIG.USE_API) {
+      const result = await apiClient.request<import('../types/nutrition').RationBudget>(`/rations/budget/${id}`);
+      return result || null;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6230,6 +6799,10 @@ class DatabaseService {
   async getRationsBudgetByProjet(
     projetId: string
   ): Promise<import('../types/nutrition').RationBudget[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getRationsBudget(projetId) as Promise<import('../types/nutrition').RationBudget[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6249,6 +6822,10 @@ class DatabaseService {
     id: string,
     updates: import('../types/nutrition').UpdateRationBudgetInput
   ): Promise<import('../types/nutrition').RationBudget | null> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.request(`/rations/budget/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6293,6 +6870,11 @@ class DatabaseService {
   }
 
   async deleteRationBudget(id: string): Promise<void> {
+    if (API_CONFIG.USE_API) {
+      await apiClient.request(`/rations/budget/${id}`, { method: 'DELETE' });
+      return;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6307,6 +6889,10 @@ class DatabaseService {
    */
 
   async createStockAliment(input: CreateStockAlimentInput): Promise<StockAliment> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.createStockAliment(input) as Promise<StockAliment>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6346,6 +6932,12 @@ class DatabaseService {
   }
 
   async getStockAlimentById(id: string): Promise<StockAliment> {
+    if (API_CONFIG.USE_API) {
+      const result = await apiClient.request<StockAliment>(`/stocks/aliments/${id}`);
+      if (!result) throw new Error(`Aliment avec l'id ${id} non trouvé`);
+      return result;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6362,6 +6954,10 @@ class DatabaseService {
   }
 
   async getStocksParProjet(projetId: string): Promise<StockAliment[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getStocksAliments(projetId) as Promise<StockAliment[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6375,6 +6971,10 @@ class DatabaseService {
   }
 
   async getStocksEnAlerte(projetId: string): Promise<StockAliment[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getStocksAliments(projetId, true) as Promise<StockAliment[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6388,6 +6988,10 @@ class DatabaseService {
   }
 
   async updateStockAliment(id: string, updates: UpdateStockAlimentInput): Promise<StockAliment> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.request(`/stocks/aliments/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6438,6 +7042,11 @@ class DatabaseService {
   }
 
   async deleteStockAliment(id: string): Promise<void> {
+    if (API_CONFIG.USE_API) {
+      await apiClient.request(`/stocks/aliments/${id}`, { method: 'DELETE' });
+      return;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6449,6 +7058,11 @@ class DatabaseService {
   async createStockMouvement(
     input: CreateStockMouvementInput
   ): Promise<{ mouvement: StockMouvement; stock: StockAliment }> {
+    if (API_CONFIG.USE_API) {
+      const result = (await apiClient.createStockMouvement(input)) as { mouvement: StockMouvement; stock: StockAliment };
+      return { mouvement: result.mouvement, stock: result.stock };
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6599,6 +7213,12 @@ class DatabaseService {
   }
 
   async getStockMouvementById(id: string): Promise<StockMouvement> {
+    if (API_CONFIG.USE_API) {
+      const result = await apiClient.request<StockMouvement>(`/stocks/mouvements/${id}`);
+      if (!result) throw new Error(`Mouvement avec l'id ${id} non trouvé`);
+      return result;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6616,6 +7236,12 @@ class DatabaseService {
   }
 
   async getMouvementsParAliment(alimentId: string, limit: number = 50): Promise<StockMouvement[]> {
+    if (API_CONFIG.USE_API) {
+      // Nécessite projetId, on doit le récupérer depuis l'aliment
+      const aliment = await apiClient.request<StockAliment>(`/stocks/aliments/${alimentId}`);
+      return apiClient.getStocksMouvements(aliment.projet_id, alimentId) as Promise<StockMouvement[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6629,6 +7255,10 @@ class DatabaseService {
   }
 
   async getMouvementsRecents(projetId: string, limit: number = 20): Promise<StockMouvement[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getStocksMouvements(projetId, undefined, true) as Promise<StockMouvement[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6648,6 +7278,10 @@ class DatabaseService {
    */
 
   async createProductionAnimal(input: CreateProductionAnimalInput): Promise<ProductionAnimal> {
+    if (API_CONFIG.USE_API) {
+      return (await apiClient.createAnimal(input)) as ProductionAnimal;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6689,6 +7323,12 @@ class DatabaseService {
   }
 
   async getProductionAnimalById(id: string): Promise<ProductionAnimal> {
+    if (API_CONFIG.USE_API) {
+      const result = await apiClient.request<ProductionAnimal>(`/animaux/${id}`);
+      if (!result) throw new Error(`Animal avec l'id ${id} non trouvé`);
+      return result;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6709,6 +7349,10 @@ class DatabaseService {
     projetId: string,
     inclureInactifs: boolean = true
   ): Promise<ProductionAnimal[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getAnimaux(projetId) as Promise<ProductionAnimal[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6725,6 +7369,10 @@ class DatabaseService {
     id: string,
     updates: UpdateProductionAnimalInput
   ): Promise<ProductionAnimal> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.request(`/animaux/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6767,6 +7415,11 @@ class DatabaseService {
   }
 
   async deleteProductionAnimal(id: string): Promise<void> {
+    if (API_CONFIG.USE_API) {
+      await apiClient.request(`/animaux/${id}`, { method: 'DELETE' });
+      return;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6776,6 +7429,10 @@ class DatabaseService {
   }
 
   async createPesee(input: CreatePeseeInput): Promise<ProductionPesee> {
+    if (API_CONFIG.USE_API) {
+      return (await apiClient.createPesee(input)) as ProductionPesee;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6831,6 +7488,12 @@ class DatabaseService {
   }
 
   async getPeseeById(id: string): Promise<ProductionPesee> {
+    if (API_CONFIG.USE_API) {
+      const result = await apiClient.request<ProductionPesee>(`/pesees/${id}`);
+      if (!result) throw new Error(`Pesée avec l'id ${id} non trouvée`);
+      return result;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6851,6 +7514,10 @@ class DatabaseService {
    * Met à jour une pesée et recalcule le GMQ
    */
   async updatePesee(id: string, updates: Partial<CreatePeseeInput>): Promise<ProductionPesee> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.request(`/pesees/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6921,6 +7588,11 @@ class DatabaseService {
    * Supprime une pesée et recalcule les GMQ suivants
    */
   async deletePesee(id: string): Promise<void> {
+    if (API_CONFIG.USE_API) {
+      await apiClient.deletePesee(id);
+      return;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6986,6 +7658,12 @@ class DatabaseService {
   }
 
   async getDernierePeseeAvantDate(animalId: string, date: string): Promise<ProductionPesee | null> {
+    if (API_CONFIG.USE_API) {
+      const pesees = (await apiClient.getPesees('', animalId)) as ProductionPesee[];
+      const filtered = pesees.filter((p: ProductionPesee) => p.date < date).sort((a: ProductionPesee, b: ProductionPesee) => b.date.localeCompare(a.date));
+      return filtered[0] || null;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -6999,6 +7677,10 @@ class DatabaseService {
   }
 
   async getPeseesParAnimal(animalId: string): Promise<ProductionPesee[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getPesees('', animalId) as Promise<ProductionPesee[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7012,6 +7694,10 @@ class DatabaseService {
   }
 
   async getPeseesRecents(projetId: string, limit: number = 20): Promise<ProductionPesee[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getPesees(projetId, undefined, true) as Promise<ProductionPesee[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7026,14 +7712,6 @@ class DatabaseService {
     );
 
     return results.map((row) => this.mapRowToProductionPesee(row));
-  }
-
-  async deletePesee(id: string): Promise<void> {
-    if (!this.db) {
-      throw new Error('Base de données non initialisée');
-    }
-
-    await this.db.runAsync('DELETE FROM production_pesees WHERE id = ?', [id]);
   }
 
   /**
@@ -7052,6 +7730,10 @@ class DatabaseService {
     cout_par_kg?: number;
     notes?: string;
   }): Promise<Ration> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.createRation(ration) as Promise<Ration>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7091,6 +7773,12 @@ class DatabaseService {
   }
 
   async getRationById(id: string): Promise<Ration> {
+    if (API_CONFIG.USE_API) {
+      const result = await apiClient.request<Ration>(`/rations/${id}`);
+      if (!result) throw new Error(`Ration avec l'id ${id} non trouvée`);
+      return result;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7131,6 +7819,10 @@ class DatabaseService {
   }
 
   async getAllRations(projetId: string): Promise<Ration[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getRations(projetId) as Promise<Ration[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7176,6 +7868,11 @@ class DatabaseService {
   }
 
   async deleteRation(id: string): Promise<void> {
+    if (API_CONFIG.USE_API) {
+      await apiClient.request(`/rations/${id}`, { method: 'DELETE' });
+      return;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7195,6 +7892,10 @@ class DatabaseService {
   async createRapportCroissance(
     rapport: Omit<RapportCroissance, 'id' | 'date_creation'>
   ): Promise<RapportCroissance> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.createRapportCroissance(rapport) as Promise<RapportCroissance>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7224,6 +7925,12 @@ class DatabaseService {
   }
 
   async getRapportCroissanceById(id: string): Promise<RapportCroissance> {
+    if (API_CONFIG.USE_API) {
+      const result = await apiClient.request<RapportCroissance>(`/rapports-croissance/${id}`);
+      if (!result) throw new Error(`Rapport avec l'id ${id} non trouvé`);
+      return result;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7241,6 +7948,11 @@ class DatabaseService {
   }
 
   async getAllRapportsCroissance(): Promise<RapportCroissance[]> {
+    if (API_CONFIG.USE_API) {
+      // Nécessite projetId, retourner vide ou erreur
+      return [];
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7251,6 +7963,10 @@ class DatabaseService {
   }
 
   async getRapportsCroissanceParProjet(projetId: string): Promise<RapportCroissance[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getRapportsCroissance(projetId) as Promise<RapportCroissance[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7265,6 +7981,12 @@ class DatabaseService {
     dateDebut: string,
     dateFin: string
   ): Promise<RapportCroissance[]> {
+    if (API_CONFIG.USE_API) {
+      // Nécessite projetId, on doit le récupérer depuis les rapports
+      const rapports = (await apiClient.getRapportsCroissance('')) as RapportCroissance[];
+      return rapports.filter((r: RapportCroissance) => r.date >= dateDebut && r.date <= dateFin);
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7276,6 +7998,11 @@ class DatabaseService {
   }
 
   async deleteRapportCroissance(id: string): Promise<void> {
+    if (API_CONFIG.USE_API) {
+      await apiClient.request(`/rapports-croissance/${id}`, { method: 'DELETE' });
+      return;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7290,6 +8017,10 @@ class DatabaseService {
    */
 
   async createMortalite(mortalite: Omit<Mortalite, 'id' | 'date_creation'>): Promise<Mortalite> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.createMortalite(mortalite) as Promise<Mortalite>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7395,6 +8126,12 @@ class DatabaseService {
   }
 
   async getMortaliteById(id: string): Promise<Mortalite> {
+    if (API_CONFIG.USE_API) {
+      const result = await apiClient.request<Mortalite>(`/mortalites/${id}`);
+      if (!result) throw new Error(`Mortalité avec l'id ${id} non trouvée`);
+      return result;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7411,6 +8148,10 @@ class DatabaseService {
   }
 
   async getAllMortalites(projetId: string): Promise<Mortalite[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getMortalites(projetId) as Promise<Mortalite[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7422,6 +8163,10 @@ class DatabaseService {
   }
 
   async getMortalitesParProjet(projetId: string): Promise<Mortalite[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getMortalites(projetId) as Promise<Mortalite[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7433,6 +8178,12 @@ class DatabaseService {
   }
 
   async getMortalitesParDateRange(dateDebut: string, dateFin: string): Promise<Mortalite[]> {
+    if (API_CONFIG.USE_API) {
+      // Nécessite projetId, on doit le récupérer depuis les mortalités
+      const mortalites = (await apiClient.getMortalites('', undefined, dateDebut, dateFin)) as Mortalite[];
+      return mortalites.filter((m: Mortalite) => m.date >= dateDebut && m.date <= dateFin);
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7444,6 +8195,12 @@ class DatabaseService {
   }
 
   async getMortalitesParCategorie(categorie: string): Promise<Mortalite[]> {
+    if (API_CONFIG.USE_API) {
+      // Nécessite projetId, on doit le récupérer depuis les mortalités
+      const mortalites = await apiClient.getMortalites('', categorie) as Promise<Mortalite[]>;
+      return (await mortalites).filter((m: Mortalite) => m.categorie === categorie);
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7455,6 +8212,10 @@ class DatabaseService {
   }
 
   async updateMortalite(id: string, updates: Partial<Mortalite>): Promise<Mortalite> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.request(`/mortalites/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7481,6 +8242,11 @@ class DatabaseService {
   }
 
   async deleteMortalite(id: string): Promise<void> {
+    if (API_CONFIG.USE_API) {
+      await apiClient.request(`/mortalites/${id}`, { method: 'DELETE' });
+      return;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7502,6 +8268,15 @@ class DatabaseService {
       nombre: number;
     }>;
   }> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getStatistiquesMortalite(projetId) as Promise<{
+        total_morts: number;
+        taux_mortalite: number;
+        mortalites_par_categorie: { porcelet: number; truie: number; verrat: number; autre: number };
+        mortalites_par_mois: { mois: string; nombre: number }[];
+      }>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7578,6 +8353,10 @@ class DatabaseService {
   async createPlanification(
     planification: Omit<Planification, 'id' | 'date_creation' | 'derniere_modification'>
   ): Promise<Planification> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.createPlanification(planification) as Promise<Planification>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7615,6 +8394,12 @@ class DatabaseService {
   }
 
   async getPlanificationById(id: string): Promise<Planification> {
+    if (API_CONFIG.USE_API) {
+      const result = await apiClient.request<Planification>(`/planifications/${id}`);
+      if (!result) throw new Error(`Planification avec l'id ${id} non trouvée`);
+      return result;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7632,6 +8417,10 @@ class DatabaseService {
   }
 
   async getAllPlanifications(projetId: string): Promise<Planification[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getPlanifications(projetId) as Promise<Planification[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7643,6 +8432,10 @@ class DatabaseService {
   }
 
   async getPlanificationsParProjet(projetId: string): Promise<Planification[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getPlanifications(projetId) as Promise<Planification[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7654,6 +8447,12 @@ class DatabaseService {
   }
 
   async getPlanificationsParStatut(statut: string): Promise<Planification[]> {
+    if (API_CONFIG.USE_API) {
+      // Nécessite projetId, on doit le récupérer depuis les planifications
+      const planifications = (await apiClient.getPlanifications('', statut)) as Planification[];
+      return planifications.filter((p: Planification) => p.statut === statut);
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7668,6 +8467,12 @@ class DatabaseService {
     dateDebut: string,
     dateFin: string
   ): Promise<Planification[]> {
+    if (API_CONFIG.USE_API) {
+      // Nécessite projetId, on doit le récupérer depuis les planifications
+      const planifications = (await apiClient.getPlanifications('', undefined, false, undefined, dateDebut, dateFin)) as Planification[];
+      return planifications.filter((p: Planification) => p.date_prevue >= dateDebut && p.date_prevue <= dateFin);
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7679,6 +8484,10 @@ class DatabaseService {
   }
 
   async getPlanificationsAVenir(projetId: string, jours: number = 7): Promise<Planification[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getPlanifications(projetId, undefined, true, jours) as Promise<Planification[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7700,6 +8509,10 @@ class DatabaseService {
   }
 
   async updatePlanification(id: string, updates: Partial<Planification>): Promise<Planification> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.request(`/planifications/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7729,6 +8542,11 @@ class DatabaseService {
   }
 
   async deletePlanification(id: string): Promise<void> {
+    if (API_CONFIG.USE_API) {
+      await apiClient.request(`/planifications/${id}`, { method: 'DELETE' });
+      return;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7745,6 +8563,10 @@ class DatabaseService {
   async createCollaborateur(
     collaborateur: Omit<Collaborateur, 'id' | 'date_creation' | 'derniere_modification'>
   ): Promise<Collaborateur> {
+    if (API_CONFIG.USE_API) {
+      return (await apiClient.createCollaboration(collaborateur)) as Collaborateur;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7789,6 +8611,12 @@ class DatabaseService {
   }
 
   async getCollaborateurById(id: string): Promise<Collaborateur> {
+    if (API_CONFIG.USE_API) {
+      const result = await apiClient.request<Collaborateur>(`/collaborations/${id}`);
+      if (!result) throw new Error(`Collaborateur avec l'id ${id} non trouvé`);
+      return result;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7805,6 +8633,10 @@ class DatabaseService {
   }
 
   async getAllCollaborateurs(projetId: string): Promise<Collaborateur[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getCollaborations(projetId) as Promise<Collaborateur[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7818,6 +8650,10 @@ class DatabaseService {
   }
 
   async getCollaborateursParProjet(projetId: string): Promise<Collaborateur[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getCollaborations(projetId) as Promise<Collaborateur[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7831,6 +8667,12 @@ class DatabaseService {
   }
 
   async getCollaborateursParStatut(statut: string): Promise<Collaborateur[]> {
+    if (API_CONFIG.USE_API) {
+      // Nécessite projetId, on doit le récupérer depuis les collaborations
+      const collaborations = (await apiClient.getCollaborations('', statut)) as Collaborateur[];
+      return collaborations.filter((c: Collaborateur) => c.statut === statut);
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7844,6 +8686,12 @@ class DatabaseService {
   }
 
   async getCollaborateursParRole(role: string): Promise<Collaborateur[]> {
+    if (API_CONFIG.USE_API) {
+      // Nécessite projetId, on doit le récupérer depuis les collaborations
+      const collaborations = (await apiClient.getCollaborations('', undefined, role)) as Collaborateur[];
+      return collaborations.filter((c: Collaborateur) => c.role === role);
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7860,6 +8708,13 @@ class DatabaseService {
    * Trouver un collaborateur actif par email
    */
   async getCollaborateurActifParEmail(email: string): Promise<Collaborateur | null> {
+    if (API_CONFIG.USE_API) {
+      // Nécessite projetId, on doit le récupérer depuis les collaborations
+      const collaborations = (await apiClient.getCollaborations('')) as Collaborateur[];
+      const filtered = collaborations.filter((c: Collaborateur) => c.email === email && c.statut === 'actif');
+      return filtered[0] || null;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7881,6 +8736,12 @@ class DatabaseService {
    * Obtenir tous les collaborateurs actifs d'un utilisateur (par user_id)
    */
   async getCollaborateursActifsParUserId(userId: string): Promise<Collaborateur[]> {
+    if (API_CONFIG.USE_API) {
+      // Nécessite projetId, on doit le récupérer depuis les collaborations
+      const collaborations = (await apiClient.getCollaborations('', undefined, undefined, userId)) as Collaborateur[];
+      return collaborations.filter((c: Collaborateur) => c.user_id === userId && c.statut === 'actif');
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7901,6 +8762,19 @@ class DatabaseService {
     userId: string,
     email: string
   ): Promise<Collaborateur | null> {
+    if (API_CONFIG.USE_API) {
+      // Nécessite projetId, on doit le récupérer depuis les collaborations
+      const collaborations = (await apiClient.getCollaborations('')) as Collaborateur[];
+      const collaborateur = collaborations.find((c: Collaborateur) => c.email === email && (!c.user_id || c.user_id === userId));
+      if (collaborateur) {
+        return apiClient.request(`/collaborations/${collaborateur.id}`, { 
+          method: 'PATCH', 
+          body: JSON.stringify({ user_id: userId }) 
+        });
+      }
+      return null;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7932,6 +8806,12 @@ class DatabaseService {
    * Utile pour vérifier les invitations en attente
    */
   async getCollaborateursParEmail(email: string): Promise<Collaborateur[]> {
+    if (API_CONFIG.USE_API) {
+      // Nécessite projetId, on doit le récupérer depuis les collaborations
+      const collaborations = (await apiClient.getCollaborations('')) as Collaborateur[];
+      return collaborations.filter((c: Collaborateur) => c.email === email);
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7950,6 +8830,10 @@ class DatabaseService {
    * Utile pour afficher les invitations en attente au démarrage
    */
   async getInvitationsEnAttenteParUserId(userId: string): Promise<Collaborateur[]> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.getInvitationsEnAttente(userId) as Promise<Collaborateur[]>;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7971,6 +8855,12 @@ class DatabaseService {
    * Utile pour détecter les invitations avant que l'utilisateur soit lié
    */
   async getInvitationsEnAttenteParEmail(email: string): Promise<Collaborateur[]> {
+    if (API_CONFIG.USE_API) {
+      // Nécessite projetId, on doit le récupérer depuis les collaborations
+      const collaborations = (await apiClient.getCollaborations('')) as Collaborateur[];
+      return collaborations.filter((c: Collaborateur) => c.email === email && c.statut === 'en_attente');
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -7989,6 +8879,10 @@ class DatabaseService {
   }
 
   async updateCollaborateur(id: string, updates: UpdateCollaborateurInput): Promise<Collaborateur> {
+    if (API_CONFIG.USE_API) {
+      return apiClient.request(`/collaborations/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }
@@ -8060,6 +8954,11 @@ class DatabaseService {
     return this.getCollaborateurById(id);
   }
   async deleteCollaborateur(id: string): Promise<void> {
+    if (API_CONFIG.USE_API) {
+      await apiClient.request(`/collaborations/${id}`, { method: 'DELETE' });
+      return;
+    }
+
     if (!this.db) {
       throw new Error('Base de données non initialisée');
     }

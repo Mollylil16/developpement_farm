@@ -228,6 +228,11 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
     });
   }, [vaccinations, animaux, statsGlobales.totalAnimaux]);
 
+  const getTypeProphylaxie = (section: SectionOuverte): TypeProphylaxie | null => {
+    if (!section) return null;
+    return section.replace('_calendrier', '') as TypeProphylaxie;
+  };
+
   const getIconeType = (type: TypeProphylaxie): keyof typeof Ionicons.glyphMap => {
     switch (type) {
       case 'vitamine':
@@ -405,7 +410,12 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
 
         // Réinitialiser et fermer
         reinitialiserFormulaire();
-        toggleSection(sectionOuverte);
+        const typeBase = getTypeProphylaxie(sectionOuverte);
+        if (typeBase) {
+          toggleSection(typeBase);
+        } else {
+          setSectionOuverte(null);
+        }
       } else {
         // Création d'une nouvelle vaccination
         const dateVaccination = getCurrentLocalDate();
@@ -413,7 +423,7 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
         const input: CreateVaccinationInput = {
           projet_id: projetActif.id,
           animal_ids: animauxSelectionnes,
-          type_prophylaxie: sectionOuverte,
+          type_prophylaxie: getTypeProphylaxie(sectionOuverte)!,
           produit_administre: produitAdministre.trim(),
           date_vaccination: dateVaccination,
           dosage: dosage.trim(),
@@ -434,7 +444,12 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
 
         // Réinitialiser et fermer
         reinitialiserFormulaire();
-        toggleSection(sectionOuverte);
+        const typeBase = getTypeProphylaxie(sectionOuverte);
+        if (typeBase) {
+          toggleSection(typeBase);
+        } else {
+          setSectionOuverte(null);
+        }
       }
     } catch (error: any) {
       console.error('=== ERREUR ENREGISTREMENT ===');

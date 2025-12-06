@@ -7,6 +7,7 @@
 import * as SQLite from 'expo-sqlite';
 import { Projet, DepensePonctuelle, Revenu } from '../types';
 import { DEFAULT_DUREE_AMORTISSEMENT_MOIS } from '../types/projet';
+import { getTypeDepense } from '../types/finance';
 import { parseISO, differenceInMonths } from 'date-fns';
 
 export interface PerformanceGlobale {
@@ -100,14 +101,14 @@ class PerformanceGlobaleService {
    * Calcule le total OPEX global
    */
   private calculateTotalOpexGlobal(depenses: DepensePonctuelle[]): number {
-    const depensesOpex = depenses.filter((d) => !d.type_depense || d.type_depense.toUpperCase() === 'OPEX');
+    const depensesOpex = depenses.filter((d) => getTypeDepense(d.categorie) === 'OPEX');
     const total = depensesOpex.reduce((sum, d) => sum + d.montant, 0);
     
     console.log('📊 [PerformanceGlobale] Calcul OPEX:', {
       totalDepenses: depenses.length,
       depensesOpex: depensesOpex.length,
       totalOpex: total,
-      typesDepenses: depenses.map(d => d.type_depense).filter((v, i, a) => a.indexOf(v) === i)
+      typesDepenses: depenses.map(d => getTypeDepense(d.categorie)).filter((v, i, a) => a.indexOf(v) === i)
     });
     
     return total;
@@ -122,7 +123,7 @@ class PerformanceGlobaleService {
     dateFinProduction: Date,
     dureeAmortissementMois: number
   ): number {
-    const depensesCapex = depenses.filter((d) => d.type_depense && d.type_depense.toUpperCase() === 'CAPEX');
+    const depensesCapex = depenses.filter((d) => getTypeDepense(d.categorie) === 'CAPEX');
     
     let totalAmortissement = 0;
 

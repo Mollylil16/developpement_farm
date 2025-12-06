@@ -17,6 +17,10 @@ import { useTheme } from '../contexts/ThemeContext';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../constants/theme';
 import { format, parseISO } from 'date-fns';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { selectAllAnimaux, selectPeseesRecents } from '../store/selectors/productionSelectors';
+import { selectAllGestations, selectAllSevrages } from '../store/selectors/reproductionSelectors';
+import { selectAllDepensesPonctuelles, selectAllChargesFixes } from '../store/selectors/financeSelectors';
+import { selectAllMortalites } from '../store/selectors/mortalitesSelectors';
 
 const SEARCH_HISTORY_KEY = 'global_search_history';
 const MAX_HISTORY_ITEMS = 10;
@@ -54,16 +58,18 @@ export default function GlobalSearchComponent({
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
 
   // Récupérer toutes les données depuis Redux
-  const { animaux = [], peseesRecents = [] } = useAppSelector((state) => state.production || {});
-  const { gestations = [], sevrages = [] } = useAppSelector((state) => state.reproduction || {});
-  const { stocks = [] } = useAppSelector((state) => state.stocks || {});
-  const { ingredients = [], rations = [] } = useAppSelector((state) => state.nutrition || {});
-  const { depensesPonctuelles = [], chargesFixes = [] } = useAppSelector(
-    (state) => state.finance || {}
-  );
-  const { planifications = [] } = useAppSelector((state) => state.planification || {});
-  const { collaborateurs = [] } = useAppSelector((state) => state.collaboration || {});
-  const { mortalites = [] } = useAppSelector((state) => state.mortalites || {});
+  const animaux = useAppSelector(selectAllAnimaux);
+  const peseesRecents = useAppSelector(selectPeseesRecents);
+  const gestations = useAppSelector(selectAllGestations);
+  const sevrages = useAppSelector(selectAllSevrages);
+  const stocks = useAppSelector((state) => state.stocks.stocks || []);
+  const ingredients = useAppSelector((state) => state.nutrition.ingredients || []);
+  const rations = useAppSelector((state) => state.nutrition.rations || []);
+  const depensesPonctuelles = useAppSelector(selectAllDepensesPonctuelles);
+  const chargesFixes = useAppSelector(selectAllChargesFixes);
+  const planifications = useAppSelector((state) => state.planification.planifications || []);
+  const collaborateurs = useAppSelector((state) => state.collaboration.collaborateurs || []);
+  const mortalites = useAppSelector(selectAllMortalites);
 
   // Charger l'historique de recherche
   useEffect(() => {
@@ -90,9 +96,9 @@ export default function GlobalSearchComponent({
     const results: SearchResult[] = [];
 
     // Recherche dans les animaux de production
-    animaux.forEach((animal) => {
+    animaux.forEach((animal: any) => {
       // Trouver la dernière pesée pour cet animal
-      const dernierePesee = peseesRecents.find((p) => p.animal_id === animal.id);
+      const dernierePesee = peseesRecents.find((p: any) => p.animal_id === animal.id);
       const poidsActuel = dernierePesee?.poids_kg || animal.poids_initial || null;
 
       const matches =
@@ -112,7 +118,7 @@ export default function GlobalSearchComponent({
     });
 
     // Recherche dans les gestations
-    gestations.forEach((gestation) => {
+    gestations.forEach((gestation: any) => {
       const matches =
         gestation.truie_nom?.toLowerCase().includes(q) ||
         gestation.truie_id?.toLowerCase().includes(q);
@@ -181,7 +187,7 @@ export default function GlobalSearchComponent({
     });
 
     // Recherche dans les dépenses ponctuelles
-    depensesPonctuelles.forEach((depense) => {
+    depensesPonctuelles.forEach((depense: any) => {
       const matches =
         depense.libelle_categorie?.toLowerCase().includes(q) ||
         depense.categorie?.toLowerCase().includes(q) ||
@@ -201,7 +207,7 @@ export default function GlobalSearchComponent({
     });
 
     // Recherche dans les charges fixes
-    chargesFixes.forEach((charge) => {
+    chargesFixes.forEach((charge: any) => {
       const matches =
         charge.libelle?.toLowerCase().includes(q) ||
         charge.categorie?.toLowerCase().includes(q) ||
@@ -259,7 +265,7 @@ export default function GlobalSearchComponent({
     });
 
     // Recherche dans les mortalités
-    mortalites.forEach((mortalite) => {
+    mortalites.forEach((mortalite: any) => {
       const matches =
         mortalite.cause?.toLowerCase().includes(q) ||
         mortalite.categorie?.toLowerCase().includes(q) ||

@@ -4,12 +4,26 @@
  */
 
 import React from 'react';
-import CustomModal, { CustomModalProps } from './CustomModal';
+import CustomModal from './CustomModal';
 import ModalErrorBoundary from './ModalErrorBoundary';
+
+interface CustomModalProps {
+  visible: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+  confirmText?: string;
+  onConfirm?: () => void;
+  cancelText?: string;
+  showButtons?: boolean;
+  loading?: boolean;
+  enableShakeToCancel?: boolean;
+  shakeThreshold?: number;
+  scrollEnabled?: boolean;
+}
 
 interface SafeModalProps extends CustomModalProps {
   modalName: string;
-  children: React.ReactNode;
 }
 
 /**
@@ -24,7 +38,7 @@ export default function SafeModal({
 }: SafeModalProps) {
   return (
     <ModalErrorBoundary modalName={modalName} onClose={onClose}>
-      <CustomModal onClose={onClose} {...customModalProps}>
+      <CustomModal onClose={onClose} title={customModalProps.title} {...customModalProps}>
         {children}
       </CustomModal>
     </ModalErrorBoundary>

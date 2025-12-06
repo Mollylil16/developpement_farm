@@ -571,7 +571,7 @@ export default function PerformanceIndicatorsComponent() {
       const porceletsNes = gestations
         .filter((g) => g.statut === 'terminee' && g.nombre_porcelets_reel)
         .reduce((sum, g) => sum + (g.nombre_porcelets_reel || 0), 0);
-      const porceletsSevres = sevrages.reduce((sum, s) => sum + s.nombre_porcelets, 0);
+      const porceletsSevres = sevrages.reduce((sum, s) => sum + s.nombre_porcelets_sevres, 0);
       const tauxSurvie = porceletsNes > 0 ? (porceletsSevres / porceletsNes) * 100 : 0;
 
       // Sevrages récents (30 derniers jours)

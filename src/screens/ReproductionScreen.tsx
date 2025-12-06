@@ -13,13 +13,14 @@ import StandardHeader from '../components/StandardHeader';
 import StandardTabs, { TabItem } from '../components/StandardTabs';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppSelector } from '../store/hooks';
+import { selectAllGestations } from '../store/selectors/reproductionSelectors';
 
 type TabType = 'gestations' | 'calendrier' | 'sevrages';
 
 function ReproductionScreenContent() {
   const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState<TabType>('gestations');
-  const gestations = useAppSelector((state) => state.reproduction.gestations);
+  const gestations = useAppSelector(selectAllGestations);
   const gestationsEnCours = Array.isArray(gestations)
     ? gestations.filter((g: any) => g.statut === 'en_cours').length
     : 0;

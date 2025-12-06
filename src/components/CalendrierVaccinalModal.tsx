@@ -138,8 +138,8 @@ export default function CalendrierVaccinalModal({ visible, onClose, typeProphyla
 
       return {
         animal_id: animal.id,
-        nom: animal.nom_personnalise || animal.code_identification || 'Sans nom',
-        code: animal.code_identification || 'N/A',
+        nom: animal.nom || animal.code || 'Sans nom',
+        code: animal.code || 'N/A',
         categorie: getCategorieAnimal(animal),
         age_jours: ageJours,
         dernier_vaccin: dernierVaccin?.date_vaccination,

@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semibold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as any,
     marginBottom: SPACING.md,
   },
   infoRow: {
@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
   },
   coutValue: {
     fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semibold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as any,
   },
   margeRow: {
     flexDirection: 'row',
@@ -352,7 +352,7 @@ const styles = StyleSheet.create({
   },
   margeValue: {
     fontSize: FONT_SIZES.sm,
-    fontWeight: FONT_WEIGHTS.semibold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as any,
   },
   margePourcent: {
     fontSize: FONT_SIZES.xs,
@@ -386,11 +386,11 @@ const styles = StyleSheet.create({
   },
   margeMainPourcent: {
     fontSize: FONT_SIZES.xl,
-    fontWeight: FONT_WEIGHTS.semibold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as any,
   },
   margeStatut: {
     fontSize: FONT_SIZES.sm,
-    fontWeight: FONT_WEIGHTS.semibold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as any,
     textAlign: 'center',
   },
   infoBox: {

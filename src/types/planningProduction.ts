@@ -91,6 +91,7 @@ export interface SimulationProductionResultat {
   est_faisable: boolean;
   ecart_truies: number;
   taux_utilisation: number;
+  recommandations?: RecommandationStrategique[];
   details: {
     porcelets_par_portee_moyen: number;
     taux_survie: number;
