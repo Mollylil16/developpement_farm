@@ -35,6 +35,7 @@ export type AgentActionType =
   | 'create_maladie'
   | 'create_pesee'
   | 'create_ingredient'
+  | 'create_planification'
   | 'get_statistics'
   | 'get_reminders'
   | 'schedule_reminder'

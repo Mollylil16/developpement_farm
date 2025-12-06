@@ -76,12 +76,18 @@ export class ChatAgentService {
       if (detectedIntent && detectedIntent.confidence >= 0.7) {
         console.log('[ChatAgentService] Action détectée depuis IntentDetector:', detectedIntent.action, 'confiance:', detectedIntent.confidence);
         
+        // Ajouter le message utilisateur aux params pour extraction de montant en fallback
+        const paramsWithUserMessage = {
+          ...detectedIntent.params,
+          userMessage: userMessage, // Pour extraction de montant en fallback
+        };
+        
         // Déterminer si confirmation nécessaire (uniquement pour cas critiques)
-        const requiresConfirmation = this.requiresConfirmation(detectedIntent.action, detectedIntent.params);
+        const requiresConfirmation = this.requiresConfirmation(detectedIntent.action, paramsWithUserMessage);
         
         action = {
           type: detectedIntent.action,
-          params: detectedIntent.params,
+          params: paramsWithUserMessage,
           requiresConfirmation,
         };
       } else {
@@ -267,13 +273,17 @@ ACTIONS DISPONIBLES (TRÈS IMPORTANT - EXÉCUTE DIRECTEMENT) :
    VENTE - Exemples de requêtes :
    - "J'ai vendu 5 porcs à 800 000 FCFA"
    - "Vente de 3 porcs pour 500 000"
+   - "J'ai vendu 2 porcs de 50kg aujourd'hui à 300000"
    → Action: {"action": "create_revenu", "params": {"montant": 800000, "nombre": 5, "acheteur": "...", "categorie": "vente_porc"}}
+   - IMPORTANT: Le montant est TOUJOURS le nombre le plus grand dans la phrase (après "à", "pour", "montant", "prix")
    - Paramètres requis : montant (obligatoire), nombre (optionnel), acheteur (optionnel), poids_kg (optionnel)
    
    DÉPENSE - Exemples de requêtes :
    - "J'ai acheté 20 sacs de provende à 18 000 FCFA"
    - "Dépense de 50 000 FCFA pour médicaments"
+   - "J'ai dépensé 15000 en médicament aujourd'hui"
    → Action: {"action": "create_depense", "params": {"montant": 50000, "categorie": "medicaments", "date": "2025-01-15"}}
+   - IMPORTANT: Le montant est TOUJOURS le nombre le plus grand dans la phrase (après "de", "pour", "à", "montant", "prix", "coût")
    - Paramètres requis : montant (obligatoire), categorie (optionnel: "alimentation", "medicaments", "veterinaire", "entretien", "autre")
    
    CHARGE FIXE - Exemples de requêtes :
@@ -299,6 +309,9 @@ ACTIONS DISPONIBLES (TRÈS IMPORTANT - EXÉCUTE DIRECTEMENT) :
    - Visite vétérinaire : {"action": "create_visite_veterinaire", "params": {...}}
    - Traitement : {"action": "create_traitement", "params": {...}}
    - Maladie : {"action": "create_maladie", "params": {...}}
+   - Rappel personnalisé : {"action": "create_planification", "params": {"titre": "...", "date_prevue": "...", "type": "veterinaire|autre"}}
+     → Utilise cette action quand l'utilisateur demande un rappel (ex: "rappelle-moi d'appeler le vétérinaire demain")
+     → IMPORTANT: Ne confonds PAS avec "create_visite_veterinaire". Un rappel est une tâche dans le planning, pas une visite enregistrée.
 
 RÈGLES CRITIQUES - AUTONOMIE MAXIMALE :
 
@@ -519,21 +532,34 @@ FORMAT DE RÉPONSE:
    */
   private extractMontantFromText(text: string): number | null {
     // Regex pour trouver un montant dans le texte
-    // Patterns: "5000 FCFA", "5 000 francs", "5000", etc.
-    const patterns = [
-      /(\d[\d\s,]*)\s*(?:FCFA|CFA|francs?|F)/i, // Avec devise
-      /(?:montant|prix|coût|cout)[\s:]*(\d[\d\s,]*)/i, // "montant: 5000"
-      /(\d[\d\s,]+)/, // Juste un nombre avec espaces/virgules
+    // Patterns prioritaires (plus fiables)
+    const priorityPatterns = [
+      // Pattern 1: Montant après "à", "pour", "de", "montant", "prix", "coût"
+      /(?:a|pour|de|montant|prix|cout|vendu a|vendu pour|depense|achete|paye)[:\s]+(\d[\d\s,]{3,})(?:\s*(?:f\s*c\s*f\s*a|fcfa|francs?|f\s*))?/i,
+      // Pattern 2: "5000 FCFA", "5 000 francs" (avec devise, minimum 3 chiffres)
+      /(\d[\d\s,]{3,})\s*(?:FCFA|CFA|francs?|F\s*)/i,
     ];
 
-    for (const pattern of patterns) {
+    for (const pattern of priorityPatterns) {
       const match = text.match(pattern);
-      if (match) {
+      if (match && match[1]) {
         const montantStr = match[1].replace(/[\s,]/g, '');
-        const montant = parseFloat(montantStr);
-        if (!isNaN(montant) && montant > 0) {
+        const montant = parseInt(montantStr);
+        if (!isNaN(montant) && montant > 100) { // Ignorer les petits nombres (probablement des quantités)
           return montant;
         }
+      }
+    }
+
+    // Pattern 3: Chercher tous les nombres de 3+ chiffres et prendre le plus grand
+    const allNumbers = text.match(/\b(\d[\d\s,]{3,})\b/g);
+    if (allNumbers) {
+      const validNumbers = allNumbers
+        .map(n => parseInt(n.replace(/[\s,]/g, '')))
+        .filter(n => n > 100 && n < 100000000); // Ignorer les trop petits ou trop grands
+      
+      if (validNumbers.length > 0) {
+        return Math.max(...validNumbers);
       }
     }
 

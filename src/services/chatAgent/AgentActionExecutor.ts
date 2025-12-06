@@ -18,6 +18,7 @@ import {
   PeseeRepository,
   RappelVaccinationRepository,
   IngredientRepository,
+  PlanificationRepository,
 } from '../../database/repositories';
 import { format } from 'date-fns';
 import { parseMontant, extractMontantFromText } from '../../utils/formatters';
@@ -44,6 +45,8 @@ export class AgentActionExecutor {
           return await this.createPesee(action.params);
         case 'create_ingredient':
           return await this.createIngredient(action.params);
+        case 'create_planification':
+          return await this.createPlanification(action.params);
         case 'create_visite_veterinaire':
           return await this.createVisiteVeterinaire(action.params);
         case 'create_vaccination':
@@ -108,6 +111,13 @@ export class AgentActionExecutor {
           const text = `${params.description || ''} ${params.commentaire || ''}`;
           const extracted = extractMontantFromText(text);
           if (extracted) montant = extracted;
+        }
+        // Si toujours pas de montant, essayer depuis le message utilisateur original (si disponible)
+        if ((isNaN(montant) || montant <= 0) && params.userMessage) {
+          const extracted = extractMontantFromText(params.userMessage);
+          if (extracted && extracted > 100) { // Ignorer les petits nombres (probablement des quantités)
+            montant = extracted;
+          }
         }
       }
     }
@@ -753,7 +763,7 @@ export class AgentActionExecutor {
       type: params.type || 'autre',
       nom_maladie: params.nom_maladie || params.nom || 'Maladie non spécifiée',
       gravite: params.gravite || 'moyenne',
-      symptomes: params.symptomes || params.description,
+      symptomes: params.symptomes || params.description || 'Symptômes non spécifiés',
       diagnostic: params.diagnostic,
       date_debut: params.date_debut || new Date().toISOString().split('T')[0],
       date_fin: params.date_fin,
@@ -1136,6 +1146,54 @@ ${recommandations.length > 0 ? '\nRecommandations :\n' + recommandations.map(r =
       success: true,
       data: ingredient,
       message,
+    };
+  }
+
+  /**
+   * Crée une planification (tâche/rappel)
+   */
+  private async createPlanification(params: any): Promise<AgentActionResult> {
+    if (!this.context) {
+      throw new Error('Contexte non initialisé');
+    }
+
+    const db = await getDatabase();
+    const repo = new PlanificationRepository(db);
+
+    if (!params.titre) {
+      throw new Error('Le titre de la tâche est requis.');
+    }
+
+    // Déterminer le type
+    const type = params.type || 'autre';
+
+    // Déterminer la date
+    const datePrevue = params.date_prevue || params.date || new Date().toISOString().split('T')[0];
+
+    // Calculer la date de rappel (1 jour avant par défaut)
+    const dateRappel = new Date(datePrevue);
+    dateRappel.setDate(dateRappel.getDate() - 1);
+    const rappel = dateRappel.toISOString().split('T')[0];
+
+    const planification = await repo.create({
+      projet_id: this.context.projetId,
+      type: type as any,
+      titre: params.titre,
+      description: params.description || `Rappel : ${params.titre}`,
+      date_prevue: datePrevue,
+      date_echeance: params.date_echeance || datePrevue,
+      rappel: rappel,
+      statut: 'a_faire',
+      notes: params.notes,
+    });
+
+    const dateFormatee = format(new Date(datePrevue), 'dd/MM/yyyy');
+    const message = `C'est noté ! Rappel créé dans le planning : "${params.titre}" pour le ${dateFormatee}.`;
+
+    return {
+      success: true,
+      message,
+      data: planification,
     };
   }
 

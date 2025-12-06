@@ -105,24 +105,37 @@ export class IntentDetector {
       };
     }
 
-    // Coûts / Dépenses
-    const costKeywords = [
-      'cout', 'couts', 'cout total', 'couts totaux',
-      'depense', 'depenses', 'depense totale', 'depenses totales',
-      'combien j ai depense', 'j ai depense combien',
-      'mes depenses', 'total depenses',
-      'calculer', 'calcul', 'calcule',
-      'budget', 'budgets',
-      'prix', 'prix total',
-      'argent depense', 'argent depenses',
+    // Coûts / Dépenses (uniquement pour les requêtes d'information)
+    // Exclure si le message contient des verbes d'action (enregistrement)
+    const actionVerbs = [
+      'enregistre', 'enregistrer', 'enregistres', 'enregistrez',
+      'j ai depense', 'j ai achete', 'j ai paye', 'j ai payee',
+      'achete', 'paye', 'payee', 'depense',
     ];
+    
+    const hasActionVerb = this.matchesKeywords(normalized, actionVerbs);
+    
+    // Si le message contient un verbe d'action, ce n'est pas une requête d'information
+    if (!hasActionVerb) {
+      const costKeywords = [
+        'cout', 'couts', 'cout total', 'couts totaux',
+        'depense totale', 'depenses totales',
+        'combien j ai depense', 'j ai depense combien',
+        'mes depenses', 'total depenses',
+        'calculer', 'calcul', 'calcule',
+        'budget', 'budgets',
+        'prix', 'prix total',
+        'argent depense', 'argent depenses',
+        'recap', 'recapitulatif', 'bilan des depenses',
+      ];
 
-    if (this.matchesKeywords(normalized, costKeywords)) {
-      return {
-        action: 'calculate_costs',
-        confidence: 0.85,
-        params: {},
-      };
+      if (this.matchesKeywords(normalized, costKeywords)) {
+        return {
+          action: 'calculate_costs',
+          confidence: 0.85,
+          params: {},
+        };
+      }
     }
 
     // Rappels
@@ -235,6 +248,21 @@ export class IntentDetector {
       };
     }
 
+    // Rappel personnalisé (doit être détecté AVANT visite vétérinaire)
+    if (this.matchesKeywords(normalized, [
+      'rappelle moi', 'rappelle moi de', 'rappelle moi d',
+      'rappelle', 'rappel moi', 'rappel moi de', 'rappel moi d',
+      'me rappeler', 'me rappelle', 'me rappelles',
+      'souviens toi', 'souviens moi', 'n oublie pas',
+      'n oublie pas de', 'n oublie pas d',
+    ])) {
+      return {
+        action: 'create_planification',
+        confidence: 0.9,
+        params: this.extractRappelParams(original),
+      };
+    }
+
     // Vaccination
     if (this.matchesKeywords(normalized, [
       'vaccination', 'vaccinations', 'vaccine', 'vaccines',
@@ -247,12 +275,12 @@ export class IntentDetector {
       };
     }
 
-    // Visite vétérinaire
+    // Visite vétérinaire (uniquement si ce n'est pas un rappel)
     if (this.matchesKeywords(normalized, [
       'visite veterinaire', 'visite veterinaire',
       'veterinaire', 'veto', 'vet',
       'consultation', 'consultations',
-    ])) {
+    ]) && !normalized.includes('rappelle') && !normalized.includes('rappel')) {
       return {
         action: 'create_visite_veterinaire',
         confidence: 0.8,
@@ -345,15 +373,53 @@ export class IntentDetector {
       params.nombre = parseInt(nombreMatch[1]);
     }
 
-    // Extraire le montant (plusieurs patterns)
-    // Pattern 1: "800 000 FCFA", "800000 FCFA"
-    let montantMatch = text.match(/(\d[\d\s,]+)\s*(?:f\s*c\s*f\s*a|f\s*c\s*f\s*a|fcfa|f\s*cfa|francs?|f\s*)?/i);
-    if (!montantMatch) {
-      // Pattern 2: "à 800000", "pour 800 000"
-      montantMatch = text.match(/(?:a|pour|de|montant|prix)[:\s]+(\d[\d\s,]+)/i);
+    // Extraire le poids si mentionné (AVANT le montant pour l'exclure)
+    const poidsMatch = text.match(/(\d+[.,]?\d*)\s*(?:kg|kilogramme|kilo)/i);
+    if (poidsMatch) {
+      params.poids_kg = parseFloat(poidsMatch[1].replace(',', '.'));
     }
-    if (montantMatch) {
-      params.montant = parseInt(montantMatch[1].replace(/[\s,]/g, ''));
+
+    // Extraire le montant (plusieurs patterns, en PRIORITÉ après "à", "pour", "montant", "prix")
+    // Pattern 1: Montant après "à" ou "pour" (le plus fiable)
+    let montantMatch = text.match(/(?:a|pour|de|montant|prix|vendu a|vendu pour|au prix de|pour la somme de)[:\s]+(\d[\d\s,]+)(?:\s*(?:f\s*c\s*f\s*a|fcfa|francs?|f\s*))?/i);
+    
+    if (!montantMatch) {
+      // Pattern 2: "800 000 FCFA", "800000 FCFA" (mais pas si c'est un poids ou une quantité)
+      montantMatch = text.match(/(\d[\d\s,]{3,})\s*(?:f\s*c\s*f\s*a|f\s*c\s*f\s*a|fcfa|f\s*cfa|francs?|f\s*)/i);
+    }
+    
+    if (!montantMatch) {
+      // Pattern 3: Chercher le plus grand nombre qui n'est pas une quantité ou un poids
+      // Exclure les nombres de 1-2 chiffres (probablement des quantités)
+      // Exclure les nombres suivis de "kg", "porc", etc.
+      const allNumbers = text.match(/\b(\d[\d\s,]{3,})\b/g);
+      if (allNumbers) {
+        // Prendre le plus grand nombre qui n'est pas une quantité ou un poids
+        const validNumbers = allNumbers
+          .map(n => parseInt(n.replace(/[\s,]/g, '')))
+          .filter(n => n > 100); // Ignorer les petits montants (probablement des quantités)
+        
+        if (validNumbers.length > 0) {
+          // Prendre le plus grand nombre (probablement le montant)
+          const maxNumber = Math.max(...validNumbers);
+          // Vérifier qu'il n'est pas suivi de "kg", "porc", etc.
+          const numberIndex = text.indexOf(maxNumber.toString());
+          const afterNumber = text.substring(numberIndex + maxNumber.toString().length, numberIndex + maxNumber.toString().length + 10);
+          if (!afterNumber.match(/\s*(?:kg|kilogramme|kilo|porc|porcs|tete|tetes)/i)) {
+            params.montant = maxNumber;
+            montantMatch = [maxNumber.toString()];
+          }
+        }
+      }
+    }
+    
+    if (montantMatch && montantMatch[1]) {
+      const montantStr = montantMatch[1].replace(/[\s,]/g, '');
+      const montant = parseInt(montantStr);
+      // Valider que ce n'est pas une quantité ou un poids
+      if (!isNaN(montant) && montant > 0 && montant !== params.nombre && montant !== params.poids_kg) {
+        params.montant = montant;
+      }
     }
 
     // Extraire l'acheteur (plusieurs patterns)
@@ -371,12 +437,6 @@ export class IntentDetector {
       }
     }
 
-    // Extraire le poids si mentionné
-    const poidsMatch = text.match(/(\d+[.,]?\d*)\s*(?:kg|kilogramme|kilo)/i);
-    if (poidsMatch) {
-      params.poids_kg = parseFloat(poidsMatch[1].replace(',', '.'));
-    }
-
     return params;
   }
 
@@ -386,23 +446,41 @@ export class IntentDetector {
   private static extractDepenseParams(text: string): Record<string, any> {
     const params: Record<string, any> = {};
     
-    // Extraire le montant (plusieurs patterns)
-    // Pattern 1: "50 000 FCFA", "50000 FCFA"
-    let montantMatch = text.match(/(\d[\d\s,]+)\s*(?:f\s*c\s*f\s*a|f\s*c\s*f\s*a|fcfa|f\s*cfa|francs?|f\s*)?/i);
+    // Extraire le montant (plusieurs patterns, en PRIORITÉ après "de", "pour", "à", "montant")
+    // Pattern 1: Montant après "de", "pour", "à", "montant", "prix", "coût" (le plus fiable)
+    let montantMatch = text.match(/(?:de|pour|a|montant|prix|cout|depense|achete|paye|payee)[:\s]+(\d[\d\s,]+)(?:\s*(?:f\s*c\s*f\s*a|fcfa|francs?|f\s*))?/i);
+    
     if (!montantMatch) {
-      // Pattern 2: "de 50 000", "pour 50000", "à 50 000"
-      montantMatch = text.match(/(?:de|pour|a|montant|prix|cout)[:\s]+(\d[\d\s,]+)/i);
+      // Pattern 2: "50 000 FCFA", "50000 FCFA" (mais pas si c'est une quantité)
+      montantMatch = text.match(/(\d[\d\s,]{3,})\s*(?:f\s*c\s*f\s*a|f\s*c\s*f\s*a|fcfa|f\s*cfa|francs?|f\s*)/i);
     }
+    
     if (!montantMatch) {
       // Pattern 3: Calcul si quantité × prix unitaire mentionnés
-      const calculMatch = text.match(/(\d+)\s*(?:x|\*|fois)\s*(\d[\d\s,]+)/i);
+      const calculMatch = text.match(/(\d+)\s*(?:x|\*|fois|par)\s*(\d[\d\s,]+)/i);
       if (calculMatch) {
         const qte = parseInt(calculMatch[1]);
         const prix = parseInt(calculMatch[2].replace(/[\s,]/g, ''));
         params.montant = qte * prix;
+      } else {
+        // Pattern 4: Chercher le plus grand nombre qui n'est pas une quantité
+        const allNumbers = text.match(/\b(\d[\d\s,]{3,})\b/g);
+        if (allNumbers) {
+          const validNumbers = allNumbers
+            .map(n => parseInt(n.replace(/[\s,]/g, '')))
+            .filter(n => n > 100); // Ignorer les petits montants
+          
+          if (validNumbers.length > 0) {
+            params.montant = Math.max(...validNumbers);
+          }
+        }
       }
     } else {
-      params.montant = parseInt(montantMatch[1].replace(/[\s,]/g, ''));
+      const montantStr = montantMatch[1].replace(/[\s,]/g, '');
+      const montant = parseInt(montantStr);
+      if (!isNaN(montant) && montant > 0) {
+        params.montant = montant;
+      }
     }
 
     // Détecter la catégorie (plus de patterns)
@@ -520,6 +598,51 @@ export class IntentDetector {
     if (prixMatch) {
       params.prix_unitaire = parseInt(prixMatch[1].replace(/\s/g, ''));
       params.unite = prixMatch[2].toLowerCase();
+    }
+
+    return params;
+  }
+
+  /**
+   * Extrait les paramètres d'un rappel personnalisé
+   */
+  private static extractRappelParams(text: string): Record<string, any> {
+    const params: Record<string, any> = {};
+    
+    // Extraire le titre/description du rappel (après "rappelle-moi de/d'")
+    const rappelMatch = text.match(/(?:rappelle|rappel|souviens|oublie).*?(?:de|d'|de me|d)\s+(.+?)(?:\s+(?:demain|aujourd'hui|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|\d)|$)/i);
+    if (rappelMatch && rappelMatch[1]) {
+      params.titre = rappelMatch[1].trim();
+    } else {
+      // Fallback : extraire tout ce qui suit "rappelle-moi"
+      const fallbackMatch = text.match(/(?:rappelle|rappel|souviens|oublie).*?(?:de|d'|de me|d)\s+(.+)/i);
+      if (fallbackMatch && fallbackMatch[1]) {
+        params.titre = fallbackMatch[1].trim();
+      }
+    }
+
+    // Extraire la date
+    const aujourdhui = new Date();
+    aujourdhui.setHours(0, 0, 0, 0);
+    
+    if (text.match(/demain/i)) {
+      const demain = new Date(aujourdhui);
+      demain.setDate(demain.getDate() + 1);
+      params.date_prevue = demain.toISOString().split('T')[0];
+    } else if (text.match(/aujourd'hui|aujourd hui/i)) {
+      params.date_prevue = aujourdhui.toISOString().split('T')[0];
+    } else {
+      // Par défaut, demain si pas de date spécifiée
+      const demain = new Date(aujourdhui);
+      demain.setDate(demain.getDate() + 1);
+      params.date_prevue = demain.toISOString().split('T')[0];
+    }
+
+    // Déterminer le type selon le contenu
+    if (text.match(/veterinaire|veto|vet/i)) {
+      params.type = 'veterinaire';
+    } else {
+      params.type = 'autre';
     }
 
     return params;

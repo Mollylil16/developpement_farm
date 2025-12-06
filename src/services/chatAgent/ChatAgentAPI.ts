@@ -121,6 +121,7 @@ export class ChatAgentAPI {
           create_charge_fixe: 'C\'est noté ! Charge fixe enregistrée.',
           create_pesee: 'C\'est noté ! Pesée enregistrée.',
           create_ingredient: 'C\'est noté ! Ingrédient créé.',
+          create_planification: 'C\'est noté ! Rappel créé dans le planning.',
         };
         return `${actionJson}\n\n${messages[detectedIntent.action] || 'C\'est déjà enregistré !'}`;
       }

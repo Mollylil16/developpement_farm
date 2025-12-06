@@ -13,6 +13,68 @@ import { SpeechTranscriptionService, TranscriptionProvider } from './SpeechTrans
 // Note: Pour la reconnaissance vocale, on utilise expo-av pour l'enregistrement
 // et une API de transcription pour convertir en texte
 
+// Déclaration de type pour l'API Web Speech Recognition
+interface SpeechRecognition extends EventTarget {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  start(): void;
+  stop(): void;
+  abort(): void;
+  onstart: ((this: SpeechRecognition, ev: Event) => any) | null;
+  onresult: ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => any) | null;
+  onerror: ((this: SpeechRecognition, ev: SpeechRecognitionErrorEvent) => any) | null;
+  onend: ((this: SpeechRecognition, ev: Event) => any) | null;
+}
+
+interface SpeechRecognitionEvent extends Event {
+  resultIndex: number;
+  results: SpeechRecognitionResultList;
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+}
+
+interface SpeechRecognitionResultList {
+  length: number;
+  item(index: number): SpeechRecognitionResult;
+  [index: number]: SpeechRecognitionResult;
+}
+
+interface SpeechRecognitionResult {
+  length: number;
+  item(index: number): SpeechRecognitionAlternative;
+  [index: number]: SpeechRecognitionAlternative;
+  isFinal: boolean;
+}
+
+interface SpeechRecognitionAlternative {
+  transcript: string;
+  confidence: number;
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition?: {
+      new (): SpeechRecognition;
+    };
+    webkitSpeechRecognition?: {
+      new (): SpeechRecognition;
+    };
+  }
+}
+
+// Fonction helper pour obtenir window de manière sûre
+function getWindow(): Window | undefined {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const global = globalThis as any;
+  if (typeof global !== 'undefined' && typeof global.window !== 'undefined') {
+    return global.window as Window;
+  }
+  return undefined;
+}
+
 export class VoiceService {
   private config: VoiceConfig;
   private isListening: boolean = false;
@@ -109,7 +171,8 @@ export class VoiceService {
 
     // Vérifier si on est sur web et si l'API Speech Recognition est disponible
     if (Platform.OS === 'web') {
-      if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+      const globalWindow = getWindow();
+      if (globalWindow && ('webkitSpeechRecognition' in globalWindow || 'SpeechRecognition' in globalWindow)) {
         return this.startWebSpeechRecognition();
       } else {
         throw new Error('Reconnaissance vocale non disponible sur ce navigateur. Utilisez Chrome ou Edge.');
@@ -126,8 +189,13 @@ export class VoiceService {
    */
   private async startWebSpeechRecognition(): Promise<void> {
     return new Promise((resolve, reject) => {
-      // @ts-ignore - API Web Speech Recognition
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const globalWindow = getWindow();
+      if (!globalWindow) {
+        reject(new Error('Reconnaissance vocale non disponible sur ce navigateur'));
+        return;
+      }
+      
+      const SpeechRecognition = globalWindow.SpeechRecognition || globalWindow.webkitSpeechRecognition;
       if (!SpeechRecognition) {
         reject(new Error('Reconnaissance vocale non disponible sur ce navigateur'));
         return;
@@ -295,4 +363,3 @@ export class VoiceService {
     return true;
   }
 }
-
