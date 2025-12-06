@@ -10,6 +10,7 @@ import CalculateurNavigationScreen from './CalculateurNavigationScreen';
 import NutritionStockComponent from '../components/NutritionStockComponent';
 import StockMouvementsHistoryComponent from '../components/StockMouvementsHistoryComponent';
 import ProtectedScreen from '../components/ProtectedScreen';
+import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
 import { FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -70,6 +71,7 @@ function NutritionScreenContent() {
           }}
         />
       </Tab.Navigator>
+      <ChatAgentFAB />
     </SafeAreaView>
   );
 }

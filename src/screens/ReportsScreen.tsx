@@ -11,6 +11,7 @@ import StandardHeader from '../components/StandardHeader';
 import StandardTabs, { TabItem } from '../components/StandardTabs';
 import PerformanceIndicatorsComponent from '../components/PerformanceIndicatorsComponent';
 import TendancesChartsComponent from '../components/TendancesChartsComponent';
+import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
 
 type TabType = 'performance' | 'tendances';
 
@@ -62,6 +63,7 @@ function ReportsScreenContent() {
       />
 
       <View style={styles.content}>{renderContent()}</View>
+      <ChatAgentFAB />
     </SafeAreaView>
   );
 }

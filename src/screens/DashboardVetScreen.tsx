@@ -35,6 +35,7 @@ import DashboardHeader from '../components/dashboard/DashboardHeader';
 import ProfileMenuModal from '../components/ProfileMenuModal';
 import { NotificationPanel } from '../components/marketplace';
 import SupportContactModal from '../components/SupportContactModal';
+import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
 import type { VisiteVeterinaire } from '../types/sante';
 
 const DashboardVetScreen: React.FC = () => {
@@ -459,6 +460,8 @@ const DashboardVetScreen: React.FC = () => {
         visible={supportModalVisible}
         onClose={() => setSupportModalVisible(false)}
       />
+      {/* Bouton flottant pour accéder à l'agent conversationnel */}
+      <ChatAgentFAB />
     </SafeAreaView>
   );
 };

@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
 
 // Activer LayoutAnimation pour Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -1096,6 +1097,7 @@ export default function TrainingScreen() {
           </Text>
         </View>
       </ScrollView>
+      <ChatAgentFAB />
     </SafeAreaView>
   );
 }

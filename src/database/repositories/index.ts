@@ -53,6 +53,9 @@ export {
   MarketplaceNotificationRepository,
   MarketplaceChatRepository,
 } from './MarketplaceRepositories';
+
+// Chat Agent
+export { ChatAgentRepository } from './ChatAgentRepository';
 export {
   WeeklyPorkPriceTrendRepository,
   type WeeklyPorkPriceTrend,

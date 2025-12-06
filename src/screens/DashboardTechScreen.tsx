@@ -29,6 +29,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import DashboardHeader from '../components/dashboard/DashboardHeader';
 import ProfileMenuModal from '../components/ProfileMenuModal';
 import { NotificationPanel } from '../components/marketplace';
+import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
 import { useProfilData } from '../hooks/useProfilData';
 import { useDashboardAnimations } from '../hooks/useDashboardAnimations';
 import { useMarketplaceNotifications } from '../hooks/useMarketplaceNotifications';
@@ -302,6 +303,8 @@ const DashboardTechScreen: React.FC = () => {
           marketplaceNotifications.forEach(n => markAsRead(n.id));
         }}
       />
+      {/* Bouton flottant pour accéder à l'agent conversationnel */}
+      <ChatAgentFAB />
     </SafeAreaView>
   );
 };

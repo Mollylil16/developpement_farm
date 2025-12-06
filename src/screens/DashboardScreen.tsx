@@ -43,6 +43,7 @@ import GlobalSearchModal from '../components/GlobalSearchModal';
 import InvitationsModal from '../components/InvitationsModal';
 import ProfileMenuModal from '../components/ProfileMenuModal';
 import { NotificationPanel } from '../components/marketplace';
+import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
 
 // Type pour la navigation - définit toutes les routes possibles
 type RootStackParamList = {
@@ -327,6 +328,8 @@ export default function DashboardScreen() {
         onMarkAllAsRead={handleMarkAllAsRead}
         onDelete={deleteNotification}
       />
+      {/* Bouton flottant pour accéder à l'agent conversationnel */}
+      <ChatAgentFAB />
     </SafeAreaView>
   );
 }

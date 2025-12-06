@@ -46,6 +46,7 @@
     "buffer": "^6.0.3",
     "date-fns": "^4.1.0",
     "expo": "~54.0.25",
+    "expo-av": "~16.0.8",
     "expo-camera": "~17.0.9",
     "expo-crypto": "~15.0.8",
     "expo-document-picker": "~14.0.7",

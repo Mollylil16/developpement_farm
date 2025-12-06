@@ -637,6 +637,11 @@ export default function AppNavigator() {
             <LazyScreens.MarketplaceScreen />
           )}
         </Stack.Screen>
+        <Stack.Screen name={SCREENS.CHAT_AGENT}>
+          {() => (
+            <LazyScreens.ChatAgentScreen />
+          )}
+        </Stack.Screen>
         <Stack.Screen name="Main" component={MainTabs} />
       </Stack.Navigator>
     </NavigationContainer>

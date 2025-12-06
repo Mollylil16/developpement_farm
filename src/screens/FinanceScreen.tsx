@@ -10,6 +10,7 @@ import ProtectedScreen from '../components/ProtectedScreen';
 import FinanceHeader from '../components/FinanceHeader';
 import FinanceTabs, { FinanceOngletType } from '../components/FinanceTabs';
 import FinanceContent from '../components/FinanceContent';
+import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
 
 const ONGLETS = [
   { id: 'vue_ensemble' as FinanceOngletType, label: "Vue d'ensemble", icon: 'bar-chart-outline' },
@@ -37,6 +38,7 @@ function FinanceScreenContent() {
 
       {/* Contenu selon l'onglet actif */}
       <FinanceContent ongletActif={ongletActif} />
+      <ChatAgentFAB />
     </SafeAreaView>
   );
 }

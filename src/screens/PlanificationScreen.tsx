@@ -49,6 +49,7 @@ function PlanificationScreenContent() {
           }}
         />
       </Tab.Navigator>
+      <ChatAgentFAB />
     </SafeAreaView>
   );
 }

@@ -35,6 +35,7 @@ import DashboardHeader from '../components/dashboard/DashboardHeader';
 import DashboardSecondaryWidgets from '../components/dashboard/DashboardSecondaryWidgets';
 import PorkPriceTrendCard from '../components/dashboard/PorkPriceTrendCard';
 import { NotificationPanel } from '../components/marketplace';
+import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
 import type { Offer, Transaction, MarketplaceListing } from '../types/marketplace';
 
 const DashboardBuyerScreen: React.FC = () => {
@@ -297,6 +298,8 @@ const DashboardBuyerScreen: React.FC = () => {
         }}
         onDelete={deleteNotification}
       />
+      {/* Bouton flottant pour accéder à l'agent conversationnel */}
+      <ChatAgentFAB />
     </SafeAreaView>
   );
 };

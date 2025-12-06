@@ -18,6 +18,7 @@ function MortalitesScreenContent() {
       edges={['top']}
     >
       <MortalitesListComponent />
+      <ChatAgentFAB />
     </SafeAreaView>
   );
 }

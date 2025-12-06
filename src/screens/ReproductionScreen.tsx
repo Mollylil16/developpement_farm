@@ -11,6 +11,7 @@ import SevragesListComponent from '../components/SevragesListComponent';
 import ProtectedScreen from '../components/ProtectedScreen';
 import StandardHeader from '../components/StandardHeader';
 import StandardTabs, { TabItem } from '../components/StandardTabs';
+import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppSelector } from '../store/hooks';
 
@@ -78,6 +79,7 @@ function ReproductionScreenContent() {
       />
 
       <View style={styles.content}>{renderContent()}</View>
+      <ChatAgentFAB />
     </SafeAreaView>
   );
 }

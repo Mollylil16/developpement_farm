@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
+import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
 
 // Composants
 import SimulateurProductionComponent from '../components/SimulateurProductionComponent';
@@ -172,6 +173,7 @@ export default function PlanningProductionScreen() {
 
       {/* Contenu */}
       {renderContenu()}
+      <ChatAgentFAB />
     </SafeAreaView>
   );
 }

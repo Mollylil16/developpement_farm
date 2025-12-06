@@ -40,6 +40,8 @@ export const SCREENS = {
   VETERINARIAN_INFO_COMPLETION: 'VeterinarianInfoCompletion',
   VET_PROPOSE_FARMS: 'VetProposeFarms',
   SERVICE_PROPOSAL_NOTIFICATIONS: 'ServiceProposalNotifications',
+  // Agent conversationnel
+  CHAT_AGENT: 'ChatAgent',
 } as const;
 
 export type ScreenName = (typeof SCREENS)[keyof typeof SCREENS];

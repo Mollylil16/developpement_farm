@@ -37,6 +37,7 @@ import { createMarketplaceTables } from './create_marketplace_tables';
 import { updateDepensesPonctuellesCategorieCheck } from './029_update_depenses_ponctuelles_categorie_check';
 import { createVeterinariansTableMigration } from './030_create_veterinarians_table';
 import { addCategoriePoidsAndNombreCroissance } from './032_add_categorie_poids_and_nombre_croissance';
+import { createChatAgentTables } from './033_create_chat_agent_tables';
 
 /**
  * Liste de toutes les migrations dans l'ordre d'exécution
@@ -197,6 +198,11 @@ export const migrations: Migration[] = [
     version: 32,
     name: 'add_categorie_poids_and_nombre_croissance',
     up: addCategoriePoidsAndNombreCroissance,
+  },
+  {
+    version: 33,
+    name: 'create_chat_agent_tables',
+    up: createChatAgentTables,
   },
 ];
 

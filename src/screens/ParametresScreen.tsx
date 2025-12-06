@@ -10,6 +10,7 @@ import StandardHeader from '../components/StandardHeader';
 import StandardTabs, { TabItem } from '../components/StandardTabs';
 import ParametresProjetComponent from '../components/ParametresProjetComponent';
 import ParametresAppComponent from '../components/ParametresAppComponent';
+import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
 import TrainingScreen from './TrainingScreen';
 
 type TabType = 'projet' | 'application' | 'formation';
@@ -70,6 +71,7 @@ export default function ParametresScreen() {
       />
 
       <View style={styles.content}>{renderContent()}</View>
+      <ChatAgentFAB />
     </SafeAreaView>
   );
 }

@@ -18,6 +18,7 @@ import SanteHeader from '../components/SanteHeader';
 import SanteAlertes from '../components/SanteAlertes';
 import SanteTabs from '../components/SanteTabs';
 import SanteContent from '../components/SanteContent';
+import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
 
 export default function SanteScreen() {
   const { colors } = useTheme();
@@ -69,6 +70,7 @@ export default function SanteScreen() {
         refreshing={logic.refreshing}
         onRefresh={logic.onRefresh}
       />
+      <ChatAgentFAB />
     </SafeAreaView>
   );
 }

@@ -47,6 +47,9 @@ export { default as MarketplaceScreen } from '../screens/marketplace/Marketplace
 export { default as ChatScreen } from '../screens/marketplace/ChatScreen';
 export { default as ProducerOffersScreen } from '../screens/marketplace/ProducerOffersScreen';
 
+// Agent conversationnel
+export { default as ChatAgentScreen } from '../screens/ChatAgentScreen';
+
 // Onboarding
 export { default as OnboardingAuthScreen } from '../screens/OnboardingAuthScreen';
 export { default as ProfileSelectionScreen } from '../screens/ProfileSelectionScreen';

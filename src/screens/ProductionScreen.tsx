@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import CheptelStackNavigator from '../navigation/CheptelStackNavigator';
 import ProductionAnimalsListComponent from '../components/ProductionAnimalsListComponent';
 import ProductionEstimationsComponent from '../components/ProductionEstimationsComponent';
+import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
 import { FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 

@@ -71,6 +71,7 @@ export default function VaccinationScreen() {
         onClose={() => logic.setModalCalendrierVisible(false)}
         typeFiltre={logic.typeSelectionne}
       />
+      <ChatAgentFAB />
     </SafeAreaView>
   );
 }
