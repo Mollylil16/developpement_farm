@@ -92,7 +92,6 @@ async function bootstrap() {
   const host = process.env.HOST || '0.0.0.0';
   await app.listen(port, host);
   
-  const isProduction = process.env.NODE_ENV === 'production';
   const serverUrl = isProduction 
     ? process.env.RAILWAY_PUBLIC_DOMAIN 
       ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
