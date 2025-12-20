@@ -10,14 +10,27 @@ import { Pool } from 'pg';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432', 10),
-  database: process.env.DB_NAME || 'farmtrack_db',
-  user: process.env.DB_USER || 'farmtrack_user',
-  password: process.env.DB_PASSWORD || 'postgres',
-  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
-});
+// Support pour DATABASE_URL (Railway, Heroku, etc.) ou variables individuelles
+let poolConfig;
+if (process.env.DATABASE_URL) {
+  poolConfig = {
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.DATABASE_URL.includes('sslmode=require') 
+      ? { rejectUnauthorized: false } 
+      : false,
+  };
+} else {
+  poolConfig = {
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '5432', 10),
+    database: process.env.DB_NAME || 'farmtrack_db',
+    user: process.env.DB_USER || 'farmtrack_user',
+    password: process.env.DB_PASSWORD || 'postgres',
+    ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+  };
+}
+
+const pool = new Pool(poolConfig);
 
 async function runMigrations() {
   const client = await pool.connect();

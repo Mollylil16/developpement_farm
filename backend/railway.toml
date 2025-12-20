@@ -1,0 +1,10 @@
+# Configuration Railway (alternative à railway.json)
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "npm run start:prod"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+

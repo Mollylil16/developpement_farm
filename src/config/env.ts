@@ -64,7 +64,9 @@ const ENV_CONFIG = {
     enableLogging: true,
   },
   production: {
-    apiUrl: 'https://api.fermier-pro.com',
+    // ⚠️ Mettre à jour cette URL avec votre domaine Railway après déploiement
+    // Exemple: 'https://votre-backend.up.railway.app'
+    apiUrl: process.env.EXPO_PUBLIC_API_URL || 'https://api.fermier-pro.com',
     timeout: 10000, // 10 secondes
     enableLogging: false,
   },

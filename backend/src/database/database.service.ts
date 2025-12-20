@@ -6,17 +6,36 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private pool: Pool;
 
   constructor() {
-    this.pool = new Pool({
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '5432', 10),
-      database: process.env.DB_NAME || 'farmtrack_db',
-      user: process.env.DB_USER || 'farmtrack_user',
-      password: process.env.DB_PASSWORD || 'postgres',
-      ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
-      max: 20,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
-    });
+    // Support pour DATABASE_URL (Railway, Heroku, etc.) ou variables individuelles
+    let poolConfig;
+    
+    if (process.env.DATABASE_URL) {
+      // Railway et autres plateformes utilisent DATABASE_URL
+      poolConfig = {
+        connectionString: process.env.DATABASE_URL,
+        ssl: process.env.DATABASE_URL.includes('sslmode=require') 
+          ? { rejectUnauthorized: false } 
+          : false,
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 2000,
+      };
+    } else {
+      // Variables individuelles (développement local)
+      poolConfig = {
+        host: process.env.DB_HOST || 'localhost',
+        port: parseInt(process.env.DB_PORT || '5432', 10),
+        database: process.env.DB_NAME || 'farmtrack_db',
+        user: process.env.DB_USER || 'farmtrack_user',
+        password: process.env.DB_PASSWORD || 'postgres',
+        ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 2000,
+      };
+    }
+
+    this.pool = new Pool(poolConfig);
 
     this.pool.on('error', (err) => {
       console.error('❌ Erreur inattendue dans le pool PostgreSQL:', err);

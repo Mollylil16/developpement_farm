@@ -11,17 +11,21 @@ async function bootstrap() {
     ? process.env.CORS_ORIGIN.split(',')
     : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'];
   
+  const isProduction = process.env.NODE_ENV === 'production';
+  
   app.enableCors({
     origin: (origin, callback) => {
-      // Autoriser les requêtes sans origin (comme Postman, curl, etc.)
+      // Autoriser les requêtes sans origin (comme Postman, curl, etc.) uniquement en dev
       if (!origin) {
-        return callback(null, true);
+        return callback(null, !isProduction);
       }
       // Vérifier si l'origine est autorisée
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(null, true); // Pour le développement, autoriser toutes les origines
+        // En production, rejeter les origines non autorisées
+        // En développement, autoriser toutes les origines
+        callback(null, !isProduction);
       }
     },
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
@@ -85,11 +89,21 @@ async function bootstrap() {
   // Guard global JWT est configuré dans AppModule via APP_GUARD
 
   const port = process.env.PORT || 3000;
-  const host = process.env.HOST || '0.0.0.0'; // Écouter sur toutes les interfaces pour permettre l'accès depuis le réseau local
+  const host = process.env.HOST || '0.0.0.0';
   await app.listen(port, host);
-  console.log(`🚀 Backend API démarré sur http://${host}:${port}`);
-  console.log(`📚 Swagger: http://${host}:${port}/api/docs`);
-  console.log(`🌐 Accessible depuis le réseau local sur http://192.168.0.214:${port}`);
+  
+  const isProduction = process.env.NODE_ENV === 'production';
+  const serverUrl = isProduction 
+    ? process.env.RAILWAY_PUBLIC_DOMAIN 
+      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+      : `http://${host}:${port}`
+    : `http://${host}:${port}`;
+  
+  console.log(`🚀 Backend API démarré sur ${serverUrl}`);
+  console.log(`📚 Swagger: ${serverUrl}/api/docs`);
+  if (!isProduction) {
+    console.log(`🌐 Mode développement - accessible depuis le réseau local`);
+  }
 }
 
 bootstrap();
