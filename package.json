@@ -109,7 +109,7 @@
     "@types/react-redux": "^7.1.34",
     "@types/react-test-renderer": "^19.1.0",
     "@typescript-eslint/eslint-plugin": "^8.47.0",
-    "@typescript-eslint/parser": "^8.47.0",
+    "@typescript-eslint/parser": "^8.50.0",
     "babel-preset-expo": "~54.0.6",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
