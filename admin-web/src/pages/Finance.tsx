@@ -194,7 +194,7 @@ export default function Finance() {
                     fill="#8884d8"
                     dataKey="total_revenue"
                   >
-                    {financeStats.revenue_by_payment_method.map((entry: any, index: number) => (
+                    {financeStats.revenue_by_payment_method.map((_entry: any, index: number) => (
                       <Cell key={`cell-${index}`} fill={['#14b8a6', '#a855f7', '#f97316', '#3b82f6', '#ef4444'][index % 5]} />
                     ))}
                   </Pie>

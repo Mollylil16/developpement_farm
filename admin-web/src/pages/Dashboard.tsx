@@ -5,10 +5,7 @@ import { adminApi } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import {
   Users,
-  FolderOpen,
   DollarSign,
-  TrendingUp,
-  UserPlus,
   AlertCircle,
   Activity,
   ArrowRight,

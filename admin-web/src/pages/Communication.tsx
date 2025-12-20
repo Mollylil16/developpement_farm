@@ -3,16 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { adminApi } from '../services/api'
 import {
   Mail,
-  Gift,
   Tag,
-  Users,
   Send,
-  AlertCircle,
-  CheckCircle,
   Plus,
-  X,
-  Calendar,
-  Percent,
   Award,
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
@@ -59,20 +52,22 @@ export default function Communication() {
     queryKey: ['admin-messages'],
     queryFn: () => adminApi.getMessages(1, 20),
     retry: false,
-    onError: (error) => {
-      console.error('Erreur lors du chargement des messages:', error)
-    },
   })
+
+  if (messagesError) {
+    console.error('Erreur lors du chargement des messages:', messagesError)
+  }
 
   // Récupérer les promotions
   const { data: promotionsData, error: promotionsError, isLoading: promotionsLoading } = useQuery({
     queryKey: ['admin-promotions'],
     queryFn: () => adminApi.getPromotions(1, 20),
     retry: false,
-    onError: (error) => {
-      console.error('Erreur lors du chargement des promotions:', error)
-    },
   })
+
+  if (promotionsError) {
+    console.error('Erreur lors du chargement des promotions:', promotionsError)
+  }
 
   // Mutation pour envoyer un message
   const sendMessageMutation = useMutation({
@@ -296,10 +291,10 @@ export default function Communication() {
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900 mb-4">Historique</h2>
                   <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {messagesData?.data?.length === 0 ? (
+                    {(messagesData as any)?.data?.length === 0 ? (
                       <p className="text-sm text-gray-500 text-center py-8">Aucun message envoyé</p>
                     ) : (
-                      messagesData?.data?.map((msg: any) => (
+                      (messagesData as any)?.data?.map((msg: any) => (
                         <div key={msg.id} className="bg-white border border-gray-200 rounded-lg p-4">
                           <div className="flex items-start justify-between mb-2">
                             <h3 className="text-sm font-medium text-gray-900">{msg.subject}</h3>
@@ -472,10 +467,10 @@ export default function Communication() {
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900 mb-4">Promotions actives</h2>
                   <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {promotionsData?.data?.length === 0 ? (
+                    {(promotionsData as any)?.data?.length === 0 ? (
                       <p className="text-sm text-gray-500 text-center py-8">Aucune promotion</p>
                     ) : (
-                      promotionsData?.data?.map((promo: any) => (
+                      (promotionsData as any)?.data?.map((promo: any) => (
                         <div key={promo.id} className="bg-white border border-gray-200 rounded-lg p-4">
                           <div className="flex items-start justify-between mb-2">
                             <div>
