@@ -23,7 +23,9 @@ export default function EmptyState({ title, message, icon, action }: EmptyStateP
       <View style={styles.container}>
         {icon && <View style={styles.iconContainer}>{icon}</View>}
         <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
-        {message && <Text style={[styles.message, { color: colors.textSecondary }]}>{message}</Text>}
+        {message && (
+          <Text style={[styles.message, { color: colors.textSecondary }]}>{message}</Text>
+        )}
         {action && <View style={styles.actionContainer}>{action}</View>}
       </View>
     </SafeTextWrapper>

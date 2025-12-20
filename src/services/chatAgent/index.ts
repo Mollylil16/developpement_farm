@@ -8,4 +8,3 @@ export { ChatAgentAPI } from './ChatAgentAPI';
 export { VoiceService } from './VoiceService';
 export { ProactiveRemindersService } from './ProactiveRemindersService';
 export { IntentDetector } from './IntentDetector';
-

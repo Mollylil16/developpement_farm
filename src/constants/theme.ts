@@ -160,17 +160,17 @@ export const FONT_SIZES = {
 };
 
 // Type pour les font weights acceptés par React Native
-export type FontWeight = 
-  | 'normal' 
-  | 'bold' 
-  | '100' 
-  | '200' 
-  | '300' 
-  | '400' 
-  | '500' 
-  | '600' 
-  | '700' 
-  | '800' 
+export type FontWeight =
+  | 'normal'
+  | 'bold'
+  | '100'
+  | '200'
+  | '300'
+  | '400'
+  | '500'
+  | '600'
+  | '700'
+  | '800'
   | '900';
 
 export const FONT_WEIGHTS: Record<'regular' | 'medium' | 'semiBold' | 'bold', FontWeight> = {

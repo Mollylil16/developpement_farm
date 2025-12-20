@@ -282,17 +282,17 @@ export default function AlertesWidget() {
         },
       ]}
     >
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>
-            ⚠️ {alertesLength} alerte{alertesLength > 1 ? 's' : ''}
+      <View style={styles.header}>
+        <Text style={[styles.title, { color: colors.text }]}>
+          ⚠️ {alertesLength} alerte{alertesLength > 1 ? 's' : ''}
+        </Text>
+        {alertesLength > 3 && (
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            {alertesLength - 3} autre{alertesLength - 3 > 1 ? 's' : ''} non affichée
+            {alertesLength - 3 > 1 ? 's' : ''}
           </Text>
-          {alertesLength > 3 && (
-            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              {alertesLength - 3} autre{alertesLength - 3 > 1 ? 's' : ''} non affichée
-              {alertesLength - 3 > 1 ? 's' : ''}
-            </Text>
-          )}
-        </View>
+        )}
+      </View>
 
       <ScrollView
         horizontal

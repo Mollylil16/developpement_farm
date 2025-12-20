@@ -91,7 +91,7 @@ describe('PorkPriceTrendCard', () => {
     });
   });
 
-  it('devrait afficher l\'état de chargement', () => {
+  it("devrait afficher l'état de chargement", () => {
     mockUsePorkPriceTrend.mockReturnValue({
       trends: [],
       currentWeekPrice: undefined,
@@ -110,7 +110,7 @@ describe('PorkPriceTrendCard', () => {
     expect(getByText(/Tendance du prix du porc poids vif/i)).toBeTruthy();
   });
 
-  it('devrait afficher l\'état d\'erreur', () => {
+  it("devrait afficher l'état d'erreur", () => {
     const errorMessage = 'Erreur de chargement';
 
     mockUsePorkPriceTrend.mockReturnValue({
@@ -131,7 +131,7 @@ describe('PorkPriceTrendCard', () => {
     expect(getAllByText(errorMessage).length).toBeGreaterThan(0);
   });
 
-  it('devrait afficher l\'état vide si aucune donnée', () => {
+  it("devrait afficher l'état vide si aucune donnée", () => {
     mockUsePorkPriceTrend.mockReturnValue({
       trends: [],
       currentWeekPrice: undefined,
@@ -299,4 +299,3 @@ describe('PorkPriceTrendCard', () => {
     expect(UNSAFE_getByType).toBeDefined();
   });
 });
-

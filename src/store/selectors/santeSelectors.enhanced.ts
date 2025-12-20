@@ -4,7 +4,6 @@
  */
 
 import { createSelector } from '@reduxjs/toolkit';
-import { RootState } from '../store';
 import { Vaccination, Maladie } from '../../types';
 import * as baseSelectors from './santeSelectors';
 
@@ -17,7 +16,9 @@ export const selectVaccinationsEnRetardAvecDetails = createSelector(
     const maintenant = new Date();
     return vaccinations.map((vaccination) => {
       const dateVaccination = new Date(vaccination.date_vaccination);
-      const joursRetard = Math.floor((maintenant.getTime() - dateVaccination.getTime()) / (1000 * 60 * 60 * 24));
+      const joursRetard = Math.floor(
+        (maintenant.getTime() - dateVaccination.getTime()) / (1000 * 60 * 60 * 24)
+      );
       return {
         ...vaccination,
         joursRetard,
@@ -35,7 +36,7 @@ export const selectMaladiesCritiquesUrgentes = createSelector(
     return maladies.filter(
       (maladie) =>
         maladie.gravite === 'critique' &&
-        (!maladie.gueri || maladie.gueri === 0) &&
+        !maladie.gueri &&
         (!maladie.date_fin || maladie.date_fin === null)
     );
   }
@@ -47,7 +48,7 @@ export const selectMaladiesCritiquesUrgentes = createSelector(
 export const selectMaladiesContagieusesEnCours = createSelector(
   [baseSelectors.selectMaladiesEnCours],
   (maladies): Maladie[] => {
-    return maladies.filter((maladie) => maladie.contagieux === 1 || maladie.contagieux === true);
+    return maladies.filter((maladie) => maladie.contagieux === true);
   }
 );
 
@@ -68,11 +69,11 @@ export const selectStatistiquesSanitaires = createSelector(
       vaccinationsEnRetard: vaccinationsEnRetard.length,
       totalMaladies: maladies.length,
       maladiesEnCours: maladiesEnCours.length,
-      maladiesGueries: maladies.filter((m) => m.gueri === 1 || m.gueri === true).length,
+      maladiesGueries: maladies.filter((m) => m.gueri === true).length,
       maladiesCritiques: maladies.filter((m) => m.gravite === 'critique').length,
       tauxGuerison:
         maladies.length > 0
-          ? (maladies.filter((m) => m.gueri === 1 || m.gueri === true).length / maladies.length) * 100
+          ? (maladies.filter((m) => m.gueri === true).length / maladies.length) * 100
           : 0,
     };
   }
@@ -92,4 +93,3 @@ export const selectVaccinationsRappelNecessaire = createSelector(
     });
   }
 );
-

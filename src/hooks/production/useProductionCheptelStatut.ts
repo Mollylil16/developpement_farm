@@ -174,7 +174,10 @@ export function useProductionCheptelStatut() {
                         await dispatch(deleteMortalite(mortaliteCorrespondante.id)).unwrap();
                         console.log('✅ Mortalité supprimée avec succès');
                       } catch (deleteError) {
-                        console.error('❌ Erreur lors de la suppression de la mortalité:', deleteError);
+                        console.error(
+                          '❌ Erreur lors de la suppression de la mortalité:',
+                          deleteError
+                        );
                         // Ne pas bloquer si la suppression échoue
                       }
                     } else {
@@ -219,4 +222,3 @@ export function useProductionCheptelStatut() {
 
   return { handleChangeStatut };
 }
-

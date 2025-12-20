@@ -17,11 +17,7 @@ export default function ChatAgentFAB() {
   };
 
   return (
-    <TouchableOpacity
-      style={styles.fab}
-      onPress={handlePress}
-      activeOpacity={0.8}
-    >
+    <TouchableOpacity style={styles.fab} onPress={handlePress} activeOpacity={0.8}>
       <Text style={styles.emoji}>👨🏾‍🌾</Text>
     </TouchableOpacity>
   );
@@ -49,4 +45,3 @@ const styles = StyleSheet.create({
     lineHeight: 36,
   },
 });
-

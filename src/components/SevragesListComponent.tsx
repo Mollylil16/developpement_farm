@@ -34,7 +34,9 @@ export default function SevragesListComponent() {
   const gestations = useAppSelector((state) => {
     const reproState = state.reproduction;
     if (!reproState?.entities?.gestations || !reproState?.ids?.gestations) return [];
-    return reproState.ids.gestations.map((id) => reproState.entities.gestations[id]).filter(Boolean);
+    return reproState.ids.gestations
+      .map((id) => reproState.entities.gestations[id])
+      .filter(Boolean);
   });
   const sevrages = useAppSelector((state) => {
     const reproState = state.reproduction;
@@ -87,7 +89,7 @@ export default function SevragesListComponent() {
 
   const onRefresh = useCallback(async () => {
     if (!projetActif?.id) return;
-    
+
     setRefreshing(true);
     try {
       await dispatch(loadSevrages(projetActif.id)).unwrap();
@@ -175,8 +177,9 @@ export default function SevragesListComponent() {
       if (projetActif) {
         dispatch(loadSevrages(projetActif.id));
       }
-    } catch (error: any) {
-      Alert.alert('Erreur', error || 'Erreur lors de la création du sevrage');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error) || 'Erreur lors de la création du sevrage';
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setLoading(false);
     }

@@ -22,7 +22,7 @@ function ReproductionScreenContent() {
   const [activeTab, setActiveTab] = useState<TabType>('gestations');
   const gestations = useAppSelector((state) => state.reproduction.gestations);
   const gestationsEnCours = Array.isArray(gestations)
-    ? gestations.filter((g: any) => g.statut === 'en_cours').length
+    ? gestations.filter((g: unknown) => g.statut === 'en_cours').length
     : 0;
 
   const tabs: TabItem[] = [

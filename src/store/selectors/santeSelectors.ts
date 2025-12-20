@@ -41,10 +41,7 @@ export const selectSanteStatistics = createSelector(
   (sante) => sante.statistics
 );
 
-export const selectSanteAlertes = createSelector(
-  [selectSanteState],
-  (sante) => sante.alertes
-);
+export const selectSanteAlertes = createSelector([selectSanteState], (sante) => sante.alertes);
 
 // ============================================
 // CALENDRIER VACCINATIONS
@@ -117,7 +114,7 @@ export const selectVaccinationById = (id: string) =>
 
 export const selectVaccinationsByAnimal = (animalId: string) =>
   createSelector([selectAllVaccinations], (vaccinations): Vaccination[] =>
-    vaccinations.filter((v) => v.animal_id === animalId)
+    vaccinations.filter((v) => v.animal_ids?.includes(animalId) ?? false)
   );
 
 export const selectVaccinationsByStatut = (
@@ -276,11 +273,9 @@ export const selectProchainesVisitesVeterinaires = createSelector(
   (visites): VisiteVeterinaire[] => {
     const now = new Date();
     return visites
-      .filter((v) => v.prochaine_visite_prevue && new Date(v.prochaine_visite_prevue) >= now)
+      .filter((v) => v.prochaine_visite && new Date(v.prochaine_visite) >= now)
       .sort(
-        (a, b) =>
-          new Date(a.prochaine_visite_prevue!).getTime() -
-          new Date(b.prochaine_visite_prevue!).getTime()
+        (a, b) => new Date(a.prochaine_visite!).getTime() - new Date(b.prochaine_visite!).getTime()
       );
   }
 );

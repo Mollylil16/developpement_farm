@@ -1,6 +1,6 @@
 /**
  * Interface du repository Santé - Domaine Santé
- * 
+ *
  * Définit le contrat pour l'accès aux données sanitaires
  */
 
@@ -13,7 +13,9 @@ export interface ISanteRepository {
   findVaccinationsByProjet(projetId: string): Promise<Vaccination[]>;
   findVaccinationsByAnimal(animalId: string): Promise<Vaccination[]>;
   findVaccinationsEnRetard(projetId: string): Promise<Vaccination[]>;
-  createVaccination(vaccination: Omit<Vaccination, 'id' | 'dateCreation' | 'derniereModification'>): Promise<Vaccination>;
+  createVaccination(
+    vaccination: Omit<Vaccination, 'id' | 'dateCreation' | 'derniereModification'>
+  ): Promise<Vaccination>;
   updateVaccination(id: string, updates: Partial<Vaccination>): Promise<Vaccination>;
   deleteVaccination(id: string): Promise<void>;
 
@@ -22,8 +24,9 @@ export interface ISanteRepository {
   findMaladiesByProjet(projetId: string): Promise<Maladie[]>;
   findMaladiesByAnimal(animalId: string): Promise<Maladie[]>;
   findMaladiesEnCours(projetId: string): Promise<Maladie[]>;
-  createMaladie(maladie: Omit<Maladie, 'id' | 'dateCreation' | 'derniereModification'>): Promise<Maladie>;
+  createMaladie(
+    maladie: Omit<Maladie, 'id' | 'dateCreation' | 'derniereModification'>
+  ): Promise<Maladie>;
   updateMaladie(id: string, updates: Partial<Maladie>): Promise<Maladie>;
   deleteMaladie(id: string): Promise<void>;
 }
-

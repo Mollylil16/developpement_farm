@@ -139,12 +139,10 @@ export default function StockMovementFormModal({
       await dispatch(loadMouvementsParAliment({ alimentId: aliment.id })).unwrap();
 
       onSuccess();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur lors de la création du mouvement:', error);
-      Alert.alert(
-        'Erreur',
-        error?.message || "Une erreur est survenue lors de l'enregistrement du mouvement"
-      );
+      const errorMessage = error instanceof Error ? error.message : String(error) || "Une erreur est survenue lors de l'enregistrement du mouvement";
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setLoading(false);
     }

@@ -57,9 +57,7 @@ describe('useNutritionWidget - Integration', () => {
       { id: '1', date_creation: '2024-01-15T00:00:00Z' },
       { id: '2', date_creation: '2024-01-20T00:00:00Z' },
     ];
-    const mockRationsBudget = [
-      { id: '3', date_creation: '2024-01-25T00:00:00Z' },
-    ];
+    const mockRationsBudget = [{ id: '3', date_creation: '2024-01-25T00:00:00Z' }];
 
     mockUseSelector.mockReturnValue({
       nutrition: {
@@ -80,4 +78,3 @@ describe('useNutritionWidget - Integration', () => {
     });
   });
 });
-

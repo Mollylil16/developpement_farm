@@ -3,13 +3,12 @@ import { Buffer } from 'buffer';
 
 // Déclaration du type global pour TypeScript
 declare global {
-  // eslint-disable-next-line no-var
   var Buffer: {
-    from(data: any, encoding?: string): Buffer;
-    isBuffer(obj: any): boolean;
+    from(data: unknown, encoding?: string): Buffer;
+    isBuffer(obj: unknown): boolean;
     alloc(size: number, fill?: string | number | Buffer): Buffer;
     concat(list: Buffer[], totalLength?: number): Buffer;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 

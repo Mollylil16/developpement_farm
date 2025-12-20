@@ -1,6 +1,6 @@
 /**
  * VaccinationScreen - Interface moderne de gestion des vaccinations (REFACTORÉ)
- * 
+ *
  * Architecture:
  * - Hook: useVaccinationLogic (logique métier, calculs)
  * - Composants: VaccinationStatsCard, VaccinationTypeCard (UI)
@@ -22,13 +22,16 @@ import { getIconeType, getCouleurType } from '../utils/vaccinationHelpers';
 export default function VaccinationScreen() {
   const { colors } = useTheme();
   const logic = useVaccinationLogic();
-  
+
   if (!logic.projetActif) {
     return null; // Géré par ProtectedScreen parent
   }
-  
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top']}
+    >
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -42,7 +45,7 @@ export default function VaccinationScreen() {
       >
         {/* Carte récapitulative des statistiques globales */}
         <VaccinationStatsCard stats={logic.statsGlobales} />
-        
+
         {/* Cartes par type de prophylaxie */}
         {logic.statParType.map((stat) => (
           <VaccinationTypeCard
@@ -54,17 +57,17 @@ export default function VaccinationScreen() {
             onVoirCalendrier={logic.handleOuvrirCalendrier}
           />
         ))}
-        
+
         <View style={styles.bottomPadding} />
       </ScrollView>
-      
+
       {/* Modale d'ajout de vaccination */}
       <VaccinationFormModal
         visible={logic.modalAddVisible}
         onClose={() => logic.setModalAddVisible(false)}
         typeInitial={logic.typeSelectionne}
       />
-      
+
       {/* Modale du calendrier vaccinal */}
       <CalendrierVaccinalModal
         visible={logic.modalCalendrierVisible}
@@ -84,4 +87,3 @@ const styles = StyleSheet.create({
     height: 24,
   },
 });
-

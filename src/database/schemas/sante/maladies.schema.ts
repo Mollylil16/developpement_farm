@@ -41,4 +41,3 @@ export async function createMaladiesTable(db: SQLite.SQLiteDatabase): Promise<vo
     );`
   );
 }
-

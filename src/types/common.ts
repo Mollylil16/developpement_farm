@@ -1,6 +1,6 @@
 /**
  * Types communs et utilitaires pour remplacer les `any`
- * 
+ *
  * Ce fichier centralise les types réutilisables pour éviter l'utilisation de `any`
  */
 
@@ -103,4 +103,3 @@ export function toError(value: unknown): Error {
   }
   return new Error(getErrorMessage(value));
 }
-

@@ -1,15 +1,9 @@
 /**
  * Service pour l'historique médical des animaux
- * Centralise la logique de récupération de l'historique complet
+ * Utilise l'API backend pour récupérer l'historique complet
  */
 
-import { getDatabase } from '../database';
-import {
-  VaccinationRepository,
-  MaladieRepository,
-  TraitementRepository,
-  VisiteVeterinaireRepository,
-} from '../../database/repositories';
+import apiClient from '../api/apiClient';
 import type { Vaccination, Maladie, Traitement, VisiteVeterinaire } from '../../types';
 
 export interface HistoriqueMedicalAnimal {
@@ -21,25 +15,17 @@ export interface HistoriqueMedicalAnimal {
 
 export class SanteHistoriqueService {
   /**
-   * Obtenir l'historique médical complet d'un animal
+   * Obtenir l'historique médical complet d'un animal via l'API backend
    */
   static async getHistorique(animalId: string): Promise<HistoriqueMedicalAnimal> {
-    const db = await getDatabase();
-    const vaccinationRepo = new VaccinationRepository(db);
-    const maladieRepo = new MaladieRepository(db);
-    const traitementRepo = new TraitementRepository(db);
-    const visiteRepo = new VisiteVeterinaireRepository(db);
-
-    // Récupérer toutes les données médicales de l'animal
-    const [vaccinations, maladies, traitements, visites] = await Promise.all([
-      vaccinationRepo.findByAnimal(animalId),
-      maladieRepo.findByAnimal(animalId),
-      traitementRepo.findByAnimal(animalId),
-      visiteRepo.findByAnimal(animalId),
-    ]);
+    const historique = await apiClient.get<HistoriqueMedicalAnimal>(
+      `/sante/historique-animal/${animalId}`
+    );
 
     // Trier par date (plus récent en premier)
-    const sortByDate = <T extends { date_vaccination?: string; date_debut?: string; date_visite?: string }>(
+    const sortByDate = <
+      T extends { date_vaccination?: string; date_debut?: string; date_visite?: string },
+    >(
       items: T[]
     ): T[] => {
       return items.sort((a, b) => {
@@ -50,12 +36,10 @@ export class SanteHistoriqueService {
     };
 
     return {
-      vaccinations: sortByDate(vaccinations),
-      maladies: sortByDate(maladies),
-      traitements: sortByDate(traitements),
-      visites: sortByDate(visites),
+      vaccinations: sortByDate(historique.vaccinations),
+      maladies: sortByDate(historique.maladies),
+      traitements: sortByDate(historique.traitements),
+      visites: sortByDate(historique.visites),
     };
   }
 }
-
-

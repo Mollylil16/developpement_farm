@@ -58,7 +58,7 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (user.roles.veterinarian) return 'veterinarian';
       if (user.roles.technician) return 'technician';
     }
-    
+
     // Par défaut, tous les utilisateurs existants sont producteurs
     return 'producer';
   }, []);
@@ -66,7 +66,7 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
   /**
    * Rôles disponibles pour l'utilisateur actuel
    */
-  const availableRoles = useMemo(() => {
+  const availableRoles = useMemo((): RoleType[] => {
     if (!userFromRedux?.roles) {
       // Si pas de rôles définis, considérer comme producteur (compatibilité)
       return ['producer'];
@@ -148,7 +148,17 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isVeterinarian,
       isTechnician,
     }),
-    [userFromRedux, activeRole, availableRoles, switchRole, hasRole, isProducer, isBuyer, isVeterinarian, isTechnician]
+    [
+      userFromRedux,
+      activeRole,
+      availableRoles,
+      switchRole,
+      hasRole,
+      isProducer,
+      isBuyer,
+      isVeterinarian,
+      isTechnician,
+    ]
   );
 
   return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>;
@@ -183,4 +193,3 @@ export const useRole = (): RoleContextType => {
   }
   return context;
 };
-

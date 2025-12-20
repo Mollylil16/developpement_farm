@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { SPACING, FONT_SIZES } from '../constants/theme';
 import GlobalSearchComponent, { SearchResult } from './GlobalSearchComponent';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { SCREENS } from '../navigation/types';
 
 interface GlobalSearchModalProps {
@@ -18,7 +18,7 @@ interface GlobalSearchModalProps {
 
 export default function GlobalSearchModal({ visible, onClose }: GlobalSearchModalProps) {
   const { colors } = useTheme();
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NavigationProp<any>>();
 
   const handleResultPress = (result: SearchResult) => {
     onClose();

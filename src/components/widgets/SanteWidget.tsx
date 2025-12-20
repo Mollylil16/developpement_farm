@@ -39,7 +39,13 @@ export default function SanteWidget({ onPress }: Props) {
       traitements: traitementsEnCours,
       alertes: alertesCritiques,
     });
-  }, [vaccinationsEnRetard, maladiesEnCours, totalMortalites, traitementsEnCours, alertesCritiques]);
+  }, [
+    vaccinationsEnRetard,
+    maladiesEnCours,
+    totalMortalites,
+    traitementsEnCours,
+    alertesCritiques,
+  ]);
 
   const hasAlertes = vaccinationsEnRetard > 0 || alertesCritiques > 0;
 
@@ -111,9 +117,7 @@ export default function SanteWidget({ onPress }: Props) {
                 },
               ]}
             >
-              {maladiesEnCours > 0
-                ? `${maladiesEnCours} maladie(s) en cours`
-                : '0 maladie'}
+              {maladiesEnCours > 0 ? `${maladiesEnCours} maladie(s) en cours` : '0 maladie'}
             </Text>
           </View>
 
@@ -132,9 +136,7 @@ export default function SanteWidget({ onPress }: Props) {
                 },
               ]}
             >
-              {totalMortalites > 0
-                ? `${totalMortalites} mortalité(s)`
-                : '0 mortalité'}
+              {totalMortalites > 0 ? `${totalMortalites} mortalité(s)` : '0 mortalité'}
             </Text>
           </View>
 

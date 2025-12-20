@@ -33,6 +33,9 @@ yarn-error.*
 # local env files
 .env*.local
 
+# OpenAI config (contient des clés API sensibles)
+src/config/openaiConfig.ts
+
 # typescript
 *.tsbuildinfo
 

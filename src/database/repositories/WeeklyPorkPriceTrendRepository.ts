@@ -2,8 +2,6 @@
  * Repository pour gérer les tendances de prix hebdomadaires du porc poids vif
  */
 
-import type { SQLiteDatabase } from 'expo-sqlite';
-import uuid from 'react-native-uuid';
 import { BaseRepository } from './BaseRepository';
 
 export interface WeeklyPorkPriceTrend {
@@ -46,46 +44,19 @@ export interface UpdateWeeklyPorkPriceTrendInput {
 }
 
 export class WeeklyPorkPriceTrendRepository extends BaseRepository<WeeklyPorkPriceTrend> {
-  constructor(db: SQLiteDatabase) {
-    super(db, 'weekly_pork_price_trends');
+  constructor() {
+    super('weekly_pork_price_trends', '/marketplace/price-trends');
   }
 
   async create(data: CreateWeeklyPorkPriceTrendInput): Promise<WeeklyPorkPriceTrend> {
-    const id = uuid.v4() as string;
-    const now = new Date().toISOString();
-
-    await this.db.runAsync(
-      `INSERT INTO ${this.tableName} (
-        id, year, week_number, avg_price_platform, avg_price_regional,
-        transactions_count, offers_count, listings_count, source_priority,
-        total_weight_kg, total_price_fcfa, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        data.year,
-        data.weekNumber,
-        data.avgPricePlatform || null,
-        data.avgPriceRegional || null,
-        data.transactionsCount || 0,
-        data.offersCount || 0,
-        data.listingsCount || 0,
-        data.sourcePriority || 'platform',
-        data.totalWeightKg || null,
-        data.totalPriceFcfa || null,
-        now,
-      ]
-    );
-
-    const trend = await this.findByYearAndWeek(data.year, data.weekNumber);
-    if (!trend) throw new Error('Failed to create weekly pork price trend');
-    return trend;
+    return this.executePost<WeeklyPorkPriceTrend>(this.apiBasePath, data);
   }
 
   async findByYearAndWeek(year: number, weekNumber: number): Promise<WeeklyPorkPriceTrend | null> {
-    const row = await this.db.getFirstAsync<any>(
-      `SELECT * FROM ${this.tableName} WHERE year = ? AND week_number = ?`,
-      [year, weekNumber]
-    );
+    const row = await this.queryOne<unknown>(this.apiBasePath, {
+      year,
+      week_number: weekNumber,
+    });
     return row ? this.mapRow(row) : null;
   }
 
@@ -94,71 +65,16 @@ export class WeeklyPorkPriceTrendRepository extends BaseRepository<WeeklyPorkPri
     weekNumber: number,
     updates: UpdateWeeklyPorkPriceTrendInput
   ): Promise<WeeklyPorkPriceTrend> {
-    const now = new Date().toISOString();
-    const setClause: string[] = [];
-    const values: any[] = [];
-
-    if (updates.avgPricePlatform !== undefined) {
-      setClause.push('avg_price_platform = ?');
-      values.push(updates.avgPricePlatform);
-    }
-    if (updates.avgPriceRegional !== undefined) {
-      setClause.push('avg_price_regional = ?');
-      values.push(updates.avgPriceRegional);
-    }
-    if (updates.transactionsCount !== undefined) {
-      setClause.push('transactions_count = ?');
-      values.push(updates.transactionsCount);
-    }
-    if (updates.offersCount !== undefined) {
-      setClause.push('offers_count = ?');
-      values.push(updates.offersCount);
-    }
-    if (updates.listingsCount !== undefined) {
-      setClause.push('listings_count = ?');
-      values.push(updates.listingsCount);
-    }
-    if (updates.sourcePriority !== undefined) {
-      setClause.push('source_priority = ?');
-      values.push(updates.sourcePriority);
-    }
-    if (updates.totalWeightKg !== undefined) {
-      setClause.push('total_weight_kg = ?');
-      values.push(updates.totalWeightKg);
-    }
-    if (updates.totalPriceFcfa !== undefined) {
-      setClause.push('total_price_fcfa = ?');
-      values.push(updates.totalPriceFcfa);
-    }
-
-    setClause.push('updated_at = ?');
-    values.push(now);
-    values.push(year, weekNumber);
-
-    await this.db.runAsync(
-      `UPDATE ${this.tableName} SET ${setClause.join(', ')} WHERE year = ? AND week_number = ?`,
-      values
-    );
-
-    const updated = await this.findByYearAndWeek(year, weekNumber);
-    if (!updated) throw new Error('Failed to update weekly pork price trend');
-    return updated;
+    return this.executePatch<WeeklyPorkPriceTrend>(`${this.apiBasePath}/${year}/${weekNumber}`, updates);
   }
 
   async findLastWeeks(weeks: number = 26): Promise<WeeklyPorkPriceTrend[]> {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentWeek = this.getWeekNumber(now);
-
-    const rows = await this.db.getAllAsync<any>(
-      `SELECT * FROM ${this.tableName} 
-       WHERE (year = ? AND week_number <= ?) OR (year = ? AND week_number >= ?)
-       ORDER BY year DESC, week_number DESC
-       LIMIT ?`,
-      [currentYear, currentWeek, currentYear - 1, currentWeek, weeks]
-    );
-
-    return rows.map(r => this.mapRow(r)).reverse();
+    const rows = await this.query<unknown>(this.apiBasePath, {
+      weeks,
+      order_by: 'year,week_number',
+      order_direction: 'DESC',
+    });
+    return rows.map((r) => this.mapRow(r)).reverse();
   }
 
   async findCurrentWeek(): Promise<WeeklyPorkPriceTrend | null> {
@@ -169,24 +85,10 @@ export class WeeklyPorkPriceTrendRepository extends BaseRepository<WeeklyPorkPri
   }
 
   async upsert(data: CreateWeeklyPorkPriceTrendInput): Promise<WeeklyPorkPriceTrend> {
-    const existing = await this.findByYearAndWeek(data.year, data.weekNumber);
-    if (existing) {
-      return this.updateByYearAndWeek(data.year, data.weekNumber, {
-        avgPricePlatform: data.avgPricePlatform,
-        avgPriceRegional: data.avgPriceRegional,
-        transactionsCount: data.transactionsCount,
-        offersCount: data.offersCount,
-        listingsCount: data.listingsCount,
-        sourcePriority: data.sourcePriority,
-        totalWeightKg: data.totalWeightKg,
-        totalPriceFcfa: data.totalPriceFcfa,
-      });
-    } else {
-      return this.create(data);
-    }
+    return this.executePost<WeeklyPorkPriceTrend>(`${this.apiBasePath}/upsert`, data);
   }
 
-  private mapRow(row: any): WeeklyPorkPriceTrend {
+  private mapRow(row: unknown): WeeklyPorkPriceTrend {
     return {
       id: row.id,
       year: row.year,
@@ -215,4 +117,3 @@ export class WeeklyPorkPriceTrendRepository extends BaseRepository<WeeklyPorkPri
     return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
   }
 }
-

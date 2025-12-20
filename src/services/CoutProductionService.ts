@@ -1,113 +1,59 @@
 /**
  * Service de calcul des coûts de production
- * Gère les calculs OPEX/CAPEX et les marges sur les ventes
+ * Utilise l'API backend pour calculer les coûts OPEX/CAPEX et les marges sur les ventes
  */
 
-import * as SQLite from 'expo-sqlite';
-import { Projet, DepensePonctuelle, Revenu } from '../types';
-import { DEFAULT_DUREE_AMORTISSEMENT_MOIS } from '../types/projet';
-import {
-  calculateCoutsPeriode,
-  CoutProductionPeriode,
-} from '../utils/financeCalculations';
-import {
-  calculateMargeVente,
-  MargeVente,
-} from '../utils/margeCalculations';
+import apiClient from './api/apiClient';
+import { Projet, Revenu } from '../types';
+import { CoutProductionPeriode } from '../utils/financeCalculations';
+import { calculateMargeVente, MargeVente } from '../utils/margeCalculations';
 import { startOfMonth, endOfMonth, parseISO } from 'date-fns';
 
+interface CoutsProductionResponse {
+  date_debut: string;
+  date_fin: string;
+  total_opex: number;
+  total_amortissement_capex: number;
+  total_kg_vendus: number;
+  cout_kg_opex: number;
+  cout_kg_complet: number;
+}
+
 class CoutProductionService {
-  private db: SQLite.SQLiteDatabase | null = null;
 
   /**
-   * Initialise le service avec une instance de base de données
-   */
-  setDatabase(db: SQLite.SQLiteDatabase): void {
-    this.db = db;
-  }
-
-  /**
-   * Charge toutes les dépenses d'un projet
-   */
-  private async loadDepenses(projetId: string): Promise<DepensePonctuelle[]> {
-    if (!this.db) throw new Error('Base de données non initialisée');
-
-    const result = await this.db.getAllAsync<any>(
-      'SELECT * FROM depenses_ponctuelles WHERE projet_id = ? ORDER BY date DESC',
-      [projetId]
-    );
-
-    return result.map((row) => ({
-      ...row,
-      photos: row.photos ? JSON.parse(row.photos) : [],
-    }));
-  }
-
-  /**
-   * Charge toutes les ventes de porcs d'un projet pour une période
-   */
-  private async loadVentesPorc(
-    projetId: string,
-    dateDebut: Date,
-    dateFin: Date
-  ): Promise<Revenu[]> {
-    if (!this.db) throw new Error('Base de données non initialisée');
-
-    const result = await this.db.getAllAsync<any>(
-      `SELECT * FROM revenus 
-       WHERE projet_id = ? 
-       AND categorie = 'vente_porc'
-       AND date >= ? 
-       AND date <= ?
-       ORDER BY date DESC`,
-      [projetId, dateDebut.toISOString(), dateFin.toISOString()]
-    );
-
-    return result.map((row) => ({
-      ...row,
-      photos: row.photos ? JSON.parse(row.photos) : [],
-    }));
-  }
-
-  /**
-   * Calcule les coûts de production pour une période donnée
+   * Calcule les coûts de production pour une période donnée via l'API backend
    */
   async calculateCoutsPeriode(
     projetId: string,
     dateDebut: Date,
     dateFin: Date,
-    projet: Projet
+    projet?: Projet
   ): Promise<CoutProductionPeriode> {
-    // Charger toutes les dépenses du projet
-    const depenses = await this.loadDepenses(projetId);
+    const response = await apiClient.get<CoutsProductionResponse>('/finance/couts-production', {
+      params: {
+        projet_id: projetId,
+        date_debut: dateDebut.toISOString(),
+        date_fin: dateFin.toISOString(),
+      },
+    });
 
-    // Charger toutes les ventes de porcs de la période
-    const ventes = await this.loadVentesPorc(projetId, dateDebut, dateFin);
-
-    // Calculer le total de kg vendus
-    const totalKgVendus = ventes.reduce((sum, v) => sum + (v.poids_kg || 0), 0);
-
-    // Durée d'amortissement du projet (ou défaut)
-    const dureeAmortissementMois =
-      projet.duree_amortissement_par_defaut_mois || DEFAULT_DUREE_AMORTISSEMENT_MOIS;
-
-    // Calculer tous les coûts de la période
-    return calculateCoutsPeriode(
-      depenses,
-      totalKgVendus,
-      dateDebut,
-      dateFin,
-      dureeAmortissementMois
-    );
+    // Convertir la réponse backend en format frontend
+    return {
+      dateDebut: response.date_debut,
+      dateFin: response.date_fin,
+      total_opex: response.total_opex,
+      total_amortissement_capex: response.total_amortissement_capex,
+      total_kg_vendus: response.total_kg_vendus,
+      cout_kg_opex: response.cout_kg_opex,
+      cout_kg_complet: response.cout_kg_complet,
+    };
   }
 
   /**
    * Calcule les coûts du mois en cours
    */
-  async calculateCoutsMoisActuel(
-    projetId: string,
-    projet: Projet
-  ): Promise<CoutProductionPeriode> {
+  async calculateCoutsMoisActuel(projetId: string, projet: Projet): Promise<CoutProductionPeriode> {
     const maintenant = new Date();
     const debutMois = startOfMonth(maintenant);
     const finMois = endOfMonth(maintenant);
@@ -116,15 +62,13 @@ class CoutProductionService {
   }
 
   /**
-   * Met à jour les marges d'une vente de porc
+   * Met à jour les marges d'une vente de porc via l'API backend
    */
   async updateMargesVente(
     vente: Revenu,
     poidsKg: number,
     coutsPeriode: CoutProductionPeriode
   ): Promise<Revenu> {
-    if (!this.db) throw new Error('Base de données non initialisée');
-
     // Calculer toutes les marges
     const marges: MargeVente = calculateMargeVente(
       vente,
@@ -133,45 +77,12 @@ class CoutProductionService {
       coutsPeriode.cout_kg_complet
     );
 
-    // Mettre à jour l'objet vente
-    const venteUpdated: Revenu = {
-      ...vente,
-      poids_kg: marges.poids_kg,
-      cout_kg_opex: marges.cout_kg_opex,
-      cout_kg_complet: marges.cout_kg_complet,
-      cout_reel_opex: marges.cout_reel_opex,
-      cout_reel_complet: marges.cout_reel_complet,
-      marge_opex: marges.marge_opex,
-      marge_complete: marges.marge_complete,
-      marge_opex_pourcent: marges.marge_opex_pourcent,
-      marge_complete_pourcent: marges.marge_complete_pourcent,
-    };
-
-    // Sauvegarder en base de données
-    await this.db.runAsync(
-      `UPDATE revenus SET 
-        poids_kg = ?,
-        cout_kg_opex = ?,
-        cout_kg_complet = ?,
-        cout_reel_opex = ?,
-        cout_reel_complet = ?,
-        marge_opex = ?,
-        marge_complete = ?,
-        marge_opex_pourcent = ?,
-        marge_complete_pourcent = ?
-      WHERE id = ?`,
-      [
-        venteUpdated.poids_kg,
-        venteUpdated.cout_kg_opex,
-        venteUpdated.cout_kg_complet,
-        venteUpdated.cout_reel_opex,
-        venteUpdated.cout_reel_complet,
-        venteUpdated.marge_opex,
-        venteUpdated.marge_complete,
-        venteUpdated.marge_opex_pourcent,
-        venteUpdated.marge_complete_pourcent,
-        venteUpdated.id,
-      ]
+    // Mettre à jour via l'API backend
+    const venteUpdated = await apiClient.post<Revenu>(
+      `/finance/revenus/${vente.id}/calculer-marges`,
+      {
+        poids_kg: poidsKg,
+      }
     );
 
     return venteUpdated;
@@ -209,19 +120,29 @@ class CoutProductionService {
     projetId: string,
     dateDebut: Date,
     dateFin: Date,
-    projet: Projet
+    projet?: Projet
   ): Promise<number> {
     // Calculer les coûts de la période
-    const coutsPeriode = await this.calculateCoutsPeriode(
-      projetId,
-      dateDebut,
-      dateFin,
-      projet
-    );
+    const coutsPeriode = await this.calculateCoutsPeriode(projetId, dateDebut, dateFin, projet);
 
-    // Charger toutes les ventes de la période avec un poids
-    const ventes = await this.loadVentesPorc(projetId, dateDebut, dateFin);
-    const ventesAvecPoids = ventes.filter((v) => v.poids_kg && v.poids_kg > 0);
+    // Charger toutes les ventes de la période via l'API
+    const ventes = await apiClient.get<Revenu[]>('/finance/revenus', {
+      params: {
+        projet_id: projetId,
+      },
+    });
+
+    // Filtrer les ventes de porc de la période avec un poids
+    const ventesAvecPoids = ventes
+      .filter(
+        (v) =>
+          v.categorie === 'vente_porc' &&
+          v.poids_kg &&
+          v.poids_kg > 0 &&
+          new Date(v.date) >= dateDebut &&
+          new Date(v.date) <= dateFin
+      )
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     // Recalculer les marges pour chaque vente
     let compteur = 0;
@@ -236,10 +157,7 @@ class CoutProductionService {
   /**
    * Recalcule toutes les marges de l'année en cours
    */
-  async recalculerMargesAnneeActuelle(
-    projetId: string,
-    projet: Projet
-  ): Promise<number> {
+  async recalculerMargesAnneeActuelle(projetId: string, projet: Projet): Promise<number> {
     const maintenant = new Date();
     const debutAnnee = new Date(maintenant.getFullYear(), 0, 1);
     const finAnnee = new Date(maintenant.getFullYear(), 11, 31);
@@ -254,7 +172,7 @@ class CoutProductionService {
     projetId: string,
     dateDebut: Date,
     dateFin: Date,
-    projet: Projet
+    projet?: Projet
   ): Promise<{
     coutsPeriode: CoutProductionPeriode;
     nombreVentes: number;
@@ -262,22 +180,30 @@ class CoutProductionService {
     beneficeTotal: number;
     margeMoyenne: number;
   }> {
-    const coutsPeriode = await this.calculateCoutsPeriode(
-      projetId,
-      dateDebut,
-      dateFin,
-      projet
+    const coutsPeriode = await this.calculateCoutsPeriode(projetId, dateDebut, dateFin, projet);
+
+    // Charger toutes les ventes de la période via l'API
+    const ventes = await apiClient.get<Revenu[]>('/finance/revenus', {
+      params: {
+        projet_id: projetId,
+      },
+    });
+
+    // Filtrer les ventes de porc de la période
+    const ventesPeriode = ventes.filter(
+      (v) =>
+        v.categorie === 'vente_porc' &&
+        new Date(v.date) >= dateDebut &&
+        new Date(v.date) <= dateFin
     );
 
-    const ventes = await this.loadVentesPorc(projetId, dateDebut, dateFin);
-
-    const nombreVentes = ventes.length;
-    const chiffreAffaires = ventes.reduce((sum, v) => sum + v.montant, 0);
+    const nombreVentes = ventesPeriode.length;
+    const chiffreAffaires = ventesPeriode.reduce((sum, v) => sum + v.montant, 0);
     // Utiliser uniquement les marges OPEX pour le bénéfice
-    const beneficeTotal = ventes.reduce((sum, v) => sum + (v.marge_opex || 0), 0);
+    const beneficeTotal = ventesPeriode.reduce((sum, v) => sum + (v.marge_opex || 0), 0);
 
     // Utiliser uniquement les marges OPEX pour la marge moyenne
-    const ventesAvecMarge = ventes.filter((v) => v.marge_opex_pourcent !== undefined);
+    const ventesAvecMarge = ventesPeriode.filter((v) => v.marge_opex_pourcent !== undefined);
     const margeMoyenne =
       ventesAvecMarge.length > 0
         ? ventesAvecMarge.reduce((sum, v) => sum + (v.marge_opex_pourcent || 0), 0) /
@@ -316,4 +242,3 @@ class CoutProductionService {
 
 // Export singleton
 export default new CoutProductionService();
-

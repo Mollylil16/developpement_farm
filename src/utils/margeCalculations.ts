@@ -33,23 +33,23 @@ export interface MargeVente {
   // Données de base
   poids_kg: number;
   prix_vente: number;
-  
+
   // Coûts au kg
   cout_kg_opex: number;
   cout_kg_complet: number;
-  
+
   // Coûts réels
   cout_reel_opex: number;
   cout_reel_complet: number;
-  
+
   // Marges en valeur
   marge_opex: number;
   marge_complete: number;
-  
+
   // Marges en %
   marge_opex_pourcent: number;
   marge_complete_pourcent: number;
-  
+
   // Statut visuel
   statut_marge: StatutMarge;
 }
@@ -69,22 +69,22 @@ export function calculateMargeVente(
   cout_kg_complet: number
 ): MargeVente {
   const prix_vente = vente.montant;
-  
+
   // Coûts réels du porc
   const cout_reel_opex = poids_kg * cout_kg_opex;
   const cout_reel_complet = poids_kg * cout_kg_complet;
-  
+
   // Marges en valeur (FCFA)
   const marge_opex = prix_vente - cout_reel_opex;
   const marge_complete = prix_vente - cout_reel_complet;
-  
+
   // Marges en pourcentage
   const marge_opex_pourcent = prix_vente > 0 ? (marge_opex / prix_vente) * 100 : 0;
   const marge_complete_pourcent = prix_vente > 0 ? (marge_complete / prix_vente) * 100 : 0;
-  
+
   // Déterminer le statut de la marge (basé sur la marge OPEX)
   const statut_marge = getStatutMarge(marge_opex_pourcent);
-  
+
   return {
     poids_kg,
     prix_vente,
@@ -162,16 +162,13 @@ export function getMargeLabel(margePourcent: number): string {
  */
 export function calculateMargeMoyenne(ventes: Revenu[]): number {
   const ventesAvecMarge = ventes.filter((v) => v.marge_opex_pourcent !== undefined);
-  
+
   if (ventesAvecMarge.length === 0) {
     return 0;
   }
-  
-  const sommeMarges = ventesAvecMarge.reduce(
-    (sum, v) => sum + (v.marge_opex_pourcent || 0),
-    0
-  );
-  
+
+  const sommeMarges = ventesAvecMarge.reduce((sum, v) => sum + (v.marge_opex_pourcent || 0), 0);
+
   return sommeMarges / ventesAvecMarge.length;
 }
 
@@ -217,7 +214,7 @@ export function calculateStatistiquesFinancieres(ventes: Revenu[]): Statistiques
   const nombre_ventes = ventes.length;
   const kg_vendus_total = ventes.reduce((sum, v) => sum + (v.poids_kg || 0), 0);
   const prix_moyen_kg = kg_vendus_total > 0 ? chiffre_affaires / kg_vendus_total : 0;
-  
+
   return {
     chiffre_affaires,
     benefice_total,
@@ -227,4 +224,3 @@ export function calculateStatistiquesFinancieres(ventes: Revenu[]): Statistiques
     prix_moyen_kg,
   };
 }
-

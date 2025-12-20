@@ -28,7 +28,16 @@ import {
   useExpensesWidget,
 } from '../../hooks/widgets';
 
-type WidgetType = 'nutrition' | 'planning' | 'collaboration' | 'mortalites' | 'production' | 'sante' | 'marketplace' | 'purchases' | 'expenses';
+type WidgetType =
+  | 'nutrition'
+  | 'planning'
+  | 'collaboration'
+  | 'mortalites'
+  | 'production'
+  | 'sante'
+  | 'marketplace'
+  | 'purchases'
+  | 'expenses';
 
 export type WidgetData =
   | NutritionWidgetData
@@ -105,4 +114,3 @@ export function useWidgetData() {
 
   return getWidgetData;
 }
-

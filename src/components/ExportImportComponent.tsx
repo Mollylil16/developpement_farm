@@ -45,8 +45,9 @@ export default function ExportImportComponent() {
     try {
       await exportAndShareJSON(projetActif.id);
       Alert.alert('Succès', 'Données exportées avec succès !');
-    } catch (error: any) {
-      Alert.alert('Erreur', error.message || "Erreur lors de l'export");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Erreur lors de l'export";
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setExporting(false);
     }
@@ -62,8 +63,9 @@ export default function ExportImportComponent() {
     try {
       await exportAndShareCSV(projetActif.id, module);
       Alert.alert('Succès', 'Données exportées en CSV avec succès !');
-    } catch (error: any) {
-      Alert.alert('Erreur', error.message || "Erreur lors de l'export CSV");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Erreur lors de l'export CSV";
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setExporting(false);
     }

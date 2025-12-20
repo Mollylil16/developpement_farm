@@ -1,7 +1,7 @@
 /**
  * Migration 13 : Ajouter animal_code à la table mortalites
  * Permet d'identifier l'animal par son code
- * 
+ *
  * Version: 13
  */
 
@@ -27,4 +27,3 @@ export async function addAnimalCodeToMortalites(db: SQLiteDatabase): Promise<voi
     console.log('✅ Migration: Colonne animal_code ajoutée à mortalites');
   }
 }
-

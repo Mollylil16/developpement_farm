@@ -1,7 +1,7 @@
 /**
  * Sélecteurs améliorés pour le slice production
  * Ajoute des sélecteurs calculés optimisés avec createSelector
- * 
+ *
  * Ces sélecteurs sont memoized pour éviter les recalculs inutiles
  */
 
@@ -32,9 +32,7 @@ export const selectAnimauxReproducteursActifs = createSelector(
   (animaux): ProductionAnimal[] => {
     return animaux.filter(
       (animal) =>
-        animal.reproducteur === 1 &&
-        animal.actif === 1 &&
-        animal.statut?.toLowerCase() === 'actif'
+        animal.reproducteur === true && animal.actif === true && animal.statut?.toLowerCase() === 'actif'
     );
   }
 );
@@ -77,13 +75,13 @@ export const selectAnimauxStatistics = createSelector(
     };
 
     animaux.forEach((animal) => {
-      if (animal.actif === 1) {
+      if (animal.actif === true) {
         stats.actifs++;
       } else {
         stats.inactifs++;
       }
 
-      if (animal.reproducteur === 1) {
+      if (animal.reproducteur === true) {
         stats.reproducteurs++;
       }
 
@@ -162,13 +160,14 @@ export const selectAnimauxWithDernierePesee = createSelector(
   (animaux, peseesParAnimal) => {
     return animaux.map((animal) => {
       const pesees = peseesParAnimal[animal.id] || [];
-      const dernierePesee = pesees.length > 0
-        ? [...pesees].sort((a, b) => {
-            const dateA = new Date(a.date).getTime();
-            const dateB = new Date(b.date).getTime();
-            return dateB - dateA;
-          })[0]
-        : undefined;
+      const dernierePesee =
+        pesees.length > 0
+          ? [...pesees].sort((a, b) => {
+              const dateA = new Date(a.date).getTime();
+              const dateB = new Date(b.date).getTime();
+              return dateB - dateA;
+            })[0]
+          : undefined;
 
       return {
         animal,
@@ -177,4 +176,3 @@ export const selectAnimauxWithDernierePesee = createSelector(
     });
   }
 );
-

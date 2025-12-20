@@ -4,14 +4,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import {
-  View,
-  FlatList,
-  Text,
-  StyleSheet,
-  RefreshControl,
-  TouchableOpacity,
-} from 'react-native';
+import { View, FlatList, Text, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,17 +31,17 @@ const MyClientsScreen: React.FC = () => {
     setRefreshing(false);
   }, [refresh]);
 
-  const renderClient = ({ item }: { item: typeof clientFarms[0] }) => {
+  const renderClient = ({ item }: { item: (typeof clientFarms)[0] }) => {
     return (
-      <Card style={[styles.clientCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <Card
+        style={[styles.clientCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+      >
         <View style={styles.clientHeader}>
           <View style={[styles.clientIcon, { backgroundColor: colors.primary + '20' }]}>
             <Ionicons name="business" size={24} color={colors.primary} />
           </View>
           <View style={styles.clientInfo}>
-            <Text style={[styles.clientName, { color: colors.text }]}>
-              {item.farmName}
-            </Text>
+            <Text style={[styles.clientName, { color: colors.text }]}>{item.farmName}</Text>
             <Text style={[styles.clientSince, { color: colors.textSecondary }]}>
               Client depuis {format(new Date(item.since), 'MMMM yyyy', { locale: fr })}
             </Text>
@@ -111,10 +104,7 @@ const MyClientsScreen: React.FC = () => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.divider }]}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Mes clients</Text>
@@ -253,4 +243,3 @@ const styles = StyleSheet.create({
 });
 
 export default MyClientsScreen;
-

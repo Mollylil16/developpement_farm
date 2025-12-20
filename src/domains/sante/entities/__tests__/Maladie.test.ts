@@ -1,6 +1,6 @@
 /**
  * Tests pour MaladieEntity
- * 
+ *
  * Tests de la logique métier de l'entité Maladie
  */
 
@@ -72,7 +72,7 @@ describe('MaladieEntity', () => {
       expect(entity.isGuerie()).toBe(true);
     });
 
-    it('devrait retourner false si la maladie n\'est pas guérie', () => {
+    it("devrait retourner false si la maladie n'est pas guérie", () => {
       const maladie = createMockMaladie({
         gueri: false,
       });
@@ -92,7 +92,7 @@ describe('MaladieEntity', () => {
       expect(entity.isCritique()).toBe(true);
     });
 
-    it('devrait retourner false si la gravité n\'est pas critique', () => {
+    it("devrait retourner false si la gravité n'est pas critique", () => {
       const maladie = createMockMaladie({
         gravite: 'moderee',
       });
@@ -114,7 +114,7 @@ describe('MaladieEntity', () => {
       expect(duree).toBe(14);
     });
 
-    it('devrait calculer la durée depuis dateDebut jusqu\'à maintenant si dateFin n\'est pas définie', () => {
+    it("devrait calculer la durée depuis dateDebut jusqu'à maintenant si dateFin n'est pas définie", () => {
       const dateDebut = new Date();
       dateDebut.setDate(dateDebut.getDate() - 10);
 
@@ -129,7 +129,7 @@ describe('MaladieEntity', () => {
       expect(duree).toBeLessThanOrEqual(11);
     });
 
-    it('devrait retourner null si dateDebut n\'est pas définie', () => {
+    it("devrait retourner null si dateDebut n'est pas définie", () => {
       const maladie = createMockMaladie({
         dateDebut: '',
       });
@@ -161,7 +161,7 @@ describe('MaladieEntity', () => {
       expect(entity.necessiteInterventionUrgente()).toBe(true);
     });
 
-    it('devrait retourner false si la maladie n\'est ni critique ni contagieuse en cours', () => {
+    it("devrait retourner false si la maladie n'est ni critique ni contagieuse en cours", () => {
       const maladie = createMockMaladie({
         gravite: 'moderee',
         dateFin: undefined,
@@ -174,4 +174,3 @@ describe('MaladieEntity', () => {
     });
   });
 });
-

@@ -12,8 +12,7 @@ import {
   UpdateMortaliteInput,
   StatistiquesMortalite,
 } from '../../types';
-import { getDatabase } from '../../services/database';
-import { MortaliteRepository } from '../../database/repositories';
+import apiClient from '../../services/api/apiClient';
 import { mortalitesSchema, mortaliteSchema } from '../normalization/schemas';
 
 // Structure normalisée de l'état
@@ -52,13 +51,13 @@ export const createMortalite = createAsyncThunk(
   'mortalites/createMortalite',
   async (input: CreateMortaliteInput, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const mortaliteRepo = new MortaliteRepository(db);
-      // Utiliser createWithAnimalUpdate pour inclure la logique de mise à jour des animaux
-      const mortalite = await mortaliteRepo.createWithAnimalUpdate(input);
+      // Le backend gère automatiquement la mise à jour du statut de l'animal si animal_code est fourni
+      const mortalite = await apiClient.post<Mortalite>('/mortalites', input);
       return mortalite;
     } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création de la mortalité');
+      return rejectWithValue(
+        getErrorMessage(error) || 'Erreur lors de la création de la mortalité'
+      );
     }
   }
 );
@@ -67,9 +66,9 @@ export const loadMortalites = createAsyncThunk(
   'mortalites/loadMortalites',
   async (projetId: string, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const mortaliteRepo = new MortaliteRepository(db);
-      const mortalites = await mortaliteRepo.findByProjet(projetId);
+      const mortalites = await apiClient.get<Mortalite[]>('/mortalites', {
+        params: { projet_id: projetId },
+      });
       return mortalites;
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des mortalités');
@@ -81,9 +80,9 @@ export const loadMortalitesParProjet = createAsyncThunk(
   'mortalites/loadMortalitesParProjet',
   async (projetId: string, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const mortaliteRepo = new MortaliteRepository(db);
-      const mortalites = await mortaliteRepo.findByProjet(projetId);
+      const mortalites = await apiClient.get<Mortalite[]>('/mortalites', {
+        params: { projet_id: projetId },
+      });
       return mortalites;
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des mortalités');
@@ -96,14 +95,16 @@ export const loadStatistiquesMortalite = createAsyncThunk(
   async (projetId: string, { rejectWithValue }) => {
     try {
       console.log('🔄 [loadStatistiquesMortalite] Début du chargement pour projet:', projetId);
-      const db = await getDatabase();
-      const mortaliteRepo = new MortaliteRepository(db);
-      const stats = await mortaliteRepo.getStatistiquesMortalite(projetId);
+      const stats = await apiClient.get<StatistiquesMortalite>('/mortalites/statistiques', {
+        params: { projet_id: projetId },
+      });
       console.log('✅ [loadStatistiquesMortalite] Stats retournées:', stats);
       return stats;
     } catch (error: unknown) {
       console.error('❌ Erreur chargement statistiques mortalité:', error);
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des statistiques');
+      return rejectWithValue(
+        getErrorMessage(error) || 'Erreur lors du chargement des statistiques'
+      );
     }
   }
 );
@@ -112,12 +113,12 @@ export const updateMortalite = createAsyncThunk(
   'mortalites/updateMortalite',
   async ({ id, updates }: { id: string; updates: UpdateMortaliteInput }, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const mortaliteRepo = new MortaliteRepository(db);
-      const mortalite = await mortaliteRepo.update(id, updates);
+      const mortalite = await apiClient.patch<Mortalite>(`/mortalites/${id}`, updates);
       return mortalite;
     } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la mise à jour de la mortalité');
+      return rejectWithValue(
+        getErrorMessage(error) || 'Erreur lors de la mise à jour de la mortalité'
+      );
     }
   }
 );
@@ -126,12 +127,12 @@ export const deleteMortalite = createAsyncThunk(
   'mortalites/deleteMortalite',
   async (id: string, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const mortaliteRepo = new MortaliteRepository(db);
-      await mortaliteRepo.delete(id);
+      await apiClient.delete(`/mortalites/${id}`);
       return id;
     } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la suppression de la mortalité');
+      return rejectWithValue(
+        getErrorMessage(error) || 'Erreur lors de la suppression de la mortalité'
+      );
     }
   }
 );

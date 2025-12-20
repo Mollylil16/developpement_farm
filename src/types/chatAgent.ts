@@ -11,9 +11,15 @@ export interface ChatMessage {
   timestamp: string;
   metadata?: {
     actionExecuted?: string;
-    actionResult?: any;
+    actionResult?: unknown;
     requiresConfirmation?: boolean;
     voiceTranscription?: string;
+    validationErrors?: string[];
+    suggestions?: string[];
+    pendingAction?: {
+      action: string;
+      params: Record<string, unknown>;
+    };
   };
 }
 
@@ -48,14 +54,14 @@ export type AgentActionType =
 
 export interface AgentAction {
   type: AgentActionType;
-  params: Record<string, any>;
+  params: Record<string, unknown>;
   requiresConfirmation?: boolean;
   confirmationMessage?: string;
 }
 
 export interface AgentActionResult {
   success: boolean;
-  data?: any;
+  data?: unknown;
   message: string;
   error?: string;
 }
@@ -65,9 +71,9 @@ export interface AgentContext {
   userId: string;
   userName?: string;
   currentDate: string;
-  availableAnimals?: any[];
-  availableLots?: any[];
-  recentTransactions?: any[];
+  availableAnimals?: unknown[];
+  availableLots?: unknown[];
+  recentTransactions?: unknown[];
 }
 
 export interface AgentConfig {
@@ -106,4 +112,3 @@ export interface Reminder {
   isCompleted: boolean;
   createdAt: string;
 }
-

@@ -3,12 +3,23 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, Animated, Alert, ScrollView, Keyboard, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Modal,
+  Animated,
+  Alert,
+  ScrollView,
+  Keyboard,
+  Platform,
+} from 'react-native';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useShakeToCancel } from '../hooks/useShakeToCancel';
 
-interface CustomModalProps {
+export interface CustomModalProps {
   visible: boolean;
   onClose: () => void;
   title: string;
@@ -67,8 +78,8 @@ export default function CustomModal({
       return;
     }
 
-    let keyboardShowListener: any = null;
-    let keyboardHideListener: any = null;
+    let keyboardShowListener: { remove: () => void } | null = null;
+    let keyboardHideListener: { remove: () => void } | null = null;
 
     try {
       keyboardShowListener = Keyboard.addListener(
@@ -157,11 +168,7 @@ export default function CustomModal({
         ]}
         pointerEvents="box-none"
       >
-        <TouchableOpacity 
-          style={StyleSheet.absoluteFill} 
-          activeOpacity={1} 
-          onPress={onClose}
-        />
+        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
         <Animated.View
           style={[
             styles.modal,
@@ -175,74 +182,72 @@ export default function CustomModal({
             },
           ]}
         >
-            <View style={[styles.header, { borderBottomColor: colors.divider }]}>
-              <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+          <View style={[styles.header, { borderBottomColor: colors.divider }]}>
+            <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.closeButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={[styles.closeButtonText, { color: colors.textSecondary }]}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          {scrollEnabled ? (
+            <ScrollView
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={true}
+              persistentScrollbar={true}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="none"
+              nestedScrollEnabled={true}
+              bounces={true}
+              scrollEventThrottle={16}
+            >
+              {children}
+            </ScrollView>
+          ) : (
+            <View style={styles.content}>{children}</View>
+          )}
+
+          {showButtons && (
+            <View style={[styles.footer, { borderTopColor: colors.divider }]}>
               <TouchableOpacity
+                style={[
+                  styles.button,
+                  {
+                    backgroundColor: colors.surfaceVariant,
+                    ...colors.shadow.small,
+                  },
+                ]}
                 onPress={onClose}
-                style={styles.closeButton}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                disabled={loading}
               >
-                <Text style={[styles.closeButtonText, { color: colors.textSecondary }]}>✕</Text>
+                <Text style={[styles.buttonCancelText, { color: colors.text }]}>{cancelText}</Text>
               </TouchableOpacity>
-            </View>
-
-            {scrollEnabled ? (
-              <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={true}
-                persistentScrollbar={true}
-                keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="none"
-                nestedScrollEnabled={true}
-                bounces={true}
-                scrollEventThrottle={16}
-              >
-                {children}
-              </ScrollView>
-            ) : (
-              <View style={styles.content}>
-                {children}
-              </View>
-            )}
-
-            {showButtons && (
-              <View style={[styles.footer, { borderTopColor: colors.divider }]}>
+              {onConfirm && (
                 <TouchableOpacity
                   style={[
                     styles.button,
                     {
-                      backgroundColor: colors.surfaceVariant,
+                      backgroundColor: colors.primary,
                       ...colors.shadow.small,
                     },
+                    loading && styles.buttonDisabled,
                   ]}
-                  onPress={onClose}
+                  onPress={onConfirm}
                   disabled={loading}
                 >
-                  <Text style={[styles.buttonCancelText, { color: colors.text }]}>{cancelText}</Text>
+                  <Text style={[styles.buttonConfirmText, { color: colors.textOnPrimary }]}>
+                    {loading ? 'Chargement...' : confirmText}
+                  </Text>
                 </TouchableOpacity>
-                {onConfirm && (
-                  <TouchableOpacity
-                    style={[
-                      styles.button,
-                      {
-                        backgroundColor: colors.primary,
-                        ...colors.shadow.small,
-                      },
-                      loading && styles.buttonDisabled,
-                    ]}
-                    onPress={onConfirm}
-                    disabled={loading}
-                  >
-                    <Text style={[styles.buttonConfirmText, { color: colors.textOnPrimary }]}>
-                      {loading ? 'Chargement...' : confirmText}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
-          </Animated.View>
+              )}
+            </View>
+          )}
         </Animated.View>
+      </Animated.View>
     </Modal>
   );
 }

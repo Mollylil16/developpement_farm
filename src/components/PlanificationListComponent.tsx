@@ -59,7 +59,7 @@ export default function PlanificationListComponent() {
   // Fonction pour charger les planifications
   const loadPlanifications = useCallback(async () => {
     if (!projetActif?.id) return;
-    
+
     try {
       await Promise.all([
         dispatch(loadPlanificationsParProjet(projetActif.id)).unwrap(),
@@ -80,10 +80,7 @@ export default function PlanificationListComponent() {
   // Synchronisation automatique toutes les 30 secondes quand l'app est active
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
-      if (
-        appStateRef.current.match(/inactive|background/) &&
-        nextAppState === 'active'
-      ) {
+      if (appStateRef.current.match(/inactive|background/) && nextAppState === 'active') {
         // L'app revient au premier plan, recharger immédiatement
         if (projetActif?.id) {
           loadPlanifications();
@@ -112,7 +109,7 @@ export default function PlanificationListComponent() {
   // Fonction de refresh manuel
   const onRefresh = useCallback(async () => {
     if (!projetActif?.id) return;
-    
+
     setRefreshing(true);
     try {
       await loadPlanifications();
@@ -440,7 +437,7 @@ export default function PlanificationListComponent() {
                     ]}
                   >
                     <Text style={[styles.typeBadgeText, { color: colors.textOnPrimary }]}>
-                      {TYPE_TACHE_LABELS[planification.type as TypeTache]}
+                      {TYPE_TACHE_LABELS[planification.type]}
                     </Text>
                   </View>
                   <View
@@ -450,7 +447,7 @@ export default function PlanificationListComponent() {
                     ]}
                   >
                     <Text style={[styles.statutBadgeText, { color: colors.textOnPrimary }]}>
-                      {STATUT_TACHE_LABELS[planification.statut as StatutTache]}
+                      {STATUT_TACHE_LABELS[planification.statut]}
                     </Text>
                   </View>
                 </View>

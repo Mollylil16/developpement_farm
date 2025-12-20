@@ -60,8 +60,8 @@ export default function SettingsMarketplaceView({ onBack }: SettingsMarketplaceV
           style={styles.item}
           onPress={() => {
             Alert.alert(
-              'Préférences d\'affichage',
-              'Personnalisez l\'affichage du marketplace (tri par défaut, nombre d\'éléments par page, etc.). Cette fonctionnalité sera disponible prochainement.',
+              "Préférences d'affichage",
+              "Personnalisez l'affichage du marketplace (tri par défaut, nombre d'éléments par page, etc.). Cette fonctionnalité sera disponible prochainement.",
               [{ text: 'OK' }]
             );
           }}
@@ -110,4 +110,3 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
-

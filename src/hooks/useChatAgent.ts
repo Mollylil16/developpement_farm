@@ -7,13 +7,13 @@ import { useAppSelector } from '../store/hooks';
 import { ChatAgentService, ProactiveRemindersService, VoiceService } from '../services/chatAgent';
 import { ChatMessage, AgentConfig, VoiceConfig, Reminder } from '../types/chatAgent';
 import { format } from 'date-fns';
-import { getDatabase } from '../services/database';
-import { ChatAgentRepository } from '../database/repositories';
+import apiClient from '../services/api/apiClient';
+import { OPENAI_CONFIG } from '../config/openaiConfig';
 
 export function useChatAgent() {
   const { projetActif } = useAppSelector((state) => state.projet);
   const { user } = useAppSelector((state) => state.auth);
-  
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -24,7 +24,7 @@ export function useChatAgent() {
   const remindersServiceRef = useRef<ProactiveRemindersService | null>(null);
   const voiceServiceRef = useRef<VoiceService | null>(null);
   const conversationIdRef = useRef<string | null>(null);
-  const chatAgentRepoRef = useRef<ChatAgentRepository | null>(null);
+  // Plus besoin de repository, on utilise directement l'API
 
   /**
    * Initialise l'agent
@@ -36,23 +36,44 @@ export function useChatAgent() {
 
     const initializeAgent = async () => {
       try {
-        // Initialiser le repository
-        const db = await getDatabase();
-        const chatAgentRepo = new ChatAgentRepository(db);
-        chatAgentRepoRef.current = chatAgentRepo;
+        // Trouver ou créer une conversation via l'API
+        let conversationId: string | null = null;
+        try {
+          const conversationResponse = await apiClient.get(`/chat-agent/conversations`, {
+            params: { projet_id: projetActif.id, user_id: user.id },
+          });
+          if (conversationResponse.data && conversationResponse.data.length > 0) {
+            conversationId = conversationResponse.data[0].id;
+          } else {
+            // Créer une nouvelle conversation
+            const newConversationResponse = await apiClient.post(`/chat-agent/conversations`, {
+              projet_id: projetActif.id,
+              user_id: user.id,
+            });
+            conversationId = newConversationResponse.data.id;
+          }
+        } catch (error) {
+          console.error('Erreur lors de la récupération/création de la conversation:', error);
+          // Continuer sans conversation ID si l'API n'est pas disponible
+        }
+        conversationIdRef.current = conversationId;
 
-        // Trouver ou créer une conversation
-        const conversation = await chatAgentRepo.findOrCreateConversation(
-          projetActif.id,
-          user.id
-        );
-        conversationIdRef.current = conversation.id;
+        // Charger l'historique existant via l'API
+        let savedMessages: ChatMessage[] = [];
+        if (conversationId) {
+          try {
+            const messagesResponse = await apiClient.get(`/chat-agent/conversations/${conversationId}/messages`);
+            savedMessages = messagesResponse.data || [];
+          } catch (error) {
+            console.error('Erreur lors du chargement des messages:', error);
+            // Continuer sans historique si l'API n'est pas disponible
+          }
+        }
 
-        // Charger l'historique existant
-        const savedMessages = await chatAgentRepo.loadMessages(conversation.id);
-        
         // Configuration de l'agent
         const config: AgentConfig = {
+          apiKey: OPENAI_CONFIG.apiKey,
+          model: OPENAI_CONFIG.model,
           language: 'fr-CI',
           enableVoice: voiceEnabled,
           enableProactiveAlerts: true,
@@ -67,8 +88,9 @@ export function useChatAgent() {
         // import { getVoiceConfig } from '../config/voiceConfig';
         // const voiceConfig = await getVoiceConfig();
         const transcriptionApiKey = undefined; // Récupérer depuis AsyncStorage via getVoiceConfig()
-        const transcriptionProvider: 'assemblyai' | 'google' | 'openai' | 'none' = transcriptionApiKey ? 'assemblyai' : 'none';
-        
+        const transcriptionProvider: 'assemblyai' | 'google' | 'openai' | 'none' =
+          transcriptionApiKey ? 'assemblyai' : 'none';
+
         const voiceService = new VoiceService({
           language: 'fr-CI',
           enableSpeechToText: voiceEnabled,
@@ -99,7 +121,7 @@ export function useChatAgent() {
         // Restaurer l'historique dans le service
         if (savedMessages.length > 0) {
           // Exclure le message de bienvenue s'il existe
-          const messagesWithoutWelcome = savedMessages.filter(msg => msg.id !== 'welcome');
+          const messagesWithoutWelcome = savedMessages.filter((msg: ChatMessage) => msg.id !== 'welcome');
           agentService.restoreHistory(messagesWithoutWelcome);
           setMessages(savedMessages);
         } else {
@@ -110,7 +132,7 @@ export function useChatAgent() {
           // Message de bienvenue avec rappels
           const userPrenom = user.prenom || user.nom || 'éleveur';
           let welcomeMessage: ChatMessage;
-          
+
           if (proactiveReminders.length > 0) {
             // Récupérer le message proactif et remplacer "Bonjour !" par le message personnalisé
             const proactiveMsg = remindersService.generateProactiveMessage(proactiveReminders);
@@ -128,17 +150,17 @@ export function useChatAgent() {
               timestamp: new Date().toISOString(),
             };
           }
-          
+
           setMessages([welcomeMessage]);
-          // Sauvegarder le message de bienvenue
+          // Sauvegarder le message de bienvenue via l'API backend
           if (conversationIdRef.current) {
-            await chatAgentRepo.saveMessage(conversationIdRef.current, welcomeMessage);
+            await apiClient.post(`/chat-agent/conversations/${conversationIdRef.current}/messages`, welcomeMessage);
           }
         }
 
         setIsInitialized(true);
       } catch (error) {
-        console.error('Erreur lors de l\'initialisation de l\'agent:', error);
+        console.error("Erreur lors de l'initialisation de l'agent:", error);
       }
     };
 
@@ -148,63 +170,66 @@ export function useChatAgent() {
   /**
    * Envoie un message à l'agent
    */
-  const sendMessage = useCallback(async (content: string) => {
-    if (!agentServiceRef.current || isLoading) {
-      return;
-    }
-
-    setIsLoading(true);
-
-    // Créer et ajouter le message de l'utilisateur immédiatement
-    const userMessage: ChatMessage = {
-      id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      role: 'user',
-      content: content,
-      timestamp: new Date().toISOString(),
-    };
-    
-    // Ajouter le message utilisateur à l'état immédiatement
-    setMessages((prev) => [...prev, userMessage]);
-
-    // Sauvegarder le message utilisateur
-    if (conversationIdRef.current && chatAgentRepoRef.current) {
-      try {
-        await chatAgentRepoRef.current.saveMessage(conversationIdRef.current, userMessage);
-      } catch (error) {
-        console.error('Erreur lors de la sauvegarde du message utilisateur:', error);
+  const sendMessage = useCallback(
+    async (content: string) => {
+      if (!agentServiceRef.current || isLoading) {
+        return;
       }
-    }
 
-    try {
-      const response = await agentServiceRef.current.sendMessage(content);
-      setMessages((prev) => [...prev, response]);
+      setIsLoading(true);
 
-      // Sauvegarder la réponse de l'assistant
-      if (conversationIdRef.current && chatAgentRepoRef.current) {
+      // Créer et ajouter le message de l'utilisateur immédiatement
+      const userMessage: ChatMessage = {
+        id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        role: 'user',
+        content: content,
+        timestamp: new Date().toISOString(),
+      };
+
+      // Ajouter le message utilisateur à l'état immédiatement
+      setMessages((prev) => [...prev, userMessage]);
+
+      // Sauvegarder le message utilisateur
+      if (conversationIdRef.current) {
         try {
-          await chatAgentRepoRef.current.saveMessage(conversationIdRef.current, response);
+          await apiClient.post(`/chat-agent/conversations/${conversationIdRef.current}/messages`, userMessage);
         } catch (error) {
-          console.error('Erreur lors de la sauvegarde de la réponse:', error);
+          console.error('Erreur lors de la sauvegarde du message utilisateur:', error);
         }
       }
 
-      // Si la voix est activée, lire la réponse
-      if (voiceServiceRef.current && voiceEnabled) {
-        await voiceServiceRef.current.speak(response.content);
+      try {
+        const response = await agentServiceRef.current.sendMessage(content);
+        setMessages((prev) => [...prev, response]);
+
+        // Sauvegarder la réponse de l'assistant
+        if (conversationIdRef.current) {
+          try {
+            await apiClient.post(`/chat-agent/conversations/${conversationIdRef.current}/messages`, response);
+          } catch (error) {
+            console.error('Erreur lors de la sauvegarde de la réponse:', error);
+          }
+        }
+
+        // Si la voix est activée, lire la réponse
+        if (voiceServiceRef.current && voiceEnabled) {
+          await voiceServiceRef.current.speak(response.content);
+        }
+      } catch (error) {
+        console.error("Erreur lors de l'envoi du message:", error);
+        const errorMessage: ChatMessage = {
+          id: `error_${Date.now()}`,
+          role: 'assistant',
+          content: "Désolé, j'ai rencontré une erreur. Peux-tu réessayer ?",
+          timestamp: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, errorMessage]);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      console.error('Erreur lors de l\'envoi du message:', error);
-      const errorMessage: ChatMessage = {
-        id: `error_${Date.now()}`,
-        role: 'assistant',
-        content: 'Désolé, j\'ai rencontré une erreur. Peux-tu réessayer ?',
-        timestamp: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isLoading, voiceEnabled]);
+    },
+    [isLoading, voiceEnabled]
+  );
 
   /**
    * Confirme une action
@@ -243,11 +268,11 @@ export function useChatAgent() {
       agentServiceRef.current.clearHistory();
       setMessages([]);
     }
-    
+
     // Supprimer tous les messages de la base de données
-    if (conversationIdRef.current && chatAgentRepoRef.current) {
+    if (conversationIdRef.current) {
       try {
-        await chatAgentRepoRef.current.clearConversation(conversationIdRef.current);
+        await apiClient.delete(`/chat-agent/conversations/${conversationIdRef.current}/messages`);
       } catch (error) {
         console.error('Erreur lors de la suppression de la conversation:', error);
       }
@@ -280,4 +305,3 @@ export function useChatAgent() {
     voiceService: voiceServiceRef.current,
   };
 }
-

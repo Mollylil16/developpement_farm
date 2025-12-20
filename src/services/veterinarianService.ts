@@ -2,8 +2,7 @@
  * Service pour la recherche de vétérinaires
  */
 
-import { getDatabase } from './database';
-import { VeterinarianRepository } from '../database/repositories';
+import apiClient from './api/apiClient';
 import { Veterinarian } from '../types/veterinarian';
 import { getUserLocation, calculateDistance } from '../utils/locationUtils';
 
@@ -16,11 +15,33 @@ export async function searchVeterinariansNearby(
   radiusKm: number = 50
 ): Promise<Veterinarian[]> {
   try {
-    const db = await getDatabase();
-    const vetRepo = new VeterinarianRepository(db);
-
-    // Récupérer tous les vétérinaires vérifiés
-    const allVets = await vetRepo.findVerified();
+    // Récupérer tous les utilisateurs avec rôle vétérinaire depuis l'API backend
+    const allUsers = await apiClient.get<any[]>('/users');
+    const allVets: Veterinarian[] = allUsers
+      .filter((user) => {
+        const vetRole = user.roles?.veterinarian;
+        return vetRole && vetRole.isActive && vetRole.verified;
+      })
+      .map((user) => {
+        const vetRole = user.roles?.veterinarian;
+        return {
+          id: user.id,
+          userId: user.id,
+          firstName: user.prenom || '',
+          lastName: user.nom || '',
+          email: user.email || '',
+          phone: user.telephone || '',
+          address: vetRole?.workLocation?.address || '',
+          city: vetRole?.workLocation?.city || '',
+          latitude: vetRole?.workLocation?.latitude || 0,
+          longitude: vetRole?.workLocation?.longitude || 0,
+          specialties: vetRole?.specializations || [],
+          rating: 0, // Par défaut, à mettre à jour si disponible
+          reviewsCount: 0, // Par défaut, à mettre à jour si disponible
+          verified: vetRole?.verified || false,
+          createdAt: Date.now(), // Timestamp actuel par défaut
+        };
+      });
 
     // Filtrer par distance et ajouter la distance
     const nearbyVets = allVets
@@ -41,11 +62,12 @@ export async function searchVeterinariansNearby(
 /**
  * Rechercher des vétérinaires avec géolocalisation automatique
  */
-export async function searchVeterinariansWithLocation(
-  radiusKm: number = 50
-): Promise<{ veterinarians: Veterinarian[]; userLocation: { latitude: number; longitude: number } | null }> {
+export async function searchVeterinariansWithLocation(radiusKm: number = 50): Promise<{
+  veterinarians: Veterinarian[];
+  userLocation: { latitude: number; longitude: number } | null;
+}> {
   const userLocation = await getUserLocation();
-  
+
   if (!userLocation) {
     return { veterinarians: [], userLocation: null };
   }
@@ -58,4 +80,3 @@ export async function searchVeterinariansWithLocation(
 
   return { veterinarians, userLocation };
 }
-

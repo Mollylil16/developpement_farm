@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?>
+<annotations>
+  <version>1.1</version>
+  <meta>
+    <task>
+      <segments>
+        <segment>
+          <id>33549</id>
+          <start>0</start>
+          <stop>27</stop>
+          <url>https://cvat2.trainingdata.solutions/api/jobs/33549</url>
+        </segment>
+      </segments>
+      <owner>
+        <username>TrainingData</username>
+        <email/>
+      </owner>
+      
+      <labels>
+        <label>
+          <name>pig_face</name>
+          <color>#2e8fe9</color>
+          <type>rectangle</type>
+          <attributes>
+          </attributes>
+        </label>
+      </labels>
+    </task>
+    <dumped>2023-08-11 03:45:01.045896+00:00</dumped>
+  </meta>
+  <image id="1" name="images/01.png" width="199" height="174">
+    <box label="pig_face" occluded="0" source="manual" xtl="59.50" ytl="18.27" xbr="142.30" ybr="109.00" z_order="0">
+    </box>
+  </image>
+  <image id="2" name="images/02.png" width="445" height="447">
+    <box label="pig_face" occluded="0" source="manual" xtl="77.27" ytl="-8.82" xbr="260.37" ybr="228.82" rotation="25.30" z_order="0">
+    </box>
+  </image>
+  <image id="3" name="images/03.png" width="604" height="410">
+    <box label="pig_face" occluded="0" source="manual" xtl="348.80" ytl="98.03" xbr="580.00" ybr="342.41" z_order="0">
+    </box>
+  </image>
+  <image id="4" name="images/04.png" width="215" height="252">
+    <box label="pig_face" occluded="0" source="manual" xtl="44.00" ytl="114.10" xbr="141.40" ybr="185.00" z_order="0">
+    </box>
+  </image>
+  <image id="5" name="images/05.png" width="107" height="219">
+    <box label="pig_face" occluded="0" source="manual" xtl="22.00" ytl="112.60" xbr="92.30" ybr="183.10" z_order="0">
+    </box>
+  </image>
+  <image id="6" name="images/06.png" width="563" height="713">
+    <box label="pig_face" occluded="0" source="manual" xtl="31.79" ytl="386.30" xbr="438.60" ybr="699.23" z_order="0">
+    </box>
+  </image>
+  <image id="7" name="images/07.png" width="113" height="85">
+    <box label="pig_face" occluded="0" source="manual" xtl="74.54" ytl="31.62" xbr="114.23" ybr="68.22" rotation="26.50" z_order="0">
+    </box>
+  </image>
+  <image id="8" name="images/08.png" width="136" height="131">
+    <box label="pig_face" occluded="0" source="manual" xtl="39.20" ytl="51.20" xbr="103.65" ybr="121.70" z_order="0">
+    </box>
+    <box label="pig_face" occluded="1" source="manual" xtl="72.06" ytl="35.30" xbr="131.50" ybr="99.80" z_order="0">
+    </box>
+  </image>
+  <image id="9" name="images/09.png" width="154" height="183">
+    <box label="pig_face" occluded="0" source="manual" xtl="4.92" ytl="79.10" xbr="88.60" ybr="148.00" z_order="0">
+    </box>
+  </image>
+  <image id="10" name="images/10.png" width="170" height="205">
+    <box label="pig_face" occluded="0" source="manual" xtl="31.30" ytl="111.50" xbr="127.20" ybr="182.00" z_order="0">
+    </box>
+  </image>
+  <image id="11" name="images/11.png" width="112" height="72">
+    <box label="pig_face" occluded="0" source="manual" xtl="11.90" ytl="5.50" xbr="54.60" ybr="49.90" z_order="0">
+    </box>
+  </image>
+  <image id="12" name="images/12.png" width="100" height="120">
+    <box label="pig_face" occluded="0" source="manual" xtl="33.10" ytl="47.10" xbr="76.70" ybr="79.80" z_order="0">
+    </box>
+  </image>
+  <image id="13" name="images/13.png" width="495" height="220">
+    <box label="pig_face" occluded="0" source="manual" xtl="340.90" ytl="3.40" xbr="457.60" ybr="148.50" z_order="0">
+    </box>
+  </image>
+  <image id="14" name="images/14.png" width="189" height="151">
+    <box label="pig_face" occluded="0" source="manual" xtl="2.52" ytl="59.68" xbr="75.89" ybr="129.04" rotation="348.50" z_order="0">
+    </box>
+  </image>
+  <image id="15" name="images/15.png" width="158" height="110">
+    <box label="pig_face" occluded="0" source="manual" xtl="77.71" ytl="45.30" xbr="152.29" ybr="104.70" rotation="357.40" z_order="0">
+    </box>
+  </image>
+  <image id="16" name="images/16.png" width="257" height="219">
+    <box label="pig_face" occluded="0" source="manual" xtl="24.05" ytl="112.80" xbr="135.96" ybr="210.42" rotation="344.00" z_order="0">
+    </box>
+  </image>
+  <image id="17" name="images/17.png" width="226" height="122">
+    <box label="pig_face" occluded="0" source="manual" xtl="39.04" ytl="3.90" xbr="108.50" ybr="56.10" rotation="354.80" z_order="0">
+    </box>
+  </image>
+  <image id="18" name="images/18.png" width="621" height="388">
+    <box label="pig_face" occluded="0" source="manual" xtl="308.64" ytl="12.58" xbr="541.95" ybr="281.96" rotation="29.70" z_order="0">
+    </box>
+  </image>
+  <image id="19" name="images/19.png" width="304" height="184">
+    <box label="pig_face" occluded="0" source="manual" xtl="158.50" ytl="20.70" xbr="241.10" ybr="98.60" z_order="0">
+    </box>
+  </image>
+  <image id="20" name="images/20.png" width="268" height="200">
+    <box label="pig_face" occluded="0" source="manual" xtl="41.70" ytl="57.61" xbr="119.71" ybr="125.90" rotation="5.40" z_order="0">
+    </box>
+  </image>
+  <image id="21" name="images/21.png" width="260" height="174">
+    <box label="pig_face" occluded="0" source="manual" xtl="8.44" ytl="68.37" xbr="55.20" ybr="121.44" rotation="312.40" z_order="0">
+    </box>
+    <box label="pig_face" occluded="0" source="manual" xtl="202.08" ytl="96.40" xbr="256.89" ybr="146.26" rotation="28.50" z_order="0">
+    </box>
+  </image>
+  <image id="22" name="images/22.png" width="688" height="546">
+    <box label="pig_face" occluded="0" source="manual" xtl="428.90" ytl="198.30" xbr="606.90" ybr="466.80" z_order="0">
+    </box>
+    <box label="pig_face" occluded="0" source="manual" xtl="9.50" ytl="43.30" xbr="198.20" ybr="241.20" z_order="0">
+    </box>
+    <box label="pig_face" occluded="0" source="manual" xtl="149.31" ytl="242.20" xbr="343.40" ybr="503.30" z_order="0">
+    </box>
+  </image>
+  <image id="24" name="images/24.png" width="442" height="247">
+    <box label="pig_face" occluded="0" source="manual" xtl="17.97" ytl="115.29" xbr="101.75" ybr="174.11" rotation="18.40" z_order="0">
+    </box>
+    <box label="pig_face" occluded="0" source="manual" xtl="151.13" ytl="78.35" xbr="216.07" ybr="126.15" rotation="11.40" z_order="0">
+    </box>
+  </image>
+  <image id="25" name="images/25.png" width="668" height="423">
+    <box label="pig_face" occluded="0" source="manual" xtl="0.60" ytl="56.90" xbr="352.10" ybr="395.40" z_order="0">
+    </box>
+  </image>
+  <image id="26" name="images/26.png" width="412" height="286">
+    <box label="pig_face" occluded="0" source="manual" xtl="31.50" ytl="131.60" xbr="273.80" ybr="280.00" z_order="0">
+    </box>
+  </image>
+  <image id="27" name="images/27.png" width="248" height="167">
+    <box label="pig_face" occluded="0" source="manual" xtl="129.20" ytl="1.80" xbr="235.00" ybr="87.26" z_order="0">
+    </box>
+  </image>
+  <image id="28" name="images/28.png" width="259" height="469">
+    <box label="pig_face" occluded="0" source="manual" xtl="19.34" ytl="80.31" xbr="266.85" ybr="313.91" rotation="348.60" z_order="0">
+    </box>
+  </image>
+</annotations>
+

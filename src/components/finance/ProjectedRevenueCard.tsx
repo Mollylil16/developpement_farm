@@ -64,14 +64,14 @@ export default function ProjectedRevenueCard({ type }: ProjectedRevenueCardProps
       revenuRestant,
     };
   }, [
-    animauxActifs, 
-    peseesParAnimal, 
-    projetActif?.id, 
-    projetActif?.prix_kg_vif, 
-    projetActif?.prix_kg_carcasse, 
+    animauxActifs,
+    peseesParAnimal,
+    projetActif?.id,
+    projetActif?.prix_kg_vif,
+    projetActif?.prix_kg_carcasse,
     projetActif?.poids_moyen_actuel,
-    revenus, 
-    type
+    revenus,
+    type,
   ]);
 
   const formatAmount = (amount: number) => {

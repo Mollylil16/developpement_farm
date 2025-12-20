@@ -1,7 +1,7 @@
 /**
  * Service de gestion des Feature Flags et A/B Testing
  * Supporte les flags locaux et distants (préparé pour LaunchDarkly)
- * 
+ *
  * @example
  * ```typescript
  * const featureFlags = getFeatureFlagsService();
@@ -23,7 +23,7 @@ export interface FeatureFlagConfig {
   targetUsers?: string[]; // IDs d'utilisateurs ciblés
   targetRoles?: string[]; // Rôles ciblés (producer, buyer, veterinarian, etc.)
   environment?: 'development' | 'staging' | 'production';
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ABTestVariant {
@@ -45,7 +45,7 @@ export interface UserContext {
   userId?: string | null;
   role?: string;
   email?: string;
-  customAttributes?: Record<string, any>;
+  customAttributes?: Record<string, unknown>;
 }
 
 class FeatureFlagsService {
@@ -95,10 +95,7 @@ class FeatureFlagsService {
   /**
    * Vérifie si un flag est activé pour un utilisateur
    */
-  async isEnabled(
-    flagKey: FeatureFlagKey,
-    context?: UserContext
-  ): Promise<boolean> {
+  async isEnabled(flagKey: FeatureFlagKey, context?: UserContext): Promise<boolean> {
     const value = await this.getFlagValue(flagKey, context);
     return Boolean(value);
   }
@@ -106,10 +103,7 @@ class FeatureFlagsService {
   /**
    * Récupère la valeur d'un flag
    */
-  async getFlagValue(
-    flagKey: FeatureFlagKey,
-    context?: UserContext
-  ): Promise<FlagValue> {
+  async getFlagValue(flagKey: FeatureFlagKey, context?: UserContext): Promise<FlagValue> {
     // 1. Vérifier les flags distants (priorité)
     if (this.remoteFlags.has(flagKey)) {
       return this.remoteFlags.get(flagKey)!;
@@ -142,10 +136,7 @@ class FeatureFlagsService {
   /**
    * Évalue un flag local avec rollout et targeting
    */
-  private evaluateFlag(
-    flag: FeatureFlagConfig,
-    context?: UserContext
-  ): FlagValue {
+  private evaluateFlag(flag: FeatureFlagConfig, context?: UserContext): FlagValue {
     // Vérifier le targeting par rôle
     if (flag.targetRoles && flag.targetRoles.length > 0) {
       if (!context?.role || !flag.targetRoles.includes(context.role)) {
@@ -188,11 +179,7 @@ class FeatureFlagsService {
   /**
    * Détermine si un utilisateur doit avoir accès au flag (rollout)
    */
-  private shouldEnableForUser(
-    userId: string,
-    flagKey: string,
-    percentage: number
-  ): boolean {
+  private shouldEnableForUser(userId: string, flagKey: string, percentage: number): boolean {
     // Utiliser un hash déterministe pour garantir la cohérence
     const hash = this.hashString(`${userId}:${flagKey}`);
     const normalized = (hash % 100) + 1; // 1-100
@@ -215,10 +202,7 @@ class FeatureFlagsService {
   /**
    * Récupère la variante A/B pour un utilisateur
    */
-  private async getABTestVariant(
-    abTest: ABTestConfig,
-    context?: UserContext
-  ): Promise<FlagValue> {
+  private async getABTestVariant(abTest: ABTestConfig, context?: UserContext): Promise<FlagValue> {
     // Vérifier le targeting
     if (abTest.targetRoles && abTest.targetRoles.length > 0) {
       if (!context?.role || !abTest.targetRoles.includes(context.role)) {
@@ -238,10 +222,7 @@ class FeatureFlagsService {
 
     // Assigner une variante de manière déterministe
     if (context?.userId) {
-      const assignment = await this.getUserABTestAssignment(
-        context.userId,
-        abTest
-      );
+      const assignment = await this.getUserABTestAssignment(context.userId, abTest);
       return assignment;
     }
 
@@ -254,10 +235,7 @@ class FeatureFlagsService {
   /**
    * Assigne une variante A/B de manière déterministe
    */
-  private async getUserABTestAssignment(
-    userId: string,
-    abTest: ABTestConfig
-  ): Promise<FlagValue> {
+  private async getUserABTestAssignment(userId: string, abTest: ABTestConfig): Promise<FlagValue> {
     // Vérifier le cache
     const cached = await this.getUserAssignment(userId, abTest.key);
     if (cached !== undefined) {
@@ -292,10 +270,7 @@ class FeatureFlagsService {
   /**
    * Récupère la valeur d'une variante par nom
    */
-  private getVariantValue(
-    abTest: ABTestConfig,
-    variantName: string
-  ): FlagValue {
+  private getVariantValue(abTest: ABTestConfig, variantName: string): FlagValue {
     const variant = abTest.variants.find((v) => v.name === variantName);
     return variant?.value || false;
   }
@@ -303,10 +278,7 @@ class FeatureFlagsService {
   /**
    * Récupère l'assignation d'un utilisateur pour un flag
    */
-  private async getUserAssignment(
-    userId: string,
-    flagKey: string
-  ): Promise<FlagValue | undefined> {
+  private async getUserAssignment(userId: string, flagKey: string): Promise<FlagValue | undefined> {
     const userAssignments = this.userAssignments.get(userId);
     if (userAssignments) {
       return userAssignments.get(flagKey);
@@ -314,12 +286,10 @@ class FeatureFlagsService {
 
     // Charger depuis le cache
     try {
-      const cached = await AsyncStorage.getItem(
-        `${this.STORAGE_KEY_ASSIGNMENTS}:${userId}`
-      );
+      const cached = await AsyncStorage.getItem(`${this.STORAGE_KEY_ASSIGNMENTS}:${userId}`);
       if (cached) {
-        const assignments = JSON.parse(cached);
-        const userMap = new Map(Object.entries(assignments));
+        const assignments = JSON.parse(cached) as Record<string, FlagValue>;
+        const userMap = new Map<FeatureFlagKey, FlagValue>(Object.entries(assignments));
         this.userAssignments.set(userId, userMap);
         return userMap.get(flagKey);
       }
@@ -429,4 +399,3 @@ export const getFeatureFlagsService = (): FeatureFlagsService => {
 };
 
 export default FeatureFlagsService;
-

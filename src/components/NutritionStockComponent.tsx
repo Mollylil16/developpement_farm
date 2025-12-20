@@ -145,11 +145,9 @@ export default function NutritionStockComponent() {
               if (selectedStock?.id === aliment.id) {
                 setSelectedStock(null);
               }
-            } catch (error: any) {
-              Alert.alert(
-                'Erreur',
-                error.message || "Erreur lors de la suppression de l'aliment"
-              );
+            } catch (error: unknown) {
+              const errorMessage = error instanceof Error ? error.message : "Erreur lors de la suppression de l'aliment";
+              Alert.alert('Erreur', errorMessage);
             }
           },
         },
@@ -437,7 +435,7 @@ export default function NutritionStockComponent() {
           // Réinitialiser les états
           setIsEditing(false);
           setSelectedStock(null);
-          
+
           // Recharger les stocks de manière asynchrone sans bloquer
           if (projetActif) {
             // Utiliser setTimeout pour laisser le modal se fermer complètement

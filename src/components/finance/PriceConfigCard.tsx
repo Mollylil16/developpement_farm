@@ -75,8 +75,9 @@ export default function PriceConfigCard({ onPriceUpdate }: PriceConfigCardProps)
       setIsEditingPrix(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onPriceUpdate?.();
-    } catch (error: any) {
-      Alert.alert('Erreur', error || 'Erreur lors de la mise à jour des prix');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erreur lors de la mise à jour des prix';
+      Alert.alert('Erreur', errorMessage);
     }
   };
 

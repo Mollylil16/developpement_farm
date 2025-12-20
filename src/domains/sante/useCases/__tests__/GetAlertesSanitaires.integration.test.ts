@@ -40,9 +40,7 @@ describe('GetAlertesSanitairesUseCase - Integration', () => {
         derniereModification: '2024-01-01T00:00:00Z',
       };
 
-      mockRepository.findVaccinationsEnRetard.mockResolvedValueOnce([
-        vaccinationEnRetard,
-      ]);
+      mockRepository.findVaccinationsEnRetard.mockResolvedValueOnce([vaccinationEnRetard]);
       mockRepository.findVaccinationsByProjet.mockResolvedValueOnce([]);
       mockRepository.findMaladiesEnCours.mockResolvedValueOnce([]);
 
@@ -77,7 +75,7 @@ describe('GetAlertesSanitairesUseCase - Integration', () => {
       const result = await useCase.execute(projetId);
 
       expect(result.length).toBeGreaterThan(0);
-      const rappelAlerte = result.find(a => a.type === 'vaccination_rappel');
+      const rappelAlerte = result.find((a) => a.type === 'vaccination_rappel');
       expect(rappelAlerte).toBeDefined();
       expect(rappelAlerte?.priorite).toBe('moyenne');
     });
@@ -107,7 +105,7 @@ describe('GetAlertesSanitairesUseCase - Integration', () => {
       const result = await useCase.execute(projetId);
 
       expect(result.length).toBeGreaterThan(0);
-      const maladieAlerte = result.find(a => a.type === 'maladie_critique');
+      const maladieAlerte = result.find((a) => a.type === 'maladie_critique');
       expect(maladieAlerte).toBeDefined();
       expect(maladieAlerte?.priorite).toBe('haute');
     });
@@ -131,4 +129,3 @@ describe('GetAlertesSanitairesUseCase - Integration', () => {
     });
   });
 });
-

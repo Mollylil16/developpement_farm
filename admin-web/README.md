@@ -1,6 +1,6 @@
-# 🐷 Fermier Pro - Interface Web d'Administration
+# 🐷 FarmtrackPro - Dashboard Administrateur
 
-Interface web complète pour gérer toutes les données de l'application Fermier Pro, similaire à Prisma Studio.
+Dashboard web complet pour administrer l'application FarmtrackPro.
 
 ## 🚀 Installation
 
@@ -9,81 +9,90 @@ cd admin-web
 npm install
 ```
 
-## 📋 Démarrage
+## 📋 Configuration
 
+1. Copiez `.env.example` vers `.env` :
 ```bash
-npm start
+cp .env.example .env
 ```
 
-L'interface sera accessible sur **http://localhost:3001**
+2. Configurez l'URL du backend dans `.env` :
+```env
+VITE_API_URL=http://localhost:3000
+```
 
-## ✨ Fonctionnalités
+## 🏃 Démarrage
 
-- ✅ **Visualisation de toutes les tables** de la base de données
-- ✅ **CRUD complet** (Créer, Lire, Modifier, Supprimer) sur toutes les données
-- ✅ **Recherche** dans les tables
-- ✅ **Pagination** pour les grandes tables
-- ✅ **Statistiques** de la base de données
-- ✅ **Interface moderne** avec thème sombre
-- ✅ **Gestion complète** : utilisateurs, projets, collaborateurs, gestations, stocks, finances, etc.
-
-## 📊 Tables disponibles
-
-- `users` - Utilisateurs
-- `projets` - Projets
-- `collaborations` - Collaborateurs
-- `gestations` - Gestations
-- `sevrages` - Sevrages
-- `production_animaux` - Animaux du cheptel
-- `production_pesees` - Pesées
-- `mortalites` - Mortalités
-- `stocks_aliments` - Stocks d'aliments
-- `stocks_mouvements` - Mouvements de stock
-- `rations` - Rations
-- `ingredients` - Ingrédients
-- `depenses_ponctuelles` - Dépenses
-- `revenus` - Revenus
-- `charges_fixes` - Charges fixes
-- `planifications` - Tâches planifiées
-- Et toutes les autres tables de l'application
-
-## 🔧 Configuration
-
-Le serveur cherche automatiquement la base de données SQLite aux emplacements suivants :
-
-- **Windows**: `%USERPROFILE%\.expo\fermier_pro.db`
-- **macOS**: `~/Library/Application Support/expo/fermier_pro.db`
-- **Linux**: `~/.expo/fermier_pro.db`
-
-Si la base de données n'est pas trouvée, créez d'abord un projet dans l'application mobile pour l'initialiser.
-
-## 🛠️ Développement
-
-Pour le développement avec rechargement automatique :
-
+### Mode développement
 ```bash
 npm run dev
 ```
 
-(Requiert `nodemon` installé globalement ou en devDependencies)
+Le dashboard sera accessible sur **http://localhost:5173**
 
-## 📝 Notes
+### Build production
+```bash
+npm run build
+```
 
-- Le serveur lit directement le fichier SQLite de l'application
-- Toutes les modifications sont effectuées en temps réel
-- L'interface est responsive et fonctionne sur desktop et tablette
-- Les requêtes SQL personnalisées (SELECT uniquement) peuvent être exécutées via l'API
+Les fichiers seront générés dans le dossier `dist/`.
+
+## 📊 Fonctionnalités
+
+### ✅ Dashboard principal
+- Métriques SaaS (MRR, ARR, Churn Rate)
+- Statistiques utilisateurs, projets, animaux
+- Graphiques d'évolution des revenus
+- Vue d'ensemble complète
+
+### 💰 Finance SaaS
+- Revenus par période (jour/semaine/mois)
+- Transactions détaillées
+- Revenus par plan d'abonnement
+- Revenus par méthode de paiement
+
+### 👥 Utilisateurs & Abonnements
+- Liste des utilisateurs avec leurs abonnements
+- Filtres par statut d'abonnement
+- Gestion des plans
+
+### 📁 Projets
+- Liste des projets actifs
+- Statistiques par projet
+
+## 🔐 Authentification
+
+Le dashboard utilise un système d'authentification séparé pour les administrateurs.
+
+**Endpoints backend :**
+- `POST /admin/auth/login` - Connexion admin
+- `GET /admin/profile` - Profil admin
+- `GET /admin/dashboard/stats` - Statistiques dashboard
+- `GET /admin/finance/stats` - Statistiques financières
+- `GET /admin/finance/transactions` - Liste des transactions
+- `GET /admin/users/subscriptions` - Utilisateurs avec abonnements
+
+## 🛠️ Technologies
+
+- **React 18** + **TypeScript**
+- **Vite** - Build tool ultra-rapide
+- **Tailwind CSS** - Styling
+- **React Router** - Navigation
+- **React Query** - Gestion des données serveur
+- **Recharts** - Graphiques
+- **Axios** - Appels API
+- **React Hot Toast** - Notifications
+
+## 📱 Responsive
+
+Le dashboard est entièrement responsive et fonctionne sur :
+- Desktop
+- Tablette
+- Mobile
 
 ## 🔒 Sécurité
 
-⚠️ **Important**: Cette interface est destinée au développement et à l'administration locale uniquement. Ne l'exposez pas sur Internet sans authentification appropriée.
-
-## 🔮 Évolution future
-
-Cette interface admin est conçue pour fonctionner avec SQLite localement. Lors de la migration vers un backend distant avec PostgreSQL (voir `ARCHITECTURE_FUTURE.md`), l'interface pourra être adaptée pour se connecter à l'API backend au lieu de lire directement la base de données.
-
-**Migration prévue:**
-- Phase actuelle: SQLite local (MVP)
-- Phase future: Backend API + PostgreSQL (Production)
-- L'interface admin pourra être adaptée pour utiliser l'API REST au lieu de SQLite direct
-
+- Authentification JWT pour les admins
+- Tokens stockés dans localStorage
+- Redirection automatique si non authentifié
+- Protection des routes admin

@@ -11,7 +11,11 @@ import { loadCollaborateursParProjet } from '../../store/slices/collaborationSli
 import { loadMortalitesParProjet } from '../../store/slices/mortalitesSlice';
 import { loadProductionAnimaux, loadPeseesRecents } from '../../store/slices/productionSlice';
 import { loadVaccinations, loadMaladies } from '../../store/slices/santeSlice';
-import { selectAllAnimaux, selectPeseesRecents, selectAnimauxActifs } from '../../store/selectors/productionSelectors';
+import {
+  selectAllAnimaux,
+  selectPeseesRecents,
+  selectAnimauxActifs,
+} from '../../store/selectors/productionSelectors';
 import { selectAllMortalites } from '../../store/selectors/mortalitesSelectors';
 import { selectAllVaccinations, selectAllMaladies } from '../../store/selectors/santeSelectors';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS } from '../../constants/theme';
@@ -22,7 +26,14 @@ import { Mortalite } from '../../types';
 import { SafeTextWrapper } from '../../utils/textRenderingGuard';
 
 interface SecondaryWidgetProps {
-  type: 'nutrition' | 'planning' | 'collaboration' | 'mortalites' | 'production' | 'sante' | 'marketplace';
+  type:
+    | 'nutrition'
+    | 'planning'
+    | 'collaboration'
+    | 'mortalites'
+    | 'production'
+    | 'sante'
+    | 'marketplace';
   onPress?: () => void;
 }
 
@@ -78,26 +89,26 @@ function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
         dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 }));
         break;
       case 'marketplace':
-        // Charger les stats du marketplace
+        // Charger les stats du marketplace depuis l'API backend
         (async () => {
           try {
-            const { getDatabase } = await import('../../services/database');
-            const db = await getDatabase();
-            const { MarketplaceListingRepository } = await import('../../database/repositories');
-            const listingRepo = new MarketplaceListingRepository(db);
-            
+            const apiClient = (await import('../../services/api/apiClient')).default;
+
             // Compter mes annonces actives
-            const myListings = await listingRepo.findByFarmId(projetActif.id);
+            const myListings = await apiClient.get<any[]>('/marketplace/listings', {
+              params: { projet_id: projetActif.id },
+            });
             const myActiveListings = myListings.filter(
-              l => l.status === 'available' || l.status === 'reserved'
+              (l) => l.status === 'available' || l.status === 'reserved'
             ).length;
-            
+
             // Compter les annonces disponibles (toutes sauf celles de l'utilisateur)
-            const allListings = await listingRepo.findAll();
+            const allListings = await apiClient.get<any[]>('/marketplace/listings');
             const availableListings = allListings.filter(
-              l => (l.status === 'available' || l.status === 'reserved') && l.farmId !== projetActif.id
+              (l) =>
+                (l.status === 'available' || l.status === 'reserved') && l.farmId !== projetActif.id
             ).length;
-            
+
             setMarketplaceStats({
               myListings: myActiveListings,
               available: availableListings,
@@ -119,14 +130,14 @@ function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
   const collaborateursLength = collaborateurs.length;
   const mortalitesLength = mortalites.length;
   const animauxLength = animaux.length;
-  const peseesRecentsLength = (peseesRecents as any[]).length;
+  const peseesRecentsLength = (peseesRecents as unknown[]).length;
 
   const widgetData = useMemo(() => {
     if (!projetActif) return null;
 
     switch (type) {
       case 'sante':
-        const maladiesEnCours = maladies.filter((m: any) => !m.date_fin || m.date_fin === '');
+        const maladiesEnCours = maladies.filter((m) => !m.date_fin || m.date_fin === '');
         return {
           emoji: '🏥',
           title: 'Santé',

@@ -1,6 +1,6 @@
 /**
  * Use Case : Créer une dépense
- * 
+ *
  * Orchestre la création d'une dépense avec validation métier
  */
 
@@ -50,7 +50,7 @@ export class CreateDepenseUseCase {
     // Créer la dépense
     const now = new Date().toISOString();
     const depense: Depense = {
-      id: uuid.v4() as string,
+      id: uuid.v4(),
       projetId: input.projetId,
       montant: input.montant,
       categorie: input.categorie.trim(),
@@ -65,11 +65,10 @@ export class CreateDepenseUseCase {
     // Validation avec l'entité
     const depenseEntity = new DepenseEntity(depense);
     if (!depenseEntity.isValid()) {
-      throw new Error('La dépense n\'est pas valide');
+      throw new Error("La dépense n'est pas valide");
     }
 
     // Sauvegarder
     return await this.financeRepository.createDepense(depense);
   }
 }
-

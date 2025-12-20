@@ -10,12 +10,13 @@ import { useAppSelector } from '../store/hooks';
 import ProtectedScreen from '../components/ProtectedScreen';
 import StandardHeader from '../components/StandardHeader';
 import CollaborationListComponent from '../components/CollaborationListComponent';
+import { Collaborateur } from '../types';
 
 function CollaborationScreenContent() {
   const { colors } = useTheme();
-  const invitations = useAppSelector((state) => state.collaboration.invitationsRecues);
+  const invitations = useAppSelector((state) => state.collaboration.invitationsEnAttente);
   const invitationsEnAttente = Array.isArray(invitations)
-    ? invitations.filter((inv: any) => inv.statut === 'en_attente').length
+    ? invitations.filter((inv: Collaborateur) => inv.statut === 'en_attente').length
     : 0;
 
   return (

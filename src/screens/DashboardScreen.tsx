@@ -4,14 +4,7 @@
  */
 
 import React, { useState, useCallback, useMemo } from 'react';
-import {
-  View,
-  StyleSheet,
-  ScrollView,
-  RefreshControl,
-  Dimensions,
-  Text,
-} from 'react-native';
+import { View, StyleSheet, ScrollView, RefreshControl, Dimensions, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppSelector } from '../store/hooks';
 import { useNavigation } from '@react-navigation/native';
@@ -58,76 +51,86 @@ type RootStackParamList = {
 export default function DashboardScreen() {
   const { colors } = useTheme();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
-  
+
   // Redux State
   const { projetActif, loading } = useAppSelector((state) => state.projet);
-  const { invitationsEnAttente, collaborateurActuel } = useAppSelector((state) => state.collaboration);
+  const { invitationsEnAttente, collaborateurActuel } = useAppSelector(
+    (state) => state.collaboration
+  );
   const currentUser = useAppSelector((state) => state.auth.user);
-  
+
   // Permissions basées sur les rôles
   const { activeRole } = useRole();
   const rolePermissions = useRolePermissions();
-  
+
   // Helper pour vérifier les permissions par module (compatibilité avec l'ancien système)
-  const hasPermission = useCallback((module: string): boolean => {
-    if (activeRole === 'producer') {
-      // Pour les producteurs, tous les modules sont accessibles
-      return true;
-    }
-    
-    // Pour technicien et vétérinaire, vérifier les permissions de collaboration
-    if ((activeRole === 'technician' || activeRole === 'veterinarian') && collaborateurActuel?.permissions) {
-      // Vérifier les permissions spécifiques à la ferme via la collaboration
+  const hasPermission = useCallback(
+    (module: string): boolean => {
+      if (activeRole === 'producer') {
+        // Pour les producteurs, tous les modules sont accessibles
+        return true;
+      }
+
+      // Pour technicien et vétérinaire, vérifier les permissions de collaboration
+      if (
+        (activeRole === 'technician' || activeRole === 'veterinarian') &&
+        collaborateurActuel?.permissions
+      ) {
+        // Vérifier les permissions spécifiques à la ferme via la collaboration
+        switch (module) {
+          case 'reproduction':
+            return collaborateurActuel.permissions.reproduction ?? false;
+          case 'nutrition':
+            return collaborateurActuel.permissions.nutrition ?? false;
+          case 'planification':
+            return collaborateurActuel.permissions.planification ?? false;
+          case 'mortalites':
+            return collaborateurActuel.permissions.mortalites ?? false;
+          case 'finance':
+            return collaborateurActuel.permissions.finance ?? false;
+          case 'rapports':
+            return collaborateurActuel.permissions.rapports ?? false; // Permission spécifique à la ferme
+          case 'sante':
+            return collaborateurActuel.permissions.sante ?? false;
+          default:
+            return false;
+        }
+      }
+
+      // Pour les autres rôles, utiliser les permissions spécifiques
       switch (module) {
         case 'reproduction':
-          return collaborateurActuel.permissions.reproduction ?? false;
         case 'nutrition':
-          return collaborateurActuel.permissions.nutrition ?? false;
         case 'planification':
-          return collaborateurActuel.permissions.planification ?? false;
         case 'mortalites':
-          return collaborateurActuel.permissions.mortalites ?? false;
+          return rolePermissions.canViewHerd;
         case 'finance':
-          return collaborateurActuel.permissions.finance ?? false;
+          return rolePermissions.canViewFinances;
         case 'rapports':
-          return collaborateurActuel.permissions.rapports ?? false; // Permission spécifique à la ferme
+          return rolePermissions.canGenerateReports;
         case 'sante':
-          return collaborateurActuel.permissions.sante ?? false;
+          return rolePermissions.canViewHealthRecords;
         default:
           return false;
       }
-    }
-    
-    // Pour les autres rôles, utiliser les permissions spécifiques
-    switch (module) {
-      case 'reproduction':
-      case 'nutrition':
-      case 'planification':
-      case 'mortalites':
-        return rolePermissions.canViewHerd;
-      case 'finance':
-        return rolePermissions.canViewFinances;
-      case 'rapports':
-        return rolePermissions.canGenerateReports;
-      case 'sante':
-        return rolePermissions.canViewHealthRecords;
-      default:
-        return false;
-    }
-  }, [activeRole, rolePermissions, collaborateurActuel]);
-  
+    },
+    [activeRole, rolePermissions, collaborateurActuel]
+  );
+
   // Vérifier si l'utilisateur est propriétaire du projet actif
-  const isProprietaire = activeRole === 'producer' && 
-    projetActif && 
-    currentUser && 
-    (projetActif.proprietaire_id === currentUser.id || (projetActif as any).user_id === currentUser.id);
-  
+  const isProprietaire =
+    activeRole === 'producer' &&
+    projetActif &&
+    currentUser &&
+    (projetActif.proprietaire_id === currentUser.id ||
+      (projetActif as unknown).user_id === currentUser.id);
+
   // UI State (modals)
   const [searchModalVisible, setSearchModalVisible] = useState(false);
   const [invitationsModalVisible, setInvitationsModalVisible] = useState(false);
   const [profileMenuVisible, setProfileMenuVisible] = useState(false);
   const [notificationPanelVisible, setNotificationPanelVisible] = useState(false);
-  
+
   // Greeting state
   const [greeting] = useState(() => {
     const hour = new Date().getHours();
@@ -163,17 +166,17 @@ export default function DashboardScreen() {
 
   // Build secondary widgets list - mémorisé pour éviter les recalculs
   const secondaryWidgets = useMemo(() => {
-    const widgets: Array<{ type: any; screen: string }> = [];
+    const widgets: Array<{ type: unknown; screen: string }> = [];
 
     if (hasPermission('sante')) {
       widgets.push({ type: 'sante', screen: SCREENS.SANTE });
     }
     // Production juste après Santé
     widgets.push({ type: 'production', screen: SCREENS.PRODUCTION });
-    
+
     // Marketplace - Toujours accessible
     widgets.push({ type: 'marketplace', screen: SCREENS.MARKETPLACE });
-    
+
     if (hasPermission('nutrition')) {
       widgets.push({ type: 'nutrition', screen: SCREENS.NUTRITION });
     }
@@ -188,32 +191,48 @@ export default function DashboardScreen() {
   }, [hasPermission, isProprietaire]);
 
   // Navigation handler - mémorisé pour éviter les re-créations
-  const handleNavigateToScreen = useCallback((screen: string) => {
-    // @ts-ignore - navigation typée
-    navigation.navigate('Main', { screen });
-  }, [navigation]);
+  const handleNavigateToScreen = useCallback(
+    (screen: string) => {
+      // @ts-ignore - navigation typée
+      navigation.navigate('Main', { screen });
+    },
+    [navigation]
+  );
 
   // Handlers pour les modals - mémorisés pour éviter les re-créations
   const handleCloseSearchModal = useCallback(() => setSearchModalVisible(false), []);
   const handleCloseInvitationsModal = useCallback(() => setInvitationsModalVisible(false), []);
   const handleCloseProfileMenu = useCallback(() => setProfileMenuVisible(false), []);
   const handleCloseNotificationPanel = useCallback(() => setNotificationPanelVisible(false), []);
-  
-  const handleNotificationPress = useCallback((notification: any) => {
-    setNotificationPanelVisible(false);
-    // Navigation vers l'écran approprié selon le type de notification
-    // @ts-ignore - navigation typée
-    if (notification.type === 'offer_accepted' && notification.relatedId && notification.relatedType === 'transaction') {
+
+  const handleNotificationPress = useCallback(
+    (notification: unknown) => {
+      setNotificationPanelVisible(false);
+      // Navigation vers l'écran approprié selon le type de notification
       // @ts-ignore - navigation typée
-      navigation.navigate(SCREENS.MARKETPLACE_CHAT as never, { transactionId: notification.relatedId } as never);
-    } else if (notification.type === 'message_received' && notification.relatedId) {
-      // @ts-ignore - navigation typée
-      navigation.navigate(SCREENS.MARKETPLACE_CHAT as never, { transactionId: notification.relatedId } as never);
-    } else if (notification.type === 'offer_received') {
-      // @ts-ignore - navigation typée
-      navigation.navigate(SCREENS.MARKETPLACE as never);
-    }
-  }, [navigation]);
+      if (
+        notification.type === 'offer_accepted' &&
+        notification.relatedId &&
+        notification.relatedType === 'transaction'
+      ) {
+        // @ts-ignore - navigation typée
+        navigation.navigate(
+          SCREENS.MARKETPLACE_CHAT as never,
+          { transactionId: notification.relatedId } as never
+        );
+      } else if (notification.type === 'message_received' && notification.relatedId) {
+        // @ts-ignore - navigation typée
+        navigation.navigate(
+          SCREENS.MARKETPLACE_CHAT as never,
+          { transactionId: notification.relatedId } as never
+        );
+      } else if (notification.type === 'offer_received') {
+        // @ts-ignore - navigation typée
+        navigation.navigate(SCREENS.MARKETPLACE as never);
+      }
+    },
+    [navigation]
+  );
 
   const handleMarkAllAsRead = useCallback(async () => {
     // Marquer toutes les notifications comme lues
@@ -305,19 +324,10 @@ export default function DashboardScreen() {
 
       {/* Modals */}
       {searchModalVisible && (
-        <GlobalSearchModal
-          visible={searchModalVisible}
-          onClose={handleCloseSearchModal}
-        />
+        <GlobalSearchModal visible={searchModalVisible} onClose={handleCloseSearchModal} />
       )}
-      <InvitationsModal
-        visible={invitationsModalVisible}
-        onClose={handleCloseInvitationsModal}
-      />
-      <ProfileMenuModal
-        visible={profileMenuVisible}
-        onClose={handleCloseProfileMenu}
-      />
+      <InvitationsModal visible={invitationsModalVisible} onClose={handleCloseInvitationsModal} />
+      <ProfileMenuModal visible={profileMenuVisible} onClose={handleCloseProfileMenu} />
       <NotificationPanel
         visible={notificationPanelVisible}
         notifications={marketplaceNotifications}
@@ -348,4 +358,3 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
 });
-

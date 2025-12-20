@@ -101,7 +101,7 @@ export const photoExists = async (photoUri: string): Promise<boolean> => {
   try {
     const fileInfo = await FileSystem.getInfoAsync(photoUri);
     return fileInfo.exists;
-  } catch (error) {
+  } catch {
     return false;
   }
 };
@@ -115,7 +115,7 @@ export const cleanupOrphanedPhotos = async (activePhotoUris: string[]): Promise<
     // Vérifier si le dossier existe
     const dirInfo = await FileSystem.getInfoAsync(PHOTOS_DIRECTORY);
     if (!dirInfo.exists) {
-      console.log('ℹ️ Dossier photos n\'existe pas encore');
+      console.log("ℹ️ Dossier photos n'existe pas encore");
       return;
     }
 
@@ -179,4 +179,3 @@ export const formatStorageSize = (bytes: number): string => {
   const mb = bytes / (1024 * 1024);
   return `${mb.toFixed(2)} Mo`;
 };
-

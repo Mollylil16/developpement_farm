@@ -259,7 +259,7 @@ export default function VaccinationFormModalNew({
     }
   };
 
-  const renderAnimalItem = ({ item }: { item: any }) => {
+  const renderAnimalItem = ({ item }: { item: unknown }) => {
     const isSelected = animauxSelectionnes.includes(item.id);
     const categorie = getCategorieAnimal(item);
 

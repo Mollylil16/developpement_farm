@@ -12,7 +12,9 @@ jest.mock('../../services/database');
 jest.mock('../../services/PorkPriceTrendService');
 
 const mockGetDatabase = getDatabase as jest.MockedFunction<typeof getDatabase>;
-const mockGetPorkPriceTrendService = getPorkPriceTrendService as jest.MockedFunction<typeof getPorkPriceTrendService>;
+const mockGetPorkPriceTrendService = getPorkPriceTrendService as jest.MockedFunction<
+  typeof getPorkPriceTrendService
+>;
 
 describe('usePorkPriceTrend', () => {
   const mockDb = {
@@ -274,4 +276,3 @@ describe('usePorkPriceTrend', () => {
     expect(result.current.trends.length).toBe(2);
   });
 });
-

@@ -1,25 +1,24 @@
 /**
  * Service de gestion des permissions Marketplace
  * Vérifie les restrictions multi-rôles
+ * 
+ * Utilise maintenant l'API REST (PostgreSQL via backend)
  */
 
-import type { SQLiteDatabase } from 'expo-sqlite';
 import type { MarketplaceListing, FarmCard } from '../types/marketplace';
-import { MarketplaceListingRepository } from '../database/repositories';
-import { ProjetRepository } from '../database/repositories';
+import apiClient from './api/apiClient';
 
 export class MarketplacePermissions {
-  constructor(private db: SQLiteDatabase) {}
+  constructor() {
+    // Plus besoin de db
+  }
 
   /**
    * Vérifier si un utilisateur peut voir un listing
    * Un utilisateur ne peut pas voir ses propres listings, quel que soit son rôle
    */
   async canViewListing(userId: string, listing: MarketplaceListing): Promise<boolean> {
-    // Récupérer tous les IDs de producteur de l'utilisateur
     const userProducerIds = await this.getUserProducerIds(userId);
-    
-    // Vérifier si le listing appartient à l'utilisateur
     return !userProducerIds.includes(listing.producerId);
   }
 
@@ -30,38 +29,22 @@ export class MarketplacePermissions {
     userId: string,
     listings: MarketplaceListing[]
   ): Promise<MarketplaceListing[]> {
-    // Récupérer tous les IDs de producteur de l'utilisateur
     const userProducerIds = await this.getUserProducerIds(userId);
-    
-    // Filtrer les listings
-    return listings.filter(listing => {
-      // Exclure les listings de l'utilisateur lui-même
-      return !userProducerIds.includes(listing.producerId);
-    });
+    return listings.filter((listing) => !userProducerIds.includes(listing.producerId));
   }
 
   /**
    * Filtrer les FarmCards pour exclure celles de l'utilisateur
    */
-  async filterFarmCardsForUser(
-    userId: string,
-    farmCards: FarmCard[]
-  ): Promise<FarmCard[]> {
-    // Récupérer tous les IDs de producteur de l'utilisateur
+  async filterFarmCardsForUser(userId: string, farmCards: FarmCard[]): Promise<FarmCard[]> {
     const userProducerIds = await this.getUserProducerIds(userId);
-    
-    // Filtrer les FarmCards
-    return farmCards.filter(farm => {
-      // Exclure les fermes de l'utilisateur lui-même
-      return !userProducerIds.includes(farm.producerId);
-    });
+    return farmCards.filter((farm) => !userProducerIds.includes(farm.producerId));
   }
 
   /**
    * Vérifier si un utilisateur peut faire une offre sur un listing
    */
   async canMakeOffer(userId: string, listing: MarketplaceListing): Promise<boolean> {
-    // Un utilisateur ne peut pas faire d'offre sur ses propres listings
     return this.canViewListing(userId, listing);
   }
 
@@ -69,7 +52,6 @@ export class MarketplacePermissions {
    * Vérifier si un utilisateur peut envoyer un message à un producteur
    */
   async canMessage(userId: string, producerId: string): Promise<boolean> {
-    // Un utilisateur ne peut pas se message lui-même
     const userProducerIds = await this.getUserProducerIds(userId);
     return !userProducerIds.includes(producerId);
   }
@@ -78,7 +60,6 @@ export class MarketplacePermissions {
    * Vérifier si un utilisateur peut noter un producteur
    */
   async canRate(userId: string, producerId: string): Promise<boolean> {
-    // Un utilisateur ne peut pas se noter lui-même
     const userProducerIds = await this.getUserProducerIds(userId);
     return !userProducerIds.includes(producerId);
   }
@@ -89,29 +70,22 @@ export class MarketplacePermissions {
    */
   private async getUserProducerIds(userId: string): Promise<string[]> {
     try {
-      const projetRepo = new ProjetRepository(this.db);
+      // Récupérer tous les projets où l'utilisateur est propriétaire depuis l'API backend
+      const allProjets = await apiClient.get<any[]>('/projets');
+      const projets = allProjets.filter((p) => p.proprietaire_id === userId);
 
-      // Récupérer tous les projets où l'utilisateur est propriétaire
-      const projets = await projetRepo.findByOwnerId(userId);
-      
       // Les IDs de producteur sont les IDs des projets
-      return projets.map(p => p.id);
+      return projets.map((p) => p.id);
     } catch (error) {
-      console.error('Erreur récupération IDs producteur:', error);
+      console.error('Erreur lors de la récupération des IDs de producteur:', error);
       return [];
     }
   }
 }
 
 /**
- * Instance singleton du service de permissions
+ * Helper pour créer une instance de MarketplacePermissions
  */
-let permissionsInstance: MarketplacePermissions | null = null;
-
-export function getMarketplacePermissions(db: SQLiteDatabase): MarketplacePermissions {
-  if (!permissionsInstance) {
-    permissionsInstance = new MarketplacePermissions(db);
-  }
-  return permissionsInstance;
+export function getMarketplacePermissions(): MarketplacePermissions {
+  return new MarketplacePermissions();
 }
-

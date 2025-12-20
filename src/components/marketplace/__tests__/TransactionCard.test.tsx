@@ -23,11 +23,7 @@ describe('TransactionCard', () => {
 
   it('should render transaction details', () => {
     const { getByText } = render(
-      <TransactionCard
-        transaction={mockTransaction}
-        userRole="producer"
-        onPress={() => {}}
-      />
+      <TransactionCard transaction={mockTransaction} userRole="producer" onPress={() => {}} />
     );
 
     expect(getByText('500 000 FCFA')).toBeTruthy();
@@ -36,11 +32,7 @@ describe('TransactionCard', () => {
 
   it('should display confirmed status', () => {
     const { getByText } = render(
-      <TransactionCard
-        transaction={mockTransaction}
-        userRole="producer"
-        onPress={() => {}}
-      />
+      <TransactionCard transaction={mockTransaction} userRole="producer" onPress={() => {}} />
     );
 
     expect(getByText('Confirmé')).toBeTruthy();
@@ -107,11 +99,7 @@ describe('TransactionCard', () => {
     };
 
     const { queryByText } = render(
-      <TransactionCard
-        transaction={transactionConfirmed}
-        userRole="producer"
-        onPress={() => {}}
-      />
+      <TransactionCard transaction={transactionConfirmed} userRole="producer" onPress={() => {}} />
     );
 
     expect(queryByText('Confirmer livraison')).toBeNull();
@@ -121,11 +109,7 @@ describe('TransactionCard', () => {
     const mockOnPress = jest.fn();
 
     const { getByText } = render(
-      <TransactionCard
-        transaction={mockTransaction}
-        userRole="producer"
-        onPress={mockOnPress}
-      />
+      <TransactionCard transaction={mockTransaction} userRole="producer" onPress={mockOnPress} />
     );
 
     fireEvent.press(getByText('500 000 FCFA'));
@@ -156,11 +140,7 @@ describe('TransactionCard', () => {
     };
 
     const { getByText } = render(
-      <TransactionCard
-        transaction={completedTransaction}
-        userRole="producer"
-        onPress={() => {}}
-      />
+      <TransactionCard transaction={completedTransaction} userRole="producer" onPress={() => {}} />
     );
 
     expect(getByText('Transaction terminée avec succès')).toBeTruthy();
@@ -192,4 +172,3 @@ describe('TransactionCard', () => {
     expect(queryAllByText('Acheteur').length).toBeGreaterThan(0);
   });
 });
-

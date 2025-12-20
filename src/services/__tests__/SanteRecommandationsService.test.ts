@@ -86,9 +86,7 @@ describe('SanteRecommandationsService', () => {
     });
 
     it('devrait retourner des recommandations pour les rappels à venir', async () => {
-      const mockRappelsAVenir = [
-        { id: 'r1', date_rappel: '2024-01-15' },
-      ];
+      const mockRappelsAVenir = [{ id: 'r1', date_rappel: '2024-01-15' }];
 
       mockRappelRepo.findEnRetard.mockResolvedValue([]);
       mockRappelRepo.findAVenir.mockResolvedValue(mockRappelsAVenir as any);
@@ -125,7 +123,7 @@ describe('SanteRecommandationsService', () => {
       expect(result[0].message).toContain('2 maladie(s) critique(s) en cours');
     });
 
-    it('ne devrait pas créer d\'alerte si aucune maladie critique', async () => {
+    it("ne devrait pas créer d'alerte si aucune maladie critique", async () => {
       const mockMaladiesEnCours = [
         { id: 'm1', gravite: 'moderee' },
         { id: 'm2', gravite: 'legere' },
@@ -143,11 +141,7 @@ describe('SanteRecommandationsService', () => {
     });
 
     it('devrait retourner des recommandations pour les traitements en cours', async () => {
-      const mockTraitementsEnCours = [
-        { id: 't1' },
-        { id: 't2' },
-        { id: 't3' },
-      ];
+      const mockTraitementsEnCours = [{ id: 't1' }, { id: 't2' }, { id: 't3' }];
 
       mockRappelRepo.findEnRetard.mockResolvedValue([]);
       mockRappelRepo.findAVenir.mockResolvedValue([]);
@@ -200,10 +194,10 @@ describe('SanteRecommandationsService', () => {
       const result = await SanteRecommandationsService.getRecommandations(projetId);
 
       expect(result).toHaveLength(5);
-      expect(result.filter(r => r.type === 'vaccination')).toHaveLength(2);
-      expect(result.filter(r => r.type === 'alerte')).toHaveLength(1);
-      expect(result.filter(r => r.type === 'traitement')).toHaveLength(1);
-      expect(result.filter(r => r.type === 'visite')).toHaveLength(1);
+      expect(result.filter((r) => r.type === 'vaccination')).toHaveLength(2);
+      expect(result.filter((r) => r.type === 'alerte')).toHaveLength(1);
+      expect(result.filter((r) => r.type === 'traitement')).toHaveLength(1);
+      expect(result.filter((r) => r.type === 'visite')).toHaveLength(1);
     });
 
     it('devrait retourner un tableau vide si aucune recommandation', async () => {
@@ -235,18 +229,18 @@ describe('SanteRecommandationsService', () => {
       const result = await SanteRecommandationsService.getTauxMortaliteParCause(projetId);
 
       expect(result).toHaveLength(3);
-      
-      const maladie = result.find(r => r.cause === 'Maladie');
+
+      const maladie = result.find((r) => r.cause === 'Maladie');
       expect(maladie).toBeDefined();
       expect(maladie?.nombre).toBe(8); // 5 + 3
       expect(maladie?.pourcentage).toBeCloseTo(72.73, 1); // 8/11 * 100
 
-      const accident = result.find(r => r.cause === 'Accident');
+      const accident = result.find((r) => r.cause === 'Accident');
       expect(accident).toBeDefined();
       expect(accident?.nombre).toBe(2);
       expect(accident?.pourcentage).toBeCloseTo(18.18, 1); // 2/11 * 100
 
-      const nonSpecifiee = result.find(r => r.cause === 'Non spécifiée');
+      const nonSpecifiee = result.find((r) => r.cause === 'Non spécifiée');
       expect(nonSpecifiee).toBeDefined();
       expect(nonSpecifiee?.nombre).toBe(1);
       expect(nonSpecifiee?.pourcentage).toBeCloseTo(9.09, 1); // 1/11 * 100
@@ -277,9 +271,7 @@ describe('SanteRecommandationsService', () => {
     });
 
     it('devrait gérer le cas où total est zéro', async () => {
-      const mockMortalites = [
-        { id: 'm1', cause: 'Cause A', nombre_porcs: 0 },
-      ];
+      const mockMortalites = [{ id: 'm1', cause: 'Cause A', nombre_porcs: 0 }];
 
       mockMortaliteRepo.findByProjet.mockResolvedValue(mockMortalites as any);
 
@@ -305,4 +297,3 @@ describe('SanteRecommandationsService', () => {
     });
   });
 });
-

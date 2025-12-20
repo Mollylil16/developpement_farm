@@ -129,7 +129,7 @@ export const selectDepensesByCategorie = createSelector(
   [baseSelectors.selectAllDepensesPonctuelles],
   (depenses) => {
     const parCategorie: Record<string, { count: number; total: number }> = {};
-    
+
     depenses.forEach((depense) => {
       const categorie = depense.categorie || 'autre';
       if (!parCategorie[categorie]) {
@@ -150,7 +150,7 @@ export const selectRevenusByCategorie = createSelector(
   [baseSelectors.selectAllRevenus],
   (revenus) => {
     const parCategorie: Record<string, { count: number; total: number }> = {};
-    
+
     revenus.forEach((revenu) => {
       const categorie = revenu.categorie || 'autre';
       if (!parCategorie[categorie]) {
@@ -163,4 +163,3 @@ export const selectRevenusByCategorie = createSelector(
     return parCategorie;
   }
 );
-

@@ -33,24 +33,30 @@ module.exports = {
   rules: {
     // Prettier
     'prettier/prettier': 'warn',
-    
+
     // TypeScript
-    '@typescript-eslint/no-unused-vars': ['warn', { 
-      argsIgnorePattern: '^_',
-      varsIgnorePattern: '^_',
-      caughtErrorsIgnorePattern: '^_',
-    }],
-    '@typescript-eslint/no-explicit-any': ['warn', { 
-      fixToUnknown: true,
-      ignoreRestArgs: false,
-    }],
+    '@typescript-eslint/no-unused-vars': [
+      'warn',
+      {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+      },
+    ],
+    '@typescript-eslint/no-explicit-any': [
+      'warn',
+      {
+        fixToUnknown: true,
+        ignoreRestArgs: false,
+      },
+    ],
     '@typescript-eslint/explicit-module-boundary-types': 'off',
     '@typescript-eslint/ban-ts-comment': 'warn',
     '@typescript-eslint/no-floating-promises': 'error',
     '@typescript-eslint/no-misused-promises': 'error',
     '@typescript-eslint/await-thenable': 'error',
     '@typescript-eslint/no-unnecessary-type-assertion': 'warn',
-    
+
     // React
     'react/prop-types': 'off',
     'react/react-in-jsx-scope': 'off',
@@ -58,26 +64,26 @@ module.exports = {
     'react/jsx-key': 'error',
     'react-hooks/rules-of-hooks': 'error',
     'react-hooks/exhaustive-deps': 'warn',
-    
+
     // React Native
     'react-native/no-inline-styles': 'warn',
     'react-native/no-color-literals': 'off', // Trop strict pour nos besoins
     'react-native/no-raw-text': 'off',
     'react-native/split-platform-components': 'off',
-    
+
     // Code Quality
     'no-console': ['warn', { allow: ['warn', 'error'] }],
     'no-debugger': 'error',
     'no-alert': 'warn',
     'prefer-const': 'error',
     'no-var': 'error',
-    'eqeqeq': ['error', 'always'],
-    'curly': ['error', 'all'],
-    
+    eqeqeq: ['error', 'always'],
+    curly: ['error', 'all'],
+
     // Best Practices
     'max-lines': ['warn', { max: 500, skipBlankLines: true, skipComments: true }],
     'max-lines-per-function': ['warn', { max: 100, skipBlankLines: true, skipComments: true }],
-    'complexity': ['warn', 20],
+    complexity: ['warn', 20],
   },
   ignorePatterns: [
     'node_modules/',
@@ -100,5 +106,3 @@ module.exports = {
     },
   ],
 };
-
-

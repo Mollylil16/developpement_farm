@@ -47,4 +47,3 @@ export async function createVaccinationsTable(db: SQLite.SQLiteDatabase): Promis
     );`
   );
 }
-

@@ -166,10 +166,14 @@ export default function StockAlimentFormModal({
     const { isValid, errors: validationErrors } = await validateStockAliment({
       ...formData,
       projet_id: projetId,
+      quantite_initiale: formData.quantite_initiale ?? 0,
     });
     if (!isValid) {
       const firstError = Object.values(validationErrors)[0];
-      Alert.alert('Erreur de validation', firstError || 'Veuillez corriger les erreurs du formulaire');
+      Alert.alert(
+        'Erreur de validation',
+        firstError || 'Veuillez corriger les erreurs du formulaire'
+      );
       return;
     }
 
@@ -232,20 +236,21 @@ export default function StockAlimentFormModal({
           })
         ).unwrap();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur lors de la sauvegarde du stock:', error);
-      Alert.alert('Erreur', error?.message || 'Une erreur est survenue lors de la sauvegarde');
+      const errorMessage = error instanceof Error ? error.message : String(error) || 'Une erreur est survenue lors de la sauvegarde';
+      Alert.alert('Erreur', errorMessage);
       setLoading(false);
       return; // Ne pas appeler onSuccess en cas d'erreur
     }
-    
+
     // Réinitialiser le loading
     setLoading(false);
-    
+
     // Fermer le modal immédiatement en appelant onClose
     // Puis appeler onSuccess de manière asynchrone
     onClose();
-    
+
     // Appeler onSuccess de manière asynchrone pour laisser le modal se fermer complètement
     setTimeout(() => {
       onSuccess();

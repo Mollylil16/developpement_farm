@@ -32,4 +32,3 @@ export function useRefreshControl(options?: UseRefreshControlOptions) {
     onRefresh,
   };
 }
-

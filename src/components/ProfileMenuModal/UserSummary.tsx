@@ -28,9 +28,7 @@ export default function UserSummary() {
         <Text style={[styles.userName, { color: colors.text }]}>
           {user?.prenom || user?.nom || 'Utilisateur'}
         </Text>
-        <Text style={[styles.userEmail, { color: colors.textSecondary }]}>
-          {user?.email || ''}
-        </Text>
+        <Text style={[styles.userEmail, { color: colors.textSecondary }]}>{user?.email || ''}</Text>
         {projetActif && (
           <Text style={[styles.userProject, { color: colors.textSecondary }]}>
             {projetActif.nom}
@@ -82,4 +80,3 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xs / 2,
   },
 });
-

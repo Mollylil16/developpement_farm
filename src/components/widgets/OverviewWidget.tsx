@@ -91,7 +91,7 @@ function OverviewWidget({ onPress }: OverviewWidgetProps) {
     if (hasAnimauxActifs) {
       // Convertir peseesParAnimal au format attendu par countAnimalsByPoidsCategory
       const peseesFormatted: Record<string, Array<{ date: string; poids_kg: number }>> = {};
-      
+
       // D'abord, utiliser peseesParAnimal si disponible
       Object.keys(peseesParAnimal).forEach((animalId) => {
         peseesFormatted[animalId] = peseesParAnimal[animalId].map((pesee) => ({
@@ -136,7 +136,15 @@ function OverviewWidget({ onPress }: OverviewWidgetProps) {
       croissance: categoriesPoids.croissance, // 25-60kg
       finition: categoriesPoids.finition, // >60kg
     };
-  }, [projetActif?.id, animauxLength, mortalitesLength, animaux, mortalites, peseesParAnimal, peseesRecents]);
+  }, [
+    projetActif?.id,
+    animauxLength,
+    mortalitesLength,
+    animaux,
+    mortalites,
+    peseesParAnimal,
+    peseesRecents,
+  ]);
 
   if (!stats || !projetActif) {
     return null;
@@ -159,7 +167,9 @@ function OverviewWidget({ onPress }: OverviewWidgetProps) {
             <View style={styles.statItem}>
               <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Truies</Text>
               <View style={styles.statValueRow}>
-                <Text style={[styles.statValue, { color: colors.primary }]}>{stats.truies ?? 0}</Text>
+                <Text style={[styles.statValue, { color: colors.primary }]}>
+                  {stats.truies ?? 0}
+                </Text>
                 <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
               </View>
             </View>
@@ -203,7 +213,9 @@ function OverviewWidget({ onPress }: OverviewWidgetProps) {
             <View style={styles.statItem}>
               <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Finition</Text>
               <View style={styles.statValueRow}>
-                <Text style={[styles.statValue, { color: colors.secondary }]}>{stats.finition ?? 0}</Text>
+                <Text style={[styles.statValue, { color: colors.secondary }]}>
+                  {stats.finition ?? 0}
+                </Text>
                 <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
               </View>
             </View>
@@ -256,7 +268,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: FONT_SIZES.xs,
-    fontWeight: FONT_WEIGHTS.semibold,
+    fontWeight: FONT_WEIGHTS.semiBold,
     marginBottom: SPACING.sm,
     textTransform: 'uppercase',
     letterSpacing: 0.5,

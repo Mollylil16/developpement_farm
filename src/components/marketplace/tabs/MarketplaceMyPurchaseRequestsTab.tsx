@@ -20,9 +20,7 @@ import { SPACING } from '../../../constants/theme';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import type { PurchaseRequest, PurchaseRequestOffer } from '../../../types/marketplace';
-import { getDatabase } from '../../../services/database';
-import { getPurchaseRequestService } from '../../../services/PurchaseRequestService';
-import { PurchaseRequestRepository } from '../../../database/repositories/PurchaseRequestRepository';
+import apiClient from '../../../services/api/apiClient';
 
 interface MarketplaceMyPurchaseRequestsTabProps {
   buyerId: string;
@@ -58,13 +56,14 @@ export default function MarketplaceMyPurchaseRequestsTab({
 
   const loadRequests = useCallback(async () => {
     try {
-      const db = await getDatabase();
-      const repo = new PurchaseRequestRepository(db);
-      const allRequests = await repo.findByBuyerId(buyerId, false);
+      // Charger les demandes d'achat depuis l'API backend
+      const allRequests = await apiClient.get<PurchaseRequest[]>('/marketplace/purchase-requests', {
+        params: { buyer_id: buyerId },
+      });
       setRequests(allRequests);
     } catch (error) {
       console.error('Erreur chargement demandes:', error);
-      Alert.alert('Erreur', 'Impossible de charger vos demandes d\'achat');
+      Alert.alert('Erreur', "Impossible de charger vos demandes d'achat");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -80,59 +79,62 @@ export default function MarketplaceMyPurchaseRequestsTab({
     loadRequests();
   }, [loadRequests]);
 
-  const handleArchive = useCallback(async (requestId: string) => {
-    Alert.alert(
-      'Archiver la demande',
-      'Êtes-vous sûr de vouloir archiver cette demande ?',
-      [
+  const handleArchive = useCallback(
+    async (requestId: string) => {
+      Alert.alert('Archiver la demande', 'Êtes-vous sûr de vouloir archiver cette demande ?', [
         { text: 'Annuler', style: 'cancel' },
         {
           text: 'Archiver',
           style: 'destructive',
           onPress: async () => {
             try {
-              const db = await getDatabase();
-              const repo = new PurchaseRequestRepository(db);
-              await repo.archive(requestId);
+              // Archiver la demande via l'API backend
+              await apiClient.patch(`/marketplace/purchase-requests/${requestId}/archive`);
               loadRequests();
             } catch (error) {
-              Alert.alert('Erreur', 'Impossible d\'archiver la demande');
+              Alert.alert('Erreur', "Impossible d'archiver la demande");
             }
           },
         },
-      ]
-    );
-  }, [loadRequests]);
-
-  const handleRestore = useCallback(async (requestId: string) => {
-    try {
-      const db = await getDatabase();
-      const repo = new PurchaseRequestRepository(db);
-      await repo.restore(requestId);
-      loadRequests();
-    } catch (error) {
-      Alert.alert('Erreur', 'Impossible de restaurer la demande');
-    }
-  }, [loadRequests]);
-
-  const handleEdit = useCallback((request: PurchaseRequest) => {
-    console.log('🔄 [MarketplaceMyPurchaseRequestsTab] handleEdit appelé pour:', request.id);
-    if (onEditRequest) {
-      console.log('✅ [MarketplaceMyPurchaseRequestsTab] Appel de onEditRequest');
-      onEditRequest(request);
-    } else {
-      console.warn('⚠️ [MarketplaceMyPurchaseRequestsTab] onEditRequest n\'est pas défini');
-      Alert.alert('Modifier', `Modification de la demande: ${request.title}`, [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Modifier',
-          onPress: () => {
-            Alert.alert('Info', 'La fonctionnalité de modification sera bientôt disponible');
-          },
-        },
       ]);
-    }
-  }, [onEditRequest]);
+    },
+    [loadRequests]
+  );
+
+  const handleRestore = useCallback(
+    async (requestId: string) => {
+      try {
+        // Restaurer la demande via l'API backend
+        await apiClient.patch(`/marketplace/purchase-requests/${requestId}/restore`);
+        loadRequests();
+      } catch (error) {
+        Alert.alert('Erreur', 'Impossible de restaurer la demande');
+      }
+    },
+    [loadRequests]
+  );
+
+  const handleEdit = useCallback(
+    (request: PurchaseRequest) => {
+      console.log('🔄 [MarketplaceMyPurchaseRequestsTab] handleEdit appelé pour:', request.id);
+      if (onEditRequest) {
+        console.log('✅ [MarketplaceMyPurchaseRequestsTab] Appel de onEditRequest');
+        onEditRequest(request);
+      } else {
+        console.warn("⚠️ [MarketplaceMyPurchaseRequestsTab] onEditRequest n'est pas défini");
+        Alert.alert('Modifier', `Modification de la demande: ${request.title}`, [
+          { text: 'Annuler', style: 'cancel' },
+          {
+            text: 'Modifier',
+            onPress: () => {
+              Alert.alert('Info', 'La fonctionnalité de modification sera bientôt disponible');
+            },
+          },
+        ]);
+      }
+    },
+    [onEditRequest]
+  );
 
   const renderRequest = ({ item }: { item: PurchaseRequest }) => {
     const statusColor = STATUS_COLORS[item.status] || colors.textSecondary;
@@ -140,7 +142,10 @@ export default function MarketplaceMyPurchaseRequestsTab({
 
     return (
       <TouchableOpacity
-        style={[styles.requestCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+        style={[
+          styles.requestCard,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+        ]}
         onPress={() => onRequestPress?.(item)}
         activeOpacity={0.7}
       >
@@ -217,7 +222,7 @@ export default function MarketplaceMyPurchaseRequestsTab({
                 style={[styles.actionButton, { backgroundColor: colors.primary }]}
                 onPress={() => onRequestPress?.(item)}
               >
-                <Text style={[styles.actionButtonText, { color: colors.textOnPrimary }]}>
+                <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>
                   Voir les offres ({item.offersCount})
                 </Text>
               </TouchableOpacity>
@@ -227,8 +232,11 @@ export default function MarketplaceMyPurchaseRequestsTab({
                 style={[styles.actionButton, { backgroundColor: colors.primary }]}
                 onPress={() => handleEdit(item)}
               >
-                <Ionicons name="create" size={16} color={colors.textOnPrimary} />
-                <Text style={[styles.actionButtonText, { color: colors.textOnPrimary }]}> Modifier</Text>
+                <Ionicons name="create" size={16} color="#FFFFFF" />
+                <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>
+                  {' '}
+                  Modifier
+                </Text>
               </TouchableOpacity>
             )}
             {item.status === 'archived' ? (
@@ -236,16 +244,22 @@ export default function MarketplaceMyPurchaseRequestsTab({
                 style={[styles.actionButton, { backgroundColor: colors.success }]}
                 onPress={() => handleRestore(item.id)}
               >
-                <Ionicons name="refresh" size={16} color={colors.textOnPrimary} />
-                <Text style={[styles.actionButtonText, { color: colors.textOnPrimary }]}> Restaurer</Text>
+                <Ionicons name="refresh" size={16} color="#FFFFFF" />
+                <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>
+                  {' '}
+                  Restaurer
+                </Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
                 style={[styles.actionButton, { backgroundColor: colors.error }]}
                 onPress={() => handleArchive(item.id)}
               >
-                <Ionicons name="archive" size={16} color={colors.textOnPrimary} />
-                <Text style={[styles.actionButtonText, { color: colors.textOnPrimary }]}> Archiver</Text>
+                <Ionicons name="archive" size={16} color="#FFFFFF" />
+                <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>
+                  {' '}
+                  Archiver
+                </Text>
               </TouchableOpacity>
             )}
           </View>
@@ -405,4 +419,3 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xs,
   },
 });
-

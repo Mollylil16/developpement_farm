@@ -1,6 +1,6 @@
 /**
  * FinanceTabs - Onglets de navigation de l'écran Finance
- * 
+ *
  * Permet de naviguer entre les différents modules financiers
  * Style harmonisé avec le menu Santé
  */
@@ -27,7 +27,7 @@ interface FinanceTabsProps {
 
 export default function FinanceTabs({ onglets, ongletActif, onTabChange }: FinanceTabsProps) {
   const { colors } = useTheme();
-  
+
   return (
     <View style={[styles.ongletsContainer, { backgroundColor: colors.surface }]}>
       <ScrollView
@@ -94,4 +94,3 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 });
-

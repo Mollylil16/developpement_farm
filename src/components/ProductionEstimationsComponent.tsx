@@ -77,11 +77,11 @@ export default function ProductionEstimationsComponent() {
 
         // Les pesées sont triées par date ASC, donc la dernière est à la fin
         const dernierePesee = pesees[pesees.length - 1];
-        
+
         // Utiliser le GMQ de la dernière pesée (calculé automatiquement)
         // Si pas de GMQ (première pesée), calculer le GMQ moyen de toutes les pesées
         let gmq = dernierePesee.gmq || 0;
-        
+
         // Si le GMQ est 0 et qu'il y a plus d'une pesée, calculer le GMQ moyen
         if (gmq === 0 && pesees.length >= 2) {
           const premiere = pesees[0];
@@ -89,7 +89,10 @@ export default function ProductionEstimationsComponent() {
           const gainTotal = derniere.poids_kg - premiere.poids_kg;
           const dateInitiale = new Date(premiere.date);
           const dateFinale = new Date(derniere.date);
-          const joursTotal = Math.max(1, Math.ceil((dateFinale.getTime() - dateInitiale.getTime()) / (1000 * 60 * 60 * 24)));
+          const joursTotal = Math.max(
+            1,
+            Math.ceil((dateFinale.getTime() - dateInitiale.getTime()) / (1000 * 60 * 60 * 24))
+          );
           gmq = Math.round((gainTotal * 1000) / joursTotal);
         }
 

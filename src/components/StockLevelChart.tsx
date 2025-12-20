@@ -6,6 +6,14 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Dimensions, ScrollView, TouchableOpacity } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
+
+// Type pour les datasets de LineChart
+interface ChartDataset {
+  data: number[];
+  color: (opacity?: number) => string;
+  strokeWidth?: number;
+  withDots?: boolean;
+}
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { StockAliment, StockMouvement } from '../types';
@@ -54,7 +62,7 @@ export default function StockLevelChart({ stocks, mouvementsParAliment = {} }: P
     Object.values(mouvementsParAliment).forEach((mouvements) => {
       mouvements.forEach((mouvement) => {
         const dateMouvement = startOfDay(parseISO(mouvement.date));
-        if (!premiereDateMouvement || dateMouvement < premiereDateMouvement) {
+        if (premiereDateMouvement === null || dateMouvement < premiereDateMouvement) {
           premiereDateMouvement = dateMouvement;
         }
       });
@@ -63,14 +71,15 @@ export default function StockLevelChart({ stocks, mouvementsParAliment = {} }: P
     // Déterminer la plage de dates (derniers N jours ou depuis le premier mouvement)
     const today = startOfDay(new Date());
     const dateDebutMax = subDays(today, periode);
-    
+
     // Utiliser la date la plus récente entre la date basée sur la période et la première date avec mouvement
-    let dateDebut = dateDebutMax;
-    if (premiereDateMouvement) {
+    let dateDebut: Date = dateDebutMax;
+    if (premiereDateMouvement !== null) {
       // Commencer au maximum N jours en arrière, mais pas avant le premier mouvement
-      dateDebut = premiereDateMouvement < dateDebutMax ? dateDebutMax : premiereDateMouvement;
+      const premiereDate: Date = premiereDateMouvement as Date;
+      dateDebut = premiereDate < dateDebutMax ? dateDebutMax : premiereDate;
     }
-    
+
     const dates = eachDayOfInterval({ start: dateDebut, end: today });
 
     // Préparer les labels de dates (format court)
@@ -85,13 +94,13 @@ export default function StockLevelChart({ stocks, mouvementsParAliment = {} }: P
     });
 
     // Pour chaque aliment, calculer l'évolution du stock dans le temps
-    const datasets: any[] = [];
-    const seuilsDatasets: any[] = [];
+    const datasets: ChartDataset[] = [];
+    const seuilsDatasets: ChartDataset[] = [];
     const legend: string[] = [];
 
     sortedStocks.forEach((stock, index) => {
       const mouvements = mouvementsParAliment[stock.id] || [];
-      
+
       // Trier les mouvements par date croissante
       const mouvementsTries = [...mouvements].sort(
         (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
@@ -100,7 +109,7 @@ export default function StockLevelChart({ stocks, mouvementsParAliment = {} }: P
       // Calculer le stock initial au début de la période
       // On remonte dans le temps depuis le stock actuel en inversant tous les mouvements de la période
       let stockInitial = stock.quantite_actuelle || 0;
-      
+
       // Trouver le dernier ajustement avant ou dans la période
       const dernierAjustement = mouvementsTries
         .filter((m) => m.type === 'ajustement')
@@ -153,7 +162,7 @@ export default function StockLevelChart({ stocks, mouvementsParAliment = {} }: P
           }
         });
       }
-      
+
       stockInitial = Math.max(0, stockInitial);
 
       // Calculer le niveau de stock pour chaque date
@@ -316,24 +325,26 @@ export default function StockLevelChart({ stocks, mouvementsParAliment = {} }: P
             {(() => {
               const today = startOfDay(new Date());
               const dateDebut = subDays(today, periode);
-              return chartData.stocks.reduce((sum, s) => {
-                const mouvements = mouvementsParAliment[s.id] || [];
-                const mouvementsTries = [...mouvements].sort(
-                  (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-                );
-                let stockInitial = s.quantite_actuelle || 0;
-                mouvementsTries.forEach((mouvement) => {
-                  const mouvementDate = startOfDay(parseISO(mouvement.date));
-                  if (mouvementDate >= dateDebut && mouvementDate <= today) {
-                    if (mouvement.type === 'entree') {
-                      stockInitial -= mouvement.quantite;
-                    } else if (mouvement.type === 'sortie') {
-                      stockInitial += mouvement.quantite;
+              return chartData.stocks
+                .reduce((sum, s) => {
+                  const mouvements = mouvementsParAliment[s.id] || [];
+                  const mouvementsTries = [...mouvements].sort(
+                    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+                  );
+                  let stockInitial = s.quantite_actuelle || 0;
+                  mouvementsTries.forEach((mouvement) => {
+                    const mouvementDate = startOfDay(parseISO(mouvement.date));
+                    if (mouvementDate >= dateDebut && mouvementDate <= today) {
+                      if (mouvement.type === 'entree') {
+                        stockInitial -= mouvement.quantite;
+                      } else if (mouvement.type === 'sortie') {
+                        stockInitial += mouvement.quantite;
+                      }
                     }
-                  }
-                });
-                return sum + Math.max(0, stockInitial);
-              }, 0).toFixed(1);
+                  });
+                  return sum + Math.max(0, stockInitial);
+                }, 0)
+                .toFixed(1);
             })()}
           </Text>
         </View>
@@ -348,7 +359,10 @@ export default function StockLevelChart({ stocks, mouvementsParAliment = {} }: P
         <View style={styles.statBox}>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Conso. moyenne</Text>
           <Text style={[styles.statValue, { color: colors.primary }]}>
-            {chartData.statsConsommation.reduce((sum, stat) => sum + stat.consommationMoyenneParJour, 0).toFixed(1) || '0'} /j
+            {chartData.statsConsommation
+              .reduce((sum, stat) => sum + stat.consommationMoyenneParJour, 0)
+              .toFixed(1) || '0'}{' '}
+            /j
           </Text>
         </View>
 
@@ -415,16 +429,17 @@ export default function StockLevelChart({ stocks, mouvementsParAliment = {} }: P
             <View key={stock.id} style={styles.legendRow}>
               <View style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: color }]} />
-                <Text style={[styles.legendText, { color: colors.textSecondary }]} numberOfLines={1}>
+                <Text
+                  style={[styles.legendText, { color: colors.textSecondary }]}
+                  numberOfLines={1}
+                >
                   {stock.nom}
                 </Text>
               </View>
               {hasSeuil && (
                 <View style={styles.legendItem}>
                   <View style={[styles.legendDotDashed, { borderColor: colors.error }]} />
-                  <Text style={[styles.legendText, { color: colors.textSecondary }]}>
-                    Seuil
-                  </Text>
+                  <Text style={[styles.legendText, { color: colors.textSecondary }]}>Seuil</Text>
                 </View>
               )}
             </View>
@@ -632,4 +647,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-

@@ -1,7 +1,7 @@
 /**
  * Migration 11 : Ajouter verrat_id et verrat_nom à la table gestations
  * Permet d'identifier le verrat utilisé pour la saillie
- * 
+ *
  * Version: 11
  */
 
@@ -40,4 +40,3 @@ export async function addVerratFieldsToGestations(db: SQLiteDatabase): Promise<v
     console.log('✅ Migration: Colonne verrat_nom ajoutée à gestations');
   }
 }
-

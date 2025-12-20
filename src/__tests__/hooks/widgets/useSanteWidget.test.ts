@@ -33,4 +33,3 @@ describe('useSanteWidget', () => {
     expect(module).toHaveProperty('useSanteWidget');
   });
 });
-

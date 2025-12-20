@@ -355,11 +355,12 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
 
       // Fermer le formulaire
       toggleFormulaire();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur enregistrement:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       Alert.alert(
         'Erreur',
-        `Impossible d'enregistrer le cas de maladie:\n${error?.message || error}`
+        `Impossible d'enregistrer le cas de maladie:\n${errorMessage}`
       );
     }
   };

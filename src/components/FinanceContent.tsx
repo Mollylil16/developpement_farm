@@ -31,4 +31,3 @@ export default function FinanceContent({ ongletActif }: FinanceContentProps) {
       return null;
   }
 }
-

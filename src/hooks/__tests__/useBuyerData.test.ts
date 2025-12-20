@@ -7,7 +7,11 @@ import { useBuyerData } from '../useBuyerData';
 import { useAppSelector } from '../store/hooks';
 import { getDatabase } from '../services/database';
 import { getMarketplaceService } from '../services/MarketplaceService';
-import { MarketplaceOfferRepository, MarketplaceTransactionRepository, MarketplaceListingRepository } from '../database/repositories';
+import {
+  MarketplaceOfferRepository,
+  MarketplaceTransactionRepository,
+  MarketplaceListingRepository,
+} from '../database/repositories';
 
 // Mock dependencies
 jest.mock('../store/hooks');
@@ -15,9 +19,9 @@ jest.mock('../services/database');
 jest.mock('../services/MarketplaceService');
 jest.mock('../database/repositories');
 
-const mockUseAppSelector = useAppSelector as jest.MockedFunction<typeof useAppSelector>;
-const mockGetDatabase = getDatabase as jest.MockedFunction<typeof getDatabase>;
-const mockGetMarketplaceService = getMarketplaceService as jest.MockedFunction<typeof getMarketplaceService>;
+const mockUseAppSelector = useAppSelector;
+const mockGetDatabase = getDatabase;
+const mockGetMarketplaceService = getMarketplaceService;
 
 describe('useBuyerData', () => {
   const mockDb = {
@@ -140,7 +144,11 @@ describe('useBuyerData', () => {
     });
 
     expect(result.current.activeOffers).toHaveLength(2); // Seulement pending et countered
-    expect(result.current.activeOffers.every((o: any) => o.status === 'pending' || o.status === 'countered')).toBe(true);
+    expect(
+      result.current.activeOffers.every(
+        (o: any) => o.status === 'pending' || o.status === 'countered'
+      )
+    ).toBe(true);
   });
 
   it('devrait filtrer correctement les transactions complétées', async () => {
@@ -258,9 +266,27 @@ describe('useBuyerData', () => {
     };
 
     const mockTransactions = [
-      { id: '1', status: 'completed', buyerId: 'user-1', finalPrice: 10000, completedAt: '2024-01-01T00:00:00Z' },
-      { id: '2', status: 'completed', buyerId: 'user-1', finalPrice: 20000, completedAt: '2024-01-03T00:00:00Z' },
-      { id: '3', status: 'completed', buyerId: 'user-1', finalPrice: 30000, completedAt: '2024-01-02T00:00:00Z' },
+      {
+        id: '1',
+        status: 'completed',
+        buyerId: 'user-1',
+        finalPrice: 10000,
+        completedAt: '2024-01-01T00:00:00Z',
+      },
+      {
+        id: '2',
+        status: 'completed',
+        buyerId: 'user-1',
+        finalPrice: 20000,
+        completedAt: '2024-01-03T00:00:00Z',
+      },
+      {
+        id: '3',
+        status: 'completed',
+        buyerId: 'user-1',
+        finalPrice: 30000,
+        completedAt: '2024-01-02T00:00:00Z',
+      },
     ] as any;
 
     mockUseAppSelector.mockReturnValue({
@@ -285,4 +311,3 @@ describe('useBuyerData', () => {
     expect(result.current.completedTransactions[2].id).toBe('1'); // Plus ancienne
   });
 });
-

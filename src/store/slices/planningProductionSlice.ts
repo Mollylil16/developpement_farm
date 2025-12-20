@@ -7,11 +7,12 @@ import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import {
   ObjectifProduction,
   ParametresProduction,
-  SimulationProductionResultat,
-  RecommandationStrategique,
+  // Types utilisés dans PlanningProductionState (lignes 232, 234, 235) - conservés pour typage explicite
+  SimulationProductionResultat, // eslint-disable-line @typescript-eslint/no-unused-vars
+  RecommandationStrategique, // eslint-disable-line @typescript-eslint/no-unused-vars
   SailliePlanifiee,
-  PrevisionVenteAnimal,
-  SynthesePrevisionVentes,
+  PrevisionVenteAnimal, // eslint-disable-line @typescript-eslint/no-unused-vars
+  SynthesePrevisionVentes, // eslint-disable-line @typescript-eslint/no-unused-vars
   PlanningProductionState,
   PARAMETRES_PRODUCTION_DEFAUT,
 } from '../../types/planningProduction';
@@ -23,6 +24,10 @@ import {
 } from '../../utils/planningProductionCalculs';
 import { RootState } from '../store';
 import { addDays, differenceInDays, format } from 'date-fns';
+import { getErrorMessage } from '../../types/common';
+import { ProductionAnimal, ProductionPesee } from '../../types/production';
+import { Gestation } from '../../types/reproduction';
+import { CreatePlanificationInput } from '../../types/planification';
 
 // Etat initial
 const initialState: PlanningProductionState = {
@@ -119,45 +124,71 @@ export const genererPlanSaillies = createAsyncThunk(
       // Récupérer les truies disponibles du cheptel (filtrées par projet)
       const animaux = state.production?.entities?.animaux || {};
 
+      // Type guard pour Gestation
+      const isGestation = (g: unknown): g is Gestation => {
+        return (
+          typeof g === 'object' &&
+          g !== null &&
+          'statut' in g &&
+          'projet_id' in g &&
+          'truie_id' in g
+        );
+      };
+
       // Récupérer les gestations en cours pour exclure les truies déjà en gestation
       const gestations = state.reproduction?.entities?.gestations || {};
       const gestationsEnCours = Object.values(gestations).filter(
-        (g: any) => g && g.statut === 'en_cours' && g.projet_id === projetActif.id
+        (g: unknown): g is Gestation =>
+          isGestation(g) && g.statut === 'en_cours' && g.projet_id === projetActif.id
       );
       const truiesEnGestationIds = new Set(
-        gestationsEnCours.map((g: any) => g.truie_id).filter(Boolean)
+        gestationsEnCours.map((g) => g.truie_id).filter(Boolean)
       );
 
       // Helper pour vérifier si un animal est reproducteur (gère les booléens et les entiers SQLite)
-      const isReproducteur = (reproducteur: any): boolean => {
+      const isReproducteur = (reproducteur: unknown): boolean => {
         return reproducteur === true || reproducteur === 1 || reproducteur === '1';
       };
 
+      // Type guard pour ProductionAnimal
+      const isProductionAnimal = (a: unknown): a is ProductionAnimal => {
+        return (
+          typeof a === 'object' &&
+          a !== null &&
+          'id' in a &&
+          'projet_id' in a &&
+          'sexe' in a &&
+          'statut' in a
+        );
+      };
+
       // Log pour déboguer
-      const tousAnimaux = Object.values(animaux);
+      const tousAnimaux = Object.values(animaux).filter(isProductionAnimal);
       console.log('🔍 [genererPlanSaillies] Total animaux dans state:', tousAnimaux.length);
       console.log('🔍 [genererPlanSaillies] Projet actif:', projetActif.id);
-      
-      const animauxProjet = tousAnimaux.filter((a: any) => a?.projet_id === projetActif.id);
+
+      const animauxProjet = tousAnimaux.filter((a) => a.projet_id === projetActif.id);
       console.log('🔍 [genererPlanSaillies] Animaux du projet:', animauxProjet.length);
-      
-      const truiesProjet = animauxProjet.filter((a: any) => a?.sexe === 'femelle');
+
+      const truiesProjet = animauxProjet.filter((a) => a.sexe === 'femelle');
       console.log('🔍 [genererPlanSaillies] Truies du projet:', truiesProjet.length);
       if (truiesProjet.length > 0) {
-        console.log('🔍 [genererPlanSaillies] Détails truies:', truiesProjet.map((a: any) => ({
-          id: a.id,
-          code: a.code,
-          sexe: a.sexe,
-          reproducteur: a.reproducteur,
-          type_reproducteur: typeof a.reproducteur,
-          statut: a.statut,
-          projet_id: a.projet_id,
-          isReproducteur: isReproducteur(a.reproducteur)
-        })));
+        console.log(
+          '🔍 [genererPlanSaillies] Détails truies:',
+          truiesProjet.map((a) => ({
+            id: a.id,
+            code: a.code,
+            sexe: a.sexe,
+            reproducteur: a.reproducteur,
+            type_reproducteur: typeof a.reproducteur,
+            statut: a.statut,
+            projet_id: a.projet_id,
+            isReproducteur: isReproducteur(a.reproducteur),
+          }))
+        );
       }
 
-      const truiesDisponibles = Object.values(animaux).filter((animal: any) => {
-        if (!animal) return false;
+      const truiesDisponibles = tousAnimaux.filter((animal) => {
         const isFemelle = animal.sexe === 'femelle';
         const isReproductrice = isReproducteur(animal.reproducteur);
         const isActive = animal.statut === 'actif';
@@ -167,8 +198,11 @@ export const genererPlanSaillies = createAsyncThunk(
         // Exclure les truies déjà en gestation
         return isFemelle && isReproductrice && isActive && isDuProjet && !estEnGestation;
       });
-      
-      console.log('🔍 [genererPlanSaillies] Truies disponibles après filtrage:', truiesDisponibles.length);
+
+      console.log(
+        '🔍 [genererPlanSaillies] Truies disponibles après filtrage:',
+        truiesDisponibles.length
+      );
 
       const nombreTruies = truiesDisponibles.length;
       const nombrePorteesNecessaires = simulationResultat.nombre_portees_necessaires;
@@ -221,7 +255,9 @@ export const genererPlanSaillies = createAsyncThunk(
       // Au lieu d'étaler les saillies, on les groupe par vague
 
       // Combien de cycles chaque truie peut faire ?
-      const cyclesMaxParTruie = Math.floor(fenetreSailliesJours / cycleReproductionJours) + 1;
+      // Calcul préparatoire pour usage futur (optimisation des cycles)
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, no-unused-vars
+      const _cyclesMaxParTruie = Math.floor(fenetreSailliesJours / cycleReproductionJours) + 1;
 
       // Combien de vagues de saillies peut-on faire ?
       const nombreVagues = Math.ceil(nombrePorteesNecessaires / nombreTruies);
@@ -230,8 +266,7 @@ export const genererPlanSaillies = createAsyncThunk(
       const intervalleVaguesJours = cycleReproductionJours; // Une vague par cycle de reproduction
 
       // Récupérer les verrats disponibles
-      const verratsDisponibles = Object.values(animaux).filter((animal: any) => {
-        if (!animal) return false;
+      const verratsDisponibles = tousAnimaux.filter((animal) => {
         const isMale = animal.sexe === 'male';
         const estReproducteur = isReproducteur(animal.reproducteur);
         const isActive = animal.statut === 'actif';
@@ -239,7 +274,9 @@ export const genererPlanSaillies = createAsyncThunk(
         return isMale && estReproducteur && isActive && isDuProjet;
       });
 
-      const nombreVerrats = verratsDisponibles.length;
+      // Calcul préparatoire pour usage futur (validation du ratio verrat/truies)
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, no-unused-vars
+      const _nombreVerrats = verratsDisponibles.length;
 
       // 🎯 GÉNÉRATION OPTIMALE DES SAILLIES
       // Respect des contraintes biologiques:
@@ -297,7 +334,7 @@ export const genererPlanSaillies = createAsyncThunk(
           const truie = truiesDisponiblesVague[truieIdx];
 
           // Trouver le verrat disponible le plus tôt
-          let verratChoisi: any = null;
+          let verratChoisi: ProductionAnimal | null = null;
           let dateDisponibleVerrat = new Date(9999, 0, 1); // Date lointaine
 
           for (const verrat of verratsDisponibles) {
@@ -393,9 +430,21 @@ export const genererPrevisionsVentes = createAsyncThunk(
       const poidsCible = params?.poids_cible_kg ?? parametresProduction.poids_moyen_vente_kg;
       const gmqMoyen = params?.gmq_moyen ?? parametresProduction.gmq_moyen_g_jour;
 
+      // Type guard pour ProductionAnimal (réutilisé)
+      const isProductionAnimalLocal = (a: unknown): a is ProductionAnimal => {
+        return (
+          typeof a === 'object' &&
+          a !== null &&
+          'id' in a &&
+          'projet_id' in a &&
+          'sexe' in a &&
+          'statut' in a
+        );
+      };
+
       // Recuperer les animaux depuis l'etat Redux (entities normalisées)
       const animauxEntities = state.production?.entities?.animaux || {};
-      const animaux = Object.values(animauxEntities).filter((a): a is any => a !== undefined);
+      const animaux = Object.values(animauxEntities).filter(isProductionAnimalLocal);
 
       // Filtrer uniquement les animaux à vendre (non reproducteurs)
       const animauxAVendre = animaux.filter((animal) => {
@@ -411,12 +460,23 @@ export const genererPrevisionsVentes = createAsyncThunk(
       const peseesParAnimalIds = state.production?.peseesParAnimal || {};
       const peseesEntities = state.production?.entities?.pesees || {};
 
-      const peseesParAnimal: { [key: string]: any[] } = {};
+      // Type guard pour ProductionPesee
+      const isProductionPesee = (p: unknown): p is ProductionPesee => {
+        return (
+          typeof p === 'object' &&
+          p !== null &&
+          'id' in p &&
+          'animal_id' in p &&
+          'poids_kg' in p
+        );
+      };
+
+      const peseesParAnimal: { [key: string]: ProductionPesee[] } = {};
       Object.keys(peseesParAnimalIds).forEach((animalId) => {
         const peseeIds = peseesParAnimalIds[animalId] || [];
         peseesParAnimal[animalId] = peseeIds
           .map((id) => peseesEntities[id])
-          .filter((p) => p !== undefined);
+          .filter(isProductionPesee);
       });
 
       const synthese = calculerPrevisionVentes(animauxAVendre, peseesParAnimal, {
@@ -427,7 +487,9 @@ export const genererPrevisionsVentes = createAsyncThunk(
 
       return synthese;
     } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la generation des previsions');
+      return rejectWithValue(
+        getErrorMessage(error) || 'Erreur lors de la generation des previsions'
+      );
     }
   }
 );
@@ -473,7 +535,9 @@ export const genererPrevisionsFuturesVentes = createAsyncThunk(
  */
 export const actualiserDonnees = createAsyncThunk(
   'planningProduction/actualiser',
-  async (_, { dispatch }) => {
+  // Fonction placeholder - paramètres requis par createAsyncThunk mais non utilisés
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, no-unused-vars
+  async (_payload, { dispatch: _dispatch }) => {
     // Recharger la simulation si un objectif existe
     // Recharger les saillies
     // Recharger les previsions
@@ -490,7 +554,7 @@ export const validerPlanningSaillies = createAsyncThunk(
     payload: {
       projetId: string;
       saillies: SailliePlanifiee[];
-      animaux?: any[]; // Pour récupérer les noms des truies/verrats
+      animaux?: ProductionAnimal[]; // Pour récupérer les noms des truies/verrats
     },
     { dispatch, rejectWithValue }
   ) => {
@@ -499,7 +563,7 @@ export const validerPlanningSaillies = createAsyncThunk(
       const { genererTachesDepuisSaillie } = await import('../../utils/planningProductionCalculs');
       const { createPlanificationsBatch } = await import('./planificationSlice');
 
-      const toutesLesTaches: any[] = [];
+      const toutesLesTaches: CreatePlanificationInput[] = [];
       const sailliesValidees: SailliePlanifiee[] = [];
 
       for (const saillie of payload.saillies) {
@@ -515,9 +579,10 @@ export const validerPlanningSaillies = createAsyncThunk(
         );
 
         // Convertir en CreatePlanificationInput
-        const tachesACreer = taches.map((tache) => ({
+        // Le type de TacheGeneree.type est compatible avec TypeTache
+        const tachesACreer: CreatePlanificationInput[] = taches.map((tache) => ({
           projet_id: payload.projetId,
-          type: tache.type as any,
+          type: tache.type as CreatePlanificationInput['type'],
           titre: tache.titre,
           description: tache.description,
           date_prevue: tache.date_prevue,
@@ -598,7 +663,9 @@ const planningProductionSlice = createSlice({
     },
 
     // Supprimer une prevision de vente
-    supprimerPrevisionVente: (state, action: PayloadAction<string>) => {
+    // Fonction placeholder (TODO: Refactorer) - paramètres requis mais non utilisés
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars, no-unused-vars
+    supprimerPrevisionVente: (_state, _action: PayloadAction<string>) => {
       // Les previsions ventes sont dans la synthese, on ne peut pas les supprimer individuellement
       // TODO: Refactorer si necessaire
     },

@@ -22,7 +22,9 @@ export default function LoadingSpinner({ message, size = 'large', color }: Loadi
     <SafeTextWrapper componentName="LoadingSpinner">
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <ActivityIndicator size={size} color={spinnerColor} />
-        {message && <Text style={[styles.message, { color: colors.textSecondary }]}>{message}</Text>}
+        {message && (
+          <Text style={[styles.message, { color: colors.textSecondary }]}>{message}</Text>
+        )}
       </View>
     </SafeTextWrapper>
   );

@@ -5,10 +5,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAppSelector } from '../store/hooks';
-import { getDatabase } from '../services/database';
 import { getErrorMessage } from '../types/common';
-import { getMarketplaceService } from '../services/MarketplaceService';
-import { MarketplaceOfferRepository, MarketplaceTransactionRepository, MarketplaceListingRepository } from '../database/repositories';
+import apiClient from '../services/api/apiClient';
 import type { Offer, Transaction, MarketplaceListing } from '../types/marketplace';
 
 interface BuyerData {
@@ -38,34 +36,28 @@ export function useBuyerData() {
     try {
       setData((prev) => ({ ...prev, loading: true, error: null }));
 
-      const db = await getDatabase();
-      const offerRepo = new MarketplaceOfferRepository(db);
-      const transactionRepo = new MarketplaceTransactionRepository(db);
-      const listingRepo = new MarketplaceListingRepository(db);
-      const marketplaceService = getMarketplaceService(db);
-
-      // Charger les offres actives (pending, countered)
-      const allOffers = await offerRepo.findByBuyerId(user.id);
+      // Charger les offres actives depuis l'API backend
+      const allOffers = await apiClient.get<any[]>('/marketplace/offers', {
+        params: { buyer_id: user.id },
+      });
       const activeOffers = allOffers.filter(
         (offer) => offer.status === 'pending' || offer.status === 'countered'
       );
 
-      // Charger les transactions complétées
-      const allTransactions = await transactionRepo.findByBuyerId(user.id);
+      // Charger les transactions complétées depuis l'API backend
+      const allTransactions = await apiClient.get<any[]>('/marketplace/transactions', {
+        params: { role: 'buyer' },
+      });
       const completedTransactions = allTransactions.filter(
-        (transaction) =>
-          transaction.status === 'completed' || transaction.status === 'delivered'
+        (transaction) => transaction.status === 'completed' || transaction.status === 'delivered'
       );
 
-      // Charger les nouvelles annonces (exclure celles de l'utilisateur)
-      const searchResult = await marketplaceService.searchListings(
-        {},
-        'newest',
-        1,
-        5,
-        user.id // Exclure les propres annonces
-      );
-      const recentListings = searchResult.listings.slice(0, 5);
+      // Charger les nouvelles annonces depuis l'API backend
+      const allListings = await apiClient.get<any[]>('/marketplace/listings');
+      const recentListings = allListings
+        .filter((listing) => listing.producerId !== user.id)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 5);
 
       setData({
         activeOffers,
@@ -93,4 +85,3 @@ export function useBuyerData() {
     refresh: loadBuyerData,
   };
 }
-

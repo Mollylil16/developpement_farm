@@ -15,7 +15,7 @@ import { getErrorMessage } from '../types/common';
 export interface NotificationConfig {
   title: string;
   body: string;
-  data?: any;
+  data?: unknown;
   sound?: boolean;
   priority?: 'min' | 'low' | 'default' | 'high' | 'max';
 }
@@ -26,7 +26,15 @@ export interface NotificationConfig {
 export async function configureNotifications(): Promise<void> {
   try {
     // Vérifier si on est dans Expo Go (limitations connues)
-    const isExpoGo = __DEV__ && !(global as any).expo?.modules?.expo?.modules?.ExpoModulesCore;
+    const globalTyped = global as Record<string, unknown>;
+    const isExpoGo =
+      __DEV__ &&
+      !(
+        globalTyped.expo &&
+        typeof globalTyped.expo === 'object' &&
+        globalTyped.expo !== null &&
+        (globalTyped.expo as Record<string, unknown>).modules
+      );
 
     // Configurer le comportement des notifications
     await Notifications.setNotificationHandler({
@@ -94,13 +102,14 @@ export async function scheduleNotification(
       content: {
         title: config.title,
         body: config.body,
-        data: config.data || {},
+        data: (config.data as Record<string, unknown>) || ({} as Record<string, unknown>),
         sound: config.sound !== false,
         priority: config.priority || 'default',
       },
       trigger: {
+        type: 'date',
         date: date,
-      },
+      } as Notifications.DateTriggerInput,
     });
 
     return notificationId;
@@ -150,13 +159,14 @@ export async function scheduleGestationAlert(
 /**
  * Planifie des notifications pour toutes les gestations proches
  */
-export async function scheduleGestationAlerts(gestations: any[]): Promise<void> {
+export async function scheduleGestationAlerts(gestations: unknown[]): Promise<void> {
   try {
     // Annuler les anciennes notifications de gestations
     const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
-    const gestationNotifications = allNotifications.filter(
-      (n: any) => n.content?.data?.type === NotificationType.GESTATION
-    );
+    const gestationNotifications = allNotifications.filter((n: any) => {
+      const data = n?.content?.data;
+      return data && typeof data === 'object' && data.type === NotificationType.GESTATION;
+    });
 
     for (const notification of gestationNotifications) {
       await Notifications.cancelScheduledNotificationAsync(notification.identifier);
@@ -166,21 +176,39 @@ export async function scheduleGestationAlerts(gestations: any[]): Promise<void> 
     const maintenant = new Date();
 
     for (const gestation of gestations) {
-      if (gestation.statut !== 'en_cours') continue;
+      const gestationTyped = gestation as Record<string, unknown>;
+      if (
+        !gestationTyped.statut ||
+        typeof gestationTyped.statut !== 'string' ||
+        gestationTyped.statut !== 'en_cours'
+      ) {
+        continue;
+      }
 
-      const dateMiseBas = new Date(gestation.date_mise_bas_prevue);
+      const dateMiseBasStr =
+        gestationTyped.date_mise_bas_prevue && typeof gestationTyped.date_mise_bas_prevue === 'string'
+          ? gestationTyped.date_mise_bas_prevue
+          : undefined;
+      if (!dateMiseBasStr) continue;
+
+      const dateMiseBas = new Date(dateMiseBasStr);
       const daysUntil = Math.ceil(
         (dateMiseBas.getTime() - maintenant.getTime()) / (1000 * 60 * 60 * 24)
       );
 
       // Planifier pour les gestations dans les X prochains jours (configurable)
       if (daysUntil > 0 && daysUntil <= GESTATION_ALERT_DAYS) {
-        await scheduleGestationAlert(
-          gestation.id,
-          gestation.truie_nom || 'truie',
-          dateMiseBas,
-          daysUntil
-        );
+        const gestationId =
+          gestationTyped.id && typeof gestationTyped.id === 'string'
+            ? gestationTyped.id
+            : undefined;
+        const truieNom =
+          (gestationTyped.truie_nom && typeof gestationTyped.truie_nom === 'string'
+            ? gestationTyped.truie_nom
+            : undefined) || 'truie';
+        if (gestationId) {
+          await scheduleGestationAlert(gestationId, truieNom, dateMiseBas, daysUntil);
+        }
       }
     }
   } catch (error: unknown) {
@@ -201,10 +229,15 @@ export async function scheduleStockAlert(
     // Ne planifier qu'une seule fois par stock pour éviter les doublons
     // Vérifier si une notification existe déjà pour ce stock
     const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
-    const existingNotification = allNotifications.find(
-      (n: any) =>
-        n.content?.data?.type === NotificationType.STOCK && n.content?.data?.stockId === stockId
-    );
+    const existingNotification = allNotifications.find((n: any) => {
+      const data = n?.content?.data;
+      return (
+        data &&
+        typeof data === 'object' &&
+        data.type === NotificationType.STOCK &&
+        data.stockId === stockId
+      );
+    });
 
     // Si une notification existe déjà, ne pas en créer une nouvelle
     if (existingNotification) {
@@ -236,19 +269,39 @@ export async function scheduleStockAlert(
 /**
  * Planifie des notifications pour tous les stocks en alerte
  */
-export async function scheduleStockAlerts(stocks: any[]): Promise<void> {
+export async function scheduleStockAlerts(stocks: unknown[]): Promise<void> {
   try {
     // Annuler les notifications pour les stocks qui ne sont plus en alerte
     const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
-    const stockNotifications = allNotifications.filter(
-      (n: any) => n.content?.data?.type === NotificationType.STOCK
-    );
+    const stockNotifications = allNotifications.filter((n: any) => {
+      const data = n?.content?.data;
+      return data && typeof data === 'object' && data.type === NotificationType.STOCK;
+    });
 
-    const stocksEnAlerteIds = new Set(stocks.filter((s) => s.alerte_active).map((s) => s.id));
+    const stocksEnAlerteIds = new Set(
+      stocks
+        .filter((s: any) => {
+          const stockTyped = s as Record<string, unknown>;
+          return (
+            stockTyped.alerte_active === true ||
+            stockTyped.alerte_active === 1 ||
+            stockTyped.alerte_active === 'true'
+          );
+        })
+        .map((s: any) => {
+          const stockTyped = s as Record<string, unknown>;
+          return stockTyped.id && typeof stockTyped.id === 'string' ? stockTyped.id : '';
+        })
+        .filter((id: string) => id !== '')
+    );
 
     // Annuler les notifications pour les stocks qui ne sont plus en alerte
     for (const notification of stockNotifications) {
-      const stockId = notification.content?.data?.stockId;
+      const data = notification.content?.data;
+      const stockId =
+        data && typeof data === 'object' && data.stockId && typeof data.stockId === 'string'
+          ? data.stockId
+          : undefined;
       if (stockId && !stocksEnAlerteIds.has(stockId)) {
         await Notifications.cancelScheduledNotificationAsync(notification.identifier);
       }
@@ -256,8 +309,31 @@ export async function scheduleStockAlerts(stocks: any[]): Promise<void> {
 
     // Planifier les notifications pour les nouveaux stocks en alerte
     for (const stock of stocks) {
-      if (stock.alerte_active && stock.seuil_alerte !== undefined && stock.seuil_alerte !== null) {
-        await scheduleStockAlert(stock.id, stock.nom, stock.quantite_actuelle, stock.seuil_alerte);
+      const stockTyped = stock as Record<string, unknown>;
+      const isAlerteActive =
+        stockTyped.alerte_active === true ||
+        stockTyped.alerte_active === 1 ||
+        stockTyped.alerte_active === 'true';
+      const seuilAlerte =
+        stockTyped.seuil_alerte !== undefined &&
+        stockTyped.seuil_alerte !== null &&
+        typeof stockTyped.seuil_alerte === 'number'
+          ? stockTyped.seuil_alerte
+          : undefined;
+
+      if (isAlerteActive && seuilAlerte !== undefined) {
+        const stockId =
+          stockTyped.id && typeof stockTyped.id === 'string' ? stockTyped.id : undefined;
+        const stockNom =
+          stockTyped.nom && typeof stockTyped.nom === 'string' ? stockTyped.nom : 'Stock';
+        const quantiteActuelle =
+          stockTyped.quantite_actuelle && typeof stockTyped.quantite_actuelle === 'number'
+            ? stockTyped.quantite_actuelle
+            : 0;
+
+        if (stockId) {
+          await scheduleStockAlert(stockId, stockNom, quantiteActuelle, seuilAlerte);
+        }
       }
     }
   } catch (error: unknown) {
@@ -289,9 +365,9 @@ export async function scheduleTaskReminder(
       body: `La tâche "${taskTitle}" est prévue pour ${reminderHours}h`,
       data: {
         type: NotificationType.TASK,
-        taskId,
+        taskId: String(taskId),
         action: NotificationAction.OPEN_PLANIFICATION,
-      },
+      } as Record<string, unknown>,
       priority: 'default',
     });
 
@@ -305,13 +381,14 @@ export async function scheduleTaskReminder(
 /**
  * Planifie des notifications pour les tâches à venir
  */
-export async function scheduleTaskReminders(tasks: any[]): Promise<void> {
+export async function scheduleTaskReminders(tasks: unknown[]): Promise<void> {
   try {
     // Annuler les anciennes notifications de tâches
     const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
-    const taskNotifications = allNotifications.filter(
-      (n: any) => n.content?.data?.type === NotificationType.TASK
-    );
+    const taskNotifications = allNotifications.filter((n: any) => {
+      const data = n?.content?.data;
+      return data && typeof data === 'object' && data.type === NotificationType.TASK;
+    });
 
     for (const notification of taskNotifications) {
       await Notifications.cancelScheduledNotificationAsync(notification.identifier);
@@ -321,19 +398,45 @@ export async function scheduleTaskReminders(tasks: any[]): Promise<void> {
     const maintenant = new Date();
 
     for (const task of tasks) {
-      if (task.statut !== 'a_faire') continue;
+      const taskTyped = task as Record<string, unknown>;
+      if (
+        !taskTyped.statut ||
+        typeof taskTyped.statut !== 'string' ||
+        taskTyped.statut !== 'a_faire'
+      ) {
+        continue;
+      }
 
-      const dueDate = new Date(task.date_echeance);
+      const dateEcheanceStr =
+        taskTyped.date_echeance && typeof taskTyped.date_echeance === 'string'
+          ? taskTyped.date_echeance
+          : undefined;
+      if (!dateEcheanceStr) continue;
+
+      const dueDate = new Date(dateEcheanceStr);
 
       // Ne planifier que pour les tâches futures
       if (dueDate <= maintenant) continue;
 
-      // Planifier un rappel par défaut (24h avant)
-      await scheduleTaskReminder(task.id, task.titre, dueDate, TASK_REMINDER_HOURS.DEFAULT);
+      const taskId =
+        taskTyped.id && typeof taskTyped.id === 'string' ? taskTyped.id : undefined;
+      const taskTitre =
+        taskTyped.titre && typeof taskTyped.titre === 'string' ? taskTyped.titre : 'Tâche';
 
-      // Planifier un rappel urgent (1h avant) si la tâche est importante
-      if (task.priorite === 'haute' || task.type === 'urgent') {
-        await scheduleTaskReminder(task.id, task.titre, dueDate, TASK_REMINDER_HOURS.URGENT);
+      if (taskId) {
+        // Planifier un rappel par défaut (24h avant)
+        await scheduleTaskReminder(taskId, taskTitre, dueDate, TASK_REMINDER_HOURS.DEFAULT);
+
+        // Planifier un rappel urgent (1h avant) si la tâche est importante
+        const priorite =
+          taskTyped.priorite && typeof taskTyped.priorite === 'string'
+            ? taskTyped.priorite
+            : undefined;
+        const type =
+          taskTyped.type && typeof taskTyped.type === 'string' ? taskTyped.type : undefined;
+        if (priorite === 'haute' || type === 'urgent') {
+          await scheduleTaskReminder(taskId, taskTitre, dueDate, TASK_REMINDER_HOURS.URGENT);
+        }
       }
     }
   } catch (error: unknown) {
@@ -344,7 +447,7 @@ export async function scheduleTaskReminders(tasks: any[]): Promise<void> {
 /**
  * Obtient toutes les notifications planifiées
  */
-export async function getAllScheduledNotifications(): Promise<any[]> {
+export async function getAllScheduledNotifications(): Promise<unknown[]> {
   try {
     return await Notifications.getAllScheduledNotificationsAsync();
   } catch (error: unknown) {
@@ -356,7 +459,10 @@ export async function getAllScheduledNotifications(): Promise<any[]> {
 /**
  * Nettoie les notifications obsolètes (gestations terminées, tâches complétées, etc.)
  */
-export async function cleanupObsoleteNotifications(gestations: any[], tasks: any[]): Promise<void> {
+export async function cleanupObsoleteNotifications(
+  gestations: unknown[],
+  tasks: unknown[]
+): Promise<void> {
   try {
     const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
     const maintenant = new Date();
@@ -367,30 +473,76 @@ export async function cleanupObsoleteNotifications(gestations: any[], tasks: any
 
       // Nettoyer les notifications de gestations terminées ou passées
       if (data.type === NotificationType.GESTATION) {
-        const gestation = gestations.find((g) => g.id === data.gestationId);
-        if (!gestation || gestation.statut !== 'en_cours') {
+        const gestationId =
+          data.gestationId && typeof data.gestationId === 'string' ? data.gestationId : undefined;
+        if (!gestationId) continue;
+
+        const gestation = gestations.find((g: any) => {
+          const gTyped = g as Record<string, unknown>;
+          return gTyped.id && typeof gTyped.id === 'string' && gTyped.id === gestationId;
+        });
+
+        if (!gestation) {
+          await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+          continue;
+        }
+
+        const gestationTyped = gestation as Record<string, unknown>;
+        if (
+          !gestationTyped.statut ||
+          typeof gestationTyped.statut !== 'string' ||
+          gestationTyped.statut !== 'en_cours'
+        ) {
           await Notifications.cancelScheduledNotificationAsync(notification.identifier);
           continue;
         }
 
         // Vérifier si la date de mise bas est passée
-        const dateMiseBas = new Date(gestation.date_mise_bas_prevue);
-        if (dateMiseBas < maintenant) {
-          await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+        const dateMiseBasStr =
+          gestationTyped.date_mise_bas_prevue &&
+          typeof gestationTyped.date_mise_bas_prevue === 'string'
+            ? gestationTyped.date_mise_bas_prevue
+            : undefined;
+        if (dateMiseBasStr) {
+          const dateMiseBas = new Date(dateMiseBasStr);
+          if (dateMiseBas < maintenant) {
+            await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+          }
         }
       }
 
       // Nettoyer les notifications de tâches complétées ou passées
       if (data.type === NotificationType.TASK) {
-        const task = tasks.find((t) => t.id === data.taskId);
-        if (!task || task.statut !== 'a_faire') {
+        const taskId = data.taskId && typeof data.taskId === 'string' ? data.taskId : undefined;
+        if (!taskId) continue;
+
+        const task = tasks.find((t: any) => {
+          const tTyped = t as Record<string, unknown>;
+          return tTyped.id && typeof tTyped.id === 'string' && tTyped.id === taskId;
+        });
+
+        if (!task) {
+          await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+          continue;
+        }
+
+        const taskTyped = task as Record<string, unknown>;
+        if (
+          !taskTyped.statut ||
+          typeof taskTyped.statut !== 'string' ||
+          taskTyped.statut !== 'a_faire'
+        ) {
           await Notifications.cancelScheduledNotificationAsync(notification.identifier);
           continue;
         }
 
         // Vérifier si la date d'échéance est passée
-        if (task.date_echeance) {
-          const dueDate = new Date(task.date_echeance);
+        const dateEcheanceStr =
+          taskTyped.date_echeance && typeof taskTyped.date_echeance === 'string'
+            ? taskTyped.date_echeance
+            : undefined;
+        if (dateEcheanceStr) {
+          const dueDate = new Date(dateEcheanceStr);
           if (dueDate < maintenant) {
             await Notifications.cancelScheduledNotificationAsync(notification.identifier);
           }

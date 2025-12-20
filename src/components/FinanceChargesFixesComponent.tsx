@@ -3,7 +3,15 @@
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, RefreshControl } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  Alert,
+  RefreshControl,
+} from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadChargesFixes, deleteChargeFixe, updateChargeFixe } from '../store/slices/financeSlice';
 import { ChargeFixe, StatutChargeFixe } from '../types';
@@ -100,7 +108,7 @@ export default function FinanceChargesFixesComponent() {
 
   const onRefresh = useCallback(async () => {
     if (!projetActif?.id) return;
-    
+
     setRefreshing(true);
     try {
       await dispatch(loadChargesFixes(projetActif.id)).unwrap();
@@ -203,10 +211,7 @@ export default function FinanceChargesFixesComponent() {
                   </TouchableOpacity>
                 )}
                 {canUpdate('finance') && (
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => handleEdit(charge)}
-                  >
+                  <TouchableOpacity style={styles.actionButton} onPress={() => handleEdit(charge)}>
                     <Text style={styles.actionButtonText}>✏️</Text>
                   </TouchableOpacity>
                 )}
@@ -223,9 +228,7 @@ export default function FinanceChargesFixesComponent() {
 
             <View style={styles.cardContent}>
               <View style={styles.infoRow}>
-                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
-                  Catégorie:
-                </Text>
+                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Catégorie:</Text>
                 <Text style={[styles.infoValue, { color: colors.text }]}>{charge.categorie}</Text>
               </View>
               <View style={styles.infoRow}>
@@ -235,9 +238,7 @@ export default function FinanceChargesFixesComponent() {
                 </Text>
               </View>
               <View style={styles.infoRow}>
-                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
-                  Fréquence:
-                </Text>
+                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Fréquence:</Text>
                 <Text style={[styles.infoValue, { color: colors.text }]}>{charge.frequence}</Text>
               </View>
               {charge.jour_paiement && (

@@ -1,7 +1,7 @@
 /**
  * Migration 5 : Ajouter projet_id à la table rations
  * Permet d'associer les rations à un projet spécifique
- * 
+ *
  * Version: 5
  */
 
@@ -29,4 +29,3 @@ export async function addProjetIdToRations(db: SQLiteDatabase): Promise<void> {
     console.log('✅ Migration: Colonne projet_id ajoutée à rations');
   }
 }
-

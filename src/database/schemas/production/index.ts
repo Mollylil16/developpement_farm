@@ -8,4 +8,3 @@ export * from './gestations.schema';
 export * from './sevrages.schema';
 export * from './mortalites.schema';
 export * from './planifications.schema';
-

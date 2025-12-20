@@ -1,6 +1,6 @@
 /**
  * Use Case : Créer un revenu
- * 
+ *
  * Orchestre la création d'un revenu avec validation métier
  */
 
@@ -48,13 +48,15 @@ export class CreateRevenuUseCase {
 
     // Si c'est une vente de porc, le poids est recommandé
     if (input.categorie === 'vente_porc' && !input.poidsKg) {
-      console.warn('⚠️ Vente de porc sans poids spécifié - les calculs de coût/kg seront indisponibles');
+      console.warn(
+        '⚠️ Vente de porc sans poids spécifié - les calculs de coût/kg seront indisponibles'
+      );
     }
 
     // Créer le revenu
     const now = new Date().toISOString();
     const revenu: Revenu = {
-      id: uuid.v4() as string,
+      id: uuid.v4(),
       projetId: input.projetId,
       montant: input.montant,
       categorie: input.categorie,
@@ -72,11 +74,10 @@ export class CreateRevenuUseCase {
     // Validation avec l'entité
     const revenuEntity = new RevenuEntity(revenu);
     if (!revenuEntity.isValid()) {
-      throw new Error('Le revenu n\'est pas valide');
+      throw new Error("Le revenu n'est pas valide");
     }
 
     // Sauvegarder
     return await this.financeRepository.createRevenu(revenu);
   }
 }
-

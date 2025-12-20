@@ -125,11 +125,9 @@ export default function IngredientFormModal({
         Alert.alert('Succès', 'Ingrédient créé avec succès');
       }
       onSuccess();
-    } catch (error: any) {
-      Alert.alert(
-        'Erreur',
-        error || `Erreur lors de ${isEditing ? 'la modification' : 'la création'} de l\'ingrédient`
-      );
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : `Erreur lors de ${isEditing ? 'la modification' : 'la création'} de l'ingrédient`;
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setLoading(false);
     }

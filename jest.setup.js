@@ -41,7 +41,9 @@ jest.mock('./src/utils/formatters', () => ({
 
 // Mock PricingService
 jest.mock('./src/services/PricingService', () => ({
-  formatPrice: jest.fn((price, currency = 'FCFA') => `${price?.toLocaleString('fr-FR') || 0} ${currency}`),
+  formatPrice: jest.fn(
+    (price, currency = 'FCFA') => `${price?.toLocaleString('fr-FR') || 0} ${currency}`
+  ),
   calculateTotalPrice: jest.fn(() => 1000),
   calculateDiscount: jest.fn(() => 10),
 }));
@@ -92,4 +94,3 @@ global.console = {
   warn: jest.fn(),
   error: jest.fn(),
 };
-

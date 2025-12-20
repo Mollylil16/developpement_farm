@@ -41,7 +41,8 @@ export async function initLanguage(): Promise<string> {
     }
 
     // Sinon, utiliser la locale du système
-    const systemLocale = Localization.locale;
+    const locales = Localization.getLocales();
+    const systemLocale = locales && locales.length > 0 ? locales[0].languageTag : null;
 
     // Vérification de sécurité
     if (systemLocale && typeof systemLocale === 'string') {
@@ -86,7 +87,7 @@ export function getCurrentLanguage(): 'fr' | 'en' {
 /**
  * Traduit une clé
  */
-export function t(key: string, options?: any): string {
+export function t(key: string, options?: Record<string, unknown>): string {
   return i18n.t(key, options);
 }
 

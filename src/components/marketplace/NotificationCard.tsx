@@ -84,16 +84,15 @@ export default function NotificationCard({
   const { colors, spacing, typography, borderRadius } = MarketplaceTheme;
 
   const config =
-    NOTIFICATION_CONFIG[notification.type as NotificationType] ||
-    NOTIFICATION_CONFIG.new_message;
+    NOTIFICATION_CONFIG[notification.type as NotificationType] || NOTIFICATION_CONFIG.new_message;
 
   return (
     <TouchableOpacity
       style={[
         styles.container,
         {
-          backgroundColor: notification.read 
-            ? (colors.surfaceSolid || '#FFFFFF') 
+          backgroundColor: notification.read
+            ? colors.surfaceSolid || '#FFFFFF'
             : colors.primary + '08',
           borderLeftColor: notification.read ? colors.divider : colors.primary,
         },
@@ -103,12 +102,7 @@ export default function NotificationCard({
     >
       {/* Icône */}
       <View style={[styles.iconContainer, { backgroundColor: config.bgColor }]}>
-        <Ionicons 
-          testID="notification-icon"
-          name={config.icon} 
-          size={24} 
-          color={config.color} 
-        />
+        <Ionicons testID="notification-icon" name={config.icon} size={24} color={config.color} />
       </View>
 
       {/* Contenu */}
@@ -129,10 +123,7 @@ export default function NotificationCard({
         </Text>
 
         {notification.body && (
-          <Text
-            style={[styles.body, { color: colors.textSecondary }]}
-            numberOfLines={2}
-          >
+          <Text style={[styles.body, { color: colors.textSecondary }]} numberOfLines={2}>
             {notification.body}
           </Text>
         )}
@@ -146,9 +137,9 @@ export default function NotificationCard({
       <View style={styles.actions}>
         {/* Indicateur non lu */}
         {!notification.read && (
-          <View 
+          <View
             testID="unread-badge"
-            style={[styles.unreadDot, { backgroundColor: colors.primary }]} 
+            style={[styles.unreadDot, { backgroundColor: colors.primary }]}
           />
         )}
 
@@ -223,4 +214,3 @@ const styles = StyleSheet.create({
     padding: 4,
   },
 });
-

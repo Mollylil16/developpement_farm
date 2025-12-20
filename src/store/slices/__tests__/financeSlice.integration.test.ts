@@ -17,7 +17,7 @@ import financeReducer, {
 jest.mock('../../services/database');
 jest.mock('../../database/repositories/FinanceRepository');
 
-describe('financeSlice - Tests d\'intégration', () => {
+describe("financeSlice - Tests d'intégration", () => {
   let store: ReturnType<typeof configureStore>;
 
   beforeEach(() => {
@@ -29,7 +29,7 @@ describe('financeSlice - Tests d\'intégration', () => {
     });
   });
 
-  describe('Cycle de vie complet d\'un revenu', () => {
+  describe("Cycle de vie complet d'un revenu", () => {
     it('devrait créer, charger, modifier et supprimer un revenu', async () => {
       const mockRevenu = {
         id: 'test-revenu-1',
@@ -98,9 +98,7 @@ describe('financeSlice - Tests d\'intégration', () => {
   describe('Gestion des erreurs', () => {
     it('devrait gérer les erreurs de création gracieusement', async () => {
       const { RevenuRepository } = require('../../database/repositories/FinanceRepository');
-      RevenuRepository.prototype.create = jest
-        .fn()
-        .mockRejectedValue(new Error('Erreur DB'));
+      RevenuRepository.prototype.create = jest.fn().mockRejectedValue(new Error('Erreur DB'));
 
       const result = await store.dispatch(
         createRevenu({
@@ -153,12 +151,10 @@ describe('financeSlice - Tests d\'intégration', () => {
       ];
 
       const { RevenuRepository } = require('../../database/repositories/FinanceRepository');
-      RevenuRepository.prototype.create = jest
-        .fn()
-        .mockImplementation((data: any) => {
-          const revenu = mockRevenus.find((r) => r.montant === data.montant);
-          return Promise.resolve(revenu);
-        });
+      RevenuRepository.prototype.create = jest.fn().mockImplementation((data: any) => {
+        const revenu = mockRevenus.find((r) => r.montant === data.montant);
+        return Promise.resolve(revenu);
+      });
 
       // Créer plusieurs revenus en parallèle
       const results = await Promise.all([
@@ -276,4 +272,3 @@ describe('financeSlice - Tests d\'intégration', () => {
     });
   });
 });
-

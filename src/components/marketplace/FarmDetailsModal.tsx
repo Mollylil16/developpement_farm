@@ -24,14 +24,7 @@ import type { FarmCard, MarketplaceListing } from '../../types/marketplace';
 import { formatDate } from '../../utils/formatters';
 import { formatPrice } from '../../services/PricingService';
 import { useAppSelector } from '../../store/hooks';
-import { getDatabase } from '../../services/database';
-import { MarketplaceListingRepository } from '../../database/repositories';
-import { AnimalRepository } from '../../database/repositories';
-import { PeseeRepository } from '../../database/repositories';
-import { VaccinationRepository } from '../../database/repositories';
-import { MaladieRepository } from '../../database/repositories';
-import { TraitementRepository } from '../../database/repositories';
-import { VisiteVeterinaireRepository } from '../../database/repositories';
+import apiClient from '../../services/api/apiClient';
 import { TYPE_PROPHYLAXIE_LABELS } from '../../types/sante';
 import SubjectCard from './SubjectCard';
 
@@ -42,7 +35,13 @@ interface FarmDetailsModalProps {
   onMakeOffer: (selectedSubjectIds: string[]) => void;
 }
 
-type SortOption = 'price_asc' | 'price_desc' | 'weight_asc' | 'weight_desc' | 'date_asc' | 'date_desc';
+type SortOption =
+  | 'price_asc'
+  | 'price_desc'
+  | 'weight_asc'
+  | 'weight_desc'
+  | 'date_asc'
+  | 'date_desc';
 type FilterRace = string | 'all';
 
 export default function FarmDetailsModal({
@@ -54,7 +53,7 @@ export default function FarmDetailsModal({
   const { colors, spacing, typography, borderRadius } = MarketplaceTheme;
   const { user } = useAppSelector((state) => state.auth);
   const { projetActif } = useAppSelector((state) => state.projet);
-  
+
   // Vérifier si l'utilisateur est le producteur de cette ferme
   // Le farmId correspond à l'ID du projet, donc si farm.farmId === projetActif.id, c'est sa ferme
   const isProducer = farm && projetActif && farm.farmId === projetActif.id;
@@ -67,7 +66,7 @@ export default function FarmDetailsModal({
   const [sortBy, setSortBy] = useState<SortOption>('price_asc');
   const [filterRace, setFilterRace] = useState<FilterRace>('all');
   const [expandedSubjectId, setExpandedSubjectId] = useState<string | null>(null);
-  const [healthDetails, setHealthDetails] = useState<Record<string, any>>({});
+  const [healthDetails, setHealthDetails] = useState<Record<string, unknown>>({});
 
   // Charger les listings de la ferme
   const loadListings = useCallback(async () => {
@@ -75,28 +74,26 @@ export default function FarmDetailsModal({
 
     try {
       setLoading(true);
-      const db = await getDatabase();
-      const listingRepo = new MarketplaceListingRepository(db);
+      // Récupérer tous les listings de la ferme depuis l'API backend
+      const farmListings = await apiClient.get<any[]>(`/marketplace/listings`, {
+        params: { farm_id: farm.farmId },
+      });
 
-      // Récupérer tous les listings de la ferme
-      const farmListings = await listingRepo.findByFarmId(farm.farmId);
-      
       // Filtrer seulement les disponibles
-      const availableListings = farmListings.filter(l => l.status === 'available');
+      const availableListings = farmListings.filter((l) => l.status === 'available');
 
-      // Enrichir avec les données des animaux
-      const animalRepo = new AnimalRepository(db);
-      const peseeRepo = new PeseeRepository(db);
-      const vaccinationRepo = new VaccinationRepository(db);
-      
+      // Enrichir avec les données des animaux depuis l'API backend
       const enrichedListings = await Promise.all(
         availableListings.map(async (listing) => {
           try {
-            const animal = await animalRepo.findById(listing.subjectId);
+            const animal = await apiClient.get<any>(`/production/animaux/${listing.subjectId}`);
             if (!animal) return null;
 
-            // Récupérer la dernière pesée pour le poids actuel
-            const dernierePesee = await peseeRepo.findLastByAnimal(animal.id);
+            // Récupérer la dernière pesée pour le poids actuel depuis l'API backend
+            const pesees = await apiClient.get<any[]>(`/production/pesees`, {
+              params: { animal_id: animal.id, limit: 1 },
+            });
+            const dernierePesee = pesees && pesees.length > 0 ? pesees[0] : null;
             const poidsActuel = dernierePesee?.poids_kg || animal.poids_initial || 0;
 
             // Calculer l'âge en mois
@@ -107,10 +104,15 @@ export default function FarmDetailsModal({
                 )
               : 0;
 
-            // Vérifier le statut des vaccinations
-            const vaccinations = await vaccinationRepo.findByAnimal(animal.id);
-            const vaccinationsAJour = vaccinations.length > 0 && 
-              vaccinations.every(v => v.date_rappel === null || new Date(v.date_rappel) > new Date());
+            // Vérifier le statut des vaccinations depuis l'API backend
+            const vaccinations = await apiClient.get<any[]>(`/sante/vaccinations`, {
+              params: { animal_id: animal.id },
+            });
+            const vaccinationsAJour =
+              vaccinations.length > 0 &&
+              vaccinations.every(
+                (v) => v.date_rappel === null || new Date(v.date_rappel) > new Date()
+              );
 
             // Déterminer le statut de santé
             let healthStatus: 'good' | 'attention' | 'critical' = 'good';
@@ -140,7 +142,7 @@ export default function FarmDetailsModal({
       );
 
       setListings(enrichedListings.filter((l): l is MarketplaceListing => l !== null));
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur chargement listings:', error);
     } finally {
       setLoading(false);
@@ -148,39 +150,35 @@ export default function FarmDetailsModal({
     }
   }, [farm]);
 
-  // Charger les détails sanitaires d'un sujet
-  const loadHealthDetails = useCallback(async (subjectId: string) => {
-    if (healthDetails[subjectId]) return; // Déjà chargé
+  // Charger les détails sanitaires d'un sujet via l'API backend
+  const loadHealthDetails = useCallback(
+    async (subjectId: string) => {
+      if (healthDetails[subjectId]) return; // Déjà chargé
 
-    try {
-      const db = await getDatabase();
-      const vaccinationRepo = new VaccinationRepository(db);
-      const maladieRepo = new MaladieRepository(db);
-      const traitementRepo = new TraitementRepository(db);
-      const visiteRepo = new VisiteVeterinaireRepository(db);
+      try {
+        const { SanteHistoriqueService } = await import('../../services/sante/SanteHistoriqueService');
+        const historique = await SanteHistoriqueService.getHistorique(subjectId);
 
-      const [vaccinations, maladies, traitements, visites] = await Promise.all([
-        vaccinationRepo.findByAnimal(subjectId),
-        maladieRepo.findByAnimal(subjectId),
-        traitementRepo.findByAnimal(subjectId),
-        visiteRepo.findByProjet(farm?.farmId || '').then(vs => 
-          vs.filter(v => v.animaux_examines?.includes(subjectId))
-        ),
-      ]);
+        // Filtrer les visites pour ne garder que celles qui concernent cet animal
+        const visitesFiltrees = historique.visites.filter(
+          (v) => v.animaux_examines?.includes(subjectId)
+        );
 
-      setHealthDetails(prev => ({
-        ...prev,
-        [subjectId]: {
-          vaccinations,
-          maladies,
-          traitements,
-          visites,
-        },
-      }));
-    } catch (error) {
-      console.error('Erreur chargement détails sanitaires:', error);
-    }
-  }, [farm, healthDetails]);
+        setHealthDetails((prev) => ({
+          ...prev,
+          [subjectId]: {
+            vaccinations: historique.vaccinations,
+            maladies: historique.maladies,
+            traitements: historique.traitements,
+            visites: visitesFiltrees,
+          },
+        }));
+      } catch (error) {
+        console.error('Erreur chargement détails sanitaires:', error);
+      }
+    },
+    [farm, healthDetails]
+  );
 
   useEffect(() => {
     if (visible && farm) {
@@ -195,7 +193,7 @@ export default function FarmDetailsModal({
   // Races disponibles
   const availableRaces = useMemo(() => {
     const races = new Set<string>();
-    listings.forEach(l => {
+    listings.forEach((l) => {
       if (l.race && l.race !== 'Non spécifiée') {
         races.add(l.race);
       }
@@ -211,7 +209,7 @@ export default function FarmDetailsModal({
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
-        l =>
+        (l) =>
           l.code?.toLowerCase().includes(query) ||
           l.race?.toLowerCase().includes(query) ||
           l.subjectId.toLowerCase().includes(query)
@@ -220,7 +218,7 @@ export default function FarmDetailsModal({
 
     // Filtre par race
     if (filterRace !== 'all') {
-      filtered = filtered.filter(l => l.race === filterRace);
+      filtered = filtered.filter((l) => l.race === filterRace);
     }
 
     // Tri
@@ -249,13 +247,13 @@ export default function FarmDetailsModal({
   // Calculer le prix total des sujets sélectionnés
   const totalPrice = useMemo(() => {
     return filteredAndSortedListings
-      .filter(l => selectedIds.has(l.id))
+      .filter((l) => selectedIds.has(l.id))
       .reduce((sum, l) => sum + (l.totalPrice || l.calculatedPrice || 0), 0);
   }, [filteredAndSortedListings, selectedIds]);
 
   // Toggle sélection
   const toggleSelection = (listingId: string) => {
-    setSelectedIds(prev => {
+    setSelectedIds((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(listingId)) {
         newSet.delete(listingId);
@@ -271,7 +269,7 @@ export default function FarmDetailsModal({
     if (selectedIds.size === filteredAndSortedListings.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filteredAndSortedListings.map(l => l.id)));
+      setSelectedIds(new Set(filteredAndSortedListings.map((l) => l.id)));
     }
   };
 
@@ -314,28 +312,31 @@ export default function FarmDetailsModal({
           onPress: async () => {
             try {
               setLoading(true);
-              const db = await getDatabase();
-              const listingRepo = new MarketplaceListingRepository(db);
+              const listingRepo = new MarketplaceListingRepository();
 
               // Mettre à jour le statut de chaque listing à 'removed'
-              const updatePromises = Array.from(selectedIds).map(listingId =>
+              const updatePromises = Array.from(selectedIds).map((listingId) =>
                 listingRepo.updateStatus(listingId, 'removed')
               );
 
               await Promise.all(updatePromises);
 
               const count = selectedIds.size;
-              
+
               // Recharger les listings
               await loadListings();
-              
+
               // Réinitialiser la sélection
               setSelectedIds(new Set());
 
-              Alert.alert('Succès', `${count} sujet${count > 1 ? 's' : ''} retiré${count > 1 ? 's' : ''} du marketplace`);
-            } catch (error: any) {
+              Alert.alert(
+                'Succès',
+                `${count} sujet${count > 1 ? 's' : ''} retiré${count > 1 ? 's' : ''} du marketplace`
+              );
+            } catch (error: unknown) {
               console.error('Erreur retrait du marketplace:', error);
-              Alert.alert('Erreur', error.message || 'Impossible de retirer les sujets du marketplace');
+              const errorMessage = error instanceof Error ? error.message : 'Impossible de retirer les sujets du marketplace';
+              Alert.alert('Erreur', errorMessage);
             } finally {
               setLoading(false);
             }
@@ -354,10 +355,22 @@ export default function FarmDetailsModal({
       presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'fullScreen'}
       onRequestClose={onClose}
     >
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        edges={['top']}
+      >
         {/* Header */}
-        <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.divider }]}>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <View
+          style={[
+            styles.header,
+            { backgroundColor: colors.surface, borderBottomColor: colors.divider },
+          ]}
+        >
+          <TouchableOpacity
+            onPress={onClose}
+            style={styles.closeButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
             <Ionicons name="close" size={24} color={colors.text} />
           </TouchableOpacity>
           <View style={styles.headerContent}>
@@ -365,7 +378,9 @@ export default function FarmDetailsModal({
               {farm.name}
             </Text>
             <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-              {filteredAndSortedListings.length} sujet{filteredAndSortedListings.length > 1 ? 's' : ''} disponible{filteredAndSortedListings.length > 1 ? 's' : ''}
+              {filteredAndSortedListings.length} sujet
+              {filteredAndSortedListings.length > 1 ? 's' : ''} disponible
+              {filteredAndSortedListings.length > 1 ? 's' : ''}
             </Text>
           </View>
           {selectedIds.size > 0 && (
@@ -378,7 +393,12 @@ export default function FarmDetailsModal({
         </View>
 
         {/* Filtres et recherche */}
-        <View style={[styles.filtersContainer, { backgroundColor: colors.surface, borderBottomColor: colors.divider }]}>
+        <View
+          style={[
+            styles.filtersContainer,
+            { backgroundColor: colors.surface, borderBottomColor: colors.divider },
+          ]}
+        >
           {/* Recherche */}
           <View style={[styles.searchContainer, { backgroundColor: colors.surfaceLight }]}>
             <Ionicons name="search" size={20} color={colors.textSecondary} />
@@ -416,7 +436,7 @@ export default function FarmDetailsModal({
                   Toutes races
                 </Text>
               </TouchableOpacity>
-              {availableRaces.map(race => (
+              {availableRaces.map((race) => (
                 <TouchableOpacity
                   key={race}
                   style={[
@@ -442,7 +462,13 @@ export default function FarmDetailsModal({
               style={[styles.sortButton, { backgroundColor: colors.surfaceLight }]}
               onPress={() => {
                 // Cycle through sort options
-                const options: SortOption[] = ['price_asc', 'price_desc', 'weight_asc', 'weight_desc', 'date_desc'];
+                const options: SortOption[] = [
+                  'price_asc',
+                  'price_desc',
+                  'weight_asc',
+                  'weight_desc',
+                  'date_desc',
+                ];
                 const currentIndex = options.indexOf(sortBy);
                 setSortBy(options[(currentIndex + 1) % options.length]);
               }}
@@ -459,17 +485,20 @@ export default function FarmDetailsModal({
           </View>
 
           {/* Sélectionner tout */}
-          <TouchableOpacity
-            style={styles.selectAllButton}
-            onPress={toggleSelectAll}
-          >
+          <TouchableOpacity style={styles.selectAllButton} onPress={toggleSelectAll}>
             <Ionicons
-              name={selectedIds.size === filteredAndSortedListings.length ? 'checkbox' : 'square-outline'}
+              name={
+                selectedIds.size === filteredAndSortedListings.length
+                  ? 'checkbox'
+                  : 'square-outline'
+              }
               size={20}
               color={colors.primary}
             />
             <Text style={[styles.selectAllText, { color: colors.primary }]}>
-              {selectedIds.size === filteredAndSortedListings.length ? 'Tout désélectionner' : 'Tout sélectionner'}
+              {selectedIds.size === filteredAndSortedListings.length
+                ? 'Tout désélectionner'
+                : 'Tout sélectionner'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -478,10 +507,13 @@ export default function FarmDetailsModal({
         <ScrollView
           style={styles.listContainer}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => {
-              setRefreshing(true);
-              loadListings();
-            }} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => {
+                setRefreshing(true);
+                loadListings();
+              }}
+            />
           }
         >
           {loading && listings.length === 0 ? (
@@ -501,7 +533,7 @@ export default function FarmDetailsModal({
               </Text>
             </View>
           ) : (
-            filteredAndSortedListings.map(listing => (
+            filteredAndSortedListings.map((listing) => (
               <SubjectCardWithSelection
                 key={listing.id}
                 listing={listing}
@@ -517,10 +549,16 @@ export default function FarmDetailsModal({
 
         {/* Footer avec récapitulatif */}
         {selectedIds.size > 0 && (
-          <View style={[styles.footer, { backgroundColor: colors.surface, borderTopColor: colors.divider }]}>
+          <View
+            style={[
+              styles.footer,
+              { backgroundColor: colors.surface, borderTopColor: colors.divider },
+            ]}
+          >
             <View style={styles.footerContent}>
               <Text style={[styles.footerText, { color: colors.text }]}>
-                {selectedIds.size} sujet{selectedIds.size > 1 ? 's' : ''} sélectionné{selectedIds.size > 1 ? 's' : ''}
+                {selectedIds.size} sujet{selectedIds.size > 1 ? 's' : ''} sélectionné
+                {selectedIds.size > 1 ? 's' : ''}
               </Text>
               {!isProducer && (
                 <Text style={[styles.footerPrice, { color: colors.primary }]}>
@@ -567,7 +605,7 @@ interface SubjectCardWithSelectionProps {
   onToggleSelection: () => void;
   isExpanded: boolean;
   onToggleHealthDetails: () => void;
-  healthDetails?: any;
+  healthDetails?: unknown;
 }
 
 function SubjectCardWithSelection({
@@ -581,13 +619,18 @@ function SubjectCardWithSelection({
   const { colors, spacing, typography, borderRadius } = MarketplaceTheme;
 
   return (
-    <View style={[styles.subjectCard, { backgroundColor: colors.surface, borderColor: isSelected ? colors.primary : colors.divider }]}>
+    <View
+      style={[
+        styles.subjectCard,
+        {
+          backgroundColor: colors.surface,
+          borderColor: isSelected ? colors.primary : colors.divider,
+        },
+      ]}
+    >
       {/* Checkbox et carte sujet */}
       <View style={styles.subjectCardHeader}>
-        <TouchableOpacity
-          style={styles.checkbox}
-          onPress={onToggleSelection}
-        >
+        <TouchableOpacity style={styles.checkbox} onPress={onToggleSelection}>
           <Ionicons
             name={isSelected ? 'checkbox' : 'square-outline'}
             size={24}
@@ -640,7 +683,7 @@ function SubjectCardWithSelection({
 }
 
 // Composant pour afficher les détails sanitaires
-function HealthDetailsContent({ details }: { details: any }) {
+function HealthDetailsContent({ details }: { details: unknown }) {
   const { colors, spacing, typography } = MarketplaceTheme;
 
   return (
@@ -648,18 +691,27 @@ function HealthDetailsContent({ details }: { details: any }) {
       {/* Vaccinations */}
       {details.vaccinations && details.vaccinations.length > 0 && (
         <View style={styles.healthSection}>
-          <Text style={[styles.healthSectionTitle, { color: colors.text }]}>
-            💉 Vaccinations
-          </Text>
-          {details.vaccinations.slice(0, 5).map((v: any, idx: number) => (
+          <Text style={[styles.healthSectionTitle, { color: colors.text }]}>💉 Vaccinations</Text>
+          {details.vaccinations.slice(0, 5).map((v: unknown, idx: number) => (
             <View key={idx} style={styles.healthItem}>
               <Ionicons
-                name={v.date_rappel && new Date(v.date_rappel) > new Date() ? 'checkmark-circle' : 'alert-circle'}
+                name={
+                  v.date_rappel && new Date(v.date_rappel) > new Date()
+                    ? 'checkmark-circle'
+                    : 'alert-circle'
+                }
                 size={16}
-                color={v.date_rappel && new Date(v.date_rappel) > new Date() ? colors.success : colors.warning}
+                color={
+                  v.date_rappel && new Date(v.date_rappel) > new Date()
+                    ? colors.success
+                    : colors.warning
+                }
               />
               <Text style={[styles.healthItemText, { color: colors.text }]}>
-                {v.type_prophylaxie ? TYPE_PROPHYLAXIE_LABELS[v.type_prophylaxie] || v.type_prophylaxie : v.type_vaccin || 'Vaccination'} - {formatDate(v.date_vaccination)}
+                {v.type_prophylaxie
+                  ? TYPE_PROPHYLAXIE_LABELS[v.type_prophylaxie] || v.type_prophylaxie
+                  : v.type_vaccin || 'Vaccination'}{' '}
+                - {formatDate(v.date_vaccination)}
               </Text>
             </View>
           ))}
@@ -669,10 +721,8 @@ function HealthDetailsContent({ details }: { details: any }) {
       {/* Maladies */}
       {details.maladies && details.maladies.length > 0 && (
         <View style={styles.healthSection}>
-          <Text style={[styles.healthSectionTitle, { color: colors.text }]}>
-            🦠 Maladies
-          </Text>
-          {details.maladies.map((m: any, idx: number) => (
+          <Text style={[styles.healthSectionTitle, { color: colors.text }]}>🦠 Maladies</Text>
+          {details.maladies.map((m: unknown, idx: number) => (
             <View key={idx} style={styles.healthItem}>
               <Ionicons
                 name={m.gueri ? 'checkmark-circle' : 'close-circle'}
@@ -934,4 +984,3 @@ const styles = StyleSheet.create({
     fontWeight: MarketplaceTheme.typography.fontWeights.bold,
   },
 });
-

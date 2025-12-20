@@ -29,4 +29,3 @@ export const selectProjetError = createSelector(
   [selectProjetState],
   (projetState) => projetState.error
 );
-

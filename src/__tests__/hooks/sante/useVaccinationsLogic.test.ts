@@ -27,4 +27,3 @@ describe('useVaccinationsLogic', () => {
     expect(module).toHaveProperty('useVaccinationsLogic');
   });
 });
-

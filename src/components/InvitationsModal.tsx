@@ -15,6 +15,7 @@ import { Collaborateur, ROLE_LABELS } from '../types';
 import CustomModal from './CustomModal';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import apiClient from '../services/api/apiClient';
 
 interface InvitationsModalProps {
   visible: boolean;
@@ -37,11 +38,8 @@ export default function InvitationsModal({ visible, onClose }: InvitationsModalP
         const noms: Record<string, string> = {};
         for (const invitation of invitationsEnAttente) {
           try {
-            const { getDatabase } = await import('../services/database');
-            const { ProjetRepository } = await import('../database/repositories');
-            const db = await getDatabase();
-            const projetRepo = new ProjetRepository(db);
-            const projet = await projetRepo.getById(invitation.projet_id);
+            // Charger le projet depuis l'API backend
+            const projet = await apiClient.get<any>(`/projets/${invitation.projet_id}`);
             if (projet) {
               noms[invitation.projet_id] = projet.nom;
             }
@@ -86,8 +84,9 @@ export default function InvitationsModal({ visible, onClose }: InvitationsModalP
       if (user) {
         dispatch(loadInvitationsEnAttente({ userId: user.id, email: user.email || undefined }));
       }
-    } catch (error: any) {
-      Alert.alert('Erreur', error || "Erreur lors de l'acceptation de l'invitation");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Erreur lors de l'acceptation de l'invitation";
+      Alert.alert('Erreur', errorMessage);
     }
   };
 
@@ -111,8 +110,9 @@ export default function InvitationsModal({ visible, onClose }: InvitationsModalP
                   loadInvitationsEnAttente({ userId: user.id, email: user.email || undefined })
                 );
               }
-            } catch (error: any) {
-              Alert.alert('Erreur', error || "Erreur lors du rejet de l'invitation");
+            } catch (error: unknown) {
+              const errorMessage = error instanceof Error ? error.message : "Erreur lors du rejet de l'invitation";
+              Alert.alert('Erreur', errorMessage);
             }
           },
         },
@@ -136,10 +136,7 @@ export default function InvitationsModal({ visible, onClose }: InvitationsModalP
       title={`Invitations en attente (${invitationsEnAttente.length})`}
       showButtons={false}
     >
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={{ paddingBottom: SPACING.md }}
-      >
+      <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: SPACING.md }}>
         {invitationsEnAttente.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>

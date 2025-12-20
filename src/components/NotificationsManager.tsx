@@ -6,13 +6,13 @@
 
 import React, { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { useNotifications } from '../hooks/useNotifications';
 import { SCREENS } from '../navigation/types';
 import { NotificationAction } from '../constants/notifications';
 
 export default function NotificationsManager() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NavigationProp<any>>();
   const notificationListener = useRef<Notifications.Subscription | null>(null);
   const responseListener = useRef<Notifications.Subscription | null>(null);
 

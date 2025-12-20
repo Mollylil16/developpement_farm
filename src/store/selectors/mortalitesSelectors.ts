@@ -62,7 +62,7 @@ export const selectNombreTotalMortalites = createSelector(
     console.log('🔍 [selectNombreTotalMortalites] Statistiques:', {
       statistiques,
       total_morts: statistiques?.total_morts,
-      retour: total
+      retour: total,
     });
     return total;
   }

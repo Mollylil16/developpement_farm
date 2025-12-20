@@ -18,25 +18,25 @@ import AddRoleModal from './AddRoleModal';
  */
 const getRoleInfo = (role: RoleType) => {
   const roleConfig = {
-    producer: { 
-      icon: 'paw' as const, 
-      label: 'Producteur', 
-      color: '#22C55E' 
+    producer: {
+      icon: 'paw' as const,
+      label: 'Producteur',
+      color: '#22C55E',
     },
-    buyer: { 
-      icon: 'cart' as const, 
-      label: 'Acheteur', 
-      color: '#3B82F6' 
+    buyer: {
+      icon: 'cart' as const,
+      label: 'Acheteur',
+      color: '#3B82F6',
     },
-    veterinarian: { 
-      icon: 'medical' as const, 
-      label: 'Vétérinaire', 
-      color: '#EF4444' 
+    veterinarian: {
+      icon: 'medical' as const,
+      label: 'Vétérinaire',
+      color: '#EF4444',
     },
-    technician: { 
-      icon: 'construct' as const, 
-      label: 'Technicien', 
-      color: '#F59E0B' 
+    technician: {
+      icon: 'construct' as const,
+      label: 'Technicien',
+      color: '#F59E0B',
     },
   };
   return roleConfig[role];
@@ -53,38 +53,29 @@ const RoleIndicator: React.FC = () => {
 
   // Toujours afficher le sélecteur de profil (même avec un seul rôle)
   const currentRoleInfo = getRoleInfo(activeRole);
-  
+
   // Déterminer les rôles disponibles à ajouter
   const allRoles: RoleType[] = ['producer', 'buyer', 'veterinarian', 'technician'];
-  const rolesToAdd = allRoles.filter(role => !availableRoles.includes(role));
+  const rolesToAdd = allRoles.filter((role) => !availableRoles.includes(role));
 
   return (
     <>
       <TouchableOpacity
         style={[
           styles.roleIndicator,
-          { 
+          {
             borderColor: currentRoleInfo.color,
             backgroundColor: isDark ? colors.surface : 'rgba(255, 255, 255, 0.9)',
-          }
+          },
         ]}
         onPress={() => setIsModalOpen(true)}
         activeOpacity={0.7}
       >
-        <Text 
-          style={[
-            styles.roleText, 
-            { color: currentRoleInfo.color }
-          ]}
-          numberOfLines={1}
-        >
-          {currentRoleInfo.label} {availableRoles.length === 1 && rolesToAdd.length > 0 ? 'actif' : ''}
+        <Text style={[styles.roleText, { color: currentRoleInfo.color }]} numberOfLines={1}>
+          {currentRoleInfo.label}{' '}
+          {availableRoles.length === 1 && rolesToAdd.length > 0 ? 'actif' : ''}
         </Text>
-        <Ionicons 
-          name="chevron-down" 
-          size={12} 
-          color={currentRoleInfo.color} 
-        />
+        <Ionicons name="chevron-down" size={12} color={currentRoleInfo.color} />
       </TouchableOpacity>
 
       <RoleSwitcherModal
@@ -136,4 +127,3 @@ const styles = StyleSheet.create({
 });
 
 export default RoleIndicator;
-

@@ -16,13 +16,15 @@
     "test:unit": "jest --testPathIgnorePatterns=integration|e2e",
     "test:integration": "jest --testPathPattern=integration",
     "test:e2e": "jest --testPathPattern=e2e",
-    "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
-    "lint:fix": "eslint . --ext .ts,.tsx,.js,.jsx --fix",
-    "type-check": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "type-check": "tsc --noEmit --skipLibCheck",
+    "type-check:backend": "cd backend && npm run type-check",
     "type-check:watch": "tsc --noEmit --watch",
     "validate": "npm run lint && npm run type-check && npm test -- --passWithNoTests",
-    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json}\"",
+    "check-all": "npm run lint && npm run type-check && npm run format:check",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json}\" --ignore-path .gitignore",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json}\" --ignore-path .gitignore",
     "deps:audit": "npm audit",
     "deps:audit:fix": "npm audit fix",
     "deps:outdated": "npm outdated",
@@ -31,7 +33,11 @@
     "deps:security": "npm audit --audit-level=moderate",
     "deps:verify": "npm run deps:check",
     "find:any": "node scripts/find-any-usage.js",
-    "test:identify-untested": "node scripts/identify-untested-files.js"
+    "test:identify-untested": "node scripts/identify-untested-files.js",
+    "test:agent": "tsx scripts/test-agent-shell-standalone.ts",
+    "test:agent:pdf": "tsx scripts/test-agent-shell-standalone.ts",
+    "test:pesees": "tsx scripts/test-pesees.ts",
+    "generate:training-data": "tsx scripts/generate-training-data.ts"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -88,6 +94,7 @@
     "yup": "^1.7.1"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.1",
     "@react-native-community/cli": "^20.0.2",
     "@react-native/assets-registry": "^0.82.1",
     "@testing-library/jest-native": "^5.4.3",
@@ -116,6 +123,8 @@
     "prettier": "^3.6.2",
     "react-test-renderer": "^19.1.0",
     "ts-jest": "^29.4.5",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typescript": "~5.9.2"
   },
   "overrides": {

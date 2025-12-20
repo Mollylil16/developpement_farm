@@ -1,5 +1,6 @@
 /**
  * Slice Redux pour la gestion des stocks d'aliments
+ * Utilise maintenant l'API backend au lieu de SQLite
  */
 
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
@@ -10,8 +11,8 @@ import {
   UpdateStockAlimentInput,
   CreateStockMouvementInput,
 } from '../../types';
-import { getDatabase } from '../../services/database';
-import { StockRepository } from '../../database/repositories';
+import { getErrorMessage } from '../../types/common';
+import apiClient from '../../services/api/apiClient';
 
 interface StocksState {
   stocks: StockAliment[];
@@ -31,9 +32,9 @@ export const loadStocks = createAsyncThunk(
   'stocks/loadStocks',
   async (projetId: string, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const stockRepo = new StockRepository(db);
-      const stocks = await stockRepo.findByProjet(projetId);
+      const stocks = await apiClient.get<StockAliment[]>('/nutrition/stocks-aliments', {
+        params: { projet_id: projetId },
+      });
       return stocks;
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des stocks');
@@ -45,9 +46,7 @@ export const createStockAliment = createAsyncThunk(
   'stocks/createStockAliment',
   async (input: CreateStockAlimentInput, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const stockRepo = new StockRepository(db);
-      const stock = await stockRepo.create(input);
+      const stock = await apiClient.post<StockAliment>('/nutrition/stocks-aliments', input);
       return stock;
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || "Erreur lors de la création de l'aliment");
@@ -62,12 +61,16 @@ export const updateStockAliment = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const db = await getDatabase();
-      const stockRepo = new StockRepository(db);
-      const stock = await stockRepo.update(id, updates);
+      // Le backend gère automatiquement null/undefined
+      const stock = await apiClient.patch<StockAliment>(
+        `/nutrition/stocks-aliments/${id}`,
+        updates
+      );
       return stock;
     } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || "Erreur lors de la mise à jour de l'aliment");
+      return rejectWithValue(
+        getErrorMessage(error) || "Erreur lors de la mise à jour de l'aliment"
+      );
     }
   }
 );
@@ -76,12 +79,12 @@ export const deleteStockAliment = createAsyncThunk(
   'stocks/deleteStockAliment',
   async (id: string, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const stockRepo = new StockRepository(db);
-      await stockRepo.delete(id);
+      await apiClient.delete(`/nutrition/stocks-aliments/${id}`);
       return id;
     } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || "Erreur lors de la suppression de l'aliment");
+      return rejectWithValue(
+        getErrorMessage(error) || "Erreur lors de la suppression de l'aliment"
+      );
     }
   }
 );
@@ -90,56 +93,12 @@ export const createStockMouvement = createAsyncThunk(
   'stocks/createStockMouvement',
   async (input: CreateStockMouvementInput, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const stockRepo = new StockRepository(db);
-      
-      // Utiliser aliment_id au lieu de stock_id
-      const stockId = input.aliment_id;
-      
-      // Récupérer le stock actuel pour vérifier qu'il existe
-      const stockActuel = await stockRepo.findById(stockId);
-      if (!stockActuel) {
-        throw new Error('Stock introuvable');
-      }
-      
-      // Utiliser ajouterStock, retirerStock ou update selon le type
-      let stock: StockAliment;
-      let quantiteMouvement = input.quantite;
-      
-      if (input.type === 'entree') {
-        stock = await stockRepo.ajouterStock(stockId, input.quantite, input.commentaire);
-      } else if (input.type === 'sortie') {
-        stock = await stockRepo.retirerStock(stockId, input.quantite, input.commentaire);
-      } else {
-        // Ajustement : utiliser la méthode ajusterStock
-        stock = await stockRepo.ajusterStock(
-          stockId,
-          input.quantite,
-          input.commentaire,
-          input.date
-        );
-        quantiteMouvement = input.quantite - stockActuel.quantite_actuelle;
-      }
-      
-      // Récupérer le mouvement créé depuis la base de données
-      const mouvements = await stockRepo.getMouvements(stockId, 1);
-      const mouvementCree = mouvements[0];
-      
-      // Retourner dans le format attendu par le reducer
-      return {
-        mouvement: mouvementCree || {
-          id: `${Date.now()}`,
-          projet_id: input.projet_id,
-          aliment_id: input.aliment_id,
-          type: input.type,
-          quantite: quantiteMouvement,
-          unite: input.unite,
-          date: input.date || new Date().toISOString(),
-          commentaire: input.commentaire,
-          date_creation: new Date().toISOString(),
-        } as StockMouvement,
-        stock,
-      };
+      // Le backend gère automatiquement la mise à jour du stock et la création du mouvement
+      const result = await apiClient.post<{ mouvement: StockMouvement; stock: StockAliment }>(
+        '/nutrition/stocks-mouvements',
+        input
+      );
+      return result;
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création du mouvement');
     }
@@ -150,9 +109,9 @@ export const loadMouvementsParAliment = createAsyncThunk(
   'stocks/loadMouvementsParAliment',
   async ({ alimentId, limit }: { alimentId: string; limit?: number }, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const stockRepo = new StockRepository(db);
-      const mouvements = await stockRepo.getMouvements(alimentId, limit);
+      const mouvements = await apiClient.get<StockMouvement[]>('/nutrition/stocks-mouvements', {
+        params: { aliment_id: alimentId, ...(limit ? { limit } : {}) },
+      });
       return { alimentId, mouvements };
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des mouvements');
@@ -161,16 +120,17 @@ export const loadMouvementsParAliment = createAsyncThunk(
 );
 
 // Thunks pour Statistiques
+// TODO: Implémenter endpoints backend pour les statistiques
 export const loadStockStats = createAsyncThunk(
   'stocks/loadStockStats',
   async (projetId: string, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const stockRepo = new StockRepository(db);
-      const stats = await stockRepo.getStats(projetId);
+      const stats = await apiClient.get(`/nutrition/stocks-aliments/stats/${projetId}`);
       return stats;
     } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des statistiques');
+      return rejectWithValue(
+        getErrorMessage(error) || 'Erreur lors du chargement des statistiques'
+      );
     }
   }
 );
@@ -179,10 +139,8 @@ export const loadValeurTotaleStock = createAsyncThunk(
   'stocks/loadValeurTotaleStock',
   async (projetId: string, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const stockRepo = new StockRepository(db);
-      const valeur = await stockRepo.getValeurTotaleStock(projetId);
-      return valeur;
+      const result = await apiClient.get(`/nutrition/stocks-aliments/valeur-totale/${projetId}`);
+      return result;
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors du calcul de la valeur');
     }
@@ -193,12 +151,15 @@ export const loadStocksEnAlerte = createAsyncThunk(
   'stocks/loadStocksEnAlerte',
   async (projetId: string, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const stockRepo = new StockRepository(db);
-      const stocks = await stockRepo.findEnAlerte(projetId);
-      return stocks;
+      // Filtrer côté frontend pour l'instant
+      const stocks = await apiClient.get<StockAliment[]>('/nutrition/stocks-aliments', {
+        params: { projet_id: projetId },
+      });
+      return stocks.filter((s) => s.alerte_active);
     } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des stocks en alerte');
+      return rejectWithValue(
+        getErrorMessage(error) || 'Erreur lors du chargement des stocks en alerte'
+      );
     }
   }
 );

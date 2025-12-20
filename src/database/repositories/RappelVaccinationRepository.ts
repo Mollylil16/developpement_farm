@@ -1,16 +1,11 @@
 /**
  * RappelVaccinationRepository - Gestion des rappels de vaccination
- * 
- * Responsabilités:
- * - CRUD des rappels de vaccination
- * - Recherche par projet, vaccination
- * - Filtrage par statut (à venir, en retard)
+ *
+ * Utilise maintenant l'API REST du backend (PostgreSQL)
  */
 
-import * as SQLite from 'expo-sqlite';
 import { BaseRepository } from './BaseRepository';
 import { RappelVaccination } from '../../types/sante';
-import uuid from 'react-native-uuid';
 
 export interface CreateRappelVaccinationInput {
   vaccination_id: string;
@@ -20,40 +15,11 @@ export interface CreateRappelVaccinationInput {
 }
 
 export class RappelVaccinationRepository extends BaseRepository<RappelVaccination> {
-  constructor(db: SQLite.SQLiteDatabase) {
-    super(db, 'rappels_vaccinations');
+  constructor() {
+    super('rappels_vaccinations', '/sante/rappels-vaccinations');
   }
 
-  /**
-   * Créer un nouveau rappel
-   */
-  async create(input: CreateRappelVaccinationInput): Promise<RappelVaccination> {
-    const id = uuid.v4().toString();
-
-    await this.execute(
-      `INSERT INTO rappels_vaccinations (
-        id, vaccination_id, date_rappel, envoi, date_envoi
-      ) VALUES (?, ?, ?, ?, ?)`,
-      [
-        id,
-        input.vaccination_id,
-        input.date_rappel,
-        input.envoi ? 1 : 0,
-        input.date_envoi || null,
-      ]
-    );
-
-    const created = await this.findById(id);
-    if (!created) {
-      throw new Error('Impossible de créer le rappel');
-    }
-    return created;
-  }
-
-  /**
-   * Mapper une ligne de la base vers RappelVaccination
-   */
-  private mapRow(row: any): RappelVaccination {
+  private mapRow(row: unknown): RappelVaccination {
     return {
       id: row.id,
       vaccination_id: row.vaccination_id,
@@ -63,104 +29,99 @@ export class RappelVaccinationRepository extends BaseRepository<RappelVaccinatio
     };
   }
 
-  /**
-   * Override findById pour mapper correctement
-   */
+  async create(input: CreateRappelVaccinationInput): Promise<RappelVaccination> {
+    const rappelData = {
+      vaccination_id: input.vaccination_id,
+      date_rappel: input.date_rappel,
+      envoi: input.envoi || false,
+      date_envoi: input.date_envoi || null,
+    };
+
+    const created = await this.executePost<unknown>('/sante/rappels-vaccinations', rappelData);
+    return this.mapRow(created);
+  }
+
   async findById(id: string): Promise<RappelVaccination | null> {
-    const row = await this.queryOne<any>(`SELECT * FROM ${this.tableName} WHERE id = ?`, [id]);
-    return row ? this.mapRow(row) : null;
+    try {
+      const row = await this.queryOne<unknown>(`/sante/rappels-vaccinations/${id}`);
+      return row ? this.mapRow(row) : null;
+    } catch (error) {
+      console.error('Error finding rappel by id:', error);
+      return null;
+    }
   }
 
-  /**
-   * Récupérer tous les rappels d'une vaccination
-   */
   async findByVaccination(vaccinationId: string): Promise<RappelVaccination[]> {
-    const rows = await this.query<any>(
-      `SELECT * FROM rappels_vaccinations WHERE vaccination_id = ? ORDER BY date_rappel ASC`,
-      [vaccinationId]
-    );
-    return rows.map((row) => this.mapRow(row));
+    try {
+      const rows = await this.query<unknown>('/sante/rappels-vaccinations', { vaccination_id: vaccinationId });
+      return rows.map(this.mapRow)
+        .sort((a, b) => new Date(a.date_rappel).getTime() - new Date(b.date_rappel).getTime());
+    } catch (error) {
+      console.error('Error finding rappels by vaccination:', error);
+      return [];
+    }
   }
 
-  /**
-   * Récupérer les rappels à venir (dans les X jours)
-   * Note: Nécessite de joindre avec vaccinations pour filtrer par projet_id
-   */
   async findAVenir(vaccinationIds: string[], joursAvance: number = 7): Promise<RappelVaccination[]> {
-    if (vaccinationIds.length === 0) return [];
-    
-    const now = new Date();
-    const dateMax = new Date(now.getTime() + joursAvance * 24 * 60 * 60 * 1000);
-    const placeholders = vaccinationIds.map(() => '?').join(',');
+    try {
+      if (vaccinationIds.length === 0) return [];
 
-    const rows = await this.query<any>(
-      `SELECT * FROM rappels_vaccinations 
-       WHERE vaccination_id IN (${placeholders}) 
-       AND date_rappel BETWEEN ? AND ? 
-       AND envoi = 0
-       ORDER BY date_rappel ASC`,
-      [...vaccinationIds, now.toISOString(), dateMax.toISOString()]
-    );
-    return rows.map((row) => this.mapRow(row));
+      const dateMax = new Date();
+      dateMax.setDate(dateMax.getDate() + joursAvance);
+      const now = new Date().toISOString();
+
+      const rows = await this.query<unknown>('/sante/rappels-vaccinations', {});
+      return rows
+        .map(this.mapRow)
+        .filter(r => 
+          vaccinationIds.includes(r.vaccination_id) &&
+          r.date_rappel >= now &&
+          r.date_rappel <= dateMax.toISOString() &&
+          !r.envoi
+        )
+        .sort((a, b) => new Date(a.date_rappel).getTime() - new Date(b.date_rappel).getTime());
+    } catch (error) {
+      console.error('Error finding rappels a venir:', error);
+      return [];
+    }
   }
 
-  /**
-   * Récupérer les rappels en retard
-   */
   async findEnRetard(vaccinationIds: string[]): Promise<RappelVaccination[]> {
-    if (vaccinationIds.length === 0) return [];
-    
-    const placeholders = vaccinationIds.map(() => '?').join(',');
-    const now = new Date().toISOString();
+    try {
+      if (vaccinationIds.length === 0) return [];
 
-    const rows = await this.query<any>(
-      `SELECT * FROM rappels_vaccinations 
-       WHERE vaccination_id IN (${placeholders}) 
-       AND date_rappel < ? 
-       AND envoi = 0
-       ORDER BY date_rappel ASC`,
-      [...vaccinationIds, now]
-    );
-    return rows.map((row) => this.mapRow(row));
+      const now = new Date().toISOString();
+      const rows = await this.query<unknown>('/sante/rappels-vaccinations', {});
+      
+      return rows
+        .map(this.mapRow)
+        .filter(r => 
+          vaccinationIds.includes(r.vaccination_id) &&
+          r.date_rappel < now &&
+          !r.envoi
+        )
+        .sort((a, b) => new Date(a.date_rappel).getTime() - new Date(b.date_rappel).getTime());
+    } catch (error) {
+      console.error('Error finding rappels en retard:', error);
+      return [];
+    }
   }
 
-  /**
-   * Marquer un rappel comme envoyé
-   */
   async marquerEnvoye(id: string): Promise<RappelVaccination> {
-    await this.execute(
-      `UPDATE rappels_vaccinations SET envoi = 1, date_envoi = ? WHERE id = ?`,
-      [new Date().toISOString(), id]
-    );
-
-    const updated = await this.findById(id);
-    if (!updated) {
-      throw new Error('Rappel introuvable après mise à jour');
-    }
-    return updated;
+    return this.update(id, {
+      envoi: true,
+      date_envoi: new Date().toISOString(),
+    });
   }
 
-  /**
-   * Mettre à jour un rappel
-   */
   async update(id: string, updates: Partial<CreateRappelVaccinationInput>): Promise<RappelVaccination> {
-    const fields: string[] = [];
-    const values: any[] = [];
+    const updateData: Record<string, unknown> = {};
 
-    if (updates.date_rappel !== undefined) {
-      fields.push('date_rappel = ?');
-      values.push(updates.date_rappel);
-    }
-    if (updates.envoi !== undefined) {
-      fields.push('envoi = ?');
-      values.push(updates.envoi ? 1 : 0);
-    }
-    if (updates.date_envoi !== undefined) {
-      fields.push('date_envoi = ?');
-      values.push(updates.date_envoi || null);
-    }
+    if (updates.date_rappel !== undefined) updateData.date_rappel = updates.date_rappel;
+    if (updates.envoi !== undefined) updateData.envoi = updates.envoi;
+    if (updates.date_envoi !== undefined) updateData.date_envoi = updates.date_envoi || null;
 
-    if (fields.length === 0) {
+    if (Object.keys(updateData).length === 0) {
       const existing = await this.findById(id);
       if (!existing) {
         throw new Error('Rappel introuvable');
@@ -168,15 +129,7 @@ export class RappelVaccinationRepository extends BaseRepository<RappelVaccinatio
       return existing;
     }
 
-    values.push(id);
-
-    await this.execute(`UPDATE rappels_vaccinations SET ${fields.join(', ')} WHERE id = ?`, values);
-
-    const updated = await this.findById(id);
-    if (!updated) {
-      throw new Error('Rappel introuvable après mise à jour');
-    }
-    return updated;
+    const updated = await this.executePatch<unknown>(`/sante/rappels-vaccinations/${id}`, updateData);
+    return this.mapRow(updated);
   }
 }
-

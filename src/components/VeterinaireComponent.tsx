@@ -81,7 +81,7 @@ const PERIODICITE_JOURS: Record<Periodicite, number> = {
 export default function VeterinaireComponent({ refreshControl }: VeterinaireComponentProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<unknown>();
 
   const projetActif = useAppSelector((state) => state.projet.projetActif);
   const collaborateurs = useAppSelector((state) => selectAllCollaborateurs(state));
@@ -206,7 +206,7 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
         'Succès',
         `Planning créé avec succès !\n\n${planning.length} visites vétérinaires ont été créées sur 6 mois.`
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       Alert.alert(
         'Erreur',
         error?.message || 'Impossible de créer le planning. Vérifiez vos données et réessayez.'
@@ -244,7 +244,7 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
               try {
                 await dispatch(deleteVisiteVeterinaire(visite.id)).unwrap();
                 Alert.alert('Succès', 'Visite supprimée avec succès');
-              } catch (error: any) {
+              } catch (error: unknown) {
                 Alert.alert('Erreur', error || 'Erreur lors de la suppression de la visite');
               }
             },
@@ -318,7 +318,9 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
               <Button
                 title="Rechercher un vétérinaire"
                 onPress={() => {
-                  console.log('🔍 [VeterinaireComponent] Bouton recherche cliqué, ouverture modal...');
+                  console.log(
+                    '🔍 [VeterinaireComponent] Bouton recherche cliqué, ouverture modal...'
+                  );
                   setShowSearchModal(true);
                 }}
                 variant="outline"

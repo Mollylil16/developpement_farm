@@ -65,4 +65,3 @@ describe('LoadingSpinner', () => {
     expect(activityIndicator.props.color).toBe(customColor);
   });
 });
-

@@ -1,6 +1,6 @@
 /**
  * Entité Revenu - Domaine Finance
- * 
+ *
  * Représente un revenu dans le domaine métier
  */
 
@@ -75,4 +75,3 @@ export class RevenuEntity {
     return this.revenu.categorie === 'vente_porc';
   }
 }
-

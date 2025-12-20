@@ -27,15 +27,14 @@ import AppleLogo from '../components/AppleLogo';
 import { SCREENS } from '../navigation/types';
 import { getOnboardingService } from '../services/OnboardingService';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { 
-  updateUser, 
-  signInWithGoogle, 
-  signInWithApple, 
+import {
+  updateUser,
+  signInWithGoogle,
+  signInWithApple,
   signIn,
-  clearError 
+  clearError,
 } from '../store/slices/authSlice';
-import { getDatabase } from '../services/database';
-import { UserRepository } from '../database/repositories';
+import apiClient from '../services/api/apiClient';
 
 const OnboardingAuthScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -63,11 +62,11 @@ const OnboardingAuthScreen: React.FC = () => {
   const handleGoogleAuth = async () => {
     try {
       const result = await dispatch(signInWithGoogle()).unwrap();
-      
+
       if (result) {
         // Vérifier si c'est un nouvel utilisateur (pas de rôles ou rôles vides)
         const isNewUser = !result.roles || Object.keys(result.roles).length === 0;
-        
+
         if (isNewUser) {
           // Nouvel utilisateur : naviguer vers la sélection de profil
           navigation.navigate(SCREENS.PROFILE_SELECTION as never);
@@ -76,8 +75,9 @@ const OnboardingAuthScreen: React.FC = () => {
           // qui redirigera automatiquement vers le dashboard
         }
       }
-    } catch (error: any) {
-      Alert.alert('Erreur', `Erreur lors de la connexion avec Google: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+      Alert.alert('Erreur', `Erreur lors de la connexion avec Google: ${errorMessage}`);
     }
   };
 
@@ -89,11 +89,11 @@ const OnboardingAuthScreen: React.FC = () => {
 
     try {
       const result = await dispatch(signInWithApple()).unwrap();
-      
+
       if (result) {
         // Vérifier si c'est un nouvel utilisateur (pas de rôles ou rôles vides)
         const isNewUser = !result.roles || Object.keys(result.roles).length === 0;
-        
+
         if (isNewUser) {
           // Nouvel utilisateur : naviguer vers la sélection de profil
           navigation.navigate(SCREENS.PROFILE_SELECTION as never);
@@ -102,8 +102,9 @@ const OnboardingAuthScreen: React.FC = () => {
           // qui redirigera automatiquement vers le dashboard
         }
       }
-    } catch (error: any) {
-      Alert.alert('Erreur', `Erreur lors de la connexion avec Apple: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+      Alert.alert('Erreur', `Erreur lors de la connexion avec Apple: ${errorMessage}`);
     }
   };
 
@@ -116,7 +117,7 @@ const OnboardingAuthScreen: React.FC = () => {
 
     // Déterminer si c'est un email ou un téléphone
     const isEmail = identifier.includes('@');
-    
+
     if (isEmail) {
       // Validation de l'email
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -136,8 +137,8 @@ const OnboardingAuthScreen: React.FC = () => {
 
     try {
       // Vérifier si l'utilisateur existe déjà
-      const db = await getDatabase();
-      const userRepo = new UserRepository(db);
+      const { UserRepository } = await import('../database/repositories');
+      const userRepo = new UserRepository();
       const existingUser = await userRepo.findByIdentifier(identifier.trim());
 
       if (existingUser) {
@@ -147,13 +148,31 @@ const OnboardingAuthScreen: React.FC = () => {
       } else {
         // Nouvel utilisateur : naviguer vers la sélection de profil
         // On passera l'identifier pour créer le compte plus tard
-        navigation.navigate(SCREENS.PROFILE_SELECTION as never, { 
+        (navigation as any).navigate(SCREENS.PROFILE_SELECTION, {
           identifier: identifier.trim(),
-          isEmail 
-        } as never);
+          isEmail,
+        });
       }
-    } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Une erreur est survenue');
+    } catch (error: unknown) {
+      // Si c'est une erreur réseau, ne pas naviguer et afficher l'erreur
+      const errorMessage = error instanceof Error ? error.message : 'Une erreur est survenue';
+      const isNetworkError = errorMessage.includes('connexion au serveur') || 
+                            errorMessage.includes('Network request failed') ||
+                            errorMessage.includes('Internet');
+      
+      if (isNetworkError) {
+        Alert.alert(
+          'Erreur de connexion',
+          'Impossible de se connecter au serveur. Vérifiez que:\n' +
+          '1. Le backend est démarré\n' +
+          '2. Votre téléphone et votre ordinateur sont sur le même réseau Wi-Fi\n' +
+          '3. L\'adresse IP du backend est correcte dans la configuration',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Erreur', errorMessage);
+      }
+      // Ne pas naviguer en cas d'erreur
     }
   };
 
@@ -163,16 +182,13 @@ const OnboardingAuthScreen: React.FC = () => {
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView 
-          style={styles.scrollView} 
+        <ScrollView
+          style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.header}>
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => navigation.goBack()}
-            >
+            <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
               <Ionicons name="arrow-back" size={24} color={colors.text} />
             </TouchableOpacity>
             <Text style={[styles.title, { color: colors.text }]}>Créer votre compte</Text>
@@ -233,13 +249,15 @@ const OnboardingAuthScreen: React.FC = () => {
           {/* Formulaire Email/Téléphone */}
           <View style={styles.form}>
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                Email ou Téléphone
-              </Text>
+              <Text style={[styles.label, { color: colors.text }]}>Email ou Téléphone</Text>
               <TextInput
                 style={[
                   styles.input,
-                  { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    color: colors.text,
+                  },
                 ]}
                 value={identifier}
                 onChangeText={setIdentifier}

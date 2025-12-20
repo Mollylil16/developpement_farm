@@ -31,11 +31,14 @@ import { formatPrice, calculateTotalPrice } from '../../services/PricingService'
 interface OfferModalProps {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (data: {
-    subjectIds: string[];
-    proposedPrice: number;
-    message?: string;
-  }, listingId: string) => Promise<void>;
+  onSubmit: (
+    data: {
+      subjectIds: string[];
+      proposedPrice: number;
+      message?: string;
+    },
+    listingId: string
+  ) => Promise<void>;
   subjects: SubjectCardType[];
   listingId: string;
   originalPrice: number;
@@ -57,7 +60,7 @@ export default function OfferModal({
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  
+
   // Animation pour le swipe
   const pan = useRef(new Animated.ValueXY()).current;
 
@@ -177,36 +180,41 @@ export default function OfferModal({
     if (!termsAccepted) {
       Alert.alert(
         'Conditions de vente',
-        'Vous devez accepter les conditions de vente pour continuer. Le transport et l\'abattage seront à votre charge.'
+        "Vous devez accepter les conditions de vente pour continuer. Le transport et l'abattage seront à votre charge."
       );
       return;
     }
 
     try {
       setLoading(true);
-      await onSubmit({
-        subjectIds: Array.from(selectedIds),
-        proposedPrice: price,
-        message: message.trim() || undefined,
-      }, listingId);
-      
+      await onSubmit(
+        {
+          subjectIds: Array.from(selectedIds),
+          proposedPrice: price,
+          message: message.trim() || undefined,
+        },
+        listingId
+      );
+
       Alert.alert(
         'Offre envoyée',
         'Votre offre a été envoyée au producteur. Vous serez notifié de sa réponse.',
         [{ text: 'OK', onPress: onClose }]
       );
-    } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Impossible d\'envoyer l\'offre');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Impossible d'envoyer l'offre";
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
   // Vérifier si le bouton doit être activé
-  const isSubmitEnabled = selectedIds.size > 0 && 
-    proposedPrice.trim() !== '' && 
-    !isNaN(parseFloat(proposedPrice)) && 
-    parseFloat(proposedPrice) > 0 && 
+  const isSubmitEnabled =
+    selectedIds.size > 0 &&
+    proposedPrice.trim() !== '' &&
+    !isNaN(parseFloat(proposedPrice)) &&
+    parseFloat(proposedPrice) > 0 &&
     termsAccepted;
 
   return (
@@ -224,7 +232,11 @@ export default function OfferModal({
         <SafeAreaView style={styles.safeArea} edges={['top']}>
           {/* Header fixe */}
           <View style={[styles.header, { backgroundColor: colors.surface }]}>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.closeButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
               <Ionicons name="close" size={24} color={colors.text} />
             </TouchableOpacity>
             <Text style={[styles.headerTitle, { color: colors.text }]}>Faire une offre</Text>
@@ -244,186 +256,190 @@ export default function OfferModal({
               />
             }
           >
-          {/* Sélection des sujets */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Sujets sélectionnés ({selectedIds.size})
-            </Text>
-            <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
-              Poids total : {getTotalWeight().toFixed(1)} kg
-            </Text>
-
-            <View style={styles.subjectsList} key="subjects-list">
-              {subjects.map((subject) => (
-                <SubjectCard
-                  key={subject.id}
-                  subject={subject}
-                  onPress={() => toggleSelection(subject.id)}
-                  selected={selectedIds.has(subject.id)}
-                  selectable={true}
-                  onSelect={() => toggleSelection(subject.id)}
-                />
-              ))}
-            </View>
-          </View>
-
-          {/* Proposition de prix */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Votre offre</Text>
-            
-            <View style={[styles.priceInputContainer, { backgroundColor: colors.surface }]}>
-              <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>
-                Prix total proposé
+            {/* Sélection des sujets */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                Sujets sélectionnés ({selectedIds.size})
               </Text>
-              <View style={styles.priceInputRow}>
-                <TextInput
-                  style={[styles.priceInput, { color: colors.text }]}
-                  placeholder="0"
-                  placeholderTextColor={colors.textSecondary}
-                  keyboardType="numeric"
-                  value={proposedPrice}
-                  onChangeText={setProposedPrice}
-                />
-                <Text style={[styles.priceUnit, { color: colors.textSecondary }]}>FCFA</Text>
+              <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
+                Poids total : {getTotalWeight().toFixed(1)} kg
+              </Text>
+
+              <View style={styles.subjectsList} key="subjects-list">
+                {subjects.map((subject) => (
+                  <SubjectCard
+                    key={subject.id}
+                    subject={subject}
+                    onPress={() => toggleSelection(subject.id)}
+                    selected={selectedIds.has(subject.id)}
+                    selectable={true}
+                    onSelect={() => toggleSelection(subject.id)}
+                  />
+                ))}
               </View>
             </View>
 
-            {/* Comparaison prix */}
-            <View style={[styles.priceComparison, { backgroundColor: colors.surfaceLight }]}>
-              <View key="price-requested" style={styles.comparisonRow}>
-                <Text style={[styles.comparisonLabel, { color: colors.textSecondary }]}>
-                  Prix demandé
+            {/* Proposition de prix */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Votre offre</Text>
+
+              <View style={[styles.priceInputContainer, { backgroundColor: colors.surface }]}>
+                <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>
+                  Prix total proposé
                 </Text>
-                <Text style={[styles.comparisonValue, { color: colors.text }]}>
-                  {formatPrice(originalPrice)}
-                </Text>
+                <View style={styles.priceInputRow}>
+                  <TextInput
+                    style={[styles.priceInput, { color: colors.text }]}
+                    placeholder="0"
+                    placeholderTextColor={colors.textSecondary}
+                    keyboardType="numeric"
+                    value={proposedPrice}
+                    onChangeText={setProposedPrice}
+                  />
+                  <Text style={[styles.priceUnit, { color: colors.textSecondary }]}>FCFA</Text>
+                </View>
               </View>
-              <View key="price-offered" style={styles.comparisonRow}>
-                <Text style={[styles.comparisonLabel, { color: colors.textSecondary }]}>
-                  Votre offre
-                </Text>
-                <Text style={[styles.comparisonValue, { color: colors.primary }]}>
-                  {formatPrice(getCalculatedTotal())}
-                </Text>
+
+              {/* Comparaison prix */}
+              <View style={[styles.priceComparison, { backgroundColor: colors.surfaceLight }]}>
+                <View key="price-requested" style={styles.comparisonRow}>
+                  <Text style={[styles.comparisonLabel, { color: colors.textSecondary }]}>
+                    Prix demandé
+                  </Text>
+                  <Text style={[styles.comparisonValue, { color: colors.text }]}>
+                    {formatPrice(originalPrice)}
+                  </Text>
+                </View>
+                <View key="price-offered" style={styles.comparisonRow}>
+                  <Text style={[styles.comparisonLabel, { color: colors.textSecondary }]}>
+                    Votre offre
+                  </Text>
+                  <Text style={[styles.comparisonValue, { color: colors.primary }]}>
+                    {formatPrice(getCalculatedTotal())}
+                  </Text>
+                </View>
+                <View
+                  key="price-divider"
+                  style={[styles.divider, { backgroundColor: colors.divider }]}
+                />
+                <View key="price-difference" style={styles.comparisonRow}>
+                  <Text style={[styles.comparisonLabel, { color: colors.textSecondary }]}>
+                    Différence
+                  </Text>
+                  <Text
+                    style={[
+                      styles.comparisonValue,
+                      {
+                        color:
+                          getDifference() >= 0
+                            ? colors.success
+                            : getDifference() > -originalPrice * 0.1
+                              ? colors.warning
+                              : colors.error,
+                        fontWeight: typography.fontWeights.bold,
+                      },
+                    ]}
+                  >
+                    {getDifference() >= 0 ? '+' : ''}
+                    {formatPrice(getDifference())} ({getDifferencePercent()}%)
+                  </Text>
+                </View>
               </View>
-              <View key="price-divider" style={[styles.divider, { backgroundColor: colors.divider }]} />
-              <View key="price-difference" style={styles.comparisonRow}>
-                <Text style={[styles.comparisonLabel, { color: colors.textSecondary }]}>
-                  Différence
-                </Text>
-                <Text
+            </View>
+
+            {/* Message optionnel */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Message (optionnel)</Text>
+              <TextInput
+                style={[
+                  styles.messageInput,
+                  { backgroundColor: colors.surface, color: colors.text },
+                ]}
+                placeholder="Ajoutez un message pour le producteur..."
+                placeholderTextColor={colors.textSecondary}
+                value={message}
+                onChangeText={setMessage}
+                multiline
+                numberOfLines={4}
+                maxLength={500}
+                textAlignVertical="top"
+              />
+              <Text style={[styles.characterCount, { color: colors.textSecondary }]}>
+                {message.length}/500
+              </Text>
+            </View>
+
+            {/* Conditions de vente */}
+            <View style={styles.section}>
+              <SaleTermsDisplay expandable={true} />
+
+              {/* Checkbox acceptation */}
+              <TouchableOpacity
+                style={styles.termsCheckbox}
+                onPress={() => setTermsAccepted(!termsAccepted)}
+                activeOpacity={0.7}
+              >
+                <View
                   style={[
-                    styles.comparisonValue,
+                    styles.checkbox,
                     {
-                      color:
-                        getDifference() >= 0
-                          ? colors.success
-                          : getDifference() > -originalPrice * 0.1
-                          ? colors.warning
-                          : colors.error,
-                      fontWeight: typography.fontWeights.bold,
+                      borderColor: termsAccepted ? colors.primary : colors.border,
+                      backgroundColor: termsAccepted ? colors.primary : 'transparent',
                     },
                   ]}
                 >
-                  {getDifference() >= 0 ? '+' : ''}
-                  {formatPrice(getDifference())} ({getDifferencePercent()}%)
+                  {termsAccepted && (
+                    <Ionicons name="checkmark" size={16} color={colors.textInverse} />
+                  )}
+                </View>
+                <Text style={[styles.termsCheckboxText, { color: colors.text }]}>
+                  J'accepte les conditions de vente (transport et abattage à ma charge)
                 </Text>
-              </View>
+              </TouchableOpacity>
+
+              {!termsAccepted && (
+                <View
+                  key="warning-box"
+                  style={[styles.warningBox, { backgroundColor: colors.warning + '15' }]}
+                >
+                  <Ionicons name="warning" size={16} color={colors.warning} />
+                  <Text style={[styles.warningText, { color: colors.warning }]}>
+                    Vous devez accepter les conditions pour continuer
+                  </Text>
+                </View>
+              )}
             </View>
-          </View>
+          </ScrollView>
 
-          {/* Message optionnel */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Message (optionnel)
-            </Text>
-            <TextInput
-              style={[
-                styles.messageInput,
-                { backgroundColor: colors.surface, color: colors.text },
-              ]}
-              placeholder="Ajoutez un message pour le producteur..."
-              placeholderTextColor={colors.textSecondary}
-              value={message}
-              onChangeText={setMessage}
-              multiline
-              numberOfLines={4}
-              maxLength={500}
-              textAlignVertical="top"
-            />
-            <Text style={[styles.characterCount, { color: colors.textSecondary }]}>
-              {message.length}/500
-            </Text>
-          </View>
-
-          {/* Conditions de vente */}
-          <View style={styles.section}>
-            <SaleTermsDisplay expandable={true} />
-            
-            {/* Checkbox acceptation */}
+          {/* Footer fixe */}
+          <View style={[styles.footer, { backgroundColor: colors.surface }]}>
             <TouchableOpacity
-              style={styles.termsCheckbox}
-              onPress={() => setTermsAccepted(!termsAccepted)}
-              activeOpacity={0.7}
+              style={[styles.cancelButton, { borderColor: colors.border }]}
+              onPress={onClose}
             >
-              <View
-                style={[
-                  styles.checkbox,
-                  {
-                    borderColor: termsAccepted ? colors.primary : colors.border,
-                    backgroundColor: termsAccepted ? colors.primary : 'transparent',
-                  },
-                ]}
-              >
-                {termsAccepted && (
-                  <Ionicons name="checkmark" size={16} color={colors.textInverse} />
-                )}
-              </View>
-              <Text style={[styles.termsCheckboxText, { color: colors.text }]}>
-                J'accepte les conditions de vente (transport et abattage à ma charge)
-              </Text>
+              <Text style={[styles.cancelButtonText, { color: colors.text }]}>Annuler</Text>
             </TouchableOpacity>
 
-            {!termsAccepted && (
-              <View key="warning-box" style={[styles.warningBox, { backgroundColor: colors.warning + '15' }]}>
-                <Ionicons name="warning" size={16} color={colors.warning} />
-                <Text style={[styles.warningText, { color: colors.warning }]}>
-                  Vous devez accepter les conditions pour continuer
+            <TouchableOpacity
+              style={[
+                styles.submitButton,
+                {
+                  backgroundColor: isSubmitEnabled ? colors.primary : colors.textLight,
+                  opacity: isSubmitEnabled ? 1 : 0.5,
+                },
+              ]}
+              onPress={handleSubmit}
+              disabled={loading || !isSubmitEnabled}
+            >
+              {loading ? (
+                <ActivityIndicator color={colors.textInverse} />
+              ) : (
+                <Text style={[styles.submitButtonText, { color: colors.textInverse }]}>
+                  Envoyer l'offre
                 </Text>
-              </View>
-            )}
+              )}
+            </TouchableOpacity>
           </View>
-        </ScrollView>
-
-        {/* Footer fixe */}
-        <View style={[styles.footer, { backgroundColor: colors.surface }]}>
-          <TouchableOpacity
-            style={[styles.cancelButton, { borderColor: colors.border }]}
-            onPress={onClose}
-          >
-            <Text style={[styles.cancelButtonText, { color: colors.text }]}>Annuler</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.submitButton,
-              {
-                backgroundColor: isSubmitEnabled ? colors.primary : colors.textLight,
-                opacity: isSubmitEnabled ? 1 : 0.5,
-              },
-            ]}
-            onPress={handleSubmit}
-            disabled={loading || !isSubmitEnabled}
-          >
-            {loading ? (
-              <ActivityIndicator color={colors.textInverse} />
-            ) : (
-              <Text style={[styles.submitButtonText, { color: colors.textInverse }]}>
-                Envoyer l'offre
-              </Text>
-            )}
-          </TouchableOpacity>
-        </View>
         </SafeAreaView>
       </Animated.View>
     </Modal>
@@ -604,4 +620,3 @@ const styles = StyleSheet.create({
     fontWeight: MarketplaceTheme.typography.fontWeights.bold,
   },
 });
-

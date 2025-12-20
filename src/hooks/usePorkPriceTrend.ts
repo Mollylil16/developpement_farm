@@ -3,7 +3,6 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { getDatabase } from '../services/database';
 import { getPorkPriceTrendService } from '../services/PorkPriceTrendService';
 import { getErrorMessage } from '../types/common';
 import type { WeeklyPorkPriceTrend } from '../database/repositories/WeeklyPorkPriceTrendRepository';
@@ -30,8 +29,7 @@ export function usePorkPriceTrend() {
     try {
       setData((prev) => ({ ...prev, loading: true, error: null }));
 
-      const db = await getDatabase();
-      const trendService = getPorkPriceTrendService(db);
+      const trendService = getPorkPriceTrendService();
 
       // Récupérer les tendances des 26 dernières semaines + semaine en cours
       const trends = await trendService.getLast26WeeksTrends();
@@ -45,12 +43,20 @@ export function usePorkPriceTrend() {
           trends: updatedTrends,
           currentWeekPrice: updatedTrends[updatedTrends.length - 1]?.avgPricePlatform,
           previousWeekPrice: updatedTrends[updatedTrends.length - 2]?.avgPricePlatform,
-          priceChange: updatedTrends[updatedTrends.length - 1]?.avgPricePlatform && updatedTrends[updatedTrends.length - 2]?.avgPricePlatform
-            ? updatedTrends[updatedTrends.length - 1].avgPricePlatform! - updatedTrends[updatedTrends.length - 2].avgPricePlatform!
-            : undefined,
-          priceChangePercent: updatedTrends[updatedTrends.length - 1]?.avgPricePlatform && updatedTrends[updatedTrends.length - 2]?.avgPricePlatform
-            ? ((updatedTrends[updatedTrends.length - 1].avgPricePlatform! - updatedTrends[updatedTrends.length - 2].avgPricePlatform!) / updatedTrends[updatedTrends.length - 2].avgPricePlatform!) * 100
-            : undefined,
+          priceChange:
+            updatedTrends[updatedTrends.length - 1]?.avgPricePlatform &&
+            updatedTrends[updatedTrends.length - 2]?.avgPricePlatform
+              ? updatedTrends[updatedTrends.length - 1].avgPricePlatform! -
+                updatedTrends[updatedTrends.length - 2].avgPricePlatform!
+              : undefined,
+          priceChangePercent:
+            updatedTrends[updatedTrends.length - 1]?.avgPricePlatform &&
+            updatedTrends[updatedTrends.length - 2]?.avgPricePlatform
+              ? ((updatedTrends[updatedTrends.length - 1].avgPricePlatform! -
+                  updatedTrends[updatedTrends.length - 2].avgPricePlatform!) /
+                  updatedTrends[updatedTrends.length - 2].avgPricePlatform!) *
+                100
+              : undefined,
           loading: false,
           error: null,
           lastUpdated: updatedTrends[updatedTrends.length - 1]?.updatedAt,
@@ -60,12 +66,20 @@ export function usePorkPriceTrend() {
           trends,
           currentWeekPrice: trends[trends.length - 1]?.avgPricePlatform,
           previousWeekPrice: trends[trends.length - 2]?.avgPricePlatform,
-          priceChange: trends[trends.length - 1]?.avgPricePlatform && trends[trends.length - 2]?.avgPricePlatform
-            ? trends[trends.length - 1].avgPricePlatform! - trends[trends.length - 2].avgPricePlatform!
-            : undefined,
-          priceChangePercent: trends[trends.length - 1]?.avgPricePlatform && trends[trends.length - 2]?.avgPricePlatform
-            ? ((trends[trends.length - 1].avgPricePlatform! - trends[trends.length - 2].avgPricePlatform!) / trends[trends.length - 2].avgPricePlatform!) * 100
-            : undefined,
+          priceChange:
+            trends[trends.length - 1]?.avgPricePlatform &&
+            trends[trends.length - 2]?.avgPricePlatform
+              ? trends[trends.length - 1].avgPricePlatform! -
+                trends[trends.length - 2].avgPricePlatform!
+              : undefined,
+          priceChangePercent:
+            trends[trends.length - 1]?.avgPricePlatform &&
+            trends[trends.length - 2]?.avgPricePlatform
+              ? ((trends[trends.length - 1].avgPricePlatform! -
+                  trends[trends.length - 2].avgPricePlatform!) /
+                  trends[trends.length - 2].avgPricePlatform!) *
+                100
+              : undefined,
           loading: false,
           error: null,
           lastUpdated: trends[trends.length - 1]?.updatedAt,
@@ -90,4 +104,3 @@ export function usePorkPriceTrend() {
     refresh: loadTrends,
   };
 }
-

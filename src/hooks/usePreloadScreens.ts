@@ -5,12 +5,13 @@
 
 import { useEffect } from 'react';
 import { useAppSelector } from '../store/hooks';
+import { useRole } from '../contexts/RoleContext';
 
 /**
  * Précharge les écrans selon le rôle de l'utilisateur
  */
 export function usePreloadScreens() {
-  const activeRole = useAppSelector((state) => state.auth.activeRole);
+  const { activeRole } = useRole();
   const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated);
   const projetActif = useAppSelector((state) => state.projet.projetActif);
 
@@ -21,10 +22,7 @@ export function usePreloadScreens() {
 
     // Précharger les écrans communs
     const preloadCommonScreens = async () => {
-      await Promise.all([
-        import('../screens/ProfilScreen'),
-        import('../screens/ParametresScreen'),
-      ]);
+      await Promise.all([import('../screens/ProfilScreen'), import('../screens/ParametresScreen')]);
     };
 
     // Précharger selon le rôle
@@ -71,4 +69,3 @@ export function usePreloadScreens() {
     return () => clearTimeout(timer);
   }, [isAuthenticated, activeRole, projetActif]);
 }
-

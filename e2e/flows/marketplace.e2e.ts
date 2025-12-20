@@ -1,6 +1,6 @@
 /**
  * Tests E2E pour le flux marketplace
- * 
+ *
  * Couvre:
  * - Création d'une annonce
  * - Réponse à une offre
@@ -10,7 +10,7 @@
 import { describe, it, expect } from '@jest/globals';
 
 describe('E2E: Flux Marketplace', () => {
-  describe('Création d\'une annonce', () => {
+  describe("Création d'une annonce", () => {
     it('devrait permettre de créer une annonce de vente', async () => {
       // TODO: Implémenter avec Detox ou Maestro
       // 1. Naviguer vers l'écran Marketplace
@@ -27,10 +27,9 @@ describe('E2E: Flux Marketplace', () => {
     });
   });
 
-  describe('Finalisation d\'une transaction', () => {
+  describe("Finalisation d'une transaction", () => {
     it('devrait permettre de finaliser une transaction', async () => {
       // TODO: Implémenter
     });
   });
 });
-

@@ -1,6 +1,6 @@
 /**
  * SanteHeader - En-tête de l'écran Santé
- * 
+ *
  * Affiche le titre et les badges d'alertes
  */
 
@@ -19,7 +19,7 @@ export default function SanteHeader({
   nombreAlertesElevees,
 }: SanteHeaderProps) {
   const { colors } = useTheme();
-  
+
   return (
     <View style={[styles.header, { backgroundColor: colors.surface }]}>
       <View style={styles.headerContent}>
@@ -90,4 +90,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

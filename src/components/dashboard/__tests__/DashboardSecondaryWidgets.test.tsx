@@ -41,11 +41,7 @@ describe('DashboardSecondaryWidgets', () => {
 
   it('devrait retourner null si aucun widget', () => {
     const { container } = render(
-      <DashboardSecondaryWidgets
-        widgets={[]}
-        animations={[]}
-        onPressWidget={jest.fn()}
-      />
+      <DashboardSecondaryWidgets widgets={[]} animations={[]} onPressWidget={jest.fn()} />
     );
 
     expect(container.children.length).toBe(0);
@@ -111,9 +107,7 @@ describe('DashboardSecondaryWidgets', () => {
   });
 
   it('devrait appeler onPressWidget quand un widget est pressé', () => {
-    const mockWidgets = [
-      { type: 'purchases' as const, screen: 'MyPurchases' },
-    ];
+    const mockWidgets = [{ type: 'purchases' as const, screen: 'MyPurchases' }];
 
     const mockWidgetData = {
       emoji: '🛒',
@@ -193,7 +187,7 @@ describe('DashboardSecondaryWidgets', () => {
     expect(UNSAFE_getAllByType).toBeDefined();
   });
 
-  it('devrait afficher l\'indicateur de pagination si plus d\'une page', () => {
+  it("devrait afficher l'indicateur de pagination si plus d'une page", () => {
     const mockWidgets = Array.from({ length: 5 }, (_, i) => ({
       type: 'purchases' as const,
       screen: `Screen${i}`,
@@ -223,4 +217,3 @@ describe('DashboardSecondaryWidgets', () => {
     expect(container).toBeDefined();
   });
 });
-

@@ -1,6 +1,6 @@
 /**
  * MigrationRunner - Système de migrations versionné
- * 
+ *
  * Gère l'exécution des migrations dans l'ordre et le suivi des migrations appliquées
  */
 
@@ -44,19 +44,13 @@ async function markMigrationApplied(
   version: number,
   name: string
 ): Promise<void> {
-  await db.runAsync(
-    'INSERT INTO schema_migrations (version, name) VALUES (?, ?)',
-    [version, name]
-  );
+  await db.runAsync('INSERT INTO schema_migrations (version, name) VALUES (?, ?)', [version, name]);
 }
 
 /**
  * Exécute toutes les migrations en attente dans l'ordre
  */
-export async function runMigrations(
-  db: SQLiteDatabase,
-  migrations: Migration[]
-): Promise<void> {
+export async function runMigrations(db: SQLiteDatabase, migrations: Migration[]): Promise<void> {
   await ensureMigrationsTable(db);
   const appliedMigrations = await getAppliedMigrations(db);
 
@@ -72,7 +66,7 @@ export async function runMigrations(
 
     try {
       console.log(`🔄 Application de la migration ${migration.version}: ${migration.name}...`);
-      
+
       // Exécuter dans une transaction pour garantir l'atomicité
       await db.execAsync('BEGIN TRANSACTION;');
       try {
@@ -97,4 +91,3 @@ export async function runMigrations(
     }
   }
 }
-

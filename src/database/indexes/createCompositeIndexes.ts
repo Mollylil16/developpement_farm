@@ -1,6 +1,6 @@
 /**
  * Création des index composites pour optimiser les requêtes fréquentes
- * 
+ *
  * Les index composites sont essentiels pour les requêtes avec plusieurs conditions WHERE
  * et ORDER BY sur plusieurs colonnes.
  */
@@ -46,7 +46,7 @@ const compositeIndexes: CompositeIndexDefinition[] = [
     unique: true,
     description: 'Optimise les recherches par code (déjà existant mais vérifié)',
   },
-  
+
   // Production Pesées
   {
     name: 'idx_production_pesees_animal_date',
@@ -60,7 +60,7 @@ const compositeIndexes: CompositeIndexDefinition[] = [
     columns: ['projet_id', 'date'],
     description: 'Optimise les requêtes de pesées par projet triées par date',
   },
-  
+
   // Gestations
   {
     name: 'idx_gestations_projet_statut',
@@ -74,7 +74,7 @@ const compositeIndexes: CompositeIndexDefinition[] = [
     columns: ['truie_id', 'date_sautage'],
     description: 'Optimise les requêtes de gestations par truie triées par date',
   },
-  
+
   // Revenus
   {
     name: 'idx_revenus_projet_date',
@@ -88,7 +88,7 @@ const compositeIndexes: CompositeIndexDefinition[] = [
     columns: ['projet_id', 'animal_id'],
     description: 'Optimise les requêtes de revenus par projet et animal',
   },
-  
+
   // Dépenses
   {
     name: 'idx_depenses_projet_date',
@@ -102,7 +102,7 @@ const compositeIndexes: CompositeIndexDefinition[] = [
     columns: ['projet_id', 'categorie'],
     description: 'Optimise les requêtes de dépenses par projet et catégorie',
   },
-  
+
   // Charges fixes
   {
     name: 'idx_charges_fixes_projet_statut',
@@ -110,7 +110,7 @@ const compositeIndexes: CompositeIndexDefinition[] = [
     columns: ['projet_id', 'statut'],
     description: 'Optimise les requêtes de charges fixes par projet et statut',
   },
-  
+
   // Vaccinations
   {
     name: 'idx_vaccinations_projet_date',
@@ -130,7 +130,7 @@ const compositeIndexes: CompositeIndexDefinition[] = [
     columns: ['animal_id', 'date_vaccination'],
     description: 'Optimise les requêtes de vaccinations par animal triées par date',
   },
-  
+
   // Traitements
   {
     name: 'idx_traitements_projet_date',
@@ -144,7 +144,7 @@ const compositeIndexes: CompositeIndexDefinition[] = [
     columns: ['animal_id', 'date_debut'],
     description: 'Optimise les requêtes de traitements par animal triées par date',
   },
-  
+
   // Maladies
   {
     name: 'idx_maladies_projet_date',
@@ -158,7 +158,7 @@ const compositeIndexes: CompositeIndexDefinition[] = [
     columns: ['animal_id', 'date_debut'],
     description: 'Optimise les requêtes de maladies par animal triées par date',
   },
-  
+
   // Planifications
   {
     name: 'idx_planifications_projet_statut',
@@ -172,7 +172,7 @@ const compositeIndexes: CompositeIndexDefinition[] = [
     columns: ['projet_id', 'date_prevue'],
     description: 'Optimise les requêtes de planifications par projet triées par date',
   },
-  
+
   // Collaborations
   {
     name: 'idx_collaborations_projet_statut',
@@ -186,7 +186,7 @@ const compositeIndexes: CompositeIndexDefinition[] = [
     columns: ['user_id', 'statut'],
     description: 'Optimise les requêtes de collaborations par utilisateur et statut',
   },
-  
+
   // Stocks
   {
     name: 'idx_stocks_mouvements_aliment_date',
@@ -200,7 +200,7 @@ const compositeIndexes: CompositeIndexDefinition[] = [
     columns: ['projet_id', 'type'],
     description: 'Optimise les requêtes de mouvements par projet et type',
   },
-  
+
   // Rations
   {
     name: 'idx_rations_projet_type',
@@ -208,7 +208,7 @@ const compositeIndexes: CompositeIndexDefinition[] = [
     columns: ['projet_id', 'type_porc'],
     description: 'Optimise les requêtes de rations par projet et type de porc',
   },
-  
+
   // Mortalités
   {
     name: 'idx_mortalites_projet_date',
@@ -279,24 +279,21 @@ async function createCompositeIndex(
     const uniqueClause = index.unique ? 'UNIQUE' : '';
     const columns = index.columns.join(', ');
     const sql = `CREATE ${uniqueClause} INDEX IF NOT EXISTS ${index.name} ON ${index.table}(${columns})`;
-    
+
     await db.execAsync(sql);
-    
+
     console.log(`✅ Index composite ${index.name} créé: ${index.description}`);
     return true;
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error(
-      `❌ Erreur lors de la création de l'index ${index.name}:`,
-      errorMessage
-    );
+    console.error(`❌ Erreur lors de la création de l'index ${index.name}:`, errorMessage);
     return false;
   }
 }
 
 /**
  * Crée tous les index composites pour optimiser les requêtes fréquentes
- * 
+ *
  * @param db - Instance de la base de données SQLite
  */
 export async function createCompositeIndexes(db: SQLiteDatabase): Promise<void> {
@@ -328,4 +325,3 @@ export async function createCompositeIndexes(db: SQLiteDatabase): Promise<void> 
     );
   }
 }
-

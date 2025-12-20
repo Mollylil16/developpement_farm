@@ -69,7 +69,7 @@ export default function NotificationPanel({
       return notifications;
     }
     const allowedTypes = NOTIFICATION_TYPES_BY_TAB[activeTab];
-    return notifications.filter(n => allowedTypes.includes(n.type));
+    return notifications.filter((n) => allowedTypes.includes(n.type));
   }, [notifications, activeTab]);
 
   // Compter les non lues par onglet
@@ -81,7 +81,7 @@ export default function NotificationPanel({
       system: 0,
     };
 
-    notifications.forEach(n => {
+    notifications.forEach((n) => {
       if (!n.read) {
         if (NOTIFICATION_TYPES_BY_TAB.offers.includes(n.type)) counts.offers++;
         if (NOTIFICATION_TYPES_BY_TAB.messages.includes(n.type)) counts.messages++;
@@ -136,11 +136,7 @@ export default function NotificationPanel({
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <TouchableOpacity
-        style={styles.overlay}
-        activeOpacity={1}
-        onPress={onClose}
-      >
+      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
         <Animated.View
           style={[
             styles.panel,
@@ -154,18 +150,11 @@ export default function NotificationPanel({
         >
           {/* Header */}
           <View style={[styles.header, { borderBottomColor: colors.divider }]}>
-            <Text style={[styles.headerTitle, { color: colors.text }]}>
-              Notifications
-            </Text>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>Notifications</Text>
             <View style={styles.headerActions}>
               {unreadCount > 0 && (
-                <TouchableOpacity
-                  onPress={onMarkAllAsRead}
-                  style={styles.markAllButton}
-                >
-                  <Text style={[styles.markAllText, { color: colors.primary }]}>
-                    Tout lire
-                  </Text>
+                <TouchableOpacity onPress={onMarkAllAsRead} style={styles.markAllButton}>
+                  <Text style={[styles.markAllText, { color: colors.primary }]}>Tout lire</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -176,7 +165,7 @@ export default function NotificationPanel({
 
           {/* Onglets */}
           <View style={[styles.tabs, { borderBottomColor: colors.divider }]}>
-            {(['all', 'offers', 'messages', 'system'] as TabType[]).map(tab => {
+            {(['all', 'offers', 'messages', 'system'] as TabType[]).map((tab) => {
               const count = unreadCountByTab[tab];
               const isActive = activeTab === tab;
               return (
@@ -230,7 +219,7 @@ export default function NotificationPanel({
                 </Text>
               </View>
             ) : (
-              filteredNotifications.map(notification => (
+              filteredNotifications.map((notification) => (
                 <NotificationCard
                   key={notification.id}
                   notification={notification}
@@ -338,4 +327,3 @@ const styles = StyleSheet.create({
     fontSize: MarketplaceTheme.typography.fontSizes.md,
   },
 });
-

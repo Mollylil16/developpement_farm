@@ -1,0 +1,6 @@
+names:
+- pig
+nc: 1
+path: C:\Users\ASUS\farmtrackPro\fermier-pro\ai-weight-estimation\data
+train: images/train
+val: images/val

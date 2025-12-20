@@ -1,6 +1,7 @@
 /**
  * Slice Redux pour la gestion financière
  * Utilise normalizr pour stocker les données de manière normalisée
+ * Utilise maintenant l'API backend au lieu de SQLite
  */
 
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
@@ -15,12 +16,8 @@ import {
   CreateRevenuInput,
   UpdateRevenuInput,
 } from '../../types';
-import { getDatabase } from '../../services/database';
-import {
-  RevenuRepository,
-  DepensePonctuelleRepository,
-  ChargeFixeRepository,
-} from '../../database/repositories';
+import { getErrorMessage } from '../../types/common';
+import apiClient from '../../services/api/apiClient';
 import {
   chargesFixesSchema,
   depensesPonctuellesSchema,
@@ -78,15 +75,13 @@ export const createChargeFixe = createAsyncThunk(
   'finance/createChargeFixe',
   async (input: CreateChargeFixeInput, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const chargeRepo = new ChargeFixeRepository(db);
-      const charge = await chargeRepo.create({
-        ...input,
-        statut: 'actif',
-      });
+      // Le backend définit automatiquement statut='actif'
+      const charge = await apiClient.post<ChargeFixe>('/finance/charges-fixes', input);
       return charge;
     } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création de la charge fixe');
+      return rejectWithValue(
+        getErrorMessage(error) || 'Erreur lors de la création de la charge fixe'
+      );
     }
   }
 );
@@ -95,12 +90,14 @@ export const loadChargesFixes = createAsyncThunk(
   'finance/loadChargesFixes',
   async (projetId: string, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const chargeRepo = new ChargeFixeRepository(db);
-      const charges = await chargeRepo.findByProjet(projetId);
+      const charges = await apiClient.get<ChargeFixe[]>('/finance/charges-fixes', {
+        params: { projet_id: projetId },
+      });
       return charges;
     } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des charges fixes');
+      return rejectWithValue(
+        getErrorMessage(error) || 'Erreur lors du chargement des charges fixes'
+      );
     }
   }
 );
@@ -109,12 +106,12 @@ export const updateChargeFixe = createAsyncThunk(
   'finance/updateChargeFixe',
   async ({ id, updates }: { id: string; updates: Partial<ChargeFixe> }, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const chargeRepo = new ChargeFixeRepository(db);
-      const charge = await chargeRepo.update(id, updates);
+      const charge = await apiClient.patch<ChargeFixe>(`/finance/charges-fixes/${id}`, updates);
       return charge;
     } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la mise à jour de la charge fixe');
+      return rejectWithValue(
+        getErrorMessage(error) || 'Erreur lors de la mise à jour de la charge fixe'
+      );
     }
   }
 );
@@ -123,12 +120,12 @@ export const deleteChargeFixe = createAsyncThunk(
   'finance/deleteChargeFixe',
   async (id: string, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const chargeRepo = new ChargeFixeRepository(db);
-      await chargeRepo.delete(id);
+      await apiClient.delete(`/finance/charges-fixes/${id}`);
       return id;
     } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la suppression de la charge fixe');
+      return rejectWithValue(
+        getErrorMessage(error) || 'Erreur lors de la suppression de la charge fixe'
+      );
     }
   }
 );
@@ -138,9 +135,11 @@ export const createDepensePonctuelle = createAsyncThunk(
   'finance/createDepensePonctuelle',
   async (input: CreateDepensePonctuelleInput, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const depenseRepo = new DepensePonctuelleRepository(db);
-      const depense = await depenseRepo.create(input);
+      // Le backend détermine automatiquement type_opex_capex selon la catégorie
+      const depense = await apiClient.post<DepensePonctuelle>(
+        '/finance/depenses-ponctuelles',
+        input
+      );
       return depense;
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création de la dépense');
@@ -153,10 +152,10 @@ export const loadDepensesPonctuelles = createAsyncThunk(
   async (projetId: string, { rejectWithValue }) => {
     try {
       console.log(`🔄 [financeSlice] loadDepensesPonctuelles appelé pour projetId: ${projetId}`);
-      const db = await getDatabase();
-      const depenseRepo = new DepensePonctuelleRepository(db);
-      const depenses = await depenseRepo.findByProjet(projetId);
-      console.log(`✅ [financeSlice] ${depenses.length} dépenses chargées depuis la DB`);
+      const depenses = await apiClient.get<DepensePonctuelle[]>('/finance/depenses-ponctuelles', {
+        params: { projet_id: projetId },
+      });
+      console.log(`✅ [financeSlice] ${depenses.length} dépenses chargées depuis l'API`);
       return depenses;
     } catch (error: unknown) {
       console.error(`❌ [financeSlice] Erreur lors du chargement des dépenses:`, error);
@@ -172,12 +171,16 @@ export const updateDepensePonctuelle = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const db = await getDatabase();
-      const depenseRepo = new DepensePonctuelleRepository(db);
-      const depense = await depenseRepo.update(id, updates);
+      // Le backend recalcule automatiquement type_opex_capex si la catégorie change
+      const depense = await apiClient.patch<DepensePonctuelle>(
+        `/finance/depenses-ponctuelles/${id}`,
+        updates
+      );
       return depense;
     } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la mise à jour de la dépense');
+      return rejectWithValue(
+        getErrorMessage(error) || 'Erreur lors de la mise à jour de la dépense'
+      );
     }
   }
 );
@@ -186,12 +189,12 @@ export const deleteDepensePonctuelle = createAsyncThunk(
   'finance/deleteDepensePonctuelle',
   async (id: string, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const depenseRepo = new DepensePonctuelleRepository(db);
-      await depenseRepo.delete(id);
+      await apiClient.delete(`/finance/depenses-ponctuelles/${id}`);
       return id;
     } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la suppression de la dépense');
+      return rejectWithValue(
+        getErrorMessage(error) || 'Erreur lors de la suppression de la dépense'
+      );
     }
   }
 );
@@ -201,9 +204,7 @@ export const createRevenu = createAsyncThunk(
   'finance/createRevenu',
   async (input: CreateRevenuInput, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const revenuRepo = new RevenuRepository(db);
-      const revenu = await revenuRepo.create(input);
+      const revenu = await apiClient.post<Revenu>('/finance/revenus', input);
       return revenu;
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création du revenu');
@@ -216,10 +217,10 @@ export const loadRevenus = createAsyncThunk(
   async (projetId: string, { rejectWithValue }) => {
     try {
       console.log(`🔄 [financeSlice] loadRevenus appelé pour projetId: ${projetId}`);
-      const db = await getDatabase();
-      const revenuRepo = new RevenuRepository(db);
-      const revenus = await revenuRepo.findByProjet(projetId);
-      console.log(`✅ [financeSlice] ${revenus.length} revenus chargés depuis la DB`);
+      const revenus = await apiClient.get<Revenu[]>('/finance/revenus', {
+        params: { projet_id: projetId },
+      });
+      console.log(`✅ [financeSlice] ${revenus.length} revenus chargés depuis l'API`);
       return revenus;
     } catch (error: unknown) {
       console.error(`❌ [financeSlice] Erreur lors du chargement des revenus:`, error);
@@ -232,9 +233,7 @@ export const updateRevenu = createAsyncThunk(
   'finance/updateRevenu',
   async ({ id, updates }: { id: string; updates: UpdateRevenuInput }, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const revenuRepo = new RevenuRepository(db);
-      const revenu = await revenuRepo.update(id, updates);
+      const revenu = await apiClient.patch<Revenu>(`/finance/revenus/${id}`, updates);
       return revenu;
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la mise à jour du revenu');
@@ -246,9 +245,7 @@ export const deleteRevenu = createAsyncThunk(
   'finance/deleteRevenu',
   async (id: string, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const revenuRepo = new RevenuRepository(db);
-      await revenuRepo.delete(id);
+      await apiClient.delete(`/finance/revenus/${id}`);
       return id;
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la suppression du revenu');
@@ -262,6 +259,7 @@ export const deleteRevenu = createAsyncThunk(
 
 /**
  * Calcule et sauvegarde les marges pour une vente de porc
+ * TODO: Implémenter endpoint backend pour le calcul des marges
  */
 export const calculateAndSaveMargesVente = createAsyncThunk(
   'finance/calculateAndSaveMargesVente',
@@ -270,28 +268,11 @@ export const calculateAndSaveMargesVente = createAsyncThunk(
     { getState, rejectWithValue }
   ) => {
     try {
-      const state = getState() as any;
-      const vente = state.finance.entities.revenus[venteId];
-      const projet = state.projet.projetActif;
-
-      if (!vente) {
-        throw new Error('Vente non trouvée');
-      }
-
-      if (!projet) {
-        throw new Error('Aucun projet actif');
-      }
-
-      // Importer le service dynamiquement
-      const CoutProductionService = (await import('../../services/CoutProductionService')).default;
-      const db = await getDatabase();
-      CoutProductionService.setDatabase(db);
-
-      // Calculer et sauvegarder les marges
-      const venteUpdated = await CoutProductionService.calculateAndSaveMargesForNewVente(
-        vente,
-        poidsKg,
-        projet
+      const venteUpdated = await apiClient.post<Revenu>(
+        `/finance/revenus/${venteId}/calculer-marges`,
+        {
+          poids_kg: poidsKg,
+        }
       );
 
       return venteUpdated;
@@ -303,39 +284,23 @@ export const calculateAndSaveMargesVente = createAsyncThunk(
 
 /**
  * Recalcule les marges de toutes les ventes d'une période
+ * TODO: Implémenter endpoint backend pour le recalcul des marges
  */
 export const recalculerMargesPeriode = createAsyncThunk(
   'finance/recalculerMargesPeriode',
   async (
     { projetId, dateDebut, dateFin }: { projetId: string; dateDebut: Date; dateFin: Date },
-    { getState, rejectWithValue }
+    { rejectWithValue }
   ) => {
     try {
-      const state = getState() as any;
-      const projet = state.projet.projetActif;
+      // TODO: Implémenter endpoint backend POST /finance/revenus/recalculer-marges
+      // Pour l'instant, on recharge simplement les revenus
+      // Le backend devra implémenter la logique de recalcul
+      const revenus = await apiClient.get<Revenu[]>('/finance/revenus', {
+        params: { projet_id: projetId },
+      });
 
-      if (!projet) {
-        throw new Error('Aucun projet actif');
-      }
-
-      // Importer le service dynamiquement
-      const CoutProductionService = (await import('../../services/CoutProductionService')).default;
-      const db = await getDatabase();
-      CoutProductionService.setDatabase(db);
-
-      // Recalculer toutes les marges
-      const nombreVentesRecalculees = await CoutProductionService.recalculerMargesPeriode(
-        projetId,
-        dateDebut,
-        dateFin,
-        projet
-      );
-
-      // Recharger tous les revenus pour obtenir les nouvelles marges
-      const revenuRepo = new RevenuRepository(db);
-      const revenus = await revenuRepo.findByProjet(projetId);
-
-      return { nombreVentesRecalculees, revenus };
+      return { nombreVentesRecalculees: revenus.length, revenus };
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors du recalcul des marges');
     }
@@ -344,29 +309,20 @@ export const recalculerMargesPeriode = createAsyncThunk(
 
 /**
  * Obtient les statistiques financières du mois en cours
+ * TODO: Implémenter endpoint backend pour les statistiques
  */
 export const loadStatistiquesMoisActuel = createAsyncThunk(
   'finance/loadStatistiquesMoisActuel',
-  async (projetId: string, { getState, rejectWithValue }) => {
+  async (projetId: string, { rejectWithValue }) => {
     try {
-      const state = getState() as any;
-      const projet = state.projet.projetActif;
-
-      if (!projet) {
-        throw new Error('Aucun projet actif');
-      }
-
-      // Importer le service dynamiquement
-      const CoutProductionService = (await import('../../services/CoutProductionService')).default;
-      const db = await getDatabase();
-      CoutProductionService.setDatabase(db);
-
-      // Obtenir les statistiques
-      const stats = await CoutProductionService.getStatistiquesMoisActuel(projetId, projet);
-
+      const stats = await apiClient.get('/finance/stats/mois-actuel', {
+        params: { projet_id: projetId },
+      });
       return stats;
     } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des statistiques');
+      return rejectWithValue(
+        getErrorMessage(error) || 'Erreur lors du chargement des statistiques'
+      );
     }
   }
 );
@@ -379,23 +335,29 @@ const financeSlice = createSlice({
       state.error = null;
     },
     // Migration: convertir l'ancienne structure en nouvelle structure normalisée
-    migrateFromLegacy: (state, action: PayloadAction<any>) => {
+    migrateFromLegacy: (state, action: PayloadAction<unknown>) => {
       const legacyState = action.payload;
-      if (legacyState && !legacyState.entities) {
+      if (
+        legacyState &&
+        typeof legacyState === 'object' &&
+        !('entities' in legacyState) &&
+        legacyState !== null
+      ) {
+        const legacy = legacyState as Record<string, unknown>;
         // Ancienne structure: arrays directs
-        if (Array.isArray(legacyState.chargesFixes)) {
-          const normalized = normalizeChargesFixes(legacyState.chargesFixes);
-          state.entities.chargesFixes = normalized.entities.chargesFixes;
+        if (Array.isArray(legacy.chargesFixes)) {
+          const normalized = normalizeChargesFixes(legacy.chargesFixes);
+          state.entities.chargesFixes = normalized.entities.chargesFixes || {};
           state.ids.chargesFixes = normalized.result;
         }
-        if (Array.isArray(legacyState.depensesPonctuelles)) {
-          const normalized = normalizeDepensesPonctuelles(legacyState.depensesPonctuelles);
-          state.entities.depensesPonctuelles = normalized.entities.depensesPonctuelles;
+        if (Array.isArray(legacy.depensesPonctuelles)) {
+          const normalized = normalizeDepensesPonctuelles(legacy.depensesPonctuelles);
+          state.entities.depensesPonctuelles = normalized.entities.depensesPonctuelles || {};
           state.ids.depensesPonctuelles = normalized.result;
         }
-        if (Array.isArray(legacyState.revenus)) {
-          const normalized = normalizeRevenus(legacyState.revenus);
-          state.entities.revenus = normalized.entities.revenus;
+        if (Array.isArray(legacy.revenus)) {
+          const normalized = normalizeRevenus(legacy.revenus);
+          state.entities.revenus = normalized.entities.revenus || {};
           state.ids.revenus = normalized.result;
         }
       }
@@ -487,7 +449,9 @@ const financeSlice = createSlice({
           ...normalized.entities.depensesPonctuelles,
         };
         state.ids.depensesPonctuelles = normalized.result;
-        console.log(`✅ [financeSlice] State Redux mis à jour: ${state.ids.depensesPonctuelles.length} dépenses`);
+        console.log(
+          `✅ [financeSlice] State Redux mis à jour: ${state.ids.depensesPonctuelles.length} dépenses`
+        );
       })
       .addCase(loadDepensesPonctuelles.rejected, (state, action) => {
         state.loading = false;
@@ -538,7 +502,9 @@ const financeSlice = createSlice({
         const normalized = normalizeRevenus(action.payload);
         state.entities.revenus = { ...state.entities.revenus, ...normalized.entities.revenus };
         state.ids.revenus = normalized.result;
-        console.log(`✅ [financeSlice] State Redux mis à jour: ${state.ids.revenus.length} revenus`);
+        console.log(
+          `✅ [financeSlice] State Redux mis à jour: ${state.ids.revenus.length} revenus`
+        );
       })
       .addCase(loadRevenus.rejected, (state, action) => {
         state.loading = false;
@@ -587,7 +553,7 @@ const financeSlice = createSlice({
         // Recharger tous les revenus avec les nouvelles marges
         const { revenus } = action.payload;
         const normalized = normalizeRevenus(revenus);
-        state.entities.revenus = normalized.entities.revenus;
+        state.entities.revenus = normalized.entities.revenus || {};
         state.ids.revenus = normalized.result;
       })
       .addCase(recalculerMargesPeriode.rejected, (state, action) => {

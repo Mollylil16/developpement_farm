@@ -8,8 +8,6 @@ module.exports = {
   arrowParens: 'always',
   endOfLine: 'auto',
   bracketSpacing: true,
-  jsxBracketSameLine: false,
+  bracketSameLine: false, // Remplace jsxBracketSameLine (déprécié)
   jsxSingleQuote: false,
 };
-
-

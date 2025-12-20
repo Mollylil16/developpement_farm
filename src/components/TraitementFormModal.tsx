@@ -121,7 +121,7 @@ export default function TraitementFormModal({
     }
   }, [traitement]);
 
-  const handleDatePickerChange = (event: any, selectedDate?: Date) => {
+  const handleDatePickerChange = (event: unknown, selectedDate?: Date) => {
     setShowDatePicker(Platform.OS === 'ios');
     if (selectedDate) {
       const dateString = formatLocalDate(selectedDate.toISOString());
@@ -180,7 +180,7 @@ export default function TraitementFormModal({
               veterinaire: formData.veterinaire || undefined,
               cout: formData.cout ? parseFloat(formData.cout) : undefined,
               termine: formData.termine,
-              efficace: formData.efficace ? parseInt(formData.efficace) : undefined,
+              efficace: formData.efficace ? Boolean(formData.efficace) : undefined,
               effets_secondaires: formData.effets_secondaires || undefined,
               notes: formData.notes || undefined,
             },
@@ -206,7 +206,7 @@ export default function TraitementFormModal({
           veterinaire: formData.veterinaire || undefined,
           cout: formData.cout ? parseFloat(formData.cout) : undefined,
           termine: formData.termine,
-          efficace: formData.efficace ? parseInt(formData.efficace) : undefined,
+          efficace: formData.efficace ? Boolean(formData.efficace) : undefined,
           effets_secondaires: formData.effets_secondaires || undefined,
           notes: formData.notes || undefined,
         };
@@ -215,8 +215,9 @@ export default function TraitementFormModal({
       }
 
       onClose();
-    } catch (err: any) {
-      setError(err.message || "Erreur lors de l'enregistrement");
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err) || "Erreur lors de l'enregistrement";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

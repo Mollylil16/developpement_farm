@@ -6,7 +6,7 @@
 
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { Platform, Alert } from 'react-native';
+import { Alert } from 'react-native';
 
 /**
  * Options pour la génération de PDF
@@ -37,6 +37,9 @@ export async function generatePDF(options: PDFOptions): Promise<PDFResult> {
       html,
       base64: options.base64 || false,
     });
+
+    // Utiliser fileName pour logger et pour nommer le fichier si possible
+    console.log(`[pdfService] PDF généré: ${fileName} (${uri})`);
 
     return { uri, base64 };
   } catch (error) {

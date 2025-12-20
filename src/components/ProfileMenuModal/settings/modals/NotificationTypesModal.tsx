@@ -77,16 +77,11 @@ export default function NotificationTypesModal({
     >
       <ScrollView style={styles.content}>
         <View
-          style={[
-            styles.card,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-          ]}
+          style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
         >
           <View style={styles.switchRow}>
             <View style={styles.switchContent}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                {typeLabels[type]}
-              </Text>
+              <Text style={[styles.label, { color: colors.text }]}>{typeLabels[type]}</Text>
               <Text style={[styles.description, { color: colors.textSecondary }]}>
                 {typeDescriptions[type]}
               </Text>
@@ -132,4 +127,3 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 });
-

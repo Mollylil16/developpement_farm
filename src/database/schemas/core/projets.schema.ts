@@ -31,4 +31,3 @@ export async function createProjetsTable(db: SQLite.SQLiteDatabase): Promise<voi
     );
   `);
 }
-

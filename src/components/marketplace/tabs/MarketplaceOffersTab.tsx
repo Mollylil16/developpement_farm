@@ -4,13 +4,21 @@
  */
 
 import React, { useState } from 'react';
-import { View, Text, FlatList, RefreshControl, TouchableOpacity, Alert, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+  FlatList,
+  RefreshControl,
+  TouchableOpacity,
+  Alert,
+  StyleSheet,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useAppSelector } from '../../../store/hooks';
-import { getDatabase } from '../../../services/database';
-import { getMarketplaceService } from '../../../services/MarketplaceService';
+import { useAppSelector, useAppDispatch } from '../../../store/hooks';
+import apiClient from '../../../services/api/apiClient';
+import { acceptOffer, rejectOffer } from '../../../store/slices/marketplaceSlice';
 import { MarketplaceTheme } from '../../../styles/marketplace.theme';
 import EmptyState from '../../EmptyState';
 import type { Offer } from '../../../types/marketplace';
@@ -31,14 +39,13 @@ export default function MarketplaceOffersTab({
 }: MarketplaceOffersTabProps) {
   const marketplaceColors = MarketplaceTheme.colors;
   const { user } = useAppSelector((state) => state.auth);
+  const dispatch = useAppDispatch();
   const [offersTab, setOffersTab] = useState<'received' | 'sent'>('received');
 
   const handleAcceptOffer = async (offerId: string) => {
     try {
-      const db = await getDatabase();
-      const service = getMarketplaceService(db);
       if (!user?.id) return;
-      await service.acceptOffer(offerId, user.id);
+      await dispatch(acceptOffer({ offerId, producerId: user.id })).unwrap();
       Alert.alert('Succès', 'Offre acceptée');
       onRefresh();
     } catch (error) {
@@ -48,10 +55,8 @@ export default function MarketplaceOffersTab({
 
   const handleRejectOffer = async (offerId: string) => {
     try {
-      const db = await getDatabase();
-      const service = getMarketplaceService(db);
       if (!user?.id) return;
-      await service.rejectOffer(offerId, user.id);
+      await dispatch(rejectOffer({ offerId, producerId: user.id })).unwrap();
       Alert.alert('Succès', 'Offre refusée');
       onRefresh();
     } catch (error) {
@@ -60,29 +65,24 @@ export default function MarketplaceOffersTab({
   };
 
   const handleWithdrawOffer = async (offerId: string) => {
-    Alert.alert(
-      'Retirer l\'offre',
-      'Êtes-vous sûr de vouloir retirer cette offre ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Retirer',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const db = await getDatabase();
-              const service = getMarketplaceService(db);
-              if (!user?.id) return;
-              await service.withdrawOffer(offerId, user.id);
-              Alert.alert('Succès', 'Offre retirée');
-              onRefresh();
-            } catch (error) {
-              Alert.alert('Erreur', getErrorMessage(error));
-            }
-          },
+    Alert.alert("Retirer l'offre", 'Êtes-vous sûr de vouloir retirer cette offre ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Retirer',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            // TODO: Implémenter l'endpoint pour retirer une offre
+            // Pour l'instant, on peut utiliser PATCH pour mettre à jour le statut
+            await apiClient.patch(`/marketplace/offers/${offerId}`, { status: 'withdrawn' });
+            Alert.alert('Succès', 'Offre retirée');
+            onRefresh();
+          } catch (error) {
+            Alert.alert('Erreur', getErrorMessage(error));
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const currentOffers = offersTab === 'received' ? receivedOffers : sentOffers;
@@ -93,22 +93,27 @@ export default function MarketplaceOffersTab({
       item.status === 'accepted'
         ? marketplaceColors.success
         : item.status === 'rejected'
-        ? marketplaceColors.error
-        : item.status === 'countered'
-        ? marketplaceColors.warning
-        : marketplaceColors.primary;
+          ? marketplaceColors.error
+          : item.status === 'countered'
+            ? marketplaceColors.warning
+            : marketplaceColors.primary;
 
     const statusLabel =
       item.status === 'accepted'
         ? 'Acceptée'
         : item.status === 'rejected'
-        ? 'Refusée'
-        : item.status === 'countered'
-        ? 'Contre-offre'
-        : 'En attente';
+          ? 'Refusée'
+          : item.status === 'countered'
+            ? 'Contre-offre'
+            : 'En attente';
 
     return (
-      <View style={[styles.card, { backgroundColor: marketplaceColors.surface, borderColor: marketplaceColors.border }]}>
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: marketplaceColors.surface, borderColor: marketplaceColors.border },
+        ]}
+      >
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <View style={[styles.statusBadge, { backgroundColor: statusColor + '15' }]}>
@@ -116,7 +121,9 @@ export default function MarketplaceOffersTab({
             </View>
             {isPending && offersTab === 'received' && (
               <View style={[styles.newBadge, { backgroundColor: marketplaceColors.error }]}>
-                <Text style={[styles.newBadgeText, { color: marketplaceColors.textInverse }]}>Nouvelle</Text>
+                <Text style={[styles.newBadgeText, { color: marketplaceColors.textInverse }]}>
+                  Nouvelle
+                </Text>
               </View>
             )}
           </View>
@@ -138,7 +145,9 @@ export default function MarketplaceOffersTab({
             </Text>
           )}
           {item.message && (
-            <Text style={[styles.message, { color: marketplaceColors.text }]}>"{item.message}"</Text>
+            <Text style={[styles.message, { color: marketplaceColors.text }]}>
+              "{item.message}"
+            </Text>
           )}
         </View>
 
@@ -148,21 +157,27 @@ export default function MarketplaceOffersTab({
               style={[styles.actionButton, { backgroundColor: marketplaceColors.success }]}
               onPress={() => handleAcceptOffer(item.id)}
             >
-              <Text style={[styles.actionText, { color: marketplaceColors.textInverse }]}>✅ Accepter</Text>
+              <Text style={[styles.actionText, { color: marketplaceColors.textInverse }]}>
+                ✅ Accepter
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: marketplaceColors.error }]}
               onPress={() => handleRejectOffer(item.id)}
             >
-              <Text style={[styles.actionText, { color: marketplaceColors.textInverse }]}>❌ Refuser</Text>
+              <Text style={[styles.actionText, { color: marketplaceColors.textInverse }]}>
+                ❌ Refuser
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: marketplaceColors.primary }]}
               onPress={() => {
-                Alert.alert('Chat', 'Ouvrir le chat avec l\'acheteur');
+                Alert.alert('Chat', "Ouvrir le chat avec l'acheteur");
               }}
             >
-              <Text style={[styles.actionText, { color: marketplaceColors.textInverse }]}>💬 Chat</Text>
+              <Text style={[styles.actionText, { color: marketplaceColors.textInverse }]}>
+                💬 Chat
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -173,7 +188,9 @@ export default function MarketplaceOffersTab({
               style={[styles.actionButton, { backgroundColor: marketplaceColors.error }]}
               onPress={() => handleWithdrawOffer(item.id)}
             >
-              <Text style={[styles.actionText, { color: marketplaceColors.textInverse }]}>🗑️ Retirer mon offre</Text>
+              <Text style={[styles.actionText, { color: marketplaceColors.textInverse }]}>
+                🗑️ Retirer mon offre
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -188,14 +205,22 @@ export default function MarketplaceOffersTab({
         <TouchableOpacity
           style={[
             styles.tab,
-            offersTab === 'received' && [styles.activeTab, { borderBottomColor: marketplaceColors.primary }],
+            offersTab === 'received' && [
+              styles.activeTab,
+              { borderBottomColor: marketplaceColors.primary },
+            ],
           ]}
           onPress={() => setOffersTab('received')}
         >
           <Text
             style={[
               styles.tabText,
-              { color: offersTab === 'received' ? marketplaceColors.primary : marketplaceColors.textSecondary },
+              {
+                color:
+                  offersTab === 'received'
+                    ? marketplaceColors.primary
+                    : marketplaceColors.textSecondary,
+              },
             ]}
           >
             Reçues ({receivedOffers.length})
@@ -211,14 +236,22 @@ export default function MarketplaceOffersTab({
         <TouchableOpacity
           style={[
             styles.tab,
-            offersTab === 'sent' && [styles.activeTab, { borderBottomColor: marketplaceColors.primary }],
+            offersTab === 'sent' && [
+              styles.activeTab,
+              { borderBottomColor: marketplaceColors.primary },
+            ],
           ]}
           onPress={() => setOffersTab('sent')}
         >
           <Text
             style={[
               styles.tabText,
-              { color: offersTab === 'sent' ? marketplaceColors.primary : marketplaceColors.textSecondary },
+              {
+                color:
+                  offersTab === 'sent'
+                    ? marketplaceColors.primary
+                    : marketplaceColors.textSecondary,
+              },
             ]}
           >
             Envoyées ({sentOffers.length})
@@ -370,4 +403,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

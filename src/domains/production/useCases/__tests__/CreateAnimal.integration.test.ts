@@ -1,6 +1,6 @@
 /**
  * Tests d'intégration pour CreateAnimalUseCase
- * 
+ *
  * Teste l'orchestration complète de la création d'un animal
  */
 
@@ -85,12 +85,10 @@ describe('CreateAnimalUseCase - Integration', () => {
         sexe: 'femelle',
       };
 
-      await expect(useCase.execute(input)).rejects.toThrow(
-        'Le code de l\'animal est requis'
-      );
+      await expect(useCase.execute(input)).rejects.toThrow("Le code de l'animal est requis");
     });
 
-    it('devrait rejeter si le projet n\'est pas fourni', async () => {
+    it("devrait rejeter si le projet n'est pas fourni", async () => {
       const input: CreateAnimalInput = {
         code: 'TR-002',
         projetId: '',
@@ -143,7 +141,7 @@ describe('CreateAnimalUseCase - Integration', () => {
       expect(result).toBeDefined();
     });
 
-    it('devrait rejeter si le père n\'existe pas', async () => {
+    it("devrait rejeter si le père n'existe pas", async () => {
       const input: CreateAnimalInput = {
         code: 'TR-002',
         projetId: 'projet-1',
@@ -154,12 +152,10 @@ describe('CreateAnimalUseCase - Integration', () => {
       mockRepository.findByProjet.mockResolvedValueOnce([]);
       mockRepository.findById.mockResolvedValueOnce(null);
 
-      await expect(useCase.execute(input)).rejects.toThrow(
-        'Le père spécifié n\'existe pas'
-      );
+      await expect(useCase.execute(input)).rejects.toThrow("Le père spécifié n'existe pas");
     });
 
-    it('devrait rejeter si le père n\'est pas un mâle', async () => {
+    it("devrait rejeter si le père n'est pas un mâle", async () => {
       const pere: Animal = {
         ...mockAnimal,
         id: 'pere-1',
@@ -176,9 +172,7 @@ describe('CreateAnimalUseCase - Integration', () => {
       mockRepository.findByProjet.mockResolvedValueOnce([]);
       mockRepository.findById.mockResolvedValueOnce(pere);
 
-      await expect(useCase.execute(input)).rejects.toThrow(
-        'Le père doit être un mâle'
-      );
+      await expect(useCase.execute(input)).rejects.toThrow('Le père doit être un mâle');
     });
 
     it('devrait valider la mère si spécifiée', async () => {
@@ -210,7 +204,7 @@ describe('CreateAnimalUseCase - Integration', () => {
       expect(result).toBeDefined();
     });
 
-    it('devrait rejeter si la mère n\'est pas une femelle', async () => {
+    it("devrait rejeter si la mère n'est pas une femelle", async () => {
       const mere: Animal = {
         ...mockAnimal,
         id: 'mere-1',
@@ -227,9 +221,7 @@ describe('CreateAnimalUseCase - Integration', () => {
       mockRepository.findByProjet.mockResolvedValueOnce([]);
       mockRepository.findById.mockResolvedValueOnce(mere);
 
-      await expect(useCase.execute(input)).rejects.toThrow(
-        'La mère doit être une femelle'
-      );
+      await expect(useCase.execute(input)).rejects.toThrow('La mère doit être une femelle');
     });
 
     it('devrait rejeter si un reproducteur est trop jeune', async () => {
@@ -247,9 +239,8 @@ describe('CreateAnimalUseCase - Integration', () => {
       mockRepository.findByProjet.mockResolvedValueOnce([]);
 
       await expect(useCase.execute(input)).rejects.toThrow(
-        'L\'animal est trop jeune pour être reproducteur (minimum 8 mois)'
+        "L'animal est trop jeune pour être reproducteur (minimum 8 mois)"
       );
     });
   });
 });
-

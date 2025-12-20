@@ -38,9 +38,7 @@ describe('useDashboardExport', () => {
   });
 
   it('devrait initialiser avec exportingPDF à false', () => {
-    const { result } = renderHook(() =>
-      useDashboardExport(mockProjetActif)
-    );
+    const { result } = renderHook(() => useDashboardExport(mockProjetActif));
 
     expect(result.current.exportingPDF).toBe(false);
     expect(result.current.handleExportPDF).toBeDefined();
@@ -67,9 +65,7 @@ describe('useDashboardExport', () => {
     ];
 
     const mockPeseesParAnimal = {
-      'animal-1': [
-        { id: 'pesee-1', animal_id: 'animal-1', poids_kg: 50, date: '2024-01-15' },
-      ],
+      'animal-1': [{ id: 'pesee-1', animal_id: 'animal-1', poids_kg: 50, date: '2024-01-15' }],
     };
 
     const mockChargesFixes = [{ id: 'charge-1', montant: 1000 }];
@@ -87,9 +83,7 @@ describe('useDashboardExport', () => {
       .mockReturnValueOnce(mockGestations) // gestations
       .mockReturnValueOnce(mockSevrages); // sevrages
 
-    const { result } = renderHook(() =>
-      useDashboardExport(mockProjetActif)
-    );
+    const { result } = renderHook(() => useDashboardExport(mockProjetActif));
 
     await result.current.handleExportPDF();
 
@@ -109,16 +103,14 @@ describe('useDashboardExport', () => {
     );
   });
 
-  it('devrait mettre exportingPDF à true pendant l\'export', async () => {
+  it("devrait mettre exportingPDF à true pendant l'export", async () => {
     let resolveExport: () => void;
     const exportPromise = new Promise<void>((resolve) => {
       resolveExport = resolve;
     });
     (exportDashboardPDF as jest.Mock).mockReturnValue(exportPromise);
 
-    const { result } = renderHook(() =>
-      useDashboardExport(mockProjetActif)
-    );
+    const { result } = renderHook(() => useDashboardExport(mockProjetActif));
 
     const exportPromise2 = result.current.handleExportPDF();
 
@@ -134,10 +126,8 @@ describe('useDashboardExport', () => {
     });
   });
 
-  it('devrait afficher un message de succès après l\'export', async () => {
-    const { result } = renderHook(() =>
-      useDashboardExport(mockProjetActif)
-    );
+  it("devrait afficher un message de succès après l'export", async () => {
+    const { result } = renderHook(() => useDashboardExport(mockProjetActif));
 
     await result.current.handleExportPDF();
 
@@ -148,21 +138,16 @@ describe('useDashboardExport', () => {
     );
   });
 
-  it('devrait gérer les erreurs lors de l\'export', async () => {
+  it("devrait gérer les erreurs lors de l'export", async () => {
     const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
-    const error = new Error('Erreur d\'export');
+    const error = new Error("Erreur d'export");
     (exportDashboardPDF as jest.Mock).mockRejectedValue(error);
 
-    const { result } = renderHook(() =>
-      useDashboardExport(mockProjetActif)
-    );
+    const { result } = renderHook(() => useDashboardExport(mockProjetActif));
 
     await result.current.handleExportPDF();
 
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "Erreur lors de l'export PDF:",
-      error
-    );
+    expect(consoleErrorSpy).toHaveBeenCalledWith("Erreur lors de l'export PDF:", error);
     expect(Alert.alert).toHaveBeenCalledWith(
       'Erreur',
       'Impossible de générer le PDF. Vérifiez vos données et réessayez.',
@@ -172,4 +157,3 @@ describe('useDashboardExport', () => {
     consoleErrorSpy.mockRestore();
   });
 });
-

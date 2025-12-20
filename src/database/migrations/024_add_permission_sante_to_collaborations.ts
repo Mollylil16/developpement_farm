@@ -1,7 +1,7 @@
 /**
  * Migration 24 : Ajouter permission_sante à la table collaborations
  * Permet de gérer les permissions spécifiques pour le module santé
- * 
+ *
  * Version: 24
  */
 
@@ -27,4 +27,3 @@ export async function addPermissionSanteToCollaborations(db: SQLiteDatabase): Pr
     console.log('✅ Migration: Colonne permission_sante ajoutée à collaborations');
   }
 }
-

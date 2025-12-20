@@ -1,11 +1,12 @@
 /**
  * Slice Redux pour la gestion des projets
+ * Utilise maintenant l'API backend au lieu de SQLite
  */
 
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { Projet, CreateProjetInput } from '../../types';
-import { getDatabase } from '../../services/database';
-import { ProjetRepository } from '../../database/repositories';
+import { getErrorMessage } from '../../types/common';
+import apiClient from '../../services/api/apiClient';
 
 interface ProjetState {
   projetActif: Projet | null;
@@ -24,26 +25,10 @@ const initialState: ProjetState = {
 // Thunks asynchrones
 export const createProjet = createAsyncThunk(
   'projet/create',
-  async (input: CreateProjetInput & { proprietaire_id: string }, { rejectWithValue, getState }) => {
+  async (input: CreateProjetInput & { proprietaire_id: string }, { rejectWithValue }) => {
     try {
-      const userId = input.proprietaire_id;
-      const db = await getDatabase();
-      const projetRepo = new ProjetRepository(db);
-
-      // Archiver tous les autres projets actifs de l'utilisateur
-      const projets = await projetRepo.findAllByUserId(userId);
-      for (const projet of projets) {
-        if (projet.statut === 'actif') {
-          await projetRepo.update(projet.id, { statut: 'archive' }, userId);
-        }
-      }
-
-      // Créer le nouveau projet comme actif
-      // La création des animaux initiaux est gérée automatiquement par ProjetRepository.create()
-      const projet = await projetRepo.create({
-        ...input,
-        statut: 'actif',
-      });
+      // Le backend gère automatiquement l'archivage des autres projets actifs
+      const projet = await apiClient.post<Projet>('/projets', input);
       return projet;
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création du projet');
@@ -51,36 +36,22 @@ export const createProjet = createAsyncThunk(
   }
 );
 
-export const loadProjets = createAsyncThunk(
-  'projet/loadAll',
-  async (_, { rejectWithValue, getState }) => {
-    try {
-      // Récupérer l'ID de l'utilisateur actuel depuis le state
-      const state = getState() as any;
-      const userId = state.auth?.user?.id;
-      const db = await getDatabase();
-      const projetRepo = new ProjetRepository(db);
-      const projets = userId ? await projetRepo.findAllByUserId(userId) : await projetRepo.findAll();
-      return projets;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des projets');
-    }
+export const loadProjets = createAsyncThunk('projet/loadAll', async (_, { rejectWithValue }) => {
+  try {
+    // Le backend filtre automatiquement par utilisateur connecté
+    const projets = await apiClient.get<Projet[]>('/projets');
+    return projets;
+  } catch (error: unknown) {
+    return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des projets');
   }
-);
+});
 
 export const loadProjetActif = createAsyncThunk(
   'projet/loadActif',
-  async (_, { rejectWithValue, getState }) => {
+  async (_, { rejectWithValue }) => {
     try {
-      // Récupérer l'ID de l'utilisateur actuel depuis le state
-      const state = getState() as any;
-      const userId = state.auth?.user?.id;
-      if (!userId) {
-        return null;
-      }
-      const db = await getDatabase();
-      const projetRepo = new ProjetRepository(db);
-      const projet = await projetRepo.findActiveByUserId(userId);
+      // Le backend retourne le projet actif de l'utilisateur connecté
+      const projet = await apiClient.get<Projet | null>('/projets/actif');
       return projet;
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement du projet actif');
@@ -90,39 +61,10 @@ export const loadProjetActif = createAsyncThunk(
 
 export const switchProjetActif = createAsyncThunk(
   'projet/switchActif',
-  async (projetId: string, { rejectWithValue, getState }) => {
+  async (projetId: string, { rejectWithValue }) => {
     try {
-      // Récupérer l'ID de l'utilisateur actuel depuis le state
-      const state = getState() as any;
-      const userId = state.auth?.user?.id;
-
-      if (!userId) {
-        return rejectWithValue('Utilisateur non authentifié');
-      }
-
-      const db = await getDatabase();
-      const projetRepo = new ProjetRepository(db);
-
-      // Vérifier que le projet appartient bien à l'utilisateur
-      const projets = await projetRepo.findAllByUserId(userId);
-      const projetExiste = projets.find((p) => p.id === projetId);
-
-      if (!projetExiste) {
-        return rejectWithValue('Ce projet ne vous appartient pas');
-      }
-
-      // Marquer tous les projets de l'utilisateur comme non actifs
-      for (const projet of projets) {
-        if (projet.statut === 'actif' && projet.id !== projetId) {
-          await projetRepo.update(projet.id, { statut: 'archive' }, userId);
-        }
-      }
-      // Activer le nouveau projet (userId déjà vérifié)
-      const nouveauProjet = await projetRepo.update(
-        projetId,
-        { statut: 'actif' },
-        userId
-      );
+      // Le backend gère automatiquement l'archivage des autres projets et la vérification de propriété
+      const nouveauProjet = await apiClient.patch<Projet>(`/projets/${projetId}/activer`, {});
       return nouveauProjet;
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors du changement de projet');
@@ -132,22 +74,10 @@ export const switchProjetActif = createAsyncThunk(
 
 export const updateProjet = createAsyncThunk(
   'projet/update',
-  async (
-    { id, updates }: { id: string; updates: Partial<Projet> },
-    { rejectWithValue, getState }
-  ) => {
+  async ({ id, updates }: { id: string; updates: Partial<Projet> }, { rejectWithValue }) => {
     try {
-      // Récupérer l'ID de l'utilisateur actuel depuis le state
-      const state = getState() as any;
-      const userId = state.auth?.user?.id;
-
-      if (!userId) {
-        return rejectWithValue('Utilisateur non authentifié');
-      }
-
-      const db = await getDatabase();
-      const projetRepo = new ProjetRepository(db);
-      const projet = await projetRepo.update(id, updates, userId);
+      // Le backend vérifie automatiquement que le projet appartient à l'utilisateur connecté
+      const projet = await apiClient.patch<Projet>(`/projets/${id}`, updates);
       return projet;
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la mise à jour du projet');

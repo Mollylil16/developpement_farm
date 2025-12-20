@@ -2,22 +2,14 @@
  * Service pour calculer et gérer les tendances de prix hebdomadaires du porc poids vif
  */
 
-import type { SQLiteDatabase } from 'expo-sqlite';
-import { getDatabase } from './database';
 import {
   WeeklyPorkPriceTrendRepository,
   type WeeklyPorkPriceTrend,
   type CreateWeeklyPorkPriceTrendInput,
 } from '../database/repositories/WeeklyPorkPriceTrendRepository';
-import {
-  MarketplaceTransactionRepository,
-  MarketplaceOfferRepository,
-} from '../database/repositories/MarketplaceRepositories';
-import { MarketplaceListingRepository } from '../database/repositories/MarketplaceListingRepository';
-import { AnimalRepository } from '../database/repositories/AnimalRepository';
-import { PeseeRepository } from '../database/repositories/PeseeRepository';
 import type { Transaction, Offer, MarketplaceListing } from '../types/marketplace';
 import { getRegionalPriceService } from './RegionalPriceService';
+import apiClient from './api/apiClient';
 
 /**
  * Prix moyen régional par défaut (FCFA/kg)
@@ -57,22 +49,10 @@ function isDateInWeek(date: Date, year: number, weekNumber: number): boolean {
 }
 
 export class PorkPriceTrendService {
-  private db: SQLiteDatabase;
   private trendRepo: WeeklyPorkPriceTrendRepository;
-  private transactionRepo: MarketplaceTransactionRepository;
-  private offerRepo: MarketplaceOfferRepository;
-  private listingRepo: MarketplaceListingRepository;
-  private animalRepo: AnimalRepository;
-  private peseeRepo: PeseeRepository;
 
-  constructor(db: SQLiteDatabase) {
-    this.db = db;
-    this.trendRepo = new WeeklyPorkPriceTrendRepository(db);
-    this.transactionRepo = new MarketplaceTransactionRepository(db);
-    this.offerRepo = new MarketplaceOfferRepository(db);
-    this.listingRepo = new MarketplaceListingRepository(db);
-    this.animalRepo = new AnimalRepository(db);
-    this.peseeRepo = new PeseeRepository(db);
+  constructor() {
+    this.trendRepo = new WeeklyPorkPriceTrendRepository();
   }
 
   /**
@@ -89,12 +69,18 @@ export class PorkPriceTrendService {
 
     if (transactions.length > 0) {
       for (const transaction of transactions) {
-        const listing = await this.listingRepo.findById(transaction.listingId);
+        const listing = await apiClient.get<any>(`/marketplace/listings/${transaction.listingId}`);
         if (listing) {
           // Calculer le poids total des sujets de la transaction
           const weight = await this.calculateTotalWeightForSubjects(transaction.subjectIds);
           if (weight > 0) {
             const pricePerKg = transaction.finalPrice / weight;
+            // Utiliser pricePerKg pour valider que le prix est raisonnable (entre 1000 et 10000 FCFA/kg)
+            if (pricePerKg < 1000 || pricePerKg > 10000) {
+              console.warn(
+                `[PorkPriceTrendService] Prix par kg suspect pour transaction ${transaction.id}: ${pricePerKg.toFixed(0)} FCFA/kg`
+              );
+            }
             totalWeight += weight;
             totalPrice += transaction.finalPrice;
             transactionsCount++;
@@ -118,11 +104,17 @@ export class PorkPriceTrendService {
         let offersTotalPrice = 0;
 
         for (const offer of acceptedOffers) {
-          const listing = await this.listingRepo.findById(offer.listingId);
+          const listing = await apiClient.get<any>(`/marketplace/listings/${offer.listingId}`);
           if (listing) {
             const weight = await this.calculateTotalWeightForSubjects(offer.subjectIds);
             if (weight > 0) {
               const pricePerKg = offer.proposedPrice / weight;
+              // Utiliser pricePerKg pour valider que le prix est raisonnable
+              if (pricePerKg < 1000 || pricePerKg > 10000) {
+                console.warn(
+                  `[PorkPriceTrendService] Prix par kg suspect pour offre ${offer.id}: ${pricePerKg.toFixed(0)} FCFA/kg`
+                );
+              }
               offersTotalWeight += weight;
               offersTotalPrice += offer.proposedPrice;
             }
@@ -149,7 +141,7 @@ export class PorkPriceTrendService {
 
     // 3. Listings actifs (si toujours pas assez de données)
     let listingsCount = 0;
-    if (!avgPricePlatform || (transactionsCount + offersCount) < 5) {
+    if (!avgPricePlatform || transactionsCount + offersCount < 5) {
       const activeListings = await this.getActiveListingsForWeek(year, weekNumber);
       listingsCount = activeListings.length;
 
@@ -186,10 +178,14 @@ export class PorkPriceTrendService {
     // Récupérer le prix régional depuis le service (qui peut utiliser une API)
     let avgPriceRegional: number;
     try {
-      const regionalPriceService = getRegionalPriceService(this.db);
+      // Le service de prix régional n'a plus besoin de db, il utilise l'API
+      const regionalPriceService = getRegionalPriceService();
       avgPriceRegional = await regionalPriceService.getCurrentRegionalPrice();
     } catch (error) {
-      console.warn('⚠️ [PorkPriceTrendService] Erreur lors de la récupération du prix régional, utilisation du prix par défaut:', error);
+      console.warn(
+        '⚠️ [PorkPriceTrendService] Erreur lors de la récupération du prix régional, utilisation du prix par défaut:',
+        error
+      );
       avgPriceRegional = DEFAULT_REGIONAL_PRICE;
     }
 
@@ -217,7 +213,13 @@ export class PorkPriceTrendService {
       totalPriceFcfa: totalPrice > 0 ? Math.round(totalPrice) : undefined,
     };
 
-    return this.trendRepo.upsert(trendData);
+    // Sauvegarder la tendance via l'API backend
+    try {
+      return await apiClient.post<any>('/marketplace/price-trends', trendData);
+    } catch {
+      // Si l'endpoint n'existe pas encore, utiliser le repository
+      return this.trendRepo.upsert(trendData);
+    }
   }
 
   /**
@@ -268,30 +270,36 @@ export class PorkPriceTrendService {
     year: number,
     weekNumber: number
   ): Promise<Transaction[]> {
-    // Récupérer toutes les transactions avec status 'completed'
-    const rows = await this.db.getAllAsync<any>(
-      `SELECT * FROM marketplace_transactions WHERE status = 'completed' AND completed_at IS NOT NULL`
-    );
-    
+    // Récupérer toutes les transactions complétées depuis l'API backend
+    const transactionsData = await apiClient.get<any[]>(`/marketplace/transactions`, {
+      params: { status: 'completed' },
+    });
+    const rows = transactionsData.filter((t) => t.completed_at != null);
+
+    // Les transactions sont déjà dans le bon format depuis l'API
     const allTransactions: Transaction[] = rows.map((row) => ({
       id: row.id,
       offerId: row.offer_id,
       listingId: row.listing_id,
-      subjectIds: JSON.parse(row.subject_ids || '[]'),
+      subjectIds: Array.isArray(row.subject_ids) ? row.subject_ids : JSON.parse(row.subject_ids || '[]'),
       buyerId: row.buyer_id,
       producerId: row.producer_id,
       finalPrice: row.final_price,
       status: row.status as Transaction['status'],
-      deliveryDetails: row.delivery_scheduled_date ? {
-        scheduledDate: row.delivery_scheduled_date,
-        location: row.delivery_location,
-        transportInfo: row.delivery_transport_info,
-        producerConfirmed: Boolean(row.delivery_producer_confirmed),
-        producerConfirmedAt: row.delivery_producer_confirmed_at,
-        buyerConfirmed: Boolean(row.delivery_buyer_confirmed),
-        buyerConfirmedAt: row.delivery_buyer_confirmed_at,
-        deliveryProof: row.delivery_proof_photos ? JSON.parse(row.delivery_proof_photos) : [],
-      } : undefined,
+      deliveryDetails: row.delivery_scheduled_date
+        ? {
+            scheduledDate: row.delivery_scheduled_date,
+            location: row.delivery_location,
+            transportInfo: row.delivery_transport_info,
+            producerConfirmed: Boolean(row.delivery_producer_confirmed),
+            producerConfirmedAt: row.delivery_producer_confirmed_at,
+            buyerConfirmed: Boolean(row.delivery_buyer_confirmed),
+            buyerConfirmedAt: row.delivery_buyer_confirmed_at,
+            deliveryProof: Array.isArray(row.delivery_proof_photos) 
+              ? row.delivery_proof_photos 
+              : (row.delivery_proof_photos ? JSON.parse(row.delivery_proof_photos) : []),
+          }
+        : undefined,
       documents: {
         healthCertificate: row.doc_health_certificate,
         deliveryNote: row.doc_delivery_note,
@@ -302,11 +310,13 @@ export class PorkPriceTrendService {
       cancelledAt: row.cancelled_at,
       cancellationReason: row.cancellation_reason,
     }));
-    
+
     return allTransactions.filter((t) => {
       if (!t.completedAt) return false;
       const completedDate = new Date(t.completedAt);
-      return isDateInWeek(completedDate, year, weekNumber);
+      // Utiliser getMondayOfWeek pour normaliser la date au début de la semaine
+      const weekStart = getMondayOfWeek(completedDate);
+      return isDateInWeek(weekStart, year, weekNumber);
     });
   }
 
@@ -314,15 +324,16 @@ export class PorkPriceTrendService {
    * Récupère les offres acceptées pour une semaine donnée
    */
   private async getAcceptedOffersForWeek(year: number, weekNumber: number): Promise<Offer[]> {
-    // Récupérer toutes les offres avec status 'accepted'
-    const rows = await this.db.getAllAsync<any>(
-      `SELECT * FROM marketplace_offers WHERE status = 'accepted' AND responded_at IS NOT NULL`
-    );
-    
+    // Récupérer toutes les offres acceptées depuis l'API backend
+    const offersData = await apiClient.get<any[]>(`/marketplace/offers`, {
+      params: { status: 'accepted' },
+    });
+    const rows = offersData.filter((o) => o.responded_at != null);
+
     const allOffers: Offer[] = rows.map((row) => ({
       id: row.id,
       listingId: row.listing_id,
-      subjectIds: JSON.parse(row.subject_ids || '[]'),
+      subjectIds: Array.isArray(row.subject_ids) ? row.subject_ids : JSON.parse(row.subject_ids || '[]'),
       buyerId: row.buyer_id,
       producerId: row.producer_id,
       proposedPrice: row.proposed_price,
@@ -335,11 +346,13 @@ export class PorkPriceTrendService {
       respondedAt: row.responded_at,
       expiresAt: row.expires_at,
     }));
-    
+
     return allOffers.filter((o) => {
       if (!o.respondedAt) return false;
       const respondedDate = new Date(o.respondedAt);
-      return isDateInWeek(respondedDate, year, weekNumber);
+      // Utiliser getMondayOfWeek pour normaliser la date au début de la semaine
+      const weekStart = getMondayOfWeek(respondedDate);
+      return isDateInWeek(weekStart, year, weekNumber);
     });
   }
 
@@ -350,11 +363,13 @@ export class PorkPriceTrendService {
     year: number,
     weekNumber: number
   ): Promise<MarketplaceListing[]> {
-    const allListings = await this.listingRepo.findAll();
+    const allListings = await apiClient.get<any[]>('/marketplace/listings');
     return allListings.filter((l) => {
       if (l.status !== 'available') return false;
       const listedDate = new Date(l.listedAt);
-      return isDateInWeek(listedDate, year, weekNumber);
+      // Utiliser getMondayOfWeek pour normaliser la date au début de la semaine
+      const weekStart = getMondayOfWeek(listedDate);
+      return isDateInWeek(weekStart, year, weekNumber);
     });
   }
 
@@ -366,12 +381,15 @@ export class PorkPriceTrendService {
 
     for (const subjectId of subjectIds) {
       // Récupérer la dernière pesée de l'animal
-      const lastPesee = await this.peseeRepo.findLastByAnimal(subjectId);
+      const pesees = await apiClient.get<any[]>(`/production/pesees`, {
+        params: { animal_id: subjectId, limit: 1 },
+      });
+      const lastPesee = pesees && pesees.length > 0 ? pesees[0] : null;
       if (lastPesee) {
         totalWeight += lastPesee.poids_kg;
       } else {
         // Fallback: utiliser le poids initial de l'animal
-        const animal = await this.animalRepo.findById(subjectId);
+        const animal = await apiClient.get<any>(`/production/animaux/${subjectId}`);
         if (animal && animal.poids_initial) {
           totalWeight += animal.poids_initial;
         }
@@ -385,7 +403,15 @@ export class PorkPriceTrendService {
    * Récupère les tendances des 26 dernières semaines + semaine en cours
    */
   async getLast26WeeksTrends(): Promise<WeeklyPorkPriceTrend[]> {
-    return this.trendRepo.findLastWeeks(27); // 26 + semaine en cours
+    // Récupérer les tendances depuis l'API backend
+    try {
+      return await apiClient.get<any[]>('/marketplace/price-trends', {
+        params: { weeks: 27 },
+      });
+    } catch {
+      // Si l'endpoint n'existe pas encore, utiliser le repository
+      return this.trendRepo.findLastWeeks(27);
+    }
   }
 }
 
@@ -394,13 +420,9 @@ export class PorkPriceTrendService {
  */
 let porkPriceTrendServiceInstance: PorkPriceTrendService | null = null;
 
-export function getPorkPriceTrendService(db?: SQLiteDatabase): PorkPriceTrendService {
+export function getPorkPriceTrendService(): PorkPriceTrendService {
   if (!porkPriceTrendServiceInstance) {
-    if (!db) {
-      throw new Error('Database instance required for first call');
-    }
-    porkPriceTrendServiceInstance = new PorkPriceTrendService(db);
+    porkPriceTrendServiceInstance = new PorkPriceTrendService();
   }
   return porkPriceTrendServiceInstance;
 }
-

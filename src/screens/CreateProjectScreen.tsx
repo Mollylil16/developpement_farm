@@ -15,7 +15,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, NavigationProp } from '@react-navigation/native';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { createProjet } from '../store/slices/projetSlice';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS } from '../constants/theme';
@@ -31,13 +31,13 @@ import InvitationsModal from '../components/InvitationsModal';
 import { loadInvitationsEnAttente } from '../store/slices/collaborationSlice';
 import { loadProjets } from '../store/slices/projetSlice';
 import { getOnboardingService } from '../services/OnboardingService';
-import { getDatabase } from '../services/database';
-import { UserRepository } from '../database/repositories';
+import apiClient from '../services/api/apiClient';
+import { getErrorMessage } from '../types/common';
 
 export default function CreateProjectScreen() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NavigationProp<any>>();
   const route = useRoute();
   const { user } = useAppSelector((state) => state.auth);
   const { projetActif } = useAppSelector((state) => state.projet);
@@ -46,7 +46,8 @@ export default function CreateProjectScreen() {
   const [loading, setLoading] = useState(false);
   const [invitationsModalVisible, setInvitationsModalVisible] = useState(false);
   const hasShownInvitationsRef = useRef(false);
-  const { identifier, isEmail } = (route.params as { identifier?: string; isEmail?: boolean }) || {};
+  const { identifier, isEmail } =
+    (route.params as { identifier?: string; isEmail?: boolean }) || {};
   const [formData, setFormData] = useState<CreateProjetInput>({
     nom: '',
     localisation: '',
@@ -124,24 +125,33 @@ export default function CreateProjectScreen() {
     try {
       let finalUserId = user?.id;
 
-      // Si pas d'utilisateur mais qu'on a identifier, créer le compte d'abord
+      // Si pas d'utilisateur mais qu'on a identifier, récupérer ou créer le compte
       if (!finalUserId && identifier) {
-        const onboardingService = await getOnboardingService();
-        const newUser = await onboardingService.createUser({
-          email: isEmail ? identifier : undefined,
-          phone: !isEmail ? identifier : undefined,
-          firstName: '', // Sera complété plus tard
-          lastName: '', // Sera complété plus tard
-          password: '', // Pas de mot de passe pour l'instant
-          profileType: 'producer',
-        });
-        finalUserId = newUser.id;
-        // Mettre à jour l'utilisateur dans le store Redux
-        dispatch(updateUser(newUser));
+        try {
+          const onboardingService = await getOnboardingService();
+          // createUser vérifie d'abord si l'utilisateur existe déjà
+          const newUser = await onboardingService.createUser({
+            email: isEmail ? identifier : undefined,
+            phone: !isEmail ? identifier : undefined,
+            firstName: '', // Sera complété plus tard
+            lastName: '', // Sera complété plus tard
+            password: '', // Pas de mot de passe pour l'instant
+            profileType: 'producer',
+          });
+          finalUserId = newUser.id;
+          // Mettre à jour l'utilisateur dans le store Redux
+          dispatch(updateUser(newUser));
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : 'Impossible de créer ou récupérer le compte';
+          Alert.alert('Erreur', errorMessage);
+          setLoading(false);
+          return;
+        }
       }
 
       if (!finalUserId) {
         Alert.alert('Erreur', 'Vous devez être connecté pour créer un projet');
+        setLoading(false);
         return;
       }
 
@@ -158,10 +168,9 @@ export default function CreateProjectScreen() {
       // S'assurer que le rôle actif est "producer" après la création d'un projet
       // et que le profil producteur existe
       if (finalUserId) {
-        const db = await getDatabase();
-        const userRepo = new UserRepository(db);
-        const currentUser = await userRepo.findById(finalUserId);
-        
+        // Récupérer l'utilisateur actuel depuis l'API backend
+        const currentUser = await apiClient.get<any>(`/users/${finalUserId}`);
+
         if (currentUser) {
           // Vérifier si le profil producteur existe, sinon le créer
           let updatedRoles = currentUser.roles || {};
@@ -193,18 +202,13 @@ export default function CreateProjectScreen() {
             };
           }
 
-          // Mettre à jour le rôle actif à "producer"
-          // Les informations de base (nom, prénom, email, téléphone, photo) sont déjà au niveau User
-          // donc elles sont automatiquement synchronisées entre tous les profils
-          await userRepo.update(finalUserId, {
+          // Mettre à jour le rôle actif à "producer" via l'API backend
+          const updatedUser = await apiClient.patch<any>(`/users/${finalUserId}`, {
             roles: updatedRoles,
             activeRole: 'producer',
-            // Les informations de base (nom, prénom, email, téléphone, photo) ne sont pas modifiées ici
-            // car elles sont déjà au niveau User et partagées entre tous les profils
           });
 
-          // Recharger l'utilisateur mis à jour pour Redux
-          const updatedUser = await userRepo.findById(finalUserId);
+          // Mettre à jour Redux avec l'utilisateur mis à jour
           if (updatedUser) {
             dispatch(updateUser(updatedUser));
           }
@@ -243,8 +247,8 @@ export default function CreateProjectScreen() {
           }, 1000);
         }
       }
-    } catch (error: any) {
-      Alert.alert('Erreur', error || 'Erreur lors de la création du projet');
+    } catch (error: unknown) {
+      Alert.alert('Erreur', getErrorMessage(error) || 'Erreur lors de la création du projet');
     } finally {
       setLoading(false);
     }
@@ -257,8 +261,8 @@ export default function CreateProjectScreen() {
         index: 0,
         routes: [{ name: SCREENS.WELCOME }],
       });
-    } catch (error: any) {
-      Alert.alert('Erreur', error || 'Impossible de se déconnecter pour le moment.');
+    } catch (error: unknown) {
+      Alert.alert('Erreur', getErrorMessage(error) || 'Impossible de se déconnecter pour le moment.');
     }
   };
 

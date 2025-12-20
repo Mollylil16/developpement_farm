@@ -37,4 +37,3 @@ export async function createRevenusTable(db: SQLite.SQLiteDatabase): Promise<voi
     );
   `);
 }
-

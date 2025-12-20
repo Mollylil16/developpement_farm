@@ -1,11 +1,9 @@
 /**
  * Service pour gérer les fermes et les propositions de services vétérinaires
+ * Utilise l'API backend pour récupérer les données
  */
 
-import { getDatabase } from './database';
-import { ProjetRepository } from '../database/repositories/ProjetRepository';
-import { UserRepository } from '../database/repositories/UserRepository';
-import { CollaborateurRepository } from '../database/repositories/CollaborateurRepository';
+import apiClient from './api/apiClient';
 import { getServiceProposalNotificationService } from './ServiceProposalNotificationService';
 import { DEFAULT_PERMISSIONS } from '../types/collaboration';
 import type { VeterinarianProfile } from '../types/roles';
@@ -39,33 +37,19 @@ export interface ServiceProposal {
 }
 
 class FarmService {
-  private db: any;
-
-  constructor() {
-    this.db = null;
-  }
-
-  private async getDb() {
-    if (!this.db) {
-      this.db = await getDatabase();
-    }
-    return this.db;
-  }
 
   /**
-   * Récupérer les fermes dans un rayon donné
+   * Récupérer les fermes dans un rayon donné via l'API backend
    */
   async getFarmsNearLocation(
     latitude: number,
     longitude: number,
     radiusKm: number
   ): Promise<Farm[]> {
-    const db = await this.getDb();
-    const projetRepo = new ProjetRepository(db);
-    const userRepo = new UserRepository(db);
-
-    // Récupérer tous les projets (fermes)
-    const allProjects = await projetRepo.findAll();
+    // Récupérer tous les projets via l'API backend
+    // Note: Pour l'instant, on récupère tous les projets et on filtre côté client
+    // TODO: Créer un endpoint backend pour filtrer par localisation
+    const allProjects = await apiClient.get<any[]>('/projets');
 
     const farms: Farm[] = [];
 
@@ -78,27 +62,33 @@ class FarmService {
       const distance = this.calculateDistance(latitude, longitude, projectLat, projectLng);
 
       if (distance <= radiusKm) {
-        // Récupérer le producteur
-        const producerId = (project as any).proprietaire_id || (project as any).user_id;
-        const producer = producerId ? await userRepo.findById(producerId) : null;
-        if (producer) {
-          farms.push({
-            id: project.id,
-            name: project.nom || 'Ferme sans nom',
-            city: project.ville || '',
-            region: project.region || '',
-            latitude: projectLat,
-            longitude: projectLng,
-            herdSize: project.capacite_animaux || 0,
-            capacity: project.capacite_animaux || 0,
-            farmType: project.type_elevage || 'Individuel',
-            specialization: project.specialisation,
-            producer: {
-              id: producer.id,
-              name: `${producer.prenom} ${producer.nom}`,
-            },
-            veterinarian: null, // TODO: Récupérer le vétérinaire assigné si disponible
-          });
+        // Récupérer le producteur via l'API backend
+        const producerId = project.proprietaire_id;
+        if (producerId) {
+          try {
+            const producer = await apiClient.get<any>(`/users/${producerId}`);
+            if (producer) {
+              farms.push({
+                id: project.id,
+                name: project.nom || 'Ferme sans nom',
+                city: project.localisation || '',
+                region: project.region || '',
+                latitude: projectLat,
+                longitude: projectLng,
+                herdSize: project.capacite_animaux || 0,
+                capacity: project.capacite_animaux || 0,
+                farmType: project.type_elevage || 'Individuel',
+                specialization: project.specialisation,
+                producer: {
+                  id: producer.id,
+                  name: `${producer.prenom || ''} ${producer.nom || ''}`.trim() || 'Producteur',
+                },
+                veterinarian: null, // TODO: Récupérer le vétérinaire assigné si disponible
+              });
+            }
+          } catch (error) {
+            console.warn(`Erreur lors de la récupération du producteur ${producerId}:`, error);
+          }
         }
       }
     }
@@ -109,12 +99,7 @@ class FarmService {
   /**
    * Calculer la distance entre deux points (formule de Haversine)
    */
-  private calculateDistance(
-    lat1: number,
-    lon1: number,
-    lat2: number,
-    lon2: number
-  ): number {
+  private calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
     const R = 6371; // Rayon de la Terre en km
     const dLat = this.deg2rad(lat2 - lat1);
     const dLon = this.deg2rad(lon2 - lon1);
@@ -134,17 +119,15 @@ class FarmService {
   }
 
   /**
-   * Proposer un service à une ferme
+   * Proposer un service à une ferme via l'API backend
    */
   async proposeServiceToFarm(
     vetId: string,
     farmId: string,
     message?: string
   ): Promise<ServiceProposal> {
-    const db = await this.getDb();
-    const userRepo = new UserRepository(db);
-
-    const vet = await userRepo.findById(vetId);
+    // Récupérer le vétérinaire via l'API backend
+    const vet = await apiClient.get<any>(`/users/${vetId}`);
     if (!vet || !vet.roles?.veterinarian) {
       throw new Error('Vétérinaire non trouvé');
     }
@@ -166,12 +149,17 @@ class FarmService {
       message,
     };
 
+    // Récupérer les informations de la ferme et du producteur
+    const farm = await apiClient.get<any>(`/projets/${farmId}`);
+    const producerId = farm?.proprietaire_id;
+    const producer = producerId ? await apiClient.get<any>(`/users/${producerId}`) : null;
+
     // Ajouter la proposition au profil vétérinaire
     const updatedProposals = [
       ...(vetProfile.serviceProposals || []),
       {
         farmId,
-        farmName: '', // TODO: Récupérer le nom de la ferme
+        farmName: farm?.nom || 'Ferme',
         status: 'pending' as const,
         proposedAt: proposal.proposedAt,
         message,
@@ -188,14 +176,10 @@ class FarmService {
       veterinarian: updatedProfile,
     };
 
-    await userRepo.update(vetId, {
+    // Mettre à jour le vétérinaire via l'API backend
+    await apiClient.patch(`/users/${vetId}`, {
       roles: updatedRoles,
     });
-
-    // Récupérer les informations pour la notification
-    const projetRepo = new ProjetRepository(db);
-    const farm = await projetRepo.findById(farmId);
-    const producer = farm ? await userRepo.findById(farm.user_id) : null;
 
     if (farm && producer) {
       // Créer une notification pour le producteur
@@ -205,18 +189,18 @@ class FarmService {
         farmId,
         vetId,
         proposal.id,
-        `${vet.prenom} ${vet.nom}`,
-        (farm as any).nom || 'Ferme'
+        `${vet.prenom || ''} ${vet.nom || ''}`.trim() || 'Vétérinaire',
+        farm.nom || 'Ferme'
       );
     }
 
-    // TODO: Stocker la proposition dans une table dédiée
+    // TODO: Stocker la proposition dans une table dédiée côté backend
 
     return proposal;
   }
 
   /**
-   * Accepter ou refuser une proposition de service (appelé par le producteur)
+   * Accepter ou refuser une proposition de service (appelé par le producteur) via l'API backend
    */
   async respondToServiceProposal(
     proposalId: string,
@@ -224,15 +208,11 @@ class FarmService {
     vetId: string,
     status: 'accepted' | 'rejected'
   ): Promise<void> {
-    const db = await this.getDb();
-    const userRepo = new UserRepository(db);
-    const projetRepo = new ProjetRepository(db);
-
-    // Récupérer le vétérinaire et la ferme
-    const vet = await userRepo.findById(vetId);
-    const farm = await projetRepo.findById(farmId);
-    const producerId = (farm as any)?.proprietaire_id || (farm as any)?.user_id;
-    const producer = producerId ? await userRepo.findById(producerId) : null;
+    // Récupérer le vétérinaire et la ferme via l'API backend
+    const vet = await apiClient.get<any>(`/users/${vetId}`);
+    const farm = await apiClient.get<any>(`/projets/${farmId}`);
+    const producerId = farm?.proprietaire_id;
+    const producer = producerId ? await apiClient.get<any>(`/users/${producerId}`) : null;
 
     if (!vet || !vet.roles?.veterinarian || !farm || !producer) {
       throw new Error('Données introuvables');
@@ -241,7 +221,7 @@ class FarmService {
     const vetProfile = vet.roles.veterinarian;
 
     // Mettre à jour le statut de la proposition dans le profil vétérinaire
-    const updatedProposals = vetProfile.serviceProposals.map((p) =>
+    const updatedProposals = (vetProfile.serviceProposals || []).map((p: { farmId: string; farmName: string; status: 'pending' | 'accepted' | 'rejected'; proposedAt: string; respondedAt?: string; message?: string }) =>
       p.farmId === farmId && p.status === 'pending'
         ? {
             ...p,
@@ -269,37 +249,41 @@ class FarmService {
         });
       }
 
-      // Créer automatiquement une collaboration pour le vétérinaire
-      const collaborateurRepo = new CollaborateurRepository(db);
-      
-      // Vérifier si une collaboration existe déjà
-      const existingCollaborations = await collaborateurRepo.findByProjet(farmId);
-      const existingVetCollaboration = existingCollaborations.find(
-        c => c.user_id === vetId && c.role === 'veterinaire'
-      );
+      // Créer automatiquement une collaboration pour le vétérinaire via l'API backend
+      try {
+        // Vérifier si une collaboration existe déjà
+        const existingCollaborations = await apiClient.get<any[]>(
+          `/collaborations?projet_id=${farmId}`
+        );
+        const existingVetCollaboration = existingCollaborations.find(
+          (c) => c.user_id === vetId && c.role === 'veterinaire'
+        );
 
-      if (!existingVetCollaboration) {
-        // Créer la collaboration avec les permissions par défaut pour vétérinaire
-        const vetPermissions = DEFAULT_PERMISSIONS.veterinaire;
-        await collaborateurRepo.create({
-          projet_id: farmId,
-          user_id: vetId,
-          nom: vet.nom || '',
-          prenom: vet.prenom || '',
-          email: vet.email || '',
-          telephone: vet.telephone || undefined,
-          role: 'veterinaire',
-          statut: 'actif',
-          permissions: vetPermissions,
-          date_invitation: new Date().toISOString(),
-          date_acceptation: new Date().toISOString(),
-        });
-      } else if (existingVetCollaboration.statut !== 'actif') {
-        // Réactiver la collaboration si elle existe mais n'est pas active
-        await collaborateurRepo.update(existingVetCollaboration.id, {
-          statut: 'actif',
-          date_acceptation: new Date().toISOString(),
-        });
+        if (!existingVetCollaboration) {
+          // Créer la collaboration avec les permissions par défaut pour vétérinaire
+          const vetPermissions = DEFAULT_PERMISSIONS.veterinaire;
+          await apiClient.post('/collaborations', {
+            projet_id: farmId,
+            user_id: vetId,
+            nom: vet.nom || '',
+            prenom: vet.prenom || '',
+            email: vet.email || '',
+            telephone: vet.telephone || undefined,
+            role: 'veterinaire',
+            statut: 'actif',
+            permissions: vetPermissions,
+            date_invitation: new Date().toISOString(),
+            date_acceptation: new Date().toISOString(),
+          });
+        } else if (existingVetCollaboration.statut !== 'actif') {
+          // Réactiver la collaboration si elle existe mais n'est pas active
+          await apiClient.patch(`/collaborations/${existingVetCollaboration.id}`, {
+            statut: 'actif',
+            date_acceptation: new Date().toISOString(),
+          });
+        }
+      } catch (error) {
+        console.warn('Erreur lors de la création de la collaboration:', error);
       }
     }
 
@@ -308,7 +292,8 @@ class FarmService {
       veterinarian: updatedProfile,
     };
 
-    await userRepo.update(vetId, {
+    // Mettre à jour le vétérinaire via l'API backend
+    await apiClient.patch(`/users/${vetId}`, {
       roles: updatedRoles,
     });
 
@@ -319,16 +304,16 @@ class FarmService {
         vetId,
         farmId,
         proposalId,
-        (farm as any).nom || 'Ferme',
-        `${producer.prenom} ${producer.nom}`
+        farm.nom || 'Ferme',
+        `${producer.prenom || ''} ${producer.nom || ''}`.trim() || 'Producteur'
       );
     } else {
       await notificationService.notifyVetOfRejection(
         vetId,
         farmId,
         proposalId,
-        (farm as any).nom || 'Ferme',
-        `${producer.prenom} ${producer.nom}`
+        farm.nom || 'Ferme',
+        `${producer.prenom || ''} ${producer.nom || ''}`.trim() || 'Producteur'
       );
     }
   }
@@ -345,4 +330,3 @@ export const getFarmService = async (): Promise<FarmService> => {
 };
 
 export default FarmService;
-

@@ -99,9 +99,7 @@ describe('PerformanceGlobaleService', () => {
         },
       ];
 
-      mockDb.getAllAsync
-        .mockResolvedValueOnce(depenses)
-        .mockResolvedValueOnce(ventes);
+      mockDb.getAllAsync.mockResolvedValueOnce(depenses).mockResolvedValueOnce(ventes);
 
       const result = await PerformanceGlobaleService.calculatePerformanceGlobale(
         'test-projet',
@@ -137,9 +135,7 @@ describe('PerformanceGlobaleService', () => {
         },
       ];
 
-      mockDb.getAllAsync
-        .mockResolvedValueOnce(depenses)
-        .mockResolvedValueOnce(ventes);
+      mockDb.getAllAsync.mockResolvedValueOnce(depenses).mockResolvedValueOnce(ventes);
 
       const result = await PerformanceGlobaleService.calculatePerformanceGlobale(
         'test-projet',
@@ -170,14 +166,12 @@ describe('PerformanceGlobaleService', () => {
         },
       ];
 
-      mockDb.getAllAsync
-        .mockResolvedValueOnce(depenses)
-        .mockResolvedValueOnce(ventes);
+      mockDb.getAllAsync.mockResolvedValueOnce(depenses).mockResolvedValueOnce(ventes);
 
-      const result = await PerformanceGlobaleService.getPerformanceGlobale(
-        'test-projet',
-        { ...mockProjet, prix_kg_carcasse: 3000 } as any
-      );
+      const result = await PerformanceGlobaleService.getPerformanceGlobale('test-projet', {
+        ...mockProjet,
+        prix_kg_carcasse: 3000,
+      } as any);
 
       // Coût = 1000 FCFA/kg, Prix marché = 3000 FCFA/kg
       expect(result!.cout_kg_opex_global).toBe(1000);
@@ -202,21 +196,19 @@ describe('PerformanceGlobaleService', () => {
         },
       ];
 
-      mockDb.getAllAsync
-        .mockResolvedValueOnce(depenses)
-        .mockResolvedValueOnce(ventes);
+      mockDb.getAllAsync.mockResolvedValueOnce(depenses).mockResolvedValueOnce(ventes);
 
-      const result = await PerformanceGlobaleService.getPerformanceGlobale(
-        'test-projet',
-        { ...mockProjet, prix_kg_carcasse: 3000 } as any
-      );
+      const result = await PerformanceGlobaleService.getPerformanceGlobale('test-projet', {
+        ...mockProjet,
+        prix_kg_carcasse: 3000,
+      } as any);
 
       // Coût = 4000 FCFA/kg, Prix marché = 3000 FCFA/kg
       expect(result!.cout_kg_complet_global).toBeGreaterThan(3000);
       expect(result!.statut).toBe('perte');
     });
 
-    it('calcule l\'écart correctement', async () => {
+    it("calcule l'écart correctement", async () => {
       const depenses = [
         {
           id: '1',
@@ -234,14 +226,12 @@ describe('PerformanceGlobaleService', () => {
         },
       ];
 
-      mockDb.getAllAsync
-        .mockResolvedValueOnce(depenses)
-        .mockResolvedValueOnce(ventes);
+      mockDb.getAllAsync.mockResolvedValueOnce(depenses).mockResolvedValueOnce(ventes);
 
-      const result = await PerformanceGlobaleService.getPerformanceGlobale(
-        'test-projet',
-        { ...mockProjet, prix_kg_carcasse: 3000 } as any
-      );
+      const result = await PerformanceGlobaleService.getPerformanceGlobale('test-projet', {
+        ...mockProjet,
+        prix_kg_carcasse: 3000,
+      } as any);
 
       // Coût = 2000 FCFA/kg, Prix = 3000 FCFA/kg
       expect(result!.ecart_absolu).toBe(1000);
@@ -266,9 +256,7 @@ describe('PerformanceGlobaleService', () => {
         },
       ];
 
-      mockDb.getAllAsync
-        .mockResolvedValueOnce(depenses)
-        .mockResolvedValueOnce(ventes);
+      mockDb.getAllAsync.mockResolvedValueOnce(depenses).mockResolvedValueOnce(ventes);
 
       const result = await PerformanceGlobaleService.calculatePerformanceGlobale(
         'test-projet',
@@ -304,9 +292,7 @@ describe('PerformanceGlobaleService', () => {
         },
       ];
 
-      mockDb.getAllAsync
-        .mockResolvedValueOnce(depenses)
-        .mockResolvedValueOnce(ventes);
+      mockDb.getAllAsync.mockResolvedValueOnce(depenses).mockResolvedValueOnce(ventes);
 
       const result = await PerformanceGlobaleService.calculatePerformanceGlobale(
         'test-projet',
@@ -326,4 +312,3 @@ describe('PerformanceGlobaleService', () => {
     });
   });
 });
-

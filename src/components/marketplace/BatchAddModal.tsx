@@ -24,12 +24,11 @@ import { MarketplaceTheme } from '../../styles/marketplace.theme';
 import { SPACING } from '../../constants/theme';
 import SaleTermsDisplay from './SaleTermsDisplay';
 import type { ProductionAnimal } from '../../types/production';
-import { useAppSelector } from '../../store/hooks';
+import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { selectAllAnimaux } from '../../store/selectors/productionSelectors';
-import { getDatabase } from '../../services/database';
-import { AnimalRepository } from '../../database/repositories';
+import apiClient from '../../services/api/apiClient';
 import { createListing } from '../../store/slices/marketplaceSlice';
-import { useAppDispatch } from '../../store/hooks';
+import { loadProductionAnimaux, loadPeseesRecents } from '../../store/slices/productionSlice';
 import { useGeolocation } from '../../hooks/useGeolocation';
 import { getErrorMessage } from '../../types/common';
 
@@ -50,14 +49,16 @@ export default function BatchAddModal({
 }: BatchAddModalProps) {
   const { colors, spacing, typography, borderRadius } = MarketplaceTheme;
   const dispatch = useAppDispatch();
-  
+
   // Charger les animaux depuis Redux si non fournis
   const allAnimaux = useAppSelector(selectAllAnimaux);
   const { user } = useAppSelector((state) => state.auth);
   const { getCurrentLocation } = useGeolocation();
   const [localSubjects, setLocalSubjects] = useState<ProductionAnimal[]>([]);
   const [loadingSubjects, setLoadingSubjects] = useState(false);
-  const [peseesParAnimal, setPeseesParAnimal] = useState<Record<string, Array<{ date: string; poids_kg: number }>>>({});
+  const [peseesParAnimal, setPeseesParAnimal] = useState<
+    Record<string, Array<{ date: string; poids_kg: number }>>
+  >({});
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pricePerKg, setPricePerKg] = useState('');
@@ -100,29 +101,41 @@ export default function BatchAddModal({
     }
   }, [visible, projetId, providedSubjects]);
 
+  const peseesRecents = useAppSelector((state) => state.production.peseesRecents);
+  const peseesEntities = useAppSelector((state) => state.production.entities.pesees);
+
   const loadAvailableSubjects = async () => {
     try {
       setLoadingSubjects(true);
-      const db = await getDatabase();
-      const animalRepo = new AnimalRepository(db);
-      const { PeseeRepository } = await import('../../database/repositories');
-      const peseeRepo = new PeseeRepository(db);
       
-      // Récupérer les animaux actifs du projet
-      const animaux = await animalRepo.findActiveByProjet(projetId);
+      // Charger les animaux depuis le backend via Redux
+      await dispatch(loadProductionAnimaux({ projetId, inclureInactifs: false })).unwrap();
       
-      // Charger les pesées pour chaque animal pour obtenir le poids actuel
+      // Charger les pesées récentes
+      await dispatch(loadPeseesRecents({ projetId, limit: 100 })).unwrap();
+      
+      // Filtrer les animaux actifs depuis Redux
+      const animauxActifs = allAnimaux.filter(
+        (a) => a.projet_id === projetId && a.statut === 'actif'
+      );
+      
+      // Construire le map des pesées depuis Redux
       const peseesMap: Record<string, Array<{ date: string; poids_kg: number }>> = {};
-      for (const animal of animaux) {
-        const pesees = await peseeRepo.findByAnimal(animal.id);
-        peseesMap[animal.id] = pesees.map(p => ({ date: p.date, poids_kg: p.poids_kg }));
+      for (const animal of animauxActifs) {
+        const peseesAnimal = peseesRecents
+          .map((id) => peseesEntities[id])
+          .filter((p) => p && p.animal_id === animal.id)
+          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        
+        peseesMap[animal.id] = peseesAnimal.map((p) => ({
+          date: p.date,
+          poids_kg: p.poids_kg,
+        }));
       }
-      setPeseesParAnimal(peseesMap);
       
-      // Filtrer pour ne garder que ceux qui ne sont pas déjà en vente
-      // Pour l'instant, on prend tous les actifs
-      setLocalSubjects(animaux);
-    } catch (error: any) {
+      setPeseesParAnimal(peseesMap);
+      setLocalSubjects(animauxActifs);
+    } catch (error: unknown) {
       console.error('Erreur chargement animaux:', error);
       Alert.alert('Erreur', 'Impossible de charger les animaux disponibles');
     } finally {
@@ -174,7 +187,9 @@ export default function BatchAddModal({
     const pesees = peseesParAnimal[animalId] || [];
     if (pesees.length > 0) {
       // Trier par date et prendre la plus récente
-      const sorted = [...pesees].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      const sorted = [...pesees].sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
       return sorted[0].poids_kg;
     }
     return 0;
@@ -239,43 +254,39 @@ export default function BatchAddModal({
     }
 
     if (!termsAccepted) {
-      Alert.alert(
-        'Erreur',
-        'Veuillez accepter les conditions de vente avant de continuer'
-      );
+      Alert.alert('Erreur', 'Veuillez accepter les conditions de vente avant de continuer');
       return;
     }
 
     try {
       setLoading(true);
-      
-      // Obtenir la connexion à la base de données une seule fois
-      const db = await getDatabase();
-      const { PeseeRepository } = await import('../../database/repositories');
-      const peseeRepo = new PeseeRepository(db);
-      const animalRepo = new AnimalRepository(db);
-      
+
       // Créer un listing pour chaque sujet sélectionné
       const subjectIds = Array.from(selectedIds);
-      
+
       for (const subjectId of subjectIds) {
         const subject = availableSubjects.find((s) => s.id === subjectId);
         if (!subject) continue;
 
-        // Récupérer les informations nécessaires pour créer le listing
-        const animal = await animalRepo.findById(subjectId);
-        
+        // Récupérer les informations nécessaires pour créer le listing depuis l'API backend
+        const animal = await apiClient.get<any>(`/production/animaux/${subjectId}`);
+
         if (!animal) continue;
 
-        // Récupérer la dernière pesée pour obtenir le poids actuel et la date
-        const dernierePesee = await peseeRepo.findLastByAnimal(animal.id);
+        // Récupérer la dernière pesée pour obtenir le poids actuel et la date depuis l'API backend
+        const pesees = await apiClient.get<any[]>(`/production/pesees`, {
+          params: { animal_id: animal.id, limit: 1 },
+        });
+        const dernierePesee = pesees && pesees.length > 0 ? pesees[0] : null;
         const poidsActuel = dernierePesee?.poids_kg || animal.poids_initial || 0;
         const lastWeightDate = dernierePesee?.date || new Date().toISOString();
-        
+
         // Obtenir la localisation actuelle
         const userLocation = await getCurrentLocation();
         if (!userLocation) {
-          throw new Error('Impossible d\'obtenir votre localisation. Veuillez activer la géolocalisation.');
+          throw new Error(
+            "Impossible d'obtenir votre localisation. Veuillez activer la géolocalisation."
+          );
         }
 
         // Vérifier que l'utilisateur est connecté
@@ -285,40 +296,45 @@ export default function BatchAddModal({
 
         // Créer le listing avec toutes les propriétés requises
         try {
-          await dispatch(createListing({
-            subjectId: animal.id,
-            producerId: user.id,
-            farmId: projetId,
-            pricePerKg: price,
-            weight: poidsActuel,
-            lastWeightDate: lastWeightDate,
-            location: {
-              latitude: userLocation.latitude,
-              longitude: userLocation.longitude,
-              address: undefined,
-              city: userLocation.city,
-              region: userLocation.region,
-            },
-          })).unwrap();
+          await dispatch(
+            createListing({
+              subjectId: animal.id,
+              producerId: user.id,
+              farmId: projetId,
+              pricePerKg: price,
+              weight: poidsActuel,
+              lastWeightDate: lastWeightDate,
+              location: {
+                latitude: userLocation.latitude,
+                longitude: userLocation.longitude,
+                address: undefined,
+                city: userLocation.city,
+                region: userLocation.region,
+              },
+            })
+          ).unwrap();
         } catch (error: unknown) {
           // Améliorer le message d'erreur avec les informations de l'animal
           const animalName = animal.nom || animal.code || 'sujet';
           const errorMsg = getErrorMessage(error);
           if (errorMsg.includes('déjà en vente')) {
-            throw new Error(`Le sujet "${animalName}" (${animal.code}) est déjà en vente sur le marketplace`);
+            throw new Error(
+              `Le sujet "${animalName}" (${animal.code}) est déjà en vente sur le marketplace`
+            );
           }
           throw error;
         }
       }
 
-      Alert.alert(
-        'Succès',
-        `${selectedIds.size} sujet(s) mis en vente avec succès !`,
-        [{ text: 'OK', onPress: () => {
-          onClose();
-          onSuccess();
-        }}]
-      );
+      Alert.alert('Succès', `${selectedIds.size} sujet(s) mis en vente avec succès !`, [
+        {
+          text: 'OK',
+          onPress: () => {
+            onClose();
+            onSuccess();
+          },
+        },
+      ]);
     } catch (error: unknown) {
       Alert.alert('Erreur', getErrorMessage(error) || 'Impossible de mettre en vente');
     } finally {
@@ -327,18 +343,21 @@ export default function BatchAddModal({
   };
 
   return (
-    <Modal 
-      visible={visible} 
-      animationType="slide" 
+    <Modal
+      visible={visible}
+      animationType="slide"
       presentationStyle="fullScreen"
       onRequestClose={onClose}
       statusBarTranslucent={false}
     >
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        edges={['top']}
+      >
         {/* Header fixe */}
         <View style={[styles.header, { backgroundColor: colors.surface }]}>
-          <TouchableOpacity 
-            onPress={onClose} 
+          <TouchableOpacity
+            onPress={onClose}
             style={styles.closeButton}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             activeOpacity={0.7}
@@ -352,7 +371,7 @@ export default function BatchAddModal({
         </View>
 
         <View style={styles.swipeArea} {...panResponder.panHandlers} />
-        <ScrollView 
+        <ScrollView
           style={styles.content}
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
@@ -465,7 +484,8 @@ export default function BatchAddModal({
                       </Text>
                       <Text style={[styles.subjectDetails, { color: colors.textSecondary }]}>
                         {subject.nom ? `${subject.nom} • ` : ''}
-                        {subject.race || 'Race non spécifiée'} • {getCurrentWeight(subject.id).toFixed(1)} kg •{' '}
+                        {subject.race || 'Race non spécifiée'} •{' '}
+                        {getCurrentWeight(subject.id).toFixed(1)} kg •{' '}
                         {calculateAgeInMonths(subject.date_naissance)} mois
                       </Text>
                     </View>
@@ -477,9 +497,7 @@ export default function BatchAddModal({
 
           {/* Prix */}
           <View style={styles.pricingSection}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Prix de vente
-            </Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Prix de vente</Text>
             <View style={[styles.priceInput, { backgroundColor: colors.surface }]}>
               <TextInput
                 style={[styles.priceInputField, { color: colors.text }]}
@@ -506,7 +524,7 @@ export default function BatchAddModal({
           {/* Conditions de vente */}
           <View style={styles.termsSection}>
             <SaleTermsDisplay expandable={true} />
-            
+
             {/* Checkbox acceptation */}
             <TouchableOpacity
               style={styles.termsCheckbox}
@@ -527,8 +545,7 @@ export default function BatchAddModal({
                 )}
               </View>
               <Text style={[styles.termsCheckboxText, { color: colors.text }]}>
-                J'accepte les conditions de vente (transport et abattage à la charge de
-                l'acheteur)
+                J'accepte les conditions de vente (transport et abattage à la charge de l'acheteur)
               </Text>
             </TouchableOpacity>
           </View>
@@ -758,4 +775,3 @@ const styles = StyleSheet.create({
     fontWeight: MarketplaceTheme.typography.fontWeights.bold,
   },
 });
-

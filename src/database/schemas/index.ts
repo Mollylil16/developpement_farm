@@ -20,4 +20,3 @@ export * from './sante';
 
 // Collaboration
 export * from './collaboration';
-

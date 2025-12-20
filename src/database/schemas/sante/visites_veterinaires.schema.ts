@@ -35,4 +35,3 @@ export async function createVisitesVeterinairesTable(db: SQLite.SQLiteDatabase):
     );`
   );
 }
-

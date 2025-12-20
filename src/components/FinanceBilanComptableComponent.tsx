@@ -11,6 +11,7 @@ import {
   ScrollView,
   RefreshControl,
   ActivityIndicator,
+  TextStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
@@ -19,7 +20,10 @@ import { loadDepensesPonctuelles } from '../store/slices/financeSlice';
 import { selectAllDepensesPonctuelles } from '../store/selectors/financeSelectors';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
 import Card from './Card';
-import { calculateAmortissementsParCategorie, AmortissementParCategorie } from '../utils/financeCalculations';
+import {
+  calculateAmortissementsParCategorie,
+  AmortissementParCategorie,
+} from '../utils/financeCalculations';
 import { CATEGORIE_DEPENSE_LABELS, CategorieDepense } from '../types/finance';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -149,7 +153,10 @@ export default function FinanceBilanComptableComponent() {
             {item.depenses.map((depense) => (
               <View
                 key={depense.id}
-                style={[styles.depenseItem, { backgroundColor: colors.background, borderColor: colors.border }]}
+                style={[
+                  styles.depenseItem,
+                  { backgroundColor: colors.background, borderColor: colors.border },
+                ]}
               >
                 <View style={styles.depenseItemLeft}>
                   <Text style={[styles.depenseItemLabel, { color: colors.text }]}>
@@ -159,7 +166,10 @@ export default function FinanceBilanComptableComponent() {
                     Achat: {format(parseISO(depense.date), 'dd MMM yyyy', { locale: fr })}
                   </Text>
                   <Text style={[styles.depenseItemDate, { color: colors.textSecondary }]}>
-                    Fin amortissement: {format(parseISO(depense.date_fin_amortissement), 'dd MMM yyyy', { locale: fr })}
+                    Fin amortissement:{' '}
+                    {format(parseISO(depense.date_fin_amortissement), 'dd MMM yyyy', {
+                      locale: fr,
+                    })}
                   </Text>
                 </View>
                 <View style={styles.depenseItemRight}>
@@ -236,10 +246,13 @@ export default function FinanceBilanComptableComponent() {
         </View>
 
         {/* Info durée d'amortissement */}
-        <View style={[styles.infoBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View
+          style={[styles.infoBox, { backgroundColor: colors.surface, borderColor: colors.border }]}
+        >
           <Ionicons name="information-circle" size={18} color={colors.primary} />
           <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-            Durée d'amortissement: {dureeAmortissementMois} mois ({Math.round(dureeAmortissementMois / 12)} ans)
+            Durée d'amortissement: {dureeAmortissementMois} mois (
+            {Math.round(dureeAmortissementMois / 12)} ans)
           </Text>
         </View>
       </Card>
@@ -255,7 +268,8 @@ export default function FinanceBilanComptableComponent() {
             Aucun investissement CAPEX enregistré
           </Text>
           <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>
-            Les investissements (aménagement bâtiment, équipement lourd, achat sujet) apparaîtront ici
+            Les investissements (aménagement bâtiment, équipement lourd, achat sujet) apparaîtront
+            ici
           </Text>
         </Card>
       ) : (
@@ -264,7 +278,9 @@ export default function FinanceBilanComptableComponent() {
 
       {/* Note sur la rentabilité */}
       {amortissementsParCategorie.length > 0 && (
-        <Card style={[styles.noteCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Card
+          style={[styles.noteCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+        >
           <View style={styles.noteHeader}>
             <Ionicons name="bulb-outline" size={20} color={colors.warning} />
             <Text style={[styles.noteTitle, { color: colors.text }]}>
@@ -272,10 +288,11 @@ export default function FinanceBilanComptableComponent() {
             </Text>
           </View>
           <Text style={[styles.noteText, { color: colors.textSecondary }]}>
-            Les amortissements mensuels sont utilisés pour calculer la rentabilité globale du projet.
+            Les amortissements mensuels sont utilisés pour calculer la rentabilité globale du
+            projet.
             {'\n\n'}
-            Le coût de production par kg utilise uniquement les dépenses OPEX (opérationnelles).
-            Les investissements CAPEX sont gérés séparément dans ce bilan comptable.
+            Le coût de production par kg utilise uniquement les dépenses OPEX (opérationnelles). Les
+            investissements CAPEX sont gérés séparément dans ce bilan comptable.
           </Text>
         </Card>
       )}
@@ -311,7 +328,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: FONT_SIZES.xl,
-    fontWeight: FONT_WEIGHTS.bold as any,
+    fontWeight: FONT_WEIGHTS.bold as TextStyle['fontWeight'],
   },
   headerSubtitle: {
     fontSize: FONT_SIZES.sm,
@@ -331,7 +348,7 @@ const styles = StyleSheet.create({
   },
   totalValue: {
     fontSize: FONT_SIZES.lg,
-    fontWeight: FONT_WEIGHTS.bold as any,
+    fontWeight: FONT_WEIGHTS.bold as TextStyle['fontWeight'],
   },
   infoBox: {
     flexDirection: 'row',
@@ -368,7 +385,7 @@ const styles = StyleSheet.create({
   },
   categorieTitle: {
     fontSize: FONT_SIZES.lg,
-    fontWeight: FONT_WEIGHTS.semiBold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as TextStyle['fontWeight'],
     marginBottom: SPACING.xs / 2,
   },
   categorieSubtitle: {
@@ -390,14 +407,14 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semiBold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as TextStyle['fontWeight'],
   },
   depensesList: {
     marginTop: SPACING.md,
   },
   depensesListTitle: {
     fontSize: FONT_SIZES.sm,
-    fontWeight: FONT_WEIGHTS.semiBold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as TextStyle['fontWeight'],
     marginBottom: SPACING.sm,
   },
   depenseItem: {
@@ -413,7 +430,7 @@ const styles = StyleSheet.create({
   },
   depenseItemLabel: {
     fontSize: FONT_SIZES.sm,
-    fontWeight: FONT_WEIGHTS.medium as any,
+    fontWeight: FONT_WEIGHTS.medium as TextStyle['fontWeight'],
     marginBottom: SPACING.xs / 2,
   },
   depenseItemDate: {
@@ -425,12 +442,12 @@ const styles = StyleSheet.create({
   },
   depenseItemMontant: {
     fontSize: FONT_SIZES.sm,
-    fontWeight: FONT_WEIGHTS.semiBold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as TextStyle['fontWeight'],
     marginBottom: SPACING.xs / 2,
   },
   depenseItemAmortissement: {
     fontSize: FONT_SIZES.xs,
-    fontWeight: FONT_WEIGHTS.medium as any,
+    fontWeight: FONT_WEIGHTS.medium as TextStyle['fontWeight'],
   },
   emptyCard: {
     alignItems: 'center',
@@ -438,7 +455,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.medium as any,
+    fontWeight: FONT_WEIGHTS.medium as TextStyle['fontWeight'],
     marginTop: SPACING.md,
     textAlign: 'center',
   },
@@ -461,11 +478,10 @@ const styles = StyleSheet.create({
   },
   noteTitle: {
     fontSize: FONT_SIZES.sm,
-    fontWeight: FONT_WEIGHTS.semiBold as any,
+    fontWeight: FONT_WEIGHTS.semiBold as TextStyle['fontWeight'],
   },
   noteText: {
     fontSize: FONT_SIZES.xs,
     lineHeight: 18,
   },
 });
-

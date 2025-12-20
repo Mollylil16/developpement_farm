@@ -13,4 +13,3 @@ export * from './repositories/ISanteRepository';
 export * from './useCases/GetAlertesSanitaires';
 export * from './useCases/CreateVaccination';
 export * from './useCases/CreateMaladie';
-

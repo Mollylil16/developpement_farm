@@ -5,8 +5,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAppSelector } from '../store/hooks';
-import { getDatabase } from '../services/database';
-import { MarketplaceNotificationRepository } from '../database/repositories';
+import apiClient from '../services/api/apiClient';
 import type { Notification } from '../types/marketplace';
 
 export function useMarketplaceNotifications() {
@@ -31,11 +30,8 @@ export function useMarketplaceNotifications() {
       setLoading(true);
       setError(null);
 
-      const db = await getDatabase();
-      const repo = new MarketplaceNotificationRepository(db);
-
-      // Charger les notifications de l'utilisateur
-      const allNotifications = await repo.findByUserId(currentUserId);
+      // Charger les notifications de l'utilisateur depuis l'API backend
+      const allNotifications = await apiClient.get<any[]>('/marketplace/notifications');
 
       // Trier par date (plus récent en premier)
       const sortedNotifications = allNotifications.sort(
@@ -47,9 +43,10 @@ export function useMarketplaceNotifications() {
       // Compter les non lues
       const unread = sortedNotifications.filter((n) => !n.read).length;
       setUnreadCount(unread);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Erreur chargement notifications:', err);
-      setError(err.message || 'Impossible de charger les notifications');
+      const errorMessage = err instanceof Error ? err.message : 'Impossible de charger les notifications';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -58,26 +55,21 @@ export function useMarketplaceNotifications() {
   /**
    * Marquer une notification comme lue
    */
-  const markAsRead = useCallback(
-    async (notificationId: string) => {
-      try {
-        const db = await getDatabase();
-        const repo = new MarketplaceNotificationRepository(db);
+  const markAsRead = useCallback(async (notificationId: string) => {
+    try {
+      // Marquer la notification comme lue via l'API backend
+      await apiClient.patch(`/marketplace/notifications/${notificationId}/read`);
 
-        await repo.markAsRead(notificationId);
+      // Mettre à jour l'état local
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notificationId ? { ...n, read: true } : n))
+      );
 
-        // Mettre à jour l'état local
-        setNotifications((prev) =>
-          prev.map((n) => (n.id === notificationId ? { ...n, read: true } : n))
-        );
-
-        setUnreadCount((prev) => Math.max(0, prev - 1));
-      } catch (err: any) {
-        console.error('Erreur marquage notification:', err);
-      }
-    },
-    []
-  );
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+    } catch (err: unknown) {
+      console.error('Erreur marquage notification:', err);
+    }
+  }, []);
 
   /**
    * Marquer toutes les notifications comme lues
@@ -86,15 +78,19 @@ export function useMarketplaceNotifications() {
     if (!currentUserId) return;
 
     try {
-      const db = await getDatabase();
-      const repo = new MarketplaceNotificationRepository(db);
-
-      await repo.markAllAsRead(currentUserId);
+      // Marquer toutes les notifications comme lues via l'API backend
+      // Note: Si l'endpoint n'existe pas, on peut marquer chaque notification individuellement
+      const allNotifications = await apiClient.get<any[]>('/marketplace/notifications');
+      await Promise.all(
+        allNotifications
+          .filter((n) => !n.read)
+          .map((n) => apiClient.patch(`/marketplace/notifications/${n.id}/read`))
+      );
 
       // Mettre à jour l'état local
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       setUnreadCount(0);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Erreur marquage toutes notifications:', err);
     }
   }, [currentUserId]);
@@ -104,10 +100,9 @@ export function useMarketplaceNotifications() {
    */
   const deleteNotification = useCallback(async (notificationId: string) => {
     try {
-      const db = await getDatabase();
-      const repo = new MarketplaceNotificationRepository(db);
-
-      await repo.delete(notificationId);
+      // Supprimer la notification via l'API backend
+      // Note: Si l'endpoint DELETE n'existe pas, on peut utiliser PATCH pour marquer comme supprimée
+      await apiClient.delete(`/marketplace/notifications/${notificationId}`);
 
       // Mettre à jour l'état local
       setNotifications((prev) => {
@@ -117,7 +112,7 @@ export function useMarketplaceNotifications() {
         }
         return prev.filter((n) => n.id !== notificationId);
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Erreur suppression notification:', err);
     }
   }, []);
@@ -156,4 +151,3 @@ export function useMarketplaceNotifications() {
     refresh,
   };
 }
-

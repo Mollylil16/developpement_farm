@@ -4,7 +4,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Calendar, DateData } from 'react-native-calendars';
+import { Calendar, DateData, MarkedDates } from 'react-native-calendars';
 import { useAppSelector } from '../store/hooks';
 import { Gestation } from '../types';
 import { doitGenererAlerte } from '../types/reproduction';
@@ -25,7 +25,7 @@ export default function GestationsCalendarComponent() {
 
   // Préparer les dates marquées pour le calendrier
   const markedDates = useMemo(() => {
-    const marked: any = {};
+    const marked: MarkedDates = {};
 
     if (!projetActif?.id) return marked;
 
@@ -88,7 +88,7 @@ export default function GestationsCalendarComponent() {
     console.log('Jour sélectionné:', day);
   };
 
-  const onMonthChange = (month: any) => {
+  const onMonthChange = (month: DateData) => {
     const newDate = new Date(month.year, month.month - 1, 1);
     setCurrentMonth(newDate);
   };

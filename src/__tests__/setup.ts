@@ -17,7 +17,9 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 // Mock expo modules
 jest.mock('expo-location', () => ({
   requestForegroundPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted' })),
-  getCurrentPositionAsync: jest.fn(() => Promise.resolve({ coords: { latitude: 0, longitude: 0 } })),
+  getCurrentPositionAsync: jest.fn(() =>
+    Promise.resolve({ coords: { latitude: 0, longitude: 0 } })
+  ),
 }));
 
 jest.mock('expo-notifications', () => ({
@@ -25,4 +27,3 @@ jest.mock('expo-notifications', () => ({
   cancelAllScheduledNotificationsAsync: jest.fn(),
   getAllScheduledNotificationsAsync: jest.fn(() => Promise.resolve([])),
 }));
-

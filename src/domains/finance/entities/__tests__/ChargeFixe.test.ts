@@ -1,6 +1,6 @@
 /**
  * Tests pour ChargeFixeEntity
- * 
+ *
  * Tests de la logique métier de l'entité ChargeFixe
  */
 
@@ -33,7 +33,7 @@ describe('ChargeFixeEntity', () => {
       expect(entity.isActive()).toBe(true);
     });
 
-    it('devrait retourner false si le statut n\'est pas actif', () => {
+    it("devrait retourner false si le statut n'est pas actif", () => {
       const chargeFixe = createMockChargeFixe({
         statut: 'suspendu',
       });
@@ -86,7 +86,7 @@ describe('ChargeFixeEntity', () => {
       expect(entity.isPaiementDu('2024-01-15')).toBe(true);
     });
 
-    it('devrait retourner false si la charge n\'est pas active', () => {
+    it("devrait retourner false si la charge n'est pas active", () => {
       const chargeFixe = createMockChargeFixe({
         statut: 'suspendu',
         jourPaiement: 15,
@@ -106,7 +106,7 @@ describe('ChargeFixeEntity', () => {
       expect(entity.isPaiementDu('2024-01-20')).toBe(false);
     });
 
-    it('devrait retourner true si jourPaiement n\'est pas défini', () => {
+    it("devrait retourner true si jourPaiement n'est pas défini", () => {
       const chargeFixe = createMockChargeFixe({
         statut: 'actif',
         jourPaiement: undefined,
@@ -117,4 +117,3 @@ describe('ChargeFixeEntity', () => {
     });
   });
 });
-

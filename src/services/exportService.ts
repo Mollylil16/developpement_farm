@@ -5,46 +5,28 @@
 
 // Note: Les packages expo-file-system et expo-sharing doivent être installés
 // npm install expo-file-system expo-sharing
-// Pour l'instant, on utilise des types any pour éviter les erreurs de compilation
+// Pour l'instant, on utilise require pour éviter les erreurs TypeScript
 // L'utilisateur devra installer ces packages pour que l'export fonctionne
-declare const FileSystem: any;
-declare const Sharing: any;
-import { databaseService } from './database';
-import { getDatabase } from './database';
 import { getErrorMessage } from '../types/common';
-import {
-  ProjetRepository,
-  GestationRepository,
-  SevrageRepository,
-  ChargeFixeRepository,
-  DepensePonctuelleRepository,
-  MortaliteRepository,
-  StockRepository,
-  AnimalRepository,
-  PeseeRepository,
-  IngredientRepository,
-  RationRepository,
-  PlanificationRepository,
-  CollaborateurRepository,
-} from '../database/repositories';
+import apiClient from './api/apiClient';
 
 export interface ExportData {
   version: string;
   date_export: string;
-  projet: any;
-  gestations: any[];
-  sevrages: any[];
-  charges_fixes: any[];
-  depenses_ponctuelles: any[];
-  ingredients: any[];
-  rations: any[];
-  mortalites: any[];
-  planifications: any[];
-  collaborateurs: any[];
-  stocks_aliments: any[];
-  stocks_mouvements: any[];
-  production_animaux: any[];
-  production_pesees: any[];
+  projet: unknown;
+  gestations: unknown[];
+  sevrages: unknown[];
+  charges_fixes: unknown[];
+  depenses_ponctuelles: unknown[];
+  ingredients: unknown[];
+  rations: unknown[];
+  mortalites: unknown[];
+  planifications: unknown[];
+  collaborateurs: unknown[];
+  stocks_aliments: unknown[];
+  stocks_mouvements: unknown[];
+  production_animaux: unknown[];
+  production_pesees: unknown[];
 }
 
 /**
@@ -52,51 +34,62 @@ export interface ExportData {
  */
 export async function exportAllDataJSON(projetId: string): Promise<string> {
   try {
-    // Récupérer toutes les données depuis la base de données
-    const db = await getDatabase();
-    const projetRepo = new ProjetRepository(db);
-    const gestationRepo = new GestationRepository(db);
-    const sevrageRepo = new SevrageRepository(db);
-    const chargeFixeRepo = new ChargeFixeRepository(db);
-    const depenseRepo = new DepensePonctuelleRepository(db);
-    const mortaliteRepo = new MortaliteRepository(db);
-    const stockRepo = new StockRepository(db);
-    const animalRepo = new AnimalRepository(db);
-    const peseeRepo = new PeseeRepository(db);
-
-    const projet = await projetRepo.getById(projetId);
-    const gestations = await gestationRepo.findAll(projetId);
-    const sevrages = await sevrageRepo.findByProjet(projetId);
-    const chargesFixes = await chargeFixeRepo.findAll(projetId);
-    const depensesPonctuelles = await depenseRepo.findAll(projetId);
-    const mortalites = await mortaliteRepo.findByProjet(projetId);
-    const stocksAliments = await stockRepo.findByProjet(projetId);
+    // Récupérer toutes les données depuis l'API backend
+    const projet = await apiClient.get<any>(`/projets/${projetId}`);
+    const gestations = await apiClient.get<any[]>(`/reproduction/gestations`, {
+      params: { projet_id: projetId },
+    });
+    const sevrages = await apiClient.get<any[]>(`/reproduction/sevrages`, {
+      params: { projet_id: projetId },
+    });
+    const chargesFixes = await apiClient.get<any[]>(`/finance/charges-fixes`, {
+      params: { projet_id: projetId },
+    });
+    const depensesPonctuelles = await apiClient.get<any[]>(`/finance/depenses-ponctuelles`, {
+      params: { projet_id: projetId },
+    });
+    const mortalites = await apiClient.get<any[]>(`/mortalites`, {
+      params: { projet_id: projetId },
+    });
+    const stocksAliments = await apiClient.get<any[]>(`/nutrition/stocks-aliments`, {
+      params: { projet_id: projetId },
+    });
 
     // Récupérer les mouvements de stock pour chaque aliment
-    const stocksMouvements: any[] = [];
+    const stocksMouvements: unknown[] = [];
     for (const stock of stocksAliments) {
-      const mouvements = await stockRepo.getMouvements(stock.id, 100);
+      const mouvements = await apiClient.get<any[]>(`/nutrition/stocks-aliments/${stock.id}/mouvements`, {
+        params: { limit: 100 },
+      });
       stocksMouvements.push(...mouvements);
     }
 
-    const productionAnimaux = await animalRepo.findActiveByProjet(projetId);
+    const productionAnimaux = await apiClient.get<any[]>(`/production/animaux`, {
+      params: { projet_id: projetId, inclure_inactifs: false },
+    });
 
     // Récupérer les pesées pour chaque animal
-    const productionPesees: any[] = [];
+    const productionPesees: unknown[] = [];
     for (const animal of productionAnimaux) {
-      const pesees = await peseeRepo.findByAnimal(animal.id);
+      const pesees = await apiClient.get<any[]>(`/production/pesees`, {
+        params: { animal_id: animal.id },
+      });
       productionPesees.push(...pesees);
     }
 
-    // Utiliser les nouveaux repositories
-    const ingredientRepo = new IngredientRepository(db);
-    const rationRepo = new RationRepository(db);
-    const planificationRepo = new PlanificationRepository(db);
-    const collaborateurRepo = new CollaborateurRepository(db);
-    const ingredients = await ingredientRepo.getAllIngredients(projetId);
-    const rations = await rationRepo.findByProjet(projetId);
-    const planifications = await planificationRepo.findByProjet(projetId);
-    const collaborateurs = await collaborateurRepo.findByProjet(projetId);
+    // Récupérer les autres données
+    const ingredients = await apiClient.get<any[]>(`/nutrition/ingredients`, {
+      params: { projet_id: projetId },
+    });
+    const rations = await apiClient.get<any[]>(`/nutrition/rations`, {
+      params: { projet_id: projetId },
+    });
+    const planifications = await apiClient.get<any[]>(`/planification/planifications`, {
+      params: { projet_id: projetId },
+    });
+    const collaborateurs = await apiClient.get<any[]>(`/collaborations`, {
+      params: { projet_id: projetId },
+    });
 
     const exportData: ExportData = {
       version: '1.0.0',
@@ -131,6 +124,10 @@ export async function exportAndShareJSON(projetId: string): Promise<void> {
   try {
     const json = await exportAllDataJSON(projetId);
     const fileName = `fermier-pro-backup-${new Date().toISOString().split('T')[0]}.json`;
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const FileSystem = require('expo-file-system');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const Sharing = require('expo-sharing');
     const fileUri = FileSystem.documentDirectory + fileName;
 
     await FileSystem.writeAsStringAsync(fileUri, json);
@@ -144,7 +141,7 @@ export async function exportAndShareJSON(projetId: string): Promise<void> {
       throw new Error("Le partage de fichiers n'est pas disponible sur cet appareil");
     }
   } catch (error: unknown) {
-    throw new Error(`Erreur lors de l'export et du partage : ${error.message}`);
+    throw new Error(`Erreur lors de l'export et du partage : ${getErrorMessage(error)}`);
   }
 }
 
@@ -155,14 +152,10 @@ export async function exportDataCSV(projetId: string, module?: string): Promise<
   try {
     let csv = '';
 
-    const db = await getDatabase();
-    const gestationRepo = new GestationRepository(db);
-    const mortaliteRepo = new MortaliteRepository(db);
-    const depenseRepo = new DepensePonctuelleRepository(db);
-    const animalRepo = new AnimalRepository(db);
-
     if (!module || module === 'gestations') {
-      const gestations = await gestationRepo.findAll(projetId);
+      const gestations = await apiClient.get<any[]>(`/reproduction/gestations`, {
+        params: { projet_id: projetId },
+      });
       csv += 'Module: Gestations\n';
       csv += 'ID,Truie,Date Sautage,Date Mise Bas Prévue,Statut\n';
       gestations.forEach((g) => {
@@ -172,7 +165,9 @@ export async function exportDataCSV(projetId: string, module?: string): Promise<
     }
 
     if (!module || module === 'mortalites') {
-      const mortalites = await mortaliteRepo.findByProjet(projetId);
+      const mortalites = await apiClient.get<any[]>(`/mortalites`, {
+        params: { projet_id: projetId },
+      });
       csv += 'Module: Mortalités\n';
       csv += 'ID,Date,Nombre Porcs,Cause,Catégorie\n';
       mortalites.forEach((m) => {
@@ -182,7 +177,9 @@ export async function exportDataCSV(projetId: string, module?: string): Promise<
     }
 
     if (!module || module === 'finances') {
-      const depenses = await depenseRepo.findAll(projetId);
+      const depenses = await apiClient.get<any[]>(`/finance/depenses-ponctuelles`, {
+        params: { projet_id: projetId },
+      });
       csv += 'Module: Dépenses\n';
       csv += 'ID,Date,Montant,Description\n';
       depenses.forEach((d) => {
@@ -192,7 +189,9 @@ export async function exportDataCSV(projetId: string, module?: string): Promise<
     }
 
     if (!module || module === 'production') {
-      const animaux = await animalRepo.findActiveByProjet(projetId);
+      const animaux = await apiClient.get<any[]>(`/production/animaux`, {
+        params: { projet_id: projetId, inclure_inactifs: false },
+      });
       csv += 'Module: Production - Animaux\n';
       csv += 'ID,Code,Nom,Poids Initial\n';
       animaux.forEach((a) => {
@@ -203,7 +202,7 @@ export async function exportDataCSV(projetId: string, module?: string): Promise<
 
     return csv;
   } catch (error: unknown) {
-    throw new Error(`Erreur lors de l'export CSV : ${error.message}`);
+    throw new Error(`Erreur lors de l'export CSV : ${getErrorMessage(error)}`);
   }
 }
 
@@ -214,6 +213,10 @@ export async function exportAndShareCSV(projetId: string, module?: string): Prom
   try {
     const csv = await exportDataCSV(projetId, module);
     const fileName = `fermier-pro-export-${module || 'all'}-${new Date().toISOString().split('T')[0]}.csv`;
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const FileSystem = require('expo-file-system');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const Sharing = require('expo-sharing');
     const fileUri = FileSystem.documentDirectory + fileName;
 
     await FileSystem.writeAsStringAsync(fileUri, csv);
@@ -227,7 +230,7 @@ export async function exportAndShareCSV(projetId: string, module?: string): Prom
       throw new Error("Le partage de fichiers n'est pas disponible sur cet appareil");
     }
   } catch (error: unknown) {
-    throw new Error(`Erreur lors de l'export CSV : ${error.message}`);
+    throw new Error(`Erreur lors de l'export CSV : ${getErrorMessage(error)}`);
   }
 }
 
@@ -245,42 +248,86 @@ export async function importDataFromJSON(jsonData: string): Promise<void> {
 
     // Importer les données dans l'ordre (projet d'abord, puis dépendances)
     if (data.projet) {
-      const db = await getDatabase();
-      const projetRepo = new ProjetRepository(db);
-      
-      // Vérifier si le projet existe déjà
-      const existingProjet = await projetRepo.findById(data.projet.id);
-      if (existingProjet) {
-        // Si existe, mettre à jour
-        await projetRepo.update(data.projet.id, {
-          nom: data.projet.nom,
-          localisation: data.projet.localisation,
-          nombre_truies: data.projet.nombre_truies,
-          nombre_verrats: data.projet.nombre_verrats,
-          nombre_porcelets: data.projet.nombre_porcelets,
-          poids_moyen_actuel: data.projet.poids_moyen_actuel,
-          age_moyen_actuel: data.projet.age_moyen_actuel,
-          notes: data.projet.notes,
-        });
-      } else {
-        // Si n'existe pas, créer
+      const projetTyped = data.projet as Record<string, unknown>;
+      // Vérifier si le projet existe déjà via l'API backend
+      try {
+        const projetId = projetTyped.id && typeof projetTyped.id === 'string' ? projetTyped.id : '';
+        if (!projetId) {
+          throw new Error('ID du projet manquant dans les données');
+        }
+        const existingProjet = await apiClient.get<any>(`/projets/${projetId}`);
+        if (existingProjet) {
+          // Si existe, mettre à jour via l'API backend
+          await apiClient.patch(`/projets/${projetId}`, {
+            nom: projetTyped.nom && typeof projetTyped.nom === 'string' ? projetTyped.nom : undefined,
+            localisation:
+              projetTyped.localisation && typeof projetTyped.localisation === 'string'
+                ? projetTyped.localisation
+                : undefined,
+            nombre_truies:
+              projetTyped.nombre_truies && typeof projetTyped.nombre_truies === 'number'
+                ? projetTyped.nombre_truies
+                : undefined,
+            nombre_verrats:
+              projetTyped.nombre_verrats && typeof projetTyped.nombre_verrats === 'number'
+                ? projetTyped.nombre_verrats
+                : undefined,
+            nombre_porcelets:
+              projetTyped.nombre_porcelets && typeof projetTyped.nombre_porcelets === 'number'
+                ? projetTyped.nombre_porcelets
+                : undefined,
+            poids_moyen_actuel:
+              projetTyped.poids_moyen_actuel && typeof projetTyped.poids_moyen_actuel === 'number'
+                ? projetTyped.poids_moyen_actuel
+                : undefined,
+            age_moyen_actuel:
+              projetTyped.age_moyen_actuel && typeof projetTyped.age_moyen_actuel === 'number'
+                ? projetTyped.age_moyen_actuel
+                : undefined,
+            notes:
+              projetTyped.notes && typeof projetTyped.notes === 'string' ? projetTyped.notes : undefined,
+          });
+        }
+      } catch {
+        // Si n'existe pas, créer via l'API backend
         // Note: createProjet nécessite proprietaire_id, mais on ne l'a pas dans les données exportées
         // Pour l'instant, on utilise 'user_1' par défaut
         // Une version améliorée pourrait demander à l'utilisateur de sélectionner un propriétaire
-        // La création des animaux initiaux est gérée automatiquement par ProjetRepository.create()
-        const { ProjetRepository } = await import('../database/repositories');
-        const projetRepo = new ProjetRepository(db);
-        await projetRepo.create({
-          nom: data.projet.nom,
-          localisation: data.projet.localisation,
-          nombre_truies: data.projet.nombre_truies,
-          nombre_verrats: data.projet.nombre_verrats,
-          nombre_porcelets: data.projet.nombre_porcelets,
-          poids_moyen_actuel: data.projet.poids_moyen_actuel,
-          age_moyen_actuel: data.projet.age_moyen_actuel,
-          notes: data.projet.notes,
-          statut: data.projet.statut || 'actif',
-          proprietaire_id: data.projet.proprietaire_id || 'user_1',
+        await apiClient.post('/projets', {
+          nom: projetTyped.nom && typeof projetTyped.nom === 'string' ? projetTyped.nom : undefined,
+          localisation:
+            projetTyped.localisation && typeof projetTyped.localisation === 'string'
+              ? projetTyped.localisation
+              : undefined,
+          nombre_truies:
+            projetTyped.nombre_truies && typeof projetTyped.nombre_truies === 'number'
+              ? projetTyped.nombre_truies
+              : undefined,
+          nombre_verrats:
+            projetTyped.nombre_verrats && typeof projetTyped.nombre_verrats === 'number'
+              ? projetTyped.nombre_verrats
+              : undefined,
+          nombre_porcelets:
+            projetTyped.nombre_porcelets && typeof projetTyped.nombre_porcelets === 'number'
+              ? projetTyped.nombre_porcelets
+              : undefined,
+          poids_moyen_actuel:
+            projetTyped.poids_moyen_actuel && typeof projetTyped.poids_moyen_actuel === 'number'
+              ? projetTyped.poids_moyen_actuel
+              : undefined,
+          age_moyen_actuel:
+            projetTyped.age_moyen_actuel && typeof projetTyped.age_moyen_actuel === 'number'
+              ? projetTyped.age_moyen_actuel
+              : undefined,
+          notes:
+            projetTyped.notes && typeof projetTyped.notes === 'string' ? projetTyped.notes : undefined,
+          statut:
+            (projetTyped.statut && typeof projetTyped.statut === 'string' ? projetTyped.statut : undefined) ||
+            'actif',
+          proprietaire_id:
+            (projetTyped.proprietaire_id && typeof projetTyped.proprietaire_id === 'string'
+              ? projetTyped.proprietaire_id
+              : undefined) || 'user_1',
         });
       }
     }
@@ -289,21 +336,51 @@ export async function importDataFromJSON(jsonData: string): Promise<void> {
     // Note: Pour simplifier, on importe sans vérifier les doublons
     // Une version améliorée pourrait proposer de fusionner ou remplacer
 
-    if (data.gestations) {
-      const db = await getDatabase();
-      const gestationRepo = new GestationRepository(db);
+    if (data.gestations && Array.isArray(data.gestations)) {
+      const projetTyped = data.projet as Record<string, unknown> | undefined;
       for (const gestation of data.gestations) {
+        const gestationTyped = gestation as Record<string, unknown>;
         try {
-          await gestationRepo.create({
-            projet_id: gestation.projet_id || data.projet?.id || '',
-            truie_id: gestation.truie_id,
-            truie_nom: gestation.truie_nom,
-            verrat_id: gestation.verrat_id,
-            verrat_nom: gestation.verrat_nom,
-            date_sautage: gestation.date_sautage,
-            nombre_porcelets_prevu: gestation.nombre_porcelets_prevu,
-            notes: gestation.notes,
-            statut: gestation.statut || 'en_cours',
+          await apiClient.post('/reproduction/gestations', {
+            projet_id:
+              (gestationTyped.projet_id && typeof gestationTyped.projet_id === 'string'
+                ? gestationTyped.projet_id
+                : undefined) ||
+              (projetTyped?.id && typeof projetTyped.id === 'string' ? projetTyped.id : undefined) ||
+              '',
+            truie_id:
+              gestationTyped.truie_id && typeof gestationTyped.truie_id === 'string'
+                ? gestationTyped.truie_id
+                : undefined,
+            truie_nom:
+              gestationTyped.truie_nom && typeof gestationTyped.truie_nom === 'string'
+                ? gestationTyped.truie_nom
+                : undefined,
+            verrat_id:
+              gestationTyped.verrat_id && typeof gestationTyped.verrat_id === 'string'
+                ? gestationTyped.verrat_id
+                : undefined,
+            verrat_nom:
+              gestationTyped.verrat_nom && typeof gestationTyped.verrat_nom === 'string'
+                ? gestationTyped.verrat_nom
+                : undefined,
+            date_sautage:
+              gestationTyped.date_sautage && typeof gestationTyped.date_sautage === 'string'
+                ? gestationTyped.date_sautage
+                : undefined,
+            nombre_porcelets_prevu:
+              gestationTyped.nombre_porcelets_prevu &&
+              typeof gestationTyped.nombre_porcelets_prevu === 'number'
+                ? gestationTyped.nombre_porcelets_prevu
+                : undefined,
+            notes:
+              gestationTyped.notes && typeof gestationTyped.notes === 'string'
+                ? gestationTyped.notes
+                : undefined,
+            statut:
+              (gestationTyped.statut && typeof gestationTyped.statut === 'string'
+                ? gestationTyped.statut
+                : undefined) || 'en_cours',
           });
         } catch {
           // Ignorer les erreurs de doublons
@@ -317,7 +394,7 @@ export async function importDataFromJSON(jsonData: string): Promise<void> {
     // Pour l'instant, on importe seulement le projet et les gestations
     // Les autres modules peuvent être ajoutés de la même manière
   } catch (error: unknown) {
-    throw new Error(`Erreur lors de l'import : ${error.message}`);
+    throw new Error(`Erreur lors de l'import : ${getErrorMessage(error)}`);
   }
 }
 
@@ -326,9 +403,11 @@ export async function importDataFromJSON(jsonData: string): Promise<void> {
  */
 export async function readJSONFile(uri: string): Promise<string> {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const FileSystem = require('expo-file-system');
     const content = await FileSystem.readAsStringAsync(uri);
     return content;
   } catch (error: unknown) {
-    throw new Error(`Erreur lors de la lecture du fichier : ${error.message}`);
+    throw new Error(`Erreur lors de la lecture du fichier : ${getErrorMessage(error)}`);
   }
 }

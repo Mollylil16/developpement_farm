@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import type { NavigationProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { signOut } from '../../store/slices/authSlice';
@@ -21,9 +22,13 @@ interface HomeViewProps {
   onClose: () => void;
 }
 
-export default function HomeView({ onNavigateToSettings, onNavigateToMonProjet, onClose }: HomeViewProps) {
+export default function HomeView({
+  onNavigateToSettings,
+  onNavigateToMonProjet,
+  onClose,
+}: HomeViewProps) {
   const { colors } = useTheme();
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NavigationProp<any>>();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   const { activeRole, availableRoles, switchRole } = useRole();
@@ -50,8 +55,9 @@ export default function HomeView({ onNavigateToSettings, onNavigateToMonProjet, 
       setRoleSwitcherVisible(false);
       onClose();
       // Navigation sera gérée automatiquement par AppNavigator selon le nouveau rôle
-    } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Impossible de changer de rôle');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Impossible de changer de rôle';
+      Alert.alert('Erreur', errorMessage);
     }
   };
 
@@ -59,9 +65,7 @@ export default function HomeView({ onNavigateToSettings, onNavigateToMonProjet, 
     <View>
       {/* Section PROFIL */}
       <View style={styles.section}>
-        <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>
-          👤 PROFIL
-        </Text>
+        <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>👤 PROFIL</Text>
         <View style={styles.sectionContent}>
           <TouchableOpacity
             style={[styles.menuItem, { borderBottomColor: colors.border }]}
@@ -98,7 +102,7 @@ export default function HomeView({ onNavigateToSettings, onNavigateToMonProjet, 
               <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           )}
-          
+
           {activeRole === 'buyer' && (
             <TouchableOpacity
               style={[styles.menuItem, { borderBottomColor: colors.border }]}
@@ -118,7 +122,7 @@ export default function HomeView({ onNavigateToSettings, onNavigateToMonProjet, 
               <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           )}
-          
+
           {activeRole === 'veterinarian' && (
             <TouchableOpacity
               style={[styles.menuItem, { borderBottomColor: colors.border }]}
@@ -130,7 +134,9 @@ export default function HomeView({ onNavigateToSettings, onNavigateToMonProjet, 
             >
               <Ionicons name="school-outline" size={24} color={colors.primary} />
               <View style={styles.menuItemContent}>
-                <Text style={[styles.menuItemTitle, { color: colors.text }]}>Mes qualifications</Text>
+                <Text style={[styles.menuItemTitle, { color: colors.text }]}>
+                  Mes qualifications
+                </Text>
                 <Text style={[styles.menuItemSubtitle, { color: colors.textSecondary }]}>
                   Diplômes et licences
                 </Text>
@@ -138,7 +144,7 @@ export default function HomeView({ onNavigateToSettings, onNavigateToMonProjet, 
               <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           )}
-          
+
           {activeRole === 'technician' && (
             <TouchableOpacity
               style={[styles.menuItem, { borderBottomColor: colors.border }]}
@@ -208,9 +214,12 @@ export default function HomeView({ onNavigateToSettings, onNavigateToMonProjet, 
             >
               <Ionicons name="swap-horizontal-outline" size={24} color={colors.primary} />
               <View style={styles.menuItemContent}>
-                <Text style={[styles.menuItemTitle, { color: colors.text }]}>Changer de profil</Text>
+                <Text style={[styles.menuItemTitle, { color: colors.text }]}>
+                  Changer de profil
+                </Text>
                 <Text style={[styles.menuItemSubtitle, { color: colors.textSecondary }]}>
-                  Basculer entre vos profils ({availableRoles.length} disponible{availableRoles.length > 1 ? 's' : ''})
+                  Basculer entre vos profils ({availableRoles.length} disponible
+                  {availableRoles.length > 1 ? 's' : ''})
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
@@ -221,9 +230,7 @@ export default function HomeView({ onNavigateToSettings, onNavigateToMonProjet, 
 
       {/* Section PARAMÈTRES */}
       <View style={styles.section}>
-        <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>
-          ⚙️ PARAMÈTRES
-        </Text>
+        <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>⚙️ PARAMÈTRES</Text>
         <View style={styles.sectionContent}>
           <TouchableOpacity
             style={[styles.menuItem, { borderBottomColor: colors.border }]}
@@ -248,7 +255,9 @@ export default function HomeView({ onNavigateToSettings, onNavigateToMonProjet, 
           >
             <Ionicons name="school-outline" size={24} color={colors.primary} />
             <View style={styles.menuItemContent}>
-              <Text style={[styles.menuItemTitle, { color: colors.text }]}>Formation & Configuration</Text>
+              <Text style={[styles.menuItemTitle, { color: colors.text }]}>
+                Formation & Configuration
+              </Text>
               <Text style={[styles.menuItemSubtitle, { color: colors.textSecondary }]}>
                 Guide d'élevage, paramètres projet et application
               </Text>
@@ -340,4 +349,3 @@ const styles = StyleSheet.create({
     fontWeight: FONT_WEIGHTS.semiBold,
   },
 });
-

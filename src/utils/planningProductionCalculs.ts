@@ -11,6 +11,7 @@ import {
   PrevisionVentesInput,
   CalendrierVentes,
   SynthesePrevisionVentes,
+  SailliePlanifiee,
   CONSTANTES_PRODUCTION as CONST,
 } from '../types/planningProduction';
 import { ProductionAnimal, ProductionPesee } from '../types/production';
@@ -153,56 +154,30 @@ export function simulerProduction(
   // Faisabilité
   const est_faisable = truiesDisponibles >= nombre_truies_necessaires && verratsDisponibles >= 1;
 
-  // Recommandations
-  const recommandations: RecommandationStrategique[] = [];
-
-  if (!est_faisable) {
-    if (truiesDisponibles < nombre_truies_necessaires) {
-      recommandations.push({
-        type: 'acquisition_animaux',
-        priorite: 'haute',
-        message: `Il manque ${nombre_truies_necessaires - truiesDisponibles} truie(s) reproductrice(s) pour atteindre l'objectif.`,
-        impact_production: `Réduction de ${Math.round(
-          ((nombre_truies_necessaires - truiesDisponibles) / nombre_truies_necessaires) * 100
-        )}%`,
-      });
-    }
-    if (verratsDisponibles < 1) {
-      recommandations.push({
-        type: 'acquisition_animaux',
-        priorite: 'critique',
-        message: 'Aucun verrat disponible. Achat ou location urgente nécessaire.',
-        impact_production: 'Production impossible',
-      });
-    }
-  }
-
-  if (nombre_saillies_par_mois > truiesDisponibles) {
-    recommandations.push({
-      type: 'optimisation_cycles',
-      priorite: 'moyenne',
-      message: `Le rythme de ${nombre_saillies_par_mois} saillie(s)/mois nécessite une gestion optimale des cycles.`,
-      impact_production: 'Risque de surcharge',
-    });
-  }
+  // Écarts et utilisation (pour affichage / suivi)
+  const ecart_truies = nombre_truies_necessaires - truiesDisponibles;
+  const taux_utilisation = truiesDisponibles > 0 ? nombre_truies_necessaires / truiesDisponibles : 0;
 
   return {
     objectif_tonnes,
     periode_mois: duree_mois,
+    nombre_porcs_necessaires,
     nombre_truies_necessaires,
     nombre_portees_necessaires,
-    nombre_porcs_necessaires,
     nombre_saillies_par_mois,
+    truies_disponibles: truiesDisponibles,
+    truies_en_gestation: truiesEnGestation,
+    truies_en_lactation: truiesEnLactation,
+    verrats_disponibles: verratsDisponibles,
     est_faisable,
-    recommandations,
+    ecart_truies,
+    taux_utilisation,
     details: {
-      truies_disponibles: truiesDisponibles,
-      truies_en_gestation: truiesEnGestation,
-      truies_en_lactation: truiesEnLactation,
-      verrats_disponibles: verratsDisponibles,
       porcelets_par_portee_moyen: PORCELETS_PAR_PORTEE,
-      poids_moyen_vente_kg,
-      taux_survie_prevu: CONST.TAUX_SURVIE_MOYEN * 100,
+      taux_survie: TAUX_SURVIE_GLOBAL,
+      cycles_par_truie_par_an,
+      duree_gestation_jours: CONST.DUREE_GESTATION_JOURS,
+      duree_lactation_jours: CONST.DUREE_LACTATION_JOURS,
     },
   };
 }
@@ -221,12 +196,14 @@ export function genererRecommandationsStrategiques(
   const recommandations: RecommandationStrategique[] = [];
 
   const truiesNecessaires = simulation.nombre_truies_necessaires;
-  const verratsDisponibles = simulation.details.verrats_disponibles;
+  const verratsDisponibles = simulation.verrats_disponibles;
   const porteesNecessaires = simulation.nombre_portees_necessaires;
-  const porceletsTotaux = porteesNecessaires * simulation.details.porcelets_par_portee_moyen;
-  const porceletsSurvivants = Math.floor(
-    porceletsTotaux * (simulation.details.taux_survie_prevu / 100)
-  );
+  // Calculé mais non utilisé actuellement - conservé pour usage futur
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, no-unused-vars
+  const _porceletsTotaux = porteesNecessaires * simulation.details.porcelets_par_portee_moyen;
+  // const porceletsSurvivants = Math.floor(
+  //   porceletsTotaux * (simulation.details.taux_survie_prevu / 100)
+  // );
   const ecartTruies = truiesNecessaires - truiesDisponibles;
   const tauxUtilisation = (truiesNecessaires / Math.max(1, truiesDisponibles)) * 100;
 
@@ -647,7 +624,13 @@ export function calculerPrevisionVentes(
   const total_poids_kg = previsions.reduce((sum, p) => sum + p.poids_cible, 0);
   const total_prix_estime = previsions.reduce((sum, p) => sum + (p.prix_estime || 0), 0);
 
-  const par_categorie: any = {};
+  const par_categorie: {
+    [categorie: string]: {
+      nombre: number;
+      poids_total: number;
+      prix_total: number;
+    };
+  } = {};
   previsions.forEach((p) => {
     if (!par_categorie[p.categorie]) {
       par_categorie[p.categorie] = { nombre: 0, poids_total: 0, prix_total: 0 };
@@ -679,7 +662,7 @@ export function calculerPrevisionVentes(
  * Mode 2 : Projection future sur 12-24 mois
  */
 export function calculerPrevisionsFutures(
-  sailliesPlanifiees: any[],
+  sailliesPlanifiees: SailliePlanifiee[],
   parametres: {
     porcelets_par_portee: number;
     taux_survie_sevrage: number; // %
@@ -716,10 +699,11 @@ export function calculerPrevisionsFutures(
 
   // Filtrer les saillies planifiées ou effectuées (exclure annulées)
   const sailliesActives = sailliesPlanifiees.filter(
-    (s) => s.statut === 'planifiee' || s.statut === 'effectuee'
+    (s: SailliePlanifiee) => s.statut === 'planifiee' || s.statut === 'effectuee'
   );
 
-  sailliesActives.forEach((saillie, index) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, no-unused-vars
+  sailliesActives.forEach((saillie, _index) => {
     // Date de sevrage (21 jours après mise bas)
     const dateSevrage = new Date(saillie.date_sevrage_prevue);
 
@@ -773,7 +757,13 @@ export function calculerPrevisionsFutures(
   const total_poids_kg = previsions.reduce((sum, p) => sum + p.poids_cible, 0);
   const total_prix_estime = previsions.reduce((sum, p) => sum + (p.prix_estime || 0), 0);
 
-  const par_categorie: any = {};
+  const par_categorie: {
+    [categorie: string]: {
+      nombre: number;
+      poids_total: number;
+      prix_total: number;
+    };
+  } = {};
   previsions.forEach((p) => {
     if (!par_categorie[p.categorie]) {
       par_categorie[p.categorie] = { nombre: 0, poids_total: 0, prix_total: 0 };
@@ -903,7 +893,7 @@ export interface TacheGeneree {
  * - Vente prévue (J+135 + engraissement)
  */
 export function genererTachesDepuisSaillie(
-  saillie: any,
+  saillie: SailliePlanifiee,
   truieNom?: string,
   verratNom?: string
 ): TacheGeneree[] {

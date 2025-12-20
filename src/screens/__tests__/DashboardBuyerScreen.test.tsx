@@ -29,8 +29,12 @@ const mockUseRole = useRole as jest.MockedFunction<typeof useRole>;
 const mockUseTheme = useTheme as jest.MockedFunction<typeof useTheme>;
 const mockUseBuyerData = useBuyerData as jest.MockedFunction<typeof useBuyerData>;
 const mockUseProfilData = useProfilData as jest.MockedFunction<typeof useProfilData>;
-const mockUseDashboardAnimations = useDashboardAnimations as jest.MockedFunction<typeof useDashboardAnimations>;
-const mockUseMarketplaceNotifications = useMarketplaceNotifications as jest.MockedFunction<typeof useMarketplaceNotifications>;
+const mockUseDashboardAnimations = useDashboardAnimations as jest.MockedFunction<
+  typeof useDashboardAnimations
+>;
+const mockUseMarketplaceNotifications = useMarketplaceNotifications as jest.MockedFunction<
+  typeof useMarketplaceNotifications
+>;
 
 describe('DashboardBuyerScreen', () => {
   const mockColors = {
@@ -233,7 +237,7 @@ describe('DashboardBuyerScreen', () => {
     expect(getByText(/Mes offres en cours/i)).toBeTruthy();
   });
 
-  it('devrait afficher l\'historique d\'achats', () => {
+  it("devrait afficher l'historique d'achats", () => {
     const mockBuyerProfile = {
       purchaseHistory: {
         totalPurchases: 10,
@@ -354,7 +358,7 @@ describe('DashboardBuyerScreen', () => {
     expect(UNSAFE_getByType).toBeDefined();
   });
 
-  it('devrait afficher l\'état de chargement', () => {
+  it("devrait afficher l'état de chargement", () => {
     const mockBuyerProfile = {
       purchaseHistory: {
         totalPurchases: 10,
@@ -428,4 +432,3 @@ describe('DashboardBuyerScreen', () => {
     expect(container).toBeDefined();
   });
 });
-

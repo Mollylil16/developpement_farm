@@ -4,7 +4,15 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, Animated, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Modal,
+  Animated,
+  ScrollView,
+} from 'react-native';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -68,11 +76,7 @@ export default function CustomReadOnlyModal({
         ]}
         pointerEvents="box-none"
       >
-        <TouchableOpacity 
-          style={StyleSheet.absoluteFill} 
-          activeOpacity={1} 
-          onPress={onClose}
-        />
+        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
         <Animated.View
           style={[
             styles.modal,
@@ -175,4 +179,3 @@ const styles = StyleSheet.create({
     fontWeight: FONT_WEIGHTS.semiBold,
   },
 });
-

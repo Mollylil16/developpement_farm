@@ -24,4 +24,3 @@ export function useVaccinationsLogic() {
 
   return { chargerDonnees };
 }
-

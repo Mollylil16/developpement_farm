@@ -12,7 +12,6 @@ import type {
   Offer,
   Transaction,
 } from '../types/marketplace';
-import { getDatabase } from '../services/database';
 import { getMarketplaceService } from '../services/MarketplaceService';
 
 export function useMarketplace() {
@@ -36,9 +35,8 @@ export function useMarketplace() {
         setLoading(true);
         setError(null);
 
-        const db = await getDatabase();
-        const service = getMarketplaceService(db);
-        
+        const service = getMarketplaceService();
+
         const result: MarketplaceSearchResult = await service.searchListings(
           filters,
           sort,
@@ -55,8 +53,9 @@ export function useMarketplace() {
         setCurrentPage(result.page);
         setHasMore(result.hasMore);
         setTotalResults(result.total);
-      } catch (err: any) {
-        setError(err.message || 'Erreur lors de la recherche');
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : 'Erreur lors de la recherche';
+        setError(errorMessage);
         console.error('Error searching listings:', err);
       } finally {
         setLoading(false);
@@ -113,16 +112,16 @@ export function useOffers(userId: string, role: 'buyer' | 'producer') {
       setLoading(true);
       setError(null);
 
-      const db = await getDatabase();
-      const service = getMarketplaceService(db);
+      const service = getMarketplaceService();
 
       // Accéder aux repositories via le service (on ajoutera des méthodes publiques si nécessaire)
       // Pour l'instant, simulons avec un tableau vide
       // TODO: Ajouter des méthodes publiques dans MarketplaceService
-      
+
       setOffers([]);
-    } catch (err: any) {
-      setError(err.message || 'Erreur lors du chargement des offres');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Erreur lors du chargement des offres';
+      setError(errorMessage);
       console.error('Error loading offers:', err);
     } finally {
       setLoading(false);
@@ -154,13 +153,13 @@ export function useTransactions(userId: string, role: 'buyer' | 'producer') {
       setLoading(true);
       setError(null);
 
-      const db = await getDatabase();
-      const service = getMarketplaceService(db);
+      const service = getMarketplaceService();
 
       // TODO: Ajouter méthode getTransactions dans MarketplaceService
       setTransactions([]);
-    } catch (err: any) {
-      setError(err.message || 'Erreur lors du chargement des transactions');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Erreur lors du chargement des transactions';
+      setError(errorMessage);
       console.error('Error loading transactions:', err);
     } finally {
       setLoading(false);
@@ -197,13 +196,13 @@ export function useListing(listingId: string | null) {
       setLoading(true);
       setError(null);
 
-      const db = await getDatabase();
-      const service = getMarketplaceService(db);
-      
+      const service = getMarketplaceService();
+
       const result = await service.getListingDetails(listingId);
       setListing(result);
-    } catch (err: any) {
-      setError(err.message || 'Erreur lors du chargement de l\'annonce');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Erreur lors du chargement de l'annonce";
+      setError(errorMessage);
       console.error('Error loading listing:', err);
     } finally {
       setLoading(false);
@@ -221,4 +220,3 @@ export function useListing(listingId: string | null) {
     reload: loadListing,
   };
 }
-

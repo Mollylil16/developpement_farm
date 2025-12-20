@@ -3,12 +3,10 @@
  * Centralise la logique de détection et génération d'alertes sanitaires
  */
 
-import { getDatabase } from '../database';
 import {
   RappelVaccinationRepository,
   MaladieRepository,
   MortaliteRepository,
-  VisiteVeterinaireRepository,
 } from '../../database/repositories';
 
 export interface AlerteSanitaire {
@@ -16,7 +14,7 @@ export interface AlerteSanitaire {
   gravite: 'critique' | 'elevee' | 'moyenne';
   message: string;
   date: string;
-  data?: any;
+  data?: unknown;
 }
 
 export class SanteAlertesService {
@@ -24,10 +22,9 @@ export class SanteAlertesService {
    * Obtenir les alertes sanitaires urgentes
    */
   static async getAlertesSanitaires(projetId: string): Promise<AlerteSanitaire[]> {
-    const db = await getDatabase();
-    const rappelRepo = new RappelVaccinationRepository(db);
-    const maladieRepo = new MaladieRepository(db);
-    const mortaliteRepo = new MortaliteRepository(db);
+    const rappelRepo = new RappelVaccinationRepository();
+    const maladieRepo = new MaladieRepository();
+    const mortaliteRepo = new MortaliteRepository();
 
     const alertes: AlerteSanitaire[] = [];
 
@@ -90,4 +87,3 @@ export class SanteAlertesService {
     return alertes;
   }
 }
-

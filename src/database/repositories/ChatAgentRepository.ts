@@ -5,7 +5,10 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { BaseRepository } from './BaseRepository';
 import type { ChatMessage } from '../../types/chatAgent';
-import type { ChatAgentConversation, ChatAgentMessage } from '../schemas/chatAgent/chat_agent_conversations.schema';
+import type {
+  ChatAgentConversation,
+  ChatAgentMessage,
+} from '../schemas/chatAgent/chat_agent_conversations.schema';
 
 export class ChatAgentRepository {
   private db: SQLiteDatabase;
@@ -76,14 +79,7 @@ export class ChatAgentRepository {
       `INSERT INTO chat_agent_messages 
        (id, conversation_id, role, content, timestamp, metadata_json)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [
-        message.id,
-        conversationId,
-        message.role,
-        message.content,
-        message.timestamp,
-        metadataJson,
-      ]
+      [message.id, conversationId, message.role, message.content, message.timestamp, metadataJson]
     );
 
     // Mettre à jour la date de mise à jour de la conversation
@@ -99,10 +95,9 @@ export class ChatAgentRepository {
    * Supprime tous les messages d'une conversation (pour réinitialiser)
    */
   async clearConversation(conversationId: string): Promise<void> {
-    await this.db.runAsync(
-      `DELETE FROM chat_agent_messages WHERE conversation_id = ?`,
-      [conversationId]
-    );
+    await this.db.runAsync(`DELETE FROM chat_agent_messages WHERE conversation_id = ?`, [
+      conversationId,
+    ]);
   }
 
   /**
@@ -127,4 +122,3 @@ export class ChatAgentRepository {
     };
   }
 }
-

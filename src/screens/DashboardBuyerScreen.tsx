@@ -16,6 +16,7 @@ import {
 import type { ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import type { NavigationProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -26,7 +27,7 @@ import { useProfilData } from '../hooks/useProfilData';
 import { useDashboardAnimations } from '../hooks/useDashboardAnimations';
 import { useMarketplaceNotifications } from '../hooks/useMarketplaceNotifications';
 import { SCREENS } from '../navigation/types';
-import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS, LIGHT_COLORS } from '../constants/theme';
 import Card from '../components/Card';
 import LoadingSpinner from '../components/LoadingSpinner';
 import EmptyState from '../components/EmptyState';
@@ -45,7 +46,8 @@ const DashboardBuyerScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [profileMenuVisible, setProfileMenuVisible] = useState(false);
   const [notificationPanelVisible, setNotificationPanelVisible] = useState(false);
-  const { activeOffers, completedTransactions, recentListings, loading, error, refresh } = useBuyerData();
+  const { activeOffers, completedTransactions, recentListings, loading, error, refresh } =
+    useBuyerData();
   const profil = useProfilData();
   const animations = useDashboardAnimations();
   const {
@@ -75,17 +77,23 @@ const DashboardBuyerScreen: React.FC = () => {
   }, []);
 
   // Build secondary widgets list - mémorisé pour éviter les recalculs
-  const secondaryWidgets = useMemo(() => [
-    { type: 'purchases' as const, screen: SCREENS.MY_PURCHASES },
-    { type: 'expenses' as const, screen: SCREENS.MY_PURCHASES },
-    { type: 'marketplace' as const, screen: SCREENS.MARKETPLACE },
-  ], []);
+  const secondaryWidgets = useMemo(
+    () => [
+      { type: 'purchases' as const, screen: SCREENS.MY_PURCHASES },
+      { type: 'expenses' as const, screen: SCREENS.MY_PURCHASES },
+      { type: 'marketplace' as const, screen: SCREENS.MARKETPLACE },
+    ],
+    []
+  );
 
   // Navigation handler - mémorisé pour éviter les re-créations
-  const handleNavigateToScreen = useCallback((screen: string) => {
-    // @ts-ignore - navigation typée
-    navigation.navigate('Main', { screen } as never);
-  }, [navigation]);
+  const handleNavigateToScreen = useCallback(
+    (screen: string) => {
+      // @ts-ignore - navigation typée
+      navigation.navigate('Main', { screen } as never);
+    },
+    [navigation]
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -114,7 +122,10 @@ const DashboardBuyerScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top']}
+    >
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -158,129 +169,153 @@ const DashboardBuyerScreen: React.FC = () => {
 
           {/* Offres en cours */}
           <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Mes offres en cours
-            </Text>
-            {activeOffers.length > 0 && (
-              <TouchableOpacity
-                onPress={() => navigation.navigate(SCREENS.OFFERS as never)}
-                style={styles.seeAllButton}
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Mes offres en cours</Text>
+              {activeOffers.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => navigation.navigate(SCREENS.OFFERS as never)}
+                  style={styles.seeAllButton}
+                >
+                  <Text style={[styles.seeAllText, { color: colors.primary }]}>Voir tout</Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+                </TouchableOpacity>
+              )}
+            </View>
+            {loading ? (
+              <Card
+                style={StyleSheet.flatten([
+                  styles.sectionCard,
+                  { backgroundColor: colors.surface },
+                ])}
               >
-                <Text style={[styles.seeAllText, { color: colors.primary }]}>Voir tout</Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-              </TouchableOpacity>
-            )}
-          </View>
-          {loading ? (
-            <Card style={StyleSheet.flatten([styles.sectionCard, { backgroundColor: colors.surface }])}>
-              <LoadingSpinner size="small" />
-            </Card>
-          ) : activeOffers.length === 0 ? (
-            <Card style={StyleSheet.flatten([styles.sectionCard, { backgroundColor: colors.surface }])}>
-              <EmptyState
-                icon={<Ionicons name="receipt-outline" size={48} color={colors.textSecondary} />}
-                title="Aucune offre en cours"
-                message="Vous n'avez pas encore fait d'offres"
+                <LoadingSpinner size="small" />
+              </Card>
+            ) : activeOffers.length === 0 ? (
+              <Card
+                style={StyleSheet.flatten([
+                  styles.sectionCard,
+                  { backgroundColor: colors.surface },
+                ])}
+              >
+                <EmptyState
+                  icon={<Ionicons name="receipt-outline" size={48} color={colors.textSecondary} />}
+                  title="Aucune offre en cours"
+                  message="Vous n'avez pas encore fait d'offres"
+                />
+              </Card>
+            ) : (
+              <FlatList
+                data={activeOffers.slice(0, 3)}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => <OfferCard offer={item} colors={colors} />}
+                contentContainerStyle={styles.offersList}
               />
-            </Card>
-          ) : (
-            <FlatList
-              data={activeOffers.slice(0, 3)}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => <OfferCard offer={item} colors={colors} />}
-              contentContainerStyle={styles.offersList}
-            />
-          )}
+            )}
           </View>
 
           {/* Historique d'achats */}
           <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Historique d'achats
-            </Text>
-            {completedTransactions.length > 0 && (
-              <TouchableOpacity
-                onPress={() => navigation.navigate(SCREENS.MY_PURCHASES as never)}
-                style={styles.seeAllButton}
-              >
-                <Text style={[styles.seeAllText, { color: colors.primary }]}>Voir tout</Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-              </TouchableOpacity>
-            )}
-          </View>
-          {loading ? (
-            <Card style={StyleSheet.flatten([styles.sectionCard, { backgroundColor: colors.surface }])}>
-              <LoadingSpinner size="small" />
-            </Card>
-          ) : completedTransactions.length === 0 ? (
-            <Card style={StyleSheet.flatten([styles.sectionCard, { backgroundColor: colors.surface }])}>
-              <EmptyState
-                icon={<Ionicons name="bag-outline" size={48} color={colors.textSecondary} />}
-                title="Aucun achat"
-                message="Vos achats complétés apparaîtront ici"
-              />
-            </Card>
-          ) : (
-            <View style={styles.transactionsList}>
-              {completedTransactions.slice(0, 3).map((transaction) => (
-                <TransactionCard key={transaction.id} transaction={transaction} colors={colors} />
-              ))}
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Historique d'achats</Text>
+              {completedTransactions.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => navigation.navigate(SCREENS.MY_PURCHASES as never)}
+                  style={styles.seeAllButton}
+                >
+                  <Text style={[styles.seeAllText, { color: colors.primary }]}>Voir tout</Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+                </TouchableOpacity>
+              )}
             </View>
-          )}
+            {loading ? (
+              <Card
+                style={StyleSheet.flatten([
+                  styles.sectionCard,
+                  { backgroundColor: colors.surface },
+                ])}
+              >
+                <LoadingSpinner size="small" />
+              </Card>
+            ) : completedTransactions.length === 0 ? (
+              <Card
+                style={StyleSheet.flatten([
+                  styles.sectionCard,
+                  { backgroundColor: colors.surface },
+                ])}
+              >
+                <EmptyState
+                  icon={<Ionicons name="bag-outline" size={48} color={colors.textSecondary} />}
+                  title="Aucun achat"
+                  message="Vos achats complétés apparaîtront ici"
+                />
+              </Card>
+            ) : (
+              <View style={styles.transactionsList}>
+                {completedTransactions.slice(0, 3).map((transaction) => (
+                  <TransactionCard key={transaction.id} transaction={transaction} colors={colors} />
+                ))}
+              </View>
+            )}
           </View>
 
           {/* Nouvelles annonces */}
           <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Nouvelles annonces
-            </Text>
-            {recentListings.length > 0 && (
-              <TouchableOpacity
-                onPress={() => navigation.navigate(SCREENS.MARKETPLACE as never)}
-                style={styles.seeAllButton}
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Nouvelles annonces</Text>
+              {recentListings.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => navigation.navigate(SCREENS.MARKETPLACE as never)}
+                  style={styles.seeAllButton}
+                >
+                  <Text style={[styles.seeAllText, { color: colors.primary }]}>Voir tout</Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+                </TouchableOpacity>
+              )}
+            </View>
+            {loading ? (
+              <Card
+                style={StyleSheet.flatten([
+                  styles.sectionCard,
+                  { backgroundColor: colors.surface },
+                ])}
               >
-                <Text style={[styles.seeAllText, { color: colors.primary }]}>Voir tout</Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-              </TouchableOpacity>
+                <LoadingSpinner size="small" />
+              </Card>
+            ) : recentListings.length === 0 ? (
+              <Card
+                style={StyleSheet.flatten([
+                  styles.sectionCard,
+                  { backgroundColor: colors.surface },
+                ])}
+              >
+                <EmptyState
+                  icon={
+                    <Ionicons name="storefront-outline" size={48} color={colors.textSecondary} />
+                  }
+                  title="Aucune annonce disponible"
+                  message="Explorez le marketplace pour découvrir de nouvelles annonces"
+                />
+              </Card>
+            ) : (
+              <FlatList
+                data={recentListings.slice(0, 3)}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                  <ListingCard listing={item} colors={colors} navigation={navigation} />
+                )}
+                contentContainerStyle={styles.listingsList}
+              />
             )}
           </View>
-          {loading ? (
-            <Card style={StyleSheet.flatten([styles.sectionCard, { backgroundColor: colors.surface }])}>
-              <LoadingSpinner size="small" />
-            </Card>
-          ) : recentListings.length === 0 ? (
-            <Card style={StyleSheet.flatten([styles.sectionCard, { backgroundColor: colors.surface }])}>
-              <EmptyState
-                icon={<Ionicons name="storefront-outline" size={48} color={colors.textSecondary} />}
-                title="Aucune annonce disponible"
-                message="Explorez le marketplace pour découvrir de nouvelles annonces"
-              />
-            </Card>
-          ) : (
-            <FlatList
-              data={recentListings.slice(0, 3)}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => <ListingCard listing={item} colors={colors} navigation={navigation} />}
-              contentContainerStyle={styles.listingsList}
-            />
-          )}
-          </View>
-
         </View>
       </ScrollView>
 
       {/* Profile Menu Modal */}
-      <ProfileMenuModal
-        visible={profileMenuVisible}
-        onClose={() => setProfileMenuVisible(false)}
-      />
+      <ProfileMenuModal visible={profileMenuVisible} onClose={() => setProfileMenuVisible(false)} />
 
       {/* Notification Panel */}
       <NotificationPanel
@@ -294,7 +329,7 @@ const DashboardBuyerScreen: React.FC = () => {
         }}
         onMarkAsRead={markAsRead}
         onMarkAllAsRead={() => {
-          marketplaceNotifications.forEach(n => markAsRead(n.id));
+          marketplaceNotifications.forEach((n) => markAsRead(n.id));
         }}
         onDelete={deleteNotification}
       />
@@ -355,7 +390,7 @@ const styles = StyleSheet.create({
 });
 
 // Composant Card pour les offres
-const OfferCard: React.FC<{ offer: Offer; colors: any }> = ({ offer, colors }) => {
+const OfferCard: React.FC<{ offer: Offer; colors: typeof LIGHT_COLORS }> = ({ offer, colors }) => {
   const statusColors: Record<string, string> = {
     pending: colors.warning,
     countered: colors.info,
@@ -375,9 +410,19 @@ const OfferCard: React.FC<{ offer: Offer; colors: any }> = ({ offer, colors }) =
   };
 
   return (
-    <Card style={StyleSheet.flatten([componentStyles.offerCard, { backgroundColor: colors.surface, borderColor: colors.border }])}>
+    <Card
+      style={StyleSheet.flatten([
+        componentStyles.offerCard,
+        { backgroundColor: colors.surface, borderColor: colors.border },
+      ])}
+    >
       <View style={componentStyles.offerHeader}>
-        <View style={[componentStyles.statusBadge, { backgroundColor: statusColors[offer.status] + '20' }]}>
+        <View
+          style={[
+            componentStyles.statusBadge,
+            { backgroundColor: statusColors[offer.status] + '20' },
+          ]}
+        >
           <Text style={[componentStyles.statusText, { color: statusColors[offer.status] }]}>
             {statusLabels[offer.status]}
           </Text>
@@ -390,7 +435,10 @@ const OfferCard: React.FC<{ offer: Offer; colors: any }> = ({ offer, colors }) =
         {offer.proposedPrice.toLocaleString()} FCFA
       </Text>
       {offer.message && (
-        <Text style={[componentStyles.offerMessage, { color: colors.textSecondary }]} numberOfLines={2}>
+        <Text
+          style={[componentStyles.offerMessage, { color: colors.textSecondary }]}
+          numberOfLines={2}
+        >
           {offer.message}
         </Text>
       )}
@@ -399,9 +447,17 @@ const OfferCard: React.FC<{ offer: Offer; colors: any }> = ({ offer, colors }) =
 };
 
 // Composant Card pour les transactions
-const TransactionCard: React.FC<{ transaction: Transaction; colors: any }> = ({ transaction, colors }) => {
+const TransactionCard: React.FC<{ transaction: Transaction; colors: typeof LIGHT_COLORS }> = ({
+  transaction,
+  colors,
+}) => {
   return (
-    <Card style={StyleSheet.flatten([componentStyles.transactionCard, { backgroundColor: colors.surface, borderColor: colors.border }])}>
+    <Card
+      style={StyleSheet.flatten([
+        componentStyles.transactionCard,
+        { backgroundColor: colors.surface, borderColor: colors.border },
+      ])}
+    >
       <View style={componentStyles.transactionHeader}>
         <Ionicons name="checkmark-circle" size={20} color={colors.success} />
         <Text style={[componentStyles.transactionDate, { color: colors.textSecondary }]}>
@@ -419,14 +475,17 @@ const TransactionCard: React.FC<{ transaction: Transaction; colors: any }> = ({ 
 };
 
 // Composant Card pour les listings
-const ListingCard: React.FC<{ listing: MarketplaceListing; colors: any; navigation: any }> = ({
-  listing,
-  colors,
-  navigation,
-}) => {
+const ListingCard: React.FC<{
+  listing: MarketplaceListing;
+  colors: typeof LIGHT_COLORS;
+  navigation: NavigationProp<any>;
+}> = ({ listing, colors, navigation }) => {
   return (
     <TouchableOpacity
-      style={[componentStyles.listingCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+      style={[
+        componentStyles.listingCard,
+        { backgroundColor: colors.surface, borderColor: colors.border },
+      ]}
       onPress={() => navigation.navigate(SCREENS.MARKETPLACE as never)}
       activeOpacity={0.7}
     >
@@ -439,7 +498,10 @@ const ListingCard: React.FC<{ listing: MarketplaceListing; colors: any; navigati
       <Text style={[componentStyles.listingWeight, { color: colors.text }]}>
         {listing.weight || 'N/A'} kg
       </Text>
-      <Text style={[componentStyles.listingLocation, { color: colors.textSecondary }]} numberOfLines={1}>
+      <Text
+        style={[componentStyles.listingLocation, { color: colors.textSecondary }]}
+        numberOfLines={1}
+      >
         {listing.location.city}, {listing.location.region}
       </Text>
     </TouchableOpacity>
@@ -529,4 +591,3 @@ const componentStyles = StyleSheet.create({
 });
 
 export default DashboardBuyerScreen;
-

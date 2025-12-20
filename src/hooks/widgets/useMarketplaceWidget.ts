@@ -31,17 +31,17 @@ export function useMarketplaceWidget(projetId?: string): MarketplaceWidgetData |
 
     (async () => {
       try {
-        const { getDatabase } = await import('../../services/database');
-        const db = await getDatabase();
-        const { MarketplaceListingRepository } = await import('../../database/repositories');
-        const listingRepo = new MarketplaceListingRepository(db);
+        const apiClient = (await import('../../services/api/apiClient')).default;
 
-        const myListings = await listingRepo.findByFarmId(projetId);
+        // Charger les listings depuis l'API backend
+        const myListings = await apiClient.get<any[]>('/marketplace/listings', {
+          params: { projet_id: projetId },
+        });
         const myActiveListings = myListings.filter(
           (l) => l.status === 'available' || l.status === 'reserved'
         ).length;
 
-        const allListings = await listingRepo.findAll();
+        const allListings = await apiClient.get<any[]>('/marketplace/listings');
         const availableListings = allListings.filter(
           (l) => (l.status === 'available' || l.status === 'reserved') && l.farmId !== projetId
         ).length;
@@ -69,4 +69,3 @@ export function useMarketplaceWidget(projetId?: string): MarketplaceWidgetData |
     };
   }, [projetId, marketplaceStats]);
 }
-

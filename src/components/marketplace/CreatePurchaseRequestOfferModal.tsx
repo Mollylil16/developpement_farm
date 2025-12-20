@@ -19,12 +19,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { MarketplaceTheme } from '../../styles/marketplace.theme';
 import { SPACING } from '../../constants/theme';
-import type { PurchaseRequest, PurchaseRequestMatch, MarketplaceListing } from '../../types/marketplace';
-import { getDatabase } from '../../services/database';
-import { getPurchaseRequestService } from '../../services/PurchaseRequestService';
-import { MarketplaceListingRepository } from '../../database/repositories/MarketplaceListingRepository';
-import { AnimalRepository } from '../../database/repositories/AnimalRepository';
-import { PeseeRepository } from '../../database/repositories/PeseeRepository';
+import type {
+  PurchaseRequest,
+  PurchaseRequestMatch,
+  MarketplaceListing,
+} from '../../types/marketplace';
+import apiClient from '../../services/api/apiClient';
 
 interface CreatePurchaseRequestOfferModalProps {
   visible: boolean;
@@ -62,21 +62,20 @@ export default function CreatePurchaseRequestOfferModal({
   const loadListing = async () => {
     try {
       setFetchingListing(true);
-      const db = await getDatabase();
-      const listingRepo = new MarketplaceListingRepository(db);
-      const animalRepo = new AnimalRepository(db);
-      const poidsRepo = new PeseeRepository(db);
-
-      const listingData = await listingRepo.findById(match.listingId);
+      // Charger le listing depuis l'API backend
+      const listingData = await apiClient.get<any>(`/marketplace/listings/${match.listingId}`);
       if (!listingData) {
         Alert.alert('Erreur', 'Annonce introuvable');
         onClose();
         return;
       }
 
-      // Récupérer le poids actuel de l'animal
-      const animal = await animalRepo.findById(listingData.subjectId);
-      const latestWeight = await poidsRepo.findLastByAnimal(listingData.subjectId);
+      // Récupérer le poids actuel de l'animal depuis l'API backend
+      const animal = await apiClient.get<any>(`/production/animaux/${listingData.subjectId}`);
+      const pesees = await apiClient.get<any[]>(`/production/pesees`, {
+        params: { animal_id: listingData.subjectId, limit: 1 },
+      });
+      const latestWeight = pesees && pesees.length > 0 ? pesees[0] : null;
       const currentWeight = latestWeight?.poids_kg || animal?.poids_initial || 0;
 
       // Pré-remplir le prix proposé avec le prix du listing
@@ -85,7 +84,7 @@ export default function CreatePurchaseRequestOfferModal({
       setListing(listingData);
     } catch (error) {
       console.error('Erreur chargement listing:', error);
-      Alert.alert('Erreur', 'Impossible de charger les détails de l\'annonce');
+      Alert.alert('Erreur', "Impossible de charger les détails de l'annonce");
     } finally {
       setFetchingListing(false);
     }
@@ -104,11 +103,17 @@ export default function CreatePurchaseRequestOfferModal({
     }
 
     if (parseInt(quantity) > purchaseRequest.quantity) {
-      Alert.alert('Erreur', `La quantité ne peut pas dépasser ${purchaseRequest.quantity} (demandé par l'acheteur)`);
+      Alert.alert(
+        'Erreur',
+        `La quantité ne peut pas dépasser ${purchaseRequest.quantity} (demandé par l'acheteur)`
+      );
       return;
     }
 
-    if (purchaseRequest.maxPricePerKg && parseFloat(proposedPricePerKg) > purchaseRequest.maxPricePerKg) {
+    if (
+      purchaseRequest.maxPricePerKg &&
+      parseFloat(proposedPricePerKg) > purchaseRequest.maxPricePerKg
+    ) {
       Alert.alert(
         'Attention',
         `Le prix proposé (${parseFloat(proposedPricePerKg).toLocaleString()} FCFA/kg) dépasse le prix maximum souhaité par l'acheteur (${purchaseRequest.maxPricePerKg.toLocaleString()} FCFA/kg). Voulez-vous continuer ?`,
@@ -126,30 +131,33 @@ export default function CreatePurchaseRequestOfferModal({
   const submitOffer = async () => {
     setLoading(true);
     try {
-      const db = await getDatabase();
-      const service = getPurchaseRequestService(db);
-
       if (!listing) {
         Alert.alert('Erreur', 'Annonce introuvable');
         return;
       }
 
-      await service.createOffer({
+      const proposedPricePerKgValue = parseFloat(proposedPricePerKg);
+      const quantityValue = parseInt(quantity);
+      const proposedTotalPrice = proposedPricePerKgValue * (listing.weight || 0) * quantityValue;
+
+      // Créer l'offre via l'API backend
+      await apiClient.post('/marketplace/purchase-request-offers', {
         purchaseRequestId: purchaseRequest.id,
-        producerId,
         listingId: listing.id,
         subjectIds: [listing.subjectId], // Pour l'instant, un listing = un sujet
-        proposedPricePerKg: parseFloat(proposedPricePerKg),
-        quantity: parseInt(quantity),
+        proposedPricePerKg: proposedPricePerKgValue,
+        proposedTotalPrice,
+        quantity: quantityValue,
         availableDate: availableDate || undefined,
         message: message.trim() || undefined,
       });
 
-      Alert.alert('Succès', 'Votre offre a été envoyée à l\'acheteur.');
+      Alert.alert('Succès', "Votre offre a été envoyée à l'acheteur.");
       onSuccess();
       handleClose();
-    } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Impossible de créer l\'offre');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Impossible de créer l'offre";
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -190,7 +198,10 @@ export default function CreatePurchaseRequestOfferModal({
             <View style={[styles.header, { borderBottomColor: colors.divider }]}>
               <View style={styles.headerContent}>
                 <Text style={[styles.headerTitle, { color: colors.text }]}>Faire une offre</Text>
-                <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
+                <Text
+                  style={[styles.headerSubtitle, { color: colors.textSecondary }]}
+                  numberOfLines={1}
+                >
                   {purchaseRequest.title}
                 </Text>
               </View>
@@ -201,14 +212,25 @@ export default function CreatePurchaseRequestOfferModal({
 
             <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
               {/* Détails de la demande */}
-              <View style={[styles.infoBox, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                <Text style={[styles.infoTitle, { color: colors.text }]}>Demande de l'acheteur</Text>
+              <View
+                style={[
+                  styles.infoBox,
+                  { backgroundColor: colors.background, borderColor: colors.border },
+                ]}
+              >
+                <Text style={[styles.infoTitle, { color: colors.text }]}>
+                  Demande de l'acheteur
+                </Text>
                 <View style={styles.infoRow}>
                   <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Race:</Text>
-                  <Text style={[styles.infoValue, { color: colors.text }]}>{purchaseRequest.race}</Text>
+                  <Text style={[styles.infoValue, { color: colors.text }]}>
+                    {purchaseRequest.race}
+                  </Text>
                 </View>
                 <View style={styles.infoRow}>
-                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Poids souhaité:</Text>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                    Poids souhaité:
+                  </Text>
                   <Text style={[styles.infoValue, { color: colors.text }]}>
                     {purchaseRequest.minWeight}-{purchaseRequest.maxWeight} kg
                   </Text>
@@ -221,7 +243,9 @@ export default function CreatePurchaseRequestOfferModal({
                 </View>
                 {purchaseRequest.maxPricePerKg && (
                   <View style={styles.infoRow}>
-                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Prix max souhaité:</Text>
+                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                      Prix max souhaité:
+                    </Text>
                     <Text style={[styles.infoValue, { color: colors.text }]}>
                       {purchaseRequest.maxPricePerKg.toLocaleString()} FCFA/kg
                     </Text>
@@ -235,7 +259,14 @@ export default function CreatePurchaseRequestOfferModal({
                   Prix proposé au kg vif (FCFA) *
                 </Text>
                 <TextInput
-                  style={[styles.input, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: colors.background,
+                      color: colors.text,
+                      borderColor: colors.border,
+                    },
+                  ]}
                   value={proposedPricePerKg}
                   onChangeText={setProposedPricePerKg}
                   placeholder="Ex: 450"
@@ -255,7 +286,14 @@ export default function CreatePurchaseRequestOfferModal({
                   Quantité que vous pouvez fournir *
                 </Text>
                 <TextInput
-                  style={[styles.input, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: colors.background,
+                      color: colors.text,
+                      borderColor: colors.border,
+                    },
+                  ]}
                   value={quantity}
                   onChangeText={setQuantity}
                   placeholder={`Max: ${purchaseRequest.quantity}`}
@@ -263,7 +301,8 @@ export default function CreatePurchaseRequestOfferModal({
                   placeholderTextColor={colors.textSecondary}
                 />
                 <Text style={[styles.hint, { color: colors.textSecondary }]}>
-                  Maximum demandé: {purchaseRequest.quantity} tête{purchaseRequest.quantity > 1 ? 's' : ''}
+                  Maximum demandé: {purchaseRequest.quantity} tête
+                  {purchaseRequest.quantity > 1 ? 's' : ''}
                 </Text>
               </View>
 
@@ -271,7 +310,14 @@ export default function CreatePurchaseRequestOfferModal({
               <View style={styles.field}>
                 <Text style={[styles.label, { color: colors.text }]}>Date de disponibilité</Text>
                 <TextInput
-                  style={[styles.input, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: colors.background,
+                      color: colors.text,
+                      borderColor: colors.border,
+                    },
+                  ]}
                   value={availableDate}
                   onChangeText={setAvailableDate}
                   placeholder="YYYY-MM-DD"
@@ -285,7 +331,11 @@ export default function CreatePurchaseRequestOfferModal({
                 <TextInput
                   style={[
                     styles.textArea,
-                    { backgroundColor: colors.background, color: colors.text, borderColor: colors.border },
+                    {
+                      backgroundColor: colors.background,
+                      color: colors.text,
+                      borderColor: colors.border,
+                    },
                   ]}
                   value={message}
                   onChangeText={setMessage}
@@ -304,7 +354,9 @@ export default function CreatePurchaseRequestOfferModal({
                 onPress={handleClose}
                 disabled={loading}
               >
-                <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>Annuler</Text>
+                <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>
+                  Annuler
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.submitButton, { backgroundColor: colors.primary }]}
@@ -312,9 +364,11 @@ export default function CreatePurchaseRequestOfferModal({
                 disabled={loading}
               >
                 {loading ? (
-                  <ActivityIndicator color={colors.textOnPrimary} />
-                ) : (
-                  <Text style={[styles.submitButtonText, { color: colors.textOnPrimary }]}>Envoyer l'offre</Text>
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={[styles.submitButtonText, { color: '#FFFFFF' }]}>
+                    Envoyer l'offre
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -462,4 +516,3 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
 });
-

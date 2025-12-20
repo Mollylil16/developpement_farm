@@ -161,7 +161,7 @@ export function generateFinanceHTML(data: FinanceData): string {
                 (depense) => `
               <tr>
                 <td>${formatDate(depense.date)}</td>
-                <td>${depense.libelle}</td>
+                <td>${depense.libelle_categorie || depense.commentaire || ''}</td>
                 <td><span class="badge badge-warning">${depense.categorie}</span></td>
                 <td class="text-right">${formatCurrency(depense.montant)}</td>
               </tr>

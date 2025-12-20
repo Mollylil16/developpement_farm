@@ -156,8 +156,9 @@ export default function RationCalculatorComponent() {
       setNombrePorcs('');
       setSelectedIngredients([]);
       setResult(null);
-    } catch (error: any) {
-      Alert.alert('Erreur', error || "Erreur lors de l'enregistrement");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error) || "Erreur lors de l'enregistrement";
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setCalculating(false);
     }

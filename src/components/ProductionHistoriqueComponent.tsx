@@ -31,10 +31,11 @@ import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import Card from './Card';
 import { useNavigation } from '@react-navigation/native';
+import type { NavigationProp } from '@react-navigation/native';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { calculerAge, getStatutColor } from '../utils/animalUtils';
-import { 
-  loadMortalitesParProjet, 
+import {
+  loadMortalitesParProjet,
   loadStatistiquesMortalite,
   deleteMortalite,
 } from '../store/slices/mortalitesSlice';
@@ -47,7 +48,7 @@ export default function ProductionHistoriqueComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canUpdate, canDelete } = useActionPermissions();
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NavigationProp<any>>();
   const { projetActif } = useAppSelector((state) => state.projet);
   const animaux = useAppSelector(selectAllAnimaux);
   const loading = useAppSelector(selectProductionLoading);
@@ -107,8 +108,9 @@ export default function ProductionHistoriqueComponent() {
           onPress: async () => {
             try {
               await dispatch(deleteProductionAnimal(animal.id)).unwrap();
-            } catch (error: any) {
-              Alert.alert('Erreur', error || 'Erreur lors de la suppression');
+            } catch (error: unknown) {
+              const errorMessage = error instanceof Error ? error.message : String(error) || 'Erreur lors de la suppression';
+              Alert.alert('Erreur', errorMessage);
             }
           },
         },
@@ -121,12 +123,12 @@ export default function ProductionHistoriqueComponent() {
       Alert.alert('Permission refusée', "Vous n'avez pas la permission de modifier les animaux.");
       return;
     }
-    
-    const messageSupplementaire = 
+
+    const messageSupplementaire =
       animal.statut === 'mort' && nouveauStatut === 'actif'
         ? "\n\nL'entrée de mortalité associée sera supprimée."
         : '';
-    
+
     Alert.alert(
       'Changer le statut',
       `Voulez-vous changer le statut de ${animal.code}${animal.nom ? ` (${animal.nom})` : ''} en "${STATUT_ANIMAL_LABELS[nouveauStatut]}" ?${messageSupplementaire}`,
@@ -147,11 +149,11 @@ export default function ProductionHistoriqueComponent() {
                 const mortaliteCorrespondante = mortalites.find(
                   (m) => m.animal_code === animal.code && m.projet_id === projetActif.id
                 );
-                
+
                 if (mortaliteCorrespondante) {
                   try {
                     await dispatch(deleteMortalite(mortaliteCorrespondante.id)).unwrap();
-                  } catch (deleteError: any) {
+                  } catch (deleteError: unknown) {
                     console.warn('Erreur lors de la suppression de la mortalité:', deleteError);
                     // Ne pas bloquer si la suppression échoue
                   }
@@ -165,13 +167,13 @@ export default function ProductionHistoriqueComponent() {
                   updates: { statut: nouveauStatut },
                 })
               ).unwrap();
-              
+
               // 3. Recharger toutes les données pertinentes
               await Promise.all([
                 dispatch(loadProductionAnimaux({ projetId: projetActif.id })).unwrap(),
                 dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 })).unwrap(),
               ]);
-              
+
               // Si on a touché au statut "mort", recharger les mortalités
               if (animal.statut === 'mort' || nouveauStatut === 'mort') {
                 await Promise.all([
@@ -179,13 +181,14 @@ export default function ProductionHistoriqueComponent() {
                   dispatch(loadStatistiquesMortalite(projetActif.id)).unwrap(),
                 ]);
               }
-              
+
               // Si le statut devient "actif", naviguer vers le cheptel
               if (nouveauStatut === 'actif') {
                 navigation.goBack();
               }
-            } catch (error: any) {
-              Alert.alert('Erreur', error || 'Erreur lors de la mise à jour du statut');
+            } catch (error: unknown) {
+              const errorMessage = error instanceof Error ? error.message : String(error) || 'Erreur lors de la mise à jour du statut';
+              Alert.alert('Erreur', errorMessage);
             }
           },
         },

@@ -37,10 +37,7 @@ export class ChatService {
   private config: ChatServiceConfig;
   private callbacks: ChatTransportCallbacks;
 
-  constructor(
-    config: ChatServiceConfig,
-    callbacks: ChatTransportCallbacks
-  ) {
+  constructor(config: ChatServiceConfig, callbacks: ChatTransportCallbacks) {
     this.config = config;
     this.callbacks = callbacks;
   }
@@ -51,14 +48,7 @@ export class ChatService {
   private createTransport(): IChatTransport {
     switch (this.config.transportType) {
       case 'polling':
-        if (!this.config.database) {
-          throw new Error('Database requis pour PollingTransport');
-        }
-        return new PollingChatTransport(
-          this.config.database,
-          this.config,
-          this.callbacks
-        );
+        return new PollingChatTransport(this.config, this.callbacks);
 
       case 'websocket':
         return new WebSocketChatTransport(this.config, this.callbacks);
@@ -92,9 +82,7 @@ export class ChatService {
   /**
    * Envoyer un message
    */
-  async sendMessage(
-    message: Omit<ChatMessage, 'id' | 'createdAt'>
-  ): Promise<ChatMessage> {
+  async sendMessage(message: Omit<ChatMessage, 'id' | 'createdAt'>): Promise<ChatMessage> {
     if (!this.transport) {
       throw new Error('Service non connecté');
     }
@@ -159,4 +147,3 @@ export function createChatService(
 ): ChatService {
   return new ChatService(config, callbacks);
 }
-

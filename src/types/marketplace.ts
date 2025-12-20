@@ -12,12 +12,12 @@ export type MarketplaceStatus = 'available' | 'reserved' | 'pending_delivery' | 
  * Statut ├®tendu d'un sujet incluant le marketplace
  */
 export interface SubjectMarketplaceStatus {
-  inHerd: boolean;                    // Toujours true jusqu'├á vente finalis├®e
-  inMarketplace: boolean;             // true si mis en vente
+  inHerd: boolean; // Toujours true jusqu'├á vente finalis├®e
+  inMarketplace: boolean; // true si mis en vente
   marketplaceStatus?: MarketplaceStatus;
-  listingId?: string;                 // ID du listing actif
-  soldDate?: string;                  // Date de vente (ISO)
-  soldTo?: string;                    // ID de l'acheteur
+  listingId?: string; // ID du listing actif
+  soldDate?: string; // Date de vente (ISO)
+  soldTo?: string; // ID de l'acheteur
   deliveryConfirmedBy?: {
     producer: boolean;
     buyer: boolean;
@@ -41,11 +41,11 @@ export interface Location {
  * Conditions de vente
  */
 export interface SaleTerms {
-  transport: 'buyer_responsibility';  // Toujours ├á la charge de l'acheteur
-  slaughter: 'buyer_responsibility';  // Toujours ├á la charge de l'acheteur
-  paymentTerms?: string;              // 'on_delivery' | 'advance' | 'terms'
-  warranty: string;                   // Garantie sanitaire
-  cancellationPolicy: string;         // Politique d'annulation
+  transport: 'buyer_responsibility'; // Toujours ├á la charge de l'acheteur
+  slaughter: 'buyer_responsibility'; // Toujours ├á la charge de l'acheteur
+  paymentTerms?: string; // 'on_delivery' | 'advance' | 'terms'
+  warranty: string; // Garantie sanitaire
+  cancellationPolicy: string; // Politique d'annulation
 }
 
 /**
@@ -55,8 +55,10 @@ export const DEFAULT_SALE_TERMS: SaleTerms = {
   transport: 'buyer_responsibility',
   slaughter: 'buyer_responsibility',
   paymentTerms: 'on_delivery',
-  warranty: 'Tous les documents sanitaires et certificats seront fournis. Garantie de conformit├® au poids et ├á l\'├óge annonc├®s (marge de ┬▒5%)',
-  cancellationPolicy: 'Annulation possible jusqu\'├á 48h avant la date de livraison. Apr├¿s ce d├®lai, des frais peuvent s\'appliquer.',
+  warranty:
+    "Tous les documents sanitaires et certificats seront fournis. Garantie de conformit├® au poids et ├á l'├óge annonc├®s (marge de ┬▒5%)",
+  cancellationPolicy:
+    "Annulation possible jusqu'├á 48h avant la date de livraison. Apr├¿s ce d├®lai, des frais peuvent s'appliquer.",
 };
 
 /**
@@ -64,20 +66,20 @@ export const DEFAULT_SALE_TERMS: SaleTerms = {
  */
 export interface MarketplaceListing {
   id: string;
-  subjectId: string;                  // ID du sujet (animal)
-  producerId: string;                 // ID du producteur
-  farmId: string;                     // ID de la ferme (projet)
-  pricePerKg: number;                 // Prix au kg
-  calculatedPrice: number;            // Prix total calcul├®
+  subjectId: string; // ID du sujet (animal)
+  producerId: string; // ID du producteur
+  farmId: string; // ID de la ferme (projet)
+  pricePerKg: number; // Prix au kg
+  calculatedPrice: number; // Prix total calcul├®
   status: MarketplaceStatus;
-  listedAt: string;                   // Date de mise en vente (ISO)
-  updatedAt: string;                  // Derni├¿re modification (ISO)
-  lastWeightDate: string;             // Date derni├¿re pes├®e (ISO)
+  listedAt: string; // Date de mise en vente (ISO)
+  updatedAt: string; // Derni├¿re modification (ISO)
+  lastWeightDate: string; // Date derni├¿re pes├®e (ISO)
   location: Location;
   saleTerms: SaleTerms;
-  views: number;                      // Analytics: nombre de vues
-  inquiries: number;                  // Analytics: nombre d'offres re├ºues
-  type?: 'subject' | 'farm';          // Type de listing pour l'affichage
+  views: number; // Analytics: nombre de vues
+  inquiries: number; // Analytics: nombre d'offres re├ºues
+  type?: 'subject' | 'farm'; // Type de listing pour l'affichage
   // Propriétés enrichies pour SubjectCard (optionnelles)
   code?: string;
   race?: string;
@@ -93,62 +95,68 @@ export interface MarketplaceListing {
 /**
  * Statut d'une offre
  */
-export type OfferStatus = 'pending' | 'accepted' | 'rejected' | 'countered' | 'expired' | 'withdrawn';
+export type OfferStatus =
+  | 'pending'
+  | 'accepted'
+  | 'rejected'
+  | 'countered'
+  | 'expired'
+  | 'withdrawn';
 
 /**
  * Offre d'achat
  */
 export interface Offer {
   id: string;
-  listingId: string;                  // ID de l'annonce
-  subjectIds: string[];               // IDs des sujets s├®lectionn├®s
-  buyerId: string;                    // ID de l'acheteur
-  producerId: string;                 // ID du producteur
-  proposedPrice: number;              // Prix propos├®
-  originalPrice: number;              // Prix initial
-  message?: string;                   // Message optionnel
+  listingId: string; // ID de l'annonce
+  subjectIds: string[]; // IDs des sujets s├®lectionn├®s
+  buyerId: string; // ID de l'acheteur
+  producerId: string; // ID du producteur
+  proposedPrice: number; // Prix propos├®
+  originalPrice: number; // Prix initial
+  message?: string; // Message optionnel
   status: OfferStatus;
-  termsAccepted: boolean;             // Acceptation conditions de vente
-  termsAcceptedAt?: string;           // Date d'acceptation (ISO)
-  createdAt: string;                  // Date de cr├®ation (ISO)
-  respondedAt?: string;               // Date de r├®ponse (ISO)
-  expiresAt: string;                  // Date d'expiration (ISO)
+  termsAccepted: boolean; // Acceptation conditions de vente
+  termsAcceptedAt?: string; // Date d'acceptation (ISO)
+  createdAt: string; // Date de cr├®ation (ISO)
+  respondedAt?: string; // Date de r├®ponse (ISO)
+  expiresAt: string; // Date d'expiration (ISO)
 }
 
 /**
  * Statut d'une transaction
  */
-export type TransactionStatus = 
-  | 'confirmed'           // Offre accept├®e
-  | 'preparing'           // En pr├®paration
-  | 'ready_for_delivery'  // Pr├¬t pour livraison
-  | 'pending_delivery'    // Alias pour ready_for_delivery (compatibilit├® UI)
-  | 'in_transit'          // En cours de livraison
-  | 'delivered'           // Livr├®
-  | 'completed'           // Termin├® (double confirmation)
-  | 'cancelled';          // Annul├®
+export type TransactionStatus =
+  | 'confirmed' // Offre accept├®e
+  | 'preparing' // En pr├®paration
+  | 'ready_for_delivery' // Pr├¬t pour livraison
+  | 'pending_delivery' // Alias pour ready_for_delivery (compatibilit├® UI)
+  | 'in_transit' // En cours de livraison
+  | 'delivered' // Livr├®
+  | 'completed' // Termin├® (double confirmation)
+  | 'cancelled'; // Annul├®
 
 /**
  * D├®tails de livraison
  */
 export interface DeliveryDetails {
-  scheduledDate: string;              // Date pr├®vue (ISO)
-  location: string;                   // Lieu de livraison
-  transportInfo?: string;             // Info transport
+  scheduledDate: string; // Date pr├®vue (ISO)
+  location: string; // Lieu de livraison
+  transportInfo?: string; // Info transport
   producerConfirmed: boolean;
   producerConfirmedAt?: string;
   buyerConfirmed: boolean;
   buyerConfirmedAt?: string;
-  deliveryProof?: string[];           // URLs des photos
+  deliveryProof?: string[]; // URLs des photos
 }
 
 /**
  * Documents de transaction
  */
 export interface TransactionDocuments {
-  healthCertificate?: string;         // URL certificat sanitaire
-  deliveryNote?: string;              // URL bon de livraison
-  invoice?: string;                   // URL facture
+  healthCertificate?: string; // URL certificat sanitaire
+  deliveryNote?: string; // URL bon de livraison
+  invoice?: string; // URL facture
 }
 
 /**
@@ -175,10 +183,10 @@ export interface Transaction {
  * Crit├¿res de notation
  */
 export interface RatingCriteria {
-  quality: number;                    // 1-5: Qualit├® des sujets
-  professionalism: number;            // 1-5: Professionnalisme
-  timeliness: number;                 // 1-5: Respect des d├®lais
-  communication: number;              // 1-5: Communication
+  quality: number; // 1-5: Qualit├® des sujets
+  professionalism: number; // 1-5: Professionnalisme
+  timeliness: number; // 1-5: Respect des d├®lais
+  communication: number; // 1-5: Communication
 }
 
 /**
@@ -203,14 +211,14 @@ export interface ProducerRating {
   buyerId: string;
   transactionId: string;
   ratings: RatingCriteria;
-  overall: number;                    // Moyenne automatique
+  overall: number; // Moyenne automatique
   comment?: string;
-  photos?: string[];                  // URLs photos
+  photos?: string[]; // URLs photos
   verifiedPurchase: boolean;
   status: RatingStatus;
   producerResponse?: ProducerResponse;
   createdAt: string;
-  helpfulCount: number;               // Nombre de "utile"
+  helpfulCount: number; // Nombre de "utile"
 }
 
 /**
@@ -240,8 +248,8 @@ export interface Notification {
   type: NotificationType;
   title: string;
   message: string;
-  body?: string;                       // Alias pour message (d├®tails suppl├®mentaires)
-  relatedId: string;                  // ID de l'offre, transaction, etc.
+  body?: string; // Alias pour message (d├®tails suppl├®mentaires)
+  relatedId: string; // ID de l'offre, transaction, etc.
   relatedType: NotificationRelatedType;
   read: boolean;
   actionUrl?: string;
@@ -259,7 +267,7 @@ export type ConversationStatus = 'active' | 'archived';
  */
 export interface ChatConversation {
   id: string;
-  participants: string[];             // [buyerId, producerId]
+  participants: string[]; // [buyerId, producerId]
   relatedListingId: string;
   relatedOfferId?: string;
   lastMessage: string;
@@ -315,7 +323,7 @@ export interface MarketplaceFilters {
   location?: {
     latitude: number;
     longitude: number;
-    radius: number;                   // en km
+    radius: number; // en km
   };
   minPrice?: number;
   maxPrice?: number;
@@ -325,20 +333,20 @@ export interface MarketplaceFilters {
   minAge?: number;
   maxAge?: number;
   status?: MarketplaceStatus;
-  producerRating?: number;            // Note minimale
+  producerRating?: number; // Note minimale
 }
 
 /**
  * Options de tri marketplace
  */
-export type MarketplaceSortOption = 
-  | 'distance'                        // Distance croissante
-  | 'price_asc'                       // Prix croissant
-  | 'price_desc'                      // Prix d├®croissant
-  | 'weight_asc'                      // Poids croissant
-  | 'weight_desc'                     // Poids d├®croissant
-  | 'rating'                          // Note d├®croissante
-  | 'recent';                         // Plus r├®cent
+export type MarketplaceSortOption =
+  | 'distance' // Distance croissante
+  | 'price_asc' // Prix croissant
+  | 'price_desc' // Prix d├®croissant
+  | 'weight_asc' // Poids croissant
+  | 'weight_desc' // Poids d├®croissant
+  | 'rating' // Note d├®croissante
+  | 'recent'; // Plus r├®cent
 
 /**
  * Param├¿tres de recherche marketplace
@@ -368,8 +376,8 @@ export interface ProducerStats {
   totalSales: number;
   averageRating: number;
   totalRatings: number;
-  responseTime: number;               // en heures
-  completionRate: number;             // pourcentage
+  responseTime: number; // en heures
+  completionRate: number; // pourcentage
 }
 
 /**
@@ -379,12 +387,12 @@ export interface FarmCard {
   id: string;
   name: string;
   location: Location;
-  distance?: number;                  // en km depuis l'acheteur
+  distance?: number; // en km depuis l'acheteur
   totalSubjects: number;
   totalWeight: number;
   averageRating: number;
   photoUrl?: string;
-  isNew: boolean;                     // Nouveau sur marketplace
+  isNew: boolean; // Nouveau sur marketplace
   stats: ProducerStats;
   // Nouvelles propriétés agrégées
   farmId: string;
@@ -429,7 +437,7 @@ export interface SubjectCard {
   pricePerKg: number;
   totalPrice: number;
   healthStatus: 'good' | 'attention' | 'critical';
-  vaccinations: boolean;              // ├Ç jour ou non
+  vaccinations: boolean; // ├Ç jour ou non
   available: boolean;
 }
 
@@ -454,8 +462,8 @@ export interface ListingAnalytics {
   views: number;
   inquiries: number;
   offers: number;
-  conversionRate: number;             // pourcentage
-  averageViewDuration: number;        // en secondes
+  conversionRate: number; // pourcentage
+  averageViewDuration: number; // en secondes
   viewsByDay: { [date: string]: number };
 }
 
@@ -484,7 +492,12 @@ export interface OfferWithDetails extends Offer {
 /**
  * Statut d'une demande d'achat
  */
-export type PurchaseRequestStatus = 'published' | 'fulfilled' | 'expired' | 'archived' | 'cancelled';
+export type PurchaseRequestStatus =
+  | 'published'
+  | 'fulfilled'
+  | 'expired'
+  | 'archived'
+  | 'cancelled';
 
 /**
  * Catégorie d'âge pour les demandes d'achat
@@ -538,7 +551,13 @@ export interface PurchaseRequest {
 /**
  * Statut d'une offre de producteur sur une demande d'achat
  */
-export type PurchaseRequestOfferStatus = 'pending' | 'accepted' | 'rejected' | 'countered' | 'expired' | 'withdrawn';
+export type PurchaseRequestOfferStatus =
+  | 'pending'
+  | 'accepted'
+  | 'rejected'
+  | 'countered'
+  | 'expired'
+  | 'withdrawn';
 
 /**
  * Offre d'un producteur sur une demande d'achat
@@ -602,4 +621,3 @@ export interface PurchaseRequestOfferWithDetails extends PurchaseRequestOffer {
   listing?: MarketplaceListing;
   subjects?: SubjectCard[];
 }
-

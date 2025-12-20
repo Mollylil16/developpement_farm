@@ -38,6 +38,7 @@ export interface Collaborateur {
 
 export interface CreateCollaborateurInput {
   projet_id: string;
+  user_id?: string; // ID de l'utilisateur lié (optionnel)
   nom: string;
   prenom: string;
   email: string;

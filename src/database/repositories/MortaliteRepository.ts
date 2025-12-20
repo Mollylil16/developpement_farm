@@ -1,70 +1,53 @@
 /**
  * MortaliteRepository - Gestion des mortalités
- * 
+ *
  * Responsabilités:
  * - CRUD des mortalités
  * - Statistiques de mortalité
  * - Suivi des causes
  * - Alertes de mortalité anormale
+ * 
+ * Utilise maintenant l'API REST du backend (PostgreSQL)
  */
 
-import * as SQLite from 'expo-sqlite';
 import { BaseRepository } from './BaseRepository';
 import { Mortalite } from '../../types/mortalite';
 import { ProductionAnimal } from '../../types/production';
-import uuid from 'react-native-uuid';
 import { AnimalRepository } from './AnimalRepository';
 
 export class MortaliteRepository extends BaseRepository<Mortalite> {
-  constructor(db: SQLite.SQLiteDatabase) {
-    super(db, 'mortalites');
+  constructor() {
+    super('mortalites', '/mortalites');
   }
 
   async create(data: Partial<Mortalite>): Promise<Mortalite> {
-    const id = uuid.v4().toString();
-    const now = new Date().toISOString();
+    const mortaliteData = {
+      projet_id: data.projet_id,
+      nombre_porcs: data.nombre_porcs || 1,
+      date: data.date || new Date().toISOString(),
+      cause: data.cause || null,
+      categorie: data.categorie || 'autre',
+      animal_code: data.animal_code || null,
+      notes: data.notes || null,
+    };
 
-    await this.execute(
-      `INSERT INTO mortalites (
-        id, projet_id, nombre_porcs, date, cause,
-        categorie, animal_code, notes, date_creation
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        data.projet_id,
-        data.nombre_porcs || 1,
-        data.date || now,
-        data.cause || null,
-        data.categorie || 'autre',
-        data.animal_code || null,
-        data.notes || null,
-        now,
-      ]
-    );
-
-    const created = await this.findById(id);
-    if (!created) {
-      throw new Error('Impossible de créer la mortalité');
-    }
-    return created;
+    return this.executePost<Mortalite>('/mortalites', mortaliteData);
   }
 
   /**
    * Créer une mortalité et mettre à jour automatiquement le statut des animaux concernés
-   * Cette méthode inclut la logique de validation et de mise à jour des animaux
    */
   async createWithAnimalUpdate(data: Partial<Mortalite>): Promise<Mortalite> {
     if (!data.projet_id) {
       throw new Error('projet_id est requis');
     }
 
-    const animalRepo = new AnimalRepository(this.db);
+    const animalRepo = new AnimalRepository();
     const animauxProjet = await animalRepo.findByProjet(data.projet_id);
-    const animauxActifs = animauxProjet.filter((a) => a.statut?.toLowerCase() === 'actif');
+    const animauxActifs = animauxProjet.filter(a => a.statut?.toLowerCase() === 'actif');
 
-    // Fonction helper pour déterminer si un animal correspond à la catégorie
     const animalCorrespondCategorie = (animal: ProductionAnimal, categorie: string): boolean => {
-      if (categorie === 'autre') return true; // Catégorie "autre" accepte tous les animaux
+      if (categorie === 'autre') return true;
 
       const isReproducteur = animal.reproducteur === true;
       const isMale = animal.sexe === 'male';
@@ -86,12 +69,10 @@ export class MortaliteRepository extends BaseRepository<Mortalite> {
       }
     };
 
-    // Filtrer les animaux actifs correspondant à la catégorie
-    const animauxCorrespondants = animauxActifs.filter((a) =>
+    const animauxCorrespondants = animauxActifs.filter(a =>
       animalCorrespondCategorie(a, data.categorie || 'autre')
     );
 
-    // Validation : vérifier qu'il y a assez d'animaux actifs disponibles
     const nombrePorcs = data.nombre_porcs || 1;
     if (nombrePorcs > animauxCorrespondants.length) {
       throw new Error(
@@ -100,20 +81,15 @@ export class MortaliteRepository extends BaseRepository<Mortalite> {
       );
     }
 
-    // Créer la mortalité
     const mortalite = await this.create(data);
-    const derniere_modification = new Date().toISOString();
 
-    // Mettre à jour le statut des animaux concernés
     if (data.animal_code) {
-      // Cas 1 : Code d'animal spécifique renseigné
       try {
         const animal = animauxProjet.find(
-          (a) => a.code === data.animal_code && a.statut?.toLowerCase() === 'actif'
+          a => a.code === data.animal_code && a.statut?.toLowerCase() === 'actif'
         );
 
         if (animal) {
-          // Changer le statut en "mort"
           await animalRepo.update(animal.id, {
             statut: 'mort' as const,
             actif: false,
@@ -125,10 +101,7 @@ export class MortaliteRepository extends BaseRepository<Mortalite> {
         );
       }
     } else {
-      // Cas 2 : Mortalité générique (sans code spécifique)
-      // Mettre à jour automatiquement les N premiers animaux actifs correspondant à la catégorie
       const animauxAMarquer = animauxCorrespondants.slice(0, nombrePorcs);
-
       for (const animal of animauxAMarquer) {
         await animalRepo.update(animal.id, {
           statut: 'mort',
@@ -141,36 +114,16 @@ export class MortaliteRepository extends BaseRepository<Mortalite> {
   }
 
   async update(id: string, data: Partial<Mortalite>): Promise<Mortalite> {
-    const fields: string[] = [];
-    const values: any[] = [];
+    const updateData: Record<string, unknown> = {};
 
-    if (data.nombre_porcs !== undefined) {
-      fields.push('nombre_porcs = ?');
-      values.push(data.nombre_porcs);
-    }
-    if (data.date !== undefined) {
-      fields.push('date = ?');
-      values.push(data.date);
-    }
-    if (data.cause !== undefined) {
-      fields.push('cause = ?');
-      values.push(data.cause);
-    }
-    if (data.categorie !== undefined) {
-      fields.push('categorie = ?');
-      values.push(data.categorie);
-    }
-    if (data.animal_code !== undefined) {
-      fields.push('animal_code = ?');
-      values.push(data.animal_code);
-    }
-    if (data.notes !== undefined) {
-      fields.push('notes = ?');
-      values.push(data.notes);
-    }
+    if (data.nombre_porcs !== undefined) updateData.nombre_porcs = data.nombre_porcs;
+    if (data.date !== undefined) updateData.date = data.date;
+    if (data.cause !== undefined) updateData.cause = data.cause;
+    if (data.categorie !== undefined) updateData.categorie = data.categorie;
+    if (data.animal_code !== undefined) updateData.animal_code = data.animal_code;
+    if (data.notes !== undefined) updateData.notes = data.notes;
 
-    if (fields.length === 0) {
-      // Aucun champ à mettre à jour
+    if (Object.keys(updateData).length === 0) {
       const existing = await this.findById(id);
       if (!existing) {
         throw new Error('Mortalité introuvable');
@@ -178,32 +131,27 @@ export class MortaliteRepository extends BaseRepository<Mortalite> {
       return existing;
     }
 
-    values.push(id);
-    await this.execute(`UPDATE mortalites SET ${fields.join(', ')} WHERE id = ?`, values);
-
-    const updated = await this.findById(id);
-    if (!updated) {
-      throw new Error('Mortalité introuvable');
-    }
-    return updated;
+    return this.executePatch<Mortalite>(`/mortalites/${id}`, updateData);
   }
 
   async findByProjet(projetId: string): Promise<Mortalite[]> {
-    return this.query<Mortalite>(
-      `SELECT * FROM mortalites 
-       WHERE projet_id = ?
-       ORDER BY date DESC`,
-      [projetId]
-    );
+    try {
+      return this.query<Mortalite>('/mortalites', { projet_id: projetId });
+    } catch (error) {
+      console.error('Error finding mortalites by projet:', error);
+      return [];
+    }
   }
 
   async findByPeriod(projetId: string, dateDebut: string, dateFin: string): Promise<Mortalite[]> {
-    return this.query<Mortalite>(
-      `SELECT * FROM mortalites 
-       WHERE projet_id = ? AND date >= ? AND date <= ?
-       ORDER BY date DESC`,
-      [projetId, dateDebut, dateFin]
-    );
+    try {
+      const mortalites = await this.findByProjet(projetId);
+      return mortalites.filter(m => m.date >= dateDebut && m.date <= dateFin)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    } catch (error) {
+      console.error('Error finding mortalites by period:', error);
+      return [];
+    }
   }
 
   /**
@@ -219,35 +167,55 @@ export class MortaliteRepository extends BaseRepository<Mortalite> {
     tauxMortalite: number;
     ageMoyen: number;
   }> {
-    const total = await this.count(projetId);
+    try {
+      // Utiliser l'endpoint backend si disponible
+      const result = await this.queryOne<{
+        total: number;
+        par_cause: Record<string, number>;
+        taux_mortalite: number;
+        age_moyen: number;
+      }>(`/mortalites/statistiques`, { projet_id: projetId });
 
-    const parCauseResult = await this.query<{ cause: string; count: number }>(
-      `SELECT cause, COUNT(*) as count FROM mortalites WHERE projet_id = ? GROUP BY cause`,
-      [projetId]
-    );
+      if (result) {
+        return {
+          total: result.total,
+          parCause: result.par_cause || {},
+          tauxMortalite: result.taux_mortalite || 0,
+          ageMoyen: result.age_moyen || 0,
+        };
+      }
 
-    const parCause: Record<string, number> = {};
-    parCauseResult.forEach((row) => {
-      parCause[row.cause] = row.count;
-    });
+      // Fallback: calculer côté client
+      const mortalites = await this.findByProjet(projetId);
+      const total = mortalites.reduce((sum, m) => sum + (m.nombre_porcs || 1), 0);
 
-    // Taux de mortalité = (morts / total animaux) * 100
-    const totalAnimauxResult = await this.queryOne<{ count: number }>(
-      `SELECT COUNT(*) as count FROM production_animaux WHERE projet_id = ?`,
-      [projetId]
-    );
+      const parCause: Record<string, number> = {};
+      mortalites.forEach(m => {
+        const cause = m.cause || 'inconnue';
+        parCause[cause] = (parCause[cause] || 0) + (m.nombre_porcs || 1);
+      });
 
-    const totalAnimaux = totalAnimauxResult?.count || 0;
-    const tauxMortalite = totalAnimaux > 0 ? (total / totalAnimaux) * 100 : 0;
+      // Pour le taux de mortalité, il faudrait accéder aux animaux
+      const animalRepo = new AnimalRepository();
+      const animaux = await animalRepo.findByProjet(projetId);
+      const totalAnimaux = animaux.length;
+      const tauxMortalite = totalAnimaux > 0 ? (total / totalAnimaux) * 100 : 0;
 
-    // Note: age_jours n'existe pas dans la table mortalites
-    // L'âge moyen n'est pas disponible avec la structure actuelle
-    return {
-      total,
-      parCause,
-      tauxMortalite,
-      ageMoyen: 0, // Non disponible - la colonne age_jours n'existe pas dans la table
-    };
+      return {
+        total,
+        parCause,
+        tauxMortalite,
+        ageMoyen: 0, // Non disponible
+      };
+    } catch (error) {
+      console.error('Error getting stats:', error);
+      return {
+        total: 0,
+        parCause: {},
+        tauxMortalite: 0,
+        ageMoyen: 0,
+      };
+    }
   }
 
   /**
@@ -259,71 +227,78 @@ export class MortaliteRepository extends BaseRepository<Mortalite> {
     mortalites_par_categorie: { truie: number; verrat: number; porcelet: number; autre: number };
     mortalites_par_mois: Array<{ mois: string; nombre: number }>;
   }> {
-    console.log('📊 [MortaliteRepository] Calcul des statistiques pour projet:', projetId);
-    
-    // Total des morts
-    const totalResult = await this.queryOne<{ total: number }>(
-      `SELECT SUM(nombre_porcs) as total FROM mortalites WHERE projet_id = ?`,
-      [projetId]
-    );
-    const total_morts = totalResult?.total || 0;
-    console.log('💀 Total morts calculé:', total_morts);
+    try {
+      // Utiliser l'endpoint backend si disponible
+      const result = await this.queryOne<{
+        total_morts: number;
+        taux_mortalite: number;
+        mortalites_par_categorie: { truie: number; verrat: number; porcelet: number; autre: number };
+        mortalites_par_mois: Array<{ mois: string; nombre: number }>;
+      }>(`/mortalites/statistiques`, { projet_id: projetId });
 
-    // Par catégorie
-    const parCategorieResult = await this.query<{ categorie: string; total: number }>(
-      `SELECT categorie, SUM(nombre_porcs) as total 
-       FROM mortalites 
-       WHERE projet_id = ? 
-       GROUP BY categorie`,
-      [projetId]
-    );
+      if (result) {
+        return result;
+      }
 
-    const mortalites_par_categorie = {
-      truie: 0,
-      verrat: 0,
-      porcelet: 0,
-      autre: 0,
-    };
+      // Fallback: calculer côté client
+      const mortalites = await this.findByProjet(projetId);
+      const total_morts = mortalites.reduce((sum, m) => sum + (m.nombre_porcs || 1), 0);
 
-    parCategorieResult.forEach((row) => {
-      if (row.categorie === 'truie') mortalites_par_categorie.truie = row.total;
-      else if (row.categorie === 'verrat') mortalites_par_categorie.verrat = row.total;
-      else if (row.categorie === 'porcelet') mortalites_par_categorie.porcelet = row.total;
-      else mortalites_par_categorie.autre += row.total;
-    });
-    console.log('📈 Morts par catégorie:', mortalites_par_categorie);
+      const mortalites_par_categorie = {
+        truie: 0,
+        verrat: 0,
+        porcelet: 0,
+        autre: 0,
+      };
 
-    // Calculer le taux de mortalité
-    // Compter tous les animaux du projet (actifs + morts + vendus + autres)
-    const totalAnimauxResult = await this.queryOne<{ count: number }>(
-      `SELECT COUNT(*) as count FROM production_animaux WHERE projet_id = ?`,
-      [projetId]
-    );
-    const totalAnimaux = totalAnimauxResult?.count || 0;
-    const taux_mortalite = totalAnimaux > 0 ? (total_morts / totalAnimaux) * 100 : 0;
-    console.log('📊 Taux de mortalité:', taux_mortalite.toFixed(2), '% (', total_morts, '/', totalAnimaux, ')');
+      mortalites.forEach(m => {
+        const categorie = m.categorie || 'autre';
+        const nombre = m.nombre_porcs || 1;
+        if (categorie === 'truie') mortalites_par_categorie.truie += nombre;
+        else if (categorie === 'verrat') mortalites_par_categorie.verrat += nombre;
+        else if (categorie === 'porcelet') mortalites_par_categorie.porcelet += nombre;
+        else mortalites_par_categorie.autre += nombre;
+      });
 
-    // Évolution par mois (6 derniers mois)
-    const evolutionResult = await this.query<{ mois: string; nombre: number }>(
-      `SELECT strftime('%Y-%m', date) as mois, SUM(nombre_porcs) as nombre
-       FROM mortalites 
-       WHERE projet_id = ? AND date >= date('now', '-6 months')
-       GROUP BY strftime('%Y-%m', date)
-       ORDER BY mois ASC`,
-      [projetId]
-    );
+      const animalRepo = new AnimalRepository();
+      const animaux = await animalRepo.findByProjet(projetId);
+      const totalAnimaux = animaux.length;
+      const taux_mortalite = totalAnimaux > 0 ? (total_morts / totalAnimaux) * 100 : 0;
 
-    const mortalites_par_mois = evolutionResult.map((row) => ({
-      mois: row.mois,
-      nombre: row.nombre,
-    }));
+      // Grouper par mois (6 derniers mois)
+      const mortalites_par_mois: Array<{ mois: string; nombre: number }> = [];
+      const sixMoisAgo = new Date();
+      sixMoisAgo.setMonth(sixMoisAgo.getMonth() - 6);
 
-    return {
-      total_morts,
-      taux_mortalite,
-      mortalites_par_categorie,
-      mortalites_par_mois,
-    };
+      const mortalitesRecentes = mortalites.filter(m => new Date(m.date) >= sixMoisAgo);
+      const parMois = new Map<string, number>();
+
+      mortalitesRecentes.forEach(m => {
+        const date = new Date(m.date);
+        const mois = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        parMois.set(mois, (parMois.get(mois) || 0) + (m.nombre_porcs || 1));
+      });
+
+      parMois.forEach((nombre, mois) => {
+        mortalites_par_mois.push({ mois, nombre });
+      });
+
+      mortalites_par_mois.sort((a, b) => a.mois.localeCompare(b.mois));
+
+      return {
+        total_morts,
+        taux_mortalite,
+        mortalites_par_categorie,
+        mortalites_par_mois,
+      };
+    } catch (error) {
+      console.error('Error getting statistiques mortalite:', error);
+      return {
+        total_morts: 0,
+        taux_mortalite: 0,
+        mortalites_par_categorie: { truie: 0, verrat: 0, porcelet: 0, autre: 0 },
+        mortalites_par_mois: [],
+      };
+    }
   }
 }
-

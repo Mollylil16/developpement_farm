@@ -57,4 +57,3 @@ export function useMortalitesWidget(projetId?: string): MortalitesWidgetData | n
     };
   }, [projetId, mortalites]);
 }
-

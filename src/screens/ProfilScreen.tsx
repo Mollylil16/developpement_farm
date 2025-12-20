@@ -19,16 +19,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import type { NavigationProp } from '@react-navigation/native';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { COLORS, FONTS, SPACING, BORDER_RADIUS } from '../constants/theme';
 import { loadUserFromStorageThunk, signOut } from '../store/slices/authSlice';
+import apiClient from '../services/api/apiClient';
 
 export default function ProfilScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NavigationProp<any>>();
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  
+
   const { user } = useAppSelector((state) => state.auth);
 
   // Initialiser les champs à vide - ils seront chargés depuis la DB
@@ -50,26 +52,19 @@ export default function ProfilScreen() {
 
     try {
       setLoadingData(true);
-      
-      // Charger directement depuis la base de données pour avoir les données à jour
-      const { getDatabase } = await import('../services/database');
-      const { UserRepository } = await import('../database/repositories');
-      const db = await getDatabase();
-      const userRepo = new UserRepository(db);
-      const dbUser = await userRepo.findById(user.id);
-      
-      if (dbUser) {
-        // Utilisateur trouvé dans la base de données
-        setNom(dbUser.nom || '');
-        setPrenom(dbUser.prenom || '');
-        setEmail(dbUser.email || '');
-        setTelephone(dbUser.telephone || '');
-        setPhoto(dbUser.photo || '');
+
+      // Charger depuis l'API backend
+      const apiUser = await apiClient.get<any>(`/users/${user.id}`);
+
+      if (apiUser) {
+        // Utilisateur trouvé via l'API backend
+        setNom(apiUser.nom || '');
+        setPrenom(apiUser.prenom || '');
+        setEmail(apiUser.email || '');
+        setTelephone(apiUser.telephone || '');
+        setPhoto(apiUser.photo || '');
       } else {
-        // ⚠️ L'utilisateur n'existe pas dans la base de données
-        // Cela ne devrait pas arriver normalement (l'utilisateur a été déconnecté au démarrage)
-        console.warn('⚠️ Profil non trouvé dans la base de données');
-        // Utiliser les données du state Redux comme fallback temporaire
+        // Utiliser les données du state Redux comme fallback
         if (user) {
           setNom(user.nom || '');
           setPrenom(user.prenom || '');
@@ -78,7 +73,7 @@ export default function ProfilScreen() {
           setPhoto(user.photo || '');
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ Erreur chargement profil:', error);
       // En cas d'erreur, utiliser les données du state Redux comme fallback
       if (user) {
@@ -120,7 +115,7 @@ export default function ProfilScreen() {
       }
     } catch (error) {
       console.error('Erreur sélection image:', error);
-      Alert.alert('Erreur', 'Impossible de sélectionner l\'image');
+      Alert.alert('Erreur', "Impossible de sélectionner l'image");
     }
   };
 
@@ -140,31 +135,25 @@ export default function ProfilScreen() {
     setLoading(true);
     try {
       if (!user?.id) {
-        Alert.alert(
-          'Session expirée',
-          'Votre session a expiré. Veuillez vous reconnecter.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                // Retour à l'écran de connexion
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'Auth' }],
-                });
-              },
+        Alert.alert('Session expirée', 'Votre session a expiré. Veuillez vous reconnecter.', [
+          {
+            text: 'OK',
+            onPress: () => {
+              // Retour à l'écran de connexion
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Auth' }],
+              });
             },
-          ]
-        );
+          },
+        ]);
         setLoading(false);
         return;
       }
 
       // Mettre à jour dans la base de données
-      const { getDatabase } = await import('../services/database');
       const { UserRepository } = await import('../database/repositories');
-      const db = await getDatabase();
-      const userRepo = new UserRepository(db);
+      const userRepo = new UserRepository();
       await userRepo.update(user.id, {
         nom: nom.trim(),
         prenom: prenom.trim(),
@@ -182,15 +171,16 @@ export default function ProfilScreen() {
       if (navigation.canGoBack()) {
         navigation.goBack();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ Erreur sauvegarde profil:', error);
-      
+
       // Vérifier si c'est une erreur de profil introuvable
-      if (error.message && error.message.includes('Profil introuvable')) {
+      const errorMessage = error instanceof Error ? error.message : '';
+      if (errorMessage && errorMessage.includes('Profil introuvable')) {
         // Proposer la déconnexion
         Alert.alert(
           'Profil introuvable',
-          'Votre profil n\'existe plus dans la base de données. Vous devez vous reconnecter.',
+          "Votre profil n'existe plus dans la base de données. Vous devez vous reconnecter.",
           [
             {
               text: 'Se déconnecter',
@@ -207,7 +197,8 @@ export default function ProfilScreen() {
         );
       } else {
         // Autre erreur
-        Alert.alert('Erreur', error.message || 'Impossible de sauvegarder le profil');
+        const errorMsg = error instanceof Error ? error.message : 'Impossible de sauvegarder le profil';
+        Alert.alert('Erreur', errorMsg);
       }
     } finally {
       setLoading(false);
@@ -215,13 +206,18 @@ export default function ProfilScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top']}
+    >
+      <View
+        style={[
+          styles.header,
+          { backgroundColor: colors.surface, borderBottomColor: colors.border },
+        ]}
+      >
         {navigation.canGoBack() && (
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
         )}
@@ -242,106 +238,134 @@ export default function ProfilScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-        {/* Photo de profil */}
-        <View style={styles.photoSection}>
-          <TouchableOpacity
-            style={[styles.photoContainer, { borderColor: colors.border }]}
-            onPress={pickImage}
-          >
-            {photo ? (
-              <Image source={{ uri: photo }} style={styles.photo} resizeMode="cover" />
-            ) : (
-              <View style={[styles.photoPlaceholder, { backgroundColor: `${COLORS.primary}20` }]}>
-                <Ionicons name="person" size={48} color={COLORS.primary} />
+          {/* Photo de profil */}
+          <View style={styles.photoSection}>
+            <TouchableOpacity
+              style={[styles.photoContainer, { borderColor: colors.border }]}
+              onPress={pickImage}
+            >
+              {photo ? (
+                <Image source={{ uri: photo }} style={styles.photo} resizeMode="cover" />
+              ) : (
+                <View style={[styles.photoPlaceholder, { backgroundColor: `${COLORS.primary}20` }]}>
+                  <Ionicons name="person" size={48} color={COLORS.primary} />
+                </View>
+              )}
+              <View style={[styles.photoEditBadge, { backgroundColor: COLORS.primary }]}>
+                <Ionicons name="camera" size={16} color="#FFF" />
               </View>
-            )}
-            <View style={[styles.photoEditBadge, { backgroundColor: COLORS.primary }]}>
-              <Ionicons name="camera" size={16} color="#FFF" />
+            </TouchableOpacity>
+            <Text style={[styles.photoHint, { color: colors.textSecondary }]}>
+              Toucher pour modifier la photo
+            </Text>
+          </View>
+
+          {/* Informations personnelles */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Informations personnelles
+            </Text>
+
+            <View style={styles.fieldContainer}>
+              <Text style={[styles.fieldLabel, { color: colors.text }]}>
+                Nom <Text style={{ color: COLORS.error }}>*</Text>
+              </Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.surface,
+                    color: colors.text,
+                    borderColor: colors.border,
+                  },
+                ]}
+                value={nom}
+                onChangeText={setNom}
+                placeholder="Nom"
+                placeholderTextColor={colors.textSecondary}
+              />
             </View>
+
+            <View style={styles.fieldContainer}>
+              <Text style={[styles.fieldLabel, { color: colors.text }]}>
+                Prénom <Text style={{ color: COLORS.error }}>*</Text>
+              </Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.surface,
+                    color: colors.text,
+                    borderColor: colors.border,
+                  },
+                ]}
+                value={prenom}
+                onChangeText={setPrenom}
+                placeholder="Prénom"
+                placeholderTextColor={colors.textSecondary}
+              />
+            </View>
+
+            <View style={styles.fieldContainer}>
+              <Text style={[styles.fieldLabel, { color: colors.text }]}>Email</Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.surface,
+                    color: colors.text,
+                    borderColor: colors.border,
+                  },
+                ]}
+                value={email}
+                onChangeText={setEmail}
+                placeholder="email@example.com"
+                placeholderTextColor={colors.textSecondary}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+
+            <View style={styles.fieldContainer}>
+              <Text style={[styles.fieldLabel, { color: colors.text }]}>Téléphone</Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.surface,
+                    color: colors.text,
+                    borderColor: colors.border,
+                  },
+                ]}
+                value={telephone}
+                onChangeText={setTelephone}
+                placeholder="+225 XX XX XX XX XX"
+                placeholderTextColor={colors.textSecondary}
+                keyboardType="phone-pad"
+              />
+            </View>
+          </View>
+
+          {/* Bouton de sauvegarde */}
+          <TouchableOpacity
+            style={[
+              styles.saveButton,
+              { backgroundColor: COLORS.primary },
+              loading && styles.saveButtonDisabled,
+            ]}
+            onPress={validateAndSave}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <>
+                <Ionicons name="checkmark-circle" size={24} color="#FFF" />
+                <Text style={styles.saveButtonText}>Enregistrer les modifications</Text>
+              </>
+            )}
           </TouchableOpacity>
-          <Text style={[styles.photoHint, { color: colors.textSecondary }]}>
-            Toucher pour modifier la photo
-          </Text>
-        </View>
-
-        {/* Informations personnelles */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Informations personnelles
-          </Text>
-
-          <View style={styles.fieldContainer}>
-            <Text style={[styles.fieldLabel, { color: colors.text }]}>
-              Nom <Text style={{ color: COLORS.error }}>*</Text>
-            </Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]}
-              value={nom}
-              onChangeText={setNom}
-              placeholder="Nom"
-              placeholderTextColor={colors.textSecondary}
-            />
-          </View>
-
-          <View style={styles.fieldContainer}>
-            <Text style={[styles.fieldLabel, { color: colors.text }]}>
-              Prénom <Text style={{ color: COLORS.error }}>*</Text>
-            </Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]}
-              value={prenom}
-              onChangeText={setPrenom}
-              placeholder="Prénom"
-              placeholderTextColor={colors.textSecondary}
-            />
-          </View>
-
-          <View style={styles.fieldContainer}>
-            <Text style={[styles.fieldLabel, { color: colors.text }]}>Email</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]}
-              value={email}
-              onChangeText={setEmail}
-              placeholder="email@example.com"
-              placeholderTextColor={colors.textSecondary}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
-
-          <View style={styles.fieldContainer}>
-            <Text style={[styles.fieldLabel, { color: colors.text }]}>Téléphone</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]}
-              value={telephone}
-              onChangeText={setTelephone}
-              placeholder="+225 XX XX XX XX XX"
-              placeholderTextColor={colors.textSecondary}
-              keyboardType="phone-pad"
-            />
-          </View>
-        </View>
-
-        {/* Bouton de sauvegarde */}
-        <TouchableOpacity
-          style={[
-            styles.saveButton,
-            { backgroundColor: COLORS.primary },
-            loading && styles.saveButtonDisabled,
-          ]}
-          onPress={validateAndSave}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#FFF" />
-          ) : (
-            <>
-              <Ionicons name="checkmark-circle" size={24} color="#FFF" />
-              <Text style={styles.saveButtonText}>Enregistrer les modifications</Text>
-            </>
-          )}
-        </TouchableOpacity>
-      </ScrollView>
+        </ScrollView>
       )}
     </SafeAreaView>
   );
@@ -363,8 +387,6 @@ const styles = StyleSheet.create({
     padding: SPACING.sm,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
     ...FONTS.h2,
   },
   scrollView: {
@@ -409,7 +431,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   photoHint: {
-    fontSize: 12,
     fontStyle: 'italic',
     ...FONTS.small,
   },
@@ -417,8 +438,6 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xl,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
     marginBottom: SPACING.md,
     ...FONTS.h3,
   },
@@ -426,8 +445,6 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   fieldLabel: {
-    fontSize: 14,
-    fontWeight: '600',
     marginBottom: SPACING.xs,
     ...FONTS.body,
   },
@@ -435,7 +452,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md,
-    fontSize: 16,
     ...FONTS.body,
   },
   saveButton: {
@@ -452,8 +468,6 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
     ...FONTS.body,
   },
   loadingContainer: {
@@ -463,7 +477,6 @@ const styles = StyleSheet.create({
     gap: SPACING.md,
   },
   loadingText: {
-    fontSize: 14,
     ...FONTS.body,
   },
 });

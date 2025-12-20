@@ -64,9 +64,7 @@ export default function IngredientsComponent() {
       });
 
       // Vérifier quels ingrédients manquent
-      const ingredientsExistants = new Set(
-        ingredients.map((ing) => ing.nom.toLowerCase().trim())
-      );
+      const ingredientsExistants = new Set(ingredients.map((ing) => ing.nom.toLowerCase().trim()));
       const ingredientsManquants = Array.from(ingredientsFormulations).filter(
         (nom) => !ingredientsExistants.has(nom.toLowerCase().trim())
       );
@@ -118,7 +116,7 @@ export default function IngredientsComponent() {
 
   const onRefresh = useCallback(async () => {
     if (!projetActif?.id) return;
-    
+
     setRefreshing(true);
     try {
       await dispatch(loadIngredients(projetActif.id)).unwrap();
@@ -178,8 +176,9 @@ export default function IngredientsComponent() {
             try {
               await dispatch(deleteIngredient(ingredient.id)).unwrap();
               Alert.alert('Succès', 'Ingrédient supprimé avec succès');
-            } catch (error: any) {
-              Alert.alert('Erreur', error || 'Erreur lors de la suppression');
+            } catch (error: unknown) {
+              const errorMessage = error instanceof Error ? error.message : 'Erreur lors de la suppression';
+              Alert.alert('Erreur', errorMessage);
             }
           },
         },

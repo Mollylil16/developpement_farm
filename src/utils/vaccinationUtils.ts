@@ -6,7 +6,7 @@
  * Parse animal_ids depuis la base de données
  * animal_ids peut être soit une string JSON, soit déjà un tableau
  */
-export function parseAnimalIds(animal_ids: any): string[] {
+export function parseAnimalIds(animal_ids: unknown): string[] {
   if (!animal_ids) {
     return [];
   }
@@ -33,8 +33,7 @@ export function parseAnimalIds(animal_ids: any): string[] {
 /**
  * Vérifie si un animal est inclus dans la liste d'animal_ids
  */
-export function animalIncludedInVaccination(animal_ids: any, animalId: string): boolean {
+export function animalIncludedInVaccination(animal_ids: unknown, animalId: string): boolean {
   const ids = parseAnimalIds(animal_ids);
   return ids.includes(animalId);
 }
-

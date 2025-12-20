@@ -50,4 +50,3 @@ export function useCollaborationWidget(projetId?: string): CollaborationWidgetDa
     };
   }, [projetId, collaborateurs]);
 }
-

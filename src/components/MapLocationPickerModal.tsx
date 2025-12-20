@@ -38,7 +38,9 @@ export default function MapLocationPickerModal({
   const { colors } = useTheme();
   const { getCurrentLocation } = useGeolocation();
   const [loading, setLoading] = useState(false);
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(initialLocation || null);
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
+    initialLocation || null
+  );
   const [address, setAddress] = useState('');
   const [manualLat, setManualLat] = useState('');
   const [manualLng, setManualLng] = useState('');
@@ -55,7 +57,7 @@ export default function MapLocationPickerModal({
     try {
       setLoading(true);
       const userLocation = await getCurrentLocation();
-      
+
       if (userLocation) {
         setLocation({
           lat: userLocation.latitude,
@@ -63,33 +65,31 @@ export default function MapLocationPickerModal({
         });
         setManualLat(userLocation.latitude.toString());
         setManualLng(userLocation.longitude.toString());
-        
+
         // Essayer de reverse geocode pour obtenir l'adresse
         try {
           const addresses = await Location.reverseGeocodeAsync({
             latitude: userLocation.latitude,
             longitude: userLocation.longitude,
           });
-          
+
           if (addresses && addresses.length > 0) {
             const addr = addresses[0];
-            const addrParts = [
-              addr.street,
-              addr.city,
-              addr.region,
-              addr.country,
-            ].filter(Boolean);
+            const addrParts = [addr.street, addr.city, addr.region, addr.country].filter(Boolean);
             setAddress(addrParts.join(', '));
           }
         } catch (geocodeError) {
           console.warn('Erreur de geocoding:', geocodeError);
         }
       } else {
-        Alert.alert('Erreur', 'Impossible d\'obtenir votre localisation. Veuillez vérifier les permissions de localisation.');
+        Alert.alert(
+          'Erreur',
+          "Impossible d'obtenir votre localisation. Veuillez vérifier les permissions de localisation."
+        );
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur lors de la récupération de la localisation:', error);
-      Alert.alert('Erreur', 'Impossible d\'obtenir votre localisation.');
+      Alert.alert('Erreur', "Impossible d'obtenir votre localisation.");
     } finally {
       setLoading(false);
     }
@@ -98,22 +98,22 @@ export default function MapLocationPickerModal({
   const handleManualInput = () => {
     const lat = parseFloat(manualLat);
     const lng = parseFloat(manualLng);
-    
+
     if (isNaN(lat) || isNaN(lng)) {
       Alert.alert('Erreur', 'Veuillez entrer des coordonnées valides.');
       return;
     }
-    
+
     if (lat < -90 || lat > 90) {
       Alert.alert('Erreur', 'La latitude doit être entre -90 et 90.');
       return;
     }
-    
+
     if (lng < -180 || lng > 180) {
       Alert.alert('Erreur', 'La longitude doit être entre -180 et 180.');
       return;
     }
-    
+
     setLocation({ lat, lng });
   };
 
@@ -122,7 +122,7 @@ export default function MapLocationPickerModal({
       Alert.alert('Erreur', 'Veuillez sélectionner une localisation.');
       return;
     }
-    
+
     onConfirm({
       lat: location.lat,
       lng: location.lng,
@@ -146,19 +146,29 @@ export default function MapLocationPickerModal({
       presentationStyle="pageSheet"
       onRequestClose={handleClose}
     >
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        edges={['top']}
+      >
         {/* Header */}
         <View style={[styles.header, { borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
             <Ionicons name="close" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Sélectionner la localisation</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>
+            Sélectionner la localisation
+          </Text>
           <View style={styles.closeButton} />
         </View>
 
         <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
           {/* Instructions */}
-          <View style={[styles.infoBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View
+            style={[
+              styles.infoBox,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
             <Ionicons name="information-circle" size={20} color={colors.primary} />
             <Text style={[styles.infoText, { color: colors.textSecondary }]}>
               Utilisez votre position actuelle ou entrez manuellement les coordonnées GPS.
@@ -183,13 +193,22 @@ export default function MapLocationPickerModal({
 
           {/* Saisie manuelle */}
           <View style={styles.manualInputSection}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Ou saisir manuellement</Text>
-            
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Ou saisir manuellement
+            </Text>
+
             <View style={styles.inputRow}>
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, { color: colors.text }]}>Latitude</Text>
                 <TextInput
-                  style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      color: colors.text,
+                    },
+                  ]}
                   value={manualLat}
                   onChangeText={setManualLat}
                   placeholder="Ex: 5.3600"
@@ -197,11 +216,18 @@ export default function MapLocationPickerModal({
                   keyboardType="numeric"
                 />
               </View>
-              
+
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, { color: colors.text }]}>Longitude</Text>
                 <TextInput
-                  style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      color: colors.text,
+                    },
+                  ]}
                   value={manualLng}
                   onChangeText={setManualLng}
                   placeholder="Ex: -4.0083"
@@ -210,18 +236,28 @@ export default function MapLocationPickerModal({
                 />
               </View>
             </View>
-            
+
             <TouchableOpacity
-              style={[styles.applyButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              style={[
+                styles.applyButton,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
               onPress={handleManualInput}
             >
-              <Text style={[styles.applyButtonText, { color: colors.primary }]}>Appliquer les coordonnées</Text>
+              <Text style={[styles.applyButtonText, { color: colors.primary }]}>
+                Appliquer les coordonnées
+              </Text>
             </TouchableOpacity>
           </View>
 
           {/* Adresse (si disponible) */}
           {address && (
-            <View style={[styles.addressBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View
+              style={[
+                styles.addressBox,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+            >
               <Ionicons name="map" size={20} color={colors.primary} />
               <Text style={[styles.addressText, { color: colors.text }]}>{address}</Text>
             </View>
@@ -229,10 +265,17 @@ export default function MapLocationPickerModal({
 
           {/* Coordonnées sélectionnées */}
           {location && (
-            <View style={[styles.coordinatesBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View
+              style={[
+                styles.coordinatesBox,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+            >
               <Ionicons name="checkmark-circle" size={20} color={colors.success} />
               <View style={styles.coordinatesTextContainer}>
-                <Text style={[styles.coordinatesLabel, { color: colors.textSecondary }]}>Coordonnées sélectionnées:</Text>
+                <Text style={[styles.coordinatesLabel, { color: colors.textSecondary }]}>
+                  Coordonnées sélectionnées:
+                </Text>
                 <Text style={[styles.coordinatesValue, { color: colors.text }]}>
                   {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
                 </Text>
@@ -242,7 +285,12 @@ export default function MapLocationPickerModal({
         </ScrollView>
 
         {/* Footer avec bouton de confirmation */}
-        <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.background }]}>
+        <View
+          style={[
+            styles.footer,
+            { borderTopColor: colors.border, backgroundColor: colors.background },
+          ]}
+        >
           <TouchableOpacity
             style={[styles.confirmButton, { backgroundColor: colors.primary }]}
             onPress={handleConfirm}
@@ -403,4 +451,3 @@ const styles = StyleSheet.create({
     fontWeight: FONT_WEIGHTS.semiBold,
   },
 });
-

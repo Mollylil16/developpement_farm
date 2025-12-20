@@ -1,6 +1,6 @@
 /**
  * useSanteLogic - Logique métier pour l'écran Santé
- * 
+ *
  * Responsabilités:
  * - Gestion de l'état des onglets
  * - Chargement des données sanitaires
@@ -10,10 +10,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import {
-  loadVisitesVeterinaires,
-  loadAlertesSanitaires,
-} from '../store/slices/santeSlice';
+import { loadVisitesVeterinaires, loadAlertesSanitaires } from '../store/slices/santeSlice';
 import {
   selectSanteLoading,
   selectSanteAlertes,
@@ -32,19 +29,23 @@ export interface SanteLogicReturn {
   refreshing: boolean;
   showAlertes: boolean;
   loading: boolean;
-  
+
   // Données
-  alertes: any[];
+  alertes: Array<{
+    gravite: 'critique' | 'elevee' | 'moyenne' | 'faible';
+    message: string;
+    type: string;
+  }>;
   nombreAlertesCritiques: number;
   nombreAlertesElevees: number;
-  projetActif: any;
-  
+  projetActif: unknown;
+
   // Actions
   setOngletActif: (onglet: OngletType) => void;
   setShowAlertes: (show: boolean) => void;
   onRefresh: () => Promise<void>;
   chargerDonnees: () => void;
-  
+
   // Configuration
   onglets: Array<{
     id: OngletType;
@@ -56,24 +57,24 @@ export interface SanteLogicReturn {
 
 export function useSanteLogic(): SanteLogicReturn {
   const dispatch = useAppDispatch();
-  
+
   // Sélecteurs Redux
   const { projetActif } = useAppSelector((state) => state.projet);
   const loading = useAppSelector(selectSanteLoading);
   const alertes = useAppSelector(selectSanteAlertes);
   const nombreAlertesCritiques = useAppSelector(selectNombreAlertesCritiques);
   const nombreAlertesElevees = useAppSelector(selectNombreAlertesElevees);
-  
+
   // Hooks spécialisés
   const { chargerDonnees: chargerVaccinations } = useVaccinationsLogic();
   const { chargerDonnees: chargerMaladies } = useMaladiesLogic();
   const { chargerDonnees: chargerTraitements } = useTraitementsLogic();
-  
+
   // État local
   const [ongletActif, setOngletActif] = useState<OngletType>('vaccinations');
   const [refreshing, setRefreshing] = useState(false);
   const [showAlertes, setShowAlertes] = useState(true);
-  
+
   // Configuration des onglets
   const onglets = [
     {
@@ -107,20 +108,20 @@ export function useSanteLogic(): SanteLogicReturn {
       badge: 0,
     },
   ];
-  
+
   /**
    * Charger toutes les données sanitaires
    */
   const chargerDonnees = useCallback(() => {
     if (!projetActif?.id) return;
-    
+
     chargerVaccinations(projetActif.id);
     chargerMaladies(projetActif.id);
     chargerTraitements(projetActif.id);
     dispatch(loadVisitesVeterinaires(projetActif.id));
     dispatch(loadAlertesSanitaires(projetActif.id));
   }, [projetActif?.id, dispatch, chargerVaccinations, chargerMaladies, chargerTraitements]);
-  
+
   /**
    * Rafraîchir les données
    */
@@ -129,35 +130,34 @@ export function useSanteLogic(): SanteLogicReturn {
     await chargerDonnees();
     setRefreshing(false);
   }, [chargerDonnees]);
-  
+
   // Charger les données au montage
   useEffect(() => {
     if (projetActif?.id) {
       chargerDonnees();
     }
   }, [projetActif?.id, chargerDonnees]);
-  
+
   return {
     // État
     ongletActif,
     refreshing,
     showAlertes,
     loading,
-    
+
     // Données
     alertes,
     nombreAlertesCritiques,
     nombreAlertesElevees,
     projetActif,
-    
+
     // Actions
     setOngletActif,
     setShowAlertes,
     onRefresh,
     chargerDonnees,
-    
+
     // Configuration
     onglets,
   };
 }
-

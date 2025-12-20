@@ -1,5 +1,6 @@
 /**
  * Slice Redux pour la gestion de la nutrition
+ * Utilise maintenant l'API backend au lieu de SQLite
  */
 
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
@@ -12,8 +13,8 @@ import {
   CreateRationBudgetInput,
   UpdateRationBudgetInput,
 } from '../../types';
-import { getDatabase } from '../../services/database';
-import { RationRepository } from '../../database/repositories';
+import { getErrorMessage } from '../../types/common';
+import apiClient from '../../services/api/apiClient';
 
 interface NutritionState {
   ingredients: Ingredient[];
@@ -36,14 +37,12 @@ export const createIngredient = createAsyncThunk(
   'nutrition/createIngredient',
   async (input: CreateIngredientInput, { rejectWithValue }) => {
     try {
-      const { getDatabase } = await import('../../services/database');
-      const { IngredientRepository } = await import('../../database/repositories');
-      const db = await getDatabase();
-      const ingredientRepo = new IngredientRepository(db);
-      const ingredient = await ingredientRepo.create(input);
+      const ingredient = await apiClient.post<Ingredient>('/nutrition/ingredients', input);
       return ingredient;
     } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || "Erreur lors de la création de l'ingrédient");
+      return rejectWithValue(
+        getErrorMessage(error) || "Erreur lors de la création de l'ingrédient"
+      );
     }
   }
 );
@@ -52,11 +51,8 @@ export const loadIngredients = createAsyncThunk(
   'nutrition/loadIngredients',
   async (projetId: string, { rejectWithValue }) => {
     try {
-      const { getDatabase } = await import('../../services/database');
-      const { IngredientRepository } = await import('../../database/repositories');
-      const db = await getDatabase();
-      const ingredientRepo = new IngredientRepository(db);
-      const ingredients = await ingredientRepo.getAllIngredients(projetId);
+      // Les ingrédients sont globaux (pas de projet_id), on ignore projetId
+      const ingredients = await apiClient.get<Ingredient[]>('/nutrition/ingredients');
       return ingredients;
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des ingrédients');
@@ -68,14 +64,12 @@ export const updateIngredient = createAsyncThunk(
   'nutrition/updateIngredient',
   async ({ id, updates }: { id: string; updates: Partial<Ingredient> }, { rejectWithValue }) => {
     try {
-      const { getDatabase } = await import('../../services/database');
-      const { IngredientRepository } = await import('../../database/repositories');
-      const db = await getDatabase();
-      const ingredientRepo = new IngredientRepository(db);
-      const ingredient = await ingredientRepo.update(id, updates);
+      const ingredient = await apiClient.patch<Ingredient>(`/nutrition/ingredients/${id}`, updates);
       return ingredient;
     } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || "Erreur lors de la mise à jour de l'ingrédient");
+      return rejectWithValue(
+        getErrorMessage(error) || "Erreur lors de la mise à jour de l'ingrédient"
+      );
     }
   }
 );
@@ -84,14 +78,12 @@ export const deleteIngredient = createAsyncThunk(
   'nutrition/deleteIngredient',
   async (id: string, { rejectWithValue }) => {
     try {
-      const { getDatabase } = await import('../../services/database');
-      const { IngredientRepository } = await import('../../database/repositories');
-      const db = await getDatabase();
-      const ingredientRepo = new IngredientRepository(db);
-      await ingredientRepo.deleteById(id);
+      await apiClient.delete(`/nutrition/ingredients/${id}`);
       return id;
     } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || "Erreur lors de la suppression de l'ingrédient");
+      return rejectWithValue(
+        getErrorMessage(error) || "Erreur lors de la suppression de l'ingrédient"
+      );
     }
   }
 );
@@ -101,30 +93,8 @@ export const createRation = createAsyncThunk(
   'nutrition/createRation',
   async (input: CreateRationInput, { rejectWithValue }) => {
     try {
-      const { getDatabase } = await import('../../services/database');
-      const { IngredientRepository, RationRepository } = await import('../../database/repositories');
-      const db = await getDatabase();
-      const ingredientRepo = new IngredientRepository(db);
-      const rationRepo = new RationRepository(db);
-
-      // Calculer le coût total
-      const ingredients = await ingredientRepo.getAllIngredients(input.projet_id);
-      let coutTotal = 0;
-
-      input.ingredients.forEach((ing: { ingredient_id: string; quantite: number }) => {
-        const ingredient = ingredients.find((i) => i.id === ing.ingredient_id);
-        if (ingredient) {
-          coutTotal += ing.quantite * ingredient.prix_unitaire;
-        }
-      });
-
-      const coutParKg = input.poids_kg > 0 ? coutTotal / input.poids_kg : 0;
-
-      const ration = await rationRepo.create({
-        ...input,
-        cout_total: coutTotal,
-        cout_par_kg: coutParKg,
-      });
+      // Le backend calcule automatiquement cout_total et cout_par_kg
+      const ration = await apiClient.post<Ration>('/nutrition/rations', input);
       return ration;
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création de la ration');
@@ -136,11 +106,9 @@ export const loadRations = createAsyncThunk(
   'nutrition/loadRations',
   async (projetId: string, { rejectWithValue }) => {
     try {
-      const { getDatabase } = await import('../../services/database');
-      const { RationRepository } = await import('../../database/repositories');
-      const db = await getDatabase();
-      const rationRepo = new RationRepository(db);
-      const rations = await rationRepo.findByProjet(projetId);
+      const rations = await apiClient.get<Ration[]>('/nutrition/rations', {
+        params: { projet_id: projetId },
+      });
       return rations;
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des rations');
@@ -152,14 +120,12 @@ export const deleteRation = createAsyncThunk(
   'nutrition/deleteRation',
   async (id: string, { rejectWithValue }) => {
     try {
-      const { getDatabase } = await import('../../services/database');
-      const { RationRepository } = await import('../../database/repositories');
-      const db = await getDatabase();
-      const rationRepo = new RationRepository(db);
-      await rationRepo.delete(id);
+      await apiClient.delete(`/nutrition/rations/${id}`);
       return id;
     } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la suppression de la ration');
+      return rejectWithValue(
+        getErrorMessage(error) || 'Erreur lors de la suppression de la ration'
+      );
     }
   }
 );
@@ -169,12 +135,12 @@ export const createRationBudget = createAsyncThunk(
   'nutrition/createRationBudget',
   async (input: CreateRationBudgetInput, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const rationRepo = new RationRepository(db);
-      const rationBudget = await rationRepo.createRationBudget(input);
+      const rationBudget = await apiClient.post<RationBudget>('/nutrition/rations-budget', input);
       return rationBudget;
     } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création de la ration budget');
+      return rejectWithValue(
+        getErrorMessage(error) || 'Erreur lors de la création de la ration budget'
+      );
     }
   }
 );
@@ -183,12 +149,14 @@ export const loadRationsBudget = createAsyncThunk(
   'nutrition/loadRationsBudget',
   async (projetId: string, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const rationRepo = new RationRepository(db);
-      const rationsBudget = await rationRepo.findRationsBudgetByProjet(projetId);
+      const rationsBudget = await apiClient.get<RationBudget[]>('/nutrition/rations-budget', {
+        params: { projet_id: projetId },
+      });
       return rationsBudget;
     } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des rations budget');
+      return rejectWithValue(
+        getErrorMessage(error) || 'Erreur lors du chargement des rations budget'
+      );
     }
   }
 );
@@ -200,15 +168,15 @@ export const updateRationBudget = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const db = await getDatabase();
-      const rationRepo = new RationRepository(db);
-      const rationBudget = await rationRepo.updateRationBudget(id, updates);
-      if (!rationBudget) {
-        throw new Error('Ration budget non trouvée');
-      }
+      const rationBudget = await apiClient.patch<RationBudget>(
+        `/nutrition/rations-budget/${id}`,
+        updates
+      );
       return rationBudget;
     } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la mise à jour de la ration budget');
+      return rejectWithValue(
+        getErrorMessage(error) || 'Erreur lors de la mise à jour de la ration budget'
+      );
     }
   }
 );
@@ -217,12 +185,12 @@ export const deleteRationBudget = createAsyncThunk(
   'nutrition/deleteRationBudget',
   async (id: string, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const rationRepo = new RationRepository(db);
-      await rationRepo.deleteRationBudget(id);
+      await apiClient.delete(`/nutrition/rations-budget/${id}`);
       return id;
     } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la suppression de la ration budget');
+      return rejectWithValue(
+        getErrorMessage(error) || 'Erreur lors de la suppression de la ration budget'
+      );
     }
   }
 );

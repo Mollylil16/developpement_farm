@@ -6,7 +6,7 @@
 import { createSelector } from '@reduxjs/toolkit';
 import { denormalize } from 'normalizr';
 import { RootState } from '../store';
-import { animauxSchema, peseesSchema, animalSchema, peseeSchema } from '../normalization/schemas';
+import { animauxSchema, peseesSchema } from '../normalization/schemas';
 import { ProductionAnimal, ProductionPesee } from '../../types';
 
 // Sélecteur de base pour l'état production

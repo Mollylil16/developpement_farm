@@ -23,13 +23,7 @@ import { selectAllAnimaux } from '../../store/selectors/productionSelectors';
 import { selectAllMortalites } from '../../store/selectors/mortalitesSelectors';
 import { useActionPermissions } from '../useActionPermissions';
 import { useGeolocation } from '../useGeolocation';
-import { getDatabase } from '../../services/database';
-import { getMarketplaceService } from '../../services/MarketplaceService';
-import {
-  MarketplaceListingRepository,
-  MarketplaceOfferRepository,
-  PeseeRepository,
-} from '../../database/repositories';
+import apiClient from '../../services/api/apiClient';
 import { ProductionAnimal, StatutAnimal } from '../../types';
 import { getCategorieAnimal } from '../../utils/animalUtils';
 import type { UpdateProductionAnimalInput } from '../../types/production';
@@ -52,7 +46,10 @@ export function useProductionCheptelLogic() {
   const handleDelete = useCallback(
     async (animal: ProductionAnimal) => {
       if (!canDelete('reproduction')) {
-        Alert.alert('Permission refusée', "Vous n'avez pas la permission de supprimer les animaux.");
+        Alert.alert(
+          'Permission refusée',
+          "Vous n'avez pas la permission de supprimer les animaux."
+        );
         return;
       }
       Alert.alert(
@@ -88,10 +85,11 @@ export function useProductionCheptelLogic() {
 
       try {
         setTogglingMarketplace(animal.id);
-        const db = await getDatabase();
-        const listingRepo = new MarketplaceListingRepository(db);
 
-        const existingListings = await listingRepo.findByFarmId(projetActif.id);
+        // Charger les listings depuis l'API backend
+        const existingListings = await apiClient.get<any[]>('/marketplace/listings', {
+          params: { projet_id: projetActif.id },
+        });
         const existingListing = existingListings.find(
           (l) => l.subjectId === animal.id && (l.status === 'available' || l.status === 'reserved')
         );
@@ -107,8 +105,8 @@ export function useProductionCheptelLogic() {
                 style: 'destructive',
                 onPress: async () => {
                   try {
-                    const service = getMarketplaceService(db);
-                    await service.removeListing(existingListing.id, user.id);
+                    // Supprimer le listing via l'API backend
+                    await apiClient.delete(`/marketplace/listings/${existingListing.id}`);
                     await dispatch(
                       updateProductionAnimal({
                         id: animal.id,
@@ -152,14 +150,13 @@ export function useProductionCheptelLogic() {
 
     try {
       setTogglingMarketplace(animalForMarketplace.id);
-      const db = await getDatabase();
-      const peseeRepo = new PeseeRepository(db);
 
-      const dernierePesee = await peseeRepo.findLastByAnimal(animalForMarketplace.id);
-      const poidsActuel =
-        dernierePesee?.poids_kg ||
-        animalForMarketplace.poids_initial ||
-        0;
+      // Charger les pesées depuis l'API backend
+      const pesees = await apiClient.get<any[]>(`/production/pesees`, {
+        params: { animal_id: animalForMarketplace.id, limit: 1 },
+      });
+      const dernierePesee = pesees && pesees.length > 0 ? pesees[0] : null;
+      const poidsActuel = dernierePesee?.poids_kg || animalForMarketplace.poids_initial || 0;
       const lastWeightDate = dernierePesee?.date || new Date().toISOString();
 
       if (poidsActuel <= 0) {
@@ -170,7 +167,10 @@ export function useProductionCheptelLogic() {
 
       const userLocation = await getCurrentLocation();
       if (!userLocation) {
-        Alert.alert('Erreur', "Impossible d'obtenir votre localisation. Veuillez activer la géolocalisation.");
+        Alert.alert(
+          'Erreur',
+          "Impossible d'obtenir votre localisation. Veuillez activer la géolocalisation."
+        );
         setTogglingMarketplace(null);
         return;
       }
@@ -228,4 +228,3 @@ export function useProductionCheptelLogic() {
     handleConfirmMarketplaceAdd,
   };
 }
-

@@ -11,7 +11,16 @@ import {
   formatDate,
   generateAndSharePDF,
 } from '../pdfService';
-import { Projet, ProductionAnimal } from '../../types';
+import { Projet } from '../../types';
+
+// Type ProductionAnimal utilisé pour typer les données de production dans les tendances
+type ProductionAnimal = {
+  id: string;
+  code?: string;
+  race?: string;
+  poids_initial?: number;
+  date_naissance?: string;
+};
 
 interface RapportsData {
   projet: Projet;
@@ -47,6 +56,8 @@ interface RapportsData {
     evolutionGMQ: Array<{ periode: string; valeur: number }>;
     evolutionPoids: Array<{ periode: string; valeur: number }>;
     evolutionFinance: Array<{ periode: string; depenses: number; revenus: number }>;
+    // Utiliser ProductionAnimal pour typer les données d'animaux si disponibles
+    animaux?: ProductionAnimal[];
   };
   recommandations: Array<{
     categorie: string;
@@ -285,9 +296,13 @@ export function generateRapportsHTML(data: RapportsData): string {
                         tendances.evolutionGMQ[index - 1].valeur) *
                       100
                     : 0;
+                // Utiliser formatDate pour formater la période si c'est une date
+                const periodeFormatee = /^\d{4}-\d{2}-\d{2}/.test(item.periode)
+                  ? formatDate(item.periode)
+                  : item.periode;
                 return `
                 <tr>
-                  <td>${item.periode}</td>
+                  <td>${periodeFormatee}</td>
                   <td class="text-right"><strong>${formatNumber(item.valeur, 0)}</strong></td>
                   <td class="text-right ${variation >= 0 ? 'text-success' : 'text-danger'}">
                     ${index > 0 ? (variation >= 0 ? '+' : '') + formatNumber(variation, 1) + '%' : '-'}
@@ -321,9 +336,13 @@ export function generateRapportsHTML(data: RapportsData): string {
             ${tendances.evolutionFinance
               .map((item) => {
                 const balance = item.revenus - item.depenses;
+                // Utiliser formatDate pour formater la période si c'est une date
+                const periodeFormatee = /^\d{4}-\d{2}-\d{2}/.test(item.periode)
+                  ? formatDate(item.periode)
+                  : item.periode;
                 return `
                 <tr>
-                  <td>${item.periode}</td>
+                  <td>${periodeFormatee}</td>
                   <td class="text-right text-danger">${formatCurrency(item.depenses)}</td>
                   <td class="text-right text-success">${formatCurrency(item.revenus)}</td>
                   <td class="text-right ${balance >= 0 ? 'text-success' : 'text-danger'}">

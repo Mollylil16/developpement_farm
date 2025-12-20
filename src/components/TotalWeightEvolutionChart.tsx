@@ -76,9 +76,7 @@ export default function TotalWeightEvolutionChart({
     // Calculer le poids moyen pour chaque période
     const weights = keysToDisplay.map((key) => {
       const group = grouped[key];
-      return Math.round(
-        (group.poidsTotal.reduce((a, b) => a + b, 0) / group.count) * 10
-      ) / 10;
+      return Math.round((group.poidsTotal.reduce((a, b) => a + b, 0) / group.count) * 10) / 10;
     });
 
     // Formater les labels
@@ -380,4 +378,3 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
 });
-

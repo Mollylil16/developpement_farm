@@ -134,7 +134,9 @@ describe('PorkPriceTrendService', () => {
       };
 
       // Mock les méthodes privées via les repositories
-      (service as any).getCompletedTransactionsForWeek = jest.fn().mockResolvedValue(mockTransactions);
+      (service as any).getCompletedTransactionsForWeek = jest
+        .fn()
+        .mockResolvedValue(mockTransactions);
       (service as any).getAcceptedOffersForWeek = jest.fn().mockResolvedValue([]);
       (service as any).getActiveListingsForWeek = jest.fn().mockResolvedValue([]);
       (service as any).calculateTotalWeightForSubjects = jest.fn().mockResolvedValue(100);
@@ -190,7 +192,9 @@ describe('PorkPriceTrendService', () => {
         updatedAt: '2024-01-01T00:00:00Z',
       };
 
-      (service as any).getCompletedTransactionsForWeek = jest.fn().mockResolvedValue(mockTransactions);
+      (service as any).getCompletedTransactionsForWeek = jest
+        .fn()
+        .mockResolvedValue(mockTransactions);
       (service as any).getAcceptedOffersForWeek = jest.fn().mockResolvedValue(mockOffers);
       (service as any).getActiveListingsForWeek = jest.fn().mockResolvedValue([]);
       (service as any).calculateTotalWeightForSubjects = jest.fn().mockResolvedValue(100);
@@ -375,4 +379,3 @@ describe('PorkPriceTrendService', () => {
     });
   });
 });
-

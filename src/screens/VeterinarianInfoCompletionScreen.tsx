@@ -26,8 +26,7 @@ import { SCREENS } from '../navigation/types';
 import { getOnboardingService } from '../services/OnboardingService';
 import { useAppDispatch } from '../store/hooks';
 import { updateUser } from '../store/slices/authSlice';
-import { getDatabase } from '../services/database';
-import { UserRepository } from '../database/repositories';
+import apiClient from '../services/api/apiClient';
 import type { RoleType } from '../types/roles';
 import MapLocationPickerModal from '../components/MapLocationPickerModal';
 
@@ -42,12 +41,13 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
   const navigation = useNavigation();
   const dispatch = useAppDispatch();
   const { colors } = useTheme();
-  const { userId, identifier, profileType, isEmail } = (route.params as { 
-    userId?: string; 
-    identifier?: string; 
-    profileType?: RoleType;
-    isEmail?: boolean;
-  }) || {};
+  const { userId, identifier, profileType, isEmail } =
+    (route.params as {
+      userId?: string;
+      identifier?: string;
+      profileType?: RoleType;
+      isEmail?: boolean;
+    }) || {};
 
   const [step, setStep] = useState(1); // 1: Documents, 2: Qualifications, 3: Lieu
 
@@ -71,6 +71,7 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
   const [workRegion, setWorkRegion] = useState('');
   const [workLocation, setWorkLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [serviceRadius, setServiceRadius] = useState(50);
+  const [mapModalVisible, setMapModalVisible] = useState(false);
 
   const availableSpecializations = [
     'Porcins',
@@ -89,10 +90,8 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
         // Si on a un identifier qui est un téléphone, on le note (mais le vétérinaire n'a pas de champ téléphone dans le formulaire)
         // Le téléphone sera mis à jour au niveau User lors de la soumission si nécessaire
         if (userId) {
-          // Charger les données utilisateur existantes pour vérifier si le téléphone existe
-          const db = await getDatabase();
-          const userRepo = new UserRepository(db);
-          const currentUser = await userRepo.findById(userId);
+          // Charger les données utilisateur existantes depuis l'API backend
+          const currentUser = await apiClient.get<any>(`/users/${userId}`);
           // Le téléphone sera synchronisé au niveau User, pas besoin de le pré-remplir dans le formulaire vétérinaire
         }
       } catch (error) {
@@ -119,87 +118,95 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
         });
       }
     } catch (error) {
-      Alert.alert('Erreur', 'Impossible de sélectionner l\'image');
+      Alert.alert('Erreur', "Impossible de sélectionner l'image");
     }
   };
 
   const pickProfessionalProof = async () => {
     try {
       // Demander à l'utilisateur s'il veut sélectionner une image ou un document PDF
-      Alert.alert(
-        'Sélectionner un document',
-        'Choisissez le type de document à télécharger',
-        [
-          {
-            text: 'Image (recommandé)',
-            onPress: async () => {
-              try {
-                // Demander les permissions pour accéder à la galerie
-                const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-                if (status !== 'granted') {
-                  Alert.alert(
-                    'Permission requise',
-                    'L\'application a besoin de l\'accès à vos photos pour télécharger le document.'
-                  );
-                  return;
-                }
-
-                const result = await ImagePicker.launchImageLibraryAsync({
-                  mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                  quality: 0.8,
-                  allowsEditing: true,
-                });
-
-                if (!result.canceled && result.assets[0]) {
-                  setProfessionalProof({
-                    uri: result.assets[0].uri,
-                    name: result.assets[0].fileName || 'professional_proof.jpg',
-                    type: result.assets[0].type || 'image/jpeg',
-                  });
-                }
-              } catch (error: any) {
-                console.error('Erreur sélection image:', error);
-                Alert.alert('Erreur', 'Impossible de sélectionner l\'image. ' + (error?.message || ''));
-              }
-            },
-          },
-          {
-            text: 'Document PDF',
-            onPress: async () => {
-              try {
-                const permissionResult = await DocumentPicker.getDocumentAsync({
-                  type: 'application/pdf',
-                  copyToCacheDirectory: true,
-                });
-
-                if (permissionResult.type === 'success' && permissionResult.uri) {
-                  setProfessionalProof({
-                    uri: permissionResult.uri,
-                    name: permissionResult.name || 'professional_proof.pdf',
-                    type: permissionResult.mimeType || 'application/pdf',
-                  });
-                } else if (permissionResult.type === 'cancel') {
-                  // L'utilisateur a annulé, ne rien faire
-                  return;
-                }
-              } catch (error: any) {
-                console.error('Erreur sélection document PDF:', error);
+      Alert.alert('Sélectionner un document', 'Choisissez le type de document à télécharger', [
+        {
+          text: 'Image (recommandé)',
+          onPress: async () => {
+            try {
+              // Demander les permissions pour accéder à la galerie
+              const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+              if (status !== 'granted') {
                 Alert.alert(
-                  'Erreur',
-                  error?.message || 'Impossible de sélectionner le document PDF. Essayez de sélectionner une image à la place.'
+                  'Permission requise',
+                  "L'application a besoin de l'accès à vos photos pour télécharger le document."
                 );
+                return;
               }
-            },
+
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                quality: 0.8,
+                allowsEditing: true,
+              });
+
+              if (!result.canceled && result.assets[0]) {
+                setProfessionalProof({
+                  uri: result.assets[0].uri,
+                  name: result.assets[0].fileName || 'professional_proof.jpg',
+                  type: result.assets[0].type || 'image/jpeg',
+                });
+              }
+            } catch (error: unknown) {
+              console.error('Erreur sélection image:', error);
+              const errorMessage = error instanceof Error ? error.message : '';
+              Alert.alert('Erreur', "Impossible de sélectionner l'image. " + errorMessage);
+            }
           },
-          {
-            text: 'Annuler',
-            style: 'cancel',
+        },
+        {
+          text: 'Document PDF',
+          onPress: async () => {
+            try {
+              const permissionResult = await DocumentPicker.getDocumentAsync({
+                type: 'application/pdf',
+                copyToCacheDirectory: true,
+              });
+
+              if (
+                permissionResult.type === 'success' &&
+                'uri' in permissionResult &&
+                permissionResult.uri
+              ) {
+                setProfessionalProof({
+                  uri: permissionResult.uri,
+                  name: 'name' in permissionResult ? permissionResult.name : 'professional_proof.pdf',
+                  type:
+                    'mimeType' in permissionResult
+                      ? permissionResult.mimeType
+                      : 'application/pdf',
+                });
+              } else if (permissionResult.type === 'cancel') {
+                // L'utilisateur a annulé, ne rien faire
+                return;
+              }
+            } catch (error: unknown) {
+              console.error('Erreur sélection document PDF:', error);
+              const errorMessage =
+                error instanceof Error
+                  ? error.message
+                  : 'Impossible de sélectionner le document PDF. Essayez de sélectionner une image à la place.';
+              Alert.alert('Erreur', errorMessage);
+            }
           },
-        ]
-      );
-    } catch (error: any) {
+        },
+        {
+          text: 'Annuler',
+          style: 'cancel',
+        },
+      ]);
+    } catch (error: unknown) {
       console.error('Erreur pickProfessionalProof:', error);
-      Alert.alert('Erreur', 'Impossible d\'ouvrir le sélecteur de documents. ' + (error?.message || ''));
+      Alert.alert(
+        'Erreur',
+        "Impossible d'ouvrir le sélecteur de documents. " + (error instanceof Error ? error.message : String(error) || '')
+      );
     }
   };
 
@@ -220,7 +227,13 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
           return;
         }
       } else if (step === 2) {
-        if (!degree || !university || !graduationYear || !licenseNumber || specializations.length === 0) {
+        if (
+          !degree ||
+          !university ||
+          !graduationYear ||
+          !licenseNumber ||
+          specializations.length === 0
+        ) {
           Alert.alert('Erreur', 'Veuillez remplir tous les champs obligatoires');
           return;
         }
@@ -261,10 +274,10 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
       }
 
       // Vérifier si le profil existe déjà
-      const db = await getDatabase();
-      const userRepo = new UserRepository(db);
+      const { UserRepository } = await import('../database/repositories');
+      const userRepo = new UserRepository();
       const currentUser = await userRepo.findById(finalUserId);
-      
+
       // Mettre à jour le numéro de téléphone au niveau User si fourni via identifier
       // Cela évite d'avoir deux numéros différents pour le même utilisateur
       if (identifier && !isEmail && currentUser) {
@@ -280,15 +293,18 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
           }
         }
       }
-      
+
       if (currentUser?.roles?.veterinarian) {
         // Le profil existe déjà, juste mettre à jour et naviguer
-        Alert.alert('Info', 'Votre profil vétérinaire existe déjà. Redirection vers le dashboard...');
+        Alert.alert(
+          'Info',
+          'Votre profil vétérinaire existe déjà. Redirection vers le dashboard...'
+        );
         const updatedUser = await userRepo.findById(finalUserId);
         if (updatedUser) {
           dispatch(updateUser(updatedUser));
         }
-        navigation.navigate('Main' as never, { screen: SCREENS.DASHBOARD_VET } as never);
+        (navigation as any).navigate('Main', { screen: SCREENS.DASHBOARD_VET });
         return;
       }
 
@@ -304,7 +320,8 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
           graduationYear: parseInt(graduationYear),
           licenseNumber,
           licenseIssuedBy,
-          licenseValidUntil: licenseValidUntil || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 an par défaut
+          licenseValidUntil:
+            licenseValidUntil || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 an par défaut
           documents: {
             identityCard: {
               url: identityCardUrl,
@@ -326,8 +343,8 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
           address: workAddress,
           city: workCity,
           region: workRegion,
-          latitude: workLocation.lat,
-          longitude: workLocation.lng,
+          latitude: workLocation?.lat || 0,
+          longitude: workLocation?.lng || 0,
           serviceRadius,
         },
       });
@@ -343,12 +360,13 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
       }
 
       // Rediriger vers le dashboard avec message de validation en attente (dans le navigateur Main)
-      navigation.navigate('Main' as never, { 
+      (navigation as any).navigate('Main', {
         screen: SCREENS.DASHBOARD_VET,
-        params: { showPendingValidation: true }
-      } as never);
-    } catch (error: any) {
-      Alert.alert('Erreur', `Erreur lors de la soumission: ${error.message}`);
+        params: { showPendingValidation: true },
+      });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+      Alert.alert('Erreur', `Erreur lors de la soumission: ${errorMessage}`);
     }
   };
 
@@ -360,7 +378,12 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
       </Text>
 
       {/* Photo d'identité */}
-      <View style={[styles.documentCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View
+        style={[
+          styles.documentCard,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+        ]}
+      >
         <View style={styles.documentHeader}>
           <Ionicons name="card" size={24} color="#EF4444" />
           <View style={styles.documentInfo}>
@@ -390,11 +413,18 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
       </View>
 
       {/* Preuve profession */}
-      <View style={[styles.documentCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View
+        style={[
+          styles.documentCard,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+        ]}
+      >
         <View style={styles.documentHeader}>
           <Ionicons name="school" size={24} color="#EF4444" />
           <View style={styles.documentInfo}>
-            <Text style={[styles.documentTitle, { color: colors.text }]}>Preuve de profession *</Text>
+            <Text style={[styles.documentTitle, { color: colors.text }]}>
+              Preuve de profession *
+            </Text>
             <Text style={[styles.documentDescription, { color: colors.textSecondary }]}>
               Diplôme, licence vétérinaire ou certificat d'exercice
             </Text>
@@ -440,7 +470,10 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
       <View style={styles.inputGroup}>
         <Text style={[styles.label, { color: colors.text }]}>Diplôme *</Text>
         <TextInput
-          style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+          style={[
+            styles.input,
+            { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+          ]}
           value={degree}
           onChangeText={setDegree}
           placeholder="Docteur en médecine vétérinaire"
@@ -451,7 +484,10 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
       <View style={styles.inputGroup}>
         <Text style={[styles.label, { color: colors.text }]}>Université *</Text>
         <TextInput
-          style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+          style={[
+            styles.input,
+            { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+          ]}
           value={university}
           onChangeText={setUniversity}
           placeholder="Nom de l'université"
@@ -463,7 +499,10 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
         <View style={[styles.inputGroup, { flex: 1, marginRight: SPACING.xs }]}>
           <Text style={[styles.label, { color: colors.text }]}>Année de graduation *</Text>
           <TextInput
-            style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+            style={[
+              styles.input,
+              { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+            ]}
             value={graduationYear}
             onChangeText={setGraduationYear}
             placeholder="2015"
@@ -475,7 +514,10 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
         <View style={[styles.inputGroup, { flex: 1, marginLeft: SPACING.xs }]}>
           <Text style={[styles.label, { color: colors.text }]}>Années d'expérience *</Text>
           <TextInput
-            style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+            style={[
+              styles.input,
+              { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+            ]}
             value={yearsOfPractice}
             onChangeText={setYearsOfPractice}
             placeholder="9"
@@ -488,7 +530,10 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
       <View style={styles.inputGroup}>
         <Text style={[styles.label, { color: colors.text }]}>Numéro de licence *</Text>
         <TextInput
-          style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+          style={[
+            styles.input,
+            { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+          ]}
           value={licenseNumber}
           onChangeText={setLicenseNumber}
           placeholder="VET-2024-XXXX"
@@ -499,7 +544,10 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
       <View style={styles.inputGroup}>
         <Text style={[styles.label, { color: colors.text }]}>Émis par *</Text>
         <TextInput
-          style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+          style={[
+            styles.input,
+            { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+          ]}
           value={licenseIssuedBy}
           onChangeText={setLicenseIssuedBy}
           placeholder="Ordre des Vétérinaires"
@@ -508,9 +556,14 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
       </View>
 
       <View style={styles.inputGroup}>
-        <Text style={[styles.label, { color: colors.text }]}>Date d'expiration de la licence *</Text>
+        <Text style={[styles.label, { color: colors.text }]}>
+          Date d'expiration de la licence *
+        </Text>
         <TextInput
-          style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+          style={[
+            styles.input,
+            { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+          ]}
           value={licenseValidUntil}
           onChangeText={setLicenseValidUntil}
           placeholder="2025-12-31"
@@ -550,7 +603,10 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
       <View style={styles.inputGroup}>
         <Text style={[styles.label, { color: colors.text }]}>Adresse *</Text>
         <TextInput
-          style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+          style={[
+            styles.input,
+            { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+          ]}
           value={workAddress}
           onChangeText={setWorkAddress}
           placeholder="Adresse complète"
@@ -562,7 +618,10 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
         <View style={[styles.inputGroup, { flex: 1, marginRight: SPACING.xs }]}>
           <Text style={[styles.label, { color: colors.text }]}>Ville *</Text>
           <TextInput
-            style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+            style={[
+              styles.input,
+              { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+            ]}
             value={workCity}
             onChangeText={setWorkCity}
             placeholder="Abidjan"
@@ -573,7 +632,10 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
         <View style={[styles.inputGroup, { flex: 1, marginLeft: SPACING.xs }]}>
           <Text style={[styles.label, { color: colors.text }]}>Région *</Text>
           <TextInput
-            style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+            style={[
+              styles.input,
+              { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+            ]}
             value={workRegion}
             onChangeText={setWorkRegion}
             placeholder="Lagunes"
@@ -585,7 +647,10 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
       <View style={styles.inputGroup}>
         <Text style={[styles.label, { color: colors.text }]}>Localisation sur la carte *</Text>
         <TouchableOpacity
-          style={[styles.mapButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          style={[
+            styles.mapButton,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
           onPress={() => setMapModalVisible(true)}
         >
           <Ionicons name="location" size={20} color={colors.primary} />
@@ -618,13 +683,19 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
           </View>
           <View style={styles.sliderButtons}>
             <TouchableOpacity
-              style={[styles.sliderButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              style={[
+                styles.sliderButton,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
               onPress={() => setServiceRadius(Math.max(10, serviceRadius - 5))}
             >
               <Ionicons name="remove" size={16} color={colors.text} />
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.sliderButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              style={[
+                styles.sliderButton,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
               onPress={() => setServiceRadius(Math.min(100, serviceRadius + 5))}
             >
               <Ionicons name="add" size={16} color={colors.text} />
@@ -670,10 +741,15 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
         <Button
           title={step === 3 ? 'Soumettre' : 'Suivant'}
           onPress={handleSubmit}
-          style={[styles.nextButton, { flex: step === 1 ? 1 : 0.6 }]}
+          style={step === 1 ? [styles.nextButton, { flex: 1 }] : [styles.nextButton, { flex: 0.6 }]}
           disabled={
             (step === 1 && (!identityCard || !professionalProof)) ||
-            (step === 2 && (!degree || !university || !graduationYear || !licenseNumber || specializations.length === 0)) ||
+            (step === 2 &&
+              (!degree ||
+                !university ||
+                !graduationYear ||
+                !licenseNumber ||
+                specializations.length === 0)) ||
             (step === 3 && (!workAddress || !workCity || !workLocation))
           }
         />
@@ -933,4 +1009,3 @@ const styles = StyleSheet.create({
 });
 
 export default VeterinarianInfoCompletionScreen;
-

@@ -184,7 +184,12 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
                   ).unwrap();
 
                   // 2. Enregistrer dans mortalites
-                  const categorie = animal.sexe === 'femelle' ? 'truie' : animal.sexe === 'male' ? 'verrat' : 'porcelet';
+                  const categorie =
+                    animal.sexe === 'femelle'
+                      ? 'truie'
+                      : animal.sexe === 'male'
+                        ? 'verrat'
+                        : 'porcelet';
                   await dispatch(
                     createMortalite({
                       projet_id: projetActif.id,
@@ -213,12 +218,10 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
                     'Décès enregistré',
                     `${animal.nom || "L'animal"} a été retiré du cheptel actif.\n\nLe cas de maladie et la cause du décès ont été archivés.`
                   );
-                } catch (error: any) {
+                } catch (error: unknown) {
                   console.error('Erreur changement statut mort:', error);
-                  Alert.alert(
-                    'Erreur',
-                    `Impossible d'enregistrer le décès: ${error?.message || error}`
-                  );
+                  const errorMessage = error instanceof Error ? error.message : String(error) || 'Impossible d\'enregistrer le décès';
+                  Alert.alert('Erreur', `Impossible d'enregistrer le décès: ${errorMessage}`);
                 }
               },
             },
@@ -237,9 +240,10 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
           ).unwrap();
 
           Alert.alert('Succès', `✅ ${animal?.nom || "L'animal"} a été marqué comme guéri !`);
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error('Erreur changement statut guéri:', error);
-          Alert.alert('Erreur', `Impossible de marquer comme guéri: ${error?.message || error}`);
+          const errorMessage = error instanceof Error ? error.message : String(error) || 'Impossible de marquer comme guéri';
+          Alert.alert('Erreur', `Impossible de marquer comme guéri: ${errorMessage}`);
         }
       }
     },

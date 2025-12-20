@@ -25,16 +25,15 @@ function FinanceScreenContent() {
   const [ongletActif, setOngletActif] = useState<FinanceOngletType>('vue_ensemble');
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top']}
+    >
       {/* En-tête avec icône */}
       <FinanceHeader />
 
       {/* Onglets de navigation */}
-      <FinanceTabs
-        onglets={ONGLETS}
-        ongletActif={ongletActif}
-        onTabChange={setOngletActif}
-      />
+      <FinanceTabs onglets={ONGLETS} ongletActif={ongletActif} onTabChange={setOngletActif} />
 
       {/* Contenu selon l'onglet actif */}
       <FinanceContent ongletActif={ongletActif} />

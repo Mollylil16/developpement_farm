@@ -38,7 +38,7 @@ describe('animalUtils', () => {
       expect(result).toBe(60); // Dernière pesée
     });
 
-    it('devrait retourner le poids initial si aucune pesée n\'est disponible', () => {
+    it("devrait retourner le poids initial si aucune pesée n'est disponible", () => {
       const animal: ProductionAnimal = {
         id: 'animal-1',
         code: 'A001',
@@ -106,4 +106,3 @@ describe('animalUtils', () => {
     });
   });
 });
-

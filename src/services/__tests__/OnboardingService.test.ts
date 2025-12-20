@@ -38,9 +38,7 @@ describe('OnboardingService', () => {
     mockUserRepository.findByEmail = jest.fn().mockResolvedValue(null);
     mockUserRepository.findByTelephone = jest.fn().mockResolvedValue(null);
     (UserRepository as jest.Mock).mockImplementation(() => mockUserRepository);
-    (ProjetRepository as jest.Mock).mockImplementation(
-      () => mockProjetRepository
-    );
+    (ProjetRepository as jest.Mock).mockImplementation(() => mockProjetRepository);
     service = await getOnboardingService();
   });
 
@@ -204,7 +202,7 @@ describe('OnboardingService', () => {
   });
 
   describe('completeOnboarding', () => {
-    it('devrait marquer l\'utilisateur comme onboarded', async () => {
+    it("devrait marquer l'utilisateur comme onboarded", async () => {
       const userId = 'user-1';
       const mockUser = {
         id: userId,
@@ -247,4 +245,3 @@ describe('OnboardingService', () => {
     });
   });
 });
-

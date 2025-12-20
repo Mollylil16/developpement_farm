@@ -9,7 +9,9 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { SPACING, FONT_SIZES } from '../../constants/theme';
 
 interface SettingsRootViewProps {
-  onNavigateToTab: (tab: 'account' | 'security' | 'notifications' | 'preferences' | 'marketplace') => void;
+  onNavigateToTab: (
+    tab: 'account' | 'security' | 'notifications' | 'preferences' | 'marketplace'
+  ) => void;
 }
 
 export default function SettingsRootView({ onNavigateToTab }: SettingsRootViewProps) {
@@ -121,4 +123,3 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xs / 2,
   },
 });
-

@@ -1,71 +1,18 @@
 /**
  * MaladieRepository - Gestion des maladies
- * 
- * Responsabilités:
- * - CRUD des maladies
- * - Recherche par projet, animal, lot
- * - Filtrage par statut (guéries, en cours)
+ *
+ * Utilise maintenant l'API REST du backend (PostgreSQL)
  */
 
-import * as SQLite from 'expo-sqlite';
 import { BaseRepository } from './BaseRepository';
 import { Maladie, CreateMaladieInput } from '../../types/sante';
-import uuid from 'react-native-uuid';
 
 export class MaladieRepository extends BaseRepository<Maladie> {
-  constructor(db: SQLite.SQLiteDatabase) {
-    super(db, 'maladies');
+  constructor() {
+    super('maladies', '/sante/maladies');
   }
 
-  /**
-   * Créer une nouvelle maladie
-   */
-  async create(input: CreateMaladieInput): Promise<Maladie> {
-    const id = uuid.v4().toString();
-    const now = new Date().toISOString();
-
-    await this.execute(
-      `INSERT INTO maladies (
-        id, projet_id, animal_id, lot_id, type, nom_maladie, gravite,
-        symptomes, diagnostic, date_debut, date_fin, gueri, contagieux,
-        nombre_animaux_affectes, nombre_deces, veterinaire, cout_traitement, notes,
-        date_creation, derniere_modification
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        input.projet_id,
-        input.animal_id || null,
-        input.lot_id || null,
-        input.type,
-        input.nom_maladie,
-        input.gravite,
-        input.symptomes,
-        input.diagnostic || null,
-        input.date_debut,
-        input.date_fin || null,
-        input.gueri ? 1 : 0,
-        input.contagieux ? 1 : 0,
-        input.nombre_animaux_affectes || null,
-        input.nombre_deces || null,
-        input.veterinaire || null,
-        input.cout_traitement || null,
-        input.notes || null,
-        now,
-        now,
-      ]
-    );
-
-    const created = await this.findById(id);
-    if (!created) {
-      throw new Error('Impossible de créer la maladie');
-    }
-    return created;
-  }
-
-  /**
-   * Mapper une ligne de la base vers Maladie
-   */
-  private mapRow(row: any): Maladie {
+  private mapRow(row: unknown): Maladie {
     return {
       id: row.id,
       projet_id: row.projet_id,
@@ -90,121 +37,92 @@ export class MaladieRepository extends BaseRepository<Maladie> {
     };
   }
 
-  /**
-   * Override findById pour mapper correctement
-   */
+  async create(input: CreateMaladieInput): Promise<Maladie> {
+    const maladieData = {
+      projet_id: input.projet_id,
+      animal_id: input.animal_id || null,
+      lot_id: input.lot_id || null,
+      type: input.type,
+      nom_maladie: input.nom_maladie,
+      gravite: input.gravite,
+      symptomes: input.symptomes,
+      diagnostic: input.diagnostic || null,
+      date_debut: input.date_debut,
+      date_fin: input.date_fin || null,
+      gueri: input.gueri || false,
+      contagieux: input.contagieux || false,
+      nombre_animaux_affectes: input.nombre_animaux_affectes || null,
+      nombre_deces: input.nombre_deces || null,
+      veterinaire: input.veterinaire || null,
+      cout_traitement: input.cout_traitement || null,
+      notes: input.notes || null,
+    };
+
+    const created = await this.executePost<unknown>('/sante/maladies', maladieData);
+    return this.mapRow(created);
+  }
+
   async findById(id: string): Promise<Maladie | null> {
-    const row = await this.queryOne<any>(`SELECT * FROM ${this.tableName} WHERE id = ?`, [id]);
-    return row ? this.mapRow(row) : null;
+    try {
+      const row = await this.queryOne<unknown>(`/sante/maladies/${id}`);
+      return row ? this.mapRow(row) : null;
+    } catch (error) {
+      console.error('Error finding maladie by id:', error);
+      return null;
+    }
   }
 
-  /**
-   * Récupérer toutes les maladies d'un projet
-   */
   async findByProjet(projetId: string): Promise<Maladie[]> {
-    const rows = await this.query<any>(
-      `SELECT * FROM maladies WHERE projet_id = ? ORDER BY date_debut DESC`,
-      [projetId]
-    );
-    return rows.map((row) => this.mapRow(row));
+    try {
+      const rows = await this.query<unknown>('/sante/maladies', { projet_id: projetId });
+      return rows.map(this.mapRow);
+    } catch (error) {
+      console.error('Error finding maladies by projet:', error);
+      return [];
+    }
   }
 
-  /**
-   * Récupérer toutes les maladies d'un animal
-   */
   async findByAnimal(animalId: string): Promise<Maladie[]> {
-    const rows = await this.query<any>(
-      `SELECT * FROM maladies WHERE animal_id = ? ORDER BY date_debut DESC`,
-      [animalId]
-    );
-    return rows.map((row) => this.mapRow(row));
+    try {
+      const rows = await this.query<unknown>('/sante/maladies', { animal_id: animalId });
+      return rows.map(this.mapRow);
+    } catch (error) {
+      console.error('Error finding maladies by animal:', error);
+      return [];
+    }
   }
 
-  /**
-   * Récupérer les maladies en cours (non guéries)
-   */
   async findEnCours(projetId: string): Promise<Maladie[]> {
-    const rows = await this.query<any>(
-      `SELECT * FROM maladies WHERE projet_id = ? AND gueri = 0 ORDER BY date_debut DESC`,
-      [projetId]
-    );
-    return rows.map((row) => this.mapRow(row));
+    try {
+      const maladies = await this.findByProjet(projetId);
+      return maladies.filter(m => !m.gueri);
+    } catch (error) {
+      console.error('Error finding maladies en cours:', error);
+      return [];
+    }
   }
 
-  /**
-   * Mettre à jour une maladie
-   */
   async update(id: string, updates: Partial<CreateMaladieInput>): Promise<Maladie> {
-    const now = new Date().toISOString();
-    const fields: string[] = [];
-    const values: any[] = [];
+    const updateData: Record<string, unknown> = {};
 
-    if (updates.animal_id !== undefined) {
-      fields.push('animal_id = ?');
-      values.push(updates.animal_id || null);
-    }
-    if (updates.lot_id !== undefined) {
-      fields.push('lot_id = ?');
-      values.push(updates.lot_id || null);
-    }
-    if (updates.type !== undefined) {
-      fields.push('type = ?');
-      values.push(updates.type);
-    }
-    if (updates.nom_maladie !== undefined) {
-      fields.push('nom_maladie = ?');
-      values.push(updates.nom_maladie);
-    }
-    if (updates.gravite !== undefined) {
-      fields.push('gravite = ?');
-      values.push(updates.gravite);
-    }
-    if (updates.symptomes !== undefined) {
-      fields.push('symptomes = ?');
-      values.push(updates.symptomes);
-    }
-    if (updates.diagnostic !== undefined) {
-      fields.push('diagnostic = ?');
-      values.push(updates.diagnostic || null);
-    }
-    if (updates.date_debut !== undefined) {
-      fields.push('date_debut = ?');
-      values.push(updates.date_debut);
-    }
-    if (updates.date_fin !== undefined) {
-      fields.push('date_fin = ?');
-      values.push(updates.date_fin || null);
-    }
-    if (updates.gueri !== undefined) {
-      fields.push('gueri = ?');
-      values.push(updates.gueri ? 1 : 0);
-    }
-    if (updates.contagieux !== undefined) {
-      fields.push('contagieux = ?');
-      values.push(updates.contagieux ? 1 : 0);
-    }
-    if (updates.nombre_animaux_affectes !== undefined) {
-      fields.push('nombre_animaux_affectes = ?');
-      values.push(updates.nombre_animaux_affectes || null);
-    }
-    if (updates.nombre_deces !== undefined) {
-      fields.push('nombre_deces = ?');
-      values.push(updates.nombre_deces || null);
-    }
-    if (updates.veterinaire !== undefined) {
-      fields.push('veterinaire = ?');
-      values.push(updates.veterinaire || null);
-    }
-    if (updates.cout_traitement !== undefined) {
-      fields.push('cout_traitement = ?');
-      values.push(updates.cout_traitement || null);
-    }
-    if (updates.notes !== undefined) {
-      fields.push('notes = ?');
-      values.push(updates.notes || null);
-    }
+    if (updates.animal_id !== undefined) updateData.animal_id = updates.animal_id || null;
+    if (updates.lot_id !== undefined) updateData.lot_id = updates.lot_id || null;
+    if (updates.type !== undefined) updateData.type = updates.type;
+    if (updates.nom_maladie !== undefined) updateData.nom_maladie = updates.nom_maladie;
+    if (updates.gravite !== undefined) updateData.gravite = updates.gravite;
+    if (updates.symptomes !== undefined) updateData.symptomes = updates.symptomes;
+    if (updates.diagnostic !== undefined) updateData.diagnostic = updates.diagnostic || null;
+    if (updates.date_debut !== undefined) updateData.date_debut = updates.date_debut;
+    if (updates.date_fin !== undefined) updateData.date_fin = updates.date_fin || null;
+    if (updates.gueri !== undefined) updateData.gueri = updates.gueri;
+    if (updates.contagieux !== undefined) updateData.contagieux = updates.contagieux;
+    if (updates.nombre_animaux_affectes !== undefined) updateData.nombre_animaux_affectes = updates.nombre_animaux_affectes || null;
+    if (updates.nombre_deces !== undefined) updateData.nombre_deces = updates.nombre_deces || null;
+    if (updates.veterinaire !== undefined) updateData.veterinaire = updates.veterinaire || null;
+    if (updates.cout_traitement !== undefined) updateData.cout_traitement = updates.cout_traitement || null;
+    if (updates.notes !== undefined) updateData.notes = updates.notes || null;
 
-    if (fields.length === 0) {
+    if (Object.keys(updateData).length === 0) {
       const existing = await this.findById(id);
       if (!existing) {
         throw new Error('Maladie introuvable');
@@ -212,31 +130,14 @@ export class MaladieRepository extends BaseRepository<Maladie> {
       return existing;
     }
 
-    fields.push('derniere_modification = ?');
-    values.push(now);
-    values.push(id);
-
-    await this.execute(`UPDATE maladies SET ${fields.join(', ')} WHERE id = ?`, values);
-
-    const updated = await this.findById(id);
-    if (!updated) {
-      throw new Error('Maladie introuvable après mise à jour');
-    }
-    return updated;
+    const updated = await this.executePatch<unknown>(`/sante/maladies/${id}`, updateData);
+    return this.mapRow(updated);
   }
 
-  /**
-   * Supprimer une maladie (et ses traitements associés)
-   */
   async delete(id: string): Promise<void> {
-    // Supprimer aussi les traitements associés
-    await this.execute('DELETE FROM traitements WHERE maladie_id = ?', [id]);
     await this.deleteById(id);
   }
 
-  /**
-   * Obtenir les statistiques de maladies
-   */
   async getStatistiquesMaladies(projetId: string): Promise<{
     total: number;
     enCours: number;
@@ -245,39 +146,40 @@ export class MaladieRepository extends BaseRepository<Maladie> {
     parGravite: { [key: string]: number };
     tauxGuerison: number;
   }> {
-    const total = await this.queryOne<{ count: number }>(
-      'SELECT COUNT(*) as count FROM maladies WHERE projet_id = ?',
-      [projetId]
-    );
+    try {
+      const maladies = await this.findByProjet(projetId);
+      const total = maladies.length;
+      const enCours = maladies.filter(m => !m.gueri).length;
+      const gueries = maladies.filter(m => m.gueri).length;
 
-    const enCours = await this.queryOne<{ count: number }>(
-      'SELECT COUNT(*) as count FROM maladies WHERE projet_id = ? AND gueri = 0',
-      [projetId]
-    );
+      const parType: { [key: string]: number } = {};
+      const parGravite: { [key: string]: number } = {};
 
-    const gueries = await this.queryOne<{ count: number }>(
-      'SELECT COUNT(*) as count FROM maladies WHERE projet_id = ? AND gueri = 1',
-      [projetId]
-    );
+      maladies.forEach(m => {
+        parType[m.type] = (parType[m.type] || 0) + 1;
+        parGravite[m.gravite] = (parGravite[m.gravite] || 0) + 1;
+      });
 
-    const parType = await this.query<{ type: string; count: number }>(
-      'SELECT type, COUNT(*) as count FROM maladies WHERE projet_id = ? GROUP BY type',
-      [projetId]
-    );
+      const tauxGuerison = total > 0 ? (gueries / total) * 100 : 0;
 
-    const parGravite = await this.query<{ gravite: string; count: number }>(
-      'SELECT gravite, COUNT(*) as count FROM maladies WHERE projet_id = ? GROUP BY gravite',
-      [projetId]
-    );
-
-    return {
-      total: total?.count || 0,
-      enCours: enCours?.count || 0,
-      gueries: gueries?.count || 0,
-      parType: parType.reduce((acc, item) => ({ ...acc, [item.type]: item.count }), {}),
-      parGravite: parGravite.reduce((acc, item) => ({ ...acc, [item.gravite]: item.count }), {}),
-      tauxGuerison: total?.count ? ((gueries?.count || 0) / total.count) * 100 : 0,
-    };
+      return {
+        total,
+        enCours,
+        gueries,
+        parType,
+        parGravite,
+        tauxGuerison,
+      };
+    } catch (error) {
+      console.error('Error getting statistiques maladies:', error);
+      return {
+        total: 0,
+        enCours: 0,
+        gueries: 0,
+        parType: {},
+        parGravite: {},
+        tauxGuerison: 0,
+      };
+    }
   }
 }
-

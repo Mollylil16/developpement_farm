@@ -1,6 +1,6 @@
 /**
  * Tests pour RevenuEntity
- * 
+ *
  * Tests de la logique métier de l'entité Revenu
  */
 
@@ -45,7 +45,7 @@ describe('RevenuEntity', () => {
       expect(entity.isValid()).toBe(false);
     });
 
-    it('devrait retourner false si la date n\'est pas définie', () => {
+    it("devrait retourner false si la date n'est pas définie", () => {
       const revenu = createMockRevenu({
         montant: 200000,
         date: '',
@@ -116,7 +116,7 @@ describe('RevenuEntity', () => {
       expect(prixAuKg).toBe(2000);
     });
 
-    it('devrait retourner null si poidsKg n\'est pas défini', () => {
+    it("devrait retourner null si poidsKg n'est pas défini", () => {
       const revenu = createMockRevenu({
         montant: 200000,
         poidsKg: undefined,
@@ -147,7 +147,7 @@ describe('RevenuEntity', () => {
       expect(entity.isVentePorc()).toBe(true);
     });
 
-    it('devrait retourner false si la catégorie n\'est pas vente_porc', () => {
+    it("devrait retourner false si la catégorie n'est pas vente_porc", () => {
       const revenu = createMockRevenu({
         categorie: 'subvention',
       });
@@ -157,4 +157,3 @@ describe('RevenuEntity', () => {
     });
   });
 });
-

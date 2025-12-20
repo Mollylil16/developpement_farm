@@ -25,10 +25,18 @@ const mockUseAppSelector = useAppSelector as jest.MockedFunction<typeof useAppSe
 const mockUseNutritionWidget = useNutritionWidget as jest.MockedFunction<typeof useNutritionWidget>;
 const mockUseSanteWidget = useSanteWidget as jest.MockedFunction<typeof useSanteWidget>;
 const mockUsePlanningWidget = usePlanningWidget as jest.MockedFunction<typeof usePlanningWidget>;
-const mockUseCollaborationWidget = useCollaborationWidget as jest.MockedFunction<typeof useCollaborationWidget>;
-const mockUseMortalitesWidget = useMortalitesWidget as jest.MockedFunction<typeof useMortalitesWidget>;
-const mockUseProductionWidget = useProductionWidget as jest.MockedFunction<typeof useProductionWidget>;
-const mockUseMarketplaceWidget = useMarketplaceWidget as jest.MockedFunction<typeof useMarketplaceWidget>;
+const mockUseCollaborationWidget = useCollaborationWidget as jest.MockedFunction<
+  typeof useCollaborationWidget
+>;
+const mockUseMortalitesWidget = useMortalitesWidget as jest.MockedFunction<
+  typeof useMortalitesWidget
+>;
+const mockUseProductionWidget = useProductionWidget as jest.MockedFunction<
+  typeof useProductionWidget
+>;
+const mockUseMarketplaceWidget = useMarketplaceWidget as jest.MockedFunction<
+  typeof useMarketplaceWidget
+>;
 const mockUsePurchasesWidget = usePurchasesWidget as jest.MockedFunction<typeof usePurchasesWidget>;
 const mockUseExpensesWidget = useExpensesWidget as jest.MockedFunction<typeof useExpensesWidget>;
 
@@ -208,4 +216,3 @@ describe('useWidgetData', () => {
     expect(getWidgetData('expenses')).toEqual(mockExpensesData);
   });
 });
-

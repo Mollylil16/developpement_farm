@@ -243,7 +243,11 @@ export default function StockMouvementsHistoryComponent() {
           <TextInput
             style={[
               styles.searchInput,
-              { borderColor: colors.border, backgroundColor: colors.background, color: colors.text },
+              {
+                borderColor: colors.border,
+                backgroundColor: colors.background,
+                color: colors.text,
+              },
             ]}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -355,7 +359,9 @@ export default function StockMouvementsHistoryComponent() {
           ]}
         >
           <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: colors.text }]}>{mouvementsFiltres.length}</Text>
+            <Text style={[styles.statValue, { color: colors.text }]}>
+              {mouvementsFiltres.length}
+            </Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
               Mouvement{mouvementsFiltres.length > 1 ? 's' : ''}
             </Text>
@@ -416,7 +422,9 @@ export default function StockMouvementsHistoryComponent() {
                         {alimentNom}
                       </Text>
                     </View>
-                    <View style={[styles.mouvementTypeBadge, { backgroundColor: typeColor + '20' }]}>
+                    <View
+                      style={[styles.mouvementTypeBadge, { backgroundColor: typeColor + '20' }]}
+                    >
                       <Text style={[styles.mouvementTypeText, { color: typeColor }]}>
                         {getTypeLabel(mouvement.type)}
                       </Text>

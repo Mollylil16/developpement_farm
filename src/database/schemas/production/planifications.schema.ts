@@ -32,4 +32,3 @@ export async function createPlanificationsTable(db: SQLite.SQLiteDatabase): Prom
     );
   `);
 }
-

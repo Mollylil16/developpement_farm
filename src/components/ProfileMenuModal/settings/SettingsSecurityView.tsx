@@ -31,7 +31,7 @@ export default function SettingsSecurityView({ onBack }: SettingsSecurityViewPro
           onPress={() => {
             Alert.alert(
               'Historique de connexion',
-              'L\'historique de connexion affiche les dernières connexions à votre compte. Cette fonctionnalité sera disponible prochainement.',
+              "L'historique de connexion affiche les dernières connexions à votre compte. Cette fonctionnalité sera disponible prochainement.",
               [{ text: 'OK' }]
             );
           }}
@@ -59,7 +59,7 @@ export default function SettingsSecurityView({ onBack }: SettingsSecurityViewPro
           onPress={() => {
             Alert.alert(
               'Authentification 2FA',
-              'L\'authentification à deux facteurs (2FA) ajoute une couche de sécurité supplémentaire à votre compte. Cette fonctionnalité sera disponible prochainement.',
+              "L'authentification à deux facteurs (2FA) ajoute une couche de sécurité supplémentaire à votre compte. Cette fonctionnalité sera disponible prochainement.",
               [{ text: 'OK' }]
             );
           }}
@@ -108,4 +108,3 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
-

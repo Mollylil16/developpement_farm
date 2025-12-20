@@ -30,4 +30,3 @@ config.resolver.unstable_enablePackageExports = false;
 config.resolver.disableHierarchicalLookup = false;
 
 module.exports = config;
-

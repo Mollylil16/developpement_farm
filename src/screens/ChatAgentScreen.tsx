@@ -11,4 +11,3 @@ export default function ChatAgentScreenWrapper() {
 
   return <ChatAgentScreen onClose={() => navigation.goBack()} />;
 }
-

@@ -1,6 +1,6 @@
 /**
  * StockRepository - Gestion des stocks d'aliments
- * 
+ *
  * Responsabilités:
  * - CRUD des stocks
  * - Mouvements de stock (entrées/sorties)
@@ -8,119 +8,57 @@
  * - Valorisation des stocks
  */
 
-import * as SQLite from 'expo-sqlite';
 import { BaseRepository } from './BaseRepository';
 import { StockAliment, MouvementStock, CreateStockAlimentInput } from '../../types/nutrition';
-import uuid from 'react-native-uuid';
 
 export class StockRepository extends BaseRepository<StockAliment> {
-  constructor(db: SQLite.SQLiteDatabase) {
-    super(db, 'stocks_aliments');
+  constructor() {
+    super('stocks_aliments', '/nutrition/stocks');
   }
 
   async create(data: CreateStockAlimentInput | Partial<StockAliment>): Promise<StockAliment> {
-    const id = uuid.v4().toString();
-    const now = new Date().toISOString();
-
     // Mapper quantite_initiale vers quantite_actuelle si c'est un CreateStockAlimentInput
-    const quantiteActuelle = 
-      'quantite_initiale' in data 
-        ? (data.quantite_initiale ?? 0)
-        : (data.quantite_actuelle ?? 0);
+    const quantiteActuelle =
+      'quantite_initiale' in data ? (data.quantite_initiale ?? 0) : (data.quantite_actuelle ?? 0);
 
     // Activer l'alerte par défaut si seuil défini
     const seuilAlerte = data.seuil_alerte;
     const alerteActive = seuilAlerte ? quantiteActuelle <= seuilAlerte : false;
 
-    await this.execute(
-      `INSERT INTO stocks_aliments (
-        id, projet_id, nom, categorie, unite, quantite_actuelle,
-        seuil_alerte, alerte_active, notes,
-        date_creation, derniere_modification
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        data.projet_id,
-        data.nom,
-        data.categorie || null,
-        data.unite || 'kg',
-        quantiteActuelle,
-        seuilAlerte || null,
-        alerteActive ? 1 : 0,
-        data.notes || null,
-        now,
-        now,
-      ]
-    );
+    const stockData = {
+      projet_id: data.projet_id,
+      nom: data.nom,
+      categorie: data.categorie || null,
+      unite: data.unite || 'kg',
+      quantite_actuelle: quantiteActuelle,
+      seuil_alerte: seuilAlerte || null,
+      alerte_active: alerteActive,
+      notes: data.notes || null,
+    };
 
-    const created = await this.findById(id);
-    if (!created) {
-      throw new Error('Impossible de créer le stock');
-    }
-    return created;
+    return this.executePost<StockAliment>(this.apiBasePath, stockData);
   }
 
   async update(id: string, data: Partial<StockAliment>): Promise<StockAliment> {
-    const now = new Date().toISOString();
-    const fields: string[] = [];
-    const values: any[] = [];
+    const updateData: Partial<StockAliment> = { ...data };
 
-    if (data.nom !== undefined) {
-      fields.push('nom = ?');
-      values.push(data.nom);
-    }
-    if (data.categorie !== undefined) {
-      fields.push('categorie = ?');
-      values.push(data.categorie);
-    }
-    if (data.unite !== undefined) {
-      fields.push('unite = ?');
-      values.push(data.unite);
-    }
+    // Mettre à jour alerte_active si quantite_actuelle change et seuil défini
     if (data.quantite_actuelle !== undefined) {
-      fields.push('quantite_actuelle = ?');
-      values.push(data.quantite_actuelle);
-
-      // Mettre à jour alerte_active si seuil défini
       const stock = await this.findById(id);
       if (stock?.seuil_alerte) {
-        fields.push('alerte_active = ?');
-        values.push(data.quantite_actuelle <= stock.seuil_alerte ? 1 : 0);
+        updateData.alerte_active = data.quantite_actuelle <= stock.seuil_alerte;
       }
     }
-    if (data.seuil_alerte !== undefined) {
-      fields.push('seuil_alerte = ?');
-      values.push(data.seuil_alerte);
-    }
-    if (data.notes !== undefined) {
-      fields.push('notes = ?');
-      values.push(data.notes);
-    }
 
-    fields.push('derniere_modification = ?');
-    values.push(now);
-    values.push(id);
-
-    await this.execute(`UPDATE stocks_aliments SET ${fields.join(', ')} WHERE id = ?`, values);
-
-    const updated = await this.findById(id);
-    if (!updated) {
-      throw new Error('Stock introuvable');
-    }
-    return updated;
+    return this.executePatch<StockAliment>(`${this.apiBasePath}/${id}`, updateData);
   }
 
   /**
    * Récupérer tous les stocks d'un projet avec mapping correct des données
    */
   async findByProjet(projetId: string): Promise<StockAliment[]> {
-    const rows = await this.query<any>(
-      `SELECT * FROM stocks_aliments 
-       WHERE projet_id = ? 
-       ORDER BY nom ASC`,
-      [projetId]
-    );
-    
+    const rows = await this.query<unknown>(this.apiBasePath, { projet_id: projetId });
+
     // Mapper les données pour s'assurer que les types sont corrects
     return rows.map((row) => this.mapRowToStockAliment(row));
   }
@@ -128,7 +66,7 @@ export class StockRepository extends BaseRepository<StockAliment> {
   /**
    * Mapper une ligne de la base de données vers StockAliment
    */
-  private mapRowToStockAliment(row: any): StockAliment {
+  private mapRowToStockAliment(row: unknown): StockAliment {
     // S'assurer que quantite_actuelle est toujours un nombre
     const quantiteActuelle =
       typeof row.quantite_actuelle === 'number'
@@ -164,7 +102,7 @@ export class StockRepository extends BaseRepository<StockAliment> {
    * Override findById pour mapper correctement les données
    */
   async findById(id: string): Promise<StockAliment | null> {
-    const row = await this.queryOne<any>(`SELECT * FROM ${this.tableName} WHERE id = ?`, [id]);
+    const row = await this.queryOne<unknown>(`${this.apiBasePath}/${id}`);
     if (!row) {
       return null;
     }
@@ -172,13 +110,11 @@ export class StockRepository extends BaseRepository<StockAliment> {
   }
 
   async findEnAlerte(projetId: string): Promise<StockAliment[]> {
-    const rows = await this.query<any>(
-      `SELECT * FROM stocks_aliments 
-       WHERE projet_id = ? AND alerte_active = 1
-       ORDER BY nom ASC`,
-      [projetId]
-    );
-    
+    const rows = await this.query<unknown>(this.apiBasePath, {
+      projet_id: projetId,
+      alerte_active: true,
+    });
+
     return rows.map((row) => this.mapRowToStockAliment(row));
   }
 
@@ -189,7 +125,7 @@ export class StockRepository extends BaseRepository<StockAliment> {
     }
 
     const nouvelleQuantite = stock.quantite_actuelle + quantite;
-    
+
     await this.update(stockId, {
       quantite_actuelle: nouvelleQuantite,
     });
@@ -216,7 +152,7 @@ export class StockRepository extends BaseRepository<StockAliment> {
     }
 
     const nouvelleQuantite = stock.quantite_actuelle - quantite;
-    
+
     await this.update(stockId, {
       quantite_actuelle: nouvelleQuantite,
     });
@@ -277,31 +213,23 @@ export class StockRepository extends BaseRepository<StockAliment> {
     notes?: string;
     date?: string;
   }): Promise<void> {
-    const id = uuid.v4().toString();
-    const now = new Date().toISOString();
-    
     // Récupérer le projet_id depuis le stock
     const stock = await this.findById(data.stock_id);
     if (!stock) {
       throw new Error('Stock introuvable');
     }
 
-    await this.execute(
-      `INSERT INTO stocks_mouvements (
-        id, projet_id, aliment_id, type, quantite, unite, date, commentaire, date_creation
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        stock.projet_id,
-        data.stock_id,
-        data.type,
-        data.quantite,
-        stock.unite,
-        data.date || now,
-        data.notes || null,
-        now
-      ]
-    );
+    const mouvementData = {
+      projet_id: stock.projet_id,
+      aliment_id: data.stock_id,
+      type: data.type,
+      quantite: data.quantite,
+      unite: stock.unite,
+      date: data.date || new Date().toISOString(),
+      commentaire: data.notes || null,
+    };
+
+    await this.executePost(`${this.apiBasePath}/${data.stock_id}/mouvements`, mouvementData);
   }
 
   async getValeurTotaleStock(projetId: string): Promise<number> {
@@ -331,36 +259,28 @@ export class StockRepository extends BaseRepository<StockAliment> {
    * Récupérer les mouvements de stock pour un aliment
    */
   async getMouvements(stockId: string, limit?: number): Promise<MouvementStock[]> {
-    const sql = `SELECT * FROM stocks_mouvements 
-                 WHERE aliment_id = ? 
-                 ORDER BY date DESC 
-                 ${limit ? `LIMIT ${limit}` : ''}`;
-    
-    return this.query<MouvementStock>(sql, [stockId]);
+    const params: Record<string, unknown> = {};
+    if (limit) {
+      params.limit = limit;
+    }
+    return this.query<MouvementStock>(`${this.apiBasePath}/${stockId}/mouvements`, params);
   }
 
   /**
    * Récupérer tous les mouvements pour un projet
    */
   async getAllMouvementsByProjet(projetId: string, limit?: number): Promise<MouvementStock[]> {
-    const sql = `SELECT m.* FROM stocks_mouvements m
-                 INNER JOIN stocks_aliments s ON m.aliment_id = s.id
-                 WHERE s.projet_id = ?
-                 ORDER BY m.date DESC
-                 ${limit ? `LIMIT ${limit}` : ''}`;
-    
-    return this.query<MouvementStock>(sql, [projetId]);
+    const params: Record<string, unknown> = { projet_id: projetId };
+    if (limit) {
+      params.limit = limit;
+    }
+    return this.query<MouvementStock>(`${this.apiBasePath}/mouvements`, params);
   }
 
   /**
    * Supprimer un stock et tous ses mouvements associés
    */
   async delete(id: string): Promise<void> {
-    // Supprimer d'abord tous les mouvements associés
-    await this.execute(`DELETE FROM stocks_mouvements WHERE aliment_id = ?`, [id]);
-    
-    // Ensuite supprimer le stock
-    await this.execute(`DELETE FROM stocks_aliments WHERE id = ?`, [id]);
+    await this.executeDelete(`${this.apiBasePath}/${id}`);
   }
 }
-

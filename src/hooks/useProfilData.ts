@@ -10,8 +10,7 @@
 import { useState, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppSelector } from '../store/hooks';
-import { getDatabase } from '../services/database';
-import { UserRepository } from '../database/repositories';
+import apiClient from '../services/api/apiClient';
 
 interface UseProfilDataReturn {
   profilPhotoUri: string | null;
@@ -39,19 +38,17 @@ export function useProfilData(): UseProfilDataReturn {
         return;
       }
 
-      // Charger depuis la base de données
-      const db = await getDatabase();
-      const userRepo = new UserRepository(db);
-      const dbUser = await userRepo.findById(user.id);
-      
-      if (dbUser) {
-        // Mettre à jour les états avec les données de la DB
-        setProfilPhotoUri(dbUser.photo || null);
-        setProfilPrenom(dbUser.prenom || '');
+      // Charger depuis l'API backend
+      const apiUser = await apiClient.get<any>(`/users/${user.id}`);
+
+      if (apiUser) {
+        // Mettre à jour les états avec les données de l'API
+        setProfilPhotoUri(apiUser.photo || null);
+        setProfilPrenom(apiUser.prenom || '');
 
         // Générer les initiales (Prénom + Nom)
-        if (dbUser.prenom && dbUser.nom) {
-          const initiales = `${dbUser.prenom.charAt(0).toUpperCase()}${dbUser.nom.charAt(0).toUpperCase()}`;
+        if (apiUser.prenom && apiUser.nom) {
+          const initiales = `${apiUser.prenom.charAt(0).toUpperCase()}${apiUser.nom.charAt(0).toUpperCase()}`;
           setProfilInitiales(initiales);
         } else {
           setProfilInitiales('');
@@ -101,4 +98,3 @@ export function useProfilData(): UseProfilDataReturn {
     loadProfilPhoto,
   };
 }
-

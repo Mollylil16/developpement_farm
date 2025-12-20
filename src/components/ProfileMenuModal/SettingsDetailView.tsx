@@ -32,4 +32,3 @@ export default function SettingsDetailView({ settingsTab, onBack }: SettingsDeta
       return null;
   }
 }
-

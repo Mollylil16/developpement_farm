@@ -26,6 +26,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useAppSelector } from '../../store/hooks';
 import { Image } from 'react-native';
+import { VoiceService } from '../../services/chatAgent';
 
 interface ChatAgentScreenProps {
   onClose?: () => void;
@@ -49,7 +50,7 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
   const [sending, setSending] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const flatListRef = useRef<FlatList>(null);
-  const voiceServiceRef = useRef<any>(null);
+  const voiceServiceRef = useRef<VoiceService | null>(null);
 
   // Générer les initiales de l'utilisateur
   const userInitials = user?.prenom?.[0] || user?.nom?.[0] || 'U';
@@ -80,33 +81,29 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
       await sendMessage(content);
     } catch (error) {
       console.error('Erreur envoi message:', error);
-      Alert.alert('Erreur', 'Impossible d\'envoyer le message. Réessayez.');
+      Alert.alert('Erreur', "Impossible d'envoyer le message. Réessayez.");
     } finally {
       setSending(false);
     }
   };
 
   const handleClear = () => {
-    Alert.alert(
-      'Effacer la conversation',
-      'Voulez-vous vraiment effacer toute la conversation ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Effacer',
-          style: 'destructive',
-          onPress: () => {
-            clearConversation();
-            setInputText('');
-          },
+    Alert.alert('Effacer la conversation', 'Voulez-vous vraiment effacer toute la conversation ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Effacer',
+        style: 'destructive',
+        onPress: () => {
+          clearConversation();
+          setInputText('');
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const handleVoiceInput = async () => {
     if (!voiceServiceRef.current || !isInitialized) {
-      Alert.alert('Erreur', 'Le service vocal n\'est pas disponible');
+      Alert.alert('Erreur', "Le service vocal n'est pas disponible");
       return;
     }
 
@@ -118,7 +115,7 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
         if (transcript && transcript.trim()) {
           setInputText(transcript.trim());
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Erreur arrêt écoute:', error);
         setIsListening(false);
       }
@@ -129,15 +126,19 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
         if (voiceServiceRef.current) {
           voiceServiceRef.current.setSpeechToTextEnabled(true);
         }
-        
+
         // Mettre à jour l'état avant l'appel asynchrone pour un feedback immédiat
         setIsListening(true);
-        
+
         // Utiliser un timeout pour éviter que l'opération bloque trop longtemps
         const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Timeout: La reconnaissance vocale prend trop de temps à démarrer')), 5000);
+          setTimeout(
+            () =>
+              reject(new Error('Timeout: La reconnaissance vocale prend trop de temps à démarrer')),
+            5000
+          );
         });
-        
+
         await Promise.race([
           voiceServiceRef.current.startListening((transcript: string) => {
             // Mise à jour en temps réel du texte transcrit (déjà optimisé dans VoiceService)
@@ -147,20 +148,24 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
           }),
           timeoutPromise,
         ]);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Erreur démarrage écoute:', error);
         setIsListening(false);
-        
+
         // Message d'erreur plus informatif
-        let errorMessage = error.message || 'Impossible de démarrer la reconnaissance vocale.';
+        let errorMessage =
+          (error instanceof Error ? error.message : String(error)) || 'Impossible de démarrer la reconnaissance vocale.';
         if (errorMessage.includes('Timeout')) {
-          errorMessage = 'La reconnaissance vocale prend trop de temps. Essayez de nouveau ou utilisez la saisie texte.';
+          errorMessage =
+            'La reconnaissance vocale prend trop de temps. Essayez de nouveau ou utilisez la saisie texte.';
         } else if (errorMessage.includes('Permission')) {
-          errorMessage = 'Permission microphone requise. Activez-la dans les paramètres de l\'application.';
-        } else if (errorMessage.includes('n\'est pas disponible')) {
-          errorMessage = 'La reconnaissance vocale n\'est pas disponible sur cette plateforme. Utilisez la saisie texte.';
+          errorMessage =
+            "Permission microphone requise. Activez-la dans les paramètres de l'application.";
+        } else if (errorMessage.includes("n'est pas disponible")) {
+          errorMessage =
+            "La reconnaissance vocale n'est pas disponible sur cette plateforme. Utilisez la saisie texte.";
         }
-        
+
         Alert.alert('Erreur', errorMessage);
       }
     }
@@ -200,9 +205,7 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
                 { backgroundColor: COLORS.surface, marginRight: 8 },
               ]}
             >
-              <Text style={[styles.messageText, { color: COLORS.text }]}>
-                {item.content}
-              </Text>
+              <Text style={[styles.messageText, { color: COLORS.text }]}>{item.content}</Text>
 
               {item.metadata?.actionExecuted && (
                 <View style={styles.actionBadge}>
@@ -237,22 +240,14 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
 
               {item.metadata?.actionExecuted && (
                 <View style={styles.actionBadge}>
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={12}
-                    color={COLORS.textOnPrimary}
-                  />
-                  <Text
-                    style={[styles.actionBadgeText, { color: COLORS.textOnPrimary }]}
-                  >
+                  <Ionicons name="checkmark-circle" size={12} color={COLORS.textOnPrimary} />
+                  <Text style={[styles.actionBadgeText, { color: COLORS.textOnPrimary }]}>
                     Action exécutée
                   </Text>
                 </View>
               )}
 
-              <Text
-                style={[styles.timestamp, { color: COLORS.textOnPrimary + '80' }]}
-              >
+              <Text style={[styles.timestamp, { color: COLORS.textOnPrimary + '80' }]}>
                 {format(new Date(item.timestamp), 'HH:mm', { locale: fr })}
               </Text>
             </View>
@@ -341,79 +336,71 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
         {renderHeader()}
         {renderReminders()}
 
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        renderItem={renderMessage}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.messagesList}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Ionicons name="chatbubbles-outline" size={48} color={COLORS.textSecondary} />
-            <Text style={styles.emptyText}>
-              Commencez à discuter avec votre assistant !
-            </Text>
-          </View>
-        }
-      />
-
-      {isLoading && (
-        <View style={styles.typingIndicator}>
-          <ActivityIndicator size="small" color={COLORS.primary} />
-          <Text style={styles.typingText}>L'assistant écrit...</Text>
-        </View>
-      )}
-
-      <View style={styles.inputContainer}>
-        <TouchableOpacity
-          style={[
-            styles.voiceButton,
-            isListening && styles.voiceButtonActive,
-          ]}
-          onPress={handleVoiceInput}
-          disabled={sending || !isInitialized}
-        >
-          {isListening ? (
-            <ActivityIndicator size="small" color={COLORS.error} />
-          ) : (
-            <Ionicons
-              name="mic"
-              size={24}
-              color={COLORS.primary}
-            />
-          )}
-        </TouchableOpacity>
-
-        <TextInput
-          style={styles.textInput}
-          placeholder="Tapez votre message..."
-          placeholderTextColor={COLORS.textSecondary}
-          value={inputText}
-          onChangeText={setInputText}
-          multiline
-          maxLength={1000}
-          editable={!sending && isInitialized}
-          onSubmitEditing={handleSend}
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          renderItem={renderMessage}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.messagesList}
+          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Ionicons name="chatbubbles-outline" size={48} color={COLORS.textSecondary} />
+              <Text style={styles.emptyText}>Commencez à discuter avec votre assistant !</Text>
+            </View>
+          }
         />
 
-        <TouchableOpacity
-          style={[
-            styles.sendButton,
-            {
-              backgroundColor: inputText.trim() && !sending ? COLORS.primary : COLORS.textSecondary,
-            },
-          ]}
-          onPress={handleSend}
-          disabled={!inputText.trim() || sending || !isInitialized}
-        >
-          {sending ? (
-            <ActivityIndicator size="small" color={COLORS.textOnPrimary} />
-          ) : (
-            <Ionicons name="send" size={20} color={COLORS.textOnPrimary} />
-          )}
-        </TouchableOpacity>
-      </View>
+        {isLoading && (
+          <View style={styles.typingIndicator}>
+            <ActivityIndicator size="small" color={COLORS.primary} />
+            <Text style={styles.typingText}>L'assistant écrit...</Text>
+          </View>
+        )}
+
+        <View style={styles.inputContainer}>
+          <TouchableOpacity
+            style={[styles.voiceButton, isListening && styles.voiceButtonActive]}
+            onPress={handleVoiceInput}
+            disabled={sending || !isInitialized}
+          >
+            {isListening ? (
+              <ActivityIndicator size="small" color={COLORS.error} />
+            ) : (
+              <Ionicons name="mic" size={24} color={COLORS.primary} />
+            )}
+          </TouchableOpacity>
+
+          <TextInput
+            style={styles.textInput}
+            placeholder="Tapez votre message..."
+            placeholderTextColor={COLORS.textSecondary}
+            value={inputText}
+            onChangeText={setInputText}
+            multiline
+            maxLength={1000}
+            editable={!sending && isInitialized}
+            onSubmitEditing={handleSend}
+          />
+
+          <TouchableOpacity
+            style={[
+              styles.sendButton,
+              {
+                backgroundColor:
+                  inputText.trim() && !sending ? COLORS.primary : COLORS.textSecondary,
+              },
+            ]}
+            onPress={handleSend}
+            disabled={!inputText.trim() || sending || !isInitialized}
+          >
+            {sending ? (
+              <ActivityIndicator size="small" color={COLORS.textOnPrimary} />
+            ) : (
+              <Ionicons name="send" size={20} color={COLORS.textOnPrimary} />
+            )}
+          </TouchableOpacity>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -666,4 +653,3 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 });
-

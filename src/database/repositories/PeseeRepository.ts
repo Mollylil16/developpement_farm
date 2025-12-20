@@ -1,70 +1,54 @@
 /**
  * PeseeRepository - Gestion des pesées
- * 
+ *
  * Responsabilités:
  * - CRUD des pesées
  * - Suivi de croissance
  * - Calcul du GMQ (Gain Moyen Quotidien)
  * - Historique et courbes de croissance
+ * 
+ * Utilise maintenant l'API REST du backend (PostgreSQL)
  */
 
-import * as SQLite from 'expo-sqlite';
 import { BaseRepository } from './BaseRepository';
 import { ProductionPesee } from '../../types/production';
-import uuid from 'react-native-uuid';
-import { differenceInDays, parseISO } from 'date-fns';
-import { getCategoriePoids } from '../../utils/animalUtils';
 import { AnimalRepository } from './AnimalRepository';
+import { getCategoriePoids } from '../../utils/animalUtils';
+import { differenceInDays, parseISO } from 'date-fns';
 
 export class PeseeRepository extends BaseRepository<ProductionPesee> {
-  constructor(db: SQLite.SQLiteDatabase) {
-    super(db, 'production_pesees');
+  constructor() {
+    super('production_pesees', '/production/pesees');
   }
 
   /**
    * Créer une nouvelle pesée
    */
   async create(data: Partial<ProductionPesee>): Promise<ProductionPesee> {
-    const id = uuid.v4().toString();
-    const now = new Date().toISOString();
-
     // Validation des champs obligatoires
     if (!data.projet_id || data.projet_id.trim() === '') {
       throw new Error('Le projet_id est obligatoire');
     }
     if (!data.animal_id || data.animal_id.trim() === '') {
-      throw new Error('L\'animal_id est obligatoire');
+      throw new Error("L'animal_id est obligatoire");
     }
     if (!data.poids_kg || data.poids_kg <= 0) {
       throw new Error('Le poids doit être supérieur à 0');
     }
 
-    await this.execute(
-      `INSERT INTO production_pesees (
-        id, projet_id, animal_id, date, poids_kg, commentaire,
-        date_creation
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        data.projet_id,
-        data.animal_id,
-        data.date || now,
-        data.poids_kg,
-        data.commentaire || null,
-        now,
-      ]
-    );
+    const peseeData = {
+      projet_id: data.projet_id,
+      animal_id: data.animal_id,
+      date: data.date || new Date().toISOString(),
+      poids_kg: data.poids_kg,
+      commentaire: data.commentaire || null,
+    };
 
-    // Calculer et mettre à jour le GMQ pour cette pesée et les suivantes
-    await this.updateGMQForAnimal(data.animal_id);
+    const created = await this.executePost<ProductionPesee>('/production/pesees', peseeData);
 
-    // Mettre à jour la catégorie de poids de l'animal selon le nouveau poids
+    // Mettre à jour la catégorie de poids de l'animal
     await this.updateCategoriePoidsAnimal(data.animal_id, data.poids_kg);
 
-    const created = await this.findById(id);
-    if (!created) {
-      throw new Error('Impossible de créer la pesée');
-    }
     return created;
   }
 
@@ -72,85 +56,73 @@ export class PeseeRepository extends BaseRepository<ProductionPesee> {
    * Mettre à jour une pesée
    */
   async update(id: string, data: Partial<ProductionPesee>): Promise<ProductionPesee> {
-    const now = new Date().toISOString();
-    const fields: string[] = [];
-    const values: any[] = [];
+    const updateData: Record<string, unknown> = {};
 
-    if (data.date !== undefined) {
-      fields.push('date = ?');
-      values.push(data.date);
-    }
-    if (data.poids_kg !== undefined) {
-      fields.push('poids_kg = ?');
-      values.push(data.poids_kg);
-    }
-    if (data.commentaire !== undefined) {
-      fields.push('commentaire = ?');
-      values.push(data.commentaire);
-    }
+    if (data.date !== undefined) updateData.date = data.date;
+    if (data.poids_kg !== undefined) updateData.poids_kg = data.poids_kg;
+    if (data.commentaire !== undefined) updateData.commentaire = data.commentaire;
 
-    if (fields.length === 0) {
+    if (Object.keys(updateData).length === 0) {
       throw new Error('Aucune donnée à mettre à jour');
     }
 
-    values.push(id);
-
-    await this.execute(`UPDATE production_pesees SET ${fields.join(', ')} WHERE id = ?`, values);
-
-    const updated = await this.findById(id);
-    if (!updated) {
-      throw new Error('Pesée introuvable après mise à jour');
-    }
-
-    // Recalculer le GMQ pour cet animal (car date ou poids a pu changer)
-    await this.updateGMQForAnimal(updated.animal_id);
+    const updated = await this.executePatch<ProductionPesee>(`/production/pesees/${id}`, updateData);
 
     // Mettre à jour la catégorie de poids si le poids a changé
-    if (data.poids_kg !== undefined) {
+    if (data.poids_kg !== undefined && updated) {
       await this.updateCategoriePoidsAnimal(updated.animal_id, data.poids_kg);
     }
 
-    // Recharger la pesée avec le GMQ mis à jour
-    const final = await this.findById(id);
-    return final || updated;
+    return updated;
   }
 
   /**
    * Récupérer toutes les pesées d'un animal
    */
   async findByAnimal(animalId: string): Promise<ProductionPesee[]> {
-    return this.query<ProductionPesee>(
-      `SELECT * FROM production_pesees 
-       WHERE animal_id = ?
-       ORDER BY date ASC`,
-      [animalId]
-    );
+    try {
+      const pesees = await this.query<ProductionPesee>('/production/pesees', {
+        animal_id: animalId,
+      });
+      return pesees || [];
+    } catch (error) {
+      console.error('Error finding pesees by animal:', error);
+      return [];
+    }
   }
 
   /**
    * Récupérer la dernière pesée d'un animal
    */
   async findLastByAnimal(animalId: string): Promise<ProductionPesee | null> {
-    return this.queryOne<ProductionPesee>(
-      `SELECT * FROM production_pesees 
-       WHERE animal_id = ?
-       ORDER BY date DESC
-       LIMIT 1`,
-      [animalId]
-    );
+    try {
+      const pesees = await this.findByAnimal(animalId);
+      if (pesees.length === 0) return null;
+      
+      // Trier par date décroissante
+      pesees.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      return pesees[0];
+    } catch (error) {
+      console.error('Error finding last pesee by animal:', error);
+      return null;
+    }
   }
 
   /**
    * Récupérer la dernière pesée d'un animal avant une date donnée
    */
   async findLastBeforeDate(animalId: string, date: string): Promise<ProductionPesee | null> {
-    return this.queryOne<ProductionPesee>(
-      `SELECT * FROM production_pesees 
-       WHERE animal_id = ? AND date <= ?
-       ORDER BY date DESC
-       LIMIT 1`,
-      [animalId, date]
-    );
+    try {
+      const pesees = await this.findByAnimal(animalId);
+      const filtered = pesees.filter(p => p.date <= date);
+      if (filtered.length === 0) return null;
+      
+      filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      return filtered[0];
+    } catch (error) {
+      console.error('Error finding last pesee before date:', error);
+      return null;
+    }
   }
 
   /**
@@ -161,80 +133,59 @@ export class PeseeRepository extends BaseRepository<ProductionPesee> {
     dateDebut: string,
     dateFin: string
   ): Promise<ProductionPesee[]> {
-    return this.query<ProductionPesee>(
-      `SELECT * FROM production_pesees 
-       WHERE animal_id = ? 
-       AND date >= ? 
-       AND date <= ?
-       ORDER BY date ASC`,
-      [animalId, dateDebut, dateFin]
-    );
+    try {
+      const pesees = await this.findByAnimal(animalId);
+      return pesees.filter(p => p.date >= dateDebut && p.date <= dateFin)
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    } catch (error) {
+      console.error('Error finding pesees by period:', error);
+      return [];
+    }
   }
 
   /**
    * Calculer le GMQ (Gain Moyen Quotidien) pour un animal
-   * GMQ = (Poids Final - Poids Initial) × 1000 / Nombre de jours
    */
   async calculateGMQ(animalId: string): Promise<number | null> {
-    const pesees = await this.findByAnimal(animalId);
+    try {
+      // Utiliser l'endpoint backend si disponible
+      const result = await this.queryOne<{ gmq: number }>(`/production/animaux/${animalId}/gmq`);
+      if (result?.gmq !== undefined) {
+        return result.gmq;
+      }
 
-    if (pesees.length < 2) {
+      // Fallback: calculer côté client
+      const pesees = await this.findByAnimal(animalId);
+      if (pesees.length < 2) return null;
+
+      const sorted = pesees.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      const premiere = sorted[0];
+      const derniere = sorted[sorted.length - 1];
+
+      const poidsInitial = premiere.poids_kg;
+      const poidsFinal = derniere.poids_kg;
+      const dateInitiale = parseISO(premiere.date);
+      const dateFinale = parseISO(derniere.date);
+      const nombreJours = differenceInDays(dateFinale, dateInitiale);
+
+      if (nombreJours === 0) return null;
+
+      const gmq = ((poidsFinal - poidsInitial) * 1000) / nombreJours;
+      return Math.round(gmq);
+    } catch (error) {
+      console.error('Error calculating GMQ:', error);
       return null;
     }
-
-    const premiere = pesees[0];
-    const derniere = pesees[pesees.length - 1];
-
-    const poidsInitial = premiere.poids_kg;
-    const poidsFinal = derniere.poids_kg;
-    const dateInitiale = parseISO(premiere.date);
-    const dateFinale = parseISO(derniere.date);
-
-    const nombreJours = differenceInDays(dateFinale, dateInitiale);
-
-    if (nombreJours === 0) {
-      return null;
-    }
-
-    // GMQ en grammes par jour
-    const gmq = ((poidsFinal - poidsInitial) * 1000) / nombreJours;
-
-    return Math.round(gmq);
   }
 
   /**
    * Mettre à jour le GMQ pour toutes les pesées d'un animal
-   * Calcule le GMQ entre chaque pesée et la précédente
+   * Note: Le backend devrait gérer cela automatiquement
    */
   async updateGMQForAnimal(animalId: string): Promise<void> {
-    const pesees = await this.findByAnimal(animalId);
-
-    if (pesees.length < 2) {
-      return; // Pas assez de pesées pour calculer un GMQ
-    }
-
-    // Parcourir toutes les pesées (sauf la première)
-    for (let i = 1; i < pesees.length; i++) {
-      const peseeActuelle = pesees[i];
-      const peseePrecedente = pesees[i - 1];
-
-      // Calculer le GMQ entre les deux pesées
-      const poidsGagne = peseeActuelle.poids_kg - peseePrecedente.poids_kg;
-      const dateActuelle = parseISO(peseeActuelle.date);
-      const datePrecedente = parseISO(peseePrecedente.date);
-      const nombreJours = differenceInDays(dateActuelle, datePrecedente);
-
-      let gmq: number | null = null;
-      if (nombreJours > 0) {
-        gmq = Math.round((poidsGagne * 1000) / nombreJours); // GMQ en grammes par jour
-      }
-
-      // Mettre à jour la pesée avec le GMQ calculé
-      await this.execute(
-        `UPDATE production_pesees SET gmq = ? WHERE id = ?`,
-        [gmq, peseeActuelle.id]
-      );
-    }
+    // Le backend devrait recalculer automatiquement le GMQ
+    // Cette méthode est maintenue pour compatibilité
+    console.log('GMQ update should be handled by backend');
   }
 
   /**
@@ -244,27 +195,26 @@ export class PeseeRepository extends BaseRepository<ProductionPesee> {
     peseeInitialeId: string,
     peseeFinaleId: string
   ): Promise<number | null> {
-    const peseeInitiale = await this.findById(peseeInitialeId);
-    const peseeFinale = await this.findById(peseeFinaleId);
+    try {
+      const peseeInitiale = await this.findById(peseeInitialeId);
+      const peseeFinale = await this.findById(peseeFinaleId);
 
-    if (!peseeInitiale || !peseeFinale) {
+      if (!peseeInitiale || !peseeFinale) return null;
+
+      const poidsInitial = peseeInitiale.poids_kg;
+      const poidsFinal = peseeFinale.poids_kg;
+      const dateInitiale = parseISO(peseeInitiale.date);
+      const dateFinale = parseISO(peseeFinale.date);
+      const nombreJours = differenceInDays(dateFinale, dateInitiale);
+
+      if (nombreJours === 0) return null;
+
+      const gmq = ((poidsFinal - poidsInitial) * 1000) / nombreJours;
+      return Math.round(gmq);
+    } catch (error) {
+      console.error('Error calculating GMQ between:', error);
       return null;
     }
-
-    const poidsInitial = peseeInitiale.poids_kg;
-    const poidsFinal = peseeFinale.poids_kg;
-    const dateInitiale = parseISO(peseeInitiale.date);
-    const dateFinale = parseISO(peseeFinale.date);
-
-    const nombreJours = differenceInDays(dateFinale, dateInitiale);
-
-    if (nombreJours === 0) {
-      return null;
-    }
-
-    const gmq = ((poidsFinal - poidsInitial) * 1000) / nombreJours;
-
-    return Math.round(gmq);
   }
 
   /**
@@ -277,27 +227,33 @@ export class PeseeRepository extends BaseRepository<ProductionPesee> {
       gmq: number | null;
     }>
   > {
-    const pesees = await this.findByAnimal(animalId);
+    try {
+      const pesees = await this.findByAnimal(animalId);
+      const sorted = pesees.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    return pesees.map((pesee, index) => {
-      let gmq: number | null = null;
+      return sorted.map((pesee, index) => {
+        let gmq: number | null = null;
 
-      if (index > 0) {
-        const peseePrecedente = pesees[index - 1];
-        const poidsGagne = pesee.poids_kg - peseePrecedente.poids_kg;
-        const jours = differenceInDays(parseISO(pesee.date), parseISO(peseePrecedente.date));
+        if (index > 0) {
+          const peseePrecedente = sorted[index - 1];
+          const poidsGagne = pesee.poids_kg - peseePrecedente.poids_kg;
+          const jours = differenceInDays(parseISO(pesee.date), parseISO(peseePrecedente.date));
 
-        if (jours > 0) {
-          gmq = Math.round((poidsGagne * 1000) / jours);
+          if (jours > 0) {
+            gmq = Math.round((poidsGagne * 1000) / jours);
+          }
         }
-      }
 
-      return {
-        date: pesee.date,
-        poids_kg: pesee.poids_kg,
-        gmq,
-      };
-    });
+        return {
+          date: pesee.date,
+          poids_kg: pesee.poids_kg,
+          gmq,
+        };
+      });
+    } catch (error) {
+      console.error('Error getting evolution poids:', error);
+      return [];
+    }
   }
 
   /**
@@ -309,76 +265,92 @@ export class PeseeRepository extends BaseRepository<ProductionPesee> {
     poidsMin: number;
     poidsMax: number;
   }> {
-    const stats = await this.queryOne<any>(
-      `SELECT 
-        COUNT(*) as nombrePesees,
-        AVG(p.poids_kg) as poidsMoyen,
-        MIN(p.poids_kg) as poidsMin,
-        MAX(p.poids_kg) as poidsMax
-       FROM production_pesees p
-       INNER JOIN production_animaux a ON p.animal_id = a.id
-       WHERE a.projet_id = ?`,
-      [projetId]
-    );
+    try {
+      const pesees = await this.query<ProductionPesee>('/production/pesees', {
+        projet_id: projetId,
+      });
 
-    return {
-      nombrePesees: stats?.nombrePesees || 0,
-      poidsMoyen: stats?.poidsMoyen || 0,
-      poidsMin: stats?.poidsMin || 0,
-      poidsMax: stats?.poidsMax || 0,
-    };
+      if (pesees.length === 0) {
+        return {
+          nombrePesees: 0,
+          poidsMoyen: 0,
+          poidsMin: 0,
+          poidsMax: 0,
+        };
+      }
+
+      const poids = pesees.map(p => p.poids_kg);
+      const poidsMoyen = poids.reduce((a, b) => a + b, 0) / poids.length;
+      const poidsMin = Math.min(...poids);
+      const poidsMax = Math.max(...poids);
+
+      return {
+        nombrePesees: pesees.length,
+        poidsMoyen: Math.round(poidsMoyen * 10) / 10,
+        poidsMin,
+        poidsMax,
+      };
+    } catch (error) {
+      console.error('Error getting stats projet:', error);
+      return {
+        nombrePesees: 0,
+        poidsMoyen: 0,
+        poidsMin: 0,
+        poidsMax: 0,
+      };
+    }
   }
 
   /**
    * Récupérer les pesées récentes d'un projet
    */
   async findRecentsByProjet(projetId: string, limit: number = 10): Promise<ProductionPesee[]> {
-    return this.query<ProductionPesee>(
-      `SELECT p.* FROM production_pesees p
-       INNER JOIN production_animaux a ON p.animal_id = a.id
-       WHERE a.projet_id = ?
-       ORDER BY p.date DESC
-       LIMIT ?`,
-      [projetId, limit]
-    );
+    try {
+      const pesees = await this.query<ProductionPesee>('/production/pesees', {
+        projet_id: projetId,
+        limit,
+      });
+      
+      return pesees
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, limit);
+    } catch (error) {
+      console.error('Error finding recent pesees:', error);
+      return [];
+    }
   }
 
   /**
    * Supprimer une pesée par ID
-   * Recalcule le GMQ pour l'animal après suppression
    */
   async delete(id: string): Promise<void> {
-    // Récupérer la pesée avant suppression pour obtenir l'animal_id
-    const pesee = await this.findById(id);
-    if (!pesee) {
-      throw new Error('Pesée introuvable');
-    }
-
-    const animalId = pesee.animal_id;
-
-    // Supprimer la pesée
     await this.deleteById(id);
-
-    // Recalculer le GMQ pour cet animal après suppression
-    await this.updateGMQForAnimal(animalId);
   }
 
   /**
    * Supprimer toutes les pesées d'un animal
    */
   async deleteByAnimal(animalId: string): Promise<void> {
-    await this.execute(`DELETE FROM production_pesees WHERE animal_id = ?`, [animalId]);
+    try {
+      const pesees = await this.findByAnimal(animalId);
+      await Promise.all(pesees.map(p => this.deleteById(p.id)));
+    } catch (error) {
+      console.error('Error deleting pesees by animal:', error);
+      throw error;
+    }
   }
 
   /**
    * Compter les pesées pour un animal
    */
   async countByAnimal(animalId: string): Promise<number> {
-    const result = await this.queryOne<{ count: number }>(
-      `SELECT COUNT(*) as count FROM production_pesees WHERE animal_id = ?`,
-      [animalId]
-    );
-    return result?.count || 0;
+    try {
+      const pesees = await this.findByAnimal(animalId);
+      return pesees.length;
+    } catch (error) {
+      console.error('Error counting pesees:', error);
+      return 0;
+    }
   }
 
   /**
@@ -391,65 +363,63 @@ export class PeseeRepository extends BaseRepository<ProductionPesee> {
 
   /**
    * Récupérer le poids actuel estimé d'un animal
-   * (dernière pesée + estimation basée sur GMQ)
    */
   async getPoidsActuelEstime(animalId: string): Promise<number | null> {
-    const dernierePesee = await this.findLastByAnimal(animalId);
-    
-    if (!dernierePesee) {
+    try {
+      // Utiliser l'endpoint backend si disponible
+      const result = await this.queryOne<{ poids_estime: number }>(
+        `/production/animaux/${animalId}/poids-estime`
+      );
+      if (result?.poids_estime !== undefined) {
+        return result.poids_estime;
+      }
+
+      // Fallback: calculer côté client
+      const dernierePesee = await this.findLastByAnimal(animalId);
+      if (!dernierePesee) return null;
+
+      const joursDepuisPesee = differenceInDays(new Date(), parseISO(dernierePesee.date));
+      if (joursDepuisPesee <= 7) {
+        return dernierePesee.poids_kg;
+      }
+
+      const gmq = await this.calculateGMQ(animalId);
+      if (!gmq) return dernierePesee.poids_kg;
+
+      const poidsEstime = dernierePesee.poids_kg + (gmq * joursDepuisPesee) / 1000;
+      return Math.round(poidsEstime * 10) / 10;
+    } catch (error) {
+      console.error('Error getting poids estime:', error);
       return null;
     }
-
-    // Si la pesée date de moins de 7 jours, on retourne le poids direct
-    const joursDepuisPesee = differenceInDays(new Date(), parseISO(dernierePesee.date));
-    
-    if (joursDepuisPesee <= 7) {
-      return dernierePesee.poids_kg;
-    }
-
-    // Sinon, on estime basé sur le GMQ
-    const gmq = await this.calculateGMQ(animalId);
-    
-    if (!gmq) {
-      return dernierePesee.poids_kg;
-    }
-
-    // Estimation: poids dernier pesée + (GMQ × jours écoulés)
-    const poidsEstime = dernierePesee.poids_kg + (gmq * joursDepuisPesee) / 1000;
-
-    return Math.round(poidsEstime * 10) / 10; // Arrondir à 1 décimale
   }
 
   /**
    * Met à jour la catégorie de poids d'un animal selon son poids actuel
-   * Appelé automatiquement après chaque pesée
    */
   async updateCategoriePoidsAnimal(animalId: string, poidsKg: number): Promise<void> {
-    const animalRepo = new AnimalRepository(this.db);
-    const animal = await animalRepo.findById(animalId);
-    
-    if (!animal) {
-      return; // Animal introuvable
-    }
+    try {
+      const animalRepo = new AnimalRepository();
+      const animal = await animalRepo.findById(animalId);
 
-    // Ne pas mettre à jour la catégorie pour les reproducteurs
-    if (animal.reproducteur) {
-      return;
-    }
+      if (!animal) return;
 
-    // Calculer la nouvelle catégorie selon le poids
-    const nouvelleCategorie = getCategoriePoids(poidsKg);
-    
-    // Mettre à jour uniquement si la catégorie a changé
-    if (animal.categorie_poids !== nouvelleCategorie) {
-      await animalRepo.update(animalId, { categorie_poids: nouvelleCategorie });
-      
-      // Si l'animal passe de porcelet à croissance, mettre à jour son code pour commencer par "C"
-      if (animal.categorie_poids === 'porcelet' && nouvelleCategorie === 'croissance') {
-        // Générer un nouveau code avec préfixe "C"
-        const nouveauCode = await this.generateCodeCroissance(animal.projet_id);
-        await animalRepo.update(animalId, { code: nouveauCode });
+      // Ne pas mettre à jour la catégorie pour les reproducteurs
+      if (animal.reproducteur) return;
+
+      const nouvelleCategorie = getCategoriePoids(poidsKg);
+
+      if (animal.categorie_poids !== nouvelleCategorie) {
+        await animalRepo.update(animalId, { categorie_poids: nouvelleCategorie });
+
+        // Si l'animal passe de porcelet à croissance, mettre à jour son code
+        if (animal.categorie_poids === 'porcelet' && nouvelleCategorie === 'croissance') {
+          const nouveauCode = await this.generateCodeCroissance(animal.projet_id);
+          await animalRepo.update(animalId, { code: nouveauCode });
+        }
       }
+    } catch (error) {
+      console.error('Error updating categorie poids:', error);
     }
   }
 
@@ -457,24 +427,26 @@ export class PeseeRepository extends BaseRepository<ProductionPesee> {
    * Génère un code unique pour un porc en croissance (préfixe "C")
    */
   private async generateCodeCroissance(projetId: string): Promise<string> {
-    const animalRepo = new AnimalRepository(this.db);
-    const animauxProjet = await animalRepo.findByProjet(projetId);
-    
-    // Trouver le numéro le plus élevé parmi les codes commençant par "C"
-    let maxNum = 0;
-    animauxProjet.forEach((animal) => {
-      const codeUpper = animal.code.toUpperCase();
-      if (codeUpper.startsWith('C')) {
-        const num = parseInt(codeUpper.substring(1));
-        if (!isNaN(num) && num > maxNum) {
-          maxNum = num;
-        }
-      }
-    });
+    try {
+      const animalRepo = new AnimalRepository();
+      const animauxProjet = await animalRepo.findByProjet(projetId);
 
-    // Générer le nouveau code
-    const nouveauNum = maxNum + 1;
-    return `C${String(nouveauNum).padStart(3, '0')}`;
+      let maxNum = 0;
+      animauxProjet.forEach((animal) => {
+        const codeUpper = animal.code.toUpperCase();
+        if (codeUpper.startsWith('C')) {
+          const num = parseInt(codeUpper.substring(1));
+          if (!isNaN(num) && num > maxNum) {
+            maxNum = num;
+          }
+        }
+      });
+
+      const nouveauNum = maxNum + 1;
+      return `C${String(nouveauNum).padStart(3, '0')}`;
+    } catch (error) {
+      console.error('Error generating code croissance:', error);
+      return `C${Date.now()}`;
+    }
   }
 }
-

@@ -88,10 +88,10 @@ export default function MortalitesFormModal({
     if (!Array.isArray(animaux)) {
       return [];
     }
-    
+
     // Filtrer par statut actif
     let filteredAnimals = animaux.filter((a) => a.statut?.toLowerCase() === 'actif');
-    
+
     // Filtrer par catégorie sélectionnée (sauf 'autre')
     if (formData.categorie !== 'autre') {
       filteredAnimals = filteredAnimals.filter((a) => {
@@ -99,16 +99,15 @@ export default function MortalitesFormModal({
         return categorieAnimal === formData.categorie;
       });
     }
-    
+
     // Filtrer par recherche (code ou nom)
     if (animalSearchQuery.trim()) {
       const query = animalSearchQuery.toLowerCase().trim();
       filteredAnimals = filteredAnimals.filter(
-        (a) =>
-          a.code?.toLowerCase().includes(query) || a.nom?.toLowerCase().includes(query)
+        (a) => a.code?.toLowerCase().includes(query) || a.nom?.toLowerCase().includes(query)
       );
     }
-    
+
     return filteredAnimals;
   }, [animaux, animalSearchQuery, formData.categorie]);
 
@@ -197,8 +196,9 @@ export default function MortalitesFormModal({
         await dispatch(createMortalite(formData)).unwrap();
       }
       onSuccess();
-    } catch (error: any) {
-      Alert.alert('Erreur', error || "Erreur lors de l'enregistrement");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Erreur lors de l'enregistrement";
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -422,7 +422,7 @@ export default function MortalitesFormModal({
                       reproducteur: animal.reproducteur,
                       categorieDetectee,
                     });
-                    
+
                     setFormData({
                       ...formData,
                       animal_code: animal.code,

@@ -13,19 +13,23 @@ import { ThemeProvider } from '../../../contexts/ThemeContext';
 const createTestStore = (santeState = {}, mortalitesState = {}) => {
   return configureStore({
     reducer: {
-      sante: (state = {
-        loading: {
-          vaccinations: false,
-          maladies: false,
-          traitements: false,
-          mortalites: false,
-        },
-        ...santeState,
-      }) => state,
-      mortalites: (state = {
-        statistiques: { total_morts: 0 },
-        ...mortalitesState,
-      }) => state,
+      sante: (
+        state = {
+          loading: {
+            vaccinations: false,
+            maladies: false,
+            traitements: false,
+            mortalites: false,
+          },
+          ...santeState,
+        }
+      ) => state,
+      mortalites: (
+        state = {
+          statistiques: { total_morts: 0 },
+          ...mortalitesState,
+        }
+      ) => state,
     },
   });
 };
@@ -83,7 +87,7 @@ describe('SanteWidget', () => {
 
   it('affiche "Excellent état sanitaire" quand toutes les stats sont à 0', () => {
     const { getByText } = renderWithProviders(<SanteWidget />);
-    
+
     expect(getByText('Excellent état sanitaire')).toBeTruthy();
     expect(getByText('0 vaccin en retard')).toBeTruthy();
     expect(getByText('0 maladie')).toBeTruthy();
@@ -96,7 +100,7 @@ describe('SanteWidget', () => {
     santeSelectors.selectNombreVaccinationsEnRetard.mockReturnValue(3);
 
     const { getByText, queryByText } = renderWithProviders(<SanteWidget />);
-    
+
     expect(getByText('3 vaccins en retard')).toBeTruthy();
     expect(queryByText('Excellent état sanitaire')).toBeNull();
   });
@@ -106,7 +110,7 @@ describe('SanteWidget', () => {
     santeSelectors.selectNombreMaladiesEnCours.mockReturnValue(2);
 
     const { getByText } = renderWithProviders(<SanteWidget />);
-    
+
     expect(getByText('2 maladies en cours')).toBeTruthy();
   });
 
@@ -115,7 +119,7 @@ describe('SanteWidget', () => {
     mortalitesSelectors.selectNombreTotalMortalites.mockReturnValue(5);
 
     const { getByText } = renderWithProviders(<SanteWidget />);
-    
+
     expect(getByText('5 mortalités')).toBeTruthy();
   });
 
@@ -124,7 +128,7 @@ describe('SanteWidget', () => {
     santeSelectors.selectNombreVaccinationsEnRetard.mockReturnValue(1);
 
     const { getByText } = renderWithProviders(<SanteWidget />);
-    
+
     expect(getByText('1 vaccin en retard')).toBeTruthy();
   });
 
@@ -133,7 +137,7 @@ describe('SanteWidget', () => {
     mortalitesSelectors.selectNombreTotalMortalites.mockReturnValue(1);
 
     const { getByText } = renderWithProviders(<SanteWidget />);
-    
+
     expect(getByText('1 mortalité')).toBeTruthy();
   });
 
@@ -142,16 +146,16 @@ describe('SanteWidget', () => {
     santeSelectors.selectNombreAlertesCritiques.mockReturnValue(2);
 
     const { getByText } = renderWithProviders(<SanteWidget />);
-    
+
     expect(getByText('2 alerte(s) critique(s)')).toBeTruthy();
   });
 
-  it('affiche le badge d\'alerte quand il y a des problèmes', () => {
+  it("affiche le badge d'alerte quand il y a des problèmes", () => {
     const santeSelectors = require('../../../store/selectors/santeSelectors');
     santeSelectors.selectNombreVaccinationsEnRetard.mockReturnValue(1);
 
     const { UNSAFE_getAllByType } = renderWithProviders(<SanteWidget />);
-    
+
     // Devrait contenir une icône warning dans le badge
     const views = UNSAFE_getAllByType(require('react-native').View);
     expect(views.length).toBeGreaterThan(0);
@@ -162,14 +166,14 @@ describe('SanteWidget', () => {
     santeSelectors.selectNombreTraitementsEnCours.mockReturnValue(4);
 
     const { getByText } = renderWithProviders(<SanteWidget />);
-    
+
     expect(getByText('4 traitements actifs')).toBeTruthy();
   });
 
   it('appelle onPress quand cliqué', () => {
     const onPressMock = jest.fn();
     const { getByText } = renderWithProviders(<SanteWidget onPress={onPressMock} />);
-    
+
     // Le composant entier est un TouchableOpacity
     const widget = getByText('Santé');
     expect(widget).toBeTruthy();
@@ -177,13 +181,13 @@ describe('SanteWidget', () => {
 
   it('affiche "Voir détails" dans le footer', () => {
     const { getByText } = renderWithProviders(<SanteWidget />);
-    
+
     expect(getByText('Voir détails')).toBeTruthy();
   });
 
   it('affiche toujours les 4 statistiques même si à 0', () => {
     const { getByText } = renderWithProviders(<SanteWidget />);
-    
+
     // Toutes les stats doivent être visibles
     expect(getByText(/vaccin/i)).toBeTruthy();
     expect(getByText(/maladie/i)).toBeTruthy();
@@ -194,15 +198,14 @@ describe('SanteWidget', () => {
   it('gère les valeurs undefined gracieusement', () => {
     const santeSelectors = require('../../../store/selectors/santeSelectors');
     const mortalitesSelectors = require('../../../store/selectors/mortalitesSelectors');
-    
+
     santeSelectors.selectNombreVaccinationsEnRetard.mockReturnValue(undefined);
     santeSelectors.selectNombreMaladiesEnCours.mockReturnValue(null);
     mortalitesSelectors.selectNombreTotalMortalites.mockReturnValue(NaN);
 
     const { getByText } = renderWithProviders(<SanteWidget />);
-    
+
     // Ne doit pas crasher, doit afficher 0 par défaut
     expect(getByText('Santé')).toBeTruthy();
   });
 });
-

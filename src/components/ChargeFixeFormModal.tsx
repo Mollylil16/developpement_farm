@@ -115,7 +115,7 @@ export default function ChargeFixeFormModal({
         ).unwrap();
       }
       onSuccess();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur:', error);
     } finally {
       setLoading(false);

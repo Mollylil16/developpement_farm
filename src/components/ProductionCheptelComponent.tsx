@@ -6,13 +6,14 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import type { StackNavigationProp } from '@react-navigation/stack';
+import type { NavigationProp } from '@react-navigation/native';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { loadProductionAnimaux, loadPeseesRecents } from '../store/slices/productionSlice';
 import {
-  loadProductionAnimaux,
-  loadPeseesRecents,
-} from '../store/slices/productionSlice';
-import { selectProductionLoading, selectAllAnimaux, selectPeseesRecents } from '../store/selectors/productionSelectors';
+  selectProductionLoading,
+  selectAllAnimaux,
+  selectPeseesRecents,
+} from '../store/selectors/productionSelectors';
 import { selectProjetActif } from '../store/selectors/projetSelectors';
 import {
   selectAllVaccinations,
@@ -38,7 +39,7 @@ import CheptelHeader from './production/CheptelHeader';
 
 export default function ProductionCheptelComponent() {
   const { colors } = useTheme();
-  const navigation = useNavigation<StackNavigationProp<any>>();
+  const navigation = useNavigation<NavigationProp<any>>();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const projetActif = useAppSelector(selectProjetActif);
@@ -95,7 +96,9 @@ export default function ProductionCheptelComponent() {
 
       // Charger uniquement une fois par projet (quand le projet change)
       if (aChargeRef.current !== projetActif.id) {
-        console.log('🔄 [ProductionCheptelComponent] Rechargement des animaux et données associées...');
+        console.log(
+          '🔄 [ProductionCheptelComponent] Rechargement des animaux et données associées...'
+        );
         aChargeRef.current = projetActif.id;
         dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
         dispatch(loadVaccinations(projetActif.id));
@@ -142,7 +145,6 @@ export default function ProductionCheptelComponent() {
     ['vendu', 'offert', 'mort'].includes(a.statut)
   );
 
-
   // Render animal using AnimalCard component
   const renderAnimal = useCallback(
     ({ item }: { item: ProductionAnimal }) => {
@@ -153,7 +155,9 @@ export default function ProductionCheptelComponent() {
           maladies={maladies}
           traitements={traitements}
           expandedHistorique={expandedHistorique}
-          onToggleHistorique={(animalId) => setExpandedHistorique(expandedHistorique === animalId ? null : animalId)}
+          onToggleHistorique={(animalId) =>
+            setExpandedHistorique(expandedHistorique === animalId ? null : animalId)
+          }
           onToggleMarketplace={handleToggleMarketplace}
           onEdit={(animal) => {
             setSelectedAnimal(animal);
@@ -161,10 +165,12 @@ export default function ProductionCheptelComponent() {
             setShowAnimalModal(true);
           }}
           onDelete={handleDelete}
-          onChangeStatut={(animal, statut) => handleChangeStatut(animal, statut, (animal) => {
-            setAnimalVendu(animal);
-            setShowRevenuModal(true);
-          })}
+          onChangeStatut={(animal, statut) =>
+            handleChangeStatut(animal, statut, (animal) => {
+              setAnimalVendu(animal);
+              setShowRevenuModal(true);
+            })
+          }
           togglingMarketplace={togglingMarketplace}
           canUpdate={canUpdate('reproduction')}
           canDelete={canDelete('reproduction')}
@@ -208,7 +214,7 @@ export default function ProductionCheptelComponent() {
             onFilterChange={setFilterCategorie}
             onSearchChange={setSearchQuery}
             onNavigateToHistorique={() => {
-              navigation.navigate('Historique');
+              navigation.navigate('Historique' as never);
             }}
             onAddAnimal={() => {
               setSelectedAnimal(null);
@@ -296,7 +302,13 @@ export default function ProductionCheptelComponent() {
             setAnimalVendu(null);
           }}
           animalId={animalVendu?.id}
-          animalPoids={animalVendu ? (peseesRecents.find(p => p.animal_id === animalVendu.id)?.poids_kg || animalVendu.poids_initial || 0) : undefined}
+          animalPoids={
+            animalVendu
+              ? peseesRecents.find((p) => p.animal_id === animalVendu.id)?.poids_kg ||
+                animalVendu.poids_initial ||
+                0
+              : undefined
+          }
         />
       )}
     </View>

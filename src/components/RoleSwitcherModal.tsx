@@ -3,14 +3,7 @@
  */
 
 import React from 'react';
-import {
-  View,
-  Text,
-  Modal,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-} from 'react-native';
+import { View, Text, Modal, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { RoleType } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
@@ -72,46 +65,17 @@ const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({
   const { colors, isDark } = useTheme();
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
-        <View 
-          style={[
-            styles.modalContent,
-            { backgroundColor: colors.surface }
-          ]}
-        >
-          <View 
-            style={[
-              styles.modalHeader,
-              { borderBottomColor: colors.divider }
-            ]}
-          >
-            <Text 
-              style={[
-                styles.modalTitle,
-                { color: colors.text }
-              ]}
-            >
-              Changer de rôle
-            </Text>
+        <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.divider }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Changer de rôle</Text>
             <TouchableOpacity onPress={onClose}>
-              <Ionicons 
-                name="close" 
-                size={24} 
-                color={colors.textSecondary} 
-              />
+              <Ionicons name="close" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView 
-            style={styles.rolesList}
-            showsVerticalScrollIndicator={false}
-          >
+          <ScrollView style={styles.rolesList} showsVerticalScrollIndicator={false}>
             {availableRoles.map((role) => {
               const config = getRoleConfig(role);
               const isActive = role === currentRole;
@@ -123,54 +87,26 @@ const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({
                     styles.roleOption,
                     {
                       borderColor: isActive ? config.color : colors.border,
-                      backgroundColor: isActive 
-                        ? `${config.color}10` 
-                        : 'transparent',
+                      backgroundColor: isActive ? `${config.color}10` : 'transparent',
                     },
                   ]}
                   onPress={() => onRoleSelect(role)}
                   disabled={isActive}
                   activeOpacity={0.7}
                 >
-                  <View
-                    style={[
-                      styles.roleIcon,
-                      { backgroundColor: `${config.color}20` },
-                    ]}
-                  >
-                    <Ionicons 
-                      name={config.icon} 
-                      size={24} 
-                      color={config.color} 
-                    />
+                  <View style={[styles.roleIcon, { backgroundColor: `${config.color}20` }]}>
+                    <Ionicons name={config.icon} size={24} color={config.color} />
                   </View>
 
                   <View style={styles.roleInfo}>
-                    <Text 
-                      style={[
-                        styles.roleLabel,
-                        { color: colors.text }
-                      ]}
-                    >
-                      {config.label}
-                    </Text>
-                    <Text 
-                      style={[
-                        styles.roleDescription,
-                        { color: colors.textSecondary }
-                      ]}
-                    >
+                    <Text style={[styles.roleLabel, { color: colors.text }]}>{config.label}</Text>
+                    <Text style={[styles.roleDescription, { color: colors.textSecondary }]}>
                       {config.description}
                     </Text>
                   </View>
 
                   {isActive && (
-                    <View
-                      style={[
-                        styles.activeIndicator,
-                        { backgroundColor: config.color },
-                      ]}
-                    >
+                    <View style={[styles.activeIndicator, { backgroundColor: config.color }]}>
                       <Ionicons name="checkmark" size={16} color="#FFF" />
                     </View>
                   )}
@@ -182,13 +118,10 @@ const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({
           {/* Toujours afficher "Ajouter un profil" s'il y a des rôles disponibles */}
           {(() => {
             const allRoles: RoleType[] = ['producer', 'buyer', 'veterinarian', 'technician'];
-            const rolesToAdd = allRoles.filter(role => !availableRoles.includes(role));
+            const rolesToAdd = allRoles.filter((role) => !availableRoles.includes(role));
             return rolesToAdd.length > 0 ? (
               <TouchableOpacity
-                style={[
-                  styles.addRoleButton,
-                  { borderColor: colors.border }
-                ]}
+                style={[styles.addRoleButton, { borderColor: colors.border }]}
                 onPress={() => {
                   onClose();
                   onAddRole?.();
@@ -196,12 +129,7 @@ const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({
                 activeOpacity={0.7}
               >
                 <Ionicons name="add-circle" size={20} color={colors.primary} />
-                <Text 
-                  style={[
-                    styles.addRoleText,
-                    { color: colors.primary }
-                  ]}
-                >
+                <Text style={[styles.addRoleText, { color: colors.primary }]}>
                   Ajouter un profil
                 </Text>
               </TouchableOpacity>
@@ -294,4 +222,3 @@ const styles = StyleSheet.create({
 });
 
 export default RoleSwitcherModal;
-

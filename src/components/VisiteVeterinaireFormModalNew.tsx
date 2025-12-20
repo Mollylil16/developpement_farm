@@ -62,12 +62,18 @@ export default function VisiteVeterinaireFormModalNew({
   const [motif, setMotif] = useState<TypeIntervention>(
     (visite?.motif as TypeIntervention) || 'consultation_generale'
   );
-  const [animauxSelectionnes, setAnimauxSelectionnes] = useState<string[]>(
-    visite?.animaux_examines || []
-  );
+  const [animauxSelectionnes, setAnimauxSelectionnes] = useState<string[]>(() => {
+    if (visite?.animaux_examines) {
+      // animaux_examines est une string avec des IDs séparés par virgules
+      return Array.isArray(visite.animaux_examines)
+        ? visite.animaux_examines
+        : visite.animaux_examines.split(',').map((id) => id.trim()).filter(Boolean);
+    }
+    return [];
+  });
   const [rechercheAnimal, setRechercheAnimal] = useState('');
   const [diagnostic, setDiagnostic] = useState(visite?.diagnostic || '');
-  const [traitement, setTraitement] = useState(visite?.traitement || '');
+  const [traitement, setTraitement] = useState(visite?.prescriptions || visite?.recommandations || '');
   const [cout, setCout] = useState(visite?.cout?.toString() || '');
   const [notes, setNotes] = useState(visite?.notes || '');
   const [photos, setPhotos] = useState<string[]>([]);
@@ -184,11 +190,12 @@ export default function VisiteVeterinaireFormModalNew({
       const input: CreateVisiteVeterinaireInput = {
         projet_id: projetActif.id,
         date_visite: dateVisite,
+        veterinaire: visite?.veterinaire || 'Non spécifié',
         motif: TYPE_INTERVENTION_LABELS[motif],
         animaux_examines: animauxSelectionnes.length > 0 ? nomsAnimaux : undefined,
         diagnostic: diagnostic.trim(),
-        traitement: traitement.trim() || undefined,
-        cout: cout ? parseFloat(cout) : undefined,
+        prescriptions: traitement.trim() || undefined,
+        cout: cout ? parseFloat(cout) : 0,
         notes: notes.trim() || undefined,
       };
 
@@ -208,9 +215,10 @@ export default function VisiteVeterinaireFormModalNew({
       }
 
       onClose();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur enregistrement visite:', error);
-      Alert.alert('Erreur', `Impossible d'enregistrer la visite: ${error?.message || error}`);
+      const errorMessage = error instanceof Error ? error.message : String(error) || 'Impossible d\'enregistrer la visite';
+      Alert.alert('Erreur', `Impossible d'enregistrer la visite: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -262,7 +270,9 @@ export default function VisiteVeterinaireFormModalNew({
               style={[
                 styles.typeChip,
                 { borderColor: colors.border },
-                motif === key ? { backgroundColor: colors.primary, borderColor: colors.primary } : null,
+                motif === key
+                  ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                  : null,
               ]}
               onPress={() => setMotif(key)}
             >

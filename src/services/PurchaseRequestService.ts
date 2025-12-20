@@ -3,8 +3,6 @@
  * Inclut la logique de matching avec les listings des producteurs
  */
 
-import type { SQLiteDatabase } from 'expo-sqlite';
-import { getDatabase } from './database';
 import {
   PurchaseRequestRepository,
   PurchaseRequestOfferRepository,
@@ -15,11 +13,13 @@ import { MarketplaceNotificationRepository } from '../database/repositories/Mark
 import { AnimalRepository } from '../database/repositories/AnimalRepository';
 import { ProjetRepository } from '../database/repositories/ProjetRepository';
 import { UserRepository } from '../database/repositories/UserRepository';
+import apiClient from './api/apiClient';
 import type {
   PurchaseRequest,
   PurchaseRequestOffer,
   PurchaseRequestMatch,
   Location,
+  DeliveryLocation,
   MarketplaceListing,
 } from '../types/marketplace';
 import type { ProductionAnimal } from '../types/production';
@@ -48,7 +48,8 @@ function toRad(degrees: number): number {
 function calculateAgeInMonths(dateOfBirth: string): number {
   const birth = new Date(dateOfBirth);
   const now = new Date();
-  const months = (now.getFullYear() - birth.getFullYear()) * 12 + (now.getMonth() - birth.getMonth());
+  const months =
+    (now.getFullYear() - birth.getFullYear()) * 12 + (now.getMonth() - birth.getMonth());
   return Math.max(0, months);
 }
 
@@ -57,7 +58,7 @@ function calculateAgeInMonths(dateOfBirth: string): number {
  */
 function matchesAgeCategory(ageMonths: number, category?: string): boolean {
   if (!category || category === 'tous') return true;
-  
+
   switch (category) {
     case 'jeunes':
       return ageMonths <= 3;
@@ -71,7 +72,6 @@ function matchesAgeCategory(ageMonths: number, category?: string): boolean {
 }
 
 export class PurchaseRequestService {
-  private db: SQLiteDatabase;
   private requestRepo: PurchaseRequestRepository;
   private offerRepo: PurchaseRequestOfferRepository;
   private matchRepo: PurchaseRequestMatchRepository;
@@ -81,16 +81,15 @@ export class PurchaseRequestService {
   private projetRepo: ProjetRepository;
   private userRepo: UserRepository;
 
-  constructor(db: SQLiteDatabase) {
-    this.db = db;
-    this.requestRepo = new PurchaseRequestRepository(db);
-    this.offerRepo = new PurchaseRequestOfferRepository(db);
-    this.matchRepo = new PurchaseRequestMatchRepository(db);
-    this.listingRepo = new MarketplaceListingRepository(db);
-    this.notificationRepo = new MarketplaceNotificationRepository(db);
-    this.animalRepo = new AnimalRepository(db);
-    this.projetRepo = new ProjetRepository(db);
-    this.userRepo = new UserRepository(db);
+  constructor() {
+    this.requestRepo = new PurchaseRequestRepository();
+    this.offerRepo = new PurchaseRequestOfferRepository();
+    this.matchRepo = new PurchaseRequestMatchRepository();
+    this.listingRepo = new MarketplaceListingRepository();
+    this.notificationRepo = new MarketplaceNotificationRepository();
+    this.animalRepo = new AnimalRepository();
+    this.projetRepo = new ProjetRepository();
+    this.userRepo = new UserRepository();
   }
 
   /**
@@ -104,30 +103,30 @@ export class PurchaseRequestService {
     ageCategory?: string;
   }): string {
     const parts: string[] = [];
-    
+
     if (data.race && data.race !== 'Peu importe') {
       parts.push(data.race);
     } else {
       parts.push('porcs');
     }
-    
+
     if (data.ageCategory) {
       const ageLabels: Record<string, string> = {
-        'jeunes': 'jeunes',
-        'engraissement': 'd\'engraissement',
-        'finis': 'finis',
+        jeunes: 'jeunes',
+        engraissement: "d'engraissement",
+        finis: 'finis',
       };
       if (ageLabels[data.ageCategory]) {
         parts.push(ageLabels[data.ageCategory]);
       }
     }
-    
+
     parts.push(`${data.quantity} tête${data.quantity > 1 ? 's' : ''}`);
-    
+
     if (data.minWeight && data.maxWeight) {
       parts.push(`(${data.minWeight}-${data.maxWeight} kg)`);
     }
-    
+
     return parts.join(' ');
   }
 
@@ -162,20 +161,24 @@ export class PurchaseRequestService {
     expiresAt?: string;
   }): Promise<PurchaseRequest> {
     // Générer un titre automatique si non fourni
-    const title = data.title?.trim() || this.generateTitle({
-      race: data.race,
-      quantity: data.quantity,
-      minWeight: data.minWeight,
-      maxWeight: data.maxWeight,
-      ageCategory: data.ageCategory,
-    });
+    const title =
+      data.title?.trim() ||
+      this.generateTitle({
+        race: data.race,
+        quantity: data.quantity,
+        minWeight: data.minWeight,
+        maxWeight: data.maxWeight,
+        ageCategory: data.ageCategory,
+      });
 
     // Calculer la date d'expiration par défaut (30 jours)
-    const expiresAt = data.expiresAt || (() => {
-      const date = new Date();
-      date.setDate(date.getDate() + 30);
-      return date.toISOString();
-    })();
+    const expiresAt =
+      data.expiresAt ||
+      (() => {
+        const date = new Date();
+        date.setDate(date.getDate() + 30);
+        return date.toISOString();
+      })();
 
     const request = await this.requestRepo.create({
       ...data,
@@ -209,7 +212,7 @@ export class PurchaseRequestService {
     for (const listing of allListings) {
       // Vérifier si le listing correspond aux critères
       const matchResult = await this.checkListingMatch(request, listing);
-      
+
       if (matchResult.matches) {
         // Vérifier si le match n'existe pas déjà
         const exists = await this.matchRepo.exists(requestId, listing.id);
@@ -248,30 +251,45 @@ export class PurchaseRequestService {
     // 1. Vérifier la race
     const animal = await this.animalRepo.findById(listing.subjectId);
     if (!animal) {
+      matches = false;
       return { matches: false, score: 0 };
     }
+    
+    // Typer l'animal comme ProductionAnimal pour une meilleure sécurité de type
+    const productionAnimal = animal as ProductionAnimal;
 
-    if (animal.race && animal.race.toLowerCase() !== request.race.toLowerCase()) {
+    if (productionAnimal.race && productionAnimal.race.toLowerCase() !== request.race.toLowerCase()) {
+      matches = false;
       return { matches: false, score: 0 };
     }
     score += 20; // Race correspond
 
     // 2. Vérifier le poids
-    // Récupérer le poids actuel de l'animal
-    const { PoidsRepository } = await import('../database/repositories');
-    const poidsRepo = new (PoidsRepository as any)(this.db);
-    const latestWeight = await poidsRepo.findLatestByAnimalId(listing.subjectId);
-    
-    if (latestWeight) {
-      const currentWeight = latestWeight.poids;
+    // Récupérer le poids actuel de l'animal via l'API
+    let currentWeight: number | null = null;
+    try {
+      const pesees = await apiClient.get<any[]>('/production/pesees', {
+        params: { animal_id: listing.subjectId, limit: 1 },
+      });
+      const lastPesee = pesees && pesees.length > 0 ? pesees[0] : null;
+      if (lastPesee) {
+        currentWeight = lastPesee.poids_kg;
+      }
+    } catch (error) {
+      console.error('Error fetching weight:', error);
+    }
+
+    if (currentWeight !== null) {
       if (currentWeight < request.minWeight || currentWeight > request.maxWeight) {
+        matches = false;
         return { matches: false, score: 0 };
       }
       score += 20; // Poids correspond
     } else {
       // Si pas de poids, on utilise le poids initial
-      if (animal.poids_initial) {
-        if (animal.poids_initial < request.minWeight || animal.poids_initial > request.maxWeight) {
+      if (productionAnimal.poids_initial) {
+        if (productionAnimal.poids_initial < request.minWeight || productionAnimal.poids_initial > request.maxWeight) {
+          matches = false;
           return { matches: false, score: 0 };
         }
         score += 15; // Poids initial correspond (moins de confiance)
@@ -279,19 +297,22 @@ export class PurchaseRequestService {
     }
 
     // 3. Vérifier l'âge
-    if (animal.date_naissance) {
-      const ageMonths = calculateAgeInMonths(animal.date_naissance);
-      
+    if (productionAnimal.date_naissance) {
+      const ageMonths = calculateAgeInMonths(productionAnimal.date_naissance);
+
       // Vérifier la catégorie d'âge
       if (request.ageCategory && !matchesAgeCategory(ageMonths, request.ageCategory)) {
+        matches = false;
         return { matches: false, score: 0 };
       }
-      
+
       // Vérifier les limites d'âge
       if (request.minAgeMonths !== undefined && ageMonths < request.minAgeMonths) {
+        matches = false;
         return { matches: false, score: 0 };
       }
       if (request.maxAgeMonths !== undefined && ageMonths > request.maxAgeMonths) {
+        matches = false;
         return { matches: false, score: 0 };
       }
       score += 20; // Âge correspond
@@ -308,17 +329,22 @@ export class PurchaseRequestService {
     }
 
     // 5. Vérifier la localisation
-    if (request.deliveryLocation?.latitude && request.deliveryLocation?.longitude) {
-      if (listing.location.latitude && listing.location.longitude) {
+    // Utiliser le type DeliveryLocation pour typer explicitement la localisation de la demande
+    const requestLocation: DeliveryLocation | undefined = request.deliveryLocation;
+    const listingLocation: Location = listing.location;
+    
+    if (requestLocation?.latitude !== undefined && requestLocation?.longitude !== undefined) {
+      if (listingLocation.latitude && listingLocation.longitude) {
         const distance = calculateDistance(
-          request.deliveryLocation.latitude,
-          request.deliveryLocation.longitude,
-          listing.location.latitude,
-          listing.location.longitude
+          requestLocation.latitude,
+          requestLocation.longitude,
+          listingLocation.latitude,
+          listingLocation.longitude
         );
 
-        const maxRadius = request.deliveryLocation.radiusKm || 50; // Par défaut 50km
+        const maxRadius = requestLocation.radiusKm || 50; // Par défaut 50km
         if (distance > maxRadius) {
+          matches = false;
           return { matches: false, score: 0 };
         }
 
@@ -333,6 +359,7 @@ export class PurchaseRequestService {
     // 6. Vérifier le prix
     if (request.maxPricePerKg) {
       if (listing.pricePerKg > request.maxPricePerKg) {
+        matches = false;
         return { matches: false, score: 0 };
       }
       // Score basé sur le prix (moins cher = meilleur score)
@@ -341,9 +368,10 @@ export class PurchaseRequestService {
       score += priceScore;
     } else if (request.maxTotalPrice) {
       // Calculer le prix total du listing
-      if (latestWeight) {
-        const totalPrice = listing.pricePerKg * latestWeight.poids;
+      if (currentWeight !== null) {
+        const totalPrice = listing.pricePerKg * currentWeight;
         if (totalPrice > request.maxTotalPrice) {
+          matches = false;
           return { matches: false, score: 0 };
         }
         const priceRatio = totalPrice / request.maxTotalPrice;
@@ -354,7 +382,9 @@ export class PurchaseRequestService {
       score += 10; // Pas de contrainte de prix
     }
 
-    return { matches: true, score: Math.min(100, Math.round(score)) };
+    // Utiliser la variable matches pour s'assurer qu'elle reflète le résultat final
+    matches = score > 0;
+    return { matches, score: Math.min(100, Math.round(score)) };
   }
 
   /**
@@ -369,12 +399,20 @@ export class PurchaseRequestService {
     const buyer = await this.userRepo.findById(request.buyerId);
     const buyerName = buyer ? `${buyer.prenom} ${buyer.nom}` : 'Un acheteur';
 
-    // Créer la notification
+    // Utiliser les informations du listing pour enrichir la notification
+    const listingPrice = listing.pricePerKg ? `${listing.pricePerKg.toFixed(0)} FCFA/kg` : 'Prix non spécifié';
+    const listingWeight = listing.weight ? `${listing.weight.toFixed(0)} kg` : 'Poids non spécifié';
+    const listingLocation = listing.location?.address || listing.location?.city || 'Localisation non spécifiée';
+
+    // Générer un titre pour le listing si nécessaire
+    const listingTitle = listing.code || listing.race || 'Sans titre';
+
+    // Créer la notification avec les détails du listing
     await this.notificationRepo.create({
       userId: match.producerId,
       type: 'offer_received', // Réutiliser le type existant
       title: 'Nouvelle demande correspondant à votre annonce',
-      message: `${buyerName} recherche ${request.quantity} ${request.race} correspondant à votre annonce. Poids souhaité: ${request.minWeight}-${request.maxWeight}kg.`,
+      message: `${buyerName} recherche ${request.quantity} ${request.race} correspondant à votre annonce "${listingTitle}". Poids souhaité: ${request.minWeight}-${request.maxWeight}kg. Votre annonce: ${listingWeight} à ${listingPrice} (${listingLocation}).`,
       relatedId: match.id,
       relatedType: 'offer', // Réutiliser le type existant
       actionUrl: `purchase_request:${request.id}`,
@@ -399,11 +437,11 @@ export class PurchaseRequestService {
   }): Promise<PurchaseRequestOffer> {
     const request = await this.requestRepo.findById(data.purchaseRequestId);
     if (!request) {
-      throw new Error('Demande d\'achat introuvable');
+      throw new Error("Demande d'achat introuvable");
     }
 
     if (request.status !== 'published') {
-      throw new Error('Cette demande d\'achat n\'est plus active');
+      throw new Error("Cette demande d'achat n'est plus active");
     }
 
     // Calculer le prix total
@@ -454,11 +492,11 @@ export class PurchaseRequestService {
 
     const request = await this.requestRepo.findById(offer.purchaseRequestId);
     if (!request || request.buyerId !== buyerId) {
-      throw new Error('Vous n\'êtes pas autorisé à accepter cette offre');
+      throw new Error("Vous n'êtes pas autorisé à accepter cette offre");
     }
 
     if (offer.status !== 'pending') {
-      throw new Error('Cette offre n\'est plus valable');
+      throw new Error("Cette offre n'est plus valable");
     }
 
     // Mettre à jour le statut de l'offre
@@ -469,7 +507,7 @@ export class PurchaseRequestService {
 
     // Notifier le producteur
     const buyer = await this.userRepo.findById(buyerId);
-    const buyerName = buyer ? `${buyer.prenom} ${buyer.nom}` : 'L\'acheteur';
+    const buyerName = buyer ? `${buyer.prenom} ${buyer.nom}` : "L'acheteur";
 
     await this.notificationRepo.create({
       userId: offer.producerId,
@@ -494,14 +532,14 @@ export class PurchaseRequestService {
 
     const request = await this.requestRepo.findById(offer.purchaseRequestId);
     if (!request || request.buyerId !== buyerId) {
-      throw new Error('Vous n\'êtes pas autorisé à refuser cette offre');
+      throw new Error("Vous n'êtes pas autorisé à refuser cette offre");
     }
 
     await this.offerRepo.updateStatus(offerId, 'rejected');
 
     // Notifier le producteur
     const buyer = await this.userRepo.findById(buyerId);
-    const buyerName = buyer ? `${buyer.prenom} ${buyer.nom}` : 'L\'acheteur';
+    const buyerName = buyer ? `${buyer.prenom} ${buyer.nom}` : "L'acheteur";
 
     await this.notificationRepo.create({
       userId: offer.producerId,
@@ -523,7 +561,7 @@ export class PurchaseRequestService {
     }
 
     if (offer.producerId !== producerId) {
-      throw new Error('Vous n\'êtes pas autorisé à retirer cette offre');
+      throw new Error("Vous n'êtes pas autorisé à retirer cette offre");
     }
 
     if (offer.status !== 'pending') {
@@ -569,19 +607,15 @@ export class PurchaseRequestService {
       allOffers.push(...offers);
     }
 
-    return allOffers.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return allOffers.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
   }
 }
 
 /**
  * Obtenir une instance du service
  */
-export function getPurchaseRequestService(db?: SQLiteDatabase): PurchaseRequestService {
-  if (db) {
-    return new PurchaseRequestService(db);
-  }
-  // Si pas de db fournie, on ne peut pas créer le service
-  // Il faudra l'appeler avec getDatabase()
-  throw new Error('Database instance required');
+export function getPurchaseRequestService(): PurchaseRequestService {
+  return new PurchaseRequestService();
 }
-

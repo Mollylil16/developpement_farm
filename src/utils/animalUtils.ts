@@ -28,7 +28,7 @@ export function getAnimalCurrentWeight(
  * Détermine la catégorie d'un animal (Truie, Verrat, ou Porcelet)
  * @param animal L'animal à catégoriser
  * @returns La catégorie de l'animal
- * 
+ *
  * Note: reproducteur vient de SQLite comme INTEGER (0/1), donc on le convertit en boolean
  */
 export function getCategorieAnimal(animal: ProductionAnimal): 'truie' | 'verrat' | 'porcelet' {
@@ -109,7 +109,7 @@ export function calculatePoidsTotalAnimauxActifs(
   exclureReproducteurs: boolean = false
 ): number {
   let animauxActifs = animaux.filter((animal) => animal.statut?.toLowerCase() === 'actif');
-  
+
   // Exclure les reproducteurs si demandé (pour les calculs de revenus prévisionnels)
   if (exclureReproducteurs) {
     animauxActifs = animauxActifs.filter((animal) => !animal.reproducteur);
@@ -207,7 +207,7 @@ export function getStatutColor(
  * - Porcelet : poids entre 7 kg et 25 kg (inclus)
  * - Croissance : poids entre 25 kg (exclus) et 60 kg (inclus)
  * - Finition : poids supérieur à 60 kg
- * 
+ *
  * @param poidsKg Le poids de l'animal en kilogrammes
  * @returns La catégorie de poids : 'porcelet' | 'croissance' | 'finition'
  */

@@ -273,7 +273,7 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
 
     // Sinon, calculer depuis les mortalites directement
     if (!Array.isArray(mortalites) || mortalites.length === 0) return [];
-    
+
     const parCategorie: Record<CategorieMortalite, number> = {
       porcelet: 0,
       truie: 0,
@@ -306,7 +306,11 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
 
   // Données pour le BarChart mensuel
   const barChartData = useMemo(() => {
-    if (!statistiques || !statistiques.mortalites_par_mois || statistiques.mortalites_par_mois.length === 0) {
+    if (
+      !statistiques ||
+      !statistiques.mortalites_par_mois ||
+      statistiques.mortalites_par_mois.length === 0
+    ) {
       return null;
     }
 
@@ -314,7 +318,20 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
     return {
       labels: last6Months.map((m) => {
         const [year, month] = m.mois.split('-');
-        const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+        const monthNames = [
+          'Jan',
+          'Fév',
+          'Mar',
+          'Avr',
+          'Mai',
+          'Jun',
+          'Jul',
+          'Aoû',
+          'Sep',
+          'Oct',
+          'Nov',
+          'Déc',
+        ];
         return `${monthNames[parseInt(month) - 1]}`;
       }),
       datasets: [
@@ -428,9 +445,10 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
   // Rendre les graphiques
   const renderGraphiques = () => {
     const hasData = Array.isArray(mortalites) && mortalites.length > 0;
-    const hasChartData = (pieChartDataCauses && pieChartDataCauses.length > 0) || 
-                         (pieChartDataCategories && pieChartDataCategories.length > 0) || 
-                         barChartData;
+    const hasChartData =
+      (pieChartDataCauses && pieChartDataCauses.length > 0) ||
+      (pieChartDataCategories && pieChartDataCategories.length > 0) ||
+      barChartData;
 
     return (
       <View
@@ -443,7 +461,9 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
         ]}
       >
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>📈 Graphiques et Statistiques</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            📈 Graphiques et Statistiques
+          </Text>
         </View>
 
         {!hasData ? (
@@ -469,7 +489,9 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
             {/* Graphique PieChart - Causes de mortalité */}
             {pieChartDataCauses && pieChartDataCauses.length > 0 ? (
               <Card elevation="medium" padding="large" style={styles.chartCard}>
-                <Text style={[styles.chartTitle, { color: colors.text }]}>📊 Causes de mortalité</Text>
+                <Text style={[styles.chartTitle, { color: colors.text }]}>
+                  📊 Causes de mortalité
+                </Text>
                 <Text style={[styles.chartSubtitle, { color: colors.textSecondary }]}>
                   Top 5 des causes principales
                 </Text>
@@ -500,7 +522,9 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
             {/* Graphique PieChart - Catégories */}
             {pieChartDataCategories && pieChartDataCategories.length > 0 ? (
               <Card elevation="medium" padding="large" style={styles.chartCard}>
-                <Text style={[styles.chartTitle, { color: colors.text }]}>📊 Répartition par catégorie</Text>
+                <Text style={[styles.chartTitle, { color: colors.text }]}>
+                  📊 Répartition par catégorie
+                </Text>
                 <Text style={[styles.chartSubtitle, { color: colors.textSecondary }]}>
                   Porcelets, Truies, Verrats
                 </Text>
@@ -531,7 +555,9 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
             {/* Graphique BarChart - Évolution mensuelle */}
             {barChartData ? (
               <Card elevation="medium" padding="large" style={styles.chartCard}>
-                <Text style={[styles.chartTitle, { color: colors.text }]}>📈 Évolution mensuelle</Text>
+                <Text style={[styles.chartTitle, { color: colors.text }]}>
+                  📈 Évolution mensuelle
+                </Text>
                 <Text style={[styles.chartSubtitle, { color: colors.textSecondary }]}>
                   Derniers 6 mois
                 </Text>
@@ -551,7 +577,9 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
             {/* Graphique BarChart - Causes détaillées */}
             {pieChartDataCauses && pieChartDataCauses.length > 0 ? (
               <Card elevation="medium" padding="large" style={styles.chartCard}>
-                <Text style={[styles.chartTitle, { color: colors.text }]}>📊 Causes détaillées</Text>
+                <Text style={[styles.chartTitle, { color: colors.text }]}>
+                  📊 Causes détaillées
+                </Text>
                 <Text style={[styles.chartSubtitle, { color: colors.textSecondary }]}>
                   Comparaison par cause
                 </Text>
@@ -726,7 +754,11 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
       contentContainerStyle={styles.content}
       refreshControl={
         refreshControl || (
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+          />
         )
       }
       showsVerticalScrollIndicator={false}

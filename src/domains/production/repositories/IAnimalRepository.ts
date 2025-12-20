@@ -1,6 +1,6 @@
 /**
  * Interface du repository Animal - Domaine Production
- * 
+ *
  * Définit le contrat pour l'accès aux données des animaux
  * L'implémentation concrète est dans infrastructure/database/
  */
@@ -43,4 +43,3 @@ export interface IAnimalRepository {
    */
   findReproducteursActifs(projetId: string): Promise<Animal[]>;
 }
-

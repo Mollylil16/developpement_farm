@@ -28,7 +28,7 @@ export default function PlanificationCalendarComponent() {
 
   // Préparer les dates marquées pour le calendrier
   const markedDates = useMemo(() => {
-    const marked: any = {};
+    const marked: { [key: string]: any } = {};
 
     planifications.forEach((planification) => {
       const datePrevue = planification.date_prevue.split('T')[0];
@@ -85,7 +85,7 @@ export default function PlanificationCalendarComponent() {
     console.log(`Tâches pour ${day.dateString}:`, taches.length);
   };
 
-  const onMonthChange = (month: any) => {
+  const onMonthChange = (month: DateData) => {
     const newDate = new Date(month.year, month.month - 1, 1);
     setCurrentMonth(newDate);
   };

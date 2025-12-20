@@ -69,7 +69,8 @@ export default function CurrencySettingsModal({ visible, onClose }: CurrencySett
             style={[
               styles.currencyOption,
               {
-                backgroundColor: selectedCurrency === currency.code ? colors.primary + '15' : colors.surface,
+                backgroundColor:
+                  selectedCurrency === currency.code ? colors.primary + '15' : colors.surface,
                 borderColor: selectedCurrency === currency.code ? colors.primary : colors.border,
               },
             ]}
@@ -139,4 +140,3 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 });
-

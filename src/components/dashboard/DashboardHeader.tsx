@@ -275,7 +275,6 @@ const styles = StyleSheet.create({
     marginLeft: SPACING.sm,
     flexShrink: 0,
     gap: SPACING.xs,
-    justifyContent: 'flex-start',
   },
   notificationButton: {
     position: 'relative',
@@ -304,4 +303,3 @@ const styles = StyleSheet.create({
     marginTop: SPACING.md,
   },
 });
-

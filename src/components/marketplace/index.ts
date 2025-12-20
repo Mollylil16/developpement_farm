@@ -33,4 +33,3 @@ export { default as NotificationPanel } from './NotificationPanel';
 export { default as MarketplaceBuyTab } from './tabs/MarketplaceBuyTab';
 export { default as MarketplaceMyListingsTab } from './tabs/MarketplaceMyListingsTab';
 export { default as MarketplaceOffersTab } from './tabs/MarketplaceOffersTab';
-

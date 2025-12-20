@@ -6,7 +6,15 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, ActivityIndicator, StyleSheet, Animated, AppRegistry, LogBox } from 'react-native';
+import {
+  View,
+  Text,
+  ActivityIndicator,
+  StyleSheet,
+  Animated,
+  AppRegistry,
+  LogBox,
+} from 'react-native';
 import { registerRootComponent } from 'expo';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { deactivateKeepAwake } from 'expo-keep-awake';
@@ -17,7 +25,7 @@ import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import { LanguageProvider } from './src/contexts/LanguageContext';
 import { RoleProvider } from './src/contexts/RoleContext';
 import { initializeFeatureFlags } from './src/config/featureFlags';
-import { SPACING, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS, LIGHT_COLORS } from './src/constants/theme';
+import { ANIMATIONS, LIGHT_COLORS } from './src/constants/theme';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { GlobalTextRenderGuard } from './src/components/GlobalTextRenderGuard';
 
@@ -27,14 +35,17 @@ if (__DEV__) {
   // Masquer les overlays de développement qui peuvent rester affichés
   try {
     // Désactiver les indicateurs de progression d'Expo
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (typeof (global as any).__expo !== 'undefined') {
       // Masquer les overlays de développement
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (global as any).__expo = {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ...(global as any).__expo,
         hideDevMenu: true,
       };
     }
-  } catch (e) {
+  } catch {
     // Ignorer les erreurs
   }
 }
@@ -70,6 +81,7 @@ function LoadingScreen({ message, error }: { message: string; error?: string }) 
         useNativeDriver: true,
       })
     ).start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const spin = rotateAnim.interpolate({
@@ -104,7 +116,7 @@ export default function App() {
   // Désactiver le "keep awake" pour économiser la batterie
   // L'écran pourra se mettre en veille normalement
   useEffect(() => {
-    deactivateKeepAwake();
+    void deactivateKeepAwake();
   }, []);
   const [dbError, setDbError] = useState<string | null>(null);
 
@@ -116,13 +128,17 @@ export default function App() {
         // Initialiser les Feature Flags
         initializeFeatureFlags();
         setDbInitialized(true);
-      } catch (error: any) {
-        console.error('Erreur lors de l\'initialisation de la base de données:', error);
-        setDbError(error.message || 'Erreur lors de l\'initialisation de la base de données');
+      } catch (error: unknown) {
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : "Erreur lors de l'initialisation de la base de données";
+        console.error("Erreur lors de l'initialisation de la base de données:", error);
+        setDbError(errorMessage);
       }
     };
 
-    initDatabase();
+    void initDatabase();
   }, []);
 
   // Afficher un écran de chargement pendant l'initialisation
@@ -138,9 +154,10 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <Provider store={store}>
-        <PersistGate loading={
-          <LoadingScreen message="Chargement de l'application..." />
-        } persistor={persistor}>
+        <PersistGate
+          loading={<LoadingScreen message="Chargement de l'application..." />}
+          persistor={persistor}
+        >
           <LanguageProvider>
             <ThemeProvider>
               <RoleProvider>
@@ -160,7 +177,7 @@ export default function App() {
 
 function AppContent() {
   const { isDark } = useTheme();
-  
+
   return (
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />

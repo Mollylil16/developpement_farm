@@ -5,9 +5,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { getDatabase } from '../services/database';
 import { getErrorMessage } from '../types/common';
-import { VisiteVeterinaireRepository, ProjetRepository, MaladieRepository, CollaborateurRepository } from '../database/repositories';
+import apiClient from '../services/api/apiClient';
 import { loadPlanificationsParProjet } from '../store/slices/planificationSlice';
 import type { VisiteVeterinaire } from '../types/sante';
 import { format, startOfDay, endOfDay, isToday } from 'date-fns';
@@ -55,41 +54,38 @@ export function useVetData(vetUserId?: string) {
     try {
       setData((prev) => ({ ...prev, loading: true, error: null }));
 
-      const db = await getDatabase();
-      const visiteRepo = new VisiteVeterinaireRepository(db);
-      const projetRepo = new ProjetRepository(db);
-      const maladieRepo = new MaladieRepository(db);
-      const collaborateurRepo = new CollaborateurRepository(db);
-
       // Récupérer le profil vétérinaire pour obtenir la liste des clients
       const vetProfile = user?.roles?.veterinarian;
       const vetClients = vetProfile?.clients || [];
 
-      // Récupérer les collaborations actives du vétérinaire
-      const activeCollaborations = await collaborateurRepo.findActifsByUserId(vetUserId);
-      const collaborationProjectIds = activeCollaborations
-        .filter(c => c.role === 'veterinaire')
-        .map(c => c.projet_id);
+      // Récupérer les collaborations actives du vétérinaire depuis l'API backend
+      const allCollaborations = await apiClient.get<any[]>('/collaborations');
+      const activeCollaborations = allCollaborations.filter(
+        (c) => c.user_id === vetUserId && c.role === 'veterinaire' && c.statut === 'actif'
+      );
+      const collaborationProjectIds = activeCollaborations.map((c) => c.projet_id);
 
       // Combiner les IDs des clients et des collaborations pour obtenir tous les projets accessibles
       const accessibleProjectIds = new Set([
-        ...vetClients.map(c => c.farmId),
+        ...vetClients.map((c) => c.farmId),
         ...collaborationProjectIds,
       ]);
 
-      // Récupérer uniquement les projets accessibles
-      const allProjects = await projetRepo.findAll();
-      const accessibleProjects = allProjects.filter(p => accessibleProjectIds.has(p.id));
+      // Récupérer uniquement les projets accessibles depuis l'API backend
+      const allProjects = await apiClient.get<any[]>('/projets');
+      const accessibleProjects = allProjects.filter((p) => accessibleProjectIds.has(p.id));
 
       // Charger les planifications pour le projet actif si disponible
       if (projetActif?.id && accessibleProjectIds.has(projetActif.id)) {
         await dispatch(loadPlanificationsParProjet(projetActif.id));
       }
 
-      // Récupérer toutes les visites vétérinaires des projets accessibles
+      // Récupérer toutes les visites vétérinaires des projets accessibles depuis l'API backend
       const allVisites: VisiteVeterinaire[] = [];
       for (const project of accessibleProjects) {
-        const visites = await visiteRepo.findByProjet(project.id);
+        const visites = await apiClient.get<any[]>(`/sante/visites-veterinaires`, {
+          params: { projet_id: project.id },
+        });
         allVisites.push(...visites);
       }
 
@@ -116,27 +112,33 @@ export function useVetData(vetUserId?: string) {
       });
 
       // Grouper les clients (fermes) avec statistiques
-      const clientMap = new Map<string, {
+      interface ClientData {
         farmId: string;
         farmName: string;
         since: string;
         lastConsultation?: string;
         consultationCount: number;
-      }>();
+      }
+
+      const clientMap = new Map<string, ClientData>();
 
       for (const visite of allVisites) {
         const project = accessibleProjects.find((p) => p.id === visite.projet_id);
         if (!project) continue;
 
-        const existing = clientMap.get(visite.projet_id) || {
+        const existing: ClientData = clientMap.get(visite.projet_id) || {
           farmId: visite.projet_id,
           farmName: project.nom || 'Ferme inconnue',
           since: visite.date_creation,
           consultationCount: 0,
+          lastConsultation: undefined,
         };
 
         existing.consultationCount++;
-        if (!existing.lastConsultation || new Date(visite.date_visite) > new Date(existing.lastConsultation)) {
+        if (
+          !existing.lastConsultation ||
+          new Date(visite.date_visite) > new Date(existing.lastConsultation)
+        ) {
           existing.lastConsultation = visite.date_visite;
         }
         if (new Date(visite.date_creation) < new Date(existing.since)) {
@@ -150,10 +152,12 @@ export function useVetData(vetUserId?: string) {
 
       // Détecter les alertes sanitaires (maladies récentes, vaccinations manquantes, etc.)
       const healthAlerts: VetData['healthAlerts'] = [];
-      
+
       for (const project of accessibleProjects) {
-        // Vérifier les maladies récentes (derniers 7 jours)
-        const maladies = await maladieRepo.findByProjet(project.id);
+        // Vérifier les maladies récentes (derniers 7 jours) depuis l'API backend
+        const maladies = await apiClient.get<any[]>(`/sante/maladies`, {
+          params: { projet_id: project.id },
+        });
         const recentMaladies = maladies.filter((m) => {
           const maladieDate = new Date(m.date_debut);
           const daysAgo = (today.getTime() - maladieDate.getTime()) / (1000 * 60 * 60 * 24);
@@ -198,4 +202,3 @@ export function useVetData(vetUserId?: string) {
     refresh: loadVetData,
   };
 }
-

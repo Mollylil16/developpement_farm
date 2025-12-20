@@ -21,7 +21,7 @@ import {
   selectVaccinationsAVenir,
   selectSanteStatistics,
 } from '../store/selectors/santeSelectors';
-import { TYPE_VACCIN_LABELS, STATUT_VACCINATION_LABELS } from '../types/sante';
+import { TYPE_VACCIN_LABELS, STATUT_VACCINATION_LABELS, Vaccination } from '../types/sante';
 import VaccinationFormModal from './VaccinationFormModal';
 
 interface Props {
@@ -140,7 +140,7 @@ export default function VaccinationsComponent({ refreshControl }: Props) {
     </View>
   );
 
-  const renderVaccinationCard = (vaccination: any) => {
+  const renderVaccinationCard = (vaccination: Vaccination) => {
     const date = new Date(vaccination.date_vaccination);
     const isEnRetard = vaccination.statut === 'planifie' && date < new Date();
 
@@ -211,11 +211,11 @@ export default function VaccinationsComponent({ refreshControl }: Props) {
             </Text>
           </View>
 
-          {vaccination.animal_id && (
+          {vaccination.animal_ids && vaccination.animal_ids.length > 0 && (
             <View style={styles.cardRow}>
               <Ionicons name="paw-outline" size={16} color={colors.textSecondary} />
               <Text style={[styles.cardText, { color: colors.textSecondary }]}>
-                Animal: {vaccination.animal_id}
+                Animal{vaccination.animal_ids.length > 1 ? 'x' : ''}: {vaccination.animal_ids.length}
               </Text>
             </View>
           )}

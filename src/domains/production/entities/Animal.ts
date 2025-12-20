@@ -1,6 +1,6 @@
 /**
  * Entité Animal - Domaine Production
- * 
+ *
  * Représente un animal dans le domaine métier
  * Contient uniquement la logique métier, pas d'accès à la base de données
  */
@@ -71,11 +71,6 @@ export class AnimalEntity {
    * Vérifie si l'animal est disponible pour la vente
    */
   estDisponiblePourVente(): boolean {
-    return (
-      this.animal.actif &&
-      this.animal.statut === 'actif' &&
-      !this.animal.reproducteur
-    );
+    return this.animal.actif && this.animal.statut === 'actif' && !this.animal.reproducteur;
   }
 }
-

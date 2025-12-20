@@ -36,10 +36,7 @@ export function formatMontantAvecDevise(montant: number | undefined | null): str
  * @param decimales - Nombre de décimales (défaut: 2)
  * @returns Chaîne formatée (ex: "123.45")
  */
-export function formatNombre(
-  nombre: number | undefined | null,
-  decimales: number = 2
-): string {
+export function formatNombre(nombre: number | undefined | null, decimales: number = 2): string {
   if (nombre === undefined || nombre === null || isNaN(nombre)) {
     return '0';
   }
@@ -57,10 +54,7 @@ export function formatNombre(
  * @param decimales - Nombre de décimales (défaut: 1)
  * @returns Chaîne formatée (ex: "120.5 kg")
  */
-export function formatPoids(
-  poids: number | undefined | null,
-  decimales: number = 1
-): string {
+export function formatPoids(poids: number | undefined | null, decimales: number = 1): string {
   if (poids === undefined || poids === null || isNaN(poids)) {
     return '0 kg';
   }
@@ -122,7 +116,6 @@ export function parseNombre(
   return isNaN(parsed) ? defaultValue : parsed;
 }
 
-
 /**
  * Calcule un pourcentage (partie / total * 100)
  * @param partie - Partie
@@ -182,7 +175,7 @@ export function formatDate(
       const diffDay = Math.floor(diffHour / 24);
 
       if (diffSec < 60) {
-        return 'À l\'instant';
+        return "À l'instant";
       } else if (diffMin < 60) {
         return `Il y a ${diffMin} min`;
       } else if (diffHour < 24) {
@@ -246,10 +239,7 @@ export function formatDateCourt(date: string | Date | undefined | null): string 
  * @param decimales - Nombre de décimales (défaut: 2)
  * @returns Nombre arrondi
  */
-export function roundTo(
-  nombre: number | undefined | null,
-  decimales: number = 2
-): number {
+export function roundTo(nombre: number | undefined | null, decimales: number = 2): number {
   if (nombre === undefined || nombre === null || isNaN(nombre)) {
     return 0;
   }
@@ -265,11 +255,7 @@ export function roundTo(
  * @param max - Valeur maximale
  * @returns Nombre limité
  */
-export function clamp(
-  nombre: number | undefined | null,
-  min: number,
-  max: number
-): number {
+export function clamp(nombre: number | undefined | null, min: number, max: number): number {
   const n = nombre ?? 0;
   return Math.min(Math.max(n, min), max);
 }
@@ -279,7 +265,7 @@ export function clamp(
  * @param valeur - Valeur à vérifier
  * @returns true si valide
  */
-export function isValidNumber(valeur: any): valeur is number {
+export function isValidNumber(valeur: unknown): valeur is number {
   return typeof valeur === 'number' && !isNaN(valeur) && isFinite(valeur);
 }
 
@@ -289,10 +275,7 @@ export function isValidNumber(valeur: any): valeur is number {
  * @param defaultValue - Valeur par défaut (défaut: 0)
  * @returns Nombre sécurisé
  */
-export function toSafeNumber(
-  valeur: any,
-  defaultValue: number = 0
-): number {
+export function toSafeNumber(valeur: unknown, defaultValue: number = 0): number {
   if (isValidNumber(valeur)) {
     return valeur;
   }
@@ -305,3 +288,68 @@ export function toSafeNumber(
   return defaultValue;
 }
 
+/**
+ * Extrait un montant depuis un texte
+ * Cherche les montants après "à", "pour", "de", "montant", "prix", etc.
+ * Supporte les formats: "800000", "800 000", "800k", "1 million"
+ * @param text - Texte à analyser
+ * @returns Montant extrait ou null si non trouvé
+ */
+export function extractMontantFromText(text: string): number | null {
+  if (!text || typeof text !== 'string') {
+    return null;
+  }
+
+  // Patterns prioritaires (plus fiables)
+  const priorityPatterns = [
+    // Pattern 1: Montant après "à", "pour", "de", "montant", "prix", "coût"
+    /(?:a|pour|de|montant|prix|cout|vendu a|vendu pour|depense|achete|paye)[:\s]+(\d[\d\s,]{3,})(?:\s*(?:f\s*c\s*f\s*a|fcfa|francs?|f\s*))?/i,
+    // Pattern 2: "5000 FCFA", "5 000 francs" (avec devise, minimum 3 chiffres)
+    /(\d[\d\s,]{3,})\s*(?:FCFA|CFA|francs?|F\s*)/i,
+  ];
+
+  for (const pattern of priorityPatterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) {
+      const montantStr = match[1].replace(/[\s,]/g, '');
+      const montant = parseInt(montantStr);
+      if (!isNaN(montant) && montant > 100) {
+        // Ignorer les petits nombres (probablement des quantités)
+        return montant;
+      }
+    }
+  }
+
+  // Pattern 3: Formats "k" ou "million" (ex: "800k", "1 million")
+  const kPattern = /(\d+[\d\s,]*)\s*k\b/i;
+  const kMatch = text.match(kPattern);
+  if (kMatch && kMatch[1]) {
+    const base = parseMontant(kMatch[1]);
+    if (base > 0) {
+      return base * 1000;
+    }
+  }
+
+  const millionPattern = /(\d+[\d\s,.]*)\s*million/i;
+  const millionMatch = text.match(millionPattern);
+  if (millionMatch && millionMatch[1]) {
+    const base = parseMontant(millionMatch[1]);
+    if (base > 0) {
+      return base * 1000000;
+    }
+  }
+
+  // Pattern 4: Plus grand nombre dans le texte (fallback)
+  const numbers = text.match(/\d[\d\s,]{3,}/g);
+  if (numbers && numbers.length > 0) {
+    const montants = numbers
+      .map((n) => parseInt(n.replace(/[\s,]/g, '')))
+      .filter((n) => !isNaN(n) && n > 100);
+
+    if (montants.length > 0) {
+      return Math.max(...montants);
+    }
+  }
+
+  return null;
+}

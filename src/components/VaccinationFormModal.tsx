@@ -3,14 +3,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '../contexts/ThemeContext';
@@ -84,9 +77,9 @@ export default function VaccinationFormModal({ visible, onClose, vaccination, an
     if (vaccination) {
       setFormData({
         calendrier_id: vaccination.calendrier_id || '',
-        animal_id: vaccination.animal_id || '',
+        animal_id: vaccination.animal_ids?.[0] || '',
         lot_id: vaccination.lot_id || '',
-        vaccin: vaccination.vaccin,
+        vaccin: vaccination.vaccin || 'autre',
         nom_vaccin: vaccination.nom_vaccin || '',
         date_vaccination: vaccination.date_vaccination,
         date_rappel: vaccination.date_rappel || '',
@@ -100,7 +93,7 @@ export default function VaccinationFormModal({ visible, onClose, vaccination, an
     }
   }, [vaccination]);
 
-  const handleDatePickerChange = (event: any, selectedDate?: Date) => {
+  const handleDatePickerChange = (event: unknown, selectedDate?: Date) => {
     setShowDatePicker(Platform.OS === 'ios');
     if (selectedDate) {
       const dateString = formatLocalDate(selectedDate.toISOString());
@@ -140,7 +133,7 @@ export default function VaccinationFormModal({ visible, onClose, vaccination, an
             id: vaccination.id,
             updates: {
               calendrier_id: formData.calendrier_id || undefined,
-              animal_id: formData.animal_id || undefined,
+              animal_ids: formData.animal_id ? [formData.animal_id] : undefined,
               lot_id: formData.lot_id || undefined,
               vaccin: formData.vaccin,
               nom_vaccin: formData.nom_vaccin || undefined,
@@ -166,13 +159,17 @@ export default function VaccinationFormModal({ visible, onClose, vaccination, an
         const input: CreateVaccinationInput = {
           projet_id: projetActif.id,
           calendrier_id: formData.calendrier_id || undefined,
-          animal_id: formData.animal_id || undefined,
+          animal_ids: formData.animal_id ? [formData.animal_id] : undefined,
           lot_id: formData.lot_id || undefined,
+          type_prophylaxie: 'vaccin_obligatoire', // Valeur par défaut
           vaccin: formData.vaccin,
           nom_vaccin: formData.nom_vaccin || undefined,
+          produit_administre: formData.nom_vaccin || TYPE_VACCIN_LABELS[formData.vaccin] || 'Vaccin non spécifié',
           date_vaccination: formData.date_vaccination,
           date_rappel: formData.date_rappel || undefined,
           numero_lot_vaccin: formData.numero_lot_vaccin || undefined,
+          dosage: 'Non spécifié', // Valeur par défaut
+          raison_traitement: 'prevention', // Valeur par défaut
           veterinaire: formData.veterinaire || undefined,
           cout: formData.cout ? parseFloat(formData.cout) : undefined,
           statut: formData.statut,
@@ -184,8 +181,9 @@ export default function VaccinationFormModal({ visible, onClose, vaccination, an
       }
 
       onClose();
-    } catch (err: any) {
-      setError(err.message || "Erreur lors de l'enregistrement");
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err) || "Erreur lors de l'enregistrement";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

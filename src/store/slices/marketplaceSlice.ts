@@ -12,8 +12,9 @@ import type {
   MarketplaceFilters,
   MarketplaceSortOption,
 } from '../../types/marketplace';
-import { getDatabase } from '../../services/database';
-import { getMarketplaceService } from '../../services/MarketplaceService';
+import { getErrorMessage } from '../../types/common';
+import apiClient from '../../services/api/apiClient';
+import type { RootState } from '../store';
 
 interface MarketplaceState {
   // Listings
@@ -21,23 +22,23 @@ interface MarketplaceState {
   currentListing: MarketplaceListing | null;
   listingsLoading: boolean;
   listingsError: string | null;
-  
+
   // Offers
   myOffers: Offer[];
   receivedOffers: Offer[];
   offersLoading: boolean;
   offersError: string | null;
-  
+
   // Transactions
   myTransactions: Transaction[];
   transactionsLoading: boolean;
   transactionsError: string | null;
-  
+
   // Notifications
   notifications: Notification[];
   unreadCount: number;
   notificationsLoading: boolean;
-  
+
   // UI State
   filters: MarketplaceFilters;
   sortBy: MarketplaceSortOption;
@@ -51,20 +52,20 @@ const initialState: MarketplaceState = {
   currentListing: null,
   listingsLoading: false,
   listingsError: null,
-  
+
   myOffers: [],
   receivedOffers: [],
   offersLoading: false,
   offersError: null,
-  
+
   myTransactions: [],
   transactionsLoading: false,
   transactionsError: null,
-  
+
   notifications: [],
   unreadCount: 0,
   notificationsLoading: false,
-  
+
   filters: {},
   sortBy: 'distance',
   currentPage: 1,
@@ -87,26 +88,36 @@ export const searchListings = createAsyncThunk(
       sort?: MarketplaceSortOption;
       page?: number;
       userId?: string; // ID de l'utilisateur pour filtrer ses propres listings
+      projetId?: string;
     },
     { rejectWithValue, getState }
   ) => {
     try {
-      const db = await getDatabase();
-      const service = getMarketplaceService(db);
-      
-      // Récupérer le userId depuis le state si non fourni
-      const state = getState() as any;
+      const state = getState() as RootState;
       const userId = params.userId || state?.auth?.user?.id;
-      
-      const result = await service.searchListings(
-        params.filters,
-        params.sort,
-        params.page || 1,
-        20,
-        userId
-      );
-      
-      return result;
+
+      const listings = await apiClient.get<MarketplaceListing[]>('/marketplace/listings', {
+        params: {
+          user_id: userId,
+          projet_id: params.projetId,
+        },
+      });
+
+      // Simuler la pagination côté client pour l'instant
+      const page = params.page || 1;
+      const limit = 20;
+      const start = (page - 1) * limit;
+      const end = start + limit;
+      const paginatedListings = listings.slice(start, end);
+      const totalPages = Math.ceil(listings.length / limit);
+
+      return {
+        listings: paginatedListings,
+        total: listings.length,
+        page,
+        totalPages,
+        hasMore: page < totalPages,
+      };
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la recherche');
     }
@@ -126,16 +137,23 @@ export const createListing = createAsyncThunk(
       pricePerKg: number;
       weight: number;
       lastWeightDate: string;
-      location: any;
+      location: unknown;
+      saleTerms?: unknown;
     },
     { rejectWithValue }
   ) => {
     try {
-      const db = await getDatabase();
-      const service = getMarketplaceService(db);
-      
-      const listing = await service.createListing(data);
-      
+      const listing = await apiClient.post<MarketplaceListing>('/marketplace/listings', {
+        subjectId: data.subjectId,
+        producerId: data.producerId,
+        farmId: data.farmId,
+        pricePerKg: data.pricePerKg,
+        weight: data.weight,
+        lastWeightDate: data.lastWeightDate,
+        location: data.location,
+        saleTerms: data.saleTerms,
+      });
+
       return listing;
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la mise en vente');
@@ -159,14 +177,17 @@ export const createOffer = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const db = await getDatabase();
-      const service = getMarketplaceService(db);
-      
-      const offer = await service.createOffer(data);
-      
+      const offer = await apiClient.post<Offer>('/marketplace/offers', {
+        listingId: data.listingId,
+        subjectIds: data.subjectIds,
+        buyerId: data.buyerId,
+        proposedPrice: data.proposedPrice,
+        message: data.message,
+      });
+
       return offer;
     } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création de l\'offre');
+      return rejectWithValue(getErrorMessage(error) || "Erreur lors de la création de l'offre");
     }
   }
 );
@@ -176,19 +197,15 @@ export const createOffer = createAsyncThunk(
  */
 export const acceptOffer = createAsyncThunk(
   'marketplace/acceptOffer',
-  async (
-    data: { offerId: string; producerId: string },
-    { rejectWithValue }
-  ) => {
+  async (data: { offerId: string; producerId: string }, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const service = getMarketplaceService(db);
-      
-      const transaction = await service.acceptOffer(data.offerId, data.producerId);
-      
+      const transaction = await apiClient.patch<Transaction>(
+        `/marketplace/offers/${data.offerId}/accept`
+      );
+
       return transaction;
     } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de l\'acceptation');
+      return rejectWithValue(getErrorMessage(error) || "Erreur lors de l'acceptation");
     }
   }
 );
@@ -198,16 +215,10 @@ export const acceptOffer = createAsyncThunk(
  */
 export const rejectOffer = createAsyncThunk(
   'marketplace/rejectOffer',
-  async (
-    data: { offerId: string; producerId: string },
-    { rejectWithValue }
-  ) => {
+  async (data: { offerId: string; producerId: string }, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const service = getMarketplaceService(db);
-      
-      await service.rejectOffer(data.offerId, data.producerId);
-      
+      await apiClient.patch(`/marketplace/offers/${data.offerId}/reject`);
+
       return data.offerId;
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors du rejet');
@@ -225,11 +236,14 @@ export const confirmDelivery = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const db = await getDatabase();
-      const service = getMarketplaceService(db);
-      
-      await service.confirmDelivery(data.transactionId, data.userId, data.role);
-      
+      await apiClient.patch(
+        `/marketplace/transactions/${data.transactionId}/confirm-delivery`,
+        null,
+        {
+          params: { role: data.role },
+        }
+      );
+
       return { transactionId: data.transactionId, role: data.role };
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la confirmation');
@@ -249,21 +263,21 @@ const marketplaceSlice = createSlice({
       state.filters = action.payload;
       state.currentPage = 1; // Reset page
     },
-    
+
     setSortBy: (state, action: PayloadAction<MarketplaceSortOption>) => {
       state.sortBy = action.payload;
       state.currentPage = 1; // Reset page
     },
-    
+
     clearFilters: (state) => {
       state.filters = {};
       state.currentPage = 1;
     },
-    
+
     setCurrentListing: (state, action: PayloadAction<MarketplaceListing | null>) => {
       state.currentListing = action.payload;
     },
-    
+
     markNotificationAsRead: (state, action: PayloadAction<string>) => {
       const notification = state.notifications.find((n) => n.id === action.payload);
       if (notification && !notification.read) {
@@ -271,7 +285,7 @@ const marketplaceSlice = createSlice({
         state.unreadCount = Math.max(0, state.unreadCount - 1);
       }
     },
-    
+
     markAllNotificationsAsRead: (state) => {
       state.notifications.forEach((n) => {
         n.read = true;
@@ -279,7 +293,7 @@ const marketplaceSlice = createSlice({
       state.unreadCount = 0;
     },
   },
-  
+
   extraReducers: (builder) => {
     // Search Listings
     builder.addCase(searchListings.pending, (state) => {
@@ -288,14 +302,14 @@ const marketplaceSlice = createSlice({
     });
     builder.addCase(searchListings.fulfilled, (state, action) => {
       state.listingsLoading = false;
-      
+
       // Si page 1, remplacer. Sinon, ajouter
       if (action.payload.page === 1) {
         state.listings = action.payload.listings;
       } else {
         state.listings = [...state.listings, ...action.payload.listings];
       }
-      
+
       state.currentPage = action.payload.page;
       state.totalPages = action.payload.totalPages;
       state.hasMore = action.payload.hasMore;
@@ -304,7 +318,7 @@ const marketplaceSlice = createSlice({
       state.listingsLoading = false;
       state.listingsError = action.payload as string;
     });
-    
+
     // Create Listing
     builder.addCase(createListing.pending, (state) => {
       state.listingsLoading = true;
@@ -318,7 +332,7 @@ const marketplaceSlice = createSlice({
       state.listingsLoading = false;
       state.listingsError = action.payload as string;
     });
-    
+
     // Create Offer
     builder.addCase(createOffer.pending, (state) => {
       state.offersLoading = true;
@@ -332,21 +346,17 @@ const marketplaceSlice = createSlice({
       state.offersLoading = false;
       state.offersError = action.payload as string;
     });
-    
+
     // Accept Offer
     builder.addCase(acceptOffer.fulfilled, (state, action) => {
       state.myTransactions = [action.payload, ...state.myTransactions];
       // Retirer l'offre de la liste
-      state.receivedOffers = state.receivedOffers.filter(
-        (o) => o.id !== action.meta.arg.offerId
-      );
+      state.receivedOffers = state.receivedOffers.filter((o) => o.id !== action.meta.arg.offerId);
     });
-    
+
     // Reject Offer
     builder.addCase(rejectOffer.fulfilled, (state, action) => {
-      state.receivedOffers = state.receivedOffers.filter(
-        (o) => o.id !== action.payload
-      );
+      state.receivedOffers = state.receivedOffers.filter((o) => o.id !== action.payload);
     });
   },
 });
@@ -361,4 +371,3 @@ export const {
 } = marketplaceSlice.actions;
 
 export default marketplaceSlice.reducer;
-

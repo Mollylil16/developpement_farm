@@ -9,7 +9,7 @@ import { Text } from 'react-native';
 /**
  * Vérifie si une valeur est une primitive qui doit être wrappée dans <Text>
  */
-export function isPrimitiveValue(value: any): boolean {
+export function isPrimitiveValue(value: unknown): boolean {
   return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
 }
 
@@ -17,12 +17,12 @@ export function isPrimitiveValue(value: any): boolean {
  * Wrapper sécurisé pour les children qui détecte et corrige automatiquement
  * les strings/nombres rendus directement
  */
-export function SafeTextWrapper({ 
-  children, 
+export function SafeTextWrapper({
+  children,
   componentName = 'Unknown',
-  silent = false 
-}: { 
-  children: React.ReactNode; 
+  silent = false,
+}: {
+  children: React.ReactNode;
   componentName?: string;
   silent?: boolean;
 }): React.ReactElement | null {
@@ -87,11 +87,18 @@ export function SafeTextWrapper({
   }
 
   // Si children est un Fragment React, vérifier ses enfants
-  if (React.isValidElement(children) && children.type === React.Fragment) {
+  if (
+    React.isValidElement<{ children?: React.ReactNode }>(children) &&
+    children.type === React.Fragment
+  ) {
     // Si le Fragment contient des primitives, les wrapper
-    const fragmentChildren = (children.props as any)?.children;
+    const fragmentChildren = children.props?.children;
     if (fragmentChildren) {
-      if (Array.isArray(fragmentChildren) || typeof fragmentChildren === 'string' || typeof fragmentChildren === 'number') {
+      if (
+        Array.isArray(fragmentChildren) ||
+        typeof fragmentChildren === 'string' ||
+        typeof fragmentChildren === 'number'
+      ) {
         return (
           <SafeTextWrapper componentName={componentName} silent={silent}>
             {fragmentChildren}
@@ -119,7 +126,7 @@ export function SafeTextWrapper({
 /**
  * Hook pour déboguer les valeurs qui pourraient causer des erreurs
  */
-export function useTextRenderingDebug(value: any, label: string, componentName: string) {
+export function useTextRenderingDebug(value: unknown, label: string, componentName: string) {
   React.useEffect(() => {
     if (isPrimitiveValue(value) && value !== null && value !== undefined) {
       console.warn(
@@ -142,7 +149,7 @@ export function withTextRenderingGuard<P extends object>(
 ) {
   return function GuardedComponent(props: P & { children?: React.ReactNode }) {
     const { children, ...restProps } = props;
-    
+
     return (
       <Component {...(restProps as P)}>
         {children ? (
@@ -159,22 +166,22 @@ export function withTextRenderingGuard<P extends object>(
  * Fonction utilitaire pour sécuriser une valeur avant de la rendre
  */
 export function safeRenderValue(
-  value: any,
+  value: unknown,
   fallback: string | number = '-',
   componentName?: string
 ): React.ReactNode {
   if (value === null || value === undefined) {
     return <Text>{String(fallback)}</Text>;
   }
-  
+
   if (isPrimitiveValue(value)) {
     return <Text>{String(value)}</Text>;
   }
-  
+
   if (React.isValidElement(value)) {
     return value;
   }
-  
+
   if (Array.isArray(value)) {
     return value.map((item, index) => (
       <SafeTextWrapper key={index} componentName={componentName} silent={true}>
@@ -182,7 +189,6 @@ export function safeRenderValue(
       </SafeTextWrapper>
     ));
   }
-  
+
   return <Text>{String(value)}</Text>;
 }
-

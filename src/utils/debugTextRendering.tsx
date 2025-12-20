@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { View, Text } from 'react-native';
+import { Text } from 'react-native';
 
 /**
  * Wrapper pour sécuriser le rendu des enfants
@@ -35,11 +35,10 @@ export function SafeChildren({ children }: { children: React.ReactNode }) {
 /**
  * Hook pour déboguer les valeurs qui pourraient être rendues directement
  */
-export function useDebugValue(value: any, label: string) {
+export function useDebugValue(value: unknown, label: string) {
   React.useEffect(() => {
     if (typeof value === 'string' || typeof value === 'number') {
       console.warn(`⚠️ [useDebugValue] ${label} est une valeur primitive:`, value);
     }
   }, [value, label]);
 }
-

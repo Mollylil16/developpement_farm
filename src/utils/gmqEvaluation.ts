@@ -162,4 +162,3 @@ export function calculerGMQMoyen(pesees: Array<{ date: string; gmq: number | nul
   const sommeGMQ = peseesAvecGMQ.reduce((sum, p) => sum + (p.gmq || 0), 0);
   return sommeGMQ / peseesAvecGMQ.length;
 }
-

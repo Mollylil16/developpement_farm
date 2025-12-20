@@ -143,8 +143,9 @@ export default function RatingModal({
         'Votre avis a été enregistré et sera visible par les autres acheteurs.',
         [{ text: 'OK', onPress: onClose }]
       );
-    } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Impossible d\'enregistrer votre avis');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Impossible d'enregistrer votre avis";
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -158,9 +159,7 @@ export default function RatingModal({
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <Ionicons name="close" size={28} color={colors.text} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>
-            Noter le producteur
-          </Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Noter le producteur</Text>
           <View style={styles.placeholder} />
         </View>
 
@@ -171,9 +170,7 @@ export default function RatingModal({
               <Ionicons name="person" size={32} color={colors.textInverse} />
             </View>
             <View style={styles.producerInfo}>
-              <Text style={[styles.producerName, { color: colors.text }]}>
-                {producerName}
-              </Text>
+              <Text style={[styles.producerName, { color: colors.text }]}>{producerName}</Text>
               <Text style={[styles.producerSubtext, { color: colors.textSecondary }]}>
                 Comment s'est passée cette transaction ?
               </Text>
@@ -213,9 +210,7 @@ export default function RatingModal({
           {/* Score moyen */}
           {allScoresFilled() && (
             <View style={[styles.averageSection, { backgroundColor: colors.gold + '15' }]}>
-              <Text style={[styles.averageLabel, { color: colors.text }]}>
-                Note moyenne
-              </Text>
+              <Text style={[styles.averageLabel, { color: colors.text }]}>Note moyenne</Text>
               <View style={styles.averageRow}>
                 <Ionicons name="star" size={28} color={colors.gold} />
                 <Text style={[styles.averageScore, { color: colors.gold }]}>
@@ -231,10 +226,7 @@ export default function RatingModal({
               Commentaire (optionnel)
             </Text>
             <TextInput
-              style={[
-                styles.commentInput,
-                { backgroundColor: colors.surface, color: colors.text },
-              ]}
+              style={[styles.commentInput, { backgroundColor: colors.surface, color: colors.text }]}
               placeholder="Partagez votre expérience en détail..."
               placeholderTextColor={colors.textSecondary}
               value={comment}
@@ -251,13 +243,11 @@ export default function RatingModal({
 
           {/* Photos (fonctionnalité future) */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Photos (optionnel)
-            </Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Photos (optionnel)</Text>
             <TouchableOpacity
               style={[styles.photoButton, { backgroundColor: colors.surface }]}
               onPress={() =>
-                Alert.alert('Bientôt disponible', 'L\'ajout de photos sera disponible prochainement')
+                Alert.alert('Bientôt disponible', "L'ajout de photos sera disponible prochainement")
               }
             >
               <Ionicons name="camera-outline" size={24} color={colors.textSecondary} />
@@ -495,4 +485,3 @@ const styles = StyleSheet.create({
     fontWeight: MarketplaceTheme.typography.fontWeights.bold,
   },
 });
-

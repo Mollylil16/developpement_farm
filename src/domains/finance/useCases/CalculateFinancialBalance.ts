@@ -1,10 +1,11 @@
 /**
  * Use Case : Calculer le solde financier
- * 
+ *
  * Calcule le solde (revenus - dépenses) pour une période donnée
  */
 
 import type { IFinanceRepository } from '../repositories/IFinanceRepository';
+import type { ChargeFixe } from '../entities/ChargeFixe';
 
 export interface FinancialBalance {
   revenus: number;
@@ -64,7 +65,7 @@ export class CalculateFinancialBalanceUseCase {
    * Calcule le coût des charges fixes pour une période donnée
    */
   private calculateChargesFixesForPeriod(
-    charges: any[],
+    charges: ChargeFixe[],
     dateDebut: string,
     dateFin: string
   ): number {
@@ -73,7 +74,8 @@ export class CalculateFinancialBalanceUseCase {
     for (const charge of charges) {
       const debut = new Date(dateDebut);
       const fin = new Date(dateFin);
-      const mois = (fin.getFullYear() - debut.getFullYear()) * 12 + (fin.getMonth() - debut.getMonth()) + 1;
+      const mois =
+        (fin.getFullYear() - debut.getFullYear()) * 12 + (fin.getMonth() - debut.getMonth()) + 1;
 
       switch (charge.frequence) {
         case 'mensuel':
@@ -91,4 +93,3 @@ export class CalculateFinancialBalanceUseCase {
     return total;
   }
 }
-

@@ -4,14 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppSelector } from '../store/hooks';
 import { User } from '../types';
@@ -19,6 +12,8 @@ import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/t
 import { useTheme } from '../contexts/ThemeContext';
 import Card from '../components/Card';
 import LoadingSpinner from '../components/LoadingSpinner';
+import apiClient from '../services/api/apiClient';
+import { getErrorMessage } from '../types/common';
 
 export default function AdminScreen() {
   const { colors } = useTheme();
@@ -39,12 +34,10 @@ export default function AdminScreen() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const { getDatabase } = await import('../services/database');
       const { UserRepository, ProjetRepository } = await import('../database/repositories');
-      const db = await getDatabase();
-      const userRepo = new UserRepository(db);
-      const projetRepo = new ProjetRepository(db);
-      
+      const userRepo = new UserRepository();
+      const projetRepo = new ProjetRepository();
+
       const allUsers = await userRepo.findAll();
       setUsers(allUsers);
 
@@ -69,8 +62,9 @@ export default function AdminScreen() {
         usersWithPhone,
         totalProjets,
       });
-    } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Erreur lors du chargement des données');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erreur lors du chargement des données';
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -147,7 +141,11 @@ export default function AdminScreen() {
             </Card>
           ) : (
             users.map((item) => (
-              <TouchableOpacity key={item.id} onPress={() => handleUserPress(item)} activeOpacity={0.7}>
+              <TouchableOpacity
+                key={item.id}
+                onPress={() => handleUserPress(item)}
+                activeOpacity={0.7}
+              >
                 <Card elevation="small" padding="large" style={styles.userCard}>
                   <View style={styles.userHeader}>
                     <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
@@ -167,9 +165,7 @@ export default function AdminScreen() {
                   </View>
                   <View style={[styles.userDetails, { borderTopColor: colors.border }]}>
                     <View style={styles.detailRow}>
-                      <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>
-                        ID:
-                      </Text>
+                      <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>ID:</Text>
                       <Text
                         style={[styles.detailValue, { color: colors.text }]}
                         numberOfLines={1}

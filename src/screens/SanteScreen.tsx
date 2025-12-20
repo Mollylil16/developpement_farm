@@ -1,7 +1,7 @@
 /**
  * 🏥 MODULE SANTÉ - Écran Principal (REFACTORÉ)
  * Navigation par onglets pour gérer tous les aspects sanitaires du cheptel
- * 
+ *
  * Architecture:
  * - Hook: useSanteLogic (logique métier)
  * - Composants: SanteHeader, SanteAlertes, SanteTabs, SanteContent (UI)
@@ -23,7 +23,7 @@ import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
 export default function SanteScreen() {
   const { colors } = useTheme();
   const logic = useSanteLogic();
-  
+
   // Cas: Aucun projet actif
   if (!logic.projetActif) {
     return (
@@ -37,7 +37,7 @@ export default function SanteScreen() {
       </SafeAreaView>
     );
   }
-  
+
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
@@ -48,7 +48,7 @@ export default function SanteScreen() {
         nombreAlertesCritiques={logic.nombreAlertesCritiques}
         nombreAlertesElevees={logic.nombreAlertesElevees}
       />
-      
+
       {/* Section des alertes */}
       <SanteAlertes
         alertes={logic.alertes}
@@ -56,14 +56,14 @@ export default function SanteScreen() {
         showAlertes={logic.showAlertes}
         onClose={() => logic.setShowAlertes(false)}
       />
-      
+
       {/* Onglets de navigation */}
       <SanteTabs
         onglets={logic.onglets}
         ongletActif={logic.ongletActif}
         onTabChange={logic.setOngletActif}
       />
-      
+
       {/* Contenu selon l'onglet actif */}
       <SanteContent
         ongletActif={logic.ongletActif}
@@ -89,4 +89,3 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
-

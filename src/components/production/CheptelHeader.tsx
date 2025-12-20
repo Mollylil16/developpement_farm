@@ -42,7 +42,10 @@ export default function CheptelHeader({
         <View style={styles.headerButtons}>
           {historiqueCount > 0 && (
             <TouchableOpacity
-              style={[styles.historiqueButton, { backgroundColor: colors.secondary + '15', borderColor: colors.secondary }]}
+              style={[
+                styles.historiqueButton,
+                { backgroundColor: colors.secondary + '15', borderColor: colors.secondary },
+              ]}
               onPress={onNavigateToHistorique}
             >
               <Text style={[styles.historiqueButtonText, { color: colors.secondary }]}>
@@ -60,7 +63,8 @@ export default function CheptelHeader({
         {filterCategorie === 'tous' && (
           <View style={styles.summaryDetails}>
             <Text style={[styles.summaryText, { color: colors.textSecondary }]}>
-              {countByCategory.truies} truie{countByCategory.truies > 1 ? 's' : ''} • {countByCategory.verrats} verrat
+              {countByCategory.truies} truie{countByCategory.truies > 1 ? 's' : ''} •{' '}
+              {countByCategory.verrats} verrat
               {countByCategory.verrats > 1 ? 's' : ''} • {countByCategory.porcelets} porcelet
               {countByCategory.porcelets > 1 ? 's' : ''}
             </Text>
@@ -69,7 +73,12 @@ export default function CheptelHeader({
       </View>
 
       {/* Barre de recherche */}
-      <View style={[styles.searchContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View
+        style={[
+          styles.searchContainer,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+        ]}
+      >
         <Text style={styles.searchIcon}>🔍</Text>
         <TextInput
           style={[styles.searchInput, { color: colors.text }]}
@@ -87,7 +96,9 @@ export default function CheptelHeader({
 
       {/* Filtres par catégorie */}
       <View style={styles.filters}>
-        <Text style={[styles.filterLabel, { color: colors.textSecondary }]}>Filtrer par catégorie:</Text>
+        <Text style={[styles.filterLabel, { color: colors.textSecondary }]}>
+          Filtrer par catégorie:
+        </Text>
         <View style={styles.filterButtons}>
           {(['tous', 'truie', 'verrat', 'porcelet'] as const).map((categorie) => (
             <TouchableOpacity
@@ -95,7 +106,8 @@ export default function CheptelHeader({
               style={[
                 styles.filterButton,
                 {
-                  backgroundColor: filterCategorie === categorie ? colors.primary : colors.background,
+                  backgroundColor:
+                    filterCategorie === categorie ? colors.primary : colors.background,
                   borderColor: colors.border,
                 },
               ]}
@@ -214,4 +226,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

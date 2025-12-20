@@ -1,9 +1,9 @@
 /**
  * Migration 23 : Recalculer les GMQ des pesées existantes
  * Utilise la nouvelle fonction de calcul pour mettre à jour les GMQ historiques
- * 
+ *
  * Version: 23
- * 
+ *
  * Note: Cette migration utilise AnimalRepository et peut être longue sur de grandes bases
  */
 
@@ -70,7 +70,7 @@ export async function recalculateGmq(db: SQLiteDatabase): Promise<void> {
     date_entree: string | null;
   }>('SELECT id, poids_initial, date_entree FROM production_animaux');
 
-  const animauxMap = new Map(animaux.map(a => [a.id, a]));
+  const animauxMap = new Map(animaux.map((a) => [a.id, a]));
 
   for (const pesee of toutesLesPesees) {
     const animal = animauxMap.get(pesee.animal_id);
@@ -119,9 +119,8 @@ export async function recalculateGmq(db: SQLiteDatabase): Promise<void> {
   }
 
   // Marquer la migration comme effectuée
-  await db.runAsync(
-    'INSERT OR REPLACE INTO _migrations (migration, done) VALUES (?, ?)',
-    ['recalcul_gmq_2025', 1]
-  );
+  await db.runAsync('INSERT OR REPLACE INTO _migrations (migration, done) VALUES (?, ?)', [
+    'recalcul_gmq_2025',
+    1,
+  ]);
 }
-

@@ -67,8 +67,9 @@ class ErrorBoundaryClass extends Component<Props, State> {
     const newErrorCount = isRecurringError ? errorCount + 1 : 1;
 
     // Détecter spécifiquement l'erreur "Text strings must be rendered"
-    const isTextRenderingError = error.message.includes('Text strings must be rendered') ||
-                                 error.message.includes('must be rendered within a <Text>');
+    const isTextRenderingError =
+      error.message.includes('Text strings must be rendered') ||
+      error.message.includes('must be rendered within a <Text>');
 
     if (isTextRenderingError) {
       // Log détaillé avec call stack complet
@@ -79,13 +80,14 @@ class ErrorBoundaryClass extends Component<Props, State> {
         componentStack: errorInfo.componentStack,
         errorCount: newErrorCount,
         isRecurring: isRecurringError,
-        suggestion: 'Vérifiez les composants dans componentStack ci-dessus. Cherchez les valeurs primitives (string/number) rendues directement dans des <View> ou autres composants non-Text.',
+        suggestion:
+          'Vérifiez les composants dans componentStack ci-dessus. Cherchez les valeurs primitives (string/number) rendues directement dans des <View> ou autres composants non-Text.',
       });
 
       // Extraire TOUS les composants depuis le componentStack
       const componentMatches = errorInfo.componentStack?.matchAll(/at\s+(\w+)\s*\(/g);
       if (componentMatches) {
-        const components = Array.from(componentMatches, m => m[1]);
+        const components = Array.from(componentMatches, (m) => m[1]);
         console.error(`🔍 Composants dans la stack (ordre d\'appel):`, components);
       }
 
@@ -96,7 +98,7 @@ class ErrorBoundaryClass extends Component<Props, State> {
       // Extraire les fichiers depuis le componentStack
       const fileMatches = errorInfo.componentStack?.matchAll(/\(([^)]+\.tsx?):(\d+):(\d+)\)/g);
       if (fileMatches) {
-        const files = Array.from(fileMatches, m => ({ file: m[1], line: m[2], col: m[3] }));
+        const files = Array.from(fileMatches, (m) => ({ file: m[1], line: m[2], col: m[3] }));
         console.error('📁 Fichiers dans la stack:', files);
       }
     }

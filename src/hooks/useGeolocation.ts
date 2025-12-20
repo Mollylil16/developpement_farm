@@ -18,26 +18,18 @@ export interface UserLocation {
  * Calculer la distance entre deux points (formule de Haversine)
  * Retourne la distance en kilomètres
  */
-export function calculateDistance(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number
-): number {
+export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371; // Rayon de la Terre en km
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
-  
+
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) *
-      Math.cos(toRad(lat2)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const distance = R * c;
-  
+
   return Math.round(distance * 10) / 10; // Arrondir à 1 décimale
 }
 
@@ -62,7 +54,7 @@ export function useGeolocation() {
       const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
       setPermissionGranted(status === 'granted');
       return status === 'granted';
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Erreur lors de la demande de permission');
       console.error('Permission error:', err);
       return false;
@@ -79,7 +71,7 @@ export function useGeolocation() {
 
       // Vérifier la permission
       const { status } = await ExpoLocation.getForegroundPermissionsAsync();
-      
+
       if (status !== 'granted') {
         const granted = await requestPermission();
         if (!granted) {
@@ -117,8 +109,8 @@ export function useGeolocation() {
 
       setLocation(userLocation);
       return userLocation;
-    } catch (err: any) {
-      setError('Impossible d\'obtenir votre localisation');
+    } catch (err: unknown) {
+      setError("Impossible d'obtenir votre localisation");
       console.error('Location error:', err);
       return null;
     } finally {
@@ -176,4 +168,3 @@ export function useGeolocation() {
       calculateDistance(lat1, lon1, lat2, lon2),
   };
 }
-

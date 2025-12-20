@@ -1,9 +1,9 @@
 /**
  * Lazy-loaded screens
- * 
+ *
  * IMPORTANT: React.lazy() n'est pas supporté par React Native.
  * On utilise une approche alternative avec des imports conditionnels.
- * 
+ *
  * Pour React Native, on charge tous les écrans normalement mais on peut
  * optimiser avec des imports dynamiques si nécessaire.
  */
@@ -53,6 +53,7 @@ export { default as ChatAgentScreen } from '../screens/ChatAgentScreen';
 // Onboarding
 export { default as OnboardingAuthScreen } from '../screens/OnboardingAuthScreen';
 export { default as ProfileSelectionScreen } from '../screens/ProfileSelectionScreen';
+export { default as OtpVerificationScreen } from '../screens/OtpVerificationScreen';
 export { default as BuyerInfoCompletionScreen } from '../screens/BuyerInfoCompletionScreen';
 export { default as VeterinarianInfoCompletionScreen } from '../screens/VeterinarianInfoCompletionScreen';
 export { default as VetProposeFarmsScreen } from '../screens/VetProposeFarmsScreen';

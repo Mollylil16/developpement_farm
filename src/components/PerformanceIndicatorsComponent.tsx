@@ -14,7 +14,11 @@ import {
   Alert,
 } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { setIndicateursPerformance, setRecommandations } from '../store/slices/reportsSlice';
+import {
+  setIndicateursPerformance,
+  setRecommandations,
+  loadIndicateursPerformance,
+} from '../store/slices/reportsSlice';
 import { loadProductionAnimaux, loadPeseesParAnimal } from '../store/slices/productionSlice';
 import { loadMortalites } from '../store/slices/mortalitesSlice';
 import { selectAllAnimaux, selectPeseesParAnimal } from '../store/selectors/productionSelectors';
@@ -41,8 +45,9 @@ import LoadingSpinner from './LoadingSpinner';
 import { parseISO, differenceInMonths, differenceInDays, isAfter, isBefore } from 'date-fns';
 import { calculatePoidsTotalAnimauxActifs } from '../utils/animalUtils';
 import { exportRapportCompletPDF } from '../services/pdf/rapportCompletPDF';
-import { getDatabase } from '../services/database';
-import PerformanceGlobaleService from '../services/PerformanceGlobaleService';
+import PerformanceGlobaleService, {
+  PerformanceGlobale,
+} from '../services/PerformanceGlobaleService';
 
 const areIndicatorsEqual = (
   a: IndicateursPerformance | null | undefined,
@@ -82,7 +87,7 @@ export default function PerformanceIndicatorsComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const [exportingPDF, setExportingPDF] = useState(false);
-  const [performanceGlobale, setPerformanceGlobale] = useState<any>(null);
+  const [performanceGlobale, setPerformanceGlobale] = useState<PerformanceGlobale | null>(null);
   const { projetActif } = useAppSelector((state) => state.projet);
   const chargesFixes: ChargeFixe[] = useAppSelector(selectAllChargesFixes);
   const depensesPonctuelles: DepensePonctuelle[] = useAppSelector(selectAllDepensesPonctuelles);
@@ -93,13 +98,22 @@ export default function PerformanceIndicatorsComponent() {
   const animaux = useAppSelector(selectAllAnimaux);
   const peseesParAnimal = useAppSelector(selectPeseesParAnimal);
   const mortalites: Mortalite[] = useAppSelector(selectAllMortalites);
-  const { indicateursPerformance, recommandations } = useAppSelector((state) => state.reports);
+  const { indicateursPerformance, recommandations, loading: loadingIndicateurs } = useAppSelector(
+    (state) => state.reports
+  );
 
   // Utiliser useRef pour tracker les chargements et éviter les boucles
   const aChargeRef = useRef<string | null>(null);
   const animauxChargesRef = useRef<Set<string>>(new Set());
 
-  // Charger la performance globale (coût de production global)
+  // Charger les indicateurs de performance depuis le backend
+  useEffect(() => {
+    if (!projetActif) return;
+
+    dispatch(loadIndicateursPerformance({ projetId: projetActif.id, periodeJours: 30 }));
+  }, [dispatch, projetActif?.id]);
+
+  // Charger la performance globale (coût de production global) depuis le backend
   useEffect(() => {
     if (!projetActif) {
       setPerformanceGlobale(null);
@@ -108,8 +122,6 @@ export default function PerformanceIndicatorsComponent() {
 
     const loadPerformance = async () => {
       try {
-        const db = await getDatabase();
-        PerformanceGlobaleService.setDatabase(db);
         const result = await PerformanceGlobaleService.calculatePerformanceGlobale(
           projetActif.id,
           projetActif
@@ -117,6 +129,7 @@ export default function PerformanceIndicatorsComponent() {
         setPerformanceGlobale(result);
       } catch (error) {
         console.error('Erreur chargement performance globale:', error);
+        setPerformanceGlobale(null);
       }
     };
 
@@ -452,50 +465,55 @@ export default function PerformanceIndicatorsComponent() {
     mortalites,
   ]);
 
+  // Utiliser les indicateurs du backend s'ils sont disponibles, sinon utiliser le calcul local
+  const indicateursAffiches = indicateursPerformance || calculatedIndicators;
+
   // Générer les recommandations
   const generatedRecommandations = useMemo(() => {
     const recs: Recommandation[] = [];
 
-    if (!calculatedIndicators) return recs;
+    if (!indicateursAffiches) return recs;
 
     // Recommandation sur le taux de mortalité
-    if (calculatedIndicators.taux_mortalite > 5) {
+    if (indicateursAffiches.taux_mortalite > 5) {
       recs.push({
         id: 'rec_mortalite',
         type: 'avertissement',
         titre: 'Taux de mortalité élevé',
-        message: `Le taux de mortalité est de ${calculatedIndicators.taux_mortalite.toFixed(1)}%. Il est recommandé de vérifier les conditions d'élevage.`,
+        message: `Le taux de mortalité est de ${indicateursAffiches.taux_mortalite.toFixed(1)}%. Il est recommandé de vérifier les conditions d'élevage.`,
         action: 'Vérifier les installations et les soins vétérinaires',
       });
     }
 
     // Recommandation sur l'efficacité alimentaire
-    if (calculatedIndicators.efficacite_alimentaire < 2) {
+    // Note: L'efficacité alimentaire est maintenant en ratio (gain_poids / alimentation_consommee)
+    // Une valeur < 0.25 indique une efficacité faible (IC > 4.0)
+    if (indicateursAffiches.efficacite_alimentaire < 0.25) {
       recs.push({
         id: 'rec_efficacite',
         type: 'avertissement',
         titre: 'Efficacité alimentaire faible',
-        message: `L'efficacité alimentaire est de ${calculatedIndicators.efficacite_alimentaire.toFixed(2)}. Pensez à ajuster les rations.`,
+        message: `L'efficacité alimentaire est de ${indicateursAffiches.efficacite_alimentaire.toFixed(2)} (IC: ${indicateursAffiches.indice_consommation?.toFixed(2) || 'N/A'}). Pensez à ajuster les rations.`,
         action: 'Optimiser les rations dans le module Nutrition',
       });
     }
 
-    // Recommandation sur le coût de production
-    if (calculatedIndicators.cout_production_kg > 2000) {
+    // Recommandation sur le coût de production (si disponible)
+    if (indicateursAffiches.cout_production_kg && indicateursAffiches.cout_production_kg > 2000) {
       recs.push({
         id: 'rec_cout',
         type: 'information',
         titre: 'Coût de production élevé',
-        message: `Le coût de production par kg est de ${calculatedIndicators.cout_production_kg.toFixed(0)} CFA/kg. Analysez vos dépenses.`,
+        message: `Le coût de production par kg est de ${indicateursAffiches.cout_production_kg.toFixed(0)} CFA/kg. Analysez vos dépenses.`,
         action: 'Consulter le module Finance pour optimiser les coûts',
       });
     }
 
     // Recommandation positive si tout va bien
     if (
-      calculatedIndicators.taux_mortalite < 3 &&
-      calculatedIndicators.efficacite_alimentaire > 2.5 &&
-      calculatedIndicators.cout_production_kg < 1500
+      indicateursAffiches.taux_mortalite < 3 &&
+      indicateursAffiches.efficacite_alimentaire > 0.3 &&
+      (!indicateursAffiches.cout_production_kg || indicateursAffiches.cout_production_kg < 1500)
     ) {
       recs.push({
         id: 'rec_succes',
@@ -507,13 +525,10 @@ export default function PerformanceIndicatorsComponent() {
     }
 
     return recs;
-  }, [calculatedIndicators]);
+  }, [indicateursAffiches]);
 
-  useEffect(() => {
-    if (calculatedIndicators && !areIndicatorsEqual(calculatedIndicators, indicateursPerformance)) {
-      dispatch(setIndicateursPerformance(calculatedIndicators));
-    }
-  }, [calculatedIndicators, indicateursPerformance, dispatch]);
+  // Note: Les indicateurs sont maintenant chargés depuis le backend via loadIndicateursPerformance
+  // Le calcul local (calculatedIndicators) est conservé comme fallback uniquement
 
   useEffect(() => {
     if (
@@ -555,7 +570,7 @@ export default function PerformanceIndicatorsComponent() {
 
   // Fonction pour exporter le rapport COMPLET en PDF (Dashboard + Finance + Rapports)
   const handleExportPDF = useCallback(async () => {
-    if (!projetActif || !calculatedIndicators) return;
+    if (!projetActif || !indicateursAffiches) return;
 
     setExportingPDF(true);
     try {
@@ -570,9 +585,9 @@ export default function PerformanceIndicatorsComponent() {
       const gestationsTerminees = gestations.filter((g) => g.statut === 'terminee').length;
       const gestationsEnCours = gestations.filter((g) => g.statut === 'en_cours').length;
       const porceletsNes = gestations
-        .filter((g) => g.statut === 'terminee' && g.nombre_porcelets_sevre_reel)
-        .reduce((sum, g) => sum + (g.nombre_porcelets_sevre_reel || 0), 0);
-      const porceletsSevres = sevrages.reduce((sum, s) => sum + s.nombre_porcelets_sevre, 0);
+        .filter((g) => g.statut === 'terminee' && g.nombre_porcelets_reel)
+        .reduce((sum, g) => sum + (g.nombre_porcelets_reel || 0), 0);
+      const porceletsSevres = sevrages.reduce((sum, s) => sum + s.nombre_porcelets_sevres, 0);
       const tauxSurvie = porceletsNes > 0 ? (porceletsSevres / porceletsNes) * 100 : 0;
 
       // Sevrages récents (30 derniers jours)
@@ -588,8 +603,7 @@ export default function PerformanceIndicatorsComponent() {
         .filter((g) => g.statut === 'en_cours' && g.date_mise_bas_prevue)
         .sort(
           (a, b) =>
-            new Date(a.date_mise_bas_prevue!).getTime() -
-            new Date(b.date_mise_bas_prevue!).getTime()
+            new Date(a.date_mise_bas_prevue).getTime() - new Date(b.date_mise_bas_prevue).getTime()
         );
       const prochaineMiseBas =
         gestationsAvecDatePrevue.length > 0
@@ -676,20 +690,20 @@ export default function PerformanceIndicatorsComponent() {
 
         // Indicateurs de performance
         indicateurs: {
-          gmqMoyen: calculatedIndicators.taux_croissance,
-          tauxMortalite: calculatedIndicators.taux_mortalite,
-          tauxReproduction: calculatedIndicators.taux_croissance,
-          coutProduction: calculatedIndicators.cout_production_kg,
-          efficaciteAlimentaire: calculatedIndicators.efficacite_alimentaire,
-          poidsVifTotal: calculatedIndicators.poids_total,
-          poidsCarcasseTotal: calculatedIndicators.poids_total * 0.75,
-          valeurEstimee: calculatedIndicators.poids_total * (projetActif.prix_kg_vif || 0),
+          gmqMoyen: indicateursAffiches.taux_croissance,
+          tauxMortalite: indicateursAffiches.taux_mortalite,
+          tauxReproduction: indicateursAffiches.taux_croissance,
+          coutProduction: indicateursAffiches.cout_production_kg || 0,
+          efficaciteAlimentaire: indicateursAffiches.efficacite_alimentaire,
+          poidsVifTotal: indicateursAffiches.poids_total,
+          poidsCarcasseTotal: indicateursAffiches.poids_total * 0.75,
+          valeurEstimee: indicateursAffiches.poids_total * (projetActif.prix_kg_vif || 0),
         },
         production: {
-          nombreAnimauxActifs: calculatedIndicators.nombre_porcs_vivants,
+          nombreAnimauxActifs: indicateursAffiches.nombre_porcs_vivants,
           peseesEffectuees: peseesEffectuees,
-          gainPoidsTotal: gainPoidsTotal,
-          joursProduction: 120,
+          gainPoidsTotal: indicateursAffiches.gain_poids_total || gainPoidsTotal,
+          joursProduction: indicateursAffiches.periode_jours || 120,
         },
         financeIndicateurs: {
           totalDepenses: totalCharges + totalDepenses,
@@ -730,7 +744,7 @@ export default function PerformanceIndicatorsComponent() {
     }
   }, [
     projetActif,
-    calculatedIndicators,
+    indicateursAffiches,
     recommandations,
     chargesFixes,
     depensesPonctuelles,
@@ -763,29 +777,37 @@ export default function PerformanceIndicatorsComponent() {
           </TouchableOpacity>
         </View>
 
-        {calculatedIndicators ? (
+        {loadingIndicateurs ? (
+          <LoadingSpinner message="Calcul des indicateurs depuis le serveur..." />
+        ) : indicateursAffiches ? (
           <>
             {/* Indicateurs principaux */}
             <View style={styles.statsContainer}>
               <StatCard
-                value={calculatedIndicators.taux_mortalite.toFixed(1)}
+                value={indicateursAffiches.taux_mortalite.toFixed(1)}
                 label="Taux de mortalité"
                 unit="%"
-                valueColor={calculatedIndicators.taux_mortalite > 5 ? colors.error : colors.success}
+                valueColor={indicateursAffiches.taux_mortalite > 5 ? colors.error : colors.success}
               />
               <StatCard
-                value={calculatedIndicators.taux_croissance.toFixed(1)}
+                value={indicateursAffiches.taux_croissance.toFixed(1)}
                 label="Taux de croissance"
                 unit="%"
                 valueColor={colors.primary}
               />
               <StatCard
-                value={calculatedIndicators.efficacite_alimentaire.toFixed(2)}
-                label="Efficacité alimentaire"
+                value={indicateursAffiches.efficacite_alimentaire.toFixed(3)}
+                label={
+                  indicateursAffiches.indice_consommation
+                    ? `Efficacité (IC: ${indicateursAffiches.indice_consommation.toFixed(2)})`
+                    : 'Efficacité alimentaire'
+                }
                 valueColor={
-                  calculatedIndicators.efficacite_alimentaire > 2.5
+                  indicateursAffiches.efficacite_alimentaire > 0.3
                     ? colors.success
-                    : colors.warning
+                    : indicateursAffiches.efficacite_alimentaire > 0.25
+                      ? colors.warning
+                      : colors.error
                 }
               />
             </View>
@@ -826,16 +848,16 @@ export default function PerformanceIndicatorsComponent() {
                           performanceGlobale.statut === 'rentable'
                             ? colors.success + '15'
                             : performanceGlobale.statut === 'fragile'
-                            ? colors.warning + '15'
-                            : colors.error + '15',
+                              ? colors.warning + '15'
+                              : colors.error + '15',
                         marginTop: SPACING.md,
                         borderWidth: 2,
                         borderColor:
                           performanceGlobale.statut === 'rentable'
                             ? colors.success
                             : performanceGlobale.statut === 'fragile'
-                            ? colors.warning
-                            : colors.error,
+                              ? colors.warning
+                              : colors.error,
                       },
                     ]}
                   >
@@ -850,8 +872,8 @@ export default function PerformanceIndicatorsComponent() {
                             performanceGlobale.statut === 'rentable'
                               ? colors.success
                               : performanceGlobale.statut === 'fragile'
-                              ? colors.warning
-                              : colors.error,
+                                ? colors.warning
+                                : colors.error,
                         },
                       ]}
                     >
@@ -866,8 +888,8 @@ export default function PerformanceIndicatorsComponent() {
                             performanceGlobale.statut === 'rentable'
                               ? colors.success
                               : performanceGlobale.statut === 'fragile'
-                              ? colors.warning
-                              : colors.error,
+                                ? colors.warning
+                                : colors.error,
                         },
                       ]}
                     >
@@ -892,7 +914,9 @@ export default function PerformanceIndicatorsComponent() {
                     Coût par kilogramme (ancien calcul):
                   </Text>
                   <Text style={[styles.costValue, { color: colors.text }]}>
-                    {formatAmount(calculatedIndicators.cout_production_kg)}
+                    {indicateursAffiches.cout_production_kg
+                      ? formatAmount(indicateursAffiches.cout_production_kg)
+                      : 'N/A'}
                   </Text>
                 </View>
               )}
@@ -906,7 +930,7 @@ export default function PerformanceIndicatorsComponent() {
                   Nombre total de porcs:
                 </Text>
                 <Text style={[styles.detailValue, { color: colors.text }]}>
-                  {calculatedIndicators.nombre_porcs_total}
+                  {indicateursAffiches.nombre_porcs_total}
                 </Text>
               </View>
               <View style={styles.detailRow}>
@@ -914,7 +938,7 @@ export default function PerformanceIndicatorsComponent() {
                   Porcs vendus:
                 </Text>
                 <Text style={[styles.detailValue, { color: colors.text }]}>
-                  {calculatedIndicators.nombre_porcs_vivants}
+                  {indicateursAffiches.nombre_porcs_vivants}
                 </Text>
               </View>
               <View style={styles.detailRow}>
@@ -922,7 +946,7 @@ export default function PerformanceIndicatorsComponent() {
                   Porcs morts:
                 </Text>
                 <Text style={[styles.detailValue, { color: colors.text }]}>
-                  {calculatedIndicators.nombre_porcs_morts}
+                  {indicateursAffiches.nombre_porcs_morts}
                 </Text>
               </View>
               <View style={styles.detailRow}>
@@ -930,7 +954,7 @@ export default function PerformanceIndicatorsComponent() {
                   Poids total:
                 </Text>
                 <Text style={[styles.detailValue, { color: colors.text }]}>
-                  {calculatedIndicators.poids_total.toFixed(1)} kg
+                  {indicateursAffiches.poids_total.toFixed(1)} kg
                 </Text>
               </View>
             </View>

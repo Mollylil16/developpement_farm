@@ -32,7 +32,7 @@ import { loadProductionAnimaux } from '../store/slices/productionSlice';
 import { useFocusEffect } from '@react-navigation/native';
 
 interface Props {
-  refreshControl: React.ReactElement;
+  refreshControl: React.ReactElement<React.ComponentProps<typeof import('react-native').RefreshControl>>;
 }
 
 export default function PrevisionVentesComponent({ refreshControl }: Props) {
@@ -185,8 +185,8 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
     ]);
   };
 
-  const getMarkedDates = () => {
-    const marked: any = {};
+  const getMarkedDates = (): { [key: string]: any } => {
+    const marked: { [key: string]: any } = {};
 
     (previsionsVentes || []).forEach((prevision) => {
       if (!prevision.date_vente_prevue) return;
@@ -247,11 +247,7 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
             ]}
             onPress={() => setModePrevu('cheptel')}
           >
-            <Ionicons
-              name="paw"
-              size={18}
-              color={modePrevu === 'cheptel' ? '#fff' : colors.text}
-            />
+            <Ionicons name="paw" size={18} color={modePrevu === 'cheptel' ? '#fff' : colors.text} />
             <Text
               style={[
                 styles.modeButtonText,
@@ -486,7 +482,7 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
             </View>
           </View>
           <View style={[styles.urgenceBadge, { backgroundColor: urgenceColor + '20' }]}>
-            <Ionicons name={urgenceIcon as any} size={16} color={urgenceColor} />
+            <Ionicons name={urgenceIcon as keyof typeof Ionicons.glyphMap} size={16} color={urgenceColor} />
             <Text style={[styles.urgenceText, { color: urgenceColor }]}>{urgenceLabel}</Text>
           </View>
         </View>
@@ -544,7 +540,7 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
 
         <TouchableOpacity
           style={styles.deleteButton}
-          onPress={() => handleSupprimerPrevision(item.id)}
+          onPress={() => handleSupprimerPrevision(item.animal_id)}
         >
           <Ionicons name="trash-outline" size={18} color={colors.error} />
         </TouchableOpacity>

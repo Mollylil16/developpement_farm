@@ -14,7 +14,7 @@ describe('Projet Slice', () => {
     error: null,
   };
 
-  it('devrait retourner l\'état initial', () => {
+  it("devrait retourner l'état initial", () => {
     expect(projetReducer(undefined, { type: 'unknown' })).toEqual(initialState);
   });
 
@@ -55,4 +55,3 @@ describe('Projet Slice', () => {
     expect(state.projetActif?.id).toBe('2');
   });
 });
-

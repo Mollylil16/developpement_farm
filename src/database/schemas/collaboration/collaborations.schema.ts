@@ -37,4 +37,3 @@ export async function createCollaborationsTable(db: SQLite.SQLiteDatabase): Prom
     );
   `);
 }
-

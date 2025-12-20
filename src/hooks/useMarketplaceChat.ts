@@ -5,11 +5,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAppSelector } from '../store/hooks';
-import { getDatabase } from '../services/database';
-import { 
-  MarketplaceChatRepository,
-  MarketplaceTransactionRepository 
-} from '../database/repositories';
+import apiClient from '../services/api/apiClient';
 import type { ChatMessage, ChatConversation } from '../types/marketplace';
 
 export function useMarketplaceChat(transactionId: string) {
@@ -33,12 +29,9 @@ export function useMarketplaceChat(transactionId: string) {
       setLoading(true);
       setError(null);
 
-      const db = await getDatabase();
-      const repo = new MarketplaceChatRepository(db);
-
-      // Récupérer la transaction pour obtenir son offerId
-      const transactionRepo = new MarketplaceTransactionRepository(db);
-      const transaction = await transactionRepo.findById(transactionId);
+      // Récupérer la transaction pour obtenir son offerId depuis l'API backend
+      const transactions = await apiClient.get<any[]>('/marketplace/transactions');
+      const transaction = transactions.find((t) => t.id === transactionId);
 
       if (!transaction) {
         setError('Transaction introuvable');
@@ -47,12 +40,25 @@ export function useMarketplaceChat(transactionId: string) {
         return;
       }
 
-      // Charger toutes les conversations de l'utilisateur
-      const conversations = await repo.findUserConversations(currentUserId);
-      
-      // Trouver la conversation liée à cette transaction (via offerId)
-      const conv = conversations.find(c => c.relatedOfferId === transaction.offerId);
-      setConversation(conv || null);
+      // Pour l'instant, le chat marketplace n'a pas d'endpoint backend dédié
+      // On utilise les données de la transaction pour créer une conversation virtuelle
+      // TODO: Implémenter les endpoints backend pour le chat marketplace
+      const conv: ChatConversation | null = transaction.offerId
+        ? {
+            id: `conv-${transaction.offerId}`,
+            participants: [transaction.buyerId, transaction.producerId],
+            relatedListingId: transaction.offerId, // Utiliser relatedListingId au lieu de relatedOfferId
+            relatedOfferId: transaction.offerId,
+            lastMessage: '',
+            lastMessageAt: transaction.updatedAt,
+            unreadCount: {},
+            status: 'active',
+            createdAt: transaction.createdAt,
+            updatedAt: transaction.updatedAt,
+          }
+        : null;
+
+      setConversation(conv);
 
       if (!conv) {
         // Pas de conversation pour cette transaction
@@ -61,27 +67,15 @@ export function useMarketplaceChat(transactionId: string) {
         return;
       }
 
-      // Charger les messages
-      const chatMessages = await repo.findConversationMessages(conv.id);
-
-      // Trier par date (plus ancien en premier)
-      const sortedMessages = chatMessages.sort(
-        (a: ChatMessage, b: ChatMessage) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      );
+      // Pour l'instant, pas de messages chargés depuis le backend
+      // TODO: Implémenter l'endpoint GET /marketplace/chat/conversations/:id/messages
+      const sortedMessages: ChatMessage[] = [];
 
       setMessages(sortedMessages);
-
-      // Marquer les messages de l'autre utilisateur comme lus
-      const unreadMessages = sortedMessages.filter(
-        (m: ChatMessage) => m.senderId !== currentUserId && !m.read
-      );
-
-      for (const message of unreadMessages) {
-        await repo.markMessageAsRead(message.id);
-      }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Erreur chargement messages:', err);
-      setError(err.message || 'Impossible de charger les messages');
+      const errorMessage = err instanceof Error ? err.message : String(err) || 'Impossible de charger les messages';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -93,32 +87,31 @@ export function useMarketplaceChat(transactionId: string) {
   const sendMessage = useCallback(
     async (content: string) => {
       if (!conversation || !currentUserId || !content.trim()) {
-        throw new Error('Impossible d\'envoyer le message');
+        throw new Error("Impossible d'envoyer le message");
       }
 
       try {
-        const db = await getDatabase();
-        const repo = new MarketplaceChatRepository(db);
-
-        const newMessage: Omit<ChatMessage, 'id' | 'createdAt'> = {
+        // TODO: Implémenter l'endpoint POST /marketplace/chat/messages
+        // Pour l'instant, on crée un message local
+        const newMessage: ChatMessage = {
+          id: `msg-${Date.now()}`,
           conversationId: conversation.id,
           senderId: currentUserId,
-          recipientId: conversation.participants.find(p => p !== currentUserId) || '',
+          recipientId: conversation.participants.find((p) => p !== currentUserId) || '',
           content: content.trim(),
           type: 'text',
           read: false,
+          createdAt: new Date().toISOString(),
           sentAt: new Date().toISOString(),
           readAt: undefined,
         };
 
-        const createdMessage = await repo.createMessage(newMessage);
-
         // Ajouter le message à l'état local
-        setMessages((prev) => [...prev, createdMessage]);
+        setMessages((prev) => [...prev, newMessage]);
 
-        // Mettre à jour la conversation
-        await repo.updateConversationLastMessage(conversation.id, createdMessage);
-      } catch (err: any) {
+        // TODO: Envoyer le message au backend quand l'endpoint sera disponible
+        // await apiClient.post('/marketplace/chat/messages', newMessage);
+      } catch (err: unknown) {
         console.error('Erreur envoi message:', err);
         throw err;
       }
@@ -132,33 +125,31 @@ export function useMarketplaceChat(transactionId: string) {
   const sendPriceProposal = useCallback(
     async (price: number) => {
       if (!conversation || !currentUserId) {
-        throw new Error('Impossible d\'envoyer la proposition');
+        throw new Error("Impossible d'envoyer la proposition");
       }
 
       try {
-        const db = await getDatabase();
-        const repo = new MarketplaceChatRepository(db);
-
-        const newMessage: Omit<ChatMessage, 'id' | 'createdAt'> = {
+        // TODO: Implémenter l'endpoint POST /marketplace/chat/messages avec type price_proposal
+        const newMessage: ChatMessage = {
+          id: `msg-${Date.now()}`,
           conversationId: conversation.id,
           senderId: currentUserId,
-          recipientId: conversation.participants.find(p => p !== currentUserId) || '',
+          recipientId: conversation.participants.find((p) => p !== currentUserId) || '',
           content: `Nouvelle proposition de prix : ${price.toLocaleString()} FCFA`,
           type: 'price_proposal',
           read: false,
+          createdAt: new Date().toISOString(),
           sentAt: new Date().toISOString(),
           readAt: undefined,
           priceProposal: price,
         };
 
-        const createdMessage = await repo.createMessage(newMessage);
-
         // Ajouter le message à l'état local
-        setMessages((prev) => [...prev, createdMessage]);
+        setMessages((prev) => [...prev, newMessage]);
 
-        // Mettre à jour la conversation
-        await repo.updateConversationLastMessage(conversation.id, createdMessage);
-      } catch (err: any) {
+        // TODO: Envoyer le message au backend quand l'endpoint sera disponible
+        // await apiClient.post('/marketplace/chat/messages', newMessage);
+      } catch (err: unknown) {
         console.error('Erreur envoi proposition:', err);
         throw err;
       }

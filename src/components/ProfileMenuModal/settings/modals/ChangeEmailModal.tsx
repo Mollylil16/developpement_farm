@@ -10,8 +10,7 @@ import { useAppSelector, useAppDispatch } from '../../../../store/hooks';
 import { loadUserFromStorageThunk } from '../../../../store/slices/authSlice';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../../../../constants/theme';
 import CustomModal from '../../../CustomModal';
-import { getDatabase } from '../../../../services/database';
-import { UserRepository } from '../../../../database/repositories';
+import apiClient from '../../../../services/api/apiClient';
 import { getErrorMessage } from '../../../../types/common';
 
 interface ChangeEmailModalProps {
@@ -46,19 +45,20 @@ export default function ChangeEmailModal({ visible, onClose }: ChangeEmailModalP
 
     setLoading(true);
     try {
-      const db = await getDatabase();
-      const userRepo = new UserRepository(db);
-      
-      // Vérifier si l'email existe déjà
-      const existingUser = await userRepo.findByEmail(newEmail.trim().toLowerCase());
-      if (existingUser && existingUser.id !== user.id) {
-        Alert.alert('Erreur', 'Cet email est déjà utilisé par un autre compte');
-        setLoading(false);
-        return;
+      // Vérifier si l'email existe déjà via l'API backend
+      try {
+        const existingUser = await apiClient.get<any>(`/users/email/${newEmail.trim().toLowerCase()}`);
+        if (existingUser && existingUser.id !== user.id) {
+          Alert.alert('Erreur', 'Cet email est déjà utilisé par un autre compte');
+          setLoading(false);
+          return;
+        }
+      } catch (error) {
+        // Email n'existe pas, on peut continuer
       }
 
-      // Mettre à jour l'email
-      await userRepo.update(user.id, {
+      // Mettre à jour l'email via l'API backend
+      await apiClient.patch(`/users/${user.id}`, {
         email: newEmail.trim().toLowerCase(),
       });
 
@@ -75,7 +75,7 @@ export default function ChangeEmailModal({ visible, onClose }: ChangeEmailModalP
         },
       ]);
     } catch (error: unknown) {
-      Alert.alert('Erreur', getErrorMessage(error) || 'Erreur lors de la modification de l\'email');
+      Alert.alert('Erreur', getErrorMessage(error) || "Erreur lors de la modification de l'email");
     } finally {
       setLoading(false);
     }
@@ -92,7 +92,12 @@ export default function ChangeEmailModal({ visible, onClose }: ChangeEmailModalP
     >
       <View style={styles.content}>
         <Text style={[styles.label, { color: colors.textSecondary }]}>Email actuel</Text>
-        <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View
+          style={[
+            styles.inputContainer,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
           <Text style={[styles.currentEmail, { color: colors.text }]}>
             {user?.email || 'Non renseigné'}
           </Text>
@@ -101,8 +106,18 @@ export default function ChangeEmailModal({ visible, onClose }: ChangeEmailModalP
         <Text style={[styles.label, { color: colors.textSecondary, marginTop: SPACING.md }]}>
           Nouvel email
         </Text>
-        <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Ionicons name="mail-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+        <View
+          style={[
+            styles.inputContainer,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
+          <Ionicons
+            name="mail-outline"
+            size={20}
+            color={colors.textSecondary}
+            style={styles.inputIcon}
+          />
           <TextInput
             style={[styles.input, { color: colors.text }]}
             placeholder="nouvel@email.com"
@@ -149,4 +164,3 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.xs,
   },
 });
-

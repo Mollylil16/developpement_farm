@@ -55,7 +55,7 @@ describe('CreateRevenuUseCase - Integration', () => {
       expect(result.montant).toBe(200000);
     });
 
-    it('devrait rejeter si le projet n\'est pas fourni', async () => {
+    it("devrait rejeter si le projet n'est pas fourni", async () => {
       const input: CreateRevenuInput = {
         projetId: '',
         montant: 200000,
@@ -74,9 +74,7 @@ describe('CreateRevenuUseCase - Integration', () => {
         date: '2024-01-15',
       };
 
-      await expect(useCase.execute(input)).rejects.toThrow(
-        'Le montant doit être supérieur à 0'
-      );
+      await expect(useCase.execute(input)).rejects.toThrow('Le montant doit être supérieur à 0');
     });
 
     it('devrait rejeter si la date est dans le futur', async () => {
@@ -96,4 +94,3 @@ describe('CreateRevenuUseCase - Integration', () => {
     });
   });
 });
-

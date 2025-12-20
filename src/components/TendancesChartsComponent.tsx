@@ -98,7 +98,10 @@ export default function TendancesChartsComponent() {
     const groupBy = periode === '7j' || periode === '30j' ? 'week' : 'month';
 
     const grouped = peseesFiltrees.reduce(
-      (acc: Record<string, { poids: number[]; count: number; date: Date }>, pesee: ProductionPesee) => {
+      (
+        acc: Record<string, { poids: number[]; count: number; date: Date }>,
+        pesee: ProductionPesee
+      ) => {
         const datePesee = parseISO(pesee.date);
         let key: string;
         let dateReference: Date;

@@ -5,10 +5,13 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import * as yup from 'yup';
-import { validateWithSchema, validateField as validateYupField } from '../validation/financeSchemas';
+import {
+  validateWithSchema,
+  validateField as validateYupField,
+} from '../validation/financeSchemas';
 
-interface UseFormValidationOptions<T> {
-  schema: yup.ObjectSchema<any>;
+interface UseFormValidationOptions<T extends Record<string, any>> {
+  schema: yup.ObjectSchema<T>;
   initialValues: T;
   onSubmit: (values: T) => Promise<void> | void;
   validateOnChange?: boolean;
@@ -21,9 +24,9 @@ interface UseFormValidationReturn<T> {
   touched: Record<string, boolean>;
   isSubmitting: boolean;
   isValid: boolean;
-  setFieldValue: (field: keyof T, value: any) => void;
+  setFieldValue: (field: keyof T, value: unknown) => void;
   setFieldTouched: (field: keyof T, isTouched?: boolean) => void;
-  handleFieldChange: (field: keyof T) => (value: any) => void;
+  handleFieldChange: (field: keyof T) => (value: unknown) => void;
   handleFieldBlur: (field: keyof T) => () => void;
   handleSubmit: () => Promise<void>;
   resetForm: () => void;
@@ -34,7 +37,7 @@ interface UseFormValidationReturn<T> {
 /**
  * Hook de validation de formulaire avec Yup
  */
-export function useFormValidation<T extends Record<string, any>>({
+export function useFormValidation<T extends Record<string, unknown>>({
   schema,
   initialValues,
   onSubmit,
@@ -63,7 +66,7 @@ export function useFormValidation<T extends Record<string, any>>({
    * Valider un champ individuel
    */
   const validateSingleField = useCallback(
-    async (field: keyof T, value: any) => {
+    async (field: keyof T, value: unknown) => {
       try {
         const error = await validateYupField(schema, field as string, value, values);
 
@@ -110,7 +113,7 @@ export function useFormValidation<T extends Record<string, any>>({
    * Définir la valeur d'un champ
    */
   const setFieldValue = useCallback(
-    (field: keyof T, value: any) => {
+    (field: keyof T, value: unknown) => {
       setValues((prev) => ({ ...prev, [field]: value }));
 
       // Valider en temps réel si activé et si le champ a déjà été touché
@@ -132,7 +135,7 @@ export function useFormValidation<T extends Record<string, any>>({
    * Handler pour le changement de valeur d'un champ
    */
   const handleFieldChange = useCallback(
-    (field: keyof T) => (value: any) => {
+    (field: keyof T) => (value: unknown) => {
       setFieldValue(field, value);
     },
     [setFieldValue]
@@ -199,12 +202,12 @@ export function useFormValidation<T extends Record<string, any>>({
  * Hook simplifié pour validation de formulaire sans état géré
  * Utile quand vous gérez déjà l'état du formulaire ailleurs
  */
-export function useFormValidationSimple(schema: yup.ObjectSchema<any>) {
+export function useFormValidationSimple<T extends Record<string, any>>(schema: yup.ObjectSchema<T>) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
 
   const validateField = useCallback(
-    async (fieldName: string, value: any, allValues: any) => {
+    async (fieldName: string, value: unknown, allValues: unknown) => {
       try {
         const error = await validateYupField(schema, fieldName, value, allValues);
 
@@ -228,7 +231,7 @@ export function useFormValidationSimple(schema: yup.ObjectSchema<any>) {
   );
 
   const validateAllFields = useCallback(
-    async (values: any) => {
+    async (values: unknown) => {
       const { isValid, errors: validationErrors } = await validateWithSchema(schema, values);
 
       setErrors(validationErrors);
@@ -264,4 +267,3 @@ export function useFormValidationSimple(schema: yup.ObjectSchema<any>) {
     resetValidation,
   };
 }
-

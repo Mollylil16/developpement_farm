@@ -4,14 +4,21 @@
  */
 
 import React from 'react';
-import { View, Text, FlatList, RefreshControl, TouchableOpacity, Alert, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+  FlatList,
+  RefreshControl,
+  TouchableOpacity,
+  Alert,
+  StyleSheet,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useAppSelector } from '../../../store/hooks';
 import { selectAllAnimaux } from '../../../store/selectors/productionSelectors';
-import { getDatabase } from '../../../services/database';
-import { getMarketplaceService } from '../../../services/MarketplaceService';
+import apiClient from '../../../services/api/apiClient';
 import { MarketplaceTheme } from '../../../styles/marketplace.theme';
 import EmptyState from '../../EmptyState';
 import type { MarketplaceListing } from '../../../types/marketplace';
@@ -36,40 +43,40 @@ export default function MarketplaceMyListingsTab({
   const allAnimaux = useAppSelector(selectAllAnimaux);
 
   const handleRemove = async (listing: MarketplaceListing) => {
-    Alert.alert(
-      'Retirer de la vente',
-      'Voulez-vous retirer cette annonce du marketplace ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Retirer',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const db = await getDatabase();
-              const service = getMarketplaceService(db);
-              if (!user?.id) {
-                Alert.alert('Erreur', 'Utilisateur non connecté');
-                return;
-              }
-              await service.removeListing(listing.id, user.id);
-              onRefresh();
-              Alert.alert('Succès', 'Annonce retirée du marketplace');
-            } catch (error) {
-              console.error('Erreur retrait du marketplace:', error);
-              Alert.alert('Erreur', getErrorMessage(error));
+    Alert.alert('Retirer de la vente', 'Voulez-vous retirer cette annonce du marketplace ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Retirer',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            if (!user?.id) {
+              Alert.alert('Erreur', 'Utilisateur non connecté');
+              return;
             }
-          },
+            // Supprimer le listing via l'API backend
+            await apiClient.delete(`/marketplace/listings/${listing.id}`);
+            onRefresh();
+            Alert.alert('Succès', 'Annonce retirée du marketplace');
+          } catch (error) {
+            console.error('Erreur retrait du marketplace:', error);
+            Alert.alert('Erreur', getErrorMessage(error));
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const renderItem = ({ item }: { item: MarketplaceListing }) => {
     const animal = allAnimaux.find((a: ProductionAnimal) => a.id === item.subjectId);
 
     return (
-      <View style={[styles.card, { backgroundColor: marketplaceColors.surface, borderColor: marketplaceColors.border }]}>
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: marketplaceColors.surface, borderColor: marketplaceColors.border },
+        ]}
+      >
         <View style={styles.header}>
           <Text style={[styles.code, { color: marketplaceColors.text }]}>
             {animal?.code || item.code || `#${item.subjectId.slice(0, 8)}`}
@@ -80,7 +87,9 @@ export default function MarketplaceMyListingsTab({
               style={[styles.actionButton, { backgroundColor: marketplaceColors.primary + '15' }]}
               onPress={() => onViewDetails(item)}
             >
-              <Text style={[styles.actionText, { color: marketplaceColors.primary }]}>Voir détails</Text>
+              <Text style={[styles.actionText, { color: marketplaceColors.primary }]}>
+                Voir détails
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: marketplaceColors.error + '15' }]}
@@ -226,4 +235,3 @@ const styles = StyleSheet.create({
     marginLeft: 'auto',
   },
 });
-

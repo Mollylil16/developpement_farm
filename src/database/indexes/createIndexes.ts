@@ -1,6 +1,6 @@
 /**
  * Création des index qui utilisent projet_id
- * 
+ *
  * CRITIQUE: Ces index sont essentiels pour les performances (53+ requêtes utilisent projet_id)
  * Création individuelle avec gestion d'erreur et réessai agressif pour chaque index
  */
@@ -27,11 +27,11 @@ const indexes: IndexDefinition[] = [
     column: 'projet_id',
     critical: true,
   },
-  { 
-    name: 'idx_revenus_projet', 
-    table: 'revenus', 
-    column: 'projet_id', 
-    critical: true 
+  {
+    name: 'idx_revenus_projet',
+    table: 'revenus',
+    column: 'projet_id',
+    critical: true,
   },
   {
     name: 'idx_rapports_croissance_projet',
@@ -39,11 +39,11 @@ const indexes: IndexDefinition[] = [
     column: 'projet_id',
     critical: true,
   },
-  { 
-    name: 'idx_mortalites_projet', 
-    table: 'mortalites', 
-    column: 'projet_id', 
-    critical: true 
+  {
+    name: 'idx_mortalites_projet',
+    table: 'mortalites',
+    column: 'projet_id',
+    critical: true,
   },
   {
     name: 'idx_planifications_projet',
@@ -167,18 +167,18 @@ async function createIndexWithRetry(
       // Créer l'index
       const uniqueClause = index.unique ? 'UNIQUE' : '';
       const sql = `CREATE ${uniqueClause} INDEX IF NOT EXISTS ${index.name} ON ${index.table}(${columns})`;
-      
+
       await db.execAsync(sql);
-      
+
       console.log(`✅ Index ${index.name} créé avec succès (tentative ${attempt})`);
       return true;
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      
+
       if (attempt < maxRetries) {
         // Attendre avant de réessayer (backoff exponentiel)
         const delay = Math.min(100 * Math.pow(2, attempt - 1), 1000);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await new Promise((resolve) => setTimeout(resolve, delay));
         console.warn(
           `⚠️  Tentative ${attempt}/${maxRetries} échouée pour l'index ${index.name}, nouvelle tentative dans ${delay}ms...`
         );
@@ -200,7 +200,7 @@ async function createIndexWithRetry(
 
 /**
  * Crée tous les index qui utilisent projet_id
- * 
+ *
  * @param db - Instance de la base de données SQLite
  */
 export async function createIndexesWithProjetId(db: SQLiteDatabase): Promise<void> {
@@ -308,10 +308,6 @@ export async function createIndexesWithProjetId(db: SQLiteDatabase): Promise<voi
     }
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.warn(
-      '⚠️  Erreur lors de la création de idx_collaborations_user_id:',
-      errorMessage
-    );
+    console.warn('⚠️  Erreur lors de la création de idx_collaborations_user_id:', errorMessage);
   }
 }
-

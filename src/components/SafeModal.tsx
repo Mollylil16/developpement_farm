@@ -10,6 +10,7 @@ import ModalErrorBoundary from './ModalErrorBoundary';
 interface SafeModalProps extends CustomModalProps {
   modalName: string;
   children: React.ReactNode;
+  onClose: () => void;
 }
 
 /**
@@ -33,7 +34,7 @@ export default function SafeModal({
 
 /**
  * Exemple d'utilisation:
- * 
+ *
  * <SafeModal
  *   modalName="RevenuFormModal"
  *   visible={visible}
@@ -47,4 +48,3 @@ export default function SafeModal({
  *   <FormContent />
  * </SafeModal>
  */
-

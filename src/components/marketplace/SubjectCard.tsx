@@ -26,11 +26,11 @@ export default function SubjectCard({
   onSelect,
 }: SubjectCardProps) {
   const { colors, spacing, typography, borderRadius, animations } = MarketplaceTheme;
-  
+
   // Animations glassmorphism (fade in + slide up)
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
-  
+
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -98,100 +98,100 @@ export default function SubjectCard({
         activeOpacity={0.9}
         disabled={!subject.available}
       >
-      {/* Checkbox pour sélection multiple */}
-      {selectable && (
-        <View style={styles.checkboxContainer}>
-          <View
-            style={[
-              styles.checkbox,
-              {
-                borderColor: selected ? colors.primary : colors.border,
-                backgroundColor: selected ? colors.primary : 'transparent',
-              },
-            ]}
-          >
-            {selected && <Ionicons name="checkmark" size={16} color={colors.textInverse} />}
-          </View>
-        </View>
-      )}
-
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={[styles.code, { color: colors.text }]}>#{subject.code}</Text>
-          <Text style={[styles.race, { color: colors.textSecondary }]}>{subject.race}</Text>
-        </View>
-
-        {/* Badge de disponibilité */}
-        {!subject.available && (
-          <View style={[badgeStyle('sold')]}>
-            <Text style={[styles.badgeText, { color: colors.badgeSold }]}>Réservé</Text>
+        {/* Checkbox pour sélection multiple */}
+        {selectable && (
+          <View style={styles.checkboxContainer}>
+            <View
+              style={[
+                styles.checkbox,
+                {
+                  borderColor: selected ? colors.primary : colors.border,
+                  backgroundColor: selected ? colors.primary : 'transparent',
+                },
+              ]}
+            >
+              {selected && <Ionicons name="checkmark" size={16} color={colors.textInverse} />}
+            </View>
           </View>
         )}
-      </View>
 
-      {/* Stats principales */}
-      <View style={styles.statsGrid}>
-        <View style={styles.statItem}>
-          <Ionicons name="scale-outline" size={18} color={colors.primary} />
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Poids</Text>
-          <Text style={[styles.statValue, { color: colors.text }]}>{subject.weight} kg</Text>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Text style={[styles.code, { color: colors.text }]}>#{subject.code}</Text>
+            <Text style={[styles.race, { color: colors.textSecondary }]}>{subject.race}</Text>
+          </View>
+
+          {/* Badge de disponibilité */}
+          {!subject.available && (
+            <View style={[badgeStyle('sold')]}>
+              <Text style={[styles.badgeText, { color: colors.badgeSold }]}>Réservé</Text>
+            </View>
+          )}
         </View>
 
-        <View style={styles.statItem}>
-          <Ionicons name="calendar-outline" size={18} color={colors.primary} />
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Âge</Text>
-          <Text style={[styles.statValue, { color: colors.text }]}>{subject.age} mois</Text>
+        {/* Stats principales */}
+        <View style={styles.statsGrid}>
+          <View style={styles.statItem}>
+            <Ionicons name="scale-outline" size={18} color={colors.primary} />
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Poids</Text>
+            <Text style={[styles.statValue, { color: colors.text }]}>{subject.weight} kg</Text>
+          </View>
+
+          <View style={styles.statItem}>
+            <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Âge</Text>
+            <Text style={[styles.statValue, { color: colors.text }]}>{subject.age} mois</Text>
+          </View>
+
+          <View style={styles.statItem}>
+            <Ionicons
+              name={getHealthIcon(subject.healthStatus)}
+              size={18}
+              color={getHealthColor(subject.healthStatus)}
+            />
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Santé</Text>
+            <Text style={[styles.statValue, { color: getHealthColor(subject.healthStatus) }]}>
+              {subject.healthStatus === 'good'
+                ? 'Bon'
+                : subject.healthStatus === 'attention'
+                  ? 'Attention'
+                  : 'Critique'}
+            </Text>
+          </View>
         </View>
 
-        <View style={styles.statItem}>
-          <Ionicons
-            name={getHealthIcon(subject.healthStatus)}
-            size={18}
-            color={getHealthColor(subject.healthStatus)}
-          />
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Santé</Text>
-          <Text style={[styles.statValue, { color: getHealthColor(subject.healthStatus) }]}>
-            {subject.healthStatus === 'good'
-              ? 'Bon'
-              : subject.healthStatus === 'attention'
-              ? 'Attention'
-              : 'Critique'}
-          </Text>
-        </View>
-      </View>
+        {/* Divider */}
+        <View style={[styles.divider, { backgroundColor: colors.divider }]} />
 
-      {/* Divider */}
-      <View style={[styles.divider, { backgroundColor: colors.divider }]} />
+        {/* Prix et vaccinations */}
+        <View style={styles.footer}>
+          <View style={styles.priceContainer}>
+            <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>Prix total</Text>
+            <Text style={[styles.priceValue, { color: colors.primary }]}>
+              {formatPrice(subject.totalPrice)}
+            </Text>
+            <Text style={[styles.pricePerKg, { color: colors.textSecondary }]}>
+              {subject.pricePerKg ? subject.pricePerKg.toLocaleString('fr-FR') : '0'} FCFA/kg
+            </Text>
+          </View>
 
-      {/* Prix et vaccinations */}
-      <View style={styles.footer}>
-        <View style={styles.priceContainer}>
-          <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>Prix total</Text>
-          <Text style={[styles.priceValue, { color: colors.primary }]}>
-            {formatPrice(subject.totalPrice)}
-          </Text>
-          <Text style={[styles.pricePerKg, { color: colors.textSecondary }]}>
-            {subject.pricePerKg ? subject.pricePerKg.toLocaleString('fr-FR') : '0'} FCFA/kg
-          </Text>
+          <View style={styles.vaccinationBadge}>
+            <Ionicons
+              name={subject.vaccinations ? 'shield-checkmark' : 'shield-outline'}
+              size={16}
+              color={subject.vaccinations ? colors.success : colors.textSecondary}
+            />
+            <Text
+              style={[
+                styles.vaccinationText,
+                { color: subject.vaccinations ? colors.success : colors.textSecondary },
+              ]}
+            >
+              {subject.vaccinations ? 'Vaccins à jour' : 'Vaccins incomplets'}
+            </Text>
+          </View>
         </View>
-
-        <View style={styles.vaccinationBadge}>
-          <Ionicons
-            name={subject.vaccinations ? 'shield-checkmark' : 'shield-outline'}
-            size={16}
-            color={subject.vaccinations ? colors.success : colors.textSecondary}
-          />
-          <Text
-            style={[
-              styles.vaccinationText,
-              { color: subject.vaccinations ? colors.success : colors.textSecondary },
-            ]}
-          >
-            {subject.vaccinations ? 'Vaccins à jour' : 'Vaccins incomplets'}
-          </Text>
-        </View>
-      </View>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -293,4 +293,3 @@ const styles = StyleSheet.create({
     fontWeight: MarketplaceTheme.typography.fontWeights.medium,
   },
 });
-

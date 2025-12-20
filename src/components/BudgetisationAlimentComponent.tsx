@@ -53,7 +53,7 @@ export default function BudgetisationAlimentComponent() {
   const [poidsMoyen, setPoidsMoyen] = useState('');
   const [nombrePorcs, setNombrePorcs] = useState('');
   const [dureeJours, setDureeJours] = useState('30');
-  
+
   // État pour la modale de modification d'ingrédients
   const [showModifierIngredientsModal, setShowModifierIngredientsModal] = useState(false);
   const [rationAModifier, setRationAModifier] = useState<RationBudget | null>(null);
@@ -223,12 +223,12 @@ export default function BudgetisationAlimentComponent() {
         try {
           // D'abord supprimer l'ancienne ration
           await dispatch(deleteRationBudget(rationEnEdition.id)).unwrap();
-          
+
           // Ensuite créer la nouvelle avec les données mises à jour
           await dispatch(createRationBudget(input)).unwrap();
-          
+
           Alert.alert('✅ Succès', 'Ration modifiée avec succès');
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error('Erreur lors de la modification de la ration:', error);
           const errorMessage = error?.message || error || 'Impossible de modifier la ration';
           Alert.alert('Erreur', errorMessage);
@@ -240,18 +240,21 @@ export default function BudgetisationAlimentComponent() {
         await dispatch(createRationBudget(input)).unwrap();
         Alert.alert('✅ Succès', 'Ration créée avec succès');
       }
-      
+
       // Recharger les rations pour mettre à jour la liste
       if (projetActif) {
         await dispatch(loadRationsBudget(projetActif.id)).unwrap();
       }
-      
+
       // Réinitialiser le formulaire et fermer le modal
       resetForm();
       setShowModal(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur lors de la création/modification de la ration:', error);
-      const errorMessage = error?.message || error || (isEditing ? 'Impossible de modifier la ration' : 'Impossible de créer la ration');
+      const errorMessage =
+        error?.message ||
+        error ||
+        (isEditing ? 'Impossible de modifier la ration' : 'Impossible de créer la ration');
       Alert.alert('Erreur', errorMessage);
     }
   };
@@ -282,7 +285,7 @@ export default function BudgetisationAlimentComponent() {
     setShowModifierIngredientsModal(true);
   };
 
-  const handleSauvegarderIngredientsModifies = async (ingredientsModifies: any[]) => {
+  const handleSauvegarderIngredientsModifies = async (ingredientsModifies: unknown[]) => {
     if (!rationAModifier) return;
 
     try {
@@ -303,7 +306,8 @@ export default function BudgetisationAlimentComponent() {
       const coutTotal = detailsIngredients.reduce((sum, ing) => sum + ing.cout_total, 0);
       const coutParKg =
         rationAModifier.quantite_totale_kg > 0 ? coutTotal / rationAModifier.quantite_totale_kg : 0;
-      const coutParPorc = rationAModifier.nombre_porcs > 0 ? coutTotal / rationAModifier.nombre_porcs : 0;
+      const coutParPorc =
+        rationAModifier.nombre_porcs > 0 ? coutTotal / rationAModifier.nombre_porcs : 0;
 
       // Créer l'input de mise à jour
       const input: CreateRationBudgetInput = {
@@ -327,7 +331,7 @@ export default function BudgetisationAlimentComponent() {
 
       Alert.alert('✅ Succès', 'Ingrédients de la ration modifiés avec succès');
       setRationAModifier(null);
-    } catch (error: any) {
+    } catch (error: unknown) {
       Alert.alert('Erreur', error || 'Impossible de modifier les ingrédients');
     }
   };
@@ -386,7 +390,7 @@ export default function BudgetisationAlimentComponent() {
               await dispatch(createRationBudget(input)).unwrap();
 
               Alert.alert('✅ Succès', 'Ration recalculée avec les prix actuels');
-            } catch (error: any) {
+            } catch (error: unknown) {
               Alert.alert('Erreur', error || 'Impossible de recalculer la ration');
             }
           },
@@ -408,7 +412,7 @@ export default function BudgetisationAlimentComponent() {
             try {
               await dispatch(deleteRationBudget(ration.id)).unwrap();
               Alert.alert('✅ Succès', 'Ration supprimée');
-            } catch (error: any) {
+            } catch (error: unknown) {
               Alert.alert('Erreur', error || 'Impossible de supprimer la ration');
             }
           },

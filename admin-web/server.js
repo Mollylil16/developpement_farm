@@ -34,7 +34,15 @@ function findDatabasePath() {
   } else if (platform === 'darwin') {
     // macOS: ~/Library/Application Support/expo/databases/SQLite/fermier_pro.db
     possiblePaths = [
-      path.join(os.homedir(), 'Library', 'Application Support', 'expo', 'databases', 'SQLite', 'fermier_pro.db'),
+      path.join(
+        os.homedir(),
+        'Library',
+        'Application Support',
+        'expo',
+        'databases',
+        'SQLite',
+        'fermier_pro.db'
+      ),
       path.join(os.homedir(), '.expo', 'databases', 'SQLite', 'fermier_pro.db'),
     ];
   } else {
@@ -59,11 +67,20 @@ function findDatabasePath() {
   }
 
   // Si aucun fichier trouvé, retourner le chemin le plus probable
-  const defaultPath = platform === 'win32'
-    ? path.join(os.homedir(), '.expo', 'databases', 'SQLite', 'fermier_pro.db')
-    : platform === 'darwin'
-    ? path.join(os.homedir(), 'Library', 'Application Support', 'expo', 'databases', 'SQLite', 'fermier_pro.db')
-    : path.join(os.homedir(), '.expo', 'databases', 'SQLite', 'fermier_pro.db');
+  const defaultPath =
+    platform === 'win32'
+      ? path.join(os.homedir(), '.expo', 'databases', 'SQLite', 'fermier_pro.db')
+      : platform === 'darwin'
+        ? path.join(
+            os.homedir(),
+            'Library',
+            'Application Support',
+            'expo',
+            'databases',
+            'SQLite',
+            'fermier_pro.db'
+          )
+        : path.join(os.homedir(), '.expo', 'databases', 'SQLite', 'fermier_pro.db');
 
   console.log(`⚠️  Base de données non trouvée. Chemin attendu: ${defaultPath}`);
   return null;
@@ -76,12 +93,12 @@ let dbPath = null;
 function initDatabase() {
   try {
     dbPath = findDatabasePath();
-    
+
     if (!dbPath || !fs.existsSync(dbPath)) {
       console.warn(`⚠️  Base de données non trouvée`);
       console.log('💡 Pour trouver votre base de données:');
-      console.log('   1. Lancez l\'application Expo');
-      console.log('   2. Créez un projet dans l\'app');
+      console.log("   1. Lancez l'application Expo");
+      console.log("   2. Créez un projet dans l'app");
       console.log('   3. La base de données sera créée automatiquement');
       console.log(`   4. Cherchez le fichier "fermier_pro.db" dans votre dossier utilisateur`);
       return false;
@@ -95,7 +112,7 @@ function initDatabase() {
     console.error('💡 Assurez-vous que:');
     console.error('   - La base de données existe');
     console.error('   - Vous avez les permissions de lecture/écriture');
-    console.error('   - L\'application n\'utilise pas actuellement la base de données');
+    console.error("   - L'application n'utilise pas actuellement la base de données");
     return false;
   }
 }
@@ -109,13 +126,17 @@ app.get('/api/tables', (req, res) => {
       return res.status(503).json({ error: 'Base de données non connectée' });
     }
 
-    const tables = db.prepare(`
+    const tables = db
+      .prepare(
+        `
       SELECT name FROM sqlite_master 
       WHERE type='table' AND name NOT LIKE 'sqlite_%'
       ORDER BY name
-    `).all();
+    `
+      )
+      .all();
 
-    res.json(tables.map(t => t.name));
+    res.json(tables.map((t) => t.name));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -153,11 +174,11 @@ app.get('/api/tables/:tableName/data', (req, res) => {
     if (search) {
       const schema = db.prepare(`PRAGMA table_info(${tableName})`).all();
       const textColumns = schema
-        .filter(col => ['TEXT', 'VARCHAR'].includes(col.type))
-        .map(col => col.name);
-      
+        .filter((col) => ['TEXT', 'VARCHAR'].includes(col.type))
+        .map((col) => col.name);
+
       if (textColumns.length > 0) {
-        const conditions = textColumns.map(col => `${col} LIKE ?`).join(' OR ');
+        const conditions = textColumns.map((col) => `${col} LIKE ?`).join(' OR ');
         query += ` WHERE ${conditions}`;
         params.push(...textColumns.map(() => `%${search}%`));
       }
@@ -174,16 +195,16 @@ app.get('/api/tables/:tableName/data', (req, res) => {
     params.push(limit, offset);
 
     const data = db.prepare(query).all(...params);
-    
+
     // Compter le total
     let countQuery = `SELECT COUNT(*) as total FROM ${tableName}`;
     if (search) {
       const schema = db.prepare(`PRAGMA table_info(${tableName})`).all();
       const textColumns = schema
-        .filter(col => ['TEXT', 'VARCHAR'].includes(col.type))
-        .map(col => col.name);
+        .filter((col) => ['TEXT', 'VARCHAR'].includes(col.type))
+        .map((col) => col.name);
       if (textColumns.length > 0) {
-        const conditions = textColumns.map(col => `${col} LIKE ?`).join(' OR ');
+        const conditions = textColumns.map((col) => `${col} LIKE ?`).join(' OR ');
         countQuery += ` WHERE ${conditions}`;
       }
     }
@@ -212,10 +233,10 @@ app.get('/api/tables/:tableName/data/:id', (req, res) => {
 
     const { tableName, id } = req.params;
     const schema = db.prepare(`PRAGMA table_info(${tableName})`).all();
-    const primaryKey = schema.find(col => col.pk === 1)?.name || 'id';
+    const primaryKey = schema.find((col) => col.pk === 1)?.name || 'id';
 
     const row = db.prepare(`SELECT * FROM ${tableName} WHERE ${primaryKey} = ?`).get(id);
-    
+
     if (!row) {
       return res.status(404).json({ error: 'Ligne non trouvée' });
     }
@@ -237,8 +258,8 @@ app.post('/api/tables/:tableName/data', (req, res) => {
     const data = req.body;
 
     const schema = db.prepare(`PRAGMA table_info(${tableName})`).all();
-    const columns = schema.map(col => col.name).filter(col => col !== 'id' || data.id);
-    const values = columns.map(col => data[col] !== undefined ? data[col] : null);
+    const columns = schema.map((col) => col.name).filter((col) => col !== 'id' || data.id);
+    const values = columns.map((col) => (data[col] !== undefined ? data[col] : null));
 
     const placeholders = columns.map(() => '?').join(', ');
     const query = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`;
@@ -261,14 +282,12 @@ app.put('/api/tables/:tableName/data/:id', (req, res) => {
     const data = req.body;
 
     const schema = db.prepare(`PRAGMA table_info(${tableName})`).all();
-    const primaryKey = schema.find(col => col.pk === 1)?.name || 'id';
-    const columns = schema.map(col => col.name).filter(col => col !== primaryKey);
+    const primaryKey = schema.find((col) => col.pk === 1)?.name || 'id';
+    const columns = schema.map((col) => col.name).filter((col) => col !== primaryKey);
 
-    const updates = columns
-      .filter(col => data[col] !== undefined)
-      .map(col => `${col} = ?`);
+    const updates = columns.filter((col) => data[col] !== undefined).map((col) => `${col} = ?`);
     const values = updates.map((_, i) => {
-      const col = columns.find(c => data[c] !== undefined);
+      const col = columns.find((c) => data[c] !== undefined);
       return data[col];
     });
 
@@ -295,7 +314,7 @@ app.delete('/api/tables/:tableName/data/:id', (req, res) => {
 
     const { tableName, id } = req.params;
     const schema = db.prepare(`PRAGMA table_info(${tableName})`).all();
-    const primaryKey = schema.find(col => col.pk === 1)?.name || 'id';
+    const primaryKey = schema.find((col) => col.pk === 1)?.name || 'id';
 
     const query = `DELETE FROM ${tableName} WHERE ${primaryKey} = ?`;
     db.prepare(query).run(id);
@@ -314,7 +333,7 @@ app.post('/api/query', (req, res) => {
     }
 
     const { query } = req.body;
-    
+
     if (!query || typeof query !== 'string') {
       return res.status(400).json({ error: 'Requête SQL invalide' });
     }
@@ -338,11 +357,15 @@ app.get('/api/stats', (req, res) => {
       return res.status(503).json({ error: 'Base de données non connectée' });
     }
 
-    const tables = db.prepare(`
+    const tables = db
+      .prepare(
+        `
       SELECT name FROM sqlite_master 
       WHERE type='table' AND name NOT LIKE 'sqlite_%'
       ORDER BY name
-    `).all();
+    `
+      )
+      .all();
 
     const stats = {};
     for (const table of tables) {
@@ -376,10 +399,11 @@ if (initDatabase()) {
 } else {
   console.log('\n⚠️  Serveur démarré mais base de données non connectée');
   console.log(`📊 Interface web: http://localhost:${PORT}`);
-  console.log('💡 Créez d\'abord un projet dans l\'application pour initialiser la base de données\n');
-  
+  console.log(
+    "💡 Créez d'abord un projet dans l'application pour initialiser la base de données\n"
+  );
+
   app.listen(PORT, () => {
     console.log('Serveur en attente de la base de données...\n');
   });
 }
-

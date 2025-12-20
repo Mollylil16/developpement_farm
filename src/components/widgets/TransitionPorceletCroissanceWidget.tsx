@@ -17,9 +17,7 @@ interface TransitionPorceletCroissanceWidgetProps {
   onPress?: () => void;
 }
 
-function TransitionPorceletCroissanceWidget({
-  onPress,
-}: TransitionPorceletCroissanceWidgetProps) {
+function TransitionPorceletCroissanceWidget({ onPress }: TransitionPorceletCroissanceWidgetProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
@@ -77,9 +75,7 @@ function TransitionPorceletCroissanceWidget({
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.emoji}>📈</Text>
-          <Text style={[styles.title, { color: colors.text }]}>
-            Passage porcelets → croissance
-          </Text>
+          <Text style={[styles.title, { color: colors.text }]}>Passage porcelets → croissance</Text>
         </View>
 
         <View style={[styles.divider, { backgroundColor: colors.divider }]} />
@@ -151,4 +147,3 @@ const styles = StyleSheet.create({
 });
 
 export default memo(TransitionPorceletCroissanceWidget);
-

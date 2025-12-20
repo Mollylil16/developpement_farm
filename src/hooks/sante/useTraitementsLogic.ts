@@ -19,4 +19,3 @@ export function useTraitementsLogic() {
 
   return { chargerDonnees };
 }
-

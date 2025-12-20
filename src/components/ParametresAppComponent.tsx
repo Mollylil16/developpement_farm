@@ -51,8 +51,9 @@ export default function ParametresAppComponent() {
     try {
       await setLanguage(lang);
       Alert.alert(t('settings.language_changed'), t('settings.language_changed_message'));
-    } catch (error: any) {
-      Alert.alert(t('common.error'), error.message || 'Erreur lors du changement de langue');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erreur lors du changement de langue';
+      Alert.alert(t('common.error'), errorMessage);
     }
   };
 
@@ -72,8 +73,9 @@ export default function ParametresAppComponent() {
         setScheduledCount(0);
         Alert.alert('Succès', 'Les notifications ont été désactivées');
       }
-    } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Erreur lors de la modification des notifications');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erreur lors de la modification des notifications';
+      Alert.alert('Erreur', errorMessage);
       setNotificationsEnabled(!value); // Revenir à l'état précédent
     }
   };
@@ -109,8 +111,9 @@ export default function ParametresAppComponent() {
                 'Information',
                 "La réinitialisation complète de la base de données n'est pas encore implémentée. Pour réinitialiser, supprimez et réinstallez l'application."
               );
-            } catch (error: any) {
-              Alert.alert('Erreur', error.message || 'Erreur lors de la réinitialisation');
+            } catch (error: unknown) {
+              const errorMessage = error instanceof Error ? error.message : 'Erreur lors de la réinitialisation';
+              Alert.alert('Erreur', errorMessage);
             }
           },
         },
@@ -130,8 +133,9 @@ export default function ParametresAppComponent() {
             try {
               // Pour l'instant, on affiche juste un message
               Alert.alert('Information', 'Le cache a été vidé');
-            } catch (error: any) {
-              Alert.alert('Erreur', error.message || 'Erreur lors du vidage du cache');
+            } catch (error: unknown) {
+              const errorMessage = error instanceof Error ? error.message : 'Erreur lors du vidage du cache';
+              Alert.alert('Erreur', errorMessage);
             }
           },
         },

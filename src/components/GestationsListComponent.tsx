@@ -248,8 +248,9 @@ export default function GestationsListComponent() {
         `La mise bas a été enregistrée avec succès.\n\n🐷 ${nombreReel} porcelet${nombreReel > 1 ? 's ont' : ' a'} été ${nombreReel > 1 ? 'créés' : 'créé'} automatiquement dans votre cheptel.\n\nVous pouvez les retrouver dans l'onglet "Cheptel" de la section Production.`,
         [{ text: 'OK' }]
       );
-    } catch (error: any) {
-      Alert.alert('Erreur', error?.message || 'Une erreur est survenue lors de la mise à jour');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Une erreur est survenue lors de la mise à jour';
+      Alert.alert('Erreur', errorMessage);
     }
   };
 
@@ -269,7 +270,7 @@ export default function GestationsListComponent() {
 
   const onRefresh = useCallback(async () => {
     if (!projetActif?.id) return;
-    
+
     setRefreshing(true);
     try {
       await Promise.all([
@@ -496,7 +497,9 @@ export default function GestationsListComponent() {
                     <Text style={[styles.infoValue, { color: colors.text }]}>
                       {(() => {
                         // Chercher le verrat dans le cheptel pour obtenir son nom réel
-                        const verrat = animaux.find((a: ProductionAnimal) => a.id === gestation.verrat_id);
+                        const verrat = animaux.find(
+                          (a: ProductionAnimal) => a.id === gestation.verrat_id
+                        );
                         if (verrat) {
                           // Afficher le nom personnalisé, le code, ou un nom par défaut
                           return verrat.nom || verrat.code || `Verrat ${verrat.id}`;

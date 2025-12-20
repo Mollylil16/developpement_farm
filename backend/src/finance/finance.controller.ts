@@ -1,0 +1,185 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { FinanceService } from './finance.service';
+import { CreateChargeFixeDto } from './dto/create-charge-fixe.dto';
+import { UpdateChargeFixeDto } from './dto/update-charge-fixe.dto';
+import { CreateDepensePonctuelleDto } from './dto/create-depense-ponctuelle.dto';
+import { UpdateDepensePonctuelleDto } from './dto/update-depense-ponctuelle.dto';
+import { CreateRevenuDto } from './dto/create-revenu.dto';
+import { UpdateRevenuDto } from './dto/update-revenu.dto';
+import { CoutsProductionDto } from './dto/couts-production.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+
+@ApiTags('finance')
+@Controller('finance')
+@UseGuards(JwtAuthGuard)
+@ApiBearerAuth()
+export class FinanceController {
+  constructor(private readonly financeService: FinanceService) {}
+
+  // ==================== CHARGES FIXES ====================
+
+  @Post('charges-fixes')
+  @ApiOperation({ summary: 'Créer une nouvelle charge fixe' })
+  createChargeFixe(@Body() createChargeFixeDto: CreateChargeFixeDto, @CurrentUser() user: any) {
+    return this.financeService.createChargeFixe(createChargeFixeDto, user.id);
+  }
+
+  @Get('charges-fixes')
+  @ApiOperation({ summary: "Récupérer toutes les charges fixes d'un projet" })
+  @ApiQuery({ name: 'projet_id', required: true, description: 'ID du projet' })
+  findAllChargesFixes(@Query('projet_id') projetId: string, @CurrentUser() user: any) {
+    return this.financeService.findAllChargesFixes(projetId, user.id);
+  }
+
+  @Get('charges-fixes/:id')
+  @ApiOperation({ summary: 'Récupérer une charge fixe par ID' })
+  findOneChargeFixe(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.financeService.findOneChargeFixe(id, user.id);
+  }
+
+  @Patch('charges-fixes/:id')
+  @ApiOperation({ summary: 'Modifier une charge fixe' })
+  updateChargeFixe(
+    @Param('id') id: string,
+    @Body() updateChargeFixeDto: UpdateChargeFixeDto,
+    @CurrentUser() user: any
+  ) {
+    return this.financeService.updateChargeFixe(id, updateChargeFixeDto, user.id);
+  }
+
+  @Delete('charges-fixes/:id')
+  @ApiOperation({ summary: 'Supprimer une charge fixe' })
+  deleteChargeFixe(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.financeService.deleteChargeFixe(id, user.id);
+  }
+
+  // ==================== DÉPENSES PONCTUELLES ====================
+
+  @Post('depenses-ponctuelles')
+  @ApiOperation({ summary: 'Créer une nouvelle dépense ponctuelle' })
+  createDepensePonctuelle(
+    @Body() createDepensePonctuelleDto: CreateDepensePonctuelleDto,
+    @CurrentUser() user: any
+  ) {
+    return this.financeService.createDepensePonctuelle(createDepensePonctuelleDto, user.id);
+  }
+
+  @Get('depenses-ponctuelles')
+  @ApiOperation({ summary: "Récupérer toutes les dépenses ponctuelles d'un projet" })
+  @ApiQuery({ name: 'projet_id', required: true, description: 'ID du projet' })
+  findAllDepensesPonctuelles(@Query('projet_id') projetId: string, @CurrentUser() user: any) {
+    return this.financeService.findAllDepensesPonctuelles(projetId, user.id);
+  }
+
+  @Get('depenses-ponctuelles/:id')
+  @ApiOperation({ summary: 'Récupérer une dépense ponctuelle par ID' })
+  findOneDepensePonctuelle(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.financeService.findOneDepensePonctuelle(id, user.id);
+  }
+
+  @Patch('depenses-ponctuelles/:id')
+  @ApiOperation({ summary: 'Modifier une dépense ponctuelle' })
+  updateDepensePonctuelle(
+    @Param('id') id: string,
+    @Body() updateDepensePonctuelleDto: UpdateDepensePonctuelleDto,
+    @CurrentUser() user: any
+  ) {
+    return this.financeService.updateDepensePonctuelle(id, updateDepensePonctuelleDto, user.id);
+  }
+
+  @Delete('depenses-ponctuelles/:id')
+  @ApiOperation({ summary: 'Supprimer une dépense ponctuelle' })
+  deleteDepensePonctuelle(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.financeService.deleteDepensePonctuelle(id, user.id);
+  }
+
+  // ==================== REVENUS ====================
+
+  @Post('revenus')
+  @ApiOperation({ summary: 'Créer un nouveau revenu' })
+  createRevenu(@Body() createRevenuDto: CreateRevenuDto, @CurrentUser() user: any) {
+    return this.financeService.createRevenu(createRevenuDto, user.id);
+  }
+
+  @Get('revenus')
+  @ApiOperation({ summary: "Récupérer tous les revenus d'un projet" })
+  @ApiQuery({ name: 'projet_id', required: true, description: 'ID du projet' })
+  findAllRevenus(@Query('projet_id') projetId: string, @CurrentUser() user: any) {
+    return this.financeService.findAllRevenus(projetId, user.id);
+  }
+
+  @Get('revenus/:id')
+  @ApiOperation({ summary: 'Récupérer un revenu par ID' })
+  findOneRevenu(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.financeService.findOneRevenu(id, user.id);
+  }
+
+  @Patch('revenus/:id')
+  @ApiOperation({ summary: 'Modifier un revenu' })
+  updateRevenu(
+    @Param('id') id: string,
+    @Body() updateRevenuDto: UpdateRevenuDto,
+    @CurrentUser() user: any
+  ) {
+    return this.financeService.updateRevenu(id, updateRevenuDto, user.id);
+  }
+
+  @Delete('revenus/:id')
+  @ApiOperation({ summary: 'Supprimer un revenu' })
+  deleteRevenu(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.financeService.deleteRevenu(id, user.id);
+  }
+
+  // ==================== CALCUL DES MARGES ====================
+
+  @Post('revenus/:id/calculer-marges')
+  @ApiOperation({ summary: 'Calculer les marges pour une vente' })
+  calculerMargesVente(
+    @Param('id') id: string,
+    @Body() body: { poids_kg: number },
+    @CurrentUser() user: any
+  ) {
+    return this.financeService.calculerMargesVente(id, body.poids_kg, user.id);
+  }
+
+  // ==================== STATISTIQUES ====================
+
+  @Get('stats/mois-actuel')
+  @ApiOperation({ summary: 'Récupérer les statistiques financières du mois en cours' })
+  @ApiQuery({ name: 'projet_id', required: true, description: 'ID du projet' })
+  getStatsMoisActuel(@Query('projet_id') projetId: string, @CurrentUser() user: any) {
+    return this.financeService.getStatsMoisActuel(projetId, user.id);
+  }
+
+  // ==================== CALCUL DES COÛTS DE PRODUCTION ====================
+
+  @Get('couts-production')
+  @ApiOperation({
+    summary: 'Calculer les coûts de production pour une période',
+    description:
+      'Calcule les coûts OPEX et CAPEX (amorti) pour une période donnée, utilisés pour calculer les marges sur les ventes.',
+  })
+  @ApiQuery({ name: 'projet_id', required: true, description: 'ID du projet' })
+  @ApiQuery({ name: 'date_debut', required: true, description: 'Date de début (ISO 8601)' })
+  @ApiQuery({ name: 'date_fin', required: true, description: 'Date de fin (ISO 8601)' })
+  calculerCoutsProduction(
+    @Query('projet_id') projetId: string,
+    @Query('date_debut') dateDebut: string,
+    @Query('date_fin') dateFin: string,
+    @CurrentUser() user: any
+  ) {
+    return this.financeService.calculerCoutsProduction(projetId, dateDebut, dateFin, user.id);
+  }
+}

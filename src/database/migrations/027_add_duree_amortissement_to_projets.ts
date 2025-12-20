@@ -1,6 +1,6 @@
 /**
  * Migration 027: Ajout de la colonne duree_amortissement_par_defaut_mois à la table projets
- * 
+ *
  * Cette colonne est utilisée pour définir la durée d'amortissement par défaut
  * pour les dépenses CAPEX dans un projet.
  */
@@ -17,14 +17,12 @@ export async function addDureeAmortissementToProjets(db: SQLiteDatabase): Promis
     );
 
     if (!tableExists) {
-      console.log('✅ [Migration 027] Table projets n\'existe pas encore, sera créée par le schéma');
+      console.log("✅ [Migration 027] Table projets n'existe pas encore, sera créée par le schéma");
       return;
     }
 
     // Vérifier si la colonne existe déjà
-    const tableInfo = await db.getAllAsync<{ name: string }>(
-      "PRAGMA table_info(projets)"
-    );
+    const tableInfo = await db.getAllAsync<{ name: string }>('PRAGMA table_info(projets)');
 
     const hasColumn = tableInfo.some((col) => col.name === 'duree_amortissement_par_defaut_mois');
 
@@ -43,14 +41,13 @@ export async function addDureeAmortissementToProjets(db: SQLiteDatabase): Promis
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('❌ [Migration 027] Erreur:', errorMessage);
-    
+
     // Ne pas faire échouer l'initialisation si la table n'existe pas encore
     if (errorMessage.includes('no such table')) {
-      console.log('ℹ️  [Migration 027] Table n\'existe pas encore, sera créée par le schéma');
+      console.log("ℹ️  [Migration 027] Table n'existe pas encore, sera créée par le schéma");
       return;
     }
-    
+
     throw error;
   }
 }
-

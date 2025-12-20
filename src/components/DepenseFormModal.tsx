@@ -176,7 +176,7 @@ export default function DepenseFormModal({
       Alert.alert('Erreur', 'Données de dépense manquantes');
       return;
     }
-    
+
     if (!isEditing && !projetActif) {
       Alert.alert('Erreur', 'Aucun projet actif');
       return;
@@ -203,20 +203,20 @@ export default function DepenseFormModal({
         if (!projetActif) {
           throw new Error('Projet actif requis pour créer une dépense');
         }
-        
+
         await dispatch(
           createDepensePonctuelle({ ...formData, projet_id: projetActif.id })
         ).unwrap();
       }
-      
+
       // Succès : fermer le modal puis appeler callback
       onClose();
       setTimeout(() => {
         onSuccess();
       }, 300); // Délai pour animation de fermeture
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Afficher le message d'erreur correct
-      const errorMessage = error?.message || error?.toString() || "Erreur lors de l'enregistrement";
+      const errorMessage = error instanceof Error ? error.message : (typeof error === 'string' ? error : "Erreur lors de l'enregistrement");
       Alert.alert('Erreur', errorMessage);
     } finally {
       setLoading(false);
@@ -308,9 +308,7 @@ export default function DepenseFormModal({
                     ? colors.warning + '20'
                     : colors.info + '20',
                 borderColor:
-                  getTypeDepense(formData.categorie) === 'CAPEX'
-                    ? colors.warning
-                    : colors.info,
+                  getTypeDepense(formData.categorie) === 'CAPEX' ? colors.warning : colors.info,
               },
             ]}
           >
@@ -319,9 +317,7 @@ export default function DepenseFormModal({
                 styles.typeLabel,
                 {
                   color:
-                    getTypeDepense(formData.categorie) === 'CAPEX'
-                      ? colors.warning
-                      : colors.info,
+                    getTypeDepense(formData.categorie) === 'CAPEX' ? colors.warning : colors.info,
                 },
               ]}
             >

@@ -11,7 +11,9 @@ import { getCategorieAnimal } from '../../utils/animalUtils';
 const STATUTS_CHEPTEL: StatutAnimal[] = ['actif', 'autre'];
 
 export function useProductionCheptelFilters(projetId?: string) {
-  const [filterCategorie, setFilterCategorie] = useState<'tous' | 'truie' | 'verrat' | 'porcelet'>('tous');
+  const [filterCategorie, setFilterCategorie] = useState<'tous' | 'truie' | 'verrat' | 'porcelet'>(
+    'tous'
+  );
   const [searchQuery, setSearchQuery] = useState('');
   const allAnimaux = useAppSelector(selectAllAnimaux);
 
@@ -66,4 +68,3 @@ export function useProductionCheptelFilters(projetId?: string) {
     countByCategory,
   };
 }
-

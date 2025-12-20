@@ -1,0 +1,59 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { DatabaseModule } from './database/database.module';
+import { HealthModule } from './health/health.module';
+import { UsersModule } from './users/users.module';
+import { AuthModule } from './auth/auth.module';
+import { ProjetsModule } from './projets/projets.module';
+import { FinanceModule } from './finance/finance.module';
+import { ReproductionModule } from './reproduction/reproduction.module';
+import { ProductionModule } from './production/production.module';
+import { SanteModule } from './sante/sante.module';
+import { NutritionModule } from './nutrition/nutrition.module';
+import { CollaborationsModule } from './collaborations/collaborations.module';
+import { PlanificationsModule } from './planifications/planifications.module';
+import { MortalitesModule } from './mortalites/mortalites.module';
+import { ReportsModule } from './reports/reports.module';
+import { MarketplaceModule } from './marketplace/marketplace.module';
+import { AiWeightModule } from './ai-weight/ai-weight.module';
+import { AdminModule } from './admin/admin.module';
+import { AppController } from './app.controller';
+import { APP_GUARD, Reflector } from '@nestjs/core';
+import { JwtAuthGlobalGuard } from './common/guards/jwt-auth.global.guard';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '.env',
+    }),
+    DatabaseModule,
+    HealthModule,
+    UsersModule,
+    AuthModule, // Nouveau module Auth
+    ProjetsModule,
+    FinanceModule,
+    ReproductionModule,
+    ProductionModule,
+    SanteModule,
+    NutritionModule,
+    CollaborationsModule,
+    PlanificationsModule,
+    MortalitesModule,
+    ReportsModule,
+    MarketplaceModule,
+    AiWeightModule,
+    AdminModule,
+  ],
+  controllers: [AppController],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useFactory: (reflector: Reflector) => {
+        return new JwtAuthGlobalGuard(reflector);
+      },
+      inject: [Reflector],
+    },
+  ],
+})
+export class AppModule {}

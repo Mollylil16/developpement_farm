@@ -1,6 +1,6 @@
 /**
  * VaccinationStatsCard - Carte récapitulative des statistiques de vaccination
- * 
+ *
  * Affiche les KPI globaux de prophylaxie
  */
 
@@ -16,7 +16,7 @@ interface VaccinationStatsCardProps {
 
 export default function VaccinationStatsCard({ stats }: VaccinationStatsCardProps) {
   const { colors } = useTheme();
-  
+
   const statItems = [
     {
       icon: 'paw' as const,
@@ -43,14 +43,14 @@ export default function VaccinationStatsCard({ stats }: VaccinationStatsCardProp
       color: stats.tauxCouverture >= 80 ? colors.success : colors.warning,
     },
   ];
-  
+
   return (
     <View style={[styles.card, { backgroundColor: colors.surface }]}>
       <View style={styles.header}>
         <Ionicons name="stats-chart" size={24} color={colors.primary} />
         <Text style={[styles.title, { color: colors.text }]}>Vue d'ensemble</Text>
       </View>
-      
+
       <View style={styles.statsGrid}>
         {statItems.map((item, index) => (
           <View key={index} style={styles.statItem}>
@@ -115,4 +115,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-

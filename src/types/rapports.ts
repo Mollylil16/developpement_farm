@@ -16,14 +16,19 @@ export interface RapportCroissance {
 
 export interface IndicateursPerformance {
   taux_mortalite: number; // Pourcentage
-  taux_croissance: number; // Pourcentage
-  efficacite_alimentaire: number; // Ratio poids_gain / alimentation_consommee
-  cout_production_kg: number; // Coût de production par kg en CFA
+  taux_croissance: number; // Pourcentage (basé sur le gain de poids réel)
+  efficacite_alimentaire: number; // Ratio gain_poids / alimentation_consommee (en kg)
+  indice_consommation?: number; // IC = alimentation_consommee / gain_poids (en kg)
+  cout_production_kg?: number; // Coût de production par kg en CFA (optionnel, calculé côté frontend)
   nombre_porcs_total: number;
   nombre_porcs_vivants: number;
   nombre_porcs_morts: number;
   poids_total: number; // Poids total en kg
   alimentation_totale: number; // Alimentation totale consommée en kg
+  gain_poids_total?: number; // Gain de poids total en kg sur la période
+  periode_jours?: number; // Période de calcul en jours
+  date_debut?: string; // Date de début de la période
+  date_fin?: string; // Date de fin de la période
 }
 
 export interface CreateRapportCroissanceInput {

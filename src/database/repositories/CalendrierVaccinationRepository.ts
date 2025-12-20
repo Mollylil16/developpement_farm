@@ -1,6 +1,6 @@
 /**
  * CalendrierVaccinationRepository - Gestion des calendriers de vaccination
- * 
+ *
  * Responsabilités:
  * - CRUD des calendriers de vaccination
  * - Recherche par projet et catégorie
@@ -54,7 +54,7 @@ export class CalendrierVaccinationRepository extends BaseRepository<CalendrierVa
   /**
    * Mapper une ligne de la base vers CalendrierVaccination
    */
-  private mapRow(row: any): CalendrierVaccination {
+  private mapRow(row: unknown): CalendrierVaccination {
     return {
       id: row.id,
       projet_id: row.projet_id,
@@ -74,7 +74,7 @@ export class CalendrierVaccinationRepository extends BaseRepository<CalendrierVa
    * Override findById pour mapper correctement
    */
   async findById(id: string): Promise<CalendrierVaccination | null> {
-    const row = await this.queryOne<any>(`SELECT * FROM ${this.tableName} WHERE id = ?`, [id]);
+    const row = await this.queryOne<unknown>(`SELECT * FROM ${this.tableName} WHERE id = ?`, [id]);
     return row ? this.mapRow(row) : null;
   }
 
@@ -82,7 +82,7 @@ export class CalendrierVaccinationRepository extends BaseRepository<CalendrierVa
    * Récupérer tous les calendriers d'un projet
    */
   async findByProjet(projetId: string): Promise<CalendrierVaccination[]> {
-    const rows = await this.query<any>(
+    const rows = await this.query<unknown>(
       `SELECT * FROM calendrier_vaccinations 
        WHERE projet_id = ? 
        ORDER BY categorie, age_jours`,
@@ -94,11 +94,8 @@ export class CalendrierVaccinationRepository extends BaseRepository<CalendrierVa
   /**
    * Récupérer les calendriers par catégorie d'animal
    */
-  async findByCategorie(
-    projetId: string,
-    categorie: string
-  ): Promise<CalendrierVaccination[]> {
-    const rows = await this.query<any>(
+  async findByCategorie(projetId: string, categorie: string): Promise<CalendrierVaccination[]> {
+    const rows = await this.query<unknown>(
       `SELECT * FROM calendrier_vaccinations 
        WHERE projet_id = ? AND categorie = ?
        ORDER BY age_jours`,
@@ -116,7 +113,7 @@ export class CalendrierVaccinationRepository extends BaseRepository<CalendrierVa
   ): Promise<CalendrierVaccination> {
     const now = new Date().toISOString();
     const fields: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
 
     if (updates.vaccin !== undefined) {
       fields.push('vaccin = ?');
@@ -174,4 +171,3 @@ export class CalendrierVaccinationRepository extends BaseRepository<CalendrierVa
     return updated;
   }
 }
-

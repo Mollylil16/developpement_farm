@@ -38,15 +38,18 @@ export default function SupportContactModal({ visible, onClose }: SupportContact
     try {
       const emailUrl = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject || 'Demande de support')}&body=${encodeURIComponent(message || '')}`;
       const canOpen = await Linking.canOpenURL(emailUrl);
-      
+
       if (canOpen) {
         await Linking.openURL(emailUrl);
       } else {
-        Alert.alert('Erreur', 'Impossible d\'ouvrir l\'application email. Veuillez envoyer un email à ' + SUPPORT_EMAIL);
+        Alert.alert(
+          'Erreur',
+          "Impossible d'ouvrir l'application email. Veuillez envoyer un email à " + SUPPORT_EMAIL
+        );
       }
     } catch (error) {
-      console.error('Erreur lors de l\'ouverture de l\'email:', error);
-      Alert.alert('Erreur', 'Impossible d\'ouvrir l\'application email.');
+      console.error("Erreur lors de l'ouverture de l'email:", error);
+      Alert.alert('Erreur', "Impossible d'ouvrir l'application email.");
     }
   };
 
@@ -54,15 +57,18 @@ export default function SupportContactModal({ visible, onClose }: SupportContact
     try {
       const phoneUrl = `tel:${SUPPORT_PHONE.replace(/\s/g, '')}`;
       const canOpen = await Linking.canOpenURL(phoneUrl);
-      
+
       if (canOpen) {
         await Linking.openURL(phoneUrl);
       } else {
-        Alert.alert('Erreur', 'Impossible d\'ouvrir l\'application téléphone. Veuillez appeler ' + SUPPORT_PHONE);
+        Alert.alert(
+          'Erreur',
+          "Impossible d'ouvrir l'application téléphone. Veuillez appeler " + SUPPORT_PHONE
+        );
       }
     } catch (error) {
-      console.error('Erreur lors de l\'ouverture du téléphone:', error);
-      Alert.alert('Erreur', 'Impossible d\'ouvrir l\'application téléphone.');
+      console.error("Erreur lors de l'ouverture du téléphone:", error);
+      Alert.alert('Erreur', "Impossible d'ouvrir l'application téléphone.");
     }
   };
 
@@ -71,31 +77,34 @@ export default function SupportContactModal({ visible, onClose }: SupportContact
       Alert.alert('Erreur', 'Veuillez entrer un sujet.');
       return;
     }
-    
+
     if (!message.trim()) {
       Alert.alert('Erreur', 'Veuillez entrer un message.');
       return;
     }
 
     setSending(true);
-    
+
     try {
       // Simuler l'envoi du message
       // Dans une vraie application, cela enverrait le message à un serveur
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
       // Ouvrir l'email avec le message pré-rempli
       await handleEmailContact();
-      
-      Alert.alert('Succès', 'Votre message a été préparé. Veuillez l\'envoyer depuis votre application email.');
-      
+
+      Alert.alert(
+        'Succès',
+        "Votre message a été préparé. Veuillez l'envoyer depuis votre application email."
+      );
+
       // Réinitialiser le formulaire
       setSubject('');
       setMessage('');
       onClose();
     } catch (error) {
-      console.error('Erreur lors de l\'envoi du message:', error);
-      Alert.alert('Erreur', 'Impossible d\'envoyer le message. Veuillez réessayer.');
+      console.error("Erreur lors de l'envoi du message:", error);
+      Alert.alert('Erreur', "Impossible d'envoyer le message. Veuillez réessayer.");
     } finally {
       setSending(false);
     }
@@ -114,7 +123,10 @@ export default function SupportContactModal({ visible, onClose }: SupportContact
       presentationStyle="pageSheet"
       onRequestClose={handleClose}
     >
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        edges={['top']}
+      >
         {/* Header */}
         <View style={[styles.header, { borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
@@ -128,31 +140,47 @@ export default function SupportContactModal({ visible, onClose }: SupportContact
           {/* Options de contact rapide */}
           <View style={styles.quickContactSection}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Contact rapide</Text>
-            
+
             <TouchableOpacity
-              style={[styles.contactOption, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              style={[
+                styles.contactOption,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
               onPress={handleEmailContact}
             >
-              <View style={[styles.contactIconContainer, { backgroundColor: colors.primary + '15' }]}>
+              <View
+                style={[styles.contactIconContainer, { backgroundColor: colors.primary + '15' }]}
+              >
                 <Ionicons name="mail" size={24} color={colors.primary} />
               </View>
               <View style={styles.contactInfo}>
-                <Text style={[styles.contactOptionTitle, { color: colors.text }]}>Envoyer un email</Text>
-                <Text style={[styles.contactOptionSubtitle, { color: colors.textSecondary }]}>{SUPPORT_EMAIL}</Text>
+                <Text style={[styles.contactOptionTitle, { color: colors.text }]}>
+                  Envoyer un email
+                </Text>
+                <Text style={[styles.contactOptionSubtitle, { color: colors.textSecondary }]}>
+                  {SUPPORT_EMAIL}
+                </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.contactOption, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              style={[
+                styles.contactOption,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
               onPress={handlePhoneContact}
             >
-              <View style={[styles.contactIconContainer, { backgroundColor: colors.success + '15' }]}>
+              <View
+                style={[styles.contactIconContainer, { backgroundColor: colors.success + '15' }]}
+              >
                 <Ionicons name="call" size={24} color={colors.success} />
               </View>
               <View style={styles.contactInfo}>
                 <Text style={[styles.contactOptionTitle, { color: colors.text }]}>Appeler</Text>
-                <Text style={[styles.contactOptionSubtitle, { color: colors.textSecondary }]}>{SUPPORT_PHONE}</Text>
+                <Text style={[styles.contactOptionSubtitle, { color: colors.textSecondary }]}>
+                  {SUPPORT_PHONE}
+                </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
@@ -161,11 +189,18 @@ export default function SupportContactModal({ visible, onClose }: SupportContact
           {/* Formulaire de contact */}
           <View style={styles.formSection}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Envoyer un message</Text>
-            
+
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: colors.text }]}>Sujet *</Text>
               <TextInput
-                style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    color: colors.text,
+                  },
+                ]}
                 value={subject}
                 onChangeText={setSubject}
                 placeholder="Ex: Problème de connexion"
@@ -176,7 +211,14 @@ export default function SupportContactModal({ visible, onClose }: SupportContact
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: colors.text }]}>Message *</Text>
               <TextInput
-                style={[styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                style={[
+                  styles.textArea,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    color: colors.text,
+                  },
+                ]}
                 value={message}
                 onChangeText={setMessage}
                 placeholder="Décrivez votre problème ou votre question..."
@@ -200,10 +242,16 @@ export default function SupportContactModal({ visible, onClose }: SupportContact
           </View>
 
           {/* Informations supplémentaires */}
-          <View style={[styles.infoBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View
+            style={[
+              styles.infoBox,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
             <Ionicons name="information-circle" size={20} color={colors.primary} />
             <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-              Notre équipe répond généralement dans les 24-48 heures. Pour les urgences, veuillez nous appeler directement.
+              Notre équipe répond généralement dans les 24-48 heures. Pour les urgences, veuillez
+              nous appeler directement.
             </Text>
           </View>
         </ScrollView>
@@ -332,4 +380,3 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 });
-

@@ -24,7 +24,9 @@ export default function SettingsNotificationsView({ onBack }: SettingsNotificati
   const { colors } = useTheme();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [scheduledCount, setScheduledCount] = useState(0);
-  const [showNotificationTypeModal, setShowNotificationTypeModal] = useState<'push' | 'email' | 'sms' | null>(null);
+  const [showNotificationTypeModal, setShowNotificationTypeModal] = useState<
+    'push' | 'email' | 'sms' | null
+  >(null);
 
   useEffect(() => {
     // Charger la préférence des notifications
@@ -63,8 +65,9 @@ export default function SettingsNotificationsView({ onBack }: SettingsNotificati
         setScheduledCount(0);
         Alert.alert('Succès', 'Les notifications ont été désactivées');
       }
-    } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Erreur lors de la modification des notifications');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erreur lors de la modification des notifications';
+      Alert.alert('Erreur', errorMessage);
       setNotificationsEnabled(!value); // Revenir à l'état précédent
     }
   };
@@ -134,10 +137,7 @@ export default function SettingsNotificationsView({ onBack }: SettingsNotificati
             <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.item}
-            onPress={() => setShowNotificationTypeModal('sms')}
-          >
+          <TouchableOpacity style={styles.item} onPress={() => setShowNotificationTypeModal('sms')}>
             <Text style={[styles.itemText, { color: colors.text }]}>Notifications SMS</Text>
             <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
           </TouchableOpacity>
@@ -232,4 +232,3 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
-

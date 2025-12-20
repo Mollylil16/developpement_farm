@@ -3,8 +3,8 @@
  * Vérifie la logique d'affichage du composant
  */
 
-describe('RoleIndicator - Logique d\'affichage', () => {
-  describe('Condition d\'affichage', () => {
+describe("RoleIndicator - Logique d'affichage", () => {
+  describe("Condition d'affichage", () => {
     it('ne devrait pas afficher si un seul rôle disponible', () => {
       const shouldShowIndicator = (availableRoles: string[]): boolean => {
         return availableRoles.length > 1;
@@ -28,11 +28,22 @@ describe('RoleIndicator - Logique d\'affichage', () => {
         return roleConfig[role];
       };
 
-      expect(getRoleInfo('producer')).toEqual({ icon: 'paw', label: 'Producteur', color: '#22C55E' });
+      expect(getRoleInfo('producer')).toEqual({
+        icon: 'paw',
+        label: 'Producteur',
+        color: '#22C55E',
+      });
       expect(getRoleInfo('buyer')).toEqual({ icon: 'cart', label: 'Acheteur', color: '#3B82F6' });
-      expect(getRoleInfo('veterinarian')).toEqual({ icon: 'medical', label: 'Vétérinaire', color: '#EF4444' });
-      expect(getRoleInfo('technician')).toEqual({ icon: 'construct', label: 'Technicien', color: '#F59E0B' });
+      expect(getRoleInfo('veterinarian')).toEqual({
+        icon: 'medical',
+        label: 'Vétérinaire',
+        color: '#EF4444',
+      });
+      expect(getRoleInfo('technician')).toEqual({
+        icon: 'construct',
+        label: 'Technicien',
+        color: '#F59E0B',
+      });
     });
   });
 });
-

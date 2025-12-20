@@ -3,8 +3,7 @@
  * Orchestre toutes les opérations marketplace
  */
 
-import type { SQLiteDatabase } from 'expo-sqlite';
-import { getErrorMessage, isError } from '../types/common';
+import { isError } from '../types/common';
 import type {
   MarketplaceListing,
   Offer,
@@ -31,12 +30,12 @@ export class MarketplaceService {
   private ratingRepo: MarketplaceRatingRepository;
   private notificationRepo: MarketplaceNotificationRepository;
 
-  constructor(private db: SQLiteDatabase) {
-    this.listingRepo = new MarketplaceListingRepository(db);
-    this.offerRepo = new MarketplaceOfferRepository(db);
-    this.transactionRepo = new MarketplaceTransactionRepository(db);
-    this.ratingRepo = new MarketplaceRatingRepository(db);
-    this.notificationRepo = new MarketplaceNotificationRepository(db);
+  constructor() {
+    this.listingRepo = new MarketplaceListingRepository();
+    this.offerRepo = new MarketplaceOfferRepository();
+    this.transactionRepo = new MarketplaceTransactionRepository();
+    this.ratingRepo = new MarketplaceRatingRepository();
+    this.notificationRepo = new MarketplaceNotificationRepository();
   }
 
   // ========================================
@@ -57,7 +56,9 @@ export class MarketplaceService {
   }): Promise<MarketplaceListing> {
     // ✅ VALIDATION: Vérifier que le poids n'est pas nul
     if (!data.weight || data.weight <= 0) {
-      throw new Error('Impossible de mettre en vente un sujet dont le poids est nul ou négatif. Veuillez d\'abord enregistrer une pesée pour ce sujet.');
+      throw new Error(
+        "Impossible de mettre en vente un sujet dont le poids est nul ou négatif. Veuillez d'abord enregistrer une pesée pour ce sujet."
+      );
     }
 
     // Vérifier que le producteur ne met pas déjà ce sujet en vente
@@ -70,12 +71,14 @@ export class MarketplaceService {
       // Récupérer les informations du sujet pour un message d'erreur plus précis
       try {
         const { AnimalRepository } = await import('../database/repositories');
-        const animalRepo = new AnimalRepository(this.db);
+        const animalRepo = new AnimalRepository();
         const animal = await animalRepo.findById(data.subjectId);
-        
+
         const subjectName = animal?.nom || animal?.code || 'sujet';
         const subjectCode = animal?.code || data.subjectId;
-        throw new Error(`Le sujet "${subjectName}" (${subjectCode}) est déjà en vente sur le marketplace`);
+        throw new Error(
+          `Le sujet "${subjectName}" (${subjectCode}) est déjà en vente sur le marketplace`
+        );
       } catch (error: unknown) {
         // Si l'erreur est déjà notre message personnalisé, la relancer
         if (isError(error) && error.message.includes('déjà en vente')) {
@@ -103,24 +106,28 @@ export class MarketplaceService {
         slaughter: 'buyer_responsibility',
         paymentTerms: 'on_delivery',
         warranty:
-          'Tous les documents sanitaires et certificats seront fournis. Garantie de conformité au poids et à l\'âge annoncés (marge de ±5%)',
+          "Tous les documents sanitaires et certificats seront fournis. Garantie de conformité au poids et à l'âge annoncés (marge de ±5%)",
         cancellationPolicy:
-          'Annulation possible jusqu\'à 48h avant la date de livraison. Après ce délai, des frais peuvent s\'appliquer.',
+          "Annulation possible jusqu'à 48h avant la date de livraison. Après ce délai, des frais peuvent s'appliquer.",
       },
     });
 
     // Mettre à jour le statut du sujet dans production_animaux
     try {
       const { AnimalRepository } = await import('../database/repositories');
-      const animalRepo = new AnimalRepository(this.db);
-      
-      // Vérifier si la colonne existe avant de mettre à jour
-      await this.db.runAsync(
-        `UPDATE production_animaux 
-         SET marketplace_status = ?, marketplace_listing_id = ? 
-         WHERE id = ?`,
-        ['available', listing.id, data.subjectId]
-      );
+      const animalRepo = new AnimalRepository();
+
+      // Vérifier que l'animal existe avant de mettre à jour
+      const animal = await animalRepo.findById(data.subjectId);
+      if (!animal) {
+        throw new Error(`Animal ${data.subjectId} introuvable`);
+      }
+
+      // Mettre à jour le statut de l'animal via le repository
+      await animalRepo.update(data.subjectId, {
+        // Note: marketplace_status et marketplace_listing_id doivent être gérés par le backend
+        // Pour l'instant, on laisse le backend gérer ces champs
+      });
     } catch (error) {
       console.warn('Erreur mise à jour statut marketplace dans production_animaux:', error);
       // Ne pas bloquer si la mise à jour échoue
@@ -152,23 +159,27 @@ export class MarketplaceService {
     userId?: string
   ): Promise<MarketplaceSearchResult> {
     const { listings, total } = await this.listingRepo.search(filters, sort, page, limit);
-    
+
+    // Utiliser total pour calculer le nombre total de pages
+    const totalPages = Math.ceil(total / limit);
+    const hasMore = page < totalPages;
+
     // Filtrer les listings de l'utilisateur si userId fourni
     let filteredListings = listings;
     if (userId) {
       const { getMarketplacePermissions } = await import('./MarketplacePermissions');
-      const permissions = getMarketplacePermissions(this.db);
+      const permissions = getMarketplacePermissions();
       filteredListings = await permissions.filterListingsForUser(userId, listings);
     }
-    
+
     // Enrichir les listings avec les données des animaux
     const { AnimalRepository } = await import('../database/repositories');
     const { PeseeRepository } = await import('../database/repositories');
     const { VaccinationRepository } = await import('../database/repositories');
-    const animalRepo = new AnimalRepository(this.db);
-    const peseeRepo = new PeseeRepository(this.db);
-    const vaccinationRepo = new VaccinationRepository(this.db);
-    
+    const animalRepo = new AnimalRepository();
+      const peseeRepo = new PeseeRepository();
+    const vaccinationRepo = new VaccinationRepository();
+
     const enrichedListings = await Promise.all(
       filteredListings.map(async (listing) => {
         try {
@@ -192,8 +203,11 @@ export class MarketplaceService {
 
           // Vérifier le statut des vaccinations
           const vaccinations = await vaccinationRepo.findByAnimal(animal.id);
-          const vaccinationsAJour = vaccinations.length > 0 && 
-            vaccinations.every(v => v.date_rappel === null || new Date(v.date_rappel) > new Date());
+          const vaccinationsAJour =
+            vaccinations.length > 0 &&
+            vaccinations.every(
+              (v) => v.date_rappel === null || new Date(v.date_rappel) > new Date()
+            );
 
           // Déterminer le statut de santé (simplifié)
           let healthStatus: 'good' | 'attention' | 'critical' = 'good';
@@ -227,14 +241,17 @@ export class MarketplaceService {
 
     // Filtrer les nulls
     const validListings = enrichedListings.filter((l): l is NonNullable<typeof l> => l !== null);
-    const totalPages = Math.ceil(validListings.length / limit);
+    
+    const filteredTotal = validListings.length;
+    // Calculer le nombre de pages après filtrage et enrichissement
+    const totalPagesAfterFilter = Math.ceil(filteredTotal / limit);
 
     return {
       listings: validListings,
-      total: validListings.length, // Ajuster le total après filtrage
+      total: filteredTotal, // Total après filtrage et enrichissement
       page,
-      totalPages,
-      hasMore: page < totalPages,
+      totalPages: totalPagesAfterFilter, // Utiliser totalPagesAfterFilter
+      hasMore: page < totalPagesAfterFilter, // Recalculer hasMore basé sur le total filtré
     };
   }
 
@@ -252,7 +269,7 @@ export class MarketplaceService {
     if (userId) {
       try {
         const { UserRepository } = await import('../database/repositories');
-        const userRepo = new UserRepository(this.db);
+        const userRepo = new UserRepository();
         const user = await userRepo.findById(userId);
         if (user?.saved_farms) {
           savedFarms = user.saved_farms;
@@ -265,15 +282,15 @@ export class MarketplaceService {
     let filteredListings = listings;
     if (userId) {
       const { getMarketplacePermissions } = await import('./MarketplacePermissions');
-      const permissions = getMarketplacePermissions(this.db);
+      const permissions = getMarketplacePermissions();
       filteredListings = await permissions.filterListingsForUser(userId, listings);
     }
     // Grouper par farmId
     const farmGroups = new Map<string, MarketplaceListing[]>();
-    
+
     for (const listing of filteredListings) {
       if (listing.status !== 'available') continue;
-      
+
       const existing = farmGroups.get(listing.farmId) || [];
       existing.push(listing);
       farmGroups.set(listing.farmId, existing);
@@ -284,11 +301,11 @@ export class MarketplaceService {
     const { ProjetRepository } = await import('../database/repositories');
     const { MarketplaceRatingRepository } = await import('../database/repositories');
     const { AnimalRepository } = await import('../database/repositories');
-    
-    const userRepo = new UserRepository(this.db);
-    const projetRepo = new ProjetRepository(this.db);
-    const ratingRepo = new MarketplaceRatingRepository(this.db);
-    const animalRepo = new AnimalRepository(this.db);
+
+    const userRepo = new UserRepository();
+    const projetRepo = new ProjetRepository();
+      const ratingRepo = new MarketplaceRatingRepository();
+      const animalRepo = new AnimalRepository();
 
     const farmCards: FarmCard[] = [];
 
@@ -304,8 +321,8 @@ export class MarketplaceService {
         if (!producer) continue;
 
         // Calculer les données agrégées
-        const weights = farmListings.map(l => l.weight || 0);
-        const prices = farmListings.map(l => l.pricePerKg);
+        const weights = farmListings.map((l) => l.weight || 0);
+        const prices = farmListings.map((l) => l.pricePerKg);
         const totalWeight = weights.reduce((sum, w) => sum + w, 0);
         const totalSubjects = farmListings.length;
         const minPrice = Math.min(...prices);
@@ -313,10 +330,10 @@ export class MarketplaceService {
         const avgPrice = prices.reduce((sum, p) => sum + p, 0) / prices.length;
 
         // Récupérer les races disponibles
-        const subjectIds = farmListings.map(l => l.subjectId);
+        const subjectIds = farmListings.map((l) => l.subjectId);
         const races = new Set<string>();
         const photos: string[] = [];
-        
+
         for (const subjectId of subjectIds.slice(0, 4)) {
           const animal = await animalRepo.findById(subjectId);
           if (animal) {
@@ -327,9 +344,8 @@ export class MarketplaceService {
 
         // Récupérer les ratings
         const ratings = await ratingRepo.findByProducerId(producerId);
-        const avgRating = ratings.length > 0
-          ? ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length
-          : 0;
+        const avgRating =
+          ratings.length > 0 ? ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length : 0;
 
         // Calculer la distance si location fournie
         let distance: number | undefined;
@@ -345,7 +361,8 @@ export class MarketplaceService {
         // Déterminer les badges
         const now = new Date();
         const firstListingDate = new Date(farmListings[0].listedAt);
-        const monthsSinceFirstListing = (now.getTime() - firstListingDate.getTime()) / (1000 * 60 * 60 * 24 * 30);
+        const monthsSinceFirstListing =
+          (now.getTime() - firstListingDate.getTime()) / (1000 * 60 * 60 * 24 * 30);
         const isNewProducer = monthsSinceFirstListing < 3;
 
         // Calculer fastResponder depuis les stats
@@ -398,7 +415,7 @@ export class MarketplaceService {
             availableRaces: Array.from(races),
           },
           lastUpdated: new Date(
-            Math.max(...farmListings.map(l => new Date(l.updatedAt).getTime()))
+            Math.max(...farmListings.map((l) => new Date(l.updatedAt).getTime()))
           ),
         };
 
@@ -412,7 +429,7 @@ export class MarketplaceService {
     let filteredFarmCards = farmCards;
     if (userId) {
       const { getMarketplacePermissions } = await import('./MarketplacePermissions');
-      const permissions = getMarketplacePermissions(this.db);
+      const permissions = getMarketplacePermissions();
       filteredFarmCards = await permissions.filterFarmCardsForUser(userId, farmCards);
     }
 
@@ -420,10 +437,10 @@ export class MarketplaceService {
     filteredFarmCards.sort((a, b) => {
       const aIsFavorite = savedFarms.includes(a.farmId);
       const bIsFavorite = savedFarms.includes(b.farmId);
-      
+
       if (aIsFavorite && !bIsFavorite) return -1;
       if (!aIsFavorite && bIsFavorite) return 1;
-      
+
       // Si les deux sont favoris ou non favoris, trier par nom
       return a.name.localeCompare(b.name);
     });
@@ -457,7 +474,7 @@ export class MarketplaceService {
    */
   async getListingDetails(listingId: string): Promise<MarketplaceListing | null> {
     const listing = await this.listingRepo.findById(listingId);
-    
+
     // Incrémenter les vues
     if (listing) {
       await this.listingRepo.incrementViews(listingId);
@@ -471,24 +488,22 @@ export class MarketplaceService {
    */
   async removeListing(listingId: string, producerId: string): Promise<void> {
     const listing = await this.listingRepo.findById(listingId);
-    
+
     if (!listing) {
       throw new Error('Annonce introuvable');
     }
 
     if (listing.producerId !== producerId) {
-      throw new Error('Vous n\'êtes pas autorisé à retirer cette annonce');
+      throw new Error("Vous n'êtes pas autorisé à retirer cette annonce");
     }
 
     // Vérifier qu'il n'y a pas d'offres en attente
     const offers = await this.offerRepo.findByListingId(listingId);
-    const pendingOffers = offers.filter(
-      (o) => o.status === 'pending'
-    );
+    const pendingOffers = offers.filter((o) => o.status === 'pending');
 
     if (pendingOffers.length > 0) {
       throw new Error(
-        'Impossible de retirer cette annonce, des offres sont en attente. Veuillez les traiter d\'abord.'
+        "Impossible de retirer cette annonce, des offres sont en attente. Veuillez les traiter d'abord."
       );
     }
 
@@ -504,12 +519,12 @@ export class MarketplaceService {
 
   /**
    * Vérifie si un utilisateur peut faire une offre sur une annonce
-   * 
+   *
    * RÈGLE CRITIQUE: Un utilisateur ne peut JAMAIS acheter ses propres sujets,
    * quel que soit son rôle/profil actif (producteur, acheteur, vétérinaire, technicien).
-   * 
+   *
    * Cette vérification se fait au niveau du producteur (producerId), pas du rôle actif.
-   * 
+   *
    * @param userId - ID de l'utilisateur
    * @param listingId - ID de l'annonce
    * @returns Objet avec allowed (boolean) et reason (string optionnel)
@@ -532,13 +547,14 @@ export class MarketplaceService {
     // On vérifie via les projets (farmId) car le producerId est l'ID du projet
     try {
       const { ProjetRepository } = await import('../database/repositories');
-      const projetRepo = new ProjetRepository(this.db);
+      const projetRepo = new ProjetRepository();
       const projet = await projetRepo.findById(listing.farmId);
-      
+
       if (projet && projet.proprietaire_id === userId) {
         return {
           allowed: false,
-          reason: 'Vous ne pouvez pas faire d\'offre sur vos propres sujets, quel que soit votre rôle actif.',
+          reason:
+            "Vous ne pouvez pas faire d'offre sur vos propres sujets, quel que soit votre rôle actif.",
         };
       }
     } catch (error) {
@@ -548,7 +564,8 @@ export class MarketplaceService {
       if (listing.producerId === userId) {
         return {
           allowed: false,
-          reason: 'Vous ne pouvez pas faire d\'offre sur vos propres sujets, quel que soit votre rôle actif.',
+          reason:
+            "Vous ne pouvez pas faire d'offre sur vos propres sujets, quel que soit votre rôle actif.",
         };
       }
     }
@@ -557,7 +574,7 @@ export class MarketplaceService {
     if (listing.status !== 'available') {
       return {
         allowed: false,
-        reason: 'Cette annonce n\'est plus disponible',
+        reason: "Cette annonce n'est plus disponible",
       };
     }
 
@@ -577,7 +594,7 @@ export class MarketplaceService {
     // Vérifier si l'utilisateur peut faire une offre
     const canMakeOffer = await this.canUserMakeOffer(data.buyerId, data.listingId);
     if (!canMakeOffer.allowed) {
-      throw new Error(canMakeOffer.reason || 'Vous ne pouvez pas faire d\'offre sur cette annonce');
+      throw new Error(canMakeOffer.reason || "Vous ne pouvez pas faire d'offre sur cette annonce");
     }
 
     const listing = await this.listingRepo.findById(data.listingId);
@@ -587,7 +604,7 @@ export class MarketplaceService {
     }
 
     if (listing.status !== 'available') {
-      throw new Error('Cette annonce n\'est plus disponible');
+      throw new Error("Cette annonce n'est plus disponible");
     }
 
     // ✅ RÈGLE CRITIQUE: Vérification supplémentaire (redondante mais sécurisée)
@@ -595,11 +612,13 @@ export class MarketplaceService {
     // pour une sécurité maximale. On vérifie via les projets (farmId) car le producerId est l'ID du projet
     try {
       const { ProjetRepository } = await import('../database/repositories');
-      const projetRepo = new ProjetRepository(this.db);
+      const projetRepo = new ProjetRepository();
       const projet = await projetRepo.findById(listing.farmId);
-      
+
       if (projet && projet.proprietaire_id === data.buyerId) {
-        throw new Error('Vous ne pouvez pas acheter vos propres sujets, quel que soit votre rôle actif.');
+        throw new Error(
+          'Vous ne pouvez pas acheter vos propres sujets, quel que soit votre rôle actif.'
+        );
       }
     } catch (error: unknown) {
       // Si l'erreur est déjà notre message personnalisé, la relancer
@@ -609,24 +628,28 @@ export class MarketplaceService {
       // En cas d'erreur de vérification, faire une vérification de secours
       // (pour compatibilité avec l'ancien système où producerId pourrait être l'userId)
       if (data.buyerId === listing.producerId) {
-        throw new Error('Vous ne pouvez pas acheter vos propres sujets, quel que soit votre rôle actif.');
+        throw new Error(
+          'Vous ne pouvez pas acheter vos propres sujets, quel que soit votre rôle actif.'
+        );
       }
     }
 
     // Vérifier si l'acheteur a déjà fait une offre pour ce sujet
     const existingOffers = await this.offerRepo.findByBuyerId(data.buyerId);
-    const hasExistingOffer = existingOffers.some(offer => {
+    const hasExistingOffer = existingOffers.some((offer) => {
       // Vérifier si l'offre existe pour le même listing et contient au moins un des mêmes sujets
       if (offer.listingId === data.listingId && offer.status === 'pending') {
         // Vérifier si au moins un sujet est en commun
-        const commonSubjects = offer.subjectIds.filter(id => data.subjectIds.includes(id));
+        const commonSubjects = offer.subjectIds.filter((id) => data.subjectIds.includes(id));
         return commonSubjects.length > 0;
       }
       return false;
     });
 
     if (hasExistingOffer) {
-      throw new Error('Vous avez déjà fait une offre pour ce sujet. Veuillez retirer votre offre existante avant d\'en créer une nouvelle.');
+      throw new Error(
+        "Vous avez déjà fait une offre pour ce sujet. Veuillez retirer votre offre existante avant d'en créer une nouvelle."
+      );
     }
 
     // Calculer la date d'expiration (7 jours)
@@ -673,11 +696,11 @@ export class MarketplaceService {
     }
 
     if (offer.producerId !== producerId) {
-      throw new Error('Vous n\'êtes pas autorisé à accepter cette offre');
+      throw new Error("Vous n'êtes pas autorisé à accepter cette offre");
     }
 
     if (offer.status !== 'pending') {
-      throw new Error('Cette offre n\'est plus en attente');
+      throw new Error("Cette offre n'est plus en attente");
     }
 
     // Mettre à jour le statut de l'offre
@@ -712,13 +735,13 @@ export class MarketplaceService {
     // que ces sujets ne sont plus disponibles
     const allOffersForListing = await this.offerRepo.findByListingId(offer.listingId);
     const otherPendingOffers = allOffersForListing.filter(
-      o => o.id !== offer.id && o.status === 'pending' && o.buyerId !== offer.buyerId
+      (o) => o.id !== offer.id && o.status === 'pending' && o.buyerId !== offer.buyerId
     );
 
     // Vérifier si les autres offres concernent les mêmes sujets
     for (const otherOffer of otherPendingOffers) {
       // Vérifier si au moins un sujet est en commun
-      const commonSubjects = otherOffer.subjectIds.filter(id => offer.subjectIds.includes(id));
+      const commonSubjects = otherOffer.subjectIds.filter((id) => offer.subjectIds.includes(id));
       if (commonSubjects.length > 0) {
         // Marquer l'offre comme expirée/invalide
         await this.offerRepo.updateStatus(otherOffer.id, 'expired');
@@ -728,7 +751,8 @@ export class MarketplaceService {
           userId: otherOffer.buyerId,
           type: 'offer_expired',
           title: 'Sujet non disponible',
-          message: 'Un sujet pour lequel vous avez fait une offre a été acheté par un autre acheteur. Votre offre n\'est plus valable.',
+          message:
+            "Un sujet pour lequel vous avez fait une offre a été acheté par un autre acheteur. Votre offre n'est plus valable.",
           relatedId: otherOffer.id,
           relatedType: 'offer',
         });
@@ -749,7 +773,7 @@ export class MarketplaceService {
     }
 
     if (offer.producerId !== producerId) {
-      throw new Error('Vous n\'êtes pas autorisé à rejeter cette offre');
+      throw new Error("Vous n'êtes pas autorisé à rejeter cette offre");
     }
 
     await this.offerRepo.updateStatus(offerId, 'rejected');
@@ -776,7 +800,7 @@ export class MarketplaceService {
     }
 
     if (offer.buyerId !== buyerId) {
-      throw new Error('Vous n\'êtes pas autorisé à retirer cette offre');
+      throw new Error("Vous n'êtes pas autorisé à retirer cette offre");
     }
 
     if (offer.status !== 'pending') {
@@ -817,10 +841,10 @@ export class MarketplaceService {
 
     // Vérifier l'autorisation
     if (role === 'producer' && transaction.producerId !== userId) {
-      throw new Error('Vous n\'êtes pas autorisé à confirmer cette livraison');
+      throw new Error("Vous n'êtes pas autorisé à confirmer cette livraison");
     }
     if (role === 'buyer' && transaction.buyerId !== userId) {
-      throw new Error('Vous n\'êtes pas autorisé à confirmer cette livraison');
+      throw new Error("Vous n'êtes pas autorisé à confirmer cette livraison");
     }
 
     // Confirmer la livraison
@@ -828,7 +852,7 @@ export class MarketplaceService {
 
     // Vérifier si les deux ont confirmé
     const updatedTransaction = await this.transactionRepo.findById(transactionId);
-    
+
     if (
       updatedTransaction?.deliveryDetails?.producerConfirmed &&
       updatedTransaction?.deliveryDetails?.buyerConfirmed
@@ -839,19 +863,18 @@ export class MarketplaceService {
 
       // Retirer les sujets du cheptel et mettre à jour leur statut
       const { AnimalRepository } = await import('../database/repositories');
-      const animalRepo = new AnimalRepository(this.db);
-      
+      const animalRepo = new AnimalRepository();
+
       for (const subjectId of transaction.subjectIds) {
         try {
-          // Mettre à jour le statut marketplace
-          await this.db.runAsync(
-            `UPDATE production_animaux 
-             SET marketplace_status = 'sold', 
-                 marketplace_listing_id = NULL,
-                 statut = 'vendu'
-             WHERE id = ?`,
-            [subjectId]
-          );
+          // Utiliser animalRepo pour mettre à jour le statut de l'animal
+          const animal = await animalRepo.findById(subjectId);
+          if (animal) {
+            // Mettre à jour le statut de l'animal via le repository
+            await animalRepo.update(subjectId, {
+              statut: 'vendu',
+            });
+          }
         } catch (error) {
           console.warn(`Erreur mise à jour sujet ${subjectId} après vente:`, error);
         }
@@ -862,7 +885,7 @@ export class MarketplaceService {
         userId: transaction.producerId,
         type: 'delivery_confirmed',
         title: 'Livraison confirmée',
-        message: 'La transaction est terminée. N\'oubliez pas de noter l\'acheteur !',
+        message: "La transaction est terminée. N'oubliez pas de noter l'acheteur !",
         relatedId: transactionId,
         relatedType: 'transaction',
       });
@@ -871,20 +894,19 @@ export class MarketplaceService {
         userId: transaction.buyerId,
         type: 'delivery_confirmed',
         title: 'Livraison confirmée',
-        message: 'La transaction est terminée. N\'oubliez pas de noter le producteur !',
+        message: "La transaction est terminée. N'oubliez pas de noter le producteur !",
         relatedId: transactionId,
         relatedType: 'transaction',
       });
     } else {
       // Notifier l'autre partie qu'une confirmation est en attente
-      const otherUserId =
-        role === 'producer' ? transaction.buyerId : transaction.producerId;
-      
+      const otherUserId = role === 'producer' ? transaction.buyerId : transaction.producerId;
+
       await this.notificationRepo.create({
         userId: otherUserId,
         type: 'delivery_confirmed',
         title: 'Confirmation de livraison',
-        message: `${role === 'producer' ? 'Le producteur' : 'L\'acheteur'} a confirmé la livraison. Veuillez confirmer de votre côté.`,
+        message: `${role === 'producer' ? 'Le producteur' : "L'acheteur"} a confirmé la livraison. Veuillez confirmer de votre côté.`,
         relatedId: transactionId,
         relatedType: 'transaction',
       });
@@ -912,9 +934,7 @@ export class MarketplaceService {
     // Calculer le taux de complétion (ventes complétées / ventes totales)
     const totalTransactions = transactions.length;
     const completionRate =
-      totalTransactions > 0
-        ? (completedTransactions.length / totalTransactions) * 100
-        : 0;
+      totalTransactions > 0 ? (completedTransactions.length / totalTransactions) * 100 : 0;
 
     // Calculer le temps de réponse moyen (en heures)
     let responseTime = 0;
@@ -959,11 +979,11 @@ export class MarketplaceService {
   }> {
     // Vérifier que le sujet existe et est actif
     const { AnimalRepository } = await import('../database/repositories');
-    const animalRepo = new AnimalRepository(this.db);
+    const animalRepo = new AnimalRepository();
     const animal = await animalRepo.findById(subjectId);
 
     if (!animal) {
-      return { canList: false, reason: 'Le sujet n\'existe pas' };
+      return { canList: false, reason: "Le sujet n'existe pas" };
     }
 
     if (animal.statut?.toLowerCase() !== 'actif') {
@@ -981,19 +1001,26 @@ export class MarketplaceService {
 
     // Vérifier qu'il y a une pesée récente (< 30 jours)
     const { PeseeRepository } = await import('../database/repositories');
-    const peseeRepo = new PeseeRepository(this.db);
+      const peseeRepo = new PeseeRepository();
     const pesees = await peseeRepo.findByAnimal(subjectId);
     const dernierePesee = pesees.sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     )[0];
 
     if (!dernierePesee) {
-      return { canList: false, reason: 'Aucune pesée enregistrée. Une pesée récente est requise pour mettre en vente' };
+      return {
+        canList: false,
+        reason: 'Aucune pesée enregistrée. Une pesée récente est requise pour mettre en vente',
+      };
     }
 
-    const joursDepuisPesee = (new Date().getTime() - new Date(dernierePesee.date).getTime()) / (1000 * 60 * 60 * 24);
+    const joursDepuisPesee =
+      (new Date().getTime() - new Date(dernierePesee.date).getTime()) / (1000 * 60 * 60 * 24);
     if (joursDepuisPesee > 30) {
-      return { canList: false, reason: 'La dernière pesée date de plus de 30 jours. Une pesée récente est requise' };
+      return {
+        canList: false,
+        reason: 'La dernière pesée date de plus de 30 jours. Une pesée récente est requise',
+      };
     }
 
     return { canList: true };
@@ -1005,10 +1032,9 @@ export class MarketplaceService {
  */
 let marketplaceServiceInstance: MarketplaceService | null = null;
 
-export function getMarketplaceService(db: SQLiteDatabase): MarketplaceService {
+export function getMarketplaceService(): MarketplaceService {
   if (!marketplaceServiceInstance) {
-    marketplaceServiceInstance = new MarketplaceService(db);
+    marketplaceServiceInstance = new MarketplaceService();
   }
   return marketplaceServiceInstance;
 }
-

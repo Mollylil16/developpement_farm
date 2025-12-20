@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useState, memo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextStyle } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { loadStatistiquesMoisActuel } from '../../store/slices/financeSlice';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constants/theme';
@@ -37,7 +37,10 @@ function CoutProductionWidget({ projetId, onPress }: CoutProductionWidgetProps) 
     const loadStats = async () => {
       setLoading(true);
       try {
-        const result = await dispatch(loadStatistiquesMoisActuel(projetId)).unwrap();
+        const result = await dispatch(loadStatistiquesMoisActuel(projetId)).unwrap() as {
+          coutsPeriode: { cout_kg_opex: number };
+          margeMoyenne: number;
+        };
         setStats({
           cout_kg_opex: result.coutsPeriode.cout_kg_opex,
           marge_moyenne: result.margeMoyenne,
@@ -76,9 +79,7 @@ function CoutProductionWidget({ projetId, onPress }: CoutProductionWidgetProps) 
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-            Chargement...
-          </Text>
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Chargement...</Text>
         </View>
       ) : (
         <>
@@ -111,11 +112,7 @@ function CoutProductionWidget({ projetId, onPress }: CoutProductionWidgetProps) 
                 Marge moyenne
               </Text>
               <Text style={[styles.margeEmoji]}>
-                {statutMarge === 'confortable'
-                  ? '✅'
-                  : statutMarge === 'faible'
-                  ? '⚠️'
-                  : '❌'}
+                {statutMarge === 'confortable' ? '✅' : statutMarge === 'faible' ? '⚠️' : '❌'}
               </Text>
             </View>
             <Text style={[styles.margeValue, { color: couleurMarge }]}>
@@ -125,8 +122,8 @@ function CoutProductionWidget({ projetId, onPress }: CoutProductionWidgetProps) 
               {statutMarge === 'confortable'
                 ? 'Confortable'
                 : statutMarge === 'faible'
-                ? 'Faible'
-                : 'Négative'}
+                  ? 'Faible'
+                  : 'Négative'}
             </Text>
           </View>
 
@@ -195,7 +192,7 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: FONT_SIZES.xl,
-    fontWeight: FONT_WEIGHTS.bold as any,
+    fontWeight: FONT_WEIGHTS.bold as TextStyle['fontWeight'],
     marginBottom: SPACING.xs / 2,
   },
   statUnit: {
@@ -221,7 +218,7 @@ const styles = StyleSheet.create({
   },
   margeValue: {
     fontSize: FONT_SIZES.xxl,
-    fontWeight: FONT_WEIGHTS.bold as any,
+    fontWeight: FONT_WEIGHTS.bold as TextStyle['fontWeight'],
     textAlign: 'center',
     marginVertical: SPACING.xs,
   },
@@ -240,4 +237,3 @@ const styles = StyleSheet.create({
 });
 
 export default memo(CoutProductionWidget);
-

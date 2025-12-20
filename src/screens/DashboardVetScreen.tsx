@@ -47,7 +47,15 @@ const DashboardVetScreen: React.FC = () => {
   const [profileMenuVisible, setProfileMenuVisible] = useState(false);
   const [notificationPanelVisible, setNotificationPanelVisible] = useState(false);
   const [supportModalVisible, setSupportModalVisible] = useState(false);
-  const { todayConsultations, upcomingConsultations, clientFarms, healthAlerts, loading, error, refresh } = useVetData(currentUser?.id);
+  const {
+    todayConsultations,
+    upcomingConsultations,
+    clientFarms,
+    healthAlerts,
+    loading,
+    error,
+    refresh,
+  } = useVetData(currentUser?.id);
   const { projetActif } = useAppSelector((state) => state.projet);
   const { planifications } = useAppSelector((state) => state.planification);
   const profil = useProfilData();
@@ -60,7 +68,8 @@ const DashboardVetScreen: React.FC = () => {
   } = useMarketplaceNotifications();
 
   const vetProfile = currentUser?.roles?.veterinarian;
-  const showPendingBanner = (route.params as { showPendingValidation?: boolean })?.showPendingValidation ||
+  const showPendingBanner =
+    (route.params as { showPendingValidation?: boolean })?.showPendingValidation ||
     vetProfile?.validationStatus === 'pending';
 
   // Greeting state
@@ -135,7 +144,11 @@ const DashboardVetScreen: React.FC = () => {
               profilPhotoUri={profil.profilPhotoUri}
               profilInitiales={profil.profilInitiales || ''}
               currentDate={currentDate}
-              projetNom={vetProfile?.qualifications?.licenseNumber ? `License: ${vetProfile.qualifications.licenseNumber}` : undefined}
+              projetNom={
+                vetProfile?.qualifications?.licenseNumber
+                  ? `License: ${vetProfile.qualifications.licenseNumber}`
+                  : undefined
+              }
               invitationsCount={0}
               notificationCount={marketplaceUnreadCount}
               headerAnim={animations.headerAnim}
@@ -144,85 +157,115 @@ const DashboardVetScreen: React.FC = () => {
               onPressNotifications={handlePressNotifications}
             />
 
-          {/* Banner de validation en attente */}
-          <View style={[styles.pendingBanner, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={[styles.pendingIcon, { backgroundColor: colors.warning + '20' }]}>
-              <Ionicons name="time-outline" size={48} color={colors.warning} />
-            </View>
-            <Text style={[styles.pendingTitle, { color: colors.text }]}>Profil en cours de validation</Text>
-            <Text style={[styles.pendingMessage, { color: colors.textSecondary }]}>
-              Votre demande a été soumise avec succès ! Notre équipe vérifie vos documents
-              et validera votre profil sous 24-48 heures.
-            </Text>
-            <View style={styles.pendingSteps}>
-              <View style={styles.pendingStep}>
-                <View style={[styles.stepIcon, { backgroundColor: colors.success }]}>
-                  <Ionicons name="checkmark" size={16} color="#FFF" />
-                </View>
-                <Text style={[styles.stepText, { color: colors.text }]}>Documents soumis</Text>
-              </View>
-              <View style={styles.pendingStep}>
-                <View style={[styles.stepIcon, { backgroundColor: colors.warning }]}>
-                  <Ionicons name="search" size={16} color="#FFF" />
-                </View>
-                <Text style={[styles.stepText, { color: colors.text }]}>Vérification en cours</Text>
-              </View>
-              <View style={styles.pendingStep}>
-                <View style={[styles.stepIcon, { backgroundColor: colors.textSecondary }]}>
-                  <Ionicons name="time-outline" size={16} color="#FFF" />
-                </View>
-                <Text style={[styles.stepText, { color: colors.textSecondary }]}>
-                  Activation du profil
-                </Text>
-              </View>
-            </View>
-            <TouchableOpacity
-              style={[styles.contactButton, { backgroundColor: colors.primary + '15' }]}
-              onPress={() => setSupportModalVisible(true)}
+            {/* Banner de validation en attente */}
+            <View
+              style={[
+                styles.pendingBanner,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
             >
-              <Ionicons name="headset" size={20} color={colors.primary} />
-              <Text style={[styles.contactButtonText, { color: colors.primary }]}>Contacter le support</Text>
-            </TouchableOpacity>
+              <View style={[styles.pendingIcon, { backgroundColor: colors.warning + '20' }]}>
+                <Ionicons name="time-outline" size={48} color={colors.warning} />
+              </View>
+              <Text style={[styles.pendingTitle, { color: colors.text }]}>
+                Profil en cours de validation
+              </Text>
+              <Text style={[styles.pendingMessage, { color: colors.textSecondary }]}>
+                Votre demande a été soumise avec succès ! Notre équipe vérifie vos documents et
+                validera votre profil sous 24-48 heures.
+              </Text>
+              <View style={styles.pendingSteps}>
+                <View style={styles.pendingStep}>
+                  <View style={[styles.stepIcon, { backgroundColor: colors.success }]}>
+                    <Ionicons name="checkmark" size={16} color="#FFF" />
+                  </View>
+                  <Text style={[styles.stepText, { color: colors.text }]}>Documents soumis</Text>
+                </View>
+                <View style={styles.pendingStep}>
+                  <View style={[styles.stepIcon, { backgroundColor: colors.warning }]}>
+                    <Ionicons name="search" size={16} color="#FFF" />
+                  </View>
+                  <Text style={[styles.stepText, { color: colors.text }]}>
+                    Vérification en cours
+                  </Text>
+                </View>
+                <View style={styles.pendingStep}>
+                  <View style={[styles.stepIcon, { backgroundColor: colors.textSecondary }]}>
+                    <Ionicons name="time-outline" size={16} color="#FFF" />
+                  </View>
+                  <Text style={[styles.stepText, { color: colors.textSecondary }]}>
+                    Activation du profil
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={[styles.contactButton, { backgroundColor: colors.primary + '15' }]}
+                onPress={() => setSupportModalVisible(true)}
+              >
+                <Ionicons name="headset" size={20} color={colors.primary} />
+                <Text style={[styles.contactButtonText, { color: colors.primary }]}>
+                  Contacter le support
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Aperçu des fonctionnalités */}
+            <View style={styles.previewSection}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                Fonctionnalités disponibles après validation
+              </Text>
+
+              <Card
+                style={[
+                  styles.featureCard,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+              >
+                <Ionicons name="people" size={32} color={colors.success} />
+                <Text style={[styles.featureTitle, { color: colors.text }]}>
+                  Proposer mes services
+                </Text>
+                <Text style={[styles.featureDescription, { color: colors.textSecondary }]}>
+                  Accédez à une liste de fermes dans votre rayon de service et proposez votre
+                  accompagnement
+                </Text>
+              </Card>
+
+              <Card
+                style={[
+                  styles.featureCard,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+              >
+                <Ionicons name="medical" size={32} color={colors.primary} />
+                <Text style={[styles.featureTitle, { color: colors.text }]}>
+                  Gérer mes consultations
+                </Text>
+                <Text style={[styles.featureDescription, { color: colors.textSecondary }]}>
+                  Suivez l'état de santé des cheptels de vos clients et établissez des diagnostics
+                </Text>
+              </Card>
+
+              <Card
+                style={[
+                  styles.featureCard,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+              >
+                <Ionicons name="calendar" size={32} color={colors.warning} />
+                <Text style={[styles.featureTitle, { color: colors.text }]}>
+                  Agenda et planification
+                </Text>
+                <Text style={[styles.featureDescription, { color: colors.textSecondary }]}>
+                  Organisez vos visites et consultations avec un agenda intelligent
+                </Text>
+              </Card>
+            </View>
           </View>
-
-          {/* Aperçu des fonctionnalités */}
-          <View style={styles.previewSection}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Fonctionnalités disponibles après validation
-            </Text>
-
-            <Card style={[styles.featureCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Ionicons name="people" size={32} color={colors.success} />
-              <Text style={[styles.featureTitle, { color: colors.text }]}>Proposer mes services</Text>
-              <Text style={[styles.featureDescription, { color: colors.textSecondary }]}>
-                Accédez à une liste de fermes dans votre rayon de service et proposez votre accompagnement
-              </Text>
-            </Card>
-
-            <Card style={[styles.featureCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Ionicons name="medical" size={32} color={colors.primary} />
-              <Text style={[styles.featureTitle, { color: colors.text }]}>Gérer mes consultations</Text>
-              <Text style={[styles.featureDescription, { color: colors.textSecondary }]}>
-                Suivez l'état de santé des cheptels de vos clients et établissez des diagnostics
-              </Text>
-            </Card>
-
-            <Card style={[styles.featureCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Ionicons name="calendar" size={32} color={colors.warning} />
-              <Text style={[styles.featureTitle, { color: colors.text }]}>Agenda et planification</Text>
-              <Text style={[styles.featureDescription, { color: colors.textSecondary }]}>
-                Organisez vos visites et consultations avec un agenda intelligent
-              </Text>
-            </Card>
-          </View>
-        </View>
         </ScrollView>
 
         {/* Profile Menu Modal */}
-        <ProfileMenuModal
-          visible={profileMenuVisible}
-          onClose={handleCloseProfileMenu}
-        />
+        <ProfileMenuModal visible={profileMenuVisible} onClose={handleCloseProfileMenu} />
 
         {/* Notification Panel */}
         <NotificationPanel
@@ -235,7 +278,7 @@ const DashboardVetScreen: React.FC = () => {
           }}
           onDeleteNotification={deleteNotification}
           onMarkAllAsRead={() => {
-            marketplaceNotifications.forEach(n => markAsRead(n.id));
+            marketplaceNotifications.forEach((n) => markAsRead(n.id));
           }}
         />
 
@@ -271,7 +314,11 @@ const DashboardVetScreen: React.FC = () => {
             profilPhotoUri={profil.profilPhotoUri}
             profilInitiales={profil.profilInitiales || ''}
             currentDate={currentDate}
-            projetNom={vetProfile?.qualifications?.licenseNumber ? `License: ${vetProfile.qualifications.licenseNumber}` : undefined}
+            projetNom={
+              vetProfile?.qualifications?.licenseNumber
+                ? `License: ${vetProfile.qualifications.licenseNumber}`
+                : undefined
+            }
             invitationsCount={0}
             notificationCount={marketplaceUnreadCount}
             headerAnim={animations.headerAnim}
@@ -280,165 +327,158 @@ const DashboardVetScreen: React.FC = () => {
             onPressNotifications={handlePressNotifications}
           />
 
-        {/* Stats vétérinaire */}
-        <View style={styles.statsRow}>
-          <Card style={[styles.statCard, { backgroundColor: colors.surface }]}>
-            <Ionicons name="people" size={32} color="#22C55E" />
-            <Text style={[styles.statValue, { color: '#22C55E' }]}>
-              {vetProfile.clients.length || 0}
-            </Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-              Clients actifs
-            </Text>
-          </Card>
+          {/* Stats vétérinaire */}
+          <View style={styles.statsRow}>
+            <Card style={[styles.statCard, { backgroundColor: colors.surface }]}>
+              <Ionicons name="people" size={32} color="#22C55E" />
+              <Text style={[styles.statValue, { color: '#22C55E' }]}>
+                {vetProfile.clients.length || 0}
+              </Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                Clients actifs
+              </Text>
+            </Card>
 
-          <Card style={[styles.statCard, { backgroundColor: colors.surface }]}>
-            <Ionicons name="medical" size={32} color="#3B82F6" />
-            <Text style={[styles.statValue, { color: '#3B82F6' }]}>
-              {vetProfile.stats.totalConsultations || 0}
-            </Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-              Consultations
-            </Text>
-          </Card>
-        </View>
-
-        {/* Agenda du jour */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Agenda du jour
-            </Text>
-            {todayConsultations.length > 0 && (
-              <TouchableOpacity
-                onPress={() => navigation.navigate(SCREENS.CONSULTATIONS as never)}
-                style={styles.seeAllButton}
-              >
-                <Text style={[styles.seeAllText, { color: colors.primary }]}>Voir tout</Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-              </TouchableOpacity>
-            )}
+            <Card style={[styles.statCard, { backgroundColor: colors.surface }]}>
+              <Ionicons name="medical" size={32} color="#3B82F6" />
+              <Text style={[styles.statValue, { color: '#3B82F6' }]}>
+                {vetProfile.stats.totalConsultations || 0}
+              </Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Consultations</Text>
+            </Card>
           </View>
-          {loading ? (
-            <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
-              <LoadingSpinner size="small" />
-            </Card>
-          ) : todayConsultations.length === 0 ? (
-            <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
-              <EmptyState
-                icon="calendar-outline"
-                title="Aucune consultation prévue"
-                message="Votre agenda est libre aujourd'hui"
-                compact
-              />
-            </Card>
-          ) : (
-            <View style={styles.consultationsList}>
-              {todayConsultations.slice(0, 3).map((consultation) => (
-                <ConsultationCard key={consultation.id} consultation={consultation} colors={colors} />
-              ))}
-            </View>
-          )}
-        </View>
 
-        {/* Mes clients */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Mes clients
-            </Text>
-            {clientFarms.length > 0 && (
-              <TouchableOpacity
-                onPress={() => navigation.navigate(SCREENS.MY_CLIENTS as never)}
-                style={styles.seeAllButton}
-              >
-                <Text style={[styles.seeAllText, { color: colors.primary }]}>Voir tout</Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-              </TouchableOpacity>
-            )}
-          </View>
-          {loading ? (
-            <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
-              <LoadingSpinner size="small" />
-            </Card>
-          ) : clientFarms.length === 0 ? (
-            <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
-              <EmptyState
-                icon="people-outline"
-                title="Aucun client"
-                message="Vous n'avez pas encore de clients"
-                compact
-              />
-            </Card>
-          ) : (
-            <View style={styles.clientsList}>
-              {clientFarms.slice(0, 3).map((client) => (
-                <ClientCard key={client.farmId} client={client} colors={colors} />
-              ))}
-            </View>
-          )}
-        </View>
-
-        {/* Planifications du projet actif */}
-        {projetActif && planifications && planifications.length > 0 && (
+          {/* Agenda du jour */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                Planifications ({projetActif.nom})
-              </Text>
-              <TouchableOpacity
-                onPress={() => navigation.navigate(SCREENS.PLANIFICATION as never)}
-                style={styles.seeAllButton}
-              >
-                <Text style={[styles.seeAllText, { color: colors.primary }]}>Voir tout</Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-              </TouchableOpacity>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Agenda du jour</Text>
+              {todayConsultations.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => navigation.navigate(SCREENS.CONSULTATIONS as never)}
+                  style={styles.seeAllButton}
+                >
+                  <Text style={[styles.seeAllText, { color: colors.primary }]}>Voir tout</Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+                </TouchableOpacity>
+              )}
             </View>
-            <View style={styles.consultationsList}>
-              {planifications
-                .filter((p) => p.statut === 'a_faire' || p.statut === 'en_cours')
-                .slice(0, 3)
-                .map((planif) => (
-                  <PlanificationCard key={planif.id} planification={planif} colors={colors} />
+            {loading ? (
+              <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
+                <LoadingSpinner size="small" />
+              </Card>
+            ) : todayConsultations.length === 0 ? (
+              <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
+                <EmptyState
+                  icon="calendar-outline"
+                  title="Aucune consultation prévue"
+                  message="Votre agenda est libre aujourd'hui"
+                  compact
+                />
+              </Card>
+            ) : (
+              <View style={styles.consultationsList}>
+                {todayConsultations.slice(0, 3).map((consultation) => (
+                  <ConsultationCard
+                    key={consultation.id}
+                    consultation={consultation}
+                    colors={colors}
+                  />
                 ))}
-            </View>
+              </View>
+            )}
           </View>
-        )}
 
-        {/* Alertes sanitaires */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Alertes sanitaires
-          </Text>
-          {loading ? (
-            <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
-              <LoadingSpinner size="small" />
-            </Card>
-          ) : healthAlerts.length === 0 ? (
-            <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
-              <EmptyState
-                icon="checkmark-circle-outline"
-                title="Aucune alerte"
-                message="Tout est en ordre"
-                compact
-              />
-            </Card>
-          ) : (
-            <View style={styles.alertsList}>
-              {healthAlerts.slice(0, 3).map((alert, index) => (
-                <AlertCard key={`${alert.farmId}-${index}`} alert={alert} colors={colors} />
-              ))}
+          {/* Mes clients */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Mes clients</Text>
+              {clientFarms.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => navigation.navigate(SCREENS.MY_CLIENTS as never)}
+                  style={styles.seeAllButton}
+                >
+                  <Text style={[styles.seeAllText, { color: colors.primary }]}>Voir tout</Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+                </TouchableOpacity>
+              )}
+            </View>
+            {loading ? (
+              <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
+                <LoadingSpinner size="small" />
+              </Card>
+            ) : clientFarms.length === 0 ? (
+              <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
+                <EmptyState
+                  icon="people-outline"
+                  title="Aucun client"
+                  message="Vous n'avez pas encore de clients"
+                  compact
+                />
+              </Card>
+            ) : (
+              <View style={styles.clientsList}>
+                {clientFarms.slice(0, 3).map((client) => (
+                  <ClientCard key={client.farmId} client={client} colors={colors} />
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* Planifications du projet actif */}
+          {projetActif && planifications && planifications.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                  Planifications ({projetActif.nom})
+                </Text>
+                <TouchableOpacity
+                  onPress={() => navigation.navigate(SCREENS.PLANIFICATION as never)}
+                  style={styles.seeAllButton}
+                >
+                  <Text style={[styles.seeAllText, { color: colors.primary }]}>Voir tout</Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.consultationsList}>
+                {planifications
+                  .filter((p) => p.statut === 'a_faire' || p.statut === 'en_cours')
+                  .slice(0, 3)
+                  .map((planif) => (
+                    <PlanificationCard key={planif.id} planification={planif} colors={colors} />
+                  ))}
+              </View>
             </View>
           )}
+
+          {/* Alertes sanitaires */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Alertes sanitaires</Text>
+            {loading ? (
+              <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
+                <LoadingSpinner size="small" />
+              </Card>
+            ) : healthAlerts.length === 0 ? (
+              <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
+                <EmptyState
+                  icon="checkmark-circle-outline"
+                  title="Aucune alerte"
+                  message="Tout est en ordre"
+                  compact
+                />
+              </Card>
+            ) : (
+              <View style={styles.alertsList}>
+                {healthAlerts.slice(0, 3).map((alert, index) => (
+                  <AlertCard key={`${alert.farmId}-${index}`} alert={alert} colors={colors} />
+                ))}
+              </View>
+            )}
+          </View>
         </View>
-      </View>
       </ScrollView>
 
       {/* Profile Menu Modal */}
-      <ProfileMenuModal
-        visible={profileMenuVisible}
-        onClose={handleCloseProfileMenu}
-      />
+      <ProfileMenuModal visible={profileMenuVisible} onClose={handleCloseProfileMenu} />
 
       {/* Notification Panel */}
       <NotificationPanel
@@ -451,7 +491,7 @@ const DashboardVetScreen: React.FC = () => {
         }}
         onDeleteNotification={deleteNotification}
         onMarkAllAsRead={() => {
-          marketplaceNotifications.forEach(n => markAsRead(n.id));
+          marketplaceNotifications.forEach((n) => markAsRead(n.id));
         }}
       />
 
@@ -728,7 +768,7 @@ const styles = StyleSheet.create({
 });
 
 // Composant Card pour les planifications
-const PlanificationCard: React.FC<{ planification: any; colors: any }> = ({
+const PlanificationCard: React.FC<{ planification: unknown; colors: unknown }> = ({
   planification,
   colors,
 }) => {
@@ -739,11 +779,25 @@ const PlanificationCard: React.FC<{ planification: any; colors: any }> = ({
   };
 
   return (
-    <Card style={[componentStyles.planificationCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+    <Card
+      style={[
+        componentStyles.planificationCard,
+        { backgroundColor: colors.surface, borderColor: colors.border },
+      ]}
+    >
       <View style={componentStyles.planificationHeader}>
-        <View style={[componentStyles.statutBadge, { backgroundColor: statutColors[planification.statut] + '20' }]}>
+        <View
+          style={[
+            componentStyles.statutBadge,
+            { backgroundColor: statutColors[planification.statut] + '20' },
+          ]}
+        >
           <Text style={[componentStyles.statutText, { color: statutColors[planification.statut] }]}>
-            {planification.statut === 'a_faire' ? 'À faire' : planification.statut === 'en_cours' ? 'En cours' : 'Terminée'}
+            {planification.statut === 'a_faire'
+              ? 'À faire'
+              : planification.statut === 'en_cours'
+                ? 'En cours'
+                : 'Terminée'}
           </Text>
         </View>
         <Text style={[componentStyles.planificationDate, { color: colors.textSecondary }]}>
@@ -754,7 +808,10 @@ const PlanificationCard: React.FC<{ planification: any; colors: any }> = ({
         {planification.titre}
       </Text>
       {planification.description && (
-        <Text style={[componentStyles.planificationDescription, { color: colors.textSecondary }]} numberOfLines={1}>
+        <Text
+          style={[componentStyles.planificationDescription, { color: colors.textSecondary }]}
+          numberOfLines={1}
+        >
           {planification.description}
         </Text>
       )}
@@ -763,12 +820,17 @@ const PlanificationCard: React.FC<{ planification: any; colors: any }> = ({
 };
 
 // Composant Card pour les consultations
-const ConsultationCard: React.FC<{ consultation: VisiteVeterinaire; colors: any }> = ({
+const ConsultationCard: React.FC<{ consultation: VisiteVeterinaire; colors: unknown }> = ({
   consultation,
   colors,
 }) => {
   return (
-    <Card style={[componentStyles.consultationCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+    <Card
+      style={[
+        componentStyles.consultationCard,
+        { backgroundColor: colors.surface, borderColor: colors.border },
+      ]}
+    >
       <View style={componentStyles.consultationHeader}>
         <Ionicons name="calendar" size={20} color={colors.primary} />
         <Text style={[componentStyles.consultationTime, { color: colors.textSecondary }]}>
@@ -779,7 +841,10 @@ const ConsultationCard: React.FC<{ consultation: VisiteVeterinaire; colors: any 
         {consultation.motif}
       </Text>
       {consultation.diagnostic && (
-        <Text style={[componentStyles.consultationDiagnostic, { color: colors.textSecondary }]} numberOfLines={1}>
+        <Text
+          style={[componentStyles.consultationDiagnostic, { color: colors.textSecondary }]}
+          numberOfLines={1}
+        >
           {consultation.diagnostic}
         </Text>
       )}
@@ -788,17 +853,26 @@ const ConsultationCard: React.FC<{ consultation: VisiteVeterinaire; colors: any 
 };
 
 // Composant Card pour les clients
-const ClientCard: React.FC<{ client: { farmId: string; farmName: string; since: string; lastConsultation?: string; consultationCount: number }; colors: any }> = ({
-  client,
-  colors,
-}) => {
+const ClientCard: React.FC<{
+  client: {
+    farmId: string;
+    farmName: string;
+    since: string;
+    lastConsultation?: string;
+    consultationCount: number;
+  };
+  colors: unknown;
+}> = ({ client, colors }) => {
   return (
-    <Card style={[componentStyles.clientCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+    <Card
+      style={[
+        componentStyles.clientCard,
+        { backgroundColor: colors.surface, borderColor: colors.border },
+      ]}
+    >
       <View style={componentStyles.clientHeader}>
         <Ionicons name="business" size={20} color={colors.primary} />
-        <Text style={[componentStyles.clientName, { color: colors.text }]}>
-          {client.farmName}
-        </Text>
+        <Text style={[componentStyles.clientName, { color: colors.text }]}>{client.farmName}</Text>
       </View>
       <Text style={[componentStyles.clientStats, { color: colors.textSecondary }]}>
         {client.consultationCount} consultation{client.consultationCount > 1 ? 's' : ''}
@@ -813,10 +887,10 @@ const ClientCard: React.FC<{ client: { farmId: string; farmName: string; since: 
 };
 
 // Composant Card pour les alertes
-const AlertCard: React.FC<{ alert: { farmId: string; farmName: string; alertType: string; message: string; severity: string }; colors: any }> = ({
-  alert,
-  colors,
-}) => {
+const AlertCard: React.FC<{
+  alert: { farmId: string; farmName: string; alertType: string; message: string; severity: string };
+  colors: unknown;
+}> = ({ alert, colors }) => {
   const severityColors = {
     low: colors.info,
     medium: colors.warning,
@@ -830,12 +904,22 @@ const AlertCard: React.FC<{ alert: { farmId: string; farmName: string; alertType
   };
 
   return (
-    <Card style={[componentStyles.alertCard, { backgroundColor: colors.surface, borderLeftColor: severityColors[alert.severity as keyof typeof severityColors] }]}>
+    <Card
+      style={[
+        componentStyles.alertCard,
+        {
+          backgroundColor: colors.surface,
+          borderLeftColor: severityColors[alert.severity as keyof typeof severityColors],
+        },
+      ]}
+    >
       <View style={componentStyles.alertHeader}>
-        <Ionicons name={alertIcons[alert.alertType as keyof typeof alertIcons] || 'alert'} size={20} color={severityColors[alert.severity as keyof typeof severityColors]} />
-        <Text style={[componentStyles.alertFarm, { color: colors.text }]}>
-          {alert.farmName}
-        </Text>
+        <Ionicons
+          name={alertIcons[alert.alertType as keyof typeof alertIcons] || 'alert'}
+          size={20}
+          color={severityColors[alert.severity as keyof typeof severityColors]}
+        />
+        <Text style={[componentStyles.alertFarm, { color: colors.text }]}>{alert.farmName}</Text>
       </View>
       <Text style={[componentStyles.alertMessage, { color: colors.textSecondary }]}>
         {alert.message}
@@ -944,4 +1028,3 @@ const componentStyles = StyleSheet.create({
 });
 
 export default DashboardVetScreen;
-

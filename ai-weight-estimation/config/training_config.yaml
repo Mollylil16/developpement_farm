@@ -1,0 +1,69 @@
+# Configuration d'entraînement
+
+training:
+  detection:
+    model: "yolov8l"  # yolov8n, yolov8s, yolov8m, yolov8l, yolov8x
+    epochs: 100
+    batch_size: 16
+    learning_rate: 0.001
+    img_size: 640
+    data_augmentation: true
+    patience: 20  # Early stopping
+    
+  segmentation:
+    model: "maskrcnn_resnet50_fpn"
+    epochs: 50
+    batch_size: 8
+    learning_rate: 0.0001
+    img_size: 800
+    data_augmentation: true
+    
+  reid:
+    architecture: "resnet50"
+    loss: "triplet"  # triplet, contrastive, arcface
+    epochs: 120
+    batch_size: 32
+    learning_rate: 0.0003
+    feature_dim: 512
+    margin: 0.3  # Pour triplet loss
+    num_classes: null  # Auto-détecté depuis dataset
+    
+  weight:
+    geometric:
+      epochs: 80
+      batch_size: 16
+      learning_rate: 0.0001
+      keypoints_loss: "mse"
+      
+    cnn:
+      model: "efficientnet-b4"
+      epochs: 150
+      batch_size: 32
+      learning_rate: 0.0001
+      loss: "huber"  # huber, mse, mae
+      data_augmentation: true
+      
+    transformer:
+      model: "vit-base/16"
+      epochs: 100
+      batch_size: 16
+      learning_rate: 0.00005
+      loss: "mse"
+      warmup_epochs: 10
+
+# Optimisation
+optimization:
+  mixed_precision: true
+  gradient_accumulation: 1
+  weight_decay: 0.0001
+  scheduler: "cosine"  # cosine, step, plateau
+  
+# Validation
+validation:
+  split: 0.1  # 10% pour validation
+  test_split: 0.1  # 10% pour test
+  metrics:
+    detection: ["mAP@0.5", "mAP@[0.5:0.95]", "precision", "recall"]
+    reid: ["rank-1", "rank-5", "mAP"]
+    weight: ["MAE", "MAPE", "R2", "RMSE"]
+

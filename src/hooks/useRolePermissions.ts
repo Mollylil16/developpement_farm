@@ -14,20 +14,20 @@ export interface RolePermissions {
   canViewHerd: boolean;
   canEditHerd: boolean;
   canAddAnimals: boolean;
-  
+
   // Finances
   canViewFinances: boolean;
   canEditFinances: boolean;
-  
+
   // Marketplace
   canAccessMarketplace: boolean;
   canSellOnMarketplace: boolean;
   canBuyOnMarketplace: boolean;
-  
+
   // Santé
   canViewHealthRecords: boolean;
   canEditHealthRecords: boolean;
-  
+
   // Rapports
   canGenerateReports: boolean;
 }
@@ -103,4 +103,3 @@ export const useRolePermissions = (): RolePermissions => {
   const validRole = activeRole && permissionsByRole[activeRole] ? activeRole : 'producer';
   return permissionsByRole[validRole];
 };
-

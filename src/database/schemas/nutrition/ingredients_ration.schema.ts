@@ -20,4 +20,3 @@ export async function createIngredientsRationTable(db: SQLite.SQLiteDatabase): P
     );
   `);
 }
-

@@ -1,6 +1,6 @@
 /**
  * Use Case : Obtenir les alertes sanitaires
- * 
+ *
  * Identifie les alertes sanitaires nécessitant une attention
  */
 
@@ -12,7 +12,7 @@ export interface AlerteSanitaire {
   type: 'vaccination_retard' | 'vaccination_rappel' | 'maladie_critique' | 'maladie_contagieuse';
   priorite: 'haute' | 'moyenne' | 'basse';
   message: string;
-  data?: any;
+  data?: unknown;
 }
 
 export class GetAlertesSanitairesUseCase {
@@ -53,7 +53,7 @@ export class GetAlertesSanitairesUseCase {
     const maladiesEnCours = await this.santeRepository.findMaladiesEnCours(projetId);
     for (const maladie of maladiesEnCours) {
       const entity = new MaladieEntity(maladie);
-      
+
       if (entity.isCritique()) {
         alertes.push({
           type: 'maladie_critique',
@@ -80,4 +80,3 @@ export class GetAlertesSanitairesUseCase {
     });
   }
 }
-

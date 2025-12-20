@@ -33,8 +33,11 @@ export function usePurchasesWidget(): PurchasesWidgetData | null {
   return useMemo(() => {
     if (!buyerProfile) return null;
 
-    const totalPurchases = buyerProfile.purchaseHistory?.totalPurchases || completedTransactions.length;
-    const pendingOffers = activeOffers.filter(o => o.status === 'pending' || o.status === 'countered').length;
+    const totalPurchases =
+      buyerProfile.purchaseHistory?.totalPurchases || completedTransactions.length;
+    const pendingOffers = activeOffers.filter(
+      (o) => o.status === 'pending' || o.status === 'countered'
+    ).length;
 
     return {
       emoji: '🛒',
@@ -56,9 +59,11 @@ export function useExpensesWidget(): ExpensesWidgetData | null {
     if (!buyerProfile) return null;
 
     const totalSpent = buyerProfile.purchaseHistory?.totalSpent || 0;
-    const avgTransaction = completedTransactions.length > 0
-      ? completedTransactions.reduce((sum, t) => sum + t.finalPrice, 0) / completedTransactions.length
-      : 0;
+    const avgTransaction =
+      completedTransactions.length > 0
+        ? completedTransactions.reduce((sum, t) => sum + t.finalPrice, 0) /
+          completedTransactions.length
+        : 0;
 
     return {
       emoji: '💰',
@@ -70,4 +75,3 @@ export function useExpensesWidget(): ExpensesWidgetData | null {
     };
   }, [buyerProfile, completedTransactions]);
 }
-

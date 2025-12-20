@@ -177,4 +177,3 @@ describe('useMarketplaceNotifications', () => {
     expect(result.current.unreadCount).toBe(0);
   });
 });
-

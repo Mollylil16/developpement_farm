@@ -10,5 +10,10 @@
     "types": ["jest", "node"]
   },
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "backend/**",
+    "**/store/services/**",
+    "**/services/slices/**"
+  ]
 }

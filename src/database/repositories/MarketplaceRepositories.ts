@@ -3,8 +3,6 @@
  * Offres, Transactions, Ratings, Notifications, Chat
  */
 
-import type { SQLiteDatabase } from 'expo-sqlite';
-import uuid from 'react-native-uuid';
 import type {
   Offer,
   Transaction,
@@ -20,85 +18,74 @@ import { BaseRepository } from './BaseRepository';
 // OFFERS REPOSITORY
 // ========================================
 export class MarketplaceOfferRepository extends BaseRepository<Offer> {
-  constructor(db: SQLiteDatabase) {
-    super(db, 'marketplace_offers');
+  constructor() {
+    super('marketplace_offers', '/marketplace/offers');
   }
 
   async create(data: Omit<Offer, 'id' | 'createdAt' | 'status'>): Promise<Offer> {
-    const id = uuid.v4() as string;
-    const now = new Date().toISOString();
-
-    await this.db.runAsync(
-      `INSERT INTO marketplace_offers (
-        id, listing_id, subject_ids, buyer_id, producer_id,
-        proposed_price, original_price, message, status,
-        terms_accepted, terms_accepted_at, created_at, expires_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
-      [
-        id,
-        data.listingId,
-        JSON.stringify(data.subjectIds),
-        data.buyerId,
-        data.producerId,
-        data.proposedPrice,
-        data.originalPrice,
-        data.message || null,
-        data.termsAccepted ? 1 : 0,
-        data.termsAcceptedAt || null,
-        now,
-        data.expiresAt,
-      ]
-    );
-
-    const offer = await this.findById(id);
-    if (!offer) throw new Error('Failed to create offer');
-    return offer;
+    const offerData = {
+      listing_id: data.listingId,
+      subject_ids: data.subjectIds,
+      buyer_id: data.buyerId,
+      producer_id: data.producerId,
+      proposed_price: data.proposedPrice,
+      original_price: data.originalPrice,
+      message: data.message || null,
+      terms_accepted: data.termsAccepted,
+      terms_accepted_at: data.termsAcceptedAt || null,
+      expires_at: data.expiresAt,
+      status: 'pending',
+    };
+    return this.executePost<Offer>(this.apiBasePath, offerData);
   }
 
   async findById(id: string): Promise<Offer | null> {
-    const row = await this.db.getFirstAsync<any>(
-      `SELECT * FROM ${this.tableName} WHERE id = ?`,
-      [id]
-    );
+    const row = await this.queryOne<unknown>(`${this.apiBasePath}/${id}`);
     return row ? this.mapRow(row) : null;
   }
 
   async findByBuyerId(buyerId: string): Promise<Offer[]> {
-    const rows = await this.db.getAllAsync<any>(
-      `SELECT * FROM ${this.tableName} WHERE buyer_id = ? ORDER BY created_at DESC`,
-      [buyerId]
-    );
-    return rows.map(r => this.mapRow(r));
+    const rows = await this.query<unknown>(this.apiBasePath, {
+      buyer_id: buyerId,
+      order_by: 'created_at',
+      order_direction: 'DESC',
+    });
+    return rows.map((r) => this.mapRow(r));
   }
 
   async findByProducerId(producerId: string): Promise<Offer[]> {
-    const rows = await this.db.getAllAsync<any>(
-      `SELECT * FROM ${this.tableName} WHERE producer_id = ? ORDER BY created_at DESC`,
-      [producerId]
-    );
-    return rows.map(r => this.mapRow(r));
+    const rows = await this.query<unknown>(this.apiBasePath, {
+      producer_id: producerId,
+      order_by: 'created_at',
+      order_direction: 'DESC',
+    });
+    return rows.map((r) => this.mapRow(r));
   }
 
   async findByListingId(listingId: string): Promise<Offer[]> {
-    const rows = await this.db.getAllAsync<any>(
-      `SELECT * FROM ${this.tableName} WHERE listing_id = ? ORDER BY created_at DESC`,
-      [listingId]
-    );
-    return rows.map(r => this.mapRow(r));
+    const rows = await this.query<unknown>(this.apiBasePath, {
+      listing_id: listingId,
+      order_by: 'created_at',
+      order_direction: 'DESC',
+    });
+    return rows.map((r) => this.mapRow(r));
   }
 
-  async updateStatus(id: string, status: 'accepted' | 'rejected' | 'countered' | 'expired' | 'withdrawn'): Promise<void> {
-    await this.db.runAsync(
-      `UPDATE ${this.tableName} SET status = ?, responded_at = ? WHERE id = ?`,
-      [status, new Date().toISOString(), id]
-    );
+  async updateStatus(
+    id: string,
+    status: 'accepted' | 'rejected' | 'countered' | 'expired' | 'withdrawn'
+  ): Promise<void> {
+    await this.executePatch(`${this.apiBasePath}/${id}`, {
+      status,
+      responded_at: new Date().toISOString(),
+    });
   }
 
-  private mapRow(row: any): Offer {
+  private mapRow(row: unknown): Offer {
     return {
       id: row.id,
       listingId: row.listing_id,
-      subjectIds: JSON.parse(row.subject_ids),
+      subjectIds: Array.isArray(row.subject_ids) ? row.subject_ids : JSON.parse(row.subject_ids || '[]'),
       buyerId: row.buyer_id,
       producerId: row.producer_id,
       proposedPrice: row.proposed_price,
@@ -118,110 +105,86 @@ export class MarketplaceOfferRepository extends BaseRepository<Offer> {
 // TRANSACTIONS REPOSITORY
 // ========================================
 export class MarketplaceTransactionRepository extends BaseRepository<Transaction> {
-  constructor(db: SQLiteDatabase) {
-    super(db, 'marketplace_transactions');
+  constructor() {
+    super('marketplace_transactions', '/marketplace/transactions');
   }
 
   async create(data: Omit<Transaction, 'id' | 'createdAt'>): Promise<Transaction> {
-    const id = uuid.v4() as string;
-    const now = new Date().toISOString();
-
-    await this.db.runAsync(
-      `INSERT INTO marketplace_transactions (
-        id, offer_id, listing_id, subject_ids,
-        buyer_id, producer_id, final_price, status, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        data.offerId,
-        data.listingId,
-        JSON.stringify(data.subjectIds),
-        data.buyerId,
-        data.producerId,
-        data.finalPrice,
-        data.status || 'confirmed',
-        now,
-      ]
-    );
-
-    const transaction = await this.findById(id);
-    if (!transaction) throw new Error('Failed to create transaction');
-    return transaction;
+    const transactionData = {
+      offer_id: data.offerId,
+      listing_id: data.listingId,
+      subject_ids: data.subjectIds,
+      buyer_id: data.buyerId,
+      producer_id: data.producerId,
+      final_price: data.finalPrice,
+      status: data.status || 'confirmed',
+    };
+    return this.executePost<Transaction>(this.apiBasePath, transactionData);
   }
 
   async findById(id: string): Promise<Transaction | null> {
-    const row = await this.db.getFirstAsync<any>(
-      `SELECT * FROM ${this.tableName} WHERE id = ?`,
-      [id]
-    );
+    const row = await this.queryOne<unknown>(`${this.apiBasePath}/${id}`);
     return row ? this.mapRow(row) : null;
   }
 
   async findByBuyerId(buyerId: string): Promise<Transaction[]> {
-    const rows = await this.db.getAllAsync<any>(
-      `SELECT * FROM ${this.tableName} WHERE buyer_id = ? ORDER BY created_at DESC`,
-      [buyerId]
-    );
-    return rows.map(r => this.mapRow(r));
+    const rows = await this.query<unknown>(this.apiBasePath, {
+      buyer_id: buyerId,
+      order_by: 'created_at',
+      order_direction: 'DESC',
+    });
+    return rows.map((r) => this.mapRow(r));
   }
 
   async findByProducerId(producerId: string): Promise<Transaction[]> {
-    const rows = await this.db.getAllAsync<any>(
-      `SELECT * FROM ${this.tableName} WHERE producer_id = ? ORDER BY created_at DESC`,
-      [producerId]
-    );
-    return rows.map(r => this.mapRow(r));
+    const rows = await this.query<unknown>(this.apiBasePath, {
+      producer_id: producerId,
+      order_by: 'created_at',
+      order_direction: 'DESC',
+    });
+    return rows.map((r) => this.mapRow(r));
   }
 
   /**
    * Mettre à jour le statut d'une transaction
    */
   async updateStatus(transactionId: string, status: TransactionStatus): Promise<void> {
-    await this.db.runAsync(
-      `UPDATE ${this.tableName} SET status = ? WHERE id = ?`,
-      [status, transactionId]
-    );
+    await this.executePatch(`${this.apiBasePath}/${transactionId}`, { status });
   }
 
   async confirmDelivery(id: string, role: 'producer' | 'buyer'): Promise<void> {
-    const field = role === 'producer' ? 'delivery_producer_confirmed' : 'delivery_buyer_confirmed';
-    const dateField = role === 'producer' ? 'delivery_producer_confirmed_at' : 'delivery_buyer_confirmed_at';
-    
-    await this.db.runAsync(
-      `UPDATE ${this.tableName} SET ${field} = 1, ${dateField} = ? WHERE id = ?`,
-      [new Date().toISOString(), id]
-    );
-
-    // Vérifier si les deux ont confirmé
-    const transaction = await this.findById(id);
-    if (transaction?.deliveryDetails?.producerConfirmed && transaction?.deliveryDetails?.buyerConfirmed) {
-      await this.db.runAsync(
-        `UPDATE ${this.tableName} SET status = 'completed', completed_at = ? WHERE id = ?`,
-        [new Date().toISOString(), id]
-      );
-    }
+    await this.executePatch(`${this.apiBasePath}/${id}/confirm-delivery`, {
+      role,
+      confirmed_at: new Date().toISOString(),
+    });
   }
 
-  private mapRow(row: any): Transaction {
+  private mapRow(row: unknown): Transaction {
     return {
       id: row.id,
       offerId: row.offer_id,
       listingId: row.listing_id,
-      subjectIds: JSON.parse(row.subject_ids),
+      subjectIds: Array.isArray(row.subject_ids) ? row.subject_ids : JSON.parse(row.subject_ids || '[]'),
       buyerId: row.buyer_id,
       producerId: row.producer_id,
       finalPrice: row.final_price,
       status: row.status,
-      deliveryDetails: row.delivery_scheduled_date ? {
-        scheduledDate: row.delivery_scheduled_date,
-        location: row.delivery_location,
-        transportInfo: row.delivery_transport_info,
-        producerConfirmed: Boolean(row.delivery_producer_confirmed),
-        producerConfirmedAt: row.delivery_producer_confirmed_at,
-        buyerConfirmed: Boolean(row.delivery_buyer_confirmed),
-        buyerConfirmedAt: row.delivery_buyer_confirmed_at,
-        deliveryProof: row.delivery_proof_photos ? JSON.parse(row.delivery_proof_photos) : [],
-      } : undefined,
+      deliveryDetails: row.delivery_scheduled_date
+        ? {
+            scheduledDate: row.delivery_scheduled_date,
+            location: row.delivery_location,
+            transportInfo: row.delivery_transport_info,
+            producerConfirmed: Boolean(row.delivery_producer_confirmed),
+            producerConfirmedAt: row.delivery_producer_confirmed_at,
+            buyerConfirmed: Boolean(row.delivery_buyer_confirmed),
+            buyerConfirmedAt: row.delivery_buyer_confirmed_at,
+            deliveryProof: Array.isArray(row.delivery_proof_photos)
+              ? row.delivery_proof_photos
+              : row.delivery_proof_photos
+                ? JSON.parse(row.delivery_proof_photos)
+                : [],
+          }
+        : undefined,
       documents: {
         healthCertificate: row.doc_health_certificate,
         deliveryNote: row.doc_delivery_note,
@@ -239,66 +202,51 @@ export class MarketplaceTransactionRepository extends BaseRepository<Transaction
 // RATINGS REPOSITORY
 // ========================================
 export class MarketplaceRatingRepository extends BaseRepository<ProducerRating> {
-  constructor(db: SQLiteDatabase) {
-    super(db, 'marketplace_ratings');
+  constructor() {
+    super('marketplace_ratings', '/marketplace/ratings');
   }
 
   async create(data: Omit<ProducerRating, 'id' | 'createdAt' | 'status'>): Promise<ProducerRating> {
-    const id = uuid.v4() as string;
-    const now = new Date().toISOString();
-
-    await this.db.runAsync(
-      `INSERT INTO marketplace_ratings (
-        id, producer_id, buyer_id, transaction_id,
-        rating_quality, rating_professionalism, rating_timeliness, rating_communication,
-        overall, comment, photos, verified_purchase, status, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'published', ?)`,
-      [
-        id,
-        data.producerId,
-        data.buyerId,
-        data.transactionId,
-        data.ratings.quality,
-        data.ratings.professionalism,
-        data.ratings.timeliness,
-        data.ratings.communication,
-        data.overall,
-        data.comment || null,
-        data.photos ? JSON.stringify(data.photos) : null,
-        now,
-      ]
-    );
-
-    const rating = await this.findById(id);
-    if (!rating) throw new Error('Failed to create rating');
-    return rating;
+    const ratingData = {
+      producer_id: data.producerId,
+      buyer_id: data.buyerId,
+      transaction_id: data.transactionId,
+      rating_quality: data.ratings.quality,
+      rating_professionalism: data.ratings.professionalism,
+      rating_timeliness: data.ratings.timeliness,
+      rating_communication: data.ratings.communication,
+      overall: data.overall,
+      comment: data.comment || null,
+      photos: data.photos || null,
+      verified_purchase: true,
+      status: 'published',
+    };
+    return this.executePost<ProducerRating>(this.apiBasePath, ratingData);
   }
 
   async findById(id: string): Promise<ProducerRating | null> {
-    const row = await this.db.getFirstAsync<any>(
-      `SELECT * FROM ${this.tableName} WHERE id = ?`,
-      [id]
-    );
+    const row = await this.queryOne<unknown>(`${this.apiBasePath}/${id}`);
     return row ? this.mapRow(row) : null;
   }
 
   async findByProducerId(producerId: string): Promise<ProducerRating[]> {
-    const rows = await this.db.getAllAsync<any>(
-      `SELECT * FROM ${this.tableName} WHERE producer_id = ? AND status = 'published' ORDER BY created_at DESC`,
-      [producerId]
-    );
-    return rows.map(r => this.mapRow(r));
+    const rows = await this.query<unknown>(this.apiBasePath, {
+      producer_id: producerId,
+      status: 'published',
+      order_by: 'created_at',
+      order_direction: 'DESC',
+    });
+    return rows.map((r) => this.mapRow(r));
   }
 
   async getAverageRating(producerId: string): Promise<number> {
-    const result = await this.db.getFirstAsync<{ avg: number }>(
-      `SELECT AVG(overall) as avg FROM ${this.tableName} WHERE producer_id = ? AND status = 'published'`,
-      [producerId]
-    );
+    const result = await this.queryOne<{ avg: number }>(`${this.apiBasePath}/average`, {
+      producer_id: producerId,
+    });
     return result?.avg || 0;
   }
 
-  private mapRow(row: any): ProducerRating {
+  private mapRow(row: unknown): ProducerRating {
     return {
       id: row.id,
       producerId: row.producer_id,
@@ -312,13 +260,19 @@ export class MarketplaceRatingRepository extends BaseRepository<ProducerRating> 
       },
       overall: row.overall,
       comment: row.comment,
-      photos: row.photos ? JSON.parse(row.photos) : [],
+      photos: Array.isArray(row.photos)
+        ? row.photos
+        : row.photos
+          ? JSON.parse(row.photos)
+          : [],
       verifiedPurchase: Boolean(row.verified_purchase),
       status: row.status,
-      producerResponse: row.producer_response_text ? {
-        text: row.producer_response_text,
-        respondedAt: row.producer_response_at,
-      } : undefined,
+      producerResponse: row.producer_response_text
+        ? {
+            text: row.producer_response_text,
+            respondedAt: row.producer_response_at,
+          }
+        : undefined,
       createdAt: row.created_at,
       helpfulCount: row.helpful_count || 0,
     };
@@ -329,78 +283,60 @@ export class MarketplaceRatingRepository extends BaseRepository<ProducerRating> 
 // NOTIFICATIONS REPOSITORY
 // ========================================
 export class MarketplaceNotificationRepository extends BaseRepository<Notification> {
-  constructor(db: SQLiteDatabase) {
-    super(db, 'marketplace_notifications');
+  constructor() {
+    super('marketplace_notifications', '/marketplace/notifications');
   }
 
   async create(data: Omit<Notification, 'id' | 'createdAt' | 'read'>): Promise<Notification> {
-    const id = uuid.v4() as string;
-    const now = new Date().toISOString();
-
-    await this.db.runAsync(
-      `INSERT INTO marketplace_notifications (
-        id, user_id, type, title, message, related_id, related_type,
-        read, action_url, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
-      [
-        id,
-        data.userId,
-        data.type,
-        data.title,
-        data.message,
-        data.relatedId,
-        data.relatedType,
-        data.actionUrl || null,
-        now,
-      ]
-    );
-
-    const notification = await this.findById(id);
-    if (!notification) throw new Error('Failed to create notification');
-    return notification;
+    const notificationData = {
+      user_id: data.userId,
+      type: data.type,
+      title: data.title,
+      message: data.message,
+      related_id: data.relatedId,
+      related_type: data.relatedType,
+      action_url: data.actionUrl || null,
+      read: false,
+    };
+    return this.executePost<Notification>(this.apiBasePath, notificationData);
   }
 
   async findById(id: string): Promise<Notification | null> {
-    const row = await this.db.getFirstAsync<any>(
-      `SELECT * FROM ${this.tableName} WHERE id = ?`,
-      [id]
-    );
+    const row = await this.queryOne<unknown>(`${this.apiBasePath}/${id}`);
     return row ? this.mapRow(row) : null;
   }
 
   async findByUserId(userId: string, unreadOnly: boolean = false): Promise<Notification[]> {
-    let query = `SELECT * FROM ${this.tableName} WHERE user_id = ?`;
+    const params: Record<string, unknown> = {
+      user_id: userId,
+      order_by: 'created_at',
+      order_direction: 'DESC',
+    };
     if (unreadOnly) {
-      query += ' AND read = 0';
+      params.read = false;
     }
-    query += ' ORDER BY created_at DESC';
-
-    const rows = await this.db.getAllAsync<any>(query, [userId]);
-    return rows.map(r => this.mapRow(r));
+    const rows = await this.query<unknown>(this.apiBasePath, params);
+    return rows.map((r) => this.mapRow(r));
   }
 
   async markAsRead(id: string): Promise<void> {
-    await this.db.runAsync(
-      `UPDATE ${this.tableName} SET read = 1, read_at = ? WHERE id = ?`,
-      [new Date().toISOString(), id]
-    );
+    await this.executePatch(`${this.apiBasePath}/${id}`, {
+      read: true,
+      read_at: new Date().toISOString(),
+    });
   }
 
   async markAllAsRead(userId: string): Promise<void> {
-    await this.db.runAsync(
-      `UPDATE ${this.tableName} SET read = 1, read_at = ? WHERE user_id = ? AND read = 0`,
-      [new Date().toISOString(), userId]
-    );
+    await this.executePatch(`${this.apiBasePath}/mark-all-read`, {
+      user_id: userId,
+    });
   }
 
   async delete(id: string): Promise<void> {
-    await this.db.runAsync(
-      `DELETE FROM ${this.tableName} WHERE id = ?`,
-      [id]
-    );
+    await this.executeDelete(`${this.apiBasePath}/${id}`);
   }
 
-  private mapRow(row: any): Notification {
+  private mapRow(row: unknown): Notification {
     return {
       id: row.id,
       userId: row.user_id,
@@ -422,155 +358,119 @@ export class MarketplaceNotificationRepository extends BaseRepository<Notificati
 // CHAT REPOSITORY
 // ========================================
 export class MarketplaceChatRepository extends BaseRepository<ChatConversation> {
-  constructor(db: SQLiteDatabase) {
-    super(db, 'marketplace_conversations');
+  constructor() {
+    super('marketplace_conversations', '/marketplace/chat');
   }
 
-  async createConversation(data: Omit<ChatConversation, 'id' | 'createdAt'>): Promise<ChatConversation> {
-    const id = uuid.v4() as string;
-    const now = new Date().toISOString();
-
-    await this.db.runAsync(
-      `INSERT INTO marketplace_conversations (
-        id, participants, related_listing_id, related_offer_id,
-        last_message, last_message_at, unread_count_json, status, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        JSON.stringify(data.participants),
-        data.relatedListingId,
-        data.relatedOfferId || null,
-        data.lastMessage,
-        data.lastMessageAt,
-        JSON.stringify(data.unreadCount),
-        data.status || 'active',
-        now,
-      ]
-    );
-
-    const conversation = await this.findConversationById(id);
-    if (!conversation) throw new Error('Failed to create conversation');
-    return conversation;
+  async createConversation(
+    data: Omit<ChatConversation, 'id' | 'createdAt'>
+  ): Promise<ChatConversation> {
+    const conversationData = {
+      participants: data.participants,
+      related_listing_id: data.relatedListingId,
+      related_offer_id: data.relatedOfferId || null,
+      last_message: data.lastMessage,
+      last_message_at: data.lastMessageAt,
+      unread_count: data.unreadCount,
+      status: data.status || 'active',
+    };
+    return this.executePost<ChatConversation>(`${this.apiBasePath}/conversations`, conversationData);
   }
 
   async findConversationById(id: string): Promise<ChatConversation | null> {
-    const row = await this.db.getFirstAsync<any>(
-      `SELECT * FROM ${this.tableName} WHERE id = ?`,
-      [id]
-    );
+    const row = await this.queryOne<unknown>(`${this.apiBasePath}/conversations/${id}`);
     return row ? this.mapConversationRow(row) : null;
   }
 
   async findUserConversations(userId: string): Promise<ChatConversation[]> {
-    const rows = await this.db.getAllAsync<any>(
-      `SELECT * FROM ${this.tableName} WHERE participants LIKE ? ORDER BY last_message_at DESC`,
-      [`%${userId}%`]
-    );
-    return rows.map(r => this.mapConversationRow(r));
+    const rows = await this.query<unknown>(`${this.apiBasePath}/conversations`, {
+      user_id: userId,
+      order_by: 'last_message_at',
+      order_direction: 'DESC',
+    });
+    return rows.map((r) => this.mapConversationRow(r));
   }
 
   async createMessage(data: Omit<ChatMessage, 'id' | 'createdAt' | 'read'>): Promise<ChatMessage> {
-    const id = uuid.v4() as string;
-    const now = new Date().toISOString();
-
-    // Préparer les métadonnées incluant priceProposal si présent
-    const metadataJson = data.priceProposal 
-      ? JSON.stringify({ proposedPrice: data.priceProposal })
-      : data.attachments 
-      ? JSON.stringify({ attachments: data.attachments })
-      : null;
-
-    await this.db.runAsync(
-      `INSERT INTO marketplace_messages (
-        id, conversation_id, sender_id, recipient_id,
-        message, message_type, metadata_json, read, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`,
-      [
-        id,
-        data.conversationId,
-        data.senderId,
-        data.recipientId,
-        data.content,
-        data.type || 'text',
-        metadataJson,
-        now,
-      ]
-    );
-
-    // Mettre à jour la conversation
-    await this.db.runAsync(
-      `UPDATE marketplace_conversations SET last_message = ?, last_message_at = ? WHERE id = ?`,
-      [data.content, now, data.conversationId]
-    );
-
-    const message = await this.findMessageById(id);
-    if (!message) throw new Error('Failed to create message');
-    return message;
+    const messageData = {
+      conversation_id: data.conversationId,
+      sender_id: data.senderId,
+      recipient_id: data.recipientId,
+      content: data.content,
+      message_type: data.type || 'text',
+      price_proposal: data.priceProposal || null,
+      attachments: data.attachments || null,
+    };
+    return this.executePost<ChatMessage>(`${this.apiBasePath}/messages`, messageData);
   }
 
   // Méthode helper pour mettre à jour la conversation
   async updateConversationLastMessage(conversationId: string, message: ChatMessage): Promise<void> {
-    await this.db.runAsync(
-      `UPDATE marketplace_conversations SET last_message = ?, last_message_at = ? WHERE id = ?`,
-      [message.content, message.createdAt, conversationId]
-    );
+    await this.executePatch(`${this.apiBasePath}/conversations/${conversationId}`, {
+      last_message: message.content,
+      last_message_at: message.createdAt,
+    });
   }
 
   // Marquer un message comme lu
   async markMessageAsRead(messageId: string): Promise<void> {
-    await this.db.runAsync(
-      `UPDATE marketplace_messages SET read = 1, read_at = ? WHERE id = ?`,
-      [new Date().toISOString(), messageId]
-    );
+    await this.executePatch(`${this.apiBasePath}/messages/${messageId}`, {
+      read: true,
+      read_at: new Date().toISOString(),
+    });
   }
 
   async findMessageById(id: string): Promise<ChatMessage | null> {
-    const row = await this.db.getFirstAsync<any>(
-      `SELECT * FROM marketplace_messages WHERE id = ?`,
-      [id]
-    );
+    const row = await this.queryOne<unknown>(`${this.apiBasePath}/messages/${id}`);
     return row ? this.mapMessageRow(row) : null;
   }
 
-  async findConversationMessages(conversationId: string, limit: number = 50): Promise<ChatMessage[]> {
-    const rows = await this.db.getAllAsync<any>(
-      `SELECT * FROM marketplace_messages WHERE conversation_id = ? ORDER BY created_at DESC LIMIT ?`,
-      [conversationId, limit]
-    );
-    return rows.map(r => this.mapMessageRow(r)).reverse();
+  async findConversationMessages(
+    conversationId: string,
+    limit: number = 50
+  ): Promise<ChatMessage[]> {
+    const rows = await this.query<unknown>(`${this.apiBasePath}/messages`, {
+      conversation_id: conversationId,
+      limit,
+      order_by: 'created_at',
+      order_direction: 'DESC',
+    });
+    return rows.map((r) => this.mapMessageRow(r)).reverse();
   }
 
-  private mapConversationRow(row: any): ChatConversation {
+  private mapConversationRow(row: unknown): ChatConversation {
     return {
       id: row.id,
-      participants: JSON.parse(row.participants),
+      participants: Array.isArray(row.participants)
+        ? row.participants
+        : JSON.parse(row.participants || '[]'),
       relatedListingId: row.related_listing_id,
       relatedOfferId: row.related_offer_id,
       lastMessage: row.last_message,
       lastMessageAt: row.last_message_at,
-      unreadCount: JSON.parse(row.unread_count_json || '{}'),
+      unreadCount:
+        typeof row.unread_count === 'object' && row.unread_count !== null
+          ? row.unread_count
+          : JSON.parse(row.unread_count_json || row.unread_count || '{}'),
       status: row.status,
       createdAt: row.created_at,
     };
   }
 
-  private mapMessageRow(row: any): ChatMessage {
-    const metadata = row.metadata_json ? JSON.parse(row.metadata_json) : undefined;
-    
+  private mapMessageRow(row: unknown): ChatMessage {
     return {
       id: row.id,
       conversationId: row.conversation_id,
       senderId: row.sender_id,
       recipientId: row.recipient_id,
-      content: row.message,
+      content: row.message || row.content,
       type: row.message_type,
-      attachments: metadata?.attachments,
-      priceProposal: metadata?.proposedPrice,
+      attachments: row.attachments || undefined,
+      priceProposal: row.price_proposal || undefined,
       read: Boolean(row.read),
       readAt: row.read_at,
-      sentAt: row.created_at, // On utilise createdAt comme sentAt
+      sentAt: row.created_at,
       createdAt: row.created_at,
     };
   }
 }
-

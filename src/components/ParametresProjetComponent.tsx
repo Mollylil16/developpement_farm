@@ -12,7 +12,7 @@ import {
   Alert,
   TextInput,
 } from 'react-native';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, NavigationProp } from '@react-navigation/native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import {
   loadProjets,
@@ -37,7 +37,7 @@ import { countAnimalsByCategory } from '../utils/animalUtils';
 export default function ParametresProjetComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NavigationProp<any>>();
   const { projetActif, projets, loading } = useAppSelector((state) => state.projet);
   const mortalites = useAppSelector(selectAllMortalites);
   const animaux = useAppSelector(selectAllAnimaux);
@@ -174,8 +174,9 @@ export default function ParametresProjetComponent() {
       ).unwrap();
       setIsEditing(false);
       Alert.alert('Succès', 'Projet modifié avec succès');
-    } catch (error: any) {
-      Alert.alert('Erreur', error || 'Erreur lors de la modification');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erreur lors de la modification';
+      Alert.alert('Erreur', errorMessage);
     }
   };
 
@@ -371,13 +372,13 @@ export default function ParametresProjetComponent() {
                   keyboardType="numeric"
                   placeholder="Ex: 1300"
                 />
-                
+
                 <View style={{ marginTop: 16, marginBottom: 8 }}>
                   <Text style={[styles.sectionTitle, { color: colors.text }]}>
                     💰 Gestion OPEX / CAPEX
                   </Text>
                 </View>
-                
+
                 <FormField
                   label="Durée d'amortissement (mois)"
                   value={editData.duree_amortissement_par_defaut_mois?.toString() || '36'}
@@ -389,13 +390,18 @@ export default function ParametresProjetComponent() {
                   }
                   keyboardType="numeric"
                   placeholder="36"
-                  helper="Durée sur laquelle les investissements (CAPEX) sont amortis. Défaut: 36 mois (3 ans)"
                 />
-                
-                <Text style={[styles.helperText, { color: colors.textSecondary, marginTop: 8, marginBottom: 16 }]}>
-                  Les investissements (équipements lourds, aménagements, etc.) seront automatiquement amortis sur cette durée dans le calcul des coûts de production.
+
+                <Text
+                  style={[
+                    styles.helperText,
+                    { color: colors.textSecondary, marginTop: 8, marginBottom: 16 },
+                  ]}
+                >
+                  Les investissements (équipements lourds, aménagements, etc.) seront
+                  automatiquement amortis sur cette durée dans le calcul des coûts de production.
                 </Text>
-                
+
                 <FormField
                   label="Notes"
                   value={editData.notes || ''}

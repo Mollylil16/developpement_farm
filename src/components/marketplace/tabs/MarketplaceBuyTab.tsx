@@ -95,10 +95,33 @@ export default function MarketplaceBuyTab({
     />
   );
 
+  // Afficher les fermes groupées si disponibles, sinon les listings individuels
+  if (farmCards.length > 0) {
+    return (
+      <FlatList
+        data={farmCards}
+        renderItem={renderFarmCard}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={(listingsLoading || groupingListings) && currentPage === 1}
+            onRefresh={onRefresh}
+            colors={[marketplaceColors.primary]}
+            tintColor={marketplaceColors.primary}
+          />
+        }
+        ListEmptyComponent={renderEmpty}
+        onEndReached={onLoadMore}
+        onEndReachedThreshold={0.5}
+      />
+    );
+  }
+
   return (
     <FlatList
-      data={farmCards.length > 0 ? farmCards : listings}
-      renderItem={farmCards.length > 0 ? renderFarmCard : renderListing}
+      data={listings}
+      renderItem={renderListing}
       keyExtractor={(item) => item.id}
       contentContainerStyle={styles.listContent}
       refreshControl={
@@ -131,4 +154,3 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
 });
-

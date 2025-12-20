@@ -1,6 +1,6 @@
 /**
  * Migration 030: Création de la table veterinarians
- * 
+ *
  * Cette table permet de stocker les informations des vétérinaires
  * pour la fonctionnalité de recherche géographique
  */
@@ -8,9 +8,7 @@
 import * as SQLite from 'expo-sqlite';
 import { migrationLogger } from '../../utils/logger';
 
-export async function createVeterinariansTableMigration(
-  db: SQLite.SQLiteDatabase
-): Promise<void> {
+export async function createVeterinariansTableMigration(db: SQLite.SQLiteDatabase): Promise<void> {
   migrationLogger.step('Migration 030: Création de la table veterinarians');
 
   try {
@@ -57,4 +55,3 @@ export async function createVeterinariansTableMigration(
     throw error;
   }
 }
-

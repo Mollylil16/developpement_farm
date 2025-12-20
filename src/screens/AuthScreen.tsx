@@ -34,7 +34,7 @@ import { databaseService } from '../services/database';
 
 export default function AuthScreen() {
   const { colors } = useTheme();
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<unknown>();
   const dispatch = useAppDispatch();
   const { isLoading, error, isAuthenticated } = useAppSelector((state) => state.auth);
 
@@ -382,5 +382,15 @@ const styles = StyleSheet.create({
   switchLink: {
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.semiBold,
+  },
+  infoBox: {
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    marginBottom: SPACING.md,
+  },
+  infoText: {
+    fontSize: FONT_SIZES.sm,
+    lineHeight: 20,
   },
 });

@@ -1,6 +1,6 @@
 /**
  * Tests pour ProjetRepository
- * 
+ *
  * Repository critique pour la gestion des projets
  */
 
@@ -108,7 +108,7 @@ describe('ProjetRepository', () => {
       expect(result?.id).toBe(id);
     });
 
-    it('devrait retourner null si le projet n\'existe pas', async () => {
+    it("devrait retourner null si le projet n'existe pas", async () => {
       mockDb.getFirstAsync.mockResolvedValueOnce(null);
 
       const result = await repository.findById('projet-inexistant');
@@ -128,7 +128,7 @@ describe('ProjetRepository', () => {
       expect(result.id).toBe(id);
     });
 
-    it('devrait lancer une erreur si le projet n\'existe pas', async () => {
+    it("devrait lancer une erreur si le projet n'existe pas", async () => {
       mockDb.getFirstAsync.mockResolvedValueOnce(null);
 
       await expect(repository.getById('projet-inexistant')).rejects.toThrow();
@@ -136,7 +136,7 @@ describe('ProjetRepository', () => {
   });
 
   describe('findAllByUserId', () => {
-    it('devrait trouver tous les projets d\'un utilisateur', async () => {
+    it("devrait trouver tous les projets d'un utilisateur", async () => {
       const userId = 'user-1';
       const mockProjets = [
         { ...mockProjet, id: 'projet-1' },
@@ -207,10 +207,7 @@ describe('ProjetRepository', () => {
     it('devrait gérer les erreurs lors de la recherche', async () => {
       mockDb.getAllAsync.mockRejectedValueOnce(new Error('Database error'));
 
-      await expect(repository.findAllByUserId('user-1')).rejects.toThrow(
-        'Database error'
-      );
+      await expect(repository.findAllByUserId('user-1')).rejects.toThrow('Database error');
     });
   });
 });
-

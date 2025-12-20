@@ -157,7 +157,7 @@ export function calculateTransactionFee(
   grossAmount: number;
 } {
   const fee = Math.round(amount * (feePercent / 100));
-  
+
   return {
     fee,
     netAmount: amount - fee,
@@ -205,7 +205,7 @@ export function calculateAveragePrice(prices: number[]): {
   const sortedPrices = [...prices].sort((a, b) => a - b);
   const min = sortedPrices[0];
   const max = sortedPrices[sortedPrices.length - 1];
-  
+
   const middleIndex = Math.floor(sortedPrices.length / 2);
   const median =
     sortedPrices.length % 2 === 0
@@ -219,4 +219,3 @@ export function calculateAveragePrice(prices: number[]): {
     median: Math.round(median),
   };
 }
-

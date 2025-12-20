@@ -9,26 +9,26 @@ const isDev = __DEV__;
  * Logger conditionnel - ne log que en développement
  */
 export const logger = {
-  log: (...args: any[]) => {
+  log: (...args: unknown[]) => {
     if (isDev) {
       console.log(...args);
     }
   },
-  warn: (...args: any[]) => {
+  warn: (...args: unknown[]) => {
     if (isDev) {
       console.warn(...args);
     }
   },
-  error: (...args: any[]) => {
+  error: (...args: unknown[]) => {
     // Toujours logger les erreurs, même en production
     console.error(...args);
   },
-  info: (...args: any[]) => {
+  info: (...args: unknown[]) => {
     if (isDev) {
       console.info(...args);
     }
   },
-  debug: (...args: any[]) => {
+  debug: (...args: unknown[]) => {
     if (isDev) {
       console.debug(...args);
     }
@@ -39,30 +39,30 @@ export const logger = {
  * Logger pour la base de données - logs détaillés uniquement en dev
  */
 export const dbLogger = {
-  log: (...args: any[]) => {
+  log: (...args: unknown[]) => {
     if (isDev) {
       console.log('📋 [DB]', ...args);
     }
   },
-  success: (...args: any[]) => {
+  success: (...args: unknown[]) => {
     if (isDev) {
       console.log('✅ [DB]', ...args);
     }
   },
-  error: (...args: any[]) => {
+  error: (...args: unknown[]) => {
     console.error('❌ [DB]', ...args);
   },
-  warn: (...args: any[]) => {
+  warn: (...args: unknown[]) => {
     if (isDev) {
       console.warn('⚠️ [DB]', ...args);
     }
   },
-  info: (...args: any[]) => {
+  info: (...args: unknown[]) => {
     if (isDev) {
       console.log('ℹ️  [DB]', ...args);
     }
   },
-  step: (...args: any[]) => {
+  step: (...args: unknown[]) => {
     if (isDev) {
       console.log('🔄 [DB]', ...args);
     }
@@ -73,30 +73,30 @@ export const dbLogger = {
  * Logger pour les schémas - logs détaillés uniquement en dev
  */
 export const schemaLogger = {
-  log: (...args: any[]) => {
+  log: (...args: unknown[]) => {
     if (isDev) {
       console.log('📋 [Schema]', ...args);
     }
   },
-  success: (...args: any[]) => {
+  success: (...args: unknown[]) => {
     if (isDev) {
       console.log('✅ [Schema]', ...args);
     }
   },
-  error: (...args: any[]) => {
+  error: (...args: unknown[]) => {
     console.error('❌ [Schema]', ...args);
   },
-  warn: (...args: any[]) => {
+  warn: (...args: unknown[]) => {
     if (isDev) {
       console.warn('⚠️ [Schema]', ...args);
     }
   },
-  info: (...args: any[]) => {
+  info: (...args: unknown[]) => {
     if (isDev) {
       console.log('ℹ️  [Schema]', ...args);
     }
   },
-  step: (...args: any[]) => {
+  step: (...args: unknown[]) => {
     if (isDev) {
       console.log('🔄 [Schema]', ...args);
     }
@@ -107,33 +107,32 @@ export const schemaLogger = {
  * Logger pour les migrations - logs détaillés uniquement en dev
  */
 export const migrationLogger = {
-  log: (...args: any[]) => {
+  log: (...args: unknown[]) => {
     if (isDev) {
       console.log('📋 [Migration]', ...args);
     }
   },
-  success: (...args: any[]) => {
+  success: (...args: unknown[]) => {
     if (isDev) {
       console.log('✅ [Migration]', ...args);
     }
   },
-  error: (...args: any[]) => {
+  error: (...args: unknown[]) => {
     console.error('❌ [Migration]', ...args);
   },
-  warn: (...args: any[]) => {
+  warn: (...args: unknown[]) => {
     if (isDev) {
       console.warn('⚠️ [Migration]', ...args);
     }
   },
-  info: (...args: any[]) => {
+  info: (...args: unknown[]) => {
     if (isDev) {
       console.log('ℹ️  [Migration]', ...args);
     }
   },
-  step: (...args: any[]) => {
+  step: (...args: unknown[]) => {
     if (isDev) {
       console.log('🔄 [Migration]', ...args);
     }
   },
 };
-

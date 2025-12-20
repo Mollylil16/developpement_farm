@@ -1,79 +1,93 @@
 /**
  * BaseRepository - Classe abstraite pour tous les repositories
- * 
+ *
  * Fournit les fonctionnalités communes:
- * - Gestion de la connexion SQLite
+ * - Gestion de la connexion API (PostgreSQL via backend)
  * - Méthodes CRUD de base
- * - Gestion des transactions
+ * - Gestion des transactions (via API)
  * - Logging standardisé
  */
 
-import * as SQLite from 'expo-sqlite';
+import apiClient from '../../services/api/apiClient';
 
 export abstract class BaseRepository<T> {
-  protected db: SQLite.SQLiteDatabase;
   protected tableName: string;
+  protected apiBasePath: string;
 
-  constructor(db: SQLite.SQLiteDatabase, tableName: string) {
-    this.db = db;
+  constructor(tableName: string, apiBasePath: string) {
     this.tableName = tableName;
+    this.apiBasePath = apiBasePath;
   }
 
   /**
-   * Exécuter une requête SELECT et retourner tous les résultats
+   * Exécuter une requête GET et retourner tous les résultats
    */
-  protected async query<R = T>(sql: string, params: unknown[] = []): Promise<R[]> {
+  protected async query<R = T>(endpoint: string, params?: Record<string, unknown>): Promise<R[]> {
     try {
-      const result = await this.db.getAllAsync<R>(sql, params);
-      return result;
+      const result = await apiClient.get<R[]>(endpoint, { params });
+      return Array.isArray(result) ? result : [];
     } catch (error) {
       console.error(`[${this.tableName}] Query error:`, error);
-      console.error('SQL:', sql);
+      console.error('Endpoint:', endpoint);
       console.error('Params:', params);
       throw error;
     }
   }
 
   /**
-   * Exécuter une requête SELECT et retourner un seul résultat
+   * Exécuter une requête GET et retourner un seul résultat
    */
-  protected async queryOne<R = T>(sql: string, params: unknown[] = []): Promise<R | null> {
+  protected async queryOne<R = T>(endpoint: string, params?: Record<string, unknown>): Promise<R | null> {
     try {
-      const result = await this.db.getFirstAsync<R>(sql, params);
+      const result = await apiClient.get<R>(endpoint, { params });
       return result || null;
     } catch (error) {
       console.error(`[${this.tableName}] QueryOne error:`, error);
-      console.error('SQL:', sql);
+      console.error('Endpoint:', endpoint);
       console.error('Params:', params);
       throw error;
     }
   }
 
   /**
-   * Exécuter une requête INSERT, UPDATE, DELETE
+   * Exécuter une requête POST
    */
-  protected async execute(sql: string, params: unknown[] = []): Promise<SQLite.SQLiteRunResult> {
+  protected async executePost<R = T>(endpoint: string, data?: unknown, options?: { timeout?: number }): Promise<R> {
     try {
-      const result = await this.db.runAsync(sql, params);
+      const result = await apiClient.post<R>(endpoint, data, options);
       return result;
     } catch (error) {
-      console.error(`[${this.tableName}] Execute error:`, error);
-      console.error('SQL:', sql);
-      console.error('Params:', params);
+      console.error(`[${this.tableName}] Execute POST error:`, error);
+      console.error('Endpoint:', endpoint);
+      console.error('Data:', data);
       throw error;
     }
   }
 
   /**
-   * Exécuter plusieurs requêtes dans une transaction
+   * Exécuter une requête PATCH
    */
-  protected async transaction(callback: () => Promise<void>): Promise<void> {
+  protected async executePatch<R = T>(endpoint: string, data?: unknown): Promise<R> {
     try {
-      await this.db.withTransactionAsync(async () => {
-        await callback();
-      });
+      const result = await apiClient.patch<R>(endpoint, data);
+      return result;
     } catch (error) {
-      console.error(`[${this.tableName}] Transaction error:`, error);
+      console.error(`[${this.tableName}] Execute PATCH error:`, error);
+      console.error('Endpoint:', endpoint);
+      console.error('Data:', data);
+      throw error;
+    }
+  }
+
+  /**
+   * Exécuter une requête DELETE
+   */
+  protected async executeDelete(endpoint: string): Promise<void> {
+    try {
+      await apiClient.delete(endpoint);
+    } catch (error) {
+      console.error(`[${this.tableName}] Execute DELETE error:`, error);
+      console.error('Endpoint:', endpoint);
       throw error;
     }
   }
@@ -84,13 +98,11 @@ export abstract class BaseRepository<T> {
    * Utilisez findAllPaginated() pour les grandes tables
    */
   async findAll(projetId?: string): Promise<T[]> {
+    const params: Record<string, unknown> = {};
     if (projetId) {
-      return this.query<T>(
-        `SELECT * FROM ${this.tableName} WHERE projet_id = ? ORDER BY derniere_modification DESC`,
-        [projetId]
-      );
+      params.projet_id = projetId;
     }
-    return this.query<T>(`SELECT * FROM ${this.tableName} ORDER BY derniere_modification DESC`);
+    return this.query<T>(this.apiBasePath, params);
   }
 
   /**
@@ -119,34 +131,27 @@ export abstract class BaseRepository<T> {
       orderDirection = 'DESC',
     } = options;
 
-    // Construire la clause WHERE
-    let whereClause = '';
-    const params: any[] = [];
-
-    if (projetId) {
-      whereClause = 'WHERE projet_id = ?';
-      params.push(projetId);
-    }
-
-    // Compter le total
-    const countResult = await this.queryOne<{ count: number }>(
-      `SELECT COUNT(*) as count FROM ${this.tableName} ${whereClause}`,
-      params
-    );
-    const total = countResult?.count || 0;
-
-    // Récupérer les données paginées
-    const data = await this.query<T>(
-      `SELECT * FROM ${this.tableName} ${whereClause} ORDER BY ${orderBy} ${orderDirection} LIMIT ? OFFSET ?`,
-      [...params, limit, offset]
-    );
-
-    return {
-      data,
-      total,
+    const params: Record<string, unknown> = {
       limit,
       offset,
-      hasMore: offset + data.length < total,
+      order_by: orderBy,
+      order_direction: orderDirection,
+    };
+
+    if (projetId) {
+      params.projet_id = projetId;
+    }
+
+    const result = await this.query<T>(this.apiBasePath, params);
+    
+    // Le backend devrait retourner les métadonnées de pagination
+    // Pour l'instant, on simule avec les données reçues
+    return {
+      data: result,
+      total: result.length,
+      limit,
+      offset,
+      hasMore: result.length === limit,
     };
   }
 
@@ -154,30 +159,25 @@ export abstract class BaseRepository<T> {
    * Récupérer un enregistrement par ID
    */
   async findById(id: string): Promise<T | null> {
-    return this.queryOne<T>(`SELECT * FROM ${this.tableName} WHERE id = ?`, [id]);
+    return this.queryOne<T>(`${this.apiBasePath}/${id}`);
   }
 
   /**
    * Supprimer un enregistrement par ID
    */
   async deleteById(id: string): Promise<void> {
-    await this.execute(`DELETE FROM ${this.tableName} WHERE id = ?`, [id]);
+    await this.executeDelete(`${this.apiBasePath}/${id}`);
   }
 
   /**
    * Compter les enregistrements
    */
   async count(projetId?: string): Promise<number> {
+    const params: Record<string, unknown> = { count: true };
     if (projetId) {
-      const result = await this.queryOne<{ count: number }>(
-        `SELECT COUNT(*) as count FROM ${this.tableName} WHERE projet_id = ?`,
-        [projetId]
-      );
-      return result?.count || 0;
+      params.projet_id = projetId;
     }
-    const result = await this.queryOne<{ count: number }>(
-      `SELECT COUNT(*) as count FROM ${this.tableName}`
-    );
+    const result = await this.queryOne<{ count: number }>(this.apiBasePath, params);
     return result?.count || 0;
   }
 
@@ -185,11 +185,12 @@ export abstract class BaseRepository<T> {
    * Vérifier si un enregistrement existe
    */
   async exists(id: string): Promise<boolean> {
-    const result = await this.queryOne<{ count: number }>(
-      `SELECT COUNT(*) as count FROM ${this.tableName} WHERE id = ?`,
-      [id]
-    );
-    return (result?.count || 0) > 0;
+    try {
+      const result = await this.findById(id);
+      return result !== null;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -198,7 +199,7 @@ export abstract class BaseRepository<T> {
    * @param photos - Photos à parser (peut être string JSON, array, null, ou undefined)
    * @returns Array de strings (URIs) ou undefined si invalide
    */
-  protected parsePhotos(photos: any): string[] | undefined {
+  protected parsePhotos(photos: unknown): string[] | undefined {
     if (!photos) return undefined;
     if (Array.isArray(photos)) return photos;
     if (typeof photos === 'string') {
@@ -218,4 +219,3 @@ export abstract class BaseRepository<T> {
   abstract create(data: Partial<T>): Promise<T>;
   abstract update(id: string, data: Partial<T>): Promise<T>;
 }
-

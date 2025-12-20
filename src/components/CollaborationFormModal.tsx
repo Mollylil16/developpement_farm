@@ -42,12 +42,13 @@ export default function CollaborationFormModal({
   const { projetActif } = useAppSelector((state) => state.projet);
   const { activeRole } = useRole();
   const currentUser = useAppSelector((state) => state.auth.user);
-  
+
   // Vérifier si l'utilisateur est propriétaire du projet actif
-  const isProprietaire = activeRole === 'producer' && 
-    projetActif && 
-    currentUser && 
-    (projetActif.proprietaire_id === currentUser.id || (projetActif as any).user_id === currentUser.id);
+  const isProprietaire =
+    activeRole === 'producer' &&
+    projetActif &&
+    currentUser &&
+    projetActif.proprietaire_id === currentUser.id;
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateCollaborateurInput>({
     projet_id: projetActif?.id || '',
@@ -121,7 +122,10 @@ export default function CollaborationFormModal({
     const { isValid, errors: validationErrors } = await validateCollaborateur(formData);
     if (!isValid) {
       const firstError = Object.values(validationErrors)[0];
-      Alert.alert('Erreur de validation', firstError || 'Veuillez corriger les erreurs du formulaire');
+      Alert.alert(
+        'Erreur de validation',
+        firstError || 'Veuillez corriger les erreurs du formulaire'
+      );
       return;
     }
 
@@ -139,7 +143,8 @@ export default function CollaborationFormModal({
       }
       onSuccess();
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error) || "Erreur lors de l'enregistrement";
+      const errorMessage =
+        error instanceof Error ? error.message : String(error) || "Erreur lors de l'enregistrement";
       Alert.alert('Erreur', errorMessage);
     } finally {
       setLoading(false);

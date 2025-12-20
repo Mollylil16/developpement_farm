@@ -1,0 +1,70 @@
+# EAS Build ignore file
+# Objectif: réduire la taille de l'archive envoyée à EAS (évite erreurs 400 et uploads très longs).
+
+# Dépendances installées localement
+node_modules
+**/node_modules
+
+# Caches / artefacts
+.expo
+.expo-shared
+.cache
+**/.cache
+*.log
+**/*.log
+coverage
+reports
+dist
+**/dist
+
+# Monorepo: ne pas embarquer backend et sous-projets dans le build mobile
+backend
+admin-web
+
+# IA / datasets (très volumineux) — côté prod ça tourne serveur-side, pas dans l'app mobile
+ai-weight-estimation
+
+# Docs / archives (inutile au build)
+archive
+docs
+**/*.md
+
+# Tests / outils (inutile au build)
+e2e
+scripts
+
+# EAS Build ignore file
+# But: réduire l'archive envoyée à EAS (évite les uploads énormes et erreurs 400).
+
+# Dépendances installées localement
+node_modules
+**/node_modules
+
+# Artifacts / caches
+.expo
+.expo-shared
+.cache
+**/.cache
+npm-debug.log
+**/*.log
+coverage
+reports
+dist
+**/dist
+
+# Docs / archives
+archive
+docs
+**/*.md
+
+# Backend (ne doit pas être packagé dans le build mobile)
+backend
+
+# Outils ML / datasets (très volumineux)
+ai-weight-estimation
+
+# Tests / scripts (pas nécessaires au build)
+e2e
+scripts
+
+

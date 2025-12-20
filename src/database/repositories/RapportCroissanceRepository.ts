@@ -13,7 +13,7 @@ export class RapportCroissanceRepository extends BaseRepository<RapportCroissanc
   }
 
   async create(input: CreateRapportCroissanceInput): Promise<RapportCroissance> {
-    const id = uuid.v4() as string;
+    const id = uuid.v4();
     const date_creation = new Date().toISOString();
 
     await this.execute(
@@ -64,10 +64,7 @@ export class RapportCroissanceRepository extends BaseRepository<RapportCroissanc
     return rows;
   }
 
-  async findByDateRange(
-    dateDebut: string,
-    dateFin: string
-  ): Promise<RapportCroissance[]> {
+  async findByDateRange(dateDebut: string, dateFin: string): Promise<RapportCroissance[]> {
     const rows = await this.query<RapportCroissance>(
       `SELECT * FROM ${this.tableName} WHERE date >= ? AND date <= ? ORDER BY date ASC`,
       [dateDebut, dateFin]
@@ -79,4 +76,3 @@ export class RapportCroissanceRepository extends BaseRepository<RapportCroissanc
     await this.execute(`DELETE FROM ${this.tableName} WHERE id = ?`, [id]);
   }
 }
-

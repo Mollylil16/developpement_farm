@@ -74,9 +74,7 @@ describe('useDashboardAnimations', () => {
   });
 
   it('devrait créer des animations stables entre les re-renders', () => {
-    const { result, rerender } = renderHook(() =>
-      useDashboardAnimations()
-    );
+    const { result, rerender } = renderHook(() => useDashboardAnimations());
 
     const firstHeaderAnim = result.current.headerAnim;
     const firstMainWidgets = result.current.mainWidgetsAnim;
@@ -90,4 +88,3 @@ describe('useDashboardAnimations', () => {
     expect(result.current.secondaryWidgetsAnim).toBe(firstSecondaryWidgets);
   });
 });
-

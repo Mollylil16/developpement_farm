@@ -446,7 +446,5 @@
       "src\\validation\\stocksSchemas.ts"
     ]
   },
-  "critical": [
-    "src\\services\\database.ts"
-  ]
+  "critical": ["src\\services\\database.ts"]
 }

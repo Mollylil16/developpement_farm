@@ -1,78 +1,43 @@
 /**
  * ProjetRepository - Gestion des projets
- * 
+ *
  * Responsabilités:
  * - CRUD des projets
  * - Recherche par propriétaire
  * - Gestion du projet actif
+ * 
+ * Utilise maintenant l'API REST du backend (PostgreSQL)
  */
 
-import * as SQLite from 'expo-sqlite';
 import { BaseRepository } from './BaseRepository';
 import { Projet, CreateProjetInput } from '../../types/projet';
-import uuid from 'react-native-uuid';
 
 export class ProjetRepository extends BaseRepository<Projet> {
-  constructor(db: SQLite.SQLiteDatabase) {
-    super(db, 'projets');
+  constructor() {
+    super('projets', '/projets');
   }
 
   /**
    * Créer un nouveau projet avec ses animaux initiaux
    */
   async create(input: CreateProjetInput & { proprietaire_id: string }): Promise<Projet> {
-    const id = `projet_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const now = new Date().toISOString();
+    const projetData = {
+      nom: input.nom,
+      localisation: input.localisation,
+      nombre_truies: input.nombre_truies,
+      nombre_verrats: input.nombre_verrats,
+      nombre_porcelets: input.nombre_porcelets,
+      nombre_croissance: input.nombre_croissance || 0,
+      poids_moyen_actuel: input.poids_moyen_actuel,
+      age_moyen_actuel: input.age_moyen_actuel,
+      prix_kg_vif: input.prix_kg_vif || null,
+      prix_kg_carcasse: input.prix_kg_carcasse || null,
+      notes: input.notes || null,
+      duree_amortissement_par_defaut_mois: input.duree_amortissement_par_defaut_mois || null,
+    };
 
-    await this.execute(
-      `INSERT INTO projets (
-        id, nom, localisation, nombre_truies, nombre_verrats, nombre_porcelets, nombre_croissance,
-        poids_moyen_actuel, age_moyen_actuel, prix_kg_vif, prix_kg_carcasse, notes, statut, proprietaire_id,
-        duree_amortissement_par_defaut_mois, date_creation, derniere_modification
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        input.nom,
-        input.localisation,
-        input.nombre_truies,
-        input.nombre_verrats,
-        input.nombre_porcelets,
-        input.nombre_croissance || 0,
-        input.poids_moyen_actuel,
-        input.age_moyen_actuel,
-        input.prix_kg_vif || null,
-        input.prix_kg_carcasse || null,
-        input.notes || null,
-        'actif',
-        input.proprietaire_id,
-        input.duree_amortissement_par_defaut_mois || null,
-        now,
-        now,
-      ]
-    );
-
-    const created = await this.findById(id);
-    if (!created) {
-      throw new Error('Impossible de créer le projet');
-    }
-
-    // Créer automatiquement les animaux initiaux si nécessaire
-    if (
-      created.nombre_truies > 0 ||
-      created.nombre_verrats > 0 ||
-      created.nombre_porcelets > 0 ||
-      (created.nombre_croissance || 0) > 0
-    ) {
-      const { ProjetInitializationService } = await import('../../services/ProjetInitializationService');
-      const initService = new ProjetInitializationService(this.db);
-      await initService.createAnimauxInitials(created.id, {
-        nombre_truies: created.nombre_truies,
-        nombre_verrats: created.nombre_verrats,
-        nombre_porcelets: created.nombre_porcelets,
-        nombre_croissance: created.nombre_croissance || 0,
-      });
-    }
-
+    // Utiliser un timeout plus long pour la création de projet (60 secondes)
+    const created = await this.executePost<Projet>('/projets', projetData, { timeout: 60000 });
     return created;
   }
 
@@ -80,32 +45,17 @@ export class ProjetRepository extends BaseRepository<Projet> {
    * Mettre à jour un projet
    */
   async update(id: string, updates: Partial<Projet>, userId?: string): Promise<Projet> {
-    // Vérifier que le projet appartient à l'utilisateur si userId est fourni
-    if (userId) {
-      const projet = await this.findById(id);
-      if (!projet) {
-        throw new Error(`Projet avec l'id ${id} non trouvé`);
-      }
-      if (projet.proprietaire_id !== userId) {
-        throw new Error('Ce projet ne vous appartient pas');
-      }
-    }
-
-    const derniere_modification = new Date().toISOString();
-    const fields: string[] = [];
-    const values: any[] = [];
-
     // Exclure les champs qui ne doivent pas être mis à jour
     const excludedFields = ['id', 'date_creation', 'proprietaire_id'];
-    
+    const updateData: Record<string, unknown> = {};
+
     Object.entries(updates).forEach(([key, value]) => {
       if (!excludedFields.includes(key) && value !== undefined) {
-        fields.push(`${key} = ?`);
-        values.push(value);
+        updateData[key] = value;
       }
     });
 
-    if (fields.length === 0) {
+    if (Object.keys(updateData).length === 0) {
       const existing = await this.findById(id);
       if (!existing) {
         throw new Error(`Projet avec l'id ${id} non trouvé`);
@@ -113,19 +63,7 @@ export class ProjetRepository extends BaseRepository<Projet> {
       return existing;
     }
 
-    fields.push('derniere_modification = ?');
-    values.push(derniere_modification);
-    values.push(id);
-
-    await this.execute(
-      `UPDATE projets SET ${fields.join(', ')} WHERE id = ?`,
-      values
-    );
-
-    const updated = await this.findById(id);
-    if (!updated) {
-      throw new Error('Erreur lors de la récupération du projet mis à jour');
-    }
+    const updated = await this.executePatch<Projet>(`/projets/${id}`, updateData);
     return updated;
   }
 
@@ -133,16 +71,13 @@ export class ProjetRepository extends BaseRepository<Projet> {
    * Récupérer un projet par ID
    */
   async findById(id: string): Promise<Projet | null> {
-    const row = await this.queryOne<Projet>(
-      'SELECT * FROM projets WHERE id = ?',
-      [id]
-    );
-
-    if (!row) {
+    try {
+      const projet = await this.queryOne<Projet>(`/projets/${id}`);
+      return projet || null;
+    } catch (error) {
+      console.error('Error finding projet by id:', error);
       return null;
     }
-
-    return row;
   }
 
   /**
@@ -160,48 +95,55 @@ export class ProjetRepository extends BaseRepository<Projet> {
    * Obtenir tous les projets d'un utilisateur (propriétaire + collaborateur)
    */
   async findAllByUserId(userId: string): Promise<Projet[]> {
-    return this.query<Projet>(
-      `SELECT DISTINCT p.* 
-       FROM projets p
-       LEFT JOIN collaborations c ON p.id = c.projet_id AND c.user_id = ? AND c.statut = 'actif'
-       WHERE p.proprietaire_id = ? OR c.user_id = ?
-       ORDER BY p.date_creation DESC`,
-      [userId, userId, userId]
-    );
+    try {
+      // Le backend retourne automatiquement les projets de l'utilisateur connecté
+      const projets = await this.query<Projet>('/projets');
+      return projets || [];
+    } catch (error) {
+      console.error('Error finding projets by user id:', error);
+      return [];
+    }
   }
 
   /**
    * Obtenir tous les projets (pour admin)
    */
   async findAll(): Promise<Projet[]> {
-    return this.query<Projet>(
-      'SELECT * FROM projets ORDER BY date_creation DESC'
-    );
+    try {
+      const projets = await this.query<Projet>('/projets');
+      return projets || [];
+    } catch (error) {
+      console.error('Error finding all projets:', error);
+      return [];
+    }
   }
 
   /**
    * Obtenir le projet actif d'un utilisateur (propriétaire ou collaborateur)
    */
   async findActiveByUserId(userId: string): Promise<Projet | null> {
-    return this.queryOne<Projet>(
-      `SELECT DISTINCT p.* 
-       FROM projets p
-       LEFT JOIN collaborations c ON p.id = c.projet_id AND c.user_id = ? AND c.statut = 'actif'
-       WHERE p.statut = 'actif' AND (p.proprietaire_id = ? OR c.user_id = ?)
-       ORDER BY p.date_creation DESC 
-       LIMIT 1`,
-      [userId, userId, userId]
-    );
+    try {
+      const projet = await this.queryOne<Projet>('/projets/actif');
+      return projet || null;
+    } catch (error) {
+      console.error('Error finding active projet:', error);
+      return null;
+    }
   }
 
   /**
    * Obtenir tous les projets d'un propriétaire
    */
   async findByOwnerId(ownerId: string): Promise<Projet[]> {
-    return this.query<Projet>(
-      'SELECT * FROM projets WHERE proprietaire_id = ? ORDER BY date_creation DESC',
-      [ownerId]
-    );
+    // Le backend filtre automatiquement par utilisateur connecté
+    return this.findAllByUserId(ownerId);
+  }
+
+  /**
+   * Activer un projet (et archiver les autres)
+   */
+  async switchActive(id: string): Promise<Projet> {
+    const updated = await this.executePatch<Projet>(`/projets/${id}/activer`, {});
+    return updated;
   }
 }
-

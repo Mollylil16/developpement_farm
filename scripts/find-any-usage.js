@@ -1,6 +1,6 @@
 /**
  * Script pour identifier et analyser l'utilisation de `any` dans le codebase
- * 
+ *
  * Usage: node scripts/find-any-usage.js
  */
 
@@ -45,13 +45,15 @@ function findFiles(dir, extensions = ['.ts', '.tsx']) {
 
   for (const item of items) {
     const fullPath = path.join(dir, item.name);
-    
+
     if (item.isDirectory()) {
       // Ignorer node_modules, .git, etc.
-      if (!['node_modules', '.git', 'dist', 'build', '__tests__', '__mocks__'].includes(item.name)) {
+      if (
+        !['node_modules', '.git', 'dist', 'build', '__tests__', '__mocks__'].includes(item.name)
+      ) {
         files.push(...findFiles(fullPath, extensions));
       }
-    } else if (extensions.some(ext => item.name.endsWith(ext))) {
+    } else if (extensions.some((ext) => item.name.endsWith(ext))) {
       files.push(fullPath);
     }
   }
@@ -68,7 +70,7 @@ function analyzeFile(filePath) {
     lines: [],
   };
 
-  patterns.forEach(pattern => {
+  patterns.forEach((pattern) => {
     const matches = content.match(pattern.regex);
     if (matches) {
       results.byPattern[pattern.name] = matches.length;
@@ -92,11 +94,11 @@ function analyzeFile(filePath) {
 }
 
 function main() {
-  log('🔍 Analyse de l\'utilisation de `any` dans le codebase', colors.bright + colors.blue);
+  log("🔍 Analyse de l'utilisation de `any` dans le codebase", colors.bright + colors.blue);
 
   const srcDir = path.join(process.cwd(), 'src');
   if (!fs.existsSync(srcDir)) {
-    log('❌ Le dossier src/ n\'existe pas', colors.red);
+    log("❌ Le dossier src/ n'existe pas", colors.red);
     process.exit(1);
   }
 
@@ -107,7 +109,7 @@ function main() {
   sectionHeader('Analyse des occurrences de `any`');
   const results = files
     .map(analyzeFile)
-    .filter(result => result !== null)
+    .filter((result) => result !== null)
     .sort((a, b) => b.total - a.total);
 
   if (results.length === 0) {
@@ -116,7 +118,10 @@ function main() {
   }
 
   const totalOccurrences = results.reduce((sum, r) => sum + r.total, 0);
-  log(`⚠️  ${totalOccurrences} occurrences trouvées dans ${results.length} fichiers`, colors.yellow);
+  log(
+    `⚠️  ${totalOccurrences} occurrences trouvées dans ${results.length} fichiers`,
+    colors.yellow
+  );
 
   sectionHeader('Top 20 fichiers avec le plus de `any`');
   results.slice(0, 20).forEach((result, index) => {
@@ -129,7 +134,7 @@ function main() {
 
   sectionHeader('Répartition par pattern');
   const patternStats = {};
-  results.forEach(result => {
+  results.forEach((result) => {
     Object.entries(result.byPattern).forEach(([pattern, count]) => {
       patternStats[pattern] = (patternStats[pattern] || 0) + count;
     });
@@ -159,4 +164,3 @@ function main() {
 }
 
 main();
-

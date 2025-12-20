@@ -1,6 +1,6 @@
 /**
  * Alternatives d'ingrédients adaptées au contexte africain
- * 
+ *
  * Ce fichier propose des alternatives facilement disponibles en Afrique
  * pour les ingrédients standard de l'alimentation porcine
  */
@@ -32,7 +32,7 @@ export const ALTERNATIVES_INGREDIENTS: AlternativeIngredient[] = [
         description: 'Petit mil ou gros mil',
         disponibilite: 'facile',
         cout: 'economique',
-        remarques: 'Disponible toute l\'année dans la plupart des marchés locaux.',
+        remarques: "Disponible toute l'année dans la plupart des marchés locaux.",
       },
       {
         nom: 'Riz brisé',
@@ -54,18 +54,19 @@ export const ALTERNATIVES_INGREDIENTS: AlternativeIngredient[] = [
     original: 'Tourteau de soja',
     alternatives: [
       {
-        nom: 'Tourteau d\'arachide',
-        description: 'Résidu de l\'extraction d\'huile d\'arachide',
+        nom: "Tourteau d'arachide",
+        description: "Résidu de l'extraction d'huile d'arachide",
         disponibilite: 'facile',
         cout: 'economique',
-        remarques: 'Très disponible en Afrique de l\'Ouest. Riche en protéines (45-50%).',
+        remarques: "Très disponible en Afrique de l'Ouest. Riche en protéines (45-50%).",
       },
       {
         nom: 'Tourteau de coton',
-        description: 'Résidu de l\'extraction d\'huile de coton',
+        description: "Résidu de l'extraction d'huile de coton",
         disponibilite: 'facile',
         cout: 'economique',
-        remarques: 'Disponible dans les zones cotonnières. Attention au gossypol (max 15% de la ration).',
+        remarques:
+          'Disponible dans les zones cotonnières. Attention au gossypol (max 15% de la ration).',
       },
       {
         nom: 'Farine de niébé (haricot)',
@@ -79,7 +80,8 @@ export const ALTERNATIVES_INGREDIENTS: AlternativeIngredient[] = [
         description: 'Poisson séché et broyé',
         disponibilite: 'moyenne',
         cout: 'moyen',
-        remarques: 'Excellente source de protéines (60-70%) et de minéraux. Disponible en zones côtières.',
+        remarques:
+          'Excellente source de protéines (60-70%) et de minéraux. Disponible en zones côtières.',
       },
       {
         nom: 'Termites séchés',
@@ -146,7 +148,7 @@ export const ALTERNATIVES_INGREDIENTS: AlternativeIngredient[] = [
         remarques: 'Très riche en protéines (80-85%). Récupérable dans les abattoirs.',
       },
       {
-        nom: 'Farine d\'os',
+        nom: "Farine d'os",
         description: 'Os broyés et cuits',
         disponibilite: 'moyenne',
         cout: 'economique',
@@ -165,14 +167,14 @@ export const ALTERNATIVES_INGREDIENTS: AlternativeIngredient[] = [
     original: 'CMV (Complément Minéral Vitaminé)',
     alternatives: [
       {
-        nom: 'Coquilles d\'œufs broyées',
+        nom: "Coquilles d'œufs broyées",
         description: 'Coquilles lavées, séchées et broyées',
         disponibilite: 'facile',
         cout: 'economique',
         remarques: 'Excellente source de calcium. Gratuit et facilement disponible.',
       },
       {
-        nom: 'Coquilles d\'huîtres broyées',
+        nom: "Coquilles d'huîtres broyées",
         description: 'Coquilles ramassées sur les plages',
         disponibilite: 'moyenne',
         cout: 'economique',
@@ -231,7 +233,7 @@ export const ALTERNATIVES_INGREDIENTS: AlternativeIngredient[] = [
         remarques: 'Très disponible en Afrique. Riche en vitamine A et énergie.',
       },
       {
-        nom: 'Huile d\'arachide',
+        nom: "Huile d'arachide",
         description: 'Huile extraite des arachides',
         disponibilite: 'facile',
         cout: 'moyen',
@@ -254,14 +256,16 @@ export const ALTERNATIVES_INGREDIENTS: AlternativeIngredient[] = [
         description: 'Poisson séché et broyé',
         disponibilite: 'moyenne',
         cout: 'moyen',
-        remarques: 'Naturellement riche en lysine. Alternative économique aux acides aminés de synthèse.',
+        remarques:
+          'Naturellement riche en lysine. Alternative économique aux acides aminés de synthèse.',
       },
       {
         nom: 'Vers de terre séchés',
         description: 'Lombrics collectés et séchés',
         disponibilite: 'facile',
         cout: 'economique',
-        remarques: 'Gratuit. Riche en protéines de qualité et lysine. Collecte en saison des pluies.',
+        remarques:
+          'Gratuit. Riche en protéines de qualité et lysine. Collecte en saison des pluies.',
       },
     ],
   },
@@ -269,8 +273,8 @@ export const ALTERNATIVES_INGREDIENTS: AlternativeIngredient[] = [
     original: 'Phosphate bicalcique',
     alternatives: [
       {
-        nom: 'Farine d\'os calcinés',
-        description: 'Os d\'animaux broyés après calcination',
+        nom: "Farine d'os calcinés",
+        description: "Os d'animaux broyés après calcination",
         disponibilite: 'moyenne',
         cout: 'economique',
         remarques: 'Excellente source de calcium et phosphore. Récupérable aux abattoirs.',
@@ -315,13 +319,10 @@ export function getAlternativesText(nomIngredient: string): string {
   let texte = `💡 Alternatives pour "${alternatives.original}" :\n\n`;
 
   alternatives.alternatives.forEach((alt, index) => {
-    const iconeDisponibilite = 
-      alt.disponibilite === 'facile' ? '✅' : 
-      alt.disponibilite === 'moyenne' ? '⚠️' : '❌';
-    
-    const iconeCout = 
-      alt.cout === 'economique' ? '💰' : 
-      alt.cout === 'moyen' ? '💰💰' : '💰💰💰';
+    const iconeDisponibilite =
+      alt.disponibilite === 'facile' ? '✅' : alt.disponibilite === 'moyenne' ? '⚠️' : '❌';
+
+    const iconeCout = alt.cout === 'economique' ? '💰' : alt.cout === 'moyen' ? '💰💰' : '💰💰💰';
 
     texte += `${index + 1}. ${alt.nom} ${iconeDisponibilite} ${iconeCout}\n`;
     texte += `   ${alt.description}\n`;
@@ -337,4 +338,3 @@ export function getAlternativesText(nomIngredient: string): string {
 
   return texte;
 }
-

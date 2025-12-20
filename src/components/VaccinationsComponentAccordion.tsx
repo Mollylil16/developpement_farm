@@ -25,7 +25,12 @@ import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { selectAllVaccinations } from '../store/selectors/santeSelectors';
 import { selectAllAnimaux } from '../store/selectors/productionSelectors';
 import { selectAllDepensesPonctuelles } from '../store/selectors/financeSelectors';
-import { loadVaccinations, createVaccination, updateVaccination, deleteVaccination } from '../store/slices/santeSlice';
+import {
+  loadVaccinations,
+  createVaccination,
+  updateVaccination,
+  deleteVaccination,
+} from '../store/slices/santeSlice';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
 import {
   TypeProphylaxie,
@@ -36,6 +41,7 @@ import {
   calculerAgeJours,
   CALENDRIER_VACCINAL_TYPE,
   CreateVaccinationInput,
+  Vaccination,
 } from '../types/sante';
 import { getCategorieAnimal } from '../utils/animalUtils';
 import { formatLocalDate, getCurrentLocalDate } from '../utils/dateUtils';
@@ -290,7 +296,7 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
     });
   };
 
-  const initialiserFormulaireAvecVaccination = (vaccination: any) => {
+  const initialiserFormulaireAvecVaccination = (vaccination: Vaccination) => {
     const animalIds = parseAnimalIds(vaccination.animal_ids);
     setVaccinationEnEdition(vaccination.id);
     setProduitAdministre(vaccination.produit_administre || '');
@@ -336,12 +342,12 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
             try {
               await dispatch(deleteVaccination(vaccinationId)).unwrap();
               Alert.alert('Succès', 'Vaccination supprimée avec succès');
-              
+
               // Recharger les vaccinations
               if (projetActif?.id) {
                 dispatch(loadVaccinations(projetActif.id));
               }
-            } catch (error: any) {
+            } catch (error: unknown) {
               Alert.alert('Erreur', 'Impossible de supprimer la vaccination');
             }
           },
@@ -385,7 +391,7 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
 
       if (vaccinationEnEdition) {
         // Mise à jour d'une vaccination existante
-        const updates: any = {
+        const updates: Partial<Vaccination> = {
           animal_ids: animauxSelectionnes,
           produit_administre: produitAdministre.trim(),
           dosage: dosage.trim(),
@@ -410,10 +416,15 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
         // Création d'une nouvelle vaccination
         const dateVaccination = getCurrentLocalDate();
 
+        // Extraire le type de base si c'est un type calendrier
+        const typeProphylaxie: TypeProphylaxie = sectionOuverte.endsWith('_calendrier')
+          ? (sectionOuverte.replace('_calendrier', '') as TypeProphylaxie)
+          : (sectionOuverte as TypeProphylaxie);
+
         const input: CreateVaccinationInput = {
           projet_id: projetActif.id,
           animal_ids: animauxSelectionnes,
-          type_prophylaxie: sectionOuverte,
+          type_prophylaxie: typeProphylaxie,
           produit_administre: produitAdministre.trim(),
           date_vaccination: dateVaccination,
           dosage: dosage.trim(),
@@ -436,15 +447,16 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
         reinitialiserFormulaire();
         toggleSection(sectionOuverte);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('=== ERREUR ENREGISTREMENT ===');
       console.error('Type erreur:', typeof error);
       console.error('Erreur complète:', error);
-      console.error('Error message:', error?.message);
-      console.error('Error stack:', error?.stack);
-      console.error('Error name:', error?.name);
+      const errorObj = error instanceof Error ? error : null;
+      console.error('Error message:', errorObj?.message);
+      console.error('Error stack:', errorObj?.stack);
+      console.error('Error name:', errorObj?.name);
 
-      const errorMessage = error?.message || error?.toString() || 'Erreur inconnue';
+      const errorMessage = errorObj?.message || String(error) || 'Erreur inconnue';
       Alert.alert(
         'Erreur',
         `Impossible d'enregistrer la vaccination\n\nDétails: ${errorMessage}\n\nVoir les logs pour plus d'informations`
@@ -541,7 +553,12 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
       <View style={[styles.formulaire, { backgroundColor: colors.background }]}>
         {/* Indicateur de mode édition */}
         {vaccinationEnEdition && (
-          <View style={[styles.modeEditionBadge, { backgroundColor: `${couleur}15`, borderColor: couleur }]}>
+          <View
+            style={[
+              styles.modeEditionBadge,
+              { backgroundColor: `${couleur}15`, borderColor: couleur },
+            ]}
+          >
             <Ionicons name="create-outline" size={16} color={couleur} />
             <Text style={[styles.modeEditionText, { color: couleur }]}>
               Mode édition - Modification d'une vaccination existante
@@ -809,8 +826,7 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
     const vaccinationsType = (vaccinations || [])
       .filter((v) => v.type_prophylaxie === type)
       .sort(
-        (a, b) =>
-          new Date(b.date_vaccination).getTime() - new Date(a.date_vaccination).getTime()
+        (a, b) => new Date(b.date_vaccination).getTime() - new Date(a.date_vaccination).getTime()
       );
 
     if (vaccinationsType.length === 0) {
@@ -891,7 +907,7 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
               <View style={styles.historiqueAnimauxList}>
                 {animauxVaccines.length > 0 ? (
                   <View style={styles.historiqueAnimauxTags}>
-                      {animauxVaccines.map((animal) => {
+                    {animauxVaccines.map((animal) => {
                       const nom = animal.nom || animal.code || `Animal ${animal.id.slice(0, 6)}`;
                       return (
                         <View
@@ -918,18 +934,26 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
               {/* Boutons Modifier/Supprimer */}
               <View style={[styles.historiqueActions, { borderTopColor: colors.border }]}>
                 <TouchableOpacity
-                  style={[styles.historiqueActionButton, { backgroundColor: `${couleur}15`, borderColor: couleur }]}
+                  style={[
+                    styles.historiqueActionButton,
+                    { backgroundColor: `${couleur}15`, borderColor: couleur },
+                  ]}
                   onPress={() => initialiserFormulaireAvecVaccination(v)}
                 >
                   <Ionicons name="create-outline" size={16} color={couleur} />
                   <Text style={[styles.historiqueActionText, { color: couleur }]}>Modifier</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.historiqueActionButton, { backgroundColor: `${colors.error}15`, borderColor: colors.error }]}
+                  style={[
+                    styles.historiqueActionButton,
+                    { backgroundColor: `${colors.error}15`, borderColor: colors.error },
+                  ]}
                   onPress={() => handleSupprimerVaccination(v.id, type)}
                 >
                   <Ionicons name="trash-outline" size={16} color={colors.error} />
-                  <Text style={[styles.historiqueActionText, { color: colors.error }]}>Supprimer</Text>
+                  <Text style={[styles.historiqueActionText, { color: colors.error }]}>
+                    Supprimer
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1033,7 +1057,7 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
         >
           <Ionicons name="time-outline" size={18} color={couleur} />
           <Text style={[styles.boutonHistoriqueTexte, { color: couleur }]}>
-            {isHistoriqueOuvert ? 'Masquer l\'historique' : 'Voir l\'historique'}
+            {isHistoriqueOuvert ? "Masquer l'historique" : "Voir l'historique"}
           </Text>
           <Ionicons
             name={isHistoriqueOuvert ? 'chevron-up' : 'chevron-down'}
@@ -1108,7 +1132,10 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
         });
 
         const dernierTraitement = (vaccinations || [])
-          .filter((v) => animalIncludedInVaccination(v.animal_ids, animal.id) && v.type_prophylaxie === type)
+          .filter(
+            (v) =>
+              animalIncludedInVaccination(v.animal_ids, animal.id) && v.type_prophylaxie === type
+          )
           .sort(
             (a, b) =>
               new Date(b.date_vaccination).getTime() - new Date(a.date_vaccination).getTime()

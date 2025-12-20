@@ -1,6 +1,6 @@
 /**
  * SanteTabs - Onglets de navigation de l'écran Santé
- * 
+ *
  * Permet de naviguer entre les différents modules sanitaires
  */
 
@@ -26,7 +26,7 @@ interface SanteTabsProps {
 
 export default function SanteTabs({ onglets, ongletActif, onTabChange }: SanteTabsProps) {
   const { colors } = useTheme();
-  
+
   return (
     <View style={[styles.ongletsContainer, { backgroundColor: colors.surface }]}>
       <ScrollView
@@ -114,4 +114,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

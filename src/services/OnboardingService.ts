@@ -3,9 +3,7 @@
  * Création de profils, upload de documents, validation
  */
 
-import { getDatabase } from './database';
-import { UserRepository } from '../database/repositories/UserRepository';
-import { ProjetRepository } from '../database/repositories/ProjetRepository';
+import apiClient from './api/apiClient';
 import type { User } from '../types/auth';
 import type {
   BuyerProfile,
@@ -83,38 +81,63 @@ export interface CreateTechnicianProfileInput {
 }
 
 class OnboardingService {
-  private db: any;
-
   constructor() {
-    this.db = null;
-  }
-
-  private async getDb() {
-    if (!this.db) {
-      this.db = await getDatabase();
-    }
-    return this.db;
+    // Les repositories n'ont plus besoin de db, ils utilisent l'API REST
   }
 
   /**
    * Créer un nouvel utilisateur avec le profil de base
    */
   async createUser(input: CreateUserInput): Promise<User> {
-    const db = await this.getDb();
-    const userRepo = new UserRepository(db);
-
-    // Vérifier si l'email ou le téléphone existe déjà
+    // Vérifier si l'email ou le téléphone existe déjà via l'API backend
+    // Si oui, retourner l'utilisateur existant au lieu de le créer
     if (input.email) {
-      const existingUser = await userRepo.findByEmail(input.email);
-      if (existingUser) {
-        throw new Error('Un utilisateur avec cet email existe déjà');
+      try {
+        const existingUser = await apiClient.get<any>(`/users/email/${encodeURIComponent(input.email)}`, {
+          skipAuth: true, // Route publique
+        });
+        if (existingUser) {
+          // Utilisateur existe déjà, le retourner
+          return existingUser;
+        }
+      } catch (error: any) {
+        // Si c'est une erreur réseau (status 0), ne pas continuer car on ne peut pas créer sans backend
+        if (error?.status === 0 || error?.message?.includes('Network request failed')) {
+          console.error('[OnboardingService] Erreur réseau lors de la vérification de l\'email:', error.message);
+          throw new Error('Impossible de se connecter au serveur. Vérifiez votre connexion Internet.');
+        }
+        // Si c'est une erreur 404, l'email n'existe pas, on peut continuer pour créer
+        if (error?.status === 404) {
+          console.log('[OnboardingService] Email non trouvé, création d\'un nouvel utilisateur');
+        } else {
+          // Autre erreur, logger et continuer (peut-être que l'utilisateur n'existe pas)
+          console.log('[OnboardingService] Erreur lors de la vérification de l\'email, continuation:', error?.status || error?.message);
+        }
       }
     }
-    
+
     if (input.phone) {
-      const existingUser = await userRepo.findByTelephone(input.phone);
-      if (existingUser) {
-        throw new Error('Un utilisateur avec ce numéro de téléphone existe déjà');
+      try {
+        const existingUser = await apiClient.get<any>(`/users/telephone/${encodeURIComponent(input.phone)}`, {
+          skipAuth: true, // Route publique
+        });
+        if (existingUser) {
+          // Utilisateur existe déjà, le retourner
+          return existingUser;
+        }
+      } catch (error: any) {
+        // Si c'est une erreur réseau (status 0), ne pas continuer car on ne peut pas créer sans backend
+        if (error?.status === 0 || error?.message?.includes('Network request failed')) {
+          console.error('[OnboardingService] Erreur réseau lors de la vérification du téléphone:', error.message);
+          throw new Error('Impossible de se connecter au serveur. Vérifiez votre connexion Internet.');
+        }
+        // Si c'est une erreur 404, le téléphone n'existe pas, on peut continuer pour créer
+        if (error?.status === 404) {
+          console.log('[OnboardingService] Téléphone non trouvé, création d\'un nouvel utilisateur');
+        } else {
+          // Autre erreur, logger et continuer (peut-être que l'utilisateur n'existe pas)
+          console.log('[OnboardingService] Erreur lors de la vérification du téléphone, continuation:', error?.status || error?.message);
+        }
       }
     }
 
@@ -166,22 +189,76 @@ class OnboardingService {
       };
     }
 
-    const createdUser = await userRepo.create({
+    // Le backend exige nom/prénom (min 2 caractères). Valeurs par défaut si vides ou trop courtes.
+    const firstNameTrimmed = (input.firstName || '').trim();
+    const lastNameTrimmed = (input.lastName || '').trim();
+    const prenom = firstNameTrimmed.length >= 2 ? firstNameTrimmed : 'Utilisateur';
+    const nom = lastNameTrimmed.length >= 2 ? lastNameTrimmed : 'Mobile';
+
+    // Ne pas envoyer un mot de passe si vide ou trop court (< 6 caractères)
+    const password = (input.password || '').trim();
+
+    // Créer l'utilisateur via l'API backend (endpoint public)
+    // IMPORTANT: Le backend ne doit PAS recevoir 'roles' (il sera créé plus tard via PATCH /users/:id)
+    // Le ValidationPipe avec forbidNonWhitelisted: true rejettera toute propriété non déclarée dans RegisterDto
+    const registerPayload: {
+      email?: string;
+      telephone?: string;
+      nom: string;
+      prenom: string;
+      password?: string;
+    } = {
       email: user.email,
       telephone: user.telephone,
-      nom: user.nom,
-      prenom: user.prenom,
-      provider: user.provider,
-      roles: user.roles,
-      activeRole: user.activeRole,
-      isOnboarded: user.isOnboarded,
-      onboardingCompletedAt: user.onboardingCompletedAt,
-    });
+      nom,
+      prenom,
+    };
     
-    // Récupérer l'utilisateur créé avec tous les champs
-    const fullUser = await userRepo.findById(createdUser.id);
+    // Ne pas inclure password dans le payload s'il est vide ou trop court
+    if (password && password.length >= 6) {
+      registerPayload.password = password;
+    }
+
+    const created = await apiClient.post<{
+      access_token: string;
+      refresh_token: string;
+      user: User;
+    }>('/auth/register', registerPayload, { skipAuth: true });
+
+    // Stocker les tokens pour les appels suivants (création de projet, etc.)
+    await apiClient.tokens.set(created.access_token, created.refresh_token);
+
+    // Si on a besoin de créer le profil producer, le faire maintenant via PATCH
+    // Note: Cette opération est optionnelle et ne bloque pas l'inscription si elle échoue
+    // Le profil producer peut être créé plus tard lors de la création du projet
+    if (input.profileType === 'producer' && user.roles?.producer) {
+      try {
+        // Attendre un peu pour s'assurer que le token est bien stocké et valide
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        console.log('[OnboardingService] Tentative de création du profil producer pour:', created.user.id);
+        const updateResult = await apiClient.patch(`/users/${created.user.id}`, {
+          roles: user.roles,
+          activeRole: 'producer',
+        });
+        console.log('[OnboardingService] Profil producer créé avec succès:', updateResult);
+      } catch (error: any) {
+        // Ne pas bloquer si ça échoue, l'utilisateur peut le faire plus tard
+        // Le profil producer sera créé automatiquement lors de la création du premier projet
+        console.warn('Impossible de créer le profil producer immédiatement (non bloquant):', error?.message || error);
+        if (error?.status) {
+          console.warn('Status HTTP:', error.status);
+        }
+        if (error?.data) {
+          console.warn('Données d\'erreur:', error.data);
+        }
+      }
+    }
+
+    // Récupérer l'utilisateur créé avec tous les champs depuis l'API backend
+    const fullUser = await apiClient.get<any>(`/users/${created.user.id}`);
     if (!fullUser) {
-      throw new Error('Erreur lors de la création de l\'utilisateur');
+      throw new Error("Erreur lors de la création de l'utilisateur");
     }
     return fullUser;
   }
@@ -190,16 +267,23 @@ class OnboardingService {
    * Créer le profil acheteur
    */
   async createBuyerProfile(userId: string, input: CreateBuyerProfileInput): Promise<BuyerProfile> {
-    const db = await this.getDb();
-    const userRepo = new UserRepository(db);
-
-    const user = await userRepo.findById(userId);
+    // Récupérer l'utilisateur depuis l'API backend
+    const user = await apiClient.get<any>(`/users/${userId}`);
     if (!user) {
       throw new Error('Utilisateur non trouvé');
     }
 
+    // Vérifier si l'utilisateur a déjà un projet (producteur) pour déterminer le statut
+    // Récupérer les projets de l'utilisateur depuis l'API backend
+    const allProjets = await apiClient.get<any[]>('/projets');
+    const projets = allProjets.filter((p) => p.proprietaire_id === userId);
+    const hasExistingProject = projets.length > 0;
+    
+    // Déterminer si le profil est actif (basé sur l'existence d'un projet)
+    const isActive = hasExistingProject;
+
     const buyerProfile: BuyerProfile = {
-      isActive: true,
+      isActive, // Déterminer isActive basé sur l'existence d'un projet
       activatedAt: new Date().toISOString(),
       buyerType: input.buyerType,
       businessInfo: input.businessInfo,
@@ -230,7 +314,7 @@ class OnboardingService {
     // Synchroniser les informations de base : s'assurer que nom, prénom, email, téléphone, photo
     // sont préservés (ils sont déjà au niveau utilisateur, donc partagés entre tous les profils)
     // Pas besoin de les mettre à jour ici car ils sont déjà synchronisés au niveau User
-    await userRepo.update(userId, {
+    await apiClient.patch(`/users/${userId}`, {
       roles: updatedRoles,
       activeRole: user.activeRole || 'buyer',
     });
@@ -245,18 +329,19 @@ class OnboardingService {
     userId: string,
     input: CreateVeterinarianProfileInput
   ): Promise<VeterinarianProfile> {
-    const db = await this.getDb();
-    const userRepo = new UserRepository(db);
-
-    const user = await userRepo.findById(userId);
+    // Récupérer l'utilisateur depuis l'API backend
+    const user = await apiClient.get<any>(`/users/${userId}`);
     if (!user) {
       throw new Error('Utilisateur non trouvé');
     }
 
+    // Utiliser ProfileStatus pour typer le statut de validation
+    const validationStatus: ProfileStatus = 'pending';
+
     const veterinarianProfile: VeterinarianProfile = {
       isActive: true,
       activatedAt: new Date().toISOString(),
-      validationStatus: 'pending',
+      validationStatus,
       submittedAt: new Date().toISOString(),
       qualifications: {
         degree: input.qualifications.degree,
@@ -291,7 +376,7 @@ class OnboardingService {
     // Synchroniser les informations de base : s'assurer que nom, prénom, email, téléphone, photo
     // sont préservés (ils sont déjà au niveau utilisateur, donc partagés entre tous les profils)
     // Pas besoin de les mettre à jour ici car ils sont déjà synchronisés au niveau User
-    await userRepo.update(userId, {
+    await apiClient.patch(`/users/${userId}`, {
       roles: updatedRoles,
       activeRole: user.activeRole || 'veterinarian',
     });
@@ -312,10 +397,8 @@ class OnboardingService {
     userId: string,
     input: CreateTechnicianProfileInput
   ): Promise<TechnicianProfile> {
-    const db = await this.getDb();
-    const userRepo = new UserRepository(db);
-
-    const user = await userRepo.findById(userId);
+    // Récupérer l'utilisateur depuis l'API backend
+    const user = await apiClient.get<any>(`/users/${userId}`);
     if (!user) {
       throw new Error('Utilisateur non trouvé');
     }
@@ -337,7 +420,7 @@ class OnboardingService {
     // Synchroniser les informations de base : s'assurer que nom, prénom, email, téléphone, photo
     // sont préservés (ils sont déjà au niveau utilisateur, donc partagés entre tous les profils)
     // Pas besoin de les mettre à jour ici car ils sont déjà synchronisés au niveau User
-    await userRepo.update(userId, {
+    await apiClient.patch(`/users/${userId}`, {
       roles: updatedRoles,
       activeRole: user.activeRole || 'technician',
     });
@@ -348,11 +431,11 @@ class OnboardingService {
   /**
    * Marquer l'onboarding comme terminé
    */
-  async completeOnboarding(userId: string, profileType: 'producer' | 'buyer' | 'veterinarian' | 'technician'): Promise<void> {
-    const db = await this.getDb();
-    const userRepo = new UserRepository(db);
-
-    await userRepo.update(userId, {
+  async completeOnboarding(
+    userId: string,
+    profileType: 'producer' | 'buyer' | 'veterinarian' | 'technician'
+  ): Promise<void> {
+    await apiClient.patch(`/users/${userId}`, {
       isOnboarded: true,
       onboardingCompletedAt: new Date().toISOString(),
       activeRole: profileType,
@@ -371,12 +454,18 @@ class OnboardingService {
     }
   ): Promise<string> {
     // TODO: Créer une entrée dans une table de validation
-    // Pour l'instant, on retourne un ID fictif
+    // Pour l'instant, on retourne un ID fictif qui inclut les informations
     const validationRequestId = `validation-${userId}-${Date.now()}`;
-    
+
+    // Utiliser les paramètres pour créer un ID plus informatif
+    // Cela permet de tracer le type de profil et les documents associés
+    const profileTypePrefix = profileType.substring(0, 3).toUpperCase(); // VET
+    const documentsHash = `${documents.identityCard.substring(0, 8)}-${documents.professionalProof.substring(0, 8)}`;
+    const enhancedId = `${validationRequestId}-${profileTypePrefix}-${documentsHash}`;
+
     // TODO: Stocker la demande dans la base de données
     // await db.validationRequests.create({
-    //   id: validationRequestId,
+    //   id: enhancedId,
     //   userId,
     //   profileType,
     //   documents,
@@ -384,7 +473,7 @@ class OnboardingService {
     //   submittedAt: new Date().toISOString(),
     // });
 
-    return validationRequestId;
+    return enhancedId;
   }
 
   /**
@@ -411,10 +500,8 @@ class OnboardingService {
     status: 'approved' | 'rejected',
     rejectionReason?: string
   ): Promise<void> {
-    const db = await this.getDb();
-    const userRepo = new UserRepository(db);
-
-    const user = await userRepo.findById(userId);
+    // Récupérer l'utilisateur depuis l'API backend
+    const user = await apiClient.get<any>(`/users/${userId}`);
     if (!user || !user.roles?.veterinarian) {
       throw new Error('Profil vétérinaire non trouvé');
     }
@@ -432,7 +519,7 @@ class OnboardingService {
       veterinarian: updatedProfile,
     };
 
-    await userRepo.update(userId, {
+    await apiClient.patch(`/users/${userId}`, {
       roles: updatedRoles,
     });
 
@@ -451,4 +538,3 @@ export const getOnboardingService = async (): Promise<OnboardingService> => {
 };
 
 export default OnboardingService;
-

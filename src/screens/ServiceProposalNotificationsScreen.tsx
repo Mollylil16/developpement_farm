@@ -4,14 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  FlatList,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  RefreshControl,
-} from 'react-native';
+import { View, FlatList, Text, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,7 +14,7 @@ import { useRole } from '../contexts/RoleContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { getServiceProposalNotificationService } from '../services/ServiceProposalNotificationService';
 import type { ServiceProposalNotification } from '../services/ServiceProposalNotificationService';
-import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS, LIGHT_COLORS } from '../constants/theme';
 import Card from '../components/Card';
 import EmptyState from '../components/EmptyState';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -134,10 +127,7 @@ const ServiceProposalNotificationsScreen: React.FC = () => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.divider }]}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.headerContent}>
@@ -147,10 +137,7 @@ const ServiceProposalNotificationsScreen: React.FC = () => {
           </Text>
         </View>
         {notifications.length > 0 && (
-          <TouchableOpacity
-            style={styles.markAllButton}
-            onPress={handleMarkAllAsRead}
-          >
+          <TouchableOpacity style={styles.markAllButton} onPress={handleMarkAllAsRead}>
             <Text style={[styles.markAllText, { color: colors.primary }]}>Tout marquer</Text>
           </TouchableOpacity>
         )}
@@ -191,13 +178,21 @@ const ServiceProposalNotificationsScreen: React.FC = () => {
 
 const NotificationCard: React.FC<{
   notification: ServiceProposalNotification;
-  colors: any;
+  colors: typeof LIGHT_COLORS;
   onPress: () => void;
 }> = ({ notification, colors, onPress }) => {
-  const icon = notification.type === 'service_proposal_received' ? 'mail' :
-    notification.type === 'service_proposal_accepted' ? 'checkmark-circle' : 'close-circle';
-  const iconColor = notification.type === 'service_proposal_received' ? colors.primary :
-    notification.type === 'service_proposal_accepted' ? colors.success : colors.error;
+  const icon =
+    notification.type === 'service_proposal_received'
+      ? 'mail'
+      : notification.type === 'service_proposal_accepted'
+        ? 'checkmark-circle'
+        : 'close-circle';
+  const iconColor =
+    notification.type === 'service_proposal_received'
+      ? colors.primary
+      : notification.type === 'service_proposal_accepted'
+        ? colors.success
+        : colors.error;
 
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
@@ -313,4 +308,3 @@ const styles = StyleSheet.create({
 });
 
 export default ServiceProposalNotificationsScreen;
-

@@ -1,11 +1,11 @@
 /**
  * Configuration exemple pour la transcription vocale
- * 
+ *
  * INSTRUCTIONS :
  * 1. Copiez ce fichier vers voiceConfig.ts
  * 2. Remplacez 'VOTRE_CLE_API' par votre vraie clé API
  * 3. Choisissez votre provider (assemblyai, openai, ou google)
- * 
+ *
  * Pour obtenir une clé API :
  * - AssemblyAI : https://www.assemblyai.com (Gratuit jusqu'à 5h/mois)
  * - OpenAI : https://platform.openai.com ($0.006/minute)
@@ -26,8 +26,9 @@ export interface VoiceConfigData {
 export async function getVoiceConfig(): Promise<VoiceConfigData> {
   try {
     const apiKey = await AsyncStorage.getItem('SPEECH_API_KEY');
-    const provider = (await AsyncStorage.getItem('SPEECH_PROVIDER')) as TranscriptionProvider || 'none';
-    
+    const provider =
+      ((await AsyncStorage.getItem('SPEECH_PROVIDER')) as TranscriptionProvider) || 'none';
+
     return {
       provider: apiKey ? provider : 'none',
       apiKey,
@@ -41,7 +42,10 @@ export async function getVoiceConfig(): Promise<VoiceConfigData> {
 /**
  * Sauvegarde la configuration de transcription
  */
-export async function saveVoiceConfig(apiKey: string, provider: TranscriptionProvider): Promise<void> {
+export async function saveVoiceConfig(
+  apiKey: string,
+  provider: TranscriptionProvider
+): Promise<void> {
   try {
     await AsyncStorage.setItem('SPEECH_API_KEY', apiKey);
     await AsyncStorage.setItem('SPEECH_PROVIDER', provider);
@@ -58,15 +62,10 @@ export async function saveVoiceConfig(apiKey: string, provider: TranscriptionPro
 export const DEFAULT_VOICE_CONFIG = {
   // provider: 'assemblyai' as TranscriptionProvider,
   // apiKey: 'VOTRE_CLE_API_ASSEMBLYAI',
-  
   // OU
-  
   // provider: 'openai' as TranscriptionProvider,
   // apiKey: 'sk-VOTRE_CLE_OPENAI',
-  
   // OU
-  
   // provider: 'google' as TranscriptionProvider,
   // apiKey: 'VOTRE_CLE_API_GOOGLE',
 };
-

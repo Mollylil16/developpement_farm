@@ -18,9 +18,23 @@ import {
   ChargeFixe,
   DepensePonctuelle,
   Revenu,
-  Gestation,
-  Sevrage,
 } from '../../types';
+
+// Types utilisés pour typer les données de reproduction dans le rapport
+type Gestation = {
+  id: string;
+  animal_id: string;
+  date_saillie: string;
+  date_mise_bas_prevue: string;
+  statut: string;
+};
+
+type Sevrage = {
+  id: string;
+  animal_id: string;
+  date_sevrage: string;
+  nombre_porcelets: number;
+};
 
 interface RapportCompletData {
   projet: Projet;
@@ -90,6 +104,9 @@ interface RapportCompletData {
     porceletsNes: number;
     porceletsSevres: number;
     tauxSurvie: number;
+    // Utiliser les types Gestation et Sevrage pour typer les données si disponibles
+    gestations?: Gestation[];
+    sevrages?: Sevrage[];
   };
   recommandations: Array<{
     categorie: string;
@@ -347,7 +364,7 @@ export function generateRapportCompletHTML(data: RapportCompletData): string {
                 (depense) => `
               <tr>
                 <td>${formatDate(depense.date)}</td>
-                <td>${depense.libelle}</td>
+                <td>${depense.libelle_categorie || depense.commentaire || ''}</td>
                 <td><span class="badge badge-warning">${depense.categorie}</span></td>
                 <td class="text-right">${formatCurrency(depense.montant)}</td>
               </tr>

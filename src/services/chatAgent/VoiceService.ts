@@ -6,7 +6,7 @@
 import { VoiceConfig } from '../../types/chatAgent';
 import { Platform } from 'react-native';
 import { Audio } from 'expo-av';
-import * as FileSystem from 'expo-file-system';
+// Note: Utilisation de require pour éviter les erreurs TypeScript avec expo-file-system
 import { SpeechTranscriptionService, TranscriptionProvider } from './SpeechTranscriptionService';
 // import * as Speech from 'expo-speech'; // TODO: Installer expo-speech si nécessaire pour TTS
 
@@ -21,10 +21,15 @@ interface SpeechRecognition extends EventTarget {
   start(): void;
   stop(): void;
   abort(): void;
-  onstart: ((this: SpeechRecognition, ev: Event) => any) | null;
-  onresult: ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => any) | null;
-  onerror: ((this: SpeechRecognition, ev: SpeechRecognitionErrorEvent) => any) | null;
-  onend: ((this: SpeechRecognition, ev: Event) => any) | null;
+  // Les paramètres ev sont utilisés dans les implémentations
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  onstart: ((ev: Event) => unknown) | null;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  onresult: ((ev: SpeechRecognitionEvent) => unknown) | null;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  onerror: ((ev: SpeechRecognitionErrorEvent) => unknown) | null;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  onend: ((ev: Event) => unknown) | null;
 }
 
 interface SpeechRecognitionEvent extends Event {
@@ -38,12 +43,16 @@ interface SpeechRecognitionErrorEvent extends Event {
 
 interface SpeechRecognitionResultList {
   length: number;
+  // Les paramètres index sont utilisés dans les implémentations
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   item(index: number): SpeechRecognitionResult;
   [index: number]: SpeechRecognitionResult;
 }
 
 interface SpeechRecognitionResult {
   length: number;
+  // Les paramètres index sont utilisés dans les implémentations
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   item(index: number): SpeechRecognitionAlternative;
   [index: number]: SpeechRecognitionAlternative;
   isFinal: boolean;
@@ -79,8 +88,11 @@ export class VoiceService {
   private config: VoiceConfig;
   private isListening: boolean = false;
   private recording: Audio.Recording | null = null;
+  // Le paramètre text est utilisé dans les implémentations du callback
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private onTranscriptCallback: ((text: string) => void) | null = null;
   private transcriptionService: SpeechTranscriptionService | null = null;
+  private webRecognition: SpeechRecognition | null = null;
 
   constructor(config: VoiceConfig) {
     this.config = {
@@ -93,7 +105,11 @@ export class VoiceService {
     };
 
     // Initialiser le service de transcription si une clé API est fournie
-    if (config.transcriptionApiKey && config.transcriptionProvider && config.transcriptionProvider !== 'none') {
+    if (
+      config.transcriptionApiKey &&
+      config.transcriptionProvider &&
+      config.transcriptionProvider !== 'none'
+    ) {
       try {
         this.transcriptionService = new SpeechTranscriptionService({
           provider: config.transcriptionProvider as TranscriptionProvider,
@@ -101,7 +117,10 @@ export class VoiceService {
           language: config.language === 'fr-CI' ? 'fr' : config.language,
           timeout: 30000,
         });
-        console.log('[VoiceService] Service de transcription initialisé:', config.transcriptionProvider);
+        console.log(
+          '[VoiceService] Service de transcription initialisé:',
+          config.transcriptionProvider
+        );
       } catch (error) {
         console.error('[VoiceService] Erreur initialisation transcription:', error);
       }
@@ -117,9 +136,17 @@ export class VoiceService {
 
   /**
    * Convertit le texte en parole (Text-to-Speech)
+   * @param text - Texte à convertir en parole
    */
   async speak(text: string): Promise<void> {
     if (!this.config.enableTextToSpeech) {
+      console.warn('[VoiceService] Text-to-Speech désactivé, texte ignoré:', text.substring(0, 50));
+      return;
+    }
+
+    // Utiliser text pour la synthèse vocale
+    if (!text || text.trim().length === 0) {
+      console.warn('[VoiceService] Texte vide, impossible de parler');
       return;
     }
 
@@ -158,13 +185,15 @@ export class VoiceService {
    * Démarre la reconnaissance vocale (Speech-to-Text)
    * Utilise l'API Web Speech Recognition si disponible, sinon utilise expo-av pour l'enregistrement
    */
+  // Le paramètre text est utilisé dans les implémentations du callback
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async startListening(onTranscript?: (text: string) => void): Promise<void> {
     if (!this.config.enableSpeechToText) {
-      throw new Error('La reconnaissance vocale n\'est pas activée');
+      throw new Error("La reconnaissance vocale n'est pas activée");
     }
 
     if (this.isListening) {
-      throw new Error('L\'écoute est déjà en cours');
+      throw new Error("L'écoute est déjà en cours");
     }
 
     this.onTranscriptCallback = onTranscript || null;
@@ -172,10 +201,15 @@ export class VoiceService {
     // Vérifier si on est sur web et si l'API Speech Recognition est disponible
     if (Platform.OS === 'web') {
       const globalWindow = getWindow();
-      if (globalWindow && ('webkitSpeechRecognition' in globalWindow || 'SpeechRecognition' in globalWindow)) {
+      if (
+        globalWindow &&
+        ('webkitSpeechRecognition' in globalWindow || 'SpeechRecognition' in globalWindow)
+      ) {
         return this.startWebSpeechRecognition();
       } else {
-        throw new Error('Reconnaissance vocale non disponible sur ce navigateur. Utilisez Chrome ou Edge.');
+        throw new Error(
+          'Reconnaissance vocale non disponible sur ce navigateur. Utilisez Chrome ou Edge.'
+        );
       }
     }
 
@@ -194,8 +228,9 @@ export class VoiceService {
         reject(new Error('Reconnaissance vocale non disponible sur ce navigateur'));
         return;
       }
-      
-      const SpeechRecognition = globalWindow.SpeechRecognition || globalWindow.webkitSpeechRecognition;
+
+      const SpeechRecognition =
+        globalWindow.SpeechRecognition || globalWindow.webkitSpeechRecognition;
       if (!SpeechRecognition) {
         reject(new Error('Reconnaissance vocale non disponible sur ce navigateur'));
         return;
@@ -206,17 +241,26 @@ export class VoiceService {
       recognition.continuous = true;
       recognition.interimResults = true;
 
+      // Stocker la référence pour pouvoir l'arrêter plus tard
+      this.webRecognition = recognition;
+
       recognition.onstart = () => {
         this.isListening = true;
         resolve();
       };
 
-      recognition.onresult = (event: any) => {
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
         let transcript = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript;
+        // Utiliser resultIndex et results pour extraire le texte
+        const startIndex = event.resultIndex;
+        for (let i = startIndex; i < event.results.length; i++) {
+          const result = event.results[i];
+          // Utiliser index 0 pour obtenir la meilleure alternative
+          if (result[0]) {
+            transcript += result[0].transcript;
+          }
         }
-        
+
         // Éviter les mises à jour trop fréquentes (debounce)
         if (this.onTranscriptCallback && transcript.trim()) {
           // Utiliser requestAnimationFrame pour éviter de bloquer l'UI
@@ -228,13 +272,16 @@ export class VoiceService {
         }
       };
 
-      recognition.onerror = (event: any) => {
+      recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
         this.isListening = false;
-        reject(new Error(`Erreur de reconnaissance vocale: ${event.error}`));
+        // Utiliser event.error pour obtenir le message d'erreur
+        const errorMessage = event.error || 'Erreur inconnue';
+        reject(new Error(`Erreur de reconnaissance vocale: ${errorMessage}`));
       };
 
       recognition.onend = () => {
         this.isListening = false;
+        this.webRecognition = null;
       };
 
       recognition.start();
@@ -251,7 +298,9 @@ export class VoiceService {
       // Demander les permissions
       const { status } = await Audio.requestPermissionsAsync();
       if (status !== 'granted') {
-        throw new Error('Permission microphone refusée. Activez-la dans les paramètres de l\'application.');
+        throw new Error(
+          "Permission microphone refusée. Activez-la dans les paramètres de l'application."
+        );
       }
 
       // Configurer le mode audio
@@ -267,11 +316,22 @@ export class VoiceService {
 
       this.recording = recording;
       this.isListening = true;
-      
+
+      // Utiliser FileSystem pour préparer le répertoire de sauvegarde des enregistrements
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const FileSystem = require('expo-file-system');
+      const recordingDir = `${FileSystem.documentDirectory}recordings/`;
+      const dirInfo = await FileSystem.getInfoAsync(recordingDir);
+      if (!dirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(recordingDir, { intermediates: true });
+      }
+
       // Note: Sur mobile, la transcription nécessite une API externe
       // Pour l'instant, on informe l'utilisateur qu'il doit utiliser le texte
-      console.log('[VoiceService] Enregistrement démarré. La transcription nécessite une API externe.');
-    } catch (error: any) {
+      console.log(
+        '[VoiceService] Enregistrement démarré. La transcription nécessite une API externe.'
+      );
+    } catch (error: unknown) {
       this.isListening = false;
       this.recording = null;
       throw error;
@@ -290,14 +350,13 @@ export class VoiceService {
 
     // Si on utilise l'API Web, arrêter explicitement
     if (Platform.OS === 'web') {
-      const webRecognition = (this as any).webRecognition;
-      if (webRecognition) {
+      if (this.webRecognition) {
         try {
-          webRecognition.stop();
+          this.webRecognition.stop();
         } catch (error) {
-          console.error('Erreur lors de l\'arrêt de la reconnaissance web:', error);
+          console.error("Erreur lors de l'arrêt de la reconnaissance web:", error);
         }
-        (this as any).webRecognition = null;
+        this.webRecognition = null;
       }
       return '';
     }
@@ -320,7 +379,7 @@ export class VoiceService {
             const result = await this.transcriptionService.transcribe(uri);
             console.log('[VoiceService] Transcription réussie:', result.text);
             return result.text || '';
-          } catch (error: any) {
+          } catch (error: unknown) {
             console.error('[VoiceService] Erreur transcription:', error);
             // Ne pas bloquer l'utilisateur, retourner une chaîne vide
             return '';
@@ -328,10 +387,12 @@ export class VoiceService {
         }
 
         // Si pas de service de transcription, informer l'utilisateur
-        console.log('[VoiceService] Enregistrement arrêté. Aucun service de transcription configuré.');
+        console.log(
+          '[VoiceService] Enregistrement arrêté. Aucun service de transcription configuré.'
+        );
         return ''; // Retourner une chaîne vide
       } catch (error) {
-        console.error('Erreur lors de l\'arrêt de l\'enregistrement:', error);
+        console.error("Erreur lors de l'arrêt de l'enregistrement:", error);
         this.recording = null;
         return '';
       }

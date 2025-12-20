@@ -105,7 +105,8 @@ export default function UnitsSettingsModal({ visible, onClose }: UnitsSettingsMo
             style={[
               styles.unitOption,
               {
-                backgroundColor: distanceUnit === unit.code ? colors.primary + '15' : colors.surface,
+                backgroundColor:
+                  distanceUnit === unit.code ? colors.primary + '15' : colors.surface,
                 borderColor: distanceUnit === unit.code ? colors.primary : colors.border,
               },
             ]}
@@ -156,4 +157,3 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 });
-

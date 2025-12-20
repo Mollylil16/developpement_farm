@@ -106,7 +106,7 @@ export default function MaladieFormModal({ visible, onClose, maladie, animalId }
     }
   }, [maladie]);
 
-  const handleDatePickerChange = (event: any, selectedDate?: Date) => {
+  const handleDatePickerChange = (event: unknown, selectedDate?: Date) => {
     setShowDatePicker(Platform.OS === 'ios');
     if (selectedDate) {
       const dateString = formatLocalDate(selectedDate.toISOString());
@@ -195,8 +195,9 @@ export default function MaladieFormModal({ visible, onClose, maladie, animalId }
       }
 
       onClose();
-    } catch (err: any) {
-      setError(err.message || "Erreur lors de l'enregistrement");
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Erreur lors de l'enregistrement";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

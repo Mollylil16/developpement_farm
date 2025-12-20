@@ -26,7 +26,7 @@ export default function StandardHeader({
   badgeColor,
 }: StandardHeaderProps) {
   const { colors } = useTheme();
-  const validIcon = normalizeIconName(icon as string, 'help-circle-outline');
+  const validIcon = normalizeIconName(icon, 'help-circle-outline');
 
   return (
     <View style={[styles.header, { backgroundColor: colors.surface }]}>

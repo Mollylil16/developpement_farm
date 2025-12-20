@@ -24,4 +24,3 @@ export async function createRapportsCroissanceTable(db: SQLite.SQLiteDatabase): 
     );
   `);
 }
-

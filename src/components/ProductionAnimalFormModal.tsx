@@ -234,7 +234,7 @@ export default function ProductionAnimalFormModal({
   useEffect(() => {
     if (animal && isEditing) {
       console.log('📋 Chargement animal dans modal:', animal.id);
-      console.log('📸 Photo URI de l\'animal:', animal.photo_uri);
+      console.log("📸 Photo URI de l'animal:", animal.photo_uri);
       setFormData({
         projet_id: animal.projet_id,
         code: animal.code,
@@ -320,15 +320,15 @@ export default function ProductionAnimalFormModal({
       } else {
         await dispatch(createProductionAnimal(normalizedData)).unwrap();
       }
-      
+
       // Fermer le modal immédiatement
       onClose();
-      
+
       // Puis recharger les données en arrière-plan
       setTimeout(() => {
         onSuccess();
       }, 100);
-    } catch (error: any) {
+    } catch (error: unknown) {
       Alert.alert('Erreur', error?.message || error || "Erreur lors de l'enregistrement.");
     } finally {
       setLoading(false);
@@ -434,7 +434,8 @@ export default function ProductionAnimalFormModal({
                   ]}
                   onPress={() => {
                     // Si le sexe est "femelle" ou "male", définir automatiquement reproducteur à true
-                    const nouveauReproducteur = sexe === 'femelle' || sexe === 'male' ? true : formData.reproducteur;
+                    const nouveauReproducteur =
+                      sexe === 'femelle' || sexe === 'male' ? true : formData.reproducteur;
                     setFormData({ ...formData, sexe, reproducteur: nouveauReproducteur });
                   }}
                 >
@@ -465,7 +466,8 @@ export default function ProductionAnimalFormModal({
                     style={[
                       styles.option,
                       {
-                        borderColor: formData.reproducteur === value ? colors.primary : colors.border,
+                        borderColor:
+                          formData.reproducteur === value ? colors.primary : colors.border,
                         backgroundColor:
                           formData.reproducteur === value ? colors.primary : colors.background,
                       },
@@ -476,7 +478,8 @@ export default function ProductionAnimalFormModal({
                       style={[
                         styles.optionText,
                         {
-                          color: formData.reproducteur === value ? colors.textOnPrimary : colors.text,
+                          color:
+                            formData.reproducteur === value ? colors.textOnPrimary : colors.text,
                           fontWeight: formData.reproducteur === value ? '600' : 'normal',
                         },
                       ]}
@@ -667,10 +670,12 @@ export default function ProductionAnimalFormModal({
             style={[
               styles.modalOption,
               { borderColor: colors.border, backgroundColor: colors.surface },
-              formData.pere_id === null ? {
-                borderColor: colors.primary,
-                backgroundColor: colors.primary + '12',
-              } : null,
+              formData.pere_id === null
+                ? {
+                    borderColor: colors.primary,
+                    backgroundColor: colors.primary + '12',
+                  }
+                : null,
             ]}
             onPress={() => handleSelectPere(null)}
           >
@@ -728,10 +733,12 @@ export default function ProductionAnimalFormModal({
             style={[
               styles.modalOption,
               { borderColor: colors.border, backgroundColor: colors.surface },
-              formData.mere_id === null ? {
-                borderColor: colors.primary,
-                backgroundColor: colors.primary + '12',
-              } : null,
+              formData.mere_id === null
+                ? {
+                    borderColor: colors.primary,
+                    backgroundColor: colors.primary + '12',
+                  }
+                : null,
             ]}
             onPress={() => handleSelectMere(null)}
           >

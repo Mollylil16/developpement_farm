@@ -4,7 +4,6 @@
  */
 
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { getDatabase } from './database';
 
 /**
  * Prix moyen régional par défaut (FCFA/kg)
@@ -46,7 +45,7 @@ interface RegionalPriceAPIResponse {
   value?: number; // Alternative: valeur
   date?: string; // Date de mise à jour
   currency?: string; // Devise (par défaut: FCFA)
-  [key: string]: any; // Permet d'accepter d'autres champs
+  [key: string]: unknown; // Permet d'accepter d'autres champs
 }
 
 export class RegionalPriceService {
@@ -87,7 +86,10 @@ export class RegionalPriceService {
             return apiPrice;
           }
         } catch (error) {
-          console.warn('⚠️ [RegionalPriceService] Erreur lors de la récupération depuis l\'API:', error);
+          console.warn(
+            "⚠️ [RegionalPriceService] Erreur lors de la récupération depuis l'API:",
+            error
+          );
           // Continuer avec le fallback
         }
       }
@@ -100,7 +102,10 @@ export class RegionalPriceService {
       // 4. Fallback vers la constante par défaut
       return DEFAULT_REGIONAL_PRICE;
     } catch (error) {
-      console.error('❌ [RegionalPriceService] Erreur lors de la récupération du prix régional:', error);
+      console.error(
+        '❌ [RegionalPriceService] Erreur lors de la récupération du prix régional:',
+        error
+      );
       return DEFAULT_REGIONAL_PRICE;
     }
   }
@@ -117,7 +122,7 @@ export class RegionalPriceService {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.apiConfig.timeout || 5000);
 
-      const headers: HeadersInit = {
+      const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
 
@@ -176,6 +181,8 @@ export class RegionalPriceService {
       return row?.price || null;
     } catch (error) {
       // La table n'existe peut-être pas encore
+      // Logger l'erreur pour le debugging
+      console.warn('[RegionalPriceService] Erreur lors de la récupération du prix depuis la DB:', error);
       return null;
     }
   }
@@ -190,6 +197,8 @@ export class RegionalPriceService {
       );
       return row?.updated_at || null;
     } catch (error) {
+      // Logger l'erreur pour le debugging
+      console.warn('[RegionalPriceService] Erreur lors de la récupération de la date de mise à jour:', error);
       return null;
     }
   }
@@ -258,4 +267,3 @@ export function getRegionalPriceService(
   }
   return regionalPriceServiceInstance;
 }
-

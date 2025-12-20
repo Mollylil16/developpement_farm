@@ -19,6 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { selectAllAnimaux } from '../../store/selectors/productionSelectors';
 import { useNavigation } from '@react-navigation/native';
+import type { NavigationProp } from '@react-navigation/native';
 import { useRole } from '../../contexts/RoleContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -61,7 +62,7 @@ import { useGeolocation } from '../../hooks/useGeolocation';
 import { useMarketplaceNotifications } from '../../hooks/useMarketplaceNotifications';
 
 // Services
-import { getDatabase } from '../../services/database';
+import apiClient from '../../services/api/apiClient';
 import { getMarketplaceService } from '../../services/MarketplaceService';
 
 // Repositories
@@ -78,6 +79,8 @@ import type {
   FarmCard as FarmCardType,
   SelectedSubjectForOffer,
   Offer,
+  PurchaseRequest,
+  PurchaseRequestMatch,
 } from '../../types/marketplace';
 import type { ProductionAnimal, UpdateProductionAnimalInput } from '../../types/production';
 import { createAppError, getErrorMessage, ErrorCode } from '../../types/errors';
@@ -115,8 +118,10 @@ export default function MarketplaceScreen() {
   } = useMarketplaceNotifications();
 
   // Local State
-  const [activeTab, setActiveTab] = useState<'acheter' | 'mes-annonces' | 'mes-demandes' | 'demandes' | 'offres'>('acheter');
-  
+  const [activeTab, setActiveTab] = useState<
+    'acheter' | 'mes-annonces' | 'mes-demandes' | 'demandes' | 'offres'
+  >('acheter');
+
   // Redirection automatique selon le rôle
   useEffect(() => {
     // Si l'utilisateur est acheteur (pas producteur) et est sur "mes-annonces" (producteur), rediriger vers "mes-demandes"
@@ -128,14 +133,15 @@ export default function MarketplaceScreen() {
       setActiveTab('mes-annonces');
     }
   }, [isBuyer, isProducer, activeTab]);
-  
+
   const [searchQuery, setSearchQuery] = useState('');
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [offerModalVisible, setOfferModalVisible] = useState(false);
   const [batchAddModalVisible, setBatchAddModalVisible] = useState(false);
   const [createPurchaseRequestModalVisible, setCreatePurchaseRequestModalVisible] = useState(false);
   const [editPurchaseRequestModalVisible, setEditPurchaseRequestModalVisible] = useState(false);
-  const [selectedPurchaseRequestForEdit, setSelectedPurchaseRequestForEdit] = useState<any>(null);
+  const [selectedPurchaseRequestForEdit, setSelectedPurchaseRequestForEdit] =
+    useState<PurchaseRequest | null>(null);
   const [farmDetailsModalVisible, setFarmDetailsModalVisible] = useState(false);
   const [selectedFarm, setSelectedFarm] = useState<FarmCardType | null>(null);
   const [selectedListing, setSelectedListing] = useState<MarketplaceListing | null>(null);
@@ -151,29 +157,19 @@ export default function MarketplaceScreen() {
   const [ratingTransactionId, setRatingTransactionId] = useState<string | null>(null);
   const [ratingProducerName, setRatingProducerName] = useState<string>('');
   const [listingDetailsModalVisible, setListingDetailsModalVisible] = useState(false);
-  const [selectedListingForDetails, setSelectedListingForDetails] = useState<MarketplaceListing | null>(null);
+  const [selectedListingForDetails, setSelectedListingForDetails] =
+    useState<MarketplaceListing | null>(null);
   const [purchaseRequestOfferModalVisible, setPurchaseRequestOfferModalVisible] = useState(false);
-  const [selectedPurchaseRequest, setSelectedPurchaseRequest] = useState<any>(null);
-  const [selectedPurchaseRequestMatch, setSelectedPurchaseRequestMatch] = useState<any>(null);
-  
+  const [selectedPurchaseRequest, setSelectedPurchaseRequest] = useState<PurchaseRequest | null>(null);
+  const [selectedPurchaseRequestMatch, setSelectedPurchaseRequestMatch] = useState<PurchaseRequestMatch | null>(null);
+
   // State pour Mes annonces et Offres
   const [myListings, setMyListings] = useState<MarketplaceListing[]>([]);
   const [myListingsLoading, setMyListingsLoading] = useState(false);
-  const [myPurchaseRequests, setMyPurchaseRequests] = useState<any[]>([]);
+  const [myPurchaseRequests, setMyPurchaseRequests] = useState<unknown[]>([]);
   const [receivedOffers, setReceivedOffers] = useState<Offer[]>([]);
   const [sentOffers, setSentOffers] = useState<Offer[]>([]);
   const [offersLoading, setOffersLoading] = useState(false);
-
-  // Charger les données selon l'onglet actif
-  useEffect(() => {
-    if (activeTab === 'acheter') {
-    loadListings();
-    } else if (activeTab === 'mes-annonces') {
-      loadMyListings();
-    } else if (activeTab === 'offres') {
-      loadOffers();
-    }
-  }, [filters, sortBy, activeTab, loadListings, loadMyListings, loadOffers]);
 
   const loadListings = useCallback(() => {
     const searchFilters: FiltersType = {
@@ -190,34 +186,37 @@ export default function MarketplaceScreen() {
     );
   }, [dispatch, filters, sortBy, searchQuery]);
 
-  // Charger mes annonces
+  // Charger mes annonces depuis l'API backend
   const loadMyListings = useCallback(async () => {
     if (!user?.id || !projetActif) return;
-    
+
     try {
       setMyListingsLoading(true);
-      const db = await getDatabase();
-      const listingRepo = new (await import('../../database/repositories')).MarketplaceListingRepository(db);
-      const animalRepo = new (await import('../../database/repositories')).AnimalRepository(db);
-      const peseeRepo = new (await import('../../database/repositories')).PeseeRepository(db);
       
-      const allListings = await listingRepo.findByFarmId(projetActif.id);
-      
+      // Charger les listings depuis l'API backend
+      const allListings = await apiClient.get<MarketplaceListing[]>('/marketplace/listings', {
+        params: { projet_id: projetActif.id },
+      });
+
       // Filtrer pour ne garder que les listings actifs (available ou reserved)
       const activeListings = allListings.filter(
-        l => l.status === 'available' || l.status === 'reserved'
+        (l) => l.status === 'available' || l.status === 'reserved'
       );
-      
-      // Enrichir les listings avec les informations des animaux
+
+      // Enrichir les listings avec les informations des animaux depuis l'API backend
       const enrichedListings = await Promise.all(
         activeListings.map(async (listing) => {
           try {
-            const animal = await animalRepo.findById(listing.subjectId);
+            // Récupérer l'animal depuis l'API backend
+            const animal = await apiClient.get<any>(`/production/animaux/${listing.subjectId}`);
             if (!animal) return null;
 
-            // Récupérer la dernière pesée pour le poids actuel
-            const dernierePesee = await peseeRepo.findLastByAnimal(animal.id);
-            const poidsActuel = dernierePesee?.poids_kg || animal.poids_actuel || 0;
+            // Récupérer les pesées de l'animal depuis l'API backend
+            const pesees = await apiClient.get<any[]>(`/production/pesees`, {
+              params: { animal_id: animal.id, limit: 1 },
+            });
+            const dernierePesee = pesees && pesees.length > 0 ? pesees[0] : null;
+            const poidsActuel = dernierePesee?.poids_kg || animal.poids_initial || 0;
 
             return {
               ...listing,
@@ -239,7 +238,8 @@ export default function MarketplaceScreen() {
       setMyListings(validListings);
     } catch (error) {
       console.error('Erreur chargement mes annonces:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Impossible de charger vos annonces';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Impossible de charger vos annonces';
       Alert.alert('Erreur', errorMessage);
     } finally {
       setMyListingsLoading(false);
@@ -249,47 +249,41 @@ export default function MarketplaceScreen() {
   // Charger les demandes d'achat de l'acheteur
   const loadMyPurchaseRequests = useCallback(async () => {
     if (!user?.id || !isBuyer) return;
-    
+
     try {
-      const db = await getDatabase();
-      const purchaseRequestRepo = new PurchaseRequestRepository(db);
+      const purchaseRequestRepo = new PurchaseRequestRepository();
       const requests = await purchaseRequestRepo.findByBuyerId(user.id, false);
       setMyPurchaseRequests(requests);
     } catch (error) {
-      console.error('Erreur chargement demandes d\'achat:', error);
+      console.error("Erreur chargement demandes d'achat:", error);
     }
   }, [user, isBuyer]);
-
-  // Charger les demandes d'achat au montage et quand l'utilisateur change
-  useEffect(() => {
-    if (isBuyer && user?.id) {
-      loadMyPurchaseRequests();
-    }
-  }, [isBuyer, user?.id, loadMyPurchaseRequests]);
 
   // Charger les offres
   const loadOffers = useCallback(async () => {
     if (!user?.id) return;
-    
+
     try {
       setOffersLoading(true);
-      const db = await getDatabase();
-      const offerRepo = new (await import('../../database/repositories')).MarketplaceOfferRepository(db);
-      
+      const offerRepo = new (
+        await import('../../database/repositories')
+      ).MarketplaceOfferRepository();
+
       // Charger les offres reçues (en tant que producteur)
       const received = await offerRepo.findByProducerId(user.id);
-      
+
       // Charger les offres envoyées (en tant qu'acheteur)
       // Exclure les offres retirées (withdrawn) et expirées (expired) de la liste
       const sent = (await offerRepo.findByBuyerId(user.id)).filter(
-        offer => offer.status !== 'withdrawn' && offer.status !== 'expired'
+        (offer) => offer.status !== 'withdrawn' && offer.status !== 'expired'
       );
-      
+
       setReceivedOffers(received);
       setSentOffers(sent);
     } catch (error) {
       console.error('Erreur chargement offres:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Impossible de charger les offres';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Impossible de charger les offres';
       Alert.alert('Erreur', errorMessage);
     } finally {
       setOffersLoading(false);
@@ -301,38 +295,39 @@ export default function MarketplaceScreen() {
     const checkCompletedTransactions = async () => {
       // Chercher les notifications "delivery_confirmed" non lues
       const deliveryConfirmedNotifications = marketplaceNotifications.filter(
-        n => n.type === 'delivery_confirmed' && !n.read && n.relatedType === 'transaction'
+        (n) => n.type === 'delivery_confirmed' && !n.read && n.relatedType === 'transaction'
       );
 
       if (deliveryConfirmedNotifications.length > 0) {
         // Prendre la première notification
         const notification = deliveryConfirmedNotifications[0];
-        
+
         try {
           // Récupérer la transaction pour obtenir le nom du producteur
-          const db = await getDatabase();
-          const transactionRepo = new (await import('../../database/repositories')).MarketplaceTransactionRepository(db);
+          const transactionRepo = new (
+            await import('../../database/repositories')
+          ).MarketplaceTransactionRepository();
           const transaction = await transactionRepo.findById(notification.relatedId);
-          
+
           if (transaction) {
             // Déterminer si l'utilisateur est l'acheteur ou le producteur
             const isBuyer = transaction.buyerId === user?.id;
             const isProducer = transaction.producerId === user?.id;
-            
+
             // L'acheteur note le producteur, le producteur note l'acheteur
             if (isBuyer || isProducer) {
               // Récupérer le nom de l'autre partie
               const { UserRepository } = await import('../../database/repositories');
-              const userRepo = new UserRepository(db);
+              const userRepo = new UserRepository();
               const otherPartyId = isBuyer ? transaction.producerId : transaction.buyerId;
               const otherParty = await userRepo.findById(otherPartyId);
-              
+
               if (otherParty) {
                 const producerName = `${otherParty.prenom} ${otherParty.nom}`;
                 setRatingProducerName(producerName);
                 setRatingTransactionId(notification.relatedId);
                 setRatingModalVisible(true);
-                
+
                 // Marquer la notification comme lue
                 markAsRead(notification.id);
               }
@@ -359,8 +354,7 @@ export default function MarketplaceScreen() {
 
       try {
         setGroupingListings(true);
-        const db = await getDatabase();
-        const service = getMarketplaceService(db);
+        const service = getMarketplaceService();
 
         // Récupérer la location de l'utilisateur si disponible
         let buyerLocation: { latitude: number; longitude: number } | undefined;
@@ -416,14 +410,20 @@ export default function MarketplaceScreen() {
     setFiltersVisible(true);
   }, []);
 
-  const handleSortChange = useCallback((sort: MarketplaceSortOption) => {
-    dispatch(setSortBy(sort));
-  }, [dispatch]);
+  const handleSortChange = useCallback(
+    (sort: MarketplaceSortOption) => {
+      dispatch(setSortBy(sort));
+    },
+    [dispatch]
+  );
 
-  const handleApplyFilters = useCallback((newFilters: FiltersType) => {
-    dispatch(setFilters(newFilters));
-    setFiltersVisible(false);
-  }, [dispatch]);
+  const handleApplyFilters = useCallback(
+    (newFilters: FiltersType) => {
+      dispatch(setFilters(newFilters));
+      setFiltersVisible(false);
+    },
+    [dispatch]
+  );
 
   const handleClearFilters = useCallback(() => {
     dispatch(clearFilters());
@@ -440,7 +440,7 @@ export default function MarketplaceScreen() {
 
   const handleCreatePurchaseRequest = useCallback(() => {
     if (!user?.id) {
-      Alert.alert('Erreur', 'Vous devez être connecté pour créer une demande d\'achat.');
+      Alert.alert('Erreur', "Vous devez être connecté pour créer une demande d'achat.");
       return;
     }
     setCreatePurchaseRequestModalVisible(true);
@@ -451,110 +451,124 @@ export default function MarketplaceScreen() {
     setFarmDetailsModalVisible(true);
   }, []);
 
-  const handleMakeOfferFromFarm = useCallback(async (selectedListingIds: string[]) => {
-    if (!selectedFarm || selectedListingIds.length === 0) return;
+  const handleMakeOfferFromFarm = useCallback(
+    async (selectedListingIds: string[]) => {
+      if (!selectedFarm || selectedListingIds.length === 0) return;
 
-    try {
-      // Récupérer les listings correspondants
-      const db = await getDatabase();
-      const listingRepo = new (await import('../../database/repositories')).MarketplaceListingRepository(db);
-      const animalRepo = new (await import('../../database/repositories')).AnimalRepository(db);
-      const peseeRepo = new (await import('../../database/repositories')).PeseeRepository(db);
+      try {
+        // Récupérer les listings correspondants
+        const listingRepo = new (
+          await import('../../database/repositories')
+        ).MarketplaceListingRepository();
+        const animalRepo = new (await import('../../database/repositories')).AnimalRepository();
+        const peseeRepo = new (await import('../../database/repositories')).PeseeRepository();
 
-      const selectedListings = await Promise.all(
-        selectedListingIds.map(id => listingRepo.findById(id))
-      );
-      const validListings = selectedListings.filter((l): l is MarketplaceListing => l !== null);
+        const selectedListings = await Promise.all(
+          selectedListingIds.map((id) => listingRepo.findById(id))
+        );
+        const validListings = selectedListings.filter((l: MarketplaceListing | null): l is MarketplaceListing => l !== null);
 
-      if (validListings.length === 0) {
-        Alert.alert('Erreur', 'Aucun sujet valide sélectionné');
-        return;
+        if (validListings.length === 0) {
+          Alert.alert('Erreur', 'Aucun sujet valide sélectionné');
+          return;
+        }
+
+        // Convertir les listings en SubjectCard avec toutes les informations
+        const { VaccinationRepository } = await import('../../database/repositories');
+        const vaccinationRepo = new VaccinationRepository();
+
+        const subjects = await Promise.all(
+          validListings.map(async (listing: MarketplaceListing) => {
+            const animal = await animalRepo.findById(listing.subjectId);
+            if (!animal) return null;
+
+            const dernierePesee = await peseeRepo.findLastByAnimal(animal.id);
+            const poidsActuel = dernierePesee?.poids_kg || animal.poids_initial || 0;
+
+            // Calculer l'âge en mois
+            const ageEnMois = animal.date_naissance
+              ? Math.floor(
+                  (new Date().getTime() - new Date(animal.date_naissance).getTime()) /
+                    (1000 * 60 * 60 * 24 * 30)
+                )
+              : 0;
+
+            // Vérifier le statut des vaccinations
+            const vaccinations = await vaccinationRepo.findByAnimal(animal.id);
+            const vaccinationsAJour =
+              vaccinations.length > 0 &&
+              vaccinations.every(
+                (v) => v.date_rappel === null || new Date(v.date_rappel) > new Date()
+              );
+
+            // Déterminer le statut de santé
+            let healthStatus: 'good' | 'attention' | 'critical' = 'good';
+            if (animal.statut === 'mort') {
+              healthStatus = 'critical';
+            } else if (!vaccinationsAJour) {
+              healthStatus = 'attention';
+            }
+
+            return {
+              listingId: listing.id,
+              subjectId: listing.subjectId,
+              code: animal.code || listing.subjectId,
+              race: animal.race || listing.race || 'Non spécifiée',
+              weight: poidsActuel,
+              weightDate: dernierePesee?.date || listing.lastWeightDate,
+              pricePerKg: listing.pricePerKg,
+              calculatedPrice: listing.calculatedPrice,
+              // Champs supplémentaires pour l'enrichissement
+              age: ageEnMois,
+              healthStatus,
+              vaccinations: vaccinationsAJour,
+            } as SelectedSubjectForOffer & {
+              age?: number;
+              healthStatus?: 'good' | 'attention' | 'critical';
+              vaccinations?: boolean;
+            };
+          })
+        );
+
+        const validSubjects = subjects.filter((s: SelectedSubjectForOffer | null): s is SelectedSubjectForOffer => s !== null);
+        if (validSubjects.length === 0) {
+          Alert.alert('Erreur', 'Impossible de charger les informations des sujets');
+          return;
+        }
+
+        // Calculer le prix total
+        const originalPrice = validListings.reduce((sum: number, l: MarketplaceListing) => sum + (l.calculatedPrice || 0), 0);
+
+        // Utiliser le premier listingId comme référence (pour regrouper tous les sujets)
+        const firstListingId = validListings[0].id;
+
+        // Fermer le modal de détails et ouvrir le modal d'offre
+        setFarmDetailsModalVisible(false);
+        setSelectedSubjectsForOffer({
+          subjects: validSubjects,
+          listingId: firstListingId,
+          originalPrice,
+        });
+        setOfferModalVisible(true);
+      } catch (error) {
+        console.error('Erreur préparation offre:', error);
+        const errorMessage =
+          error instanceof Error ? error.message : "Impossible de préparer l'offre";
+        Alert.alert('Erreur', errorMessage);
       }
-
-      // Convertir les listings en SubjectCard avec toutes les informations
-      const vaccinationRepo = new (await import('../../database/repositories')).VaccinationRepository(db);
-      
-      const subjects = await Promise.all(
-        validListings.map(async (listing) => {
-          const animal = await animalRepo.findById(listing.subjectId);
-          if (!animal) return null;
-
-          const dernierePesee = await peseeRepo.findLastByAnimal(animal.id);
-          const poidsActuel = dernierePesee?.poids_kg || animal.poids_actuel || 0;
-          
-          // Calculer l'âge en mois
-          const ageEnMois = animal.date_naissance
-            ? Math.floor(
-                (new Date().getTime() - new Date(animal.date_naissance).getTime()) /
-                  (1000 * 60 * 60 * 24 * 30)
-              )
-            : 0;
-          
-          // Vérifier le statut des vaccinations
-          const vaccinations = await vaccinationRepo.findByAnimal(animal.id);
-          const vaccinationsAJour = vaccinations.length > 0 && 
-            vaccinations.every(v => v.date_rappel === null || new Date(v.date_rappel) > new Date());
-          
-          // Déterminer le statut de santé
-          let healthStatus: 'good' | 'attention' | 'critical' = 'good';
-          if (animal.statut === 'mort' || animal.statut === 'malade') {
-            healthStatus = 'critical';
-          } else if (!vaccinationsAJour) {
-            healthStatus = 'attention';
-          }
-
-          return {
-            listingId: listing.id,
-            subjectId: listing.subjectId,
-            code: animal.code || listing.subjectId,
-            race: animal.race || listing.race || 'Non spécifiée',
-            weight: poidsActuel,
-            weightDate: dernierePesee?.date || listing.lastWeightDate,
-            pricePerKg: listing.pricePerKg,
-            calculatedPrice: listing.calculatedPrice,
-            // Champs supplémentaires pour l'enrichissement
-            age: ageEnMois,
-            healthStatus,
-            vaccinations: vaccinationsAJour,
-          } as SelectedSubjectForOffer & { age?: number; healthStatus?: 'good' | 'attention' | 'critical'; vaccinations?: boolean };
-        })
-      );
-
-      const validSubjects = subjects.filter((s): s is SelectedSubjectForOffer => s !== null);
-      if (validSubjects.length === 0) {
-        Alert.alert('Erreur', 'Impossible de charger les informations des sujets');
-        return;
-      }
-
-      // Calculer le prix total
-      const originalPrice = validListings.reduce((sum, l) => sum + (l.calculatedPrice || 0), 0);
-
-      // Utiliser le premier listingId comme référence (pour regrouper tous les sujets)
-      const firstListingId = validListings[0].id;
-
-      // Fermer le modal de détails et ouvrir le modal d'offre
-      setFarmDetailsModalVisible(false);
-      setSelectedSubjectsForOffer({
-        subjects: validSubjects,
-        listingId: firstListingId,
-        originalPrice,
-      });
-      setOfferModalVisible(true);
-    } catch (error) {
-      console.error('Erreur préparation offre:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Impossible de préparer l\'offre';
-      Alert.alert('Erreur', errorMessage);
-    }
-  }, [selectedFarm]);
+    },
+    [selectedFarm]
+  );
 
   const handleListingPress = useCallback(async (listing: MarketplaceListing) => {
     // Enrichir les données du listing avec les informations de l'animal
     try {
-      const db = await getDatabase();
-      const animalRepo = new (await import('../../database/repositories')).AnimalRepository(db);
-      const peseeRepo = new (await import('../../database/repositories')).PeseeRepository(db);
-      const vaccinationRepo = new (await import('../../database/repositories')).VaccinationRepository(db);
-      
+      const animalRepo = new (await import('../../database/repositories')).AnimalRepository();
+      const peseeRepo = new (await import('../../database/repositories')).PeseeRepository();
+      const vaccinationRepo = new (
+        await import('../../database/repositories')
+      ).VaccinationRepository();
+
       const animal = await animalRepo.findById(listing.subjectId);
       if (animal) {
         // Calculer l'âge en mois
@@ -564,20 +578,21 @@ export default function MarketplaceScreen() {
                 (1000 * 60 * 60 * 24 * 30)
             )
           : 0;
-        
+
         // Vérifier le statut des vaccinations
         const vaccinations = await vaccinationRepo.findByAnimal(animal.id);
-        const vaccinationsAJour = vaccinations.length > 0 && 
-          vaccinations.every(v => v.date_rappel === null || new Date(v.date_rappel) > new Date());
-        
+        const vaccinationsAJour =
+          vaccinations.length > 0 &&
+          vaccinations.every((v) => v.date_rappel === null || new Date(v.date_rappel) > new Date());
+
         // Déterminer le statut de santé
         let healthStatus: 'good' | 'attention' | 'critical' = 'good';
-        if (animal.statut === 'mort' || animal.statut === 'malade') {
+        if (animal.statut === 'mort') {
           healthStatus = 'critical';
         } else if (!vaccinationsAJour) {
           healthStatus = 'attention';
         }
-        
+
         // Enrichir le listing avec les nouvelles données
         const enrichedListing = {
           ...listing,
@@ -585,7 +600,7 @@ export default function MarketplaceScreen() {
           healthStatus,
           vaccinations: vaccinationsAJour,
         };
-        
+
         setSelectedListing(enrichedListing);
       } else {
         setSelectedListing(listing);
@@ -599,64 +614,77 @@ export default function MarketplaceScreen() {
     }
   }, []);
 
-  const handleOfferSubmit = useCallback(async (data: {
-    subjectIds: string[];
-    proposedPrice: number;
-    message?: string;
-  }, listingId: string) => {
-    if (!user?.id) {
-      Alert.alert('Erreur', 'Vous devez être connecté pour faire une offre');
-      return;
-    }
-
-    try {
-      const db = await getDatabase();
-      const service = getMarketplaceService(db);
-      const listingRepo = new (await import('../../database/repositories')).MarketplaceListingRepository(db);
-
-      // Utiliser le listingId passé pour trouver le listing principal
-      const mainListing = await listingRepo.findById(listingId);
-
-      if (!mainListing) {
-        throw new Error('Annonce introuvable');
+  const handleOfferSubmit = useCallback(
+    async (
+      data: {
+        subjectIds: string[];
+        proposedPrice: number;
+        message?: string;
+      },
+      listingId: string
+    ) => {
+      if (!user?.id) {
+        Alert.alert('Erreur', 'Vous devez être connecté pour faire une offre');
+        return;
       }
 
-      if (mainListing.status !== 'available' && mainListing.status !== 'reserved') {
-        throw new Error('Cette annonce n\'est plus disponible');
+      try {
+        const service = getMarketplaceService();
+        const listingRepo = new (
+          await import('../../database/repositories')
+        ).MarketplaceListingRepository();
+
+        // Utiliser le listingId passé pour trouver le listing principal
+        const mainListing = await listingRepo.findById(listingId);
+
+        if (!mainListing) {
+          throw new Error('Annonce introuvable');
+        }
+
+        if (mainListing.status !== 'available' && mainListing.status !== 'reserved') {
+          throw new Error("Cette annonce n'est plus disponible");
+        }
+
+        // Utiliser les subjectIds passés (qui sont déjà les IDs des animaux)
+        await service.createOffer({
+          listingId: mainListing.id,
+          subjectIds: data.subjectIds, // Ce sont déjà les subjectId des animaux
+          buyerId: user.id,
+          proposedPrice: data.proposedPrice,
+          message: data.message,
+        });
+
+        setOfferModalVisible(false);
+        setSelectedListing(null);
+        setSelectedSubjectsForOffer(null);
+        loadListings(); // Recharger pour voir les mises à jour
+      } catch (error: unknown) {
+        console.error('Erreur création offre:', error);
+        throw createAppError(error, ErrorCode.MARKETPLACE_UNAUTHORIZED); // L'erreur sera gérée par OfferModal
       }
-
-      // Utiliser les subjectIds passés (qui sont déjà les IDs des animaux)
-      await service.createOffer({
-        listingId: mainListing.id,
-        subjectIds: data.subjectIds, // Ce sont déjà les subjectId des animaux
-        buyerId: user.id,
-        proposedPrice: data.proposedPrice,
-        message: data.message,
-      });
-
-      setOfferModalVisible(false);
-      setSelectedListing(null);
-      setSelectedSubjectsForOffer(null);
-      loadListings(); // Recharger pour voir les mises à jour
-    } catch (error: unknown) {
-      console.error('Erreur création offre:', error);
-      throw createAppError(error, ErrorCode.MARKETPLACE_UNAUTHORIZED); // L'erreur sera gérée par OfferModal
-    }
-  }, [user, loadListings]);
+    },
+    [user, loadListings]
+  );
 
   const filterCount = Object.keys(filters).filter(
-    (key) => filters[key as keyof FiltersType] !== undefined && filters[key as keyof FiltersType] !== ''
+    (key) =>
+      filters[key as keyof FiltersType] !== undefined && filters[key as keyof FiltersType] !== ''
   ).length;
 
   // Handler pour le changement de favori
-  const handleFavoriteChange = useCallback((farmId: string, isFavorite: boolean) => {
-    // Recharger les listings pour mettre à jour l'ordre (favoris en premier)
-    loadListings();
-  }, [loadListings]);
-
+  const handleFavoriteChange = useCallback(
+    (farmId: string, isFavorite: boolean) => {
+      // Recharger les listings pour mettre à jour l'ordre (favoris en premier)
+      loadListings();
+    },
+    [loadListings]
+  );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: marketplaceColors.background }]} edges={['top', 'bottom']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: marketplaceColors.background }]}
+      edges={['top', 'bottom']}
+    >
       {/* Header */}
       <View style={[styles.header, { backgroundColor: marketplaceColors.surface }]}>
         <View style={styles.headerTop}>
@@ -675,7 +703,7 @@ export default function MarketplaceScreen() {
                 style={[styles.createButton, { backgroundColor: marketplaceColors.primary }]}
                 onPress={isProducer ? handleCreateListing : handleCreatePurchaseRequest}
               >
-                <Ionicons name="add" size={24} color={marketplaceColors.textOnPrimary} />
+                <Ionicons name="add" size={24} color={marketplaceColors.textInverse} />
               </TouchableOpacity>
             )}
           </View>
@@ -683,13 +711,13 @@ export default function MarketplaceScreen() {
 
         {/* Search Bar - Afficher seulement pour l'onglet Acheter */}
         {activeTab === 'acheter' && (
-        <MarketplaceSearchBar
-          onSearch={handleSearch}
-          onFilterPress={handleFilterPress}
-          onSortChange={handleSortChange}
-          currentSort={sortBy}
-          filterCount={filterCount}
-        />
+          <MarketplaceSearchBar
+            onSearch={handleSearch}
+            onFilterPress={handleFilterPress}
+            onSortChange={handleSortChange}
+            currentSort={sortBy}
+            filterCount={filterCount}
+          />
         )}
       </View>
 
@@ -698,14 +726,22 @@ export default function MarketplaceScreen() {
         <TouchableOpacity
           style={[
             styles.tab,
-            activeTab === 'acheter' && [styles.activeTab, { borderBottomColor: marketplaceColors.primary }],
+            activeTab === 'acheter' && [
+              styles.activeTab,
+              { borderBottomColor: marketplaceColors.primary },
+            ],
           ]}
           onPress={() => setActiveTab('acheter')}
         >
           <Text
             style={[
               styles.tabText,
-              { color: activeTab === 'acheter' ? marketplaceColors.primary : marketplaceColors.textSecondary },
+              {
+                color:
+                  activeTab === 'acheter'
+                    ? marketplaceColors.primary
+                    : marketplaceColors.textSecondary,
+              },
             ]}
           >
             Acheter
@@ -716,21 +752,29 @@ export default function MarketplaceScreen() {
           <TouchableOpacity
             style={[
               styles.tab,
-              activeTab === 'mes-annonces' && [styles.activeTab, { borderBottomColor: marketplaceColors.primary }],
+              activeTab === 'mes-annonces' && [
+                styles.activeTab,
+                { borderBottomColor: marketplaceColors.primary },
+              ],
             ]}
             onPress={() => setActiveTab('mes-annonces')}
           >
             <Text
               style={[
                 styles.tabText,
-                { color: activeTab === 'mes-annonces' ? marketplaceColors.primary : marketplaceColors.textSecondary },
+                {
+                  color:
+                    activeTab === 'mes-annonces'
+                      ? marketplaceColors.primary
+                      : marketplaceColors.textSecondary,
+                },
               ]}
             >
               Mes annonces
             </Text>
             {myListings.length > 0 && (
               <View style={[styles.tabBadge, { backgroundColor: marketplaceColors.primary }]}>
-                <Text style={[styles.tabBadgeText, { color: marketplaceColors.textOnPrimary }]}>
+                <Text style={[styles.tabBadgeText, { color: marketplaceColors.textInverse }]}>
                   {myListings.length}
                 </Text>
               </View>
@@ -742,21 +786,29 @@ export default function MarketplaceScreen() {
           <TouchableOpacity
             style={[
               styles.tab,
-              activeTab === 'mes-demandes' && [styles.activeTab, { borderBottomColor: marketplaceColors.primary }],
+              activeTab === 'mes-demandes' && [
+                styles.activeTab,
+                { borderBottomColor: marketplaceColors.primary },
+              ],
             ]}
             onPress={() => setActiveTab('mes-demandes')}
           >
             <Text
               style={[
                 styles.tabText,
-                { color: activeTab === 'mes-demandes' ? marketplaceColors.primary : marketplaceColors.textSecondary },
+                {
+                  color:
+                    activeTab === 'mes-demandes'
+                      ? marketplaceColors.primary
+                      : marketplaceColors.textSecondary,
+                },
               ]}
             >
               Mes demandes
             </Text>
             {myPurchaseRequests.length > 0 && (
               <View style={[styles.tabBadge, { backgroundColor: marketplaceColors.primary }]}>
-                <Text style={[styles.tabBadgeText, { color: marketplaceColors.textOnPrimary }]}>
+                <Text style={[styles.tabBadgeText, { color: marketplaceColors.textInverse }]}>
                   {myPurchaseRequests.length}
                 </Text>
               </View>
@@ -768,14 +820,22 @@ export default function MarketplaceScreen() {
           <TouchableOpacity
             style={[
               styles.tab,
-              activeTab === 'demandes' && [styles.activeTab, { borderBottomColor: marketplaceColors.primary }],
+              activeTab === 'demandes' && [
+                styles.activeTab,
+                { borderBottomColor: marketplaceColors.primary },
+              ],
             ]}
             onPress={() => setActiveTab('demandes')}
           >
             <Text
               style={[
                 styles.tabText,
-                { color: activeTab === 'demandes' ? marketplaceColors.primary : marketplaceColors.textSecondary },
+                {
+                  color:
+                    activeTab === 'demandes'
+                      ? marketplaceColors.primary
+                      : marketplaceColors.textSecondary,
+                },
               ]}
             >
               Demandes
@@ -785,24 +845,32 @@ export default function MarketplaceScreen() {
         <TouchableOpacity
           style={[
             styles.tab,
-            activeTab === 'offres' && [styles.activeTab, { borderBottomColor: marketplaceColors.primary }],
+            activeTab === 'offres' && [
+              styles.activeTab,
+              { borderBottomColor: marketplaceColors.primary },
+            ],
           ]}
           onPress={() => setActiveTab('offres')}
         >
           <Text
             style={[
               styles.tabText,
-              { color: activeTab === 'offres' ? marketplaceColors.primary : marketplaceColors.textSecondary },
+              {
+                color:
+                  activeTab === 'offres'
+                    ? marketplaceColors.primary
+                    : marketplaceColors.textSecondary,
+              },
             ]}
           >
             Offres
           </Text>
-          {(receivedOffers.filter(o => o.status === 'pending').length > 0 || 
-            sentOffers.filter(o => o.status === 'pending').length > 0) && (
+          {(receivedOffers.filter((o) => o.status === 'pending').length > 0 ||
+            sentOffers.filter((o) => o.status === 'pending').length > 0) && (
             <View style={[styles.tabBadge, { backgroundColor: marketplaceColors.error }]}>
-              <Text style={[styles.tabBadgeText, { color: marketplaceColors.textOnPrimary }]}>
-                {receivedOffers.filter(o => o.status === 'pending').length + 
-                 sentOffers.filter(o => o.status === 'pending').length}
+              <Text style={[styles.tabBadgeText, { color: marketplaceColors.textInverse }]}>
+                {receivedOffers.filter((o) => o.status === 'pending').length +
+                  sentOffers.filter((o) => o.status === 'pending').length}
               </Text>
             </View>
           )}
@@ -851,7 +919,7 @@ export default function MarketplaceScreen() {
             console.log('🔄 [MarketplaceScreen] onEditRequest appelé pour:', request.id);
             setSelectedPurchaseRequestForEdit(request);
             setEditPurchaseRequestModalVisible(true);
-            console.log('✅ [MarketplaceScreen] Modal d\'édition ouvert');
+            console.log("✅ [MarketplaceScreen] Modal d'édition ouvert");
           }}
         />
       )}
@@ -886,28 +954,29 @@ export default function MarketplaceScreen() {
       {/* Modals */}
       <MarketplaceFilters
         visible={filtersVisible}
-        filters={filters}
+        initialFilters={filters}
         onClose={() => setFiltersVisible(false)}
         onApply={handleApplyFilters}
-        onClear={handleClearFilters}
       />
 
       {selectedListing && (
         <OfferModal
           visible={offerModalVisible}
-          subjects={[{
-            id: selectedListing.subjectId, // Utiliser subjectId comme id pour la sélection
-            code: selectedListing.code || selectedListing.subjectId,
-            race: selectedListing.race || 'Non spécifiée',
-            weight: selectedListing.weight || 0,
-            weightDate: selectedListing.lastWeightDate,
-            age: (selectedListing as any).age || 0,
-            pricePerKg: selectedListing.pricePerKg,
-            totalPrice: selectedListing.calculatedPrice,
-            healthStatus: (selectedListing as any).healthStatus || 'good',
-            vaccinations: (selectedListing as any).vaccinations !== undefined ? (selectedListing as any).vaccinations : false,
-            available: true,
-          }]}
+          subjects={[
+            {
+              id: selectedListing.subjectId, // Utiliser subjectId comme id pour la sélection
+              code: selectedListing.code || selectedListing.subjectId,
+              race: selectedListing.race || 'Non spécifiée',
+              weight: selectedListing.weight || 0,
+              weightDate: selectedListing.lastWeightDate,
+              age: selectedListing.age || 0,
+              pricePerKg: selectedListing.pricePerKg,
+              totalPrice: selectedListing.calculatedPrice,
+              healthStatus: selectedListing.healthStatus || 'good',
+              vaccinations: selectedListing.vaccinations !== undefined ? selectedListing.vaccinations : false,
+              available: true,
+            },
+          ]}
           listingId={selectedListing.id}
           originalPrice={selectedListing.calculatedPrice}
           onClose={() => {
@@ -927,11 +996,11 @@ export default function MarketplaceScreen() {
             race: s.race || 'Non spécifiée',
             weight: s.weight || 0,
             weightDate: s.weightDate || new Date().toISOString(),
-            age: (s as any).age || 0,
+            age: (s as SelectedSubjectForOffer & { age?: number }).age || 0,
             pricePerKg: s.pricePerKg,
             totalPrice: s.calculatedPrice,
-            healthStatus: (s as any).healthStatus || 'good',
-            vaccinations: (s as any).vaccinations !== undefined ? (s as any).vaccinations : false,
+            healthStatus: (s as SelectedSubjectForOffer & { healthStatus?: 'good' | 'attention' | 'critical' }).healthStatus || 'good',
+            vaccinations: (s as SelectedSubjectForOffer & { vaccinations?: boolean }).vaccinations ?? false,
             available: true,
           }))}
           listingId={selectedSubjectsForOffer.listingId}
@@ -975,7 +1044,7 @@ export default function MarketplaceScreen() {
           <CreatePurchaseRequestModal
             visible={editPurchaseRequestModalVisible}
             buyerId={user.id}
-            editRequest={selectedPurchaseRequestForEdit}
+            editRequest={selectedPurchaseRequestForEdit || undefined}
             onClose={() => {
               setEditPurchaseRequestModalVisible(false);
               setSelectedPurchaseRequestForEdit(null);
@@ -1026,7 +1095,6 @@ export default function MarketplaceScreen() {
         onMakeOffer={handleMakeOfferFromFarm}
       />
 
-
       {/* RatingModal - Ouverture automatique après finalisation */}
       {ratingTransactionId && (
         <RatingModal
@@ -1040,10 +1108,13 @@ export default function MarketplaceScreen() {
           }}
           onSubmit={async (rating) => {
             try {
-              const db = await getDatabase();
-              const transactionRepo = new (await import('../../database/repositories')).MarketplaceTransactionRepository(db);
-              const ratingRepo = new (await import('../../database/repositories')).MarketplaceRatingRepository(db);
-              
+              const transactionRepo = new (
+                await import('../../database/repositories')
+              ).MarketplaceTransactionRepository();
+              const ratingRepo = new (
+                await import('../../database/repositories')
+              ).MarketplaceRatingRepository();
+
               // Récupérer la transaction pour obtenir les IDs
               const transaction = await transactionRepo.findById(ratingTransactionId);
               if (!transaction) {
@@ -1056,7 +1127,12 @@ export default function MarketplaceScreen() {
               const buyerId = isBuyer ? user.id : transaction.buyerId;
 
               // Calculer la moyenne
-              const overall = (rating.quality + rating.professionalism + rating.timeliness + rating.communication) / 4;
+              const overall =
+                (rating.quality +
+                  rating.professionalism +
+                  rating.timeliness +
+                  rating.communication) /
+                4;
 
               // Créer la notation
               await ratingRepo.create({
@@ -1073,7 +1149,7 @@ export default function MarketplaceScreen() {
                 comment: rating.comment,
                 photos: rating.photos,
                 verifiedPurchase: true,
-                status: 'published',
+                helpfulCount: 0,
               });
 
               // Fermer le modal
@@ -1099,7 +1175,10 @@ export default function MarketplaceScreen() {
             setSelectedListingForDetails(null);
           }}
         >
-          <SafeAreaView style={[styles.modalContainer, { backgroundColor: marketplaceColors.background }]} edges={['top']}>
+          <SafeAreaView
+            style={[styles.modalContainer, { backgroundColor: marketplaceColors.background }]}
+            edges={['top']}
+          >
             <View style={[styles.modalHeader, { backgroundColor: marketplaceColors.surface }]}>
               <Text style={[styles.modalHeaderTitle, { color: marketplaceColors.text }]}>
                 Détails de l'annonce
@@ -1121,9 +1200,12 @@ export default function MarketplaceScreen() {
                   Code du sujet
                 </Text>
                 <Text style={[styles.detailsValue, { color: marketplaceColors.text }]}>
-                  {selectedListingForDetails.code || `#${selectedListingForDetails.subjectId.slice(0, 8)}`}
+                  {selectedListingForDetails.code ||
+                    `#${selectedListingForDetails.subjectId.slice(0, 8)}`}
                   {(() => {
-                    const animal = allAnimaux?.find((a: ProductionAnimal) => a.id === selectedListingForDetails.subjectId);
+                    const animal = allAnimaux?.find(
+                      (a: ProductionAnimal) => a.id === selectedListingForDetails.subjectId
+                    );
                     return animal?.nom ? ` (${animal.nom})` : '';
                   })()}
                 </Text>
@@ -1147,7 +1229,10 @@ export default function MarketplaceScreen() {
                 </Text>
                 {selectedListingForDetails.weightDate && (
                   <Text style={[styles.detailsSubtext, { color: marketplaceColors.textSecondary }]}>
-                    Pesé le {format(new Date(selectedListingForDetails.weightDate), 'd MMM yyyy', { locale: fr })}
+                    Pesé le{' '}
+                    {format(new Date(selectedListingForDetails.weightDate), 'd MMM yyyy', {
+                      locale: fr,
+                    })}
                   </Text>
                 )}
               </View>
@@ -1165,7 +1250,12 @@ export default function MarketplaceScreen() {
                 <Text style={[styles.detailsLabel, { color: marketplaceColors.textSecondary }]}>
                   Prix total
                 </Text>
-                <Text style={[styles.detailsValue, { color: marketplaceColors.primary, fontSize: 20, fontWeight: 'bold' }]}>
+                <Text
+                  style={[
+                    styles.detailsValue,
+                    { color: marketplaceColors.primary, fontSize: 20, fontWeight: 'bold' },
+                  ]}
+                >
                   {selectedListingForDetails.calculatedPrice.toLocaleString()} FCFA
                 </Text>
               </View>
@@ -1174,22 +1264,28 @@ export default function MarketplaceScreen() {
                 <Text style={[styles.detailsLabel, { color: marketplaceColors.textSecondary }]}>
                   Statut
                 </Text>
-                <View style={[
-                  styles.statusBadge,
-                  {
-                    backgroundColor: selectedListingForDetails.status === 'available'
-                      ? marketplaceColors.success + '15'
-                      : marketplaceColors.warning + '15',
-                  },
-                ]}>
-                  <Text style={[
-                    styles.statusText,
+                <View
+                  style={[
+                    styles.statusBadge,
                     {
-                      color: selectedListingForDetails.status === 'available'
-                        ? marketplaceColors.success
-                        : marketplaceColors.warning,
+                      backgroundColor:
+                        selectedListingForDetails.status === 'available'
+                          ? marketplaceColors.success + '15'
+                          : marketplaceColors.warning + '15',
                     },
-                  ]}>
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.statusText,
+                      {
+                        color:
+                          selectedListingForDetails.status === 'available'
+                            ? marketplaceColors.success
+                            : marketplaceColors.warning,
+                      },
+                    ]}
+                  >
                     {selectedListingForDetails.status === 'available' ? 'Disponible' : 'Réservé'}
                   </Text>
                 </View>
@@ -1200,14 +1296,20 @@ export default function MarketplaceScreen() {
                   Date de publication
                 </Text>
                 <Text style={[styles.detailsValue, { color: marketplaceColors.text }]}>
-                  {format(new Date(selectedListingForDetails.listedAt), 'd MMM yyyy à HH:mm', { locale: fr })}
+                  {format(new Date(selectedListingForDetails.listedAt), 'd MMM yyyy à HH:mm', {
+                    locale: fr,
+                  })}
                 </Text>
               </View>
 
               <View style={styles.detailsCard}>
                 <View style={styles.statsRow}>
                   <View style={styles.statItem}>
-                    <Ionicons name="eye-outline" size={20} color={marketplaceColors.textSecondary} />
+                    <Ionicons
+                      name="eye-outline"
+                      size={20}
+                      color={marketplaceColors.textSecondary}
+                    />
                     <Text style={[styles.statValue, { color: marketplaceColors.text }]}>
                       {selectedListingForDetails.views || 0}
                     </Text>
@@ -1216,7 +1318,11 @@ export default function MarketplaceScreen() {
                     </Text>
                   </View>
                   <View style={styles.statItem}>
-                    <Ionicons name="mail-outline" size={20} color={marketplaceColors.textSecondary} />
+                    <Ionicons
+                      name="mail-outline"
+                      size={20}
+                      color={marketplaceColors.textSecondary}
+                    />
                     <Text style={[styles.statValue, { color: marketplaceColors.text }]}>
                       {selectedListingForDetails.inquiries || 0}
                     </Text>
@@ -1239,18 +1345,22 @@ export default function MarketplaceScreen() {
         onClose={() => setNotificationPanelVisible(false)}
         onNotificationPress={(notification) => {
           setNotificationPanelVisible(false);
-          
+
           // Navigation automatique vers le chat si offre acceptée
-          if (notification.type === 'offer_accepted' && notification.relatedId && notification.relatedType === 'transaction') {
+          if (
+            notification.type === 'offer_accepted' &&
+            notification.relatedId &&
+            notification.relatedType === 'transaction'
+          ) {
             // Naviguer vers le chat avec la transaction
-            navigation.navigate(SCREENS.MARKETPLACE_CHAT as never, {
+            (navigation as any).navigate(SCREENS.MARKETPLACE_CHAT, {
               transactionId: notification.relatedId,
-            } as never);
+            });
           } else if (notification.type === 'message_received' && notification.relatedId) {
             // Naviguer vers le chat
-            navigation.navigate(SCREENS.MARKETPLACE_CHAT as never, {
+            (navigation as any).navigate(SCREENS.MARKETPLACE_CHAT, {
               transactionId: notification.relatedId,
-            } as never);
+            });
           } else if (notification.type === 'offer_received') {
             // Pour les offres reçues, on pourrait naviguer vers une page d'offres
             Alert.alert('Nouvelle offre', 'Vous avez reçu une nouvelle offre');
@@ -1292,7 +1402,7 @@ const styles = StyleSheet.create({
   createButton: {
     width: 40,
     height: 40,
-    borderRadius: MarketplaceTheme.borderRadius.full,
+    borderRadius: MarketplaceTheme.borderRadius.round,
     justifyContent: 'center',
     alignItems: 'center',
     ...MarketplaceTheme.shadows.small,
@@ -1601,4 +1711,3 @@ const styles = StyleSheet.create({
     fontSize: MarketplaceTheme.typography.fontSizes.xs,
   },
 });
-

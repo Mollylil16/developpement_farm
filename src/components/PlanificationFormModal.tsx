@@ -176,8 +176,9 @@ export default function PlanificationFormModal({
         await dispatch(createPlanification(formData)).unwrap();
       }
       onSuccess();
-    } catch (error: any) {
-      Alert.alert('Erreur', error || "Erreur lors de l'enregistrement");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Erreur lors de l'enregistrement";
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -187,7 +188,7 @@ export default function PlanificationFormModal({
     // Sur iOS avec 'default', le picker se ferme automatiquement
     // Sur Android, il se ferme aussi automatiquement
     setShowDatePicker(false);
-    if (selectedDate && event.type !== 'dismissed') {
+    if (selectedDate && event?.type !== 'dismissed') {
       const dateStr = formatDateToLocal(selectedDate);
       setFormData({ ...formData, [datePickerField]: dateStr });
     }

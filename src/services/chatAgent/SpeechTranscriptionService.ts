@@ -3,7 +3,7 @@
  * Supporte plusieurs APIs : AssemblyAI, Google Speech-to-Text, OpenAI Whisper
  */
 
-import * as FileSystem from 'expo-file-system';
+// Note: Utilisation de require pour éviter les erreurs TypeScript avec expo-file-system
 
 export type TranscriptionProvider = 'assemblyai' | 'google' | 'openai' | 'none';
 
@@ -39,7 +39,9 @@ export class SpeechTranscriptionService {
    */
   async transcribe(audioUri: string): Promise<TranscriptionResult> {
     if (this.config.provider === 'none') {
-      throw new Error('Aucun service de transcription configuré. Configurez une API dans SpeechTranscriptionService.');
+      throw new Error(
+        'Aucun service de transcription configuré. Configurez une API dans SpeechTranscriptionService.'
+      );
     }
 
     switch (this.config.provider) {
@@ -67,7 +69,7 @@ export class SpeechTranscriptionService {
     try {
       // Étape 1: Uploader l'audio
       const audioData = await this.readAudioFile(audioUri);
-      
+
       const uploadResponse = await fetch('https://api.assemblyai.com/v2/upload', {
         method: 'POST',
         headers: {
@@ -105,19 +107,20 @@ export class SpeechTranscriptionService {
       const result = await this.pollAssemblyAIResult(id);
 
       return {
-        text: result.text,
-        confidence: result.confidence,
-        duration: result.audio_duration,
+        text: (result as any).text,
+        confidence: (result as any).confidence,
+        duration: (result as any).audio_duration,
       };
-    } catch (error: any) {
-      throw new Error(`Erreur transcription AssemblyAI: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Erreur transcription AssemblyAI: ${errorMessage}`);
     }
   }
 
   /**
    * Polling pour obtenir le résultat de la transcription AssemblyAI
    */
-  private async pollAssemblyAIResult(transcriptId: string): Promise<any> {
+  private async pollAssemblyAIResult(transcriptId: string): Promise<unknown> {
     const maxAttempts = 60; // 60 tentatives max (environ 30 secondes)
     const pollInterval = 500; // 500ms entre chaque tentative
 
@@ -137,7 +140,7 @@ export class SpeechTranscriptionService {
       }
 
       // Attendre avant la prochaine tentative
-      await new Promise(resolve => setTimeout(resolve, pollInterval));
+      await new Promise((resolve) => setTimeout(resolve, pollInterval));
     }
 
     throw new Error('Timeout: La transcription prend trop de temps');
@@ -188,8 +191,9 @@ export class SpeechTranscriptionService {
         text: transcript,
         confidence: data.results?.[0]?.alternatives?.[0]?.confidence,
       };
-    } catch (error: any) {
-      throw new Error(`Erreur transcription Google: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Erreur transcription Google: ${errorMessage}`);
     }
   }
 
@@ -206,8 +210,8 @@ export class SpeechTranscriptionService {
     try {
       // Pour React Native, utiliser directement l'URI du fichier
       // OpenAI accepte les fichiers locaux via FormData
-      const formData = new FormData() as any;
-      
+      const formData = new FormData();
+
       // Sur React Native, FormData accepte directement les objets avec uri
       formData.append('file', {
         uri: audioUri,
@@ -223,11 +227,13 @@ export class SpeechTranscriptionService {
           Authorization: `Bearer ${this.config.apiKey}`,
           // Ne pas définir Content-Type, laisse le navigateur le faire pour FormData
         },
-        body: formData,
+        body: formData as any,
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: { message: 'Unknown error' } }));
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: { message: 'Unknown error' } }));
         throw new Error(`Erreur OpenAI Whisper: ${errorData.error?.message || response.status}`);
       }
 
@@ -236,8 +242,9 @@ export class SpeechTranscriptionService {
       return {
         text: data.text || '',
       };
-    } catch (error: any) {
-      throw new Error(`Erreur transcription OpenAI: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Erreur transcription OpenAI: ${errorMessage}`);
     }
   }
 
@@ -248,6 +255,8 @@ export class SpeechTranscriptionService {
     try {
       // Si c'est une URI locale (file://)
       if (uri.startsWith('file://') || uri.startsWith('content://')) {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const FileSystem = require('expo-file-system');
         const base64 = await FileSystem.readAsStringAsync(uri, {
           encoding: FileSystem.EncodingType.Base64,
         });
@@ -266,8 +275,9 @@ export class SpeechTranscriptionService {
         throw new Error(`Erreur lecture fichier: ${response.status}`);
       }
       return await response.arrayBuffer();
-    } catch (error: any) {
-      throw new Error(`Erreur lecture audio: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Erreur lecture audio: ${errorMessage}`);
     }
   }
 
@@ -283,4 +293,3 @@ export class SpeechTranscriptionService {
     return btoa(binary);
   }
 }
-

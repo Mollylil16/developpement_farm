@@ -1,6 +1,6 @@
 /**
  * Migration 4 : Ajouter les colonnes pour le système multi-rôles
- * 
+ *
  * Version: 4
  */
 
@@ -15,9 +15,7 @@ export async function addMultiRoleFields(db: SQLiteDatabase): Promise<void> {
     return;
   }
 
-  const usersColumns = await db.getAllAsync<{ name: string }>(
-    "PRAGMA table_info('users')"
-  );
+  const usersColumns = await db.getAllAsync<{ name: string }>("PRAGMA table_info('users')");
 
   const colonnesMultiRoles = [
     { nom: 'roles', sql: 'roles TEXT' },
@@ -34,4 +32,3 @@ export async function addMultiRoleFields(db: SQLiteDatabase): Promise<void> {
     }
   }
 }
-

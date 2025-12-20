@@ -1,7 +1,7 @@
 /**
  * Migration 8 : Ajouter race à la table production_animaux
  * Permet de spécifier la race de l'animal
- * 
+ *
  * Version: 8
  */
 
@@ -19,4 +19,3 @@ export async function addRaceToProductionAnimaux(db: SQLiteDatabase): Promise<vo
     console.log('✅ Migration: Colonne race ajoutée à production_animaux');
   }
 }
-

@@ -95,7 +95,7 @@ describe('marketplaceFilters', () => {
   });
 
   describe('canUserViewListingInBuyView', () => {
-    it('devrait retourner true si le listing n\'appartient pas à l\'utilisateur', () => {
+    it("devrait retourner true si le listing n'appartient pas à l'utilisateur", () => {
       const listing = mockListings[0];
       const userId = 'producer-2';
 
@@ -104,7 +104,7 @@ describe('marketplaceFilters', () => {
       expect(result).toBe(true);
     });
 
-    it('devrait retourner false si le listing appartient à l\'utilisateur', () => {
+    it("devrait retourner false si le listing appartient à l'utilisateur", () => {
       const listing = mockListings[0];
       const userId = 'producer-1';
 
@@ -123,4 +123,3 @@ describe('marketplaceFilters', () => {
     });
   });
 });
-

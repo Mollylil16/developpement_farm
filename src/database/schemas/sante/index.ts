@@ -9,4 +9,3 @@ export * from './traitements.schema';
 export * from './visites_veterinaires.schema';
 export * from './rappels_vaccinations.schema';
 export * from '../veterinarians.schema';
-

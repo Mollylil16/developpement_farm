@@ -117,7 +117,7 @@ export default function RationsHistoryComponent() {
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderLeft}>
                   <Text style={[styles.cardTitle, { color: colors.text }]}>
-                    {getTypePorcLabel(ration.type_porc as any)}
+                    {getTypePorcLabel(ration.type_porc)}
                   </Text>
                   <Text style={[styles.cardDate, { color: colors.textSecondary }]}>
                     {formatDate(ration.date_creation)}

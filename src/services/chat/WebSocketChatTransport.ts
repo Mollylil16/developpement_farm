@@ -17,11 +17,15 @@ export class WebSocketChatTransport implements IChatTransport {
   private conversationId?: string;
   private reconnectAttempts: number = 0;
   private reconnectTimeout?: NodeJS.Timeout;
+  
+  // Propriétés utilisées dans les méthodes de la classe
+  private config: ChatTransportConfig;
+  private callbacks: ChatTransportCallbacks;
 
-  constructor(
-    private config: ChatTransportConfig,
-    private callbacks: ChatTransportCallbacks
-  ) {}
+  constructor(config: ChatTransportConfig, callbacks: ChatTransportCallbacks) {
+    this.config = config;
+    this.callbacks = callbacks;
+  }
 
   get status(): ConnectionStatus {
     return this._status;
@@ -59,7 +63,9 @@ export class WebSocketChatTransport implements IChatTransport {
             this.callbacks.onMessage(message);
           } catch (error: unknown) {
             console.error('[WebSocketTransport] Erreur parsing message:', error);
-            this.callbacks.onError(error);
+            this.callbacks.onError(
+              error instanceof Error ? error : new Error(String(error))
+            );
           }
         };
 
@@ -103,29 +109,34 @@ export class WebSocketChatTransport implements IChatTransport {
     console.log('[WebSocketTransport] Déconnecté');
   }
 
-  async sendMessage(
-    message: Omit<ChatMessage, 'id' | 'createdAt'>
-  ): Promise<ChatMessage> {
+  async sendMessage(message: Omit<ChatMessage, 'id' | 'createdAt'>): Promise<ChatMessage> {
     if (!this.ws || this._status !== 'connected') {
       throw new Error('WebSocket non connecté');
     }
 
     return new Promise((resolve, reject) => {
-      const messageWithId = {
-        ...message,
-        id: `temp-${Date.now()}`,
-        createdAt: new Date().toISOString(),
-      };
+      try {
+        const messageWithId = {
+          ...message,
+          id: `temp-${Date.now()}`,
+          createdAt: new Date().toISOString(),
+        };
 
-      // Envoyer le message
-      this.ws!.send(JSON.stringify({
-        type: 'send_message',
-        payload: messageWithId,
-      }));
+        // Envoyer le message
+        this.ws!.send(
+          JSON.stringify({
+            type: 'send_message',
+            payload: messageWithId,
+          })
+        );
 
-      // TODO: Attendre confirmation du serveur
-      // Pour l'instant, on résout immédiatement
-      resolve(messageWithId);
+        // TODO: Attendre confirmation du serveur
+        // Pour l'instant, on résout immédiatement
+        resolve(messageWithId);
+      } catch (error) {
+        // Utiliser reject pour gérer les erreurs d'envoi
+        reject(error instanceof Error ? error : new Error('Erreur lors de l\'envoi du message'));
+      }
     });
   }
 
@@ -134,10 +145,12 @@ export class WebSocketChatTransport implements IChatTransport {
       throw new Error('WebSocket non connecté');
     }
 
-    this.ws.send(JSON.stringify({
-      type: 'mark_read',
-      payload: { messageIds },
-    }));
+    this.ws.send(
+      JSON.stringify({
+        type: 'mark_read',
+        payload: { messageIds },
+      })
+    );
   }
 
   isConnected(): boolean {
@@ -152,9 +165,7 @@ export class WebSocketChatTransport implements IChatTransport {
 
     if (this.reconnectAttempts >= maxAttempts) {
       console.error('[WebSocketTransport] Max reconnexions atteint');
-      this.callbacks.onError(
-        new Error('Impossible de se reconnecter au serveur')
-      );
+      this.callbacks.onError(new Error('Impossible de se reconnecter au serveur'));
       return;
     }
 
@@ -179,4 +190,3 @@ export class WebSocketChatTransport implements IChatTransport {
     }, delay);
   }
 }
-

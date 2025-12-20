@@ -70,20 +70,16 @@ export default function OfferResponseModal({
       switch (action) {
         case 'accept':
           await onAccept();
-          Alert.alert(
-            'Offre acceptée',
-            'L\'offre a été acceptée. Une transaction a été créée.',
-            [{ text: 'OK', onPress: handleClose }]
-          );
+          Alert.alert('Offre acceptée', "L'offre a été acceptée. Une transaction a été créée.", [
+            { text: 'OK', onPress: handleClose },
+          ]);
           break;
 
         case 'reject':
           await onReject(message.trim() || undefined);
-          Alert.alert(
-            'Offre refusée',
-            'L\'offre a été refusée. L\'acheteur sera notifié.',
-            [{ text: 'OK', onPress: handleClose }]
-          );
+          Alert.alert('Offre refusée', "L'offre a été refusée. L'acheteur sera notifié.", [
+            { text: 'OK', onPress: handleClose },
+          ]);
           break;
 
         case 'counter':
@@ -96,13 +92,14 @@ export default function OfferResponseModal({
           await onCounter(price, message.trim() || undefined);
           Alert.alert(
             'Contre-proposition envoyée',
-            'Votre contre-proposition a été envoyée à l\'acheteur.',
+            "Votre contre-proposition a été envoyée à l'acheteur.",
             [{ text: 'OK', onPress: handleClose }]
           );
           break;
       }
-    } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Une erreur est survenue');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Une erreur est survenue';
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -110,9 +107,7 @@ export default function OfferResponseModal({
 
   const renderActionSelection = () => (
     <>
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>
-        Choisissez une action
-      </Text>
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>Choisissez une action</Text>
 
       <TouchableOpacity
         testID="accept-action-card"
@@ -123,15 +118,9 @@ export default function OfferResponseModal({
         ]}
         onPress={() => setAction('accept')}
       >
-        <Ionicons
-          name="checkmark-circle"
-          size={32}
-          color={colors.success}
-        />
+        <Ionicons name="checkmark-circle" size={32} color={colors.success} />
         <View style={styles.actionContent}>
-          <Text style={[styles.actionTitle, { color: colors.success }]}>
-            Accepter l'offre
-          </Text>
+          <Text style={[styles.actionTitle, { color: colors.success }]}>Accepter l'offre</Text>
           <Text style={[styles.actionDescription, { color: colors.textSecondary }]}>
             Une transaction sera créée au prix proposé
           </Text>
@@ -147,15 +136,9 @@ export default function OfferResponseModal({
         ]}
         onPress={() => setAction('counter')}
       >
-        <Ionicons
-          name="swap-horizontal"
-          size={32}
-          color={colors.primary}
-        />
+        <Ionicons name="swap-horizontal" size={32} color={colors.primary} />
         <View style={styles.actionContent}>
-          <Text style={[styles.actionTitle, { color: colors.primary }]}>
-            Contre-proposer
-          </Text>
+          <Text style={[styles.actionTitle, { color: colors.primary }]}>Contre-proposer</Text>
           <Text style={[styles.actionDescription, { color: colors.textSecondary }]}>
             Proposer un autre prix
           </Text>
@@ -171,15 +154,9 @@ export default function OfferResponseModal({
         ]}
         onPress={() => setAction('reject')}
       >
-        <Ionicons
-          name="close-circle"
-          size={32}
-          color={colors.error}
-        />
+        <Ionicons name="close-circle" size={32} color={colors.error} />
         <View style={styles.actionContent}>
-          <Text style={[styles.actionTitle, { color: colors.error }]}>
-            Refuser l'offre
-          </Text>
+          <Text style={[styles.actionTitle, { color: colors.error }]}>Refuser l'offre</Text>
           <Text style={[styles.actionDescription, { color: colors.textSecondary }]}>
             L'acheteur sera notifié du refus
           </Text>
@@ -195,9 +172,7 @@ export default function OfferResponseModal({
       <>
         {action === 'counter' && (
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Nouveau prix *
-            </Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Nouveau prix *</Text>
             <View style={[styles.priceInputContainer, { backgroundColor: colors.surface }]}>
               <TextInput
                 style={[styles.priceInput, { color: colors.text }]}
@@ -207,9 +182,7 @@ export default function OfferResponseModal({
                 onChangeText={setCounterPrice}
                 keyboardType="numeric"
               />
-              <Text style={[styles.priceSuffix, { color: colors.textSecondary }]}>
-                FCFA
-              </Text>
+              <Text style={[styles.priceSuffix, { color: colors.textSecondary }]}>FCFA</Text>
             </View>
             <Text style={[styles.helperText, { color: colors.textSecondary }]}>
               Prix original : {formatPrice(offer.originalPrice)}
@@ -226,10 +199,7 @@ export default function OfferResponseModal({
               Message {action === 'counter' ? '(optionnel)' : '(recommandé)'}
             </Text>
             <TextInput
-              style={[
-                styles.messageInput,
-                { backgroundColor: colors.surface, color: colors.text },
-              ]}
+              style={[styles.messageInput, { backgroundColor: colors.surface, color: colors.text }]}
               placeholder={
                 action === 'counter'
                   ? 'Expliquez votre contre-proposition...'
@@ -263,11 +233,11 @@ export default function OfferResponseModal({
   const getSubmitButtonText = () => {
     switch (action) {
       case 'accept':
-        return 'Accepter l\'offre';
+        return "Accepter l'offre";
       case 'counter':
         return 'Envoyer la contre-proposition';
       case 'reject':
-        return 'Refuser l\'offre';
+        return "Refuser l'offre";
       default:
         return 'Confirmer';
     }
@@ -292,12 +262,10 @@ export default function OfferResponseModal({
         <View style={[styles.container, { backgroundColor: colors.background }]}>
           {/* Header */}
           <View style={[styles.header, { borderBottomColor: colors.divider }]}>
-            <Text style={[styles.headerTitle, { color: colors.text }]}>
-              Répondre à l'offre
-            </Text>
-            <TouchableOpacity 
+            <Text style={[styles.headerTitle, { color: colors.text }]}>Répondre à l'offre</Text>
+            <TouchableOpacity
               testID="close-button"
-              onPress={handleClose} 
+              onPress={handleClose}
               style={styles.closeButton}
             >
               <Ionicons name="close" size={24} color={colors.text} />
@@ -310,21 +278,15 @@ export default function OfferResponseModal({
               <View style={styles.infoRow}>
                 <Ionicons name="person-outline" size={20} color={colors.textSecondary} />
                 <View style={styles.infoContent}>
-                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
-                    Acheteur
-                  </Text>
-                  <Text style={[styles.infoValue, { color: colors.text }]}>
-                    {offer.buyerId}
-                  </Text>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Acheteur</Text>
+                  <Text style={[styles.infoValue, { color: colors.text }]}>{offer.buyerId}</Text>
                 </View>
               </View>
 
               <View style={styles.infoRow}>
                 <Ionicons name="pricetag-outline" size={20} color={colors.textSecondary} />
                 <View style={styles.infoContent}>
-                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
-                    Sujets
-                  </Text>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Sujets</Text>
                   <Text style={[styles.infoValue, { color: colors.text }]}>
                     {offer.subjectIds.length} sujet(s)
                   </Text>
@@ -360,17 +322,13 @@ export default function OfferResponseModal({
                   <Text style={[styles.messageLabel, { color: colors.textSecondary }]}>
                     Message :
                   </Text>
-                  <Text style={[styles.messageText, { color: colors.text }]}>
-                    {offer.message}
-                  </Text>
+                  <Text style={[styles.messageText, { color: colors.text }]}>{offer.message}</Text>
                 </View>
               )}
             </View>
 
             {/* Sélection action */}
-            <View style={styles.section}>
-              {renderActionSelection()}
-            </View>
+            <View style={styles.section}>{renderActionSelection()}</View>
 
             {/* Détails action */}
             {renderActionDetails()}
@@ -383,9 +341,7 @@ export default function OfferResponseModal({
               onPress={handleClose}
               disabled={loading}
             >
-              <Text style={[styles.cancelButtonText, { color: colors.text }]}>
-                Annuler
-              </Text>
+              <Text style={[styles.cancelButtonText, { color: colors.text }]}>Annuler</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -569,4 +525,3 @@ const styles = StyleSheet.create({
     fontWeight: MarketplaceTheme.typography.fontWeights.bold,
   },
 });
-

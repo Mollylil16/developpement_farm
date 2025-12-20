@@ -15,30 +15,47 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import { useRoute, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { MarketplaceTheme } from '../../styles/marketplace.theme';
 import ChatMessage from '../../components/marketplace/ChatMessage';
 import type { ChatMessage as ChatMessageType, Transaction } from '../../types/marketplace';
+import { useAppSelector } from '../../store/hooks';
+import { useMarketplaceChat } from '../../hooks/useMarketplaceChat';
 
-interface ChatScreenProps {
-  transactionId: string;
-  currentUserId: string;
-  onSendMessage: (content: string) => Promise<void>;
-  onSendPriceProposal?: (price: number) => Promise<void>;
-  messages: ChatMessageType[];
-  transaction: Transaction;
-  loading?: boolean;
-}
-
-export default function ChatScreen({
-  transactionId,
-  currentUserId,
-  onSendMessage,
-  onSendPriceProposal,
-  messages,
-  transaction,
-  loading = false,
-}: ChatScreenProps) {
+export default function ChatScreen() {
+  const route = useRoute();
+  const navigation = useNavigation();
+  const { user } = useAppSelector((state) => state.auth);
+  
+  // Récupérer les paramètres de route
+  const { transactionId } = (route.params as { transactionId?: string }) || {};
+  
+  // Utiliser le hook pour charger les données du chat
+  const {
+    messages,
+    conversation,
+    loading,
+    sendMessage,
+    sendPriceProposal,
+  } = useMarketplaceChat(transactionId || '');
+  
+  const currentUserId = user?.id || '';
+  
+  // Récupérer la transaction depuis la conversation ou charger séparément
+  // Pour l'instant, on utilise une transaction factice basée sur la conversation
+  const transaction: Transaction | null = conversation ? {
+    id: transactionId || '',
+    offerId: conversation.relatedOfferId || '',
+    buyerId: conversation.participants[0] || '',
+    producerId: conversation.participants[1] || conversation.participants[0] || '',
+    subjectIds: [],
+    finalPrice: 0,
+    status: 'pending_delivery',
+    createdAt: conversation.createdAt,
+    updatedAt: conversation.updatedAt,
+    documents: {},
+  } : null;
   const { colors, spacing, typography, borderRadius } = MarketplaceTheme;
 
   const [inputText, setInputText] = useState('');
@@ -61,7 +78,7 @@ export default function ChatScreen({
     try {
       setSending(true);
       setInputText('');
-      await onSendMessage(content);
+      await sendMessage(content);
     } catch (error) {
       console.error('Erreur envoi message:', error);
     } finally {
@@ -69,37 +86,41 @@ export default function ChatScreen({
     }
   };
 
-  const renderHeader = () => (
-    <View style={[styles.headerContext, { backgroundColor: colors.surfaceLight }]}>
-      <View style={styles.contextRow}>
-        <Ionicons name="pricetag-outline" size={18} color={colors.textSecondary} />
-        <Text style={[styles.contextLabel, { color: colors.textSecondary }]}>Transaction:</Text>
-        <Text style={[styles.contextValue, { color: colors.text }]}>
-          {transaction.subjectIds.length} sujet(s)
-        </Text>
-      </View>
+  const renderHeader = () => {
+    if (!transaction) return null;
+    
+    return (
+      <View style={[styles.headerContext, { backgroundColor: colors.surfaceLight }]}>
+        <View style={styles.contextRow}>
+          <Ionicons name="pricetag-outline" size={18} color={colors.textSecondary} />
+          <Text style={[styles.contextLabel, { color: colors.textSecondary }]}>Transaction:</Text>
+          <Text style={[styles.contextValue, { color: colors.text }]}>
+            {transaction.subjectIds?.length || 0} sujet(s)
+          </Text>
+        </View>
 
-      <View style={styles.contextRow}>
-        <Ionicons name="cash-outline" size={18} color={colors.textSecondary} />
-        <Text style={[styles.contextLabel, { color: colors.textSecondary }]}>Montant:</Text>
-        <Text style={[styles.contextValue, { color: colors.primary }]}>
-          {transaction.finalPrice.toLocaleString()} FCFA
-        </Text>
-      </View>
+        <View style={styles.contextRow}>
+          <Ionicons name="cash-outline" size={18} color={colors.textSecondary} />
+          <Text style={[styles.contextLabel, { color: colors.textSecondary }]}>Montant:</Text>
+          <Text style={[styles.contextValue, { color: colors.primary }]}>
+            {transaction.finalPrice?.toLocaleString() || '0'} FCFA
+          </Text>
+        </View>
 
-      <View style={styles.contextRow}>
-        <Ionicons name="information-circle-outline" size={18} color={colors.textSecondary} />
-        <Text style={[styles.contextLabel, { color: colors.textSecondary }]}>Statut:</Text>
-        <Text style={[styles.contextValue, { color: colors.text }]}>
-          {transaction.status === 'pending_delivery'
-            ? 'En attente de livraison'
-            : transaction.status === 'completed'
-            ? 'Terminé'
-            : 'En cours'}
-        </Text>
+        <View style={styles.contextRow}>
+          <Ionicons name="information-circle-outline" size={18} color={colors.textSecondary} />
+          <Text style={[styles.contextLabel, { color: colors.textSecondary }]}>Statut:</Text>
+          <Text style={[styles.contextValue, { color: colors.text }]}>
+            {transaction.status === 'pending_delivery'
+              ? 'En attente de livraison'
+              : transaction.status === 'completed'
+                ? 'Terminé'
+                : 'En cours'}
+          </Text>
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   const renderMessage = ({ item, index }: { item: ChatMessageType; index: number }) => {
     const isSent = item.senderId === currentUserId;
@@ -130,11 +151,11 @@ export default function ChatScreen({
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.centerContent, { backgroundColor: colors.background }]}>
+      <View
+        style={[styles.container, styles.centerContent, { backgroundColor: colors.background }]}
+      >
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-          Chargement...
-        </Text>
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Chargement...</Text>
       </View>
     );
   }
@@ -164,7 +185,7 @@ export default function ChatScreen({
       {/* Input message */}
       <View style={[styles.inputContainer, { backgroundColor: colors.surface }]}>
         {/* Actions rapides (optionnel) */}
-        {onSendPriceProposal && transaction.status === 'pending_delivery' && (
+        {sendPriceProposal && transaction && transaction.status === 'pending_delivery' && (
           <TouchableOpacity
             style={styles.actionButton}
             onPress={() => {

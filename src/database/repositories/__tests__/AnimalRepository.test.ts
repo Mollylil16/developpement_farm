@@ -1,6 +1,6 @@
 /**
  * Tests pour AnimalRepository
- * 
+ *
  * Repository critique pour la gestion des animaux de production
  */
 
@@ -135,7 +135,7 @@ describe('AnimalRepository', () => {
   });
 
   describe('findByProjet', () => {
-    it('devrait trouver tous les animaux d\'un projet', async () => {
+    it("devrait trouver tous les animaux d'un projet", async () => {
       const projetId = 'projet-1';
       const mockAnimals = [
         { ...mockAnimal, id: 'animal-1' },
@@ -171,7 +171,7 @@ describe('AnimalRepository', () => {
       expect(result?.code).toBe(code);
     });
 
-    it('devrait retourner null si l\'animal n\'existe pas', async () => {
+    it("devrait retourner null si l'animal n'existe pas", async () => {
       mockDb.getFirstAsync.mockResolvedValueOnce(null);
 
       const result = await repository.findByCode('CODE-INEXISTANT', 'projet-1');
@@ -181,7 +181,7 @@ describe('AnimalRepository', () => {
   });
 
   describe('findActiveByProjet', () => {
-    it('devrait trouver tous les animaux actifs d\'un projet', async () => {
+    it("devrait trouver tous les animaux actifs d'un projet", async () => {
       const projetId = 'projet-1';
       const mockActifs = [
         { ...mockAnimal, id: 'animal-1', actif: true },
@@ -259,9 +259,7 @@ describe('AnimalRepository', () => {
     it('devrait gérer les erreurs lors de la recherche', async () => {
       mockDb.getAllAsync.mockRejectedValueOnce(new Error('Database error'));
 
-      await expect(repository.findByProjet('projet-1')).rejects.toThrow(
-        'Database error'
-      );
+      await expect(repository.findByProjet('projet-1')).rejects.toThrow('Database error');
     });
   });
 });

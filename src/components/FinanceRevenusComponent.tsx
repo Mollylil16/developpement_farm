@@ -138,7 +138,7 @@ export default function FinanceRevenusComponent() {
 
   const onRefresh = useCallback(async () => {
     if (!projetActif?.id) return;
-    
+
     setRefreshing(true);
     try {
       await dispatch(loadRevenus(projetActif.id)).unwrap();
@@ -302,7 +302,7 @@ export default function FinanceRevenusComponent() {
                 <View style={styles.cardActions}>
                   {(() => {
                     // Filtrer les photos valides
-                    const photosValides = revenu.photos?.filter(p => p && p.trim() !== '') || [];
+                    const photosValides = revenu.photos?.filter((p) => p && p.trim() !== '') || [];
                     return photosValides.length > 0 ? (
                       <TouchableOpacity
                         accessible={true}
@@ -381,7 +381,7 @@ export default function FinanceRevenusComponent() {
                 )}
                 {(() => {
                   // Filtrer les photos valides (non vides, non nulles)
-                  const photosValides = revenu.photos?.filter(p => p && p.trim() !== '') || [];
+                  const photosValides = revenu.photos?.filter((p) => p && p.trim() !== '') || [];
                   return photosValides.length > 0 ? (
                     <View style={styles.photosContainer}>
                       <Text style={[styles.photosLabel, { color: colors.textSecondary }]}>
@@ -448,16 +448,18 @@ export default function FinanceRevenusComponent() {
               </TouchableOpacity>
             </View>
             <ScrollView horizontal pagingEnabled>
-              {viewingPhotos.filter(p => p && p.trim() !== '').map((photo, index) => (
-                <Image
-                  key={index}
-                  source={{ uri: photo }}
-                  style={styles.photoImage}
-                  contentFit="contain"
-                  transition={200}
-                  cachePolicy="memory-disk"
-                />
-              ))}
+              {viewingPhotos
+                .filter((p) => p && p.trim() !== '')
+                .map((photo, index) => (
+                  <Image
+                    key={index}
+                    source={{ uri: photo }}
+                    style={styles.photoImage}
+                    contentFit="contain"
+                    transition={200}
+                    cachePolicy="memory-disk"
+                  />
+                ))}
             </ScrollView>
           </View>
         </View>

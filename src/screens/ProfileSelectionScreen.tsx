@@ -7,9 +7,10 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import type { NavigationProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
-import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS, LIGHT_COLORS } from '../constants/theme';
 import { SCREENS } from '../navigation/types';
 import type { RoleType } from '../types/roles';
 
@@ -24,9 +25,10 @@ interface ProfileOption {
 
 const ProfileSelectionScreen: React.FC = () => {
   const { colors } = useTheme();
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp<any>>();
   const route = useRoute();
-  const { identifier, isEmail } = (route.params as { identifier?: string; isEmail?: boolean }) || {};
+  const { identifier, isEmail } =
+    (route.params as { identifier?: string; isEmail?: boolean }) || {};
 
   const profileOptions: ProfileOption[] = [
     {
@@ -66,39 +68,42 @@ const ProfileSelectionScreen: React.FC = () => {
     // Passer l'identifier si disponible (pour créer le compte)
     switch (profileType) {
       case 'producer':
-        navigation.navigate(SCREENS.CREATE_PROJECT as never, { 
+        (navigation as any).navigate(SCREENS.CREATE_PROJECT, {
           identifier,
-          isEmail 
-        } as never);
+          isEmail,
+        });
         break;
       case 'buyer':
-        navigation.navigate(SCREENS.BUYER_INFO_COMPLETION as never, { 
+        (navigation as any).navigate(SCREENS.BUYER_INFO_COMPLETION, {
           profileType,
           identifier,
-          isEmail 
-        } as never);
+          isEmail,
+        });
         break;
       case 'veterinarian':
-        navigation.navigate(SCREENS.VETERINARIAN_INFO_COMPLETION as never, { 
+        (navigation as any).navigate(SCREENS.VETERINARIAN_INFO_COMPLETION, {
           profileType,
           identifier,
-          isEmail 
-        } as never);
+          isEmail,
+        });
         break;
       case 'technician':
         // Le technicien peut avoir un flux simplifié
-        navigation.navigate(SCREENS.BUYER_INFO_COMPLETION as never, { 
+        (navigation as any).navigate(SCREENS.BUYER_INFO_COMPLETION, {
           profileType: 'technician',
           identifier,
-          isEmail 
-        } as never);
+          isEmail,
+        });
         break;
     }
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
-      <ScrollView 
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top', 'bottom']}
+    >
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -129,9 +134,7 @@ const ProfileSelectionScreen: React.FC = () => {
 
               <View style={styles.optionContent}>
                 <View style={styles.optionHeader}>
-                  <Text style={[styles.optionTitle, { color: colors.text }]}>
-                    {option.title}
-                  </Text>
+                  <Text style={[styles.optionTitle, { color: colors.text }]}>{option.title}</Text>
                   {option.badge && (
                     <View style={[styles.badge, { backgroundColor: option.color + '20' }]}>
                       <Text style={[styles.badgeText, { color: option.color }]}>
@@ -194,7 +197,7 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
     borderLeftWidth: 4,
-    ...SPACING.shadows?.small,
+    ...LIGHT_COLORS.shadow.small,
   },
   optionIcon: {
     width: 56,
@@ -224,7 +227,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: FONT_SIZES.xs,
-    fontWeight: FONT_WEIGHTS.semibold,
+    fontWeight: FONT_WEIGHTS.semiBold,
   },
   optionDescription: {
     fontSize: FONT_SIZES.sm,
@@ -238,4 +241,3 @@ const styles = StyleSheet.create({
 });
 
 export default ProfileSelectionScreen;
-

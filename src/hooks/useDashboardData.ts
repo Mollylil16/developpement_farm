@@ -8,7 +8,10 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAppDispatch } from '../store/hooks';
-import { loadMortalitesParProjet, loadStatistiquesMortalite } from '../store/slices/mortalitesSlice';
+import {
+  loadMortalitesParProjet,
+  loadStatistiquesMortalite,
+} from '../store/slices/mortalitesSlice';
 import { loadProductionAnimaux, loadPeseesRecents } from '../store/slices/productionSlice';
 
 interface UseDashboardDataProps {
@@ -123,4 +126,3 @@ export function useDashboardData({
     onRefresh,
   };
 }
-

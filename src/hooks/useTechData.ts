@@ -5,9 +5,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { getDatabase } from '../services/database';
 import { getErrorMessage } from '../types/common';
-import { ProjetRepository, CollaborateurRepository, PlanificationRepository } from '../database/repositories';
+import apiClient from '../services/api/apiClient';
 import { loadPlanificationsParProjet } from '../store/slices/planificationSlice';
 import { format, startOfDay, endOfDay, isToday, parseISO } from 'date-fns';
 
@@ -15,7 +14,12 @@ interface TechData {
   assistedFarms: Array<{
     farmId: string;
     farmName: string;
-    permissions: any;
+    permissions?: {
+      canViewHerd?: boolean;
+      canEditHerd?: boolean;
+      canViewHealthRecords?: boolean;
+      canEditHealthRecords?: boolean;
+    };
     since: string;
     taskCount: number;
   }>;
@@ -62,20 +66,16 @@ export function useTechData(techUserId?: string) {
     try {
       setData((prev) => ({ ...prev, loading: true, error: null }));
 
-      const db = await getDatabase();
-      const projetRepo = new ProjetRepository(db);
-      const collaborateurRepo = new CollaborateurRepository(db);
-
-      // Récupérer les fermes où le technicien est collaborateur
-      const allCollaborateurs = await collaborateurRepo.findAll();
+      // Récupérer les fermes où le technicien est collaborateur depuis l'API backend
+      const allCollaborateurs = await apiClient.get<any[]>('/collaborations');
       const techCollaborations = allCollaborateurs.filter(
-        (collab) => collab.email === user.email || collab.telephone === user.phone
+        (collab) => collab.email === user.email || collab.telephone === user.telephone
       );
 
-      // Récupérer les projets (fermes) associés
+      // Récupérer les projets (fermes) associés depuis l'API backend
       const assistedFarms: TechData['assistedFarms'] = [];
       for (const collab of techCollaborations) {
-        const project = await projetRepo.findById(collab.projet_id);
+        const project = await apiClient.get<any>(`/projets/${collab.projet_id}`);
         if (project) {
           assistedFarms.push({
             farmId: project.id,
@@ -92,17 +92,18 @@ export function useTechData(techUserId?: string) {
         await dispatch(loadPlanificationsParProjet(projetActif.id));
       }
 
-      // Charger les planifications pour toutes les fermes assistées
-      const planificationRepo = new PlanificationRepository(db);
+      // Charger les planifications pour toutes les fermes assistées depuis l'API backend
       const today = new Date();
       const todayStart = startOfDay(today);
       const todayEnd = endOfDay(today);
 
       const todayTasks: TechData['todayTasks'] = [];
       for (const farm of assistedFarms) {
-        // Charger les planifications de cette ferme
-        const farmPlanifications = await planificationRepo.findByProjet(farm.farmId);
-        
+        // Charger les planifications de cette ferme depuis l'API backend
+        const farmPlanifications = await apiClient.get<any[]>(`/planification/planifications`, {
+          params: { projet_id: farm.farmId },
+        });
+
         // Filtrer les tâches du jour
         const tasksToday = farmPlanifications.filter((p) => {
           const taskDate = parseISO(p.date_prevue);
@@ -111,9 +112,13 @@ export function useTechData(techUserId?: string) {
 
         // Convertir en format TaskCard
         for (const planif of tasksToday) {
-          const priority = planif.statut === 'en_cours' ? 'high' : 
-                          new Date(planif.date_prevue) < today ? 'high' : 'medium';
-          
+          const priority =
+            planif.statut === 'en_cours'
+              ? 'high'
+              : new Date(planif.date_prevue) < today
+                ? 'high'
+                : 'medium';
+
           todayTasks.push({
             id: planif.id,
             farmId: farm.farmId,
@@ -154,7 +159,7 @@ export function useTechData(techUserId?: string) {
         error: getErrorMessage(error),
       }));
     }
-  }, [user?.id, user?.email, user?.phone, techUserId, projetActif?.id, dispatch]);
+  }, [user?.id, user?.email, user?.telephone, techUserId, projetActif?.id, dispatch]);
 
   useEffect(() => {
     loadTechData();
@@ -165,4 +170,3 @@ export function useTechData(techUserId?: string) {
     refresh: loadTechData,
   };
 }
-

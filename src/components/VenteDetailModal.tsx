@@ -11,11 +11,7 @@ import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/t
 import { useTheme } from '../contexts/ThemeContext';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import {
-  getMargeColor,
-  getStatutMarge,
-  getMargeLabel,
-} from '../utils/margeCalculations';
+import { getMargeColor, getStatutMarge, getMargeLabel } from '../utils/margeCalculations';
 
 interface VenteDetailModalProps {
   visible: boolean;
@@ -51,9 +47,10 @@ export default function VenteDetailModal({ visible, onClose, vente }: VenteDetai
   };
 
   // Calcul statut marge OPEX (utilisée comme marge principale)
-  const statutMarge = vente.marge_opex_pourcent !== undefined
-    ? getStatutMarge(vente.marge_opex_pourcent)
-    : 'negative';
+  const statutMarge =
+    vente.marge_opex_pourcent !== undefined
+      ? getStatutMarge(vente.marge_opex_pourcent)
+      : 'negative';
   const couleurMarge = getMargeColor(statutMarge);
   const labelMarge = getMargeLabel(vente.marge_opex_pourcent || 0);
 
@@ -76,15 +73,11 @@ export default function VenteDetailModal({ visible, onClose, vente }: VenteDetai
 
           <View style={styles.infoRow}>
             <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Date</Text>
-            <Text style={[styles.infoValue, { color: colors.text }]}>
-              {formatDate(vente.date)}
-            </Text>
+            <Text style={[styles.infoValue, { color: colors.text }]}>{formatDate(vente.date)}</Text>
           </View>
 
           <View style={styles.infoRow}>
-            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
-              Prix de vente
-            </Text>
+            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Prix de vente</Text>
             <Text style={[styles.infoValue, { color: colors.success, fontWeight: '600' }]}>
               {formatMontant(vente.montant)} FCFA
             </Text>
@@ -94,15 +87,11 @@ export default function VenteDetailModal({ visible, onClose, vente }: VenteDetai
             <>
               <View style={styles.infoRow}>
                 <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Poids</Text>
-                <Text style={[styles.infoValue, { color: colors.text }]}>
-                  {vente.poids_kg} kg
-                </Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>{vente.poids_kg} kg</Text>
               </View>
 
               <View style={styles.infoRow}>
-                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
-                  Prix/kg vif
-                </Text>
+                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Prix/kg vif</Text>
                 <Text style={[styles.infoValue, { color: colors.text }]}>
                   {formatMontant(vente.montant / vente.poids_kg)} FCFA
                 </Text>
@@ -115,9 +104,7 @@ export default function VenteDetailModal({ visible, onClose, vente }: VenteDetai
               <Text style={[styles.infoLabel, { color: colors.textSecondary, marginBottom: 4 }]}>
                 Description
               </Text>
-              <Text style={[styles.infoValue, { color: colors.text }]}>
-                {vente.description}
-              </Text>
+              <Text style={[styles.infoValue, { color: colors.text }]}>{vente.description}</Text>
             </View>
           )}
         </View>
@@ -145,9 +132,7 @@ export default function VenteDetailModal({ visible, onClose, vente }: VenteDetai
                 </View>
                 <View style={styles.coutDetails}>
                   <View style={styles.coutRow}>
-                    <Text style={[styles.coutLabel, { color: colors.textSecondary }]}>
-                      Coût/kg
-                    </Text>
+                    <Text style={[styles.coutLabel, { color: colors.textSecondary }]}>Coût/kg</Text>
                     <Text style={[styles.coutValue, { color: colors.info }]}>
                       {formatMontant(vente.cout_kg_opex)} FCFA
                     </Text>
@@ -178,9 +163,7 @@ export default function VenteDetailModal({ visible, onClose, vente }: VenteDetai
                 </View>
                 <View style={styles.coutDetails}>
                   <View style={styles.coutRow}>
-                    <Text style={[styles.coutLabel, { color: colors.textSecondary }]}>
-                      Coût/kg
-                    </Text>
+                    <Text style={[styles.coutLabel, { color: colors.textSecondary }]}>Coût/kg</Text>
                     <Text style={[styles.coutValue, { color: colors.primary }]}>
                       {formatMontant(vente.cout_kg_complet)} FCFA
                     </Text>
@@ -213,11 +196,7 @@ export default function VenteDetailModal({ visible, onClose, vente }: VenteDetai
                     Marge OPEX (Principale)
                   </Text>
                   <Text style={[styles.margeEmoji]}>
-                    {statutMarge === 'confortable'
-                      ? '✅'
-                      : statutMarge === 'faible'
-                      ? '⚠️'
-                      : '❌'}
+                    {statutMarge === 'confortable' ? '✅' : statutMarge === 'faible' ? '⚠️' : '❌'}
                   </Text>
                 </View>
 
@@ -254,7 +233,8 @@ export default function VenteDetailModal({ visible, onClose, vente }: VenteDetai
             {/* Info explicative */}
             <View style={styles.infoBox}>
               <Text style={[styles.infoBoxText, { color: colors.textSecondary }]}>
-                💡 La marge OPEX prend en compte uniquement les dépenses opérationnelles. Les investissements (CAPEX) sont gérés séparément dans le bilan comptable.
+                💡 La marge OPEX prend en compte uniquement les dépenses opérationnelles. Les
+                investissements (CAPEX) sont gérés séparément dans le bilan comptable.
               </Text>
             </View>
           </>
@@ -268,8 +248,8 @@ export default function VenteDetailModal({ visible, onClose, vente }: VenteDetai
               Le poids du porc n'a pas été renseigné lors de la vente.
             </Text>
             <Text style={[styles.noDataSubtext, { color: colors.textSecondary }]}>
-              Pour calculer automatiquement les marges, modifiez cette vente et ajoutez le poids
-              du porc vendu.
+              Pour calculer automatiquement les marges, modifiez cette vente et ajoutez le poids du
+              porc vendu.
             </Text>
           </View>
         )}
@@ -314,7 +294,7 @@ const styles = StyleSheet.create({
   },
   coutType: {
     fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.bold as any,
+    fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.xs / 2,
   },
   coutSubtitle: {
@@ -370,7 +350,7 @@ const styles = StyleSheet.create({
   },
   margeTitle: {
     fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.bold as any,
+    fontWeight: FONT_WEIGHTS.bold,
   },
   margeEmoji: {
     fontSize: FONT_SIZES.xl,
@@ -381,7 +361,7 @@ const styles = StyleSheet.create({
   },
   margeMainValue: {
     fontSize: FONT_SIZES.xxl,
-    fontWeight: FONT_WEIGHTS.bold as any,
+    fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.xs,
   },
   margeMainPourcent: {
@@ -423,4 +403,3 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 });
-

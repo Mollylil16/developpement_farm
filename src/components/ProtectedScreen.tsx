@@ -12,7 +12,14 @@ import { useTheme } from '../contexts/ThemeContext';
 import { SCREENS } from '../navigation/types';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../constants/theme';
 
-type PermissionType = 'reproduction' | 'nutrition' | 'finance' | 'rapports' | 'planification' | 'mortalites' | 'sante';
+type PermissionType =
+  | 'reproduction'
+  | 'nutrition'
+  | 'finance'
+  | 'rapports'
+  | 'planification'
+  | 'mortalites'
+  | 'sante';
 
 interface ProtectedScreenProps {
   children: React.ReactNode;
@@ -48,7 +55,7 @@ export default function ProtectedScreen({
     if (activeRole === 'producer') {
       return true; // Les producteurs ont accès à tout
     }
-    
+
     // Pour technicien et vétérinaire, vérifier les permissions de collaboration
     if ((activeRole === 'technician' || activeRole === 'veterinarian') && collaborateurActuel) {
       // Vérifier les permissions spécifiques à la ferme via la collaboration
@@ -71,7 +78,7 @@ export default function ProtectedScreen({
           return false;
       }
     }
-    
+
     switch (module) {
       case 'reproduction':
       case 'nutrition':
@@ -90,16 +97,18 @@ export default function ProtectedScreen({
   };
 
   // Vérifier si l'utilisateur est propriétaire du projet actif
-  const isProprietaire = activeRole === 'producer' && 
-    projetActif && 
-    currentUser && 
-    (projetActif.proprietaire_id === currentUser.id || (projetActif as any).user_id === currentUser.id);
+  const isProprietaire =
+    activeRole === 'producer' &&
+    projetActif &&
+    currentUser &&
+    (projetActif.proprietaire_id === currentUser.id ||
+      ('user_id' in projetActif && (projetActif as { user_id?: string }).user_id === currentUser.id));
 
   // Vérifier si l'utilisateur a accès
   let hasAccess: boolean;
   if (requireOwner) {
     // Seul le propriétaire peut accéder
-    hasAccess = isProprietaire;
+    hasAccess = Boolean(isProprietaire);
   } else if (requiredPermission) {
     // Vérifier la permission (propriétaire a toujours accès)
     hasAccess = isProprietaire || hasPermission(requiredPermission);

@@ -5,7 +5,10 @@
 import { useMemo } from 'react';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { loadProductionAnimaux, loadPeseesRecents } from '../../store/slices/productionSlice';
-import { selectPeseesRecents, selectAnimauxActifs } from '../../store/selectors/productionSelectors';
+import {
+  selectPeseesRecents,
+  selectAnimauxActifs,
+} from '../../store/selectors/productionSelectors';
 import { useEffect, useRef } from 'react';
 
 export interface ProductionWidgetData {
@@ -45,10 +48,9 @@ export function useProductionWidget(projetId?: string): ProductionWidgetData | n
       emoji: '🐷',
       title: 'Production',
       primary: animauxActifs.length,
-      secondary: (peseesRecents as any[]).length,
+      secondary: (peseesRecents as unknown[]).length,
       labelPrimary: 'Animaux',
       labelSecondary: 'Pesées',
     };
   }, [projetId, animauxActifs, peseesRecents]);
 }
-

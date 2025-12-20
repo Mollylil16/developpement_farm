@@ -139,8 +139,16 @@ export default function SearchVetModal({ visible, onClose, onInvite }: SearchVet
   console.log('🔍 [SearchVetModal] Render - visible:', visible);
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        edges={['top']}
+      >
         {/* Header */}
         <View style={[styles.header, { borderBottomColor: colors.border }]}>
           <Text style={[styles.title, { color: colors.text }]}>🔍 Rechercher un vétérinaire</Text>
@@ -326,4 +334,3 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
-

@@ -22,9 +22,9 @@ export const collaborateurSchema = yup.object().shape({
     .max(50, 'Le prénom ne peut pas dépasser 50 caractères'),
   email: yup
     .string()
-    .required('L\'email est obligatoire')
-    .email('Format d\'email invalide')
-    .max(100, 'L\'email ne peut pas dépasser 100 caractères'),
+    .required("L'email est obligatoire")
+    .email("Format d'email invalide")
+    .max(100, "L'email ne peut pas dépasser 100 caractères"),
   telephone: yup
     .string()
     .nullable()
@@ -59,4 +59,3 @@ export async function validateCollaborateurField(
 ) {
   return validateField(collaborateurSchema, fieldName as string, value, allData);
 }
-

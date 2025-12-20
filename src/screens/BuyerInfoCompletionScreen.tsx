@@ -23,8 +23,7 @@ import { SCREENS } from '../navigation/types';
 import { getOnboardingService } from '../services/OnboardingService';
 import { useAppDispatch } from '../store/hooks';
 import { updateUser } from '../store/slices/authSlice';
-import { getDatabase } from '../services/database';
-import { UserRepository } from '../database/repositories';
+import apiClient from '../services/api/apiClient';
 import type { RoleType } from '../types/roles';
 
 const BuyerInfoCompletionScreen: React.FC = () => {
@@ -32,20 +31,25 @@ const BuyerInfoCompletionScreen: React.FC = () => {
   const navigation = useNavigation();
   const dispatch = useAppDispatch();
   const { colors } = useTheme();
-  const { userId, identifier, profileType, isEmail } = (route.params as { 
-    userId?: string; 
-    identifier?: string; 
-    profileType?: RoleType;
-    isEmail?: boolean;
-  }) || {};
+  const { userId, identifier, profileType, isEmail } =
+    (route.params as {
+      userId?: string;
+      identifier?: string;
+      profileType?: RoleType;
+      isEmail?: boolean;
+    }) || {};
 
-  const [buyerType, setBuyerType] = useState<'individual' | 'restaurant' | 'butcher' | 'wholesaler' | 'retailer'>('individual');
+  const [buyerType, setBuyerType] = useState<
+    'individual' | 'restaurant' | 'butcher' | 'wholesaler' | 'retailer'
+  >('individual');
   const [companyName, setCompanyName] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [address, setAddress] = useState('');
 
   // Pour le technicien
-  const [techLevel, setTechLevel] = useState<'beginner' | 'intermediate' | 'advanced' | 'expert'>('beginner');
+  const [techLevel, setTechLevel] = useState<'beginner' | 'intermediate' | 'advanced' | 'expert'>(
+    'beginner'
+  );
   const [skills, setSkills] = useState('');
   const [skillsArray, setSkillsArray] = useState<string[]>([]);
 
@@ -59,10 +63,8 @@ const BuyerInfoCompletionScreen: React.FC = () => {
         if (identifier && !isEmail) {
           setContactPhone(identifier);
         } else if (userId) {
-          // Si on a un userId, charger les données utilisateur existantes
-          const db = await getDatabase();
-          const userRepo = new UserRepository(db);
-          const currentUser = await userRepo.findById(userId);
+          // Si on a un userId, charger les données utilisateur existantes depuis l'API backend
+          const currentUser = await apiClient.get<any>(`/users/${userId}`);
           if (currentUser?.telephone) {
             setContactPhone(currentUser.telephone);
           }
@@ -78,7 +80,12 @@ const BuyerInfoCompletionScreen: React.FC = () => {
   // Convertir skills string en array
   useEffect(() => {
     if (skills.trim()) {
-      setSkillsArray(skills.split(',').map(s => s.trim()).filter(s => s.length > 0));
+      setSkillsArray(
+        skills
+          .split(',')
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0)
+      );
     } else {
       setSkillsArray([]);
     }
@@ -103,7 +110,7 @@ const BuyerInfoCompletionScreen: React.FC = () => {
     } else {
       // Validation pour acheteur
       if (buyerType !== 'individual' && !companyName) {
-        Alert.alert('Erreur', 'Veuillez renseigner le nom de l\'entreprise');
+        Alert.alert('Erreur', "Veuillez renseigner le nom de l'entreprise");
         return;
       }
 
@@ -116,7 +123,7 @@ const BuyerInfoCompletionScreen: React.FC = () => {
     try {
       const onboardingService = await getOnboardingService();
       let finalUserId = userId;
-      
+
       // Si pas de userId mais qu'on a identifier, créer le compte d'abord
       if (!finalUserId && identifier) {
         try {
@@ -132,8 +139,9 @@ const BuyerInfoCompletionScreen: React.FC = () => {
           finalUserId = newUser.id;
           // Mettre à jour l'utilisateur dans le store Redux
           dispatch(updateUser(newUser));
-        } catch (error: any) {
-          Alert.alert('Erreur', error?.message || 'Impossible de créer le compte');
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : String(error) || 'Impossible de créer le compte';
+          Alert.alert('Erreur', errorMessage);
           return;
         }
       }
@@ -143,11 +151,9 @@ const BuyerInfoCompletionScreen: React.FC = () => {
         return;
       }
 
-      // Vérifier si le profil existe déjà
-      const db = await getDatabase();
-      const userRepo = new UserRepository(db);
-      const currentUser = await userRepo.findById(finalUserId);
-      
+      // Vérifier si le profil existe déjà depuis l'API backend
+      const currentUser = await apiClient.get<any>(`/users/${finalUserId}`);
+
       // Mettre à jour le numéro de téléphone au niveau User si fourni
       // Cela évite d'avoir deux numéros différents pour le même utilisateur
       let phoneToUpdate: string | undefined = undefined;
@@ -158,7 +164,11 @@ const BuyerInfoCompletionScreen: React.FC = () => {
         // (cas du technicien), utiliser l'identifier
         phoneToUpdate = identifier.trim().replace(/\s+/g, '');
       }
-      
+
+      // Importer UserRepository dynamiquement
+      const { UserRepository } = await import('../database/repositories');
+      const userRepo = new UserRepository();
+
       if (phoneToUpdate && currentUser && phoneToUpdate !== currentUser.telephone) {
         await userRepo.update(finalUserId, {
           telephone: phoneToUpdate,
@@ -173,12 +183,15 @@ const BuyerInfoCompletionScreen: React.FC = () => {
       if (isTechnician) {
         // Vérifier si le profil technicien existe déjà
         if (currentUser?.roles?.technician) {
-          Alert.alert('Info', 'Votre profil technicien existe déjà. Redirection vers le dashboard...');
+          Alert.alert(
+            'Info',
+            'Votre profil technicien existe déjà. Redirection vers le dashboard...'
+          );
           const updatedUser = await userRepo.findById(finalUserId);
           if (updatedUser) {
             dispatch(updateUser(updatedUser));
           }
-          navigation.navigate('Main' as never, { screen: SCREENS.DASHBOARD_TECH } as never);
+          (navigation as any).navigate('Main', { screen: SCREENS.DASHBOARD_TECH });
           return;
         }
 
@@ -192,23 +205,29 @@ const BuyerInfoCompletionScreen: React.FC = () => {
       } else {
         // Vérifier si le profil acheteur existe déjà
         if (currentUser?.roles?.buyer) {
-          Alert.alert('Info', 'Votre profil acheteur existe déjà. Redirection vers le dashboard...');
+          Alert.alert(
+            'Info',
+            'Votre profil acheteur existe déjà. Redirection vers le dashboard...'
+          );
           const updatedUser = await userRepo.findById(finalUserId);
           if (updatedUser) {
             dispatch(updateUser(updatedUser));
           }
-          navigation.navigate('Main' as never, { screen: SCREENS.DASHBOARD_BUYER } as never);
+          (navigation as any).navigate('Main', { screen: SCREENS.DASHBOARD_BUYER });
           return;
         }
 
         // Créer le profil acheteur
         await onboardingService.createBuyerProfile(finalUserId, {
           buyerType,
-          businessInfo: buyerType !== 'individual' ? {
-            companyName,
-            contactPhone,
-            address,
-          } : undefined,
+          businessInfo:
+            buyerType !== 'individual'
+              ? {
+                  companyName,
+                  contactPhone,
+                  address,
+                }
+              : undefined,
         });
       }
 
@@ -217,7 +236,6 @@ const BuyerInfoCompletionScreen: React.FC = () => {
       await onboardingService.completeOnboarding(finalUserId, finalProfileType);
 
       // Recharger l'utilisateur mis à jour dans le store Redux
-      // Réutiliser db et userRepo déjà déclarés plus haut
       const updatedUser = await userRepo.findById(finalUserId);
       if (updatedUser) {
         dispatch(updateUser(updatedUser));
@@ -225,12 +243,13 @@ const BuyerInfoCompletionScreen: React.FC = () => {
 
       // Rediriger selon le profil
       if (finalProfileType === 'technician') {
-        navigation.navigate('Main' as never, { screen: SCREENS.DASHBOARD_TECH } as never);
+        (navigation as any).navigate('Main', { screen: SCREENS.DASHBOARD_TECH });
       } else {
-        navigation.navigate('Main' as never, { screen: SCREENS.DASHBOARD_BUYER } as never);
+        (navigation as any).navigate('Main', { screen: SCREENS.DASHBOARD_BUYER });
       }
-    } catch (error: any) {
-      Alert.alert('Erreur', `Erreur lors de la création du profil: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+      Alert.alert('Erreur', `Erreur lors de la création du profil: ${errorMessage}`);
     }
   };
 
@@ -238,10 +257,7 @@ const BuyerInfoCompletionScreen: React.FC = () => {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={[styles.title, { color: colors.text }]}>Compléter votre profil</Text>
@@ -253,7 +269,9 @@ const BuyerInfoCompletionScreen: React.FC = () => {
             <>
               {/* Formulaire Technicien */}
               <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: colors.text }]}>Niveau de qualification *</Text>
+                <Text style={[styles.label, { color: colors.text }]}>
+                  Niveau de qualification *
+                </Text>
                 <View style={styles.radioGroup}>
                   {[
                     { value: 'beginner' as const, label: 'Débutant' },
@@ -271,7 +289,9 @@ const BuyerInfoCompletionScreen: React.FC = () => {
                     >
                       <View style={[styles.radio, { borderColor: colors.primary }]}>
                         {techLevel === option.value && (
-                          <View style={[styles.radioSelected, { backgroundColor: colors.primary }]} />
+                          <View
+                            style={[styles.radioSelected, { backgroundColor: colors.primary }]}
+                          />
                         )}
                       </View>
                       <Text style={[styles.radioLabel, { color: colors.text }]}>
@@ -291,7 +311,11 @@ const BuyerInfoCompletionScreen: React.FC = () => {
                   style={[
                     styles.input,
                     styles.textArea,
-                    { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      color: colors.text,
+                    },
                   ]}
                   value={skills}
                   onChangeText={setSkills}
@@ -319,7 +343,9 @@ const BuyerInfoCompletionScreen: React.FC = () => {
                     >
                       <View style={[styles.radio, { borderColor: colors.primary }]}>
                         {buyerType === option.value && (
-                          <View style={[styles.radioSelected, { backgroundColor: colors.primary }]} />
+                          <View
+                            style={[styles.radioSelected, { backgroundColor: colors.primary }]}
+                          />
                         )}
                       </View>
                       <Text style={[styles.radioLabel, { color: colors.text }]}>
@@ -334,7 +360,14 @@ const BuyerInfoCompletionScreen: React.FC = () => {
                 <View style={styles.inputGroup}>
                   <Text style={[styles.label, { color: colors.text }]}>Nom de l'entreprise *</Text>
                   <TextInput
-                    style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: colors.surface,
+                        borderColor: colors.border,
+                        color: colors.text,
+                      },
+                    ]}
                     value={companyName}
                     onChangeText={setCompanyName}
                     placeholder="Nom de votre entreprise"
@@ -351,7 +384,10 @@ const BuyerInfoCompletionScreen: React.FC = () => {
               Contact téléphonique {!isTechnician ? '*' : '(optionnel)'}
             </Text>
             <TextInput
-              style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+              style={[
+                styles.input,
+                { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+              ]}
               value={contactPhone}
               onChangeText={setContactPhone}
               placeholder="+225 XX XX XX XX XX"
@@ -372,7 +408,11 @@ const BuyerInfoCompletionScreen: React.FC = () => {
                 style={[
                   styles.input,
                   styles.textArea,
-                  { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    color: colors.text,
+                  },
                 ]}
                 value={address}
                 onChangeText={setAddress}
@@ -385,11 +425,7 @@ const BuyerInfoCompletionScreen: React.FC = () => {
           )}
         </View>
 
-        <Button
-          title="Terminer"
-          onPress={handleComplete}
-          style={styles.submitButton}
-        />
+        <Button title="Terminer" onPress={handleComplete} style={styles.submitButton} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -484,4 +520,3 @@ const styles = StyleSheet.create({
 });
 
 export default BuyerInfoCompletionScreen;
-

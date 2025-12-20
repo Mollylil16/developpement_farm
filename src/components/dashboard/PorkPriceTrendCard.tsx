@@ -4,7 +4,7 @@
  */
 
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, TouchableOpacity, StyleProp, ViewStyle } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 import { format, startOfMonth, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -20,12 +20,21 @@ import type { WeeklyPorkPriceTrend } from '../../database/repositories/WeeklyPor
 const screenWidth = Dimensions.get('window').width;
 
 interface PorkPriceTrendCardProps {
-  style?: any;
+  style?: StyleProp<ViewStyle>;
 }
 
 export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
   const { colors, isDark } = useTheme();
-  const { trends, currentWeekPrice, previousWeekPrice, priceChange, priceChangePercent, loading, error, lastUpdated } = usePorkPriceTrend();
+  const {
+    trends,
+    currentWeekPrice,
+    previousWeekPrice,
+    priceChange,
+    priceChangePercent,
+    loading,
+    error,
+    lastUpdated,
+  } = usePorkPriceTrend();
 
   // Configuration du graphique
   const chartConfig = useMemo(
@@ -59,7 +68,7 @@ export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
     if (trend.updatedAt) {
       return startOfMonth(parseISO(trend.updatedAt));
     }
-    
+
     // Calculer le mois à partir de l'année et du numéro de semaine ISO
     // Semaine ISO: la semaine 1 contient le 4 janvier
     const jan4 = new Date(trend.year, 0, 4);
@@ -67,11 +76,11 @@ export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
     const daysToMonday = jan4Day - 1;
     const firstMonday = new Date(jan4);
     firstMonday.setDate(jan4.getDate() - daysToMonday);
-    
+
     // Calculer la date de début de la semaine
     const weekStart = new Date(firstMonday);
     weekStart.setDate(firstMonday.getDate() + (trend.weekNumber - 1) * 7);
-    
+
     // Retourner le début du mois de cette semaine
     return startOfMonth(weekStart);
   };
@@ -82,19 +91,19 @@ export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
 
     // Grouper les tendances hebdomadaires par mois
     const monthlyData = new Map<string, { prices: number[]; regionalPrices: number[] }>();
-    
+
     trends.forEach((t) => {
       const monthDate = getMonthFromTrend(t);
       const monthKey = format(monthDate, 'yyyy-MM');
-      
+
       if (!monthlyData.has(monthKey)) {
         monthlyData.set(monthKey, { prices: [], regionalPrices: [] });
       }
-      
+
       const monthData = monthlyData.get(monthKey)!;
       const price = t.avgPricePlatform || t.avgPriceRegional || 0;
       const regionalPrice = t.avgPriceRegional || 0;
-      
+
       if (price > 0) {
         monthData.prices.push(price);
       }
@@ -108,12 +117,16 @@ export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
       .map(([key, data]) => ({
         monthKey: key,
         monthDate: parseISO(key + '-01'),
-        avgPrice: data.prices.length > 0 
-          ? Math.round(data.prices.reduce((a, b) => a + b, 0) / data.prices.length)
-          : 0,
-        avgRegionalPrice: data.regionalPrices.length > 0
-          ? Math.round(data.regionalPrices.reduce((a, b) => a + b, 0) / data.regionalPrices.length)
-          : 0,
+        avgPrice:
+          data.prices.length > 0
+            ? Math.round(data.prices.reduce((a, b) => a + b, 0) / data.prices.length)
+            : 0,
+        avgRegionalPrice:
+          data.regionalPrices.length > 0
+            ? Math.round(
+                data.regionalPrices.reduce((a, b) => a + b, 0) / data.regionalPrices.length
+              )
+            : 0,
       }))
       .sort((a, b) => a.monthDate.getTime() - b.monthDate.getTime())
       .slice(-6); // Prendre les 6 derniers mois
@@ -147,69 +160,83 @@ export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
   }, [trends]);
 
   // Calculer le prix du mois en cours et du mois précédent
-  const { currentMonthPrice, previousMonthPrice, monthPriceChange, monthPriceChangePercent } = useMemo(() => {
-    if (trends.length === 0) {
-      return { currentMonthPrice: undefined, previousMonthPrice: undefined, monthPriceChange: undefined, monthPriceChangePercent: undefined };
-    }
-
-    // Grouper par mois
-    const monthlyData = new Map<string, number[]>();
-    
-    trends.forEach((t) => {
-      const monthDate = getMonthFromTrend(t);
-      const monthKey = format(monthDate, 'yyyy-MM');
-      
-      if (!monthlyData.has(monthKey)) {
-        monthlyData.set(monthKey, []);
+  const { currentMonthPrice, previousMonthPrice, monthPriceChange, monthPriceChangePercent } =
+    useMemo(() => {
+      if (trends.length === 0) {
+        return {
+          currentMonthPrice: undefined,
+          previousMonthPrice: undefined,
+          monthPriceChange: undefined,
+          monthPriceChangePercent: undefined,
+        };
       }
-      
-      const price = t.avgPricePlatform || t.avgPriceRegional || 0;
-      if (price > 0) {
-        monthlyData.get(monthKey)!.push(price);
+
+      // Grouper par mois
+      const monthlyData = new Map<string, number[]>();
+
+      trends.forEach((t) => {
+        const monthDate = getMonthFromTrend(t);
+        const monthKey = format(monthDate, 'yyyy-MM');
+
+        if (!monthlyData.has(monthKey)) {
+          monthlyData.set(monthKey, []);
+        }
+
+        const price = t.avgPricePlatform || t.avgPriceRegional || 0;
+        if (price > 0) {
+          monthlyData.get(monthKey)!.push(price);
+        }
+      });
+
+      // Trier par date
+      const sortedMonths = Array.from(monthlyData.entries())
+        .map(([key, prices]) => ({
+          monthKey: key,
+          monthDate: parseISO(key + '-01'),
+          avgPrice: prices.length > 0 ? prices.reduce((a, b) => a + b, 0) / prices.length : 0,
+        }))
+        .sort((a, b) => a.monthDate.getTime() - b.monthDate.getTime())
+        .filter((m) => m.avgPrice > 0);
+
+      if (sortedMonths.length === 0) {
+        return {
+          currentMonthPrice: undefined,
+          previousMonthPrice: undefined,
+          monthPriceChange: undefined,
+          monthPriceChangePercent: undefined,
+        };
       }
-    });
 
-    // Trier par date
-    const sortedMonths = Array.from(monthlyData.entries())
-      .map(([key, prices]) => ({
-        monthKey: key,
-        monthDate: parseISO(key + '-01'),
-        avgPrice: prices.length > 0 
-          ? prices.reduce((a, b) => a + b, 0) / prices.length
-          : 0,
-      }))
-      .sort((a, b) => a.monthDate.getTime() - b.monthDate.getTime())
-      .filter(m => m.avgPrice > 0);
+      const currentMonth = sortedMonths[sortedMonths.length - 1];
+      const previousMonth =
+        sortedMonths.length > 1 ? sortedMonths[sortedMonths.length - 2] : undefined;
 
-    if (sortedMonths.length === 0) {
-      return { currentMonthPrice: undefined, previousMonthPrice: undefined, monthPriceChange: undefined, monthPriceChangePercent: undefined };
-    }
+      const currentPrice = currentMonth.avgPrice;
+      const previousPrice = previousMonth?.avgPrice;
+      const change = previousPrice ? currentPrice - previousPrice : undefined;
+      const changePercent = previousPrice ? (change! / previousPrice) * 100 : undefined;
 
-    const currentMonth = sortedMonths[sortedMonths.length - 1];
-    const previousMonth = sortedMonths.length > 1 ? sortedMonths[sortedMonths.length - 2] : undefined;
-
-    const currentPrice = currentMonth.avgPrice;
-    const previousPrice = previousMonth?.avgPrice;
-    const change = previousPrice ? currentPrice - previousPrice : undefined;
-    const changePercent = previousPrice ? (change! / previousPrice) * 100 : undefined;
-
-    return {
-      currentMonthPrice: currentPrice,
-      previousMonthPrice: previousPrice,
-      monthPriceChange: change,
-      monthPriceChangePercent: changePercent,
-    };
-  }, [trends]);
+      return {
+        currentMonthPrice: currentPrice,
+        previousMonthPrice: previousPrice,
+        monthPriceChange: change,
+        monthPriceChangePercent: changePercent,
+      };
+    }, [trends]);
 
   // Formatage du sous-titre avec variation
   const subtitle = useMemo(() => {
     if (!currentMonthPrice) return 'Mois en cours : Calcul en cours...';
-    
+
     const priceFormatted = Math.round(currentMonthPrice).toLocaleString('fr-FR');
     let changeText = '';
     let changeColor = colors.textSecondary;
 
-    if (monthPriceChange !== undefined && monthPriceChangePercent !== undefined && previousMonthPrice) {
+    if (
+      monthPriceChange !== undefined &&
+      monthPriceChangePercent !== undefined &&
+      previousMonthPrice
+    ) {
       const changeFormatted = Math.abs(monthPriceChangePercent).toFixed(1);
       const arrow = monthPriceChange >= 0 ? '↑' : '↓';
       changeText = ` (${arrow} ${changeFormatted}% vs M-1)`;
@@ -223,7 +250,9 @@ export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
     return (
       <Card style={[styles.card, style, { backgroundColor: colors.surface }]}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>Tendance du prix du porc poids vif (FCFA/kg)</Text>
+          <Text style={[styles.title, { color: colors.text }]}>
+            Tendance du prix du porc poids vif (FCFA/kg)
+          </Text>
         </View>
         <View style={styles.loadingContainer}>
           <LoadingSpinner size="small" />
@@ -236,7 +265,9 @@ export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
     return (
       <Card style={[styles.card, style, { backgroundColor: colors.surface }]}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>Tendance du prix du porc poids vif (FCFA/kg)</Text>
+          <Text style={[styles.title, { color: colors.text }]}>
+            Tendance du prix du porc poids vif (FCFA/kg)
+          </Text>
         </View>
         <EmptyState
           icon={<Ionicons name="alert-circle-outline" size={48} color={colors.error} />}
@@ -251,7 +282,9 @@ export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
     return (
       <Card style={[styles.card, style, { backgroundColor: colors.surface }]}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>Tendance du prix du porc poids vif (FCFA/kg)</Text>
+          <Text style={[styles.title, { color: colors.text }]}>
+            Tendance du prix du porc poids vif (FCFA/kg)
+          </Text>
         </View>
         <EmptyState
           icon={<Ionicons name="stats-chart-outline" size={48} color={colors.textSecondary} />}
@@ -266,7 +299,9 @@ export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
     <Card style={[styles.card, style, { backgroundColor: colors.surface }]}>
       <View style={styles.header}>
         <View style={styles.titleContainer}>
-          <Text style={[styles.title, { color: colors.text }]}>Tendance du prix du porc poids vif (FCFA/kg)</Text>
+          <Text style={[styles.title, { color: colors.text }]}>
+            Tendance du prix du porc poids vif (FCFA/kg)
+          </Text>
           {lastUpdated && (
             <Text style={[styles.lastUpdated, { color: colors.textSecondary }]}>
               Mis à jour {format(new Date(lastUpdated), 'HH:mm', { locale: fr })}
@@ -307,7 +342,9 @@ export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
         <View style={styles.legend}>
           <View style={styles.legendItem}>
             <View style={[styles.legendDot, { backgroundColor: 'rgba(34, 139, 34, 1)' }]} />
-            <Text style={[styles.legendText, { color: colors.textSecondary }]}>Prix moyen (FCFA/kg)</Text>
+            <Text style={[styles.legendText, { color: colors.textSecondary }]}>
+              Prix moyen (FCFA/kg)
+            </Text>
           </View>
         </View>
       </View>
@@ -381,4 +418,3 @@ const styles = StyleSheet.create({
     minHeight: 200,
   },
 });
-

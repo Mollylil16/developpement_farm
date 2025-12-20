@@ -18,6 +18,8 @@ import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../constants/theme';
 import { format, parseISO } from 'date-fns';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ProductionAnimal, ProductionPesee } from '../types';
+import type { DepensePonctuelle, ChargeFixe } from '../types/finance';
+import type { Mortalite } from '../types/mortalites';
 
 const SEARCH_HISTORY_KEY = 'global_search_history';
 const MAX_HISTORY_ITEMS = 10;
@@ -37,7 +39,7 @@ export type SearchResult = {
     | 'mortalite';
   title: string;
   subtitle?: string;
-  data: any;
+  data: unknown;
   screen: string;
 };
 
@@ -68,7 +70,9 @@ export default function GlobalSearchComponent({
   const gestations = useAppSelector((state) => {
     const reproState = state.reproduction;
     if (!reproState?.entities?.gestations || !reproState?.ids?.gestations) return [];
-    return reproState.ids.gestations.map((id) => reproState.entities.gestations[id]).filter(Boolean);
+    return reproState.ids.gestations
+      .map((id) => reproState.entities.gestations[id])
+      .filter(Boolean);
   });
   const sevrages = useAppSelector((state) => {
     const reproState = state.reproduction;
@@ -80,13 +84,18 @@ export default function GlobalSearchComponent({
   const rations = useAppSelector((state) => state.nutrition?.rations || []);
   const depensesPonctuelles = useAppSelector((state) => {
     const financeState = state.finance;
-    if (!financeState?.entities?.depensesPonctuelles || !financeState?.ids?.depensesPonctuelles) return [];
-    return financeState.ids.depensesPonctuelles.map((id) => financeState.entities.depensesPonctuelles[id]).filter(Boolean);
+    if (!financeState?.entities?.depensesPonctuelles || !financeState?.ids?.depensesPonctuelles)
+      return [];
+    return financeState.ids.depensesPonctuelles
+      .map((id) => financeState.entities.depensesPonctuelles[id])
+      .filter(Boolean);
   });
   const chargesFixes = useAppSelector((state) => {
     const financeState = state.finance;
     if (!financeState?.entities?.chargesFixes || !financeState?.ids?.chargesFixes) return [];
-    return financeState.ids.chargesFixes.map((id) => financeState.entities.chargesFixes[id]).filter(Boolean);
+    return financeState.ids.chargesFixes
+      .map((id) => financeState.entities.chargesFixes[id])
+      .filter(Boolean);
   });
   const planifications = useAppSelector((state) => state.planification?.planifications || []);
   const collaborateurs = useAppSelector((state) => state.collaboration?.collaborateurs || []);
@@ -212,7 +221,7 @@ export default function GlobalSearchComponent({
     });
 
     // Recherche dans les dépenses ponctuelles
-    depensesPonctuelles.forEach((depense: any) => {
+    depensesPonctuelles.forEach((depense: DepensePonctuelle) => {
       const matches =
         depense.libelle_categorie?.toLowerCase().includes(q) ||
         depense.categorie?.toLowerCase().includes(q) ||
@@ -232,7 +241,7 @@ export default function GlobalSearchComponent({
     });
 
     // Recherche dans les charges fixes
-    chargesFixes.forEach((charge: any) => {
+    chargesFixes.forEach((charge: ChargeFixe) => {
       const matches =
         charge.libelle?.toLowerCase().includes(q) ||
         charge.categorie?.toLowerCase().includes(q) ||
@@ -290,7 +299,7 @@ export default function GlobalSearchComponent({
     });
 
     // Recherche dans les mortalités
-    mortalites.forEach((mortalite: any) => {
+    mortalites.forEach((mortalite: Mortalite) => {
       const matches =
         mortalite.cause?.toLowerCase().includes(q) ||
         mortalite.categorie?.toLowerCase().includes(q) ||

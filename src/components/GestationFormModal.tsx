@@ -151,7 +151,9 @@ export default function GestationFormModal({
       (a: ProductionAnimal) =>
         a.sexe === 'male' &&
         a.statut?.toLowerCase() === 'actif' &&
-        (a.reproducteur === true || (typeof a.reproducteur === 'number' && a.reproducteur === 1) || (typeof a.reproducteur === 'string' && a.reproducteur === '1')) &&
+        (a.reproducteur === true ||
+          (typeof a.reproducteur === 'number' && a.reproducteur === 1) ||
+          (typeof a.reproducteur === 'string' && a.reproducteur === '1')) &&
         a.projet_id === projetActif.id
     );
 
@@ -173,7 +175,9 @@ export default function GestationFormModal({
 
     // Si un verrat est déjà sélectionné dans le formulaire mais n'est plus actif, l'ajouter quand même
     if (formData.verrat_id) {
-      const verratSelectionne = animauxProjet.find((a: ProductionAnimal) => a.id === formData.verrat_id);
+      const verratSelectionne = animauxProjet.find(
+        (a: ProductionAnimal) => a.id === formData.verrat_id
+      );
       if (verratSelectionne && !verratsOptions.find((v) => v.id === formData.verrat_id)) {
         const numero = parseInt(verratSelectionne.code?.replace(/\D/g, '') || '0') || 0;
         verratsOptions.push({
@@ -347,14 +351,22 @@ export default function GestationFormModal({
     }
 
     // Validation avec Yup
-    const { isValid, errors: validationErrors } = await validateGestation(formData);
+    // S'assurer que verrat_id est une string (même vide) pour la validation
+    const validationData = {
+      ...formData,
+      verrat_id: formData.verrat_id || '',
+    };
+    const { isValid, errors: validationErrors } = await validateGestation(validationData);
     if (!isValid) {
       // Afficher la première erreur trouvée
       const firstError = Object.values(validationErrors)[0];
-      Alert.alert('Erreur de validation', firstError || 'Veuillez corriger les erreurs du formulaire');
+      Alert.alert(
+        'Erreur de validation',
+        firstError || 'Veuillez corriger les erreurs du formulaire'
+      );
       return;
     }
-    
+
     // Validation supplémentaire pour truie et verrat (peuvent être virtuels)
     if (!formData.truie_id && !formData.truie_nom?.trim()) {
       Alert.alert('Erreur', 'Veuillez sélectionner ou saisir le nom de la truie');
@@ -430,8 +442,9 @@ export default function GestationFormModal({
         ).unwrap();
       }
       onSuccess();
-    } catch (error: any) {
-      Alert.alert('Erreur', error || "Erreur lors de l'enregistrement");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Erreur lors de l'enregistrement";
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setLoading(false);
     }

@@ -32,18 +32,21 @@ export interface ChatTransportConfig {
 export interface ChatTransportCallbacks {
   /**
    * Appelé quand un nouveau message arrive
+   * @param _message - Le message reçu (utilisé dans les implémentations, préfixé avec _ pour éviter l'erreur ESLint)
    */
-  onMessage: (message: ChatMessage) => void;
+  onMessage: (_message: ChatMessage) => void;
 
   /**
    * Appelé quand le statut de connexion change
+   * @param _status - Le nouveau statut de connexion (utilisé dans les implémentations, préfixé avec _ pour éviter l'erreur ESLint)
    */
-  onStatusChange: (status: ConnectionStatus) => void;
+  onStatusChange: (_status: ConnectionStatus) => void;
 
   /**
    * Appelé en cas d'erreur
+   * @param _error - L'erreur survenue (utilisée dans les implémentations, préfixé avec _ pour éviter l'erreur ESLint)
    */
-  onError: (error: Error) => void;
+  onError: (_error: Error) => void;
 }
 
 /**
@@ -58,8 +61,9 @@ export interface IChatTransport {
 
   /**
    * Se connecter au serveur
+   * @param _conversationId - L'ID de la conversation à laquelle se connecter (utilisé dans les implémentations, préfixé avec _ pour éviter l'erreur ESLint)
    */
-  connect(conversationId: string): Promise<void>;
+  connect(_conversationId: string): Promise<void>;
 
   /**
    * Se déconnecter du serveur
@@ -68,17 +72,18 @@ export interface IChatTransport {
 
   /**
    * Envoyer un message
+   * @param _message - Le message à envoyer (sans id et createdAt qui seront générés, utilisé dans les implémentations, préfixé avec _ pour éviter l'erreur ESLint)
    */
-  sendMessage(message: Omit<ChatMessage, 'id' | 'createdAt'>): Promise<ChatMessage>;
+  sendMessage(_message: Omit<ChatMessage, 'id' | 'createdAt'>): Promise<ChatMessage>;
 
   /**
    * Marquer des messages comme lus
+   * @param _messageIds - Les IDs des messages à marquer comme lus (utilisés dans les implémentations, préfixé avec _ pour éviter l'erreur ESLint)
    */
-  markAsRead(messageIds: string[]): Promise<void>;
+  markAsRead(_messageIds: string[]): Promise<void>;
 
   /**
    * Vérifier si le transport est connecté
    */
   isConnected(): boolean;
 }
-

@@ -2,56 +2,32 @@
  * Repository pour les annonces (Listings) du Marketplace
  */
 
-import type { SQLiteDatabase } from 'expo-sqlite';
-import uuid from 'react-native-uuid';
-import type { MarketplaceListing, Location, SaleTerms, MarketplaceFilters, MarketplaceSortOption } from '../../types/marketplace';
+import type {
+  MarketplaceListing,
+  Location,
+  SaleTerms,
+  MarketplaceFilters,
+  MarketplaceSortOption,
+} from '../../types/marketplace';
 import { BaseRepository } from './BaseRepository';
 
 export class MarketplaceListingRepository extends BaseRepository<MarketplaceListing> {
-  constructor(db: SQLiteDatabase) {
-    super(db, 'marketplace_listings');
+  constructor() {
+    super('marketplace_listings', '/marketplace/listings');
   }
 
   /**
    * Override findAll pour utiliser updated_at si derniere_modification n'existe pas
    */
   async findAll(projetId?: string): Promise<MarketplaceListing[]> {
-    // Vérifier d'abord si la colonne derniere_modification existe
-    try {
-      const columns = await this.db.getAllAsync<{ name: string }>(
-        `PRAGMA table_info(${this.tableName})`
-      );
-      const hasDerniereModification = columns.some((col) => col.name === 'derniere_modification');
-      
-      if (hasDerniereModification) {
-        // Utiliser derniere_modification si elle existe
-        if (projetId) {
-          return this.query<MarketplaceListing>(
-            `SELECT * FROM ${this.tableName} WHERE farm_id = ? ORDER BY derniere_modification DESC, updated_at DESC`,
-            [projetId]
-          );
-        }
-        return this.query<MarketplaceListing>(`SELECT * FROM ${this.tableName} ORDER BY derniere_modification DESC, updated_at DESC`);
-      } else {
-        // Utiliser updated_at si derniere_modification n'existe pas
-        if (projetId) {
-          return this.query<MarketplaceListing>(
-            `SELECT * FROM ${this.tableName} WHERE farm_id = ? ORDER BY updated_at DESC`,
-            [projetId]
-          );
-        }
-        return this.query<MarketplaceListing>(`SELECT * FROM ${this.tableName} ORDER BY updated_at DESC`);
-      }
-    } catch (error: unknown) {
-      // En cas d'erreur, utiliser updated_at comme fallback
-      if (projetId) {
-        return this.query<MarketplaceListing>(
-          `SELECT * FROM ${this.tableName} WHERE farm_id = ? ORDER BY updated_at DESC`,
-          [projetId]
-        );
-      }
-      return this.query<MarketplaceListing>(`SELECT * FROM ${this.tableName} ORDER BY updated_at DESC`);
+    const params: Record<string, unknown> = {
+      order_by: 'updated_at',
+      order_direction: 'DESC',
+    };
+    if (projetId) {
+      params.farm_id = projetId;
     }
+    return this.query<MarketplaceListing>(this.apiBasePath, params);
   }
 
   /**
@@ -67,105 +43,28 @@ export class MarketplaceListingRepository extends BaseRepository<MarketplaceList
     location: Location;
     saleTerms: SaleTerms;
   }): Promise<MarketplaceListing> {
-    const id = uuid.v4() as string;
-    const now = new Date().toISOString();
-
-    // Vérifier si la colonne derniere_modification existe
-    const columns = await this.db.getAllAsync<{ name: string }>(
-      `PRAGMA table_info(${this.tableName})`
-    );
-    const hasDerniereModification = columns.some((col) => col.name === 'derniere_modification');
-
-    if (hasDerniereModification) {
-      await this.db.runAsync(
-        `INSERT INTO marketplace_listings (
-          id, subject_id, producer_id, farm_id,
-          price_per_kg, calculated_price, status,
-          listed_at, updated_at, last_weight_date,
-          location_latitude, location_longitude,
-          location_address, location_city, location_region,
-          sale_terms_transport, sale_terms_slaughter,
-          sale_terms_payment, sale_terms_warranty, sale_terms_cancellation,
-          derniere_modification
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          id,
-          data.subjectId,
-          data.producerId,
-          data.farmId,
-          data.pricePerKg,
-          data.calculatedPrice,
-          'available',
-          now,
-          now,
-          data.lastWeightDate,
-          data.location.latitude,
-          data.location.longitude,
-          data.location.address,
-          data.location.city,
-          data.location.region,
-          data.saleTerms.transport,
-          data.saleTerms.slaughter,
-          data.saleTerms.paymentTerms || 'on_delivery',
-          data.saleTerms.warranty,
-          data.saleTerms.cancellationPolicy,
-          now, // derniere_modification
-        ]
-      );
-    } else {
-      // Si la colonne n'existe pas, ne pas l'inclure dans l'INSERT
-      await this.db.runAsync(
-        `INSERT INTO marketplace_listings (
-          id, subject_id, producer_id, farm_id,
-          price_per_kg, calculated_price, status,
-          listed_at, updated_at, last_weight_date,
-          location_latitude, location_longitude,
-          location_address, location_city, location_region,
-          sale_terms_transport, sale_terms_slaughter,
-          sale_terms_payment, sale_terms_warranty, sale_terms_cancellation
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          id,
-          data.subjectId,
-          data.producerId,
-          data.farmId,
-          data.pricePerKg,
-          data.calculatedPrice,
-          'available',
-          now,
-          now,
-          data.lastWeightDate,
-          data.location.latitude,
-          data.location.longitude,
-          data.location.address,
-          data.location.city,
-          data.location.region,
-          data.saleTerms.transport,
-          data.saleTerms.slaughter,
-          data.saleTerms.paymentTerms || 'on_delivery',
-          data.saleTerms.warranty,
-          data.saleTerms.cancellationPolicy,
-        ]
-      );
-    }
-
-    const listing = await this.findById(id);
-    if (!listing) {
-      throw new Error('Failed to create listing');
-    }
-
-    return listing;
+    const listingData = {
+      subject_id: data.subjectId,
+      producer_id: data.producerId,
+      farm_id: data.farmId,
+      price_per_kg: data.pricePerKg,
+      calculated_price: data.calculatedPrice,
+      status: 'available',
+      last_weight_date: data.lastWeightDate,
+      location: data.location,
+      sale_terms: {
+        ...data.saleTerms,
+        payment_terms: data.saleTerms.paymentTerms || 'on_delivery',
+      },
+    };
+    return this.executePost<MarketplaceListing>(this.apiBasePath, listingData);
   }
 
   /**
    * Récupérer une annonce par ID
    */
   async findById(id: string): Promise<MarketplaceListing | null> {
-    const row = await this.db.getFirstAsync<any>(
-      `SELECT * FROM ${this.tableName} WHERE id = ?`,
-      [id]
-    );
-
+    const row = await this.queryOne<unknown>(`${this.apiBasePath}/${id}`);
     return row ? this.mapRowToListing(row) : null;
   }
 
@@ -173,116 +72,79 @@ export class MarketplaceListingRepository extends BaseRepository<MarketplaceList
    * Récupérer toutes les annonces d'un producteur
    */
   async findByProducerId(producerId: string): Promise<MarketplaceListing[]> {
-    const rows = await this.db.getAllAsync<any>(
-      `SELECT * FROM ${this.tableName} WHERE producer_id = ? ORDER BY listed_at DESC`,
-      [producerId]
-    );
-
-    return rows.map(row => this.mapRowToListing(row));
+    const rows = await this.query<unknown>(this.apiBasePath, {
+      producer_id: producerId,
+      order_by: 'listed_at',
+      order_direction: 'DESC',
+    });
+    return rows.map((row) => this.mapRowToListing(row));
   }
 
   /**
    * Récupérer toutes les annonces d'une ferme
    */
   async findByFarmId(farmId: string): Promise<MarketplaceListing[]> {
-    const rows = await this.db.getAllAsync<any>(
-      `SELECT * FROM ${this.tableName} WHERE farm_id = ? ORDER BY listed_at DESC`,
-      [farmId]
-    );
-
-    return rows.map(row => this.mapRowToListing(row));
+    const rows = await this.query<unknown>(this.apiBasePath, {
+      farm_id: farmId,
+      order_by: 'listed_at',
+      order_direction: 'DESC',
+    });
+    return rows.map((row) => this.mapRowToListing(row));
   }
 
   /**
    * Récupérer toutes les annonces d'un sujet (animal)
    */
   async findBySubjectId(subjectId: string): Promise<MarketplaceListing[]> {
-    const rows = await this.db.getAllAsync<any>(
-      `SELECT * FROM ${this.tableName} WHERE subject_id = ? ORDER BY listed_at DESC`,
-      [subjectId]
-    );
-
-    return rows.map(row => this.mapRowToListing(row));
+    const rows = await this.query<unknown>(this.apiBasePath, {
+      subject_id: subjectId,
+      order_by: 'listed_at',
+      order_direction: 'DESC',
+    });
+    return rows.map((row) => this.mapRowToListing(row));
   }
 
   /**
    * Récupérer les annonces disponibles avec filtres
    */
   async findAvailable(filters?: MarketplaceFilters): Promise<MarketplaceListing[]> {
-    let query = `SELECT * FROM ${this.tableName} WHERE status = 'available'`;
-    const params: any[] = [];
-
-    // Filtres de prix
+    const params: Record<string, unknown> = {
+      status: 'available',
+      order_by: 'listed_at',
+      order_direction: 'DESC',
+    };
     if (filters?.minPrice !== undefined) {
-      query += ' AND price_per_kg >= ?';
-      params.push(filters.minPrice);
+      params.min_price = filters.minPrice;
     }
     if (filters?.maxPrice !== undefined) {
-      query += ' AND price_per_kg <= ?';
-      params.push(filters.maxPrice);
+      params.max_price = filters.maxPrice;
     }
-
-    // Note: Les filtres de localisation et autres nécessitent des JOINs
-    // qui seront implémentés dans une méthode de recherche plus avancée
-
-    query += ' ORDER BY listed_at DESC';
-
-    const rows = await this.db.getAllAsync<any>(query, params);
-    return rows.map(row => this.mapRowToListing(row));
+    const rows = await this.query<unknown>(this.apiBasePath, params);
+    return rows.map((row) => this.mapRowToListing(row));
   }
 
   /**
    * Mettre à jour le statut d'une annonce
    */
-  async updateStatus(id: string, status: 'available' | 'reserved' | 'pending_delivery' | 'sold' | 'removed'): Promise<void> {
-    const now = new Date().toISOString();
-    
-    // Vérifier si la colonne derniere_modification existe
-    try {
-      const columns = await this.db.getAllAsync<{ name: string }>(
-        `PRAGMA table_info(${this.tableName})`
-      );
-      const hasDerniereModification = columns.some((col) => col.name === 'derniere_modification');
-      
-      if (hasDerniereModification) {
-        await this.db.runAsync(
-          `UPDATE ${this.tableName} SET status = ?, updated_at = ?, derniere_modification = ? WHERE id = ?`,
-          [status, now, now, id]
-        );
-      } else {
-        // Si la colonne n'existe pas, ne mettre à jour que status et updated_at
-        await this.db.runAsync(
-          `UPDATE ${this.tableName} SET status = ?, updated_at = ? WHERE id = ?`,
-          [status, now, id]
-        );
-      }
-    } catch (error) {
-      // En cas d'erreur, utiliser la version sans derniere_modification
-      await this.db.runAsync(
-        `UPDATE ${this.tableName} SET status = ?, updated_at = ? WHERE id = ?`,
-        [status, now, id]
-      );
-    }
+  async updateStatus(
+    id: string,
+    status: 'available' | 'reserved' | 'pending_delivery' | 'sold' | 'removed'
+  ): Promise<void> {
+    await this.executePatch(`${this.apiBasePath}/${id}`, { status });
   }
 
   /**
    * Incrémenter le compteur de vues
    */
   async incrementViews(id: string): Promise<void> {
-    await this.db.runAsync(
-      `UPDATE ${this.tableName} SET views = views + 1 WHERE id = ?`,
-      [id]
-    );
+    await this.executePatch(`${this.apiBasePath}/${id}/views`, {});
   }
 
   /**
    * Incrémenter le compteur d'enquêtes (offres)
    */
   async incrementInquiries(id: string): Promise<void> {
-    await this.db.runAsync(
-      `UPDATE ${this.tableName} SET inquiries = inquiries + 1 WHERE id = ?`,
-      [id]
-    );
+    await this.executePatch(`${this.apiBasePath}/${id}/inquiries`, {});
   }
 
   /**
@@ -296,13 +158,13 @@ export class MarketplaceListingRepository extends BaseRepository<MarketplaceList
    * Supprimer définitivement une annonce
    */
   async delete(id: string): Promise<void> {
-    await this.db.runAsync(`DELETE FROM ${this.tableName} WHERE id = ?`, [id]);
+    await this.executeDelete(`${this.apiBasePath}/${id}`);
   }
 
   /**
    * Mapper une ligne DB vers un objet MarketplaceListing
    */
-  private mapRowToListing(row: any): MarketplaceListing {
+  private mapRowToListing(row: unknown): MarketplaceListing {
     return {
       id: row.id,
       subjectId: row.subject_id,
@@ -342,48 +204,60 @@ export class MarketplaceListingRepository extends BaseRepository<MarketplaceList
     page: number = 1,
     limit: number = 20
   ): Promise<{ listings: MarketplaceListing[]; total: number }> {
-    let query = `SELECT * FROM ${this.tableName} WHERE status = 'available'`;
-    const params: any[] = [];
+    const params: Record<string, unknown> = {
+      status: 'available',
+      limit,
+      offset: (page - 1) * limit,
+    };
 
     // Filtres
     if (filters?.minPrice !== undefined) {
-      query += ' AND price_per_kg >= ?';
-      params.push(filters.minPrice);
+      params.min_price = filters.minPrice;
     }
     if (filters?.maxPrice !== undefined) {
-      query += ' AND price_per_kg <= ?';
-      params.push(filters.maxPrice);
+      params.max_price = filters.maxPrice;
     }
 
     // Tri
     switch (sort) {
       case 'price_asc':
-        query += ' ORDER BY price_per_kg ASC';
+        params.order_by = 'price_per_kg';
+        params.order_direction = 'ASC';
         break;
       case 'price_desc':
-        query += ' ORDER BY price_per_kg DESC';
+        params.order_by = 'price_per_kg';
+        params.order_direction = 'DESC';
         break;
       case 'recent':
-        query += ' ORDER BY listed_at DESC';
+        params.order_by = 'listed_at';
+        params.order_direction = 'DESC';
         break;
       default:
-        query += ' ORDER BY listed_at DESC';
+        params.order_by = 'listed_at';
+        params.order_direction = 'DESC';
     }
 
-    // Compte total
-    const countQuery = query.replace('SELECT *', 'SELECT COUNT(*) as count');
-    const countResult = await this.db.getFirstAsync<{ count: number }>(countQuery, params);
-    const total = countResult?.count || 0;
+    const result = await this.findAllPaginated({
+      limit,
+      offset: (page - 1) * limit,
+      orderBy: params.order_by as string,
+      orderDirection: params.order_direction as 'ASC' | 'DESC',
+    });
 
-    // Pagination
-    const offset = (page - 1) * limit;
-    query += ' LIMIT ? OFFSET ?';
-    params.push(limit, offset);
+    // Filtrer par prix si nécessaire
+    let listings = result.data;
+    if (filters?.minPrice !== undefined || filters?.maxPrice !== undefined) {
+      listings = listings.filter((listing) => {
+        if (filters.minPrice !== undefined && listing.pricePerKg < filters.minPrice) {
+          return false;
+        }
+        if (filters.maxPrice !== undefined && listing.pricePerKg > filters.maxPrice) {
+          return false;
+        }
+        return true;
+      });
+    }
 
-    const rows = await this.db.getAllAsync<any>(query, params);
-    const listings = rows.map(row => this.mapRowToListing(row));
-
-    return { listings, total };
+    return { listings, total: result.total };
   }
 }
-

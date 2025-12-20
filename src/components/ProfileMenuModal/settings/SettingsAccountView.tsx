@@ -69,7 +69,7 @@ export default function SettingsAccountView({ onBack }: SettingsAccountViewProps
           onPress={() => {
             Alert.alert(
               'Gérer authentification',
-              'Les méthodes d\'authentification disponibles sont gérées lors de la connexion. Vous pouvez vous connecter avec email/mot de passe, Google, Apple ou téléphone.',
+              "Les méthodes d'authentification disponibles sont gérées lors de la connexion. Vous pouvez vous connecter avec email/mot de passe, Google, Apple ou téléphone.",
               [{ text: 'OK' }]
             );
           }}
@@ -142,8 +142,9 @@ export default function SettingsAccountView({ onBack }: SettingsAccountViewProps
                   onPress: async () => {
                     try {
                       Alert.alert('Information', 'Le cache a été vidé');
-                    } catch (error: any) {
-                      Alert.alert('Erreur', error.message || 'Erreur lors du vidage du cache');
+                    } catch (error: unknown) {
+                      const errorMessage = error instanceof Error ? error.message : 'Erreur lors du vidage du cache';
+                      Alert.alert('Erreur', errorMessage);
                     }
                   },
                 },
@@ -189,8 +190,9 @@ export default function SettingsAccountView({ onBack }: SettingsAccountViewProps
                         'Information',
                         "La réinitialisation complète de la base de données n'est pas encore implémentée. Pour réinitialiser, supprimez et réinstallez l'application."
                       );
-                    } catch (error: any) {
-                      Alert.alert('Erreur', error.message || 'Erreur lors de la réinitialisation');
+                    } catch (error: unknown) {
+                      const errorMessage = error instanceof Error ? error.message : 'Erreur lors de la réinitialisation';
+                      Alert.alert('Erreur', errorMessage);
                     }
                   },
                 },
@@ -356,4 +358,3 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
 });
-

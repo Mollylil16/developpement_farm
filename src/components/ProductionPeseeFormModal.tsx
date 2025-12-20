@@ -3,16 +3,12 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Alert,
-  Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Platform, ActivityIndicator } from 'react-native';
+import { Camera } from 'expo-camera';
+import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useAppDispatch } from '../store/hooks';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { createPesee, updatePesee } from '../store/slices/productionSlice';
 import { ProductionAnimal, ProductionPesee, CreatePeseeInput } from '../types';
 import CustomModal from './CustomModal';
@@ -20,6 +16,7 @@ import FormField from './FormField';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useActionPermissions } from '../hooks/useActionPermissions';
+import aiWeightService from '../services/aiWeightService';
 
 // Fonction helper pour convertir une date en format local YYYY-MM-DD
 const formatDateToLocal = (date: Date): string => {
@@ -58,7 +55,12 @@ export default function ProductionPeseeFormModal({
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate } = useActionPermissions();
+  const { projetActif } = useAppSelector((state) => state.projet);
+  const currentUser = useAppSelector((state) => state.auth.user);
   const [loading, setLoading] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [isAiEstimated, setIsAiEstimated] = useState(false); // Indique si le poids vient de l'IA
+  const [aiConfidence, setAiConfidence] = useState<number | null>(null); // Confiance de l'estimation IA
   const [formData, setFormData] = useState<CreatePeseeInput>({
     projet_id: projetId,
     animal_id: animal.id,
@@ -67,6 +69,7 @@ export default function ProductionPeseeFormModal({
     commentaire: '',
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (visible) {
@@ -90,8 +93,172 @@ export default function ProductionPeseeFormModal({
         });
       }
       setShowDatePicker(false);
+      setIsAiEstimated(false); // Réinitialiser l'indicateur IA
+      setAiConfidence(null);
     }
   }, [visible, projetId, animal, pesee, isEditing]);
+
+  // Demander les permissions caméra
+  useEffect(() => {
+    (async () => {
+      const { status } = await Camera.requestCameraPermissionsAsync();
+      setHasCameraPermission(status === 'granted');
+    })();
+  }, []);
+
+  const handleCapturePhoto = async () => {
+    if (!hasCameraPermission) {
+      Alert.alert('Permission requise', 'Veuillez autoriser l\'accès à la caméra dans les paramètres.');
+      return;
+    }
+
+    setAiLoading(true);
+    try {
+      // Permettre à l'utilisateur de choisir entre photo et vidéo
+      Alert.alert(
+        'Pesée IA',
+        'Choisissez le mode de capture',
+        [
+          {
+            text: 'Photo',
+            onPress: async () => {
+              try {
+                const result = await ImagePicker.launchCameraAsync({
+                  mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                  allowsEditing: false,
+                  quality: 0.8,
+                  base64: true,
+                });
+
+                if (!result.canceled && result.assets[0]) {
+                  await processImageForWeight(result.assets[0].base64 || '');
+                }
+              } catch (error: any) {
+                Alert.alert('Erreur', error.message || 'Erreur lors de la capture photo');
+              }
+            },
+          },
+          {
+            text: 'Vidéo',
+            onPress: async () => {
+              try {
+                const result = await ImagePicker.launchCameraAsync({
+                  mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+                  allowsEditing: false,
+                  quality: 0.8,
+                });
+
+                if (!result.canceled && result.assets[0]) {
+                  await processVideoForWeight(result.assets[0].uri);
+                }
+              } catch (error: any) {
+                Alert.alert('Erreur', error.message || 'Erreur lors de la capture vidéo');
+              }
+            },
+          },
+          { text: 'Annuler', style: 'cancel' },
+        ]
+      );
+    } catch (error: any) {
+      Alert.alert('Erreur', error.message || 'Erreur lors de la capture');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const processImageForWeight = async (base64Image: string) => {
+    if (!base64Image) {
+      Alert.alert('Erreur', 'Impossible de traiter l\'image');
+      return;
+    }
+
+    setAiLoading(true);
+    try {
+      const imageData = base64Image.startsWith('data:') 
+        ? base64Image 
+        : `data:image/jpeg;base64,${base64Image}`;
+
+      const result = await aiWeightService.predictWeight({
+        image: imageData,
+        pig_id: animal.id,
+        projet_id: projetId,
+        user_id: currentUser?.id || '',
+        auto_register: true,
+      });
+
+      if (result.success && result.weight_estimation) {
+        const weight = result.weight_estimation.weight_kg;
+        const confidence = result.weight_estimation.confidence;
+        setFormData({ ...formData, poids_kg: Math.round(weight * 10) / 10 });
+        setIsAiEstimated(true);
+        setAiConfidence(confidence);
+        Alert.alert(
+          'Poids estimé par IA',
+          `Poids détecté : ${weight.toFixed(1)} kg\nConfiance : ${(confidence * 100).toFixed(0)}%\n\nVous pouvez modifier cette valeur manuellement si nécessaire.`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Avertissement', 'Aucun porc détecté dans l\'image. Veuillez saisir le poids manuellement ou réessayer.');
+      }
+    } catch (error: any) {
+      console.error('Erreur IA:', error);
+      Alert.alert(
+        'Erreur',
+        error.response?.data?.detail || error.message || 'Erreur lors de l\'estimation du poids'
+      );
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const processVideoForWeight = async (videoUri: string) => {
+    if (!videoUri) {
+      Alert.alert('Erreur', 'Impossible de traiter la vidéo');
+      return;
+    }
+
+    setAiLoading(true);
+    try {
+      const result = await aiWeightService.predictWeightFromVideo({
+        videoUri,
+        projet_id: projetId,
+        user_id: currentUser?.id || '',
+        frame_skip: 5,
+      });
+
+      if (result.success && result.pigs && result.pigs.length > 0) {
+        // Trouver le porc correspondant à l'animal actuel
+        const pigResult = result.pigs.find((p) => p.pig_id === animal.id) || result.pigs[0];
+        
+        if (pigResult) {
+          const weight = pigResult.weight_kg;
+          setFormData({ ...formData, poids_kg: Math.round(weight * 10) / 10 });
+          setIsAiEstimated(true);
+          setAiConfidence(0.85); // Confiance par défaut pour vidéo (moyenne de plusieurs détections)
+          Alert.alert(
+            'Poids estimé par IA',
+            `Poids détecté : ${weight.toFixed(1)} kg\n(${pigResult.detections_count} détections)\nCode: ${pigResult.code}\n\nVous pouvez modifier cette valeur manuellement si nécessaire.`,
+            [{ text: 'OK' }]
+          );
+        } else {
+          Alert.alert(
+            'Information',
+            `${result.total_tracks} porc(s) détecté(s) dans la vidéo, mais ${animal.code} n'a pas été identifié.\n\nVeuillez saisir le poids manuellement.`
+          );
+        }
+      } else {
+        Alert.alert('Avertissement', 'Aucun porc détecté dans la vidéo.');
+      }
+    } catch (error: any) {
+      console.error('Erreur IA vidéo:', error);
+      Alert.alert(
+        'Erreur',
+        error.response?.data?.detail || error.message || 'Erreur lors de l\'estimation du poids'
+      );
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   const handleSubmit = async () => {
     // Vérifier les permissions
@@ -117,11 +284,9 @@ export default function ProductionPeseeFormModal({
         await dispatch(createPesee(formData)).unwrap();
       }
       onSuccess();
-    } catch (error: any) {
-      Alert.alert(
-        'Erreur',
-        error || `Erreur lors de ${isEditing ? 'la modification' : "l'enregistrement"} de la pesée.`
-      );
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error) || `Erreur lors de ${isEditing ? 'la modification' : "l'enregistrement"} de la pesée.`;
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -185,14 +350,68 @@ export default function ProductionPeseeFormModal({
           )}
         </View>
 
-        <FormField
-          label="Poids (kg) *"
-          value={formData.poids_kg.toString()}
-          onChangeText={(text) => setFormData({ ...formData, poids_kg: parseFloat(text) || 0 })}
-          keyboardType="numeric"
-          placeholder="0"
-          required
-        />
+        <View style={styles.section}>
+          <View style={styles.weightHeader}>
+            <View style={styles.weightTitleContainer}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Poids (kg) *</Text>
+              {isAiEstimated && (
+                <View style={[styles.aiBadge, { backgroundColor: colors.primary + '20' }]}>
+                  <Ionicons name="sparkles" size={12} color={colors.primary} />
+                  <Text style={[styles.aiBadgeText, { color: colors.primary }]}>
+                    Estimé par IA
+                  </Text>
+                </View>
+              )}
+            </View>
+            <TouchableOpacity
+              style={[styles.aiButton, { backgroundColor: colors.primary }]}
+              onPress={handleCapturePhoto}
+              disabled={aiLoading || loading}
+            >
+              {aiLoading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons name="camera" size={18} color="#FFFFFF" />
+                  <Text style={styles.aiButtonText}>IA</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+          <FormField
+            label=""
+            value={formData.poids_kg.toString()}
+            onChangeText={(text) => {
+              setFormData({ ...formData, poids_kg: parseFloat(text) || 0 });
+              // Si l'utilisateur modifie manuellement, on retire l'indicateur IA
+              if (isAiEstimated && parseFloat(text) !== formData.poids_kg) {
+                setIsAiEstimated(false);
+                setAiConfidence(null);
+              }
+            }}
+            keyboardType="numeric"
+            placeholder="Saisir ou utiliser l'IA"
+            required
+          />
+          {aiLoading && (
+            <Text style={[styles.aiStatus, { color: colors.textSecondary }]}>
+              Analyse en cours...
+            </Text>
+          )}
+          {isAiEstimated && aiConfidence !== null && !aiLoading && (
+            <View style={styles.aiInfoContainer}>
+              <Text style={[styles.aiInfoText, { color: colors.textSecondary }]}>
+                <Ionicons name="information-circle" size={14} color={colors.textSecondary} />{' '}
+                Estimation IA (confiance: {(aiConfidence * 100).toFixed(0)}%) - Modifiable manuellement
+              </Text>
+            </View>
+          )}
+          {!isAiEstimated && formData.poids_kg === 0 && (
+            <Text style={[styles.aiHint, { color: colors.textSecondary }]}>
+              💡 Astuce: Utilisez le bouton "IA" pour estimer automatiquement le poids, ou saisissez-le manuellement
+            </Text>
+          )}
+        </View>
 
         <FormField
           label="Commentaire"
@@ -239,5 +458,61 @@ const styles = StyleSheet.create({
   },
   dateButtonText: {
     fontSize: FONT_SIZES.md,
+  },
+  weightHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+  },
+  aiButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.sm,
+    gap: SPACING.xs,
+  },
+  aiButtonText: {
+    color: '#FFFFFF',
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+  },
+  aiStatus: {
+    fontSize: FONT_SIZES.sm,
+    fontStyle: 'italic',
+    marginTop: SPACING.xs,
+  },
+  weightTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    flex: 1,
+  },
+  aiBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.sm,
+    gap: SPACING.xs,
+  },
+  aiBadgeText: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '600',
+  },
+  aiInfoContainer: {
+    marginTop: SPACING.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  aiInfoText: {
+    fontSize: FONT_SIZES.xs,
+    fontStyle: 'italic',
+  },
+  aiHint: {
+    fontSize: FONT_SIZES.xs,
+    marginTop: SPACING.xs,
+    fontStyle: 'italic',
   },
 });

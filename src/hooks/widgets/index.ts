@@ -9,5 +9,9 @@ export { useCollaborationWidget, type CollaborationWidgetData } from './useColla
 export { useMortalitesWidget, type MortalitesWidgetData } from './useMortalitesWidget';
 export { useProductionWidget, type ProductionWidgetData } from './useProductionWidget';
 export { useMarketplaceWidget, type MarketplaceWidgetData } from './useMarketplaceWidget';
-export { usePurchasesWidget, useExpensesWidget, type PurchasesWidgetData, type ExpensesWidgetData } from './useBuyerWidgets';
-
+export {
+  usePurchasesWidget,
+  useExpensesWidget,
+  type PurchasesWidgetData,
+  type ExpensesWidgetData,
+} from './useBuyerWidgets';

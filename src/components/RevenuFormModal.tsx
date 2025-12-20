@@ -4,10 +4,23 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, TextInput, FlatList } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  Alert,
+  TextInput,
+  FlatList,
+} from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { createRevenu, updateRevenu, calculateAndSaveMargesVente } from '../store/slices/financeSlice';
+import {
+  createRevenu,
+  updateRevenu,
+  calculateAndSaveMargesVente,
+} from '../store/slices/financeSlice';
 import { Revenu, CreateRevenuInput, CategorieRevenu, ProductionAnimal } from '../types';
 import { selectAllAnimaux, selectPeseesRecents } from '../store/selectors/productionSelectors';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
@@ -103,14 +116,12 @@ export default function RevenuFormModal({
    * Validation d'un champ individuel (temps réel)
    */
   const validateSingleField = useCallback(
-    async (fieldName: keyof typeof formData, value: any) => {
+    async (fieldName: keyof typeof formData, value: unknown) => {
       try {
-        const error = await validateField(
-          revenuSchema,
-          fieldName,
-          value,
-          { ...formData, poids_kg: poidsKg ? parseFloat(poidsKg) : null }
-        );
+        const error = await validateField(revenuSchema, fieldName, value, {
+          ...formData,
+          poids_kg: poidsKg ? parseFloat(poidsKg) : null,
+        });
 
         setValidationErrors((prev) => {
           const newErrors = { ...prev };
@@ -263,10 +274,7 @@ export default function RevenuFormModal({
 
     if (!isValid) {
       // Marquer tous les champs comme touchés pour afficher les erreurs
-      const allTouched = Object.keys(errors).reduce(
-        (acc, key) => ({ ...acc, [key]: true }),
-        {}
-      );
+      const allTouched = Object.keys(errors).reduce((acc, key) => ({ ...acc, [key]: true }), {});
       setTouched(allTouched);
       setValidationErrors(errors);
 
@@ -304,11 +312,11 @@ export default function RevenuFormModal({
               commentaire: formData.commentaire,
               photos: formData.photos || [],
               animal_id: selectedAnimalId || animalId,
-              poids_kg: poidsKg ? parseFloat(poidsKg) : null,
+              poids_kg: poidsKg ? parseFloat(poidsKg) : undefined,
             },
           })
         ).unwrap();
-        
+
         // Si vente de porc avec poids, calculer les marges
         if (formData.categorie === 'vente_porc' && poidsKg && parseFloat(poidsKg) > 0) {
           await dispatch(
@@ -325,14 +333,14 @@ export default function RevenuFormModal({
           return;
         }
         const result = await dispatch(
-          createRevenu({ 
-            ...formData, 
-            projet_id: projetActif.id, 
+          createRevenu({
+            ...formData,
+            projet_id: projetActif.id,
             animal_id: selectedAnimalId || animalId,
-            poids_kg: poidsKg ? parseFloat(poidsKg) : null
+            poids_kg: poidsKg ? parseFloat(poidsKg) : undefined,
           })
         ).unwrap();
-        
+
         // Si vente de porc avec poids, calculer les marges
         if (formData.categorie === 'vente_porc' && poidsKg && parseFloat(poidsKg) > 0) {
           await dispatch(
@@ -343,20 +351,21 @@ export default function RevenuFormModal({
           ).unwrap();
         }
       }
-      
+
       // Réinitialiser le loading avant d'appeler onSuccess
       setLoading(false);
-      
+
       // Fermer le modal immédiatement
       onClose();
-      
+
       // Appeler onSuccess de manière asynchrone pour laisser le modal se fermer complètement
       setTimeout(() => {
         onSuccess();
       }, 100);
-    } catch (error: any) {
+    } catch (error: unknown) {
       setLoading(false);
-      Alert.alert('Erreur', error?.message || error || "Erreur lors de l'enregistrement");
+      const errorMessage = error instanceof Error ? error.message : String(error) || "Erreur lors de l'enregistrement";
+      Alert.alert('Erreur', errorMessage);
     }
   };
 
@@ -499,50 +508,54 @@ export default function RevenuFormModal({
                       value={searchAnimalQuery}
                       onChangeText={setSearchAnimalQuery}
                     />
-                    <FlatList
-                      data={animauxFiltres}
-                      keyExtractor={(item) => item.id}
-                      renderItem={({ item }) => (
-                        <TouchableOpacity
-                          style={[
-                            styles.animalOption,
-                            {
-                              backgroundColor:
-                                selectedAnimalId === item.id ? colors.primary : colors.background,
-                            },
-                          ]}
-                          onPress={() => {
-                            setSelectedAnimalId(item.id);
-                            const poidsActuel = peseesRecents.find(p => p.animal_id === item.id)?.poids_kg || item.poids_initial || 0;
-                            setPoidsKg(poidsActuel.toString());
-                            setShowAnimalSearch(false);
-                            setSearchAnimalQuery('');
-                          }}
-                        >
-                          <Text
+                    <View style={[styles.animalList, { maxHeight: 200 }]}>
+                      <FlatList
+                        data={animauxFiltres}
+                        keyExtractor={(item) => item.id}
+                        renderItem={({ item }) => (
+                          <TouchableOpacity
                             style={[
-                              styles.animalOptionText,
+                              styles.animalOption,
                               {
-                                color:
-                                  selectedAnimalId === item.id
-                                    ? colors.textOnPrimary
-                                    : colors.text,
+                                backgroundColor:
+                                  selectedAnimalId === item.id ? colors.primary : colors.background,
                               },
                             ]}
+                            onPress={() => {
+                              setSelectedAnimalId(item.id);
+                              const poidsActuel =
+                                peseesRecents.find((p) => p.animal_id === item.id)?.poids_kg ||
+                                item.poids_initial ||
+                                0;
+                              setPoidsKg(poidsActuel.toString());
+                              setShowAnimalSearch(false);
+                              setSearchAnimalQuery('');
+                            }}
                           >
-                            {item.code}
-                            {item.nom ? ` - ${item.nom}` : ''}
-                            {item.race ? ` (${item.race})` : ''}
-                            {(() => {
-                              const poidsActuel = peseesRecents.find(p => p.animal_id === item.id)?.poids_kg || item.poids_initial || 0;
-                              return poidsActuel > 0 ? ` - ${poidsActuel} kg` : '';
-                            })()}
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-                      style={styles.animalList}
-                      maxHeight={200}
-                    />
+                            <Text
+                              style={[
+                                styles.animalOptionText,
+                                {
+                                  color:
+                                    selectedAnimalId === item.id ? colors.textOnPrimary : colors.text,
+                                },
+                              ]}
+                            >
+                              {item.code}
+                              {item.nom ? ` - ${item.nom}` : ''}
+                              {item.race ? ` (${item.race})` : ''}
+                              {(() => {
+                                const poidsActuel =
+                                  peseesRecents.find((p) => p.animal_id === item.id)?.poids_kg ||
+                                  item.poids_initial ||
+                                  0;
+                                return poidsActuel > 0 ? ` - ${poidsActuel} kg` : '';
+                              })()}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      />
+                    </View>
                   </View>
                 )}
                 {selectedAnimal && (
@@ -550,7 +563,10 @@ export default function RevenuFormModal({
                     Porc sélectionné: {selectedAnimal.code}
                     {selectedAnimal.nom ? ` (${selectedAnimal.nom})` : ''}
                     {(() => {
-                      const poidsActuel = peseesRecents.find(p => p.animal_id === selectedAnimal.id)?.poids_kg || selectedAnimal.poids_initial || 0;
+                      const poidsActuel =
+                        peseesRecents.find((p) => p.animal_id === selectedAnimal.id)?.poids_kg ||
+                        selectedAnimal.poids_initial ||
+                        0;
                       return poidsActuel > 0 ? ` - Poids actuel: ${poidsActuel} kg` : '';
                     })()}
                   </Text>
@@ -571,15 +587,18 @@ export default function RevenuFormModal({
               onChangeText={setPoidsKg}
               keyboardType="numeric"
               placeholder="120"
-              helper="Nécessaire pour calculer automatiquement la marge de production"
             />
+            <Text style={[styles.helperText, { color: colors.textSecondary, marginTop: -8, marginBottom: 8 }]}>
+              Nécessaire pour calculer automatiquement la marge de production
+            </Text>
             <Text
               style={[
                 styles.helperText,
                 { color: colors.textSecondary, marginTop: -8, marginBottom: 12 },
               ]}
             >
-              💡 Le système calculera automatiquement le coût réel et la marge en comparant avec vos coûts de production (OPEX + CAPEX amorti).
+              💡 Le système calculera automatiquement le coût réel et la marge en comparant avec vos
+              coûts de production (OPEX + CAPEX amorti).
             </Text>
           </View>
         )}

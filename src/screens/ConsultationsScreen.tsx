@@ -4,14 +4,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import {
-  View,
-  FlatList,
-  Text,
-  StyleSheet,
-  RefreshControl,
-  TouchableOpacity,
-} from 'react-native';
+import { View, FlatList, Text, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,7 +25,9 @@ const ConsultationsScreen: React.FC = () => {
   const navigation = useNavigation();
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<'today' | 'upcoming' | 'past'>('today');
-  const { todayConsultations, upcomingConsultations, loading, refresh } = useVetData(currentUser?.id);
+  const { todayConsultations, upcomingConsultations, loading, refresh } = useVetData(
+    currentUser?.id
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -41,10 +36,9 @@ const ConsultationsScreen: React.FC = () => {
   }, [refresh]);
 
   // Combiner toutes les consultations et les trier
-  const allConsultations = [
-    ...todayConsultations,
-    ...upcomingConsultations,
-  ].sort((a, b) => new Date(a.date_visite).getTime() - new Date(b.date_visite).getTime());
+  const allConsultations = [...todayConsultations, ...upcomingConsultations].sort(
+    (a, b) => new Date(a.date_visite).getTime() - new Date(b.date_visite).getTime()
+  );
 
   const filteredConsultations = allConsultations.filter((consultation) => {
     const consultationDate = new Date(consultation.date_visite);
@@ -58,9 +52,23 @@ const ConsultationsScreen: React.FC = () => {
     const isTodayConsultation = isToday(consultationDate);
 
     return (
-      <Card style={[styles.consultationCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <Card
+        style={[
+          styles.consultationCard,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+        ]}
+      >
         <View style={styles.consultationHeader}>
-          <View style={[styles.dateIcon, { backgroundColor: isTodayConsultation ? colors.primary + '20' : colors.textSecondary + '20' }]}>
+          <View
+            style={[
+              styles.dateIcon,
+              {
+                backgroundColor: isTodayConsultation
+                  ? colors.primary + '20'
+                  : colors.textSecondary + '20',
+              },
+            ]}
+          >
             <Ionicons
               name="calendar"
               size={24}
@@ -85,15 +93,16 @@ const ConsultationsScreen: React.FC = () => {
         <View style={styles.consultationDetails}>
           <View style={styles.motifRow}>
             <Ionicons name="document-text" size={16} color={colors.textSecondary} />
-            <Text style={[styles.motifText, { color: colors.text }]}>
-              {item.motif}
-            </Text>
+            <Text style={[styles.motifText, { color: colors.text }]}>{item.motif}</Text>
           </View>
 
           {item.diagnostic && (
             <View style={styles.diagnosticRow}>
               <Ionicons name="medical" size={16} color={colors.warning} />
-              <Text style={[styles.diagnosticText, { color: colors.textSecondary }]} numberOfLines={2}>
+              <Text
+                style={[styles.diagnosticText, { color: colors.textSecondary }]}
+                numberOfLines={2}
+              >
                 {item.diagnostic}
               </Text>
             </View>
@@ -102,7 +111,10 @@ const ConsultationsScreen: React.FC = () => {
           {item.prescriptions && (
             <View style={styles.prescriptionsRow}>
               <Ionicons name="flask" size={16} color={colors.info} />
-              <Text style={[styles.prescriptionsText, { color: colors.textSecondary }]} numberOfLines={2}>
+              <Text
+                style={[styles.prescriptionsText, { color: colors.textSecondary }]}
+                numberOfLines={2}
+              >
                 {item.prescriptions}
               </Text>
             </View>
@@ -137,10 +149,7 @@ const ConsultationsScreen: React.FC = () => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.divider }]}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Consultations</Text>
@@ -227,8 +236,8 @@ const ConsultationsScreen: React.FC = () => {
             activeTab === 'today'
               ? "Vous n'avez pas de consultations prévues aujourd'hui"
               : activeTab === 'upcoming'
-              ? "Vous n'avez pas de consultations à venir"
-              : "Vous n'avez pas encore de consultations passées"
+                ? "Vous n'avez pas de consultations à venir"
+                : "Vous n'avez pas encore de consultations passées"
           }
         />
       ) : (
@@ -400,4 +409,3 @@ const styles = StyleSheet.create({
 });
 
 export default ConsultationsScreen;
-

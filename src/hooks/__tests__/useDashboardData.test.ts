@@ -33,18 +33,14 @@ describe('useDashboardData', () => {
   });
 
   it('devrait initialiser avec isInitialLoading à true', () => {
-    const { result } = renderHook(() =>
-      useDashboardData({ projetId: 'test-projet-id' })
-    );
+    const { result } = renderHook(() => useDashboardData({ projetId: 'test-projet-id' }));
 
     expect(result.current.isInitialLoading).toBe(true);
     expect(result.current.refreshing).toBe(false);
   });
 
   it('ne devrait pas charger les données si projetId est undefined', async () => {
-    const { result } = renderHook(() =>
-      useDashboardData({ projetId: undefined })
-    );
+    const { result } = renderHook(() => useDashboardData({ projetId: undefined }));
 
     await waitFor(() => {
       expect(mockDispatch).not.toHaveBeenCalled();
@@ -91,9 +87,7 @@ describe('useDashboardData', () => {
 
   it('devrait mettre à jour refreshing lors du refresh', async () => {
     const projetId = 'test-projet-id';
-    const { result } = renderHook(() =>
-      useDashboardData({ projetId })
-    );
+    const { result } = renderHook(() => useDashboardData({ projetId }));
 
     // Attendre que le chargement initial soit terminé
     await waitFor(
@@ -117,10 +111,9 @@ describe('useDashboardData', () => {
 
   it('ne devrait pas recharger les données si le même projetId est utilisé', async () => {
     const projetId = 'test-projet-id';
-    const { rerender } = renderHook(
-      ({ projetId }) => useDashboardData({ projetId }),
-      { initialProps: { projetId } }
-    );
+    const { rerender } = renderHook(({ projetId }) => useDashboardData({ projetId }), {
+      initialProps: { projetId },
+    });
 
     // Attendre le premier chargement
     await waitFor(() => {
@@ -135,9 +128,7 @@ describe('useDashboardData', () => {
     await waitFor(() => {
       // Le nombre d'appels ne devrait pas augmenter significativement
       // (seulement les appels initiaux)
-      expect(mockDispatch.mock.calls.length).toBeLessThanOrEqual(
-        callCountBefore + 1
-      );
+      expect(mockDispatch.mock.calls.length).toBeLessThanOrEqual(callCountBefore + 1);
     });
   });
 
@@ -161,4 +152,3 @@ describe('useDashboardData', () => {
     consoleErrorSpy.mockRestore();
   });
 });
-

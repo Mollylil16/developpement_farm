@@ -3,7 +3,7 @@ module.exports = {
   setupFiles: ['<rootDir>/jest.setup.js'],
   setupFilesAfterEnv: ['@testing-library/jest-native/extend-expect'],
   transformIgnorePatterns: [
-    'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|react-native-reanimated|react-redux|@reduxjs/toolkit|immer|redux-persist)'
+    'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|react-native-reanimated|react-redux|@reduxjs/toolkit|immer|redux-persist)',
   ],
   moduleNameMapper: {
     'react-native-reanimated': require.resolve('react-native-reanimated/mock'),
@@ -26,10 +26,8 @@ module.exports = {
   testMatch: [
     '**/__tests__/**/*.[jt]s?(x)',
     '**/?(*.)+(spec|test).[jt]s?(x)',
-    '**/e2e/**/*.e2e.[jt]s?(x)'
+    '**/e2e/**/*.e2e.[jt]s?(x)',
   ],
   // Configuration pour les tests E2E (timeout plus long)
   testTimeout: 30000,
 };
-
-

@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { View, StyleSheet, Animated, Easing } from 'react-native';
+import { View, StyleSheet, Animated, Easing, ViewStyle } from 'react-native';
 import { SPACING } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -12,7 +12,7 @@ interface SkeletonLoaderProps {
   width?: number | string;
   height?: number;
   borderRadius?: number;
-  style?: any;
+  style?: ViewStyle | Animated.AnimatedProps<ViewStyle>;
 }
 
 function SkeletonItem({ width, height, borderRadius, style }: SkeletonLoaderProps) {
@@ -43,12 +43,16 @@ function SkeletonItem({ width, height, borderRadius, style }: SkeletonLoaderProp
     outputRange: [0.3, 0.7],
   });
 
+  // Convertir width string en nombre si nécessaire
+  const widthValue = typeof width === 'string' && width === '100%' ? undefined : (width || undefined);
+  const widthStyle = width === '100%' ? { flex: 1 } : widthValue ? { width: widthValue } : {};
+
   return (
     <Animated.View
       style={[
         styles.skeleton,
         {
-          width: width || '100%',
+          ...widthStyle,
           height: height || 20,
           borderRadius: borderRadius || 8, // BORDER_RADIUS.sm
           backgroundColor: colors.borderLight || colors.border,

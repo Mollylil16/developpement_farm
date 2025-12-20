@@ -7,14 +7,14 @@ import { migrationLogger } from '../../utils/logger';
 
 export async function addCategoriePoidsAndNombreCroissance(db: SQLiteDatabase): Promise<void> {
   migrationLogger.step('Migration 032: Ajout de categorie_poids et nombre_croissance');
-  
+
   try {
     // Ajouter categorie_poids à production_animaux si elle n'existe pas
     const animauxTableInfo = await db.getAllAsync<{ name: string }>(
-      "PRAGMA table_info(production_animaux)"
+      'PRAGMA table_info(production_animaux)'
     );
-    const hasCategoriePoids = animauxTableInfo.some(col => col.name === 'categorie_poids');
-    
+    const hasCategoriePoids = animauxTableInfo.some((col) => col.name === 'categorie_poids');
+
     if (!hasCategoriePoids) {
       await db.execAsync(`
         ALTER TABLE production_animaux 
@@ -26,11 +26,9 @@ export async function addCategoriePoidsAndNombreCroissance(db: SQLiteDatabase): 
     }
 
     // Ajouter nombre_croissance à projets si elle n'existe pas
-    const projetsTableInfo = await db.getAllAsync<{ name: string }>(
-      "PRAGMA table_info(projets)"
-    );
-    const hasNombreCroissance = projetsTableInfo.some(col => col.name === 'nombre_croissance');
-    
+    const projetsTableInfo = await db.getAllAsync<{ name: string }>('PRAGMA table_info(projets)');
+    const hasNombreCroissance = projetsTableInfo.some((col) => col.name === 'nombre_croissance');
+
     if (!hasNombreCroissance) {
       await db.execAsync(`
         ALTER TABLE projets 
@@ -48,4 +46,3 @@ export async function addCategoriePoidsAndNombreCroissance(db: SQLiteDatabase): 
     throw error;
   }
 }
-

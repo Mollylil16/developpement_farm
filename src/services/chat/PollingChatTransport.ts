@@ -3,7 +3,6 @@
  * Implémentation actuelle (temporaire)
  */
 
-import type { SQLiteDatabase } from 'expo-sqlite';
 import type {
   IChatTransport,
   ChatTransportConfig,
@@ -11,20 +10,23 @@ import type {
   ConnectionStatus,
 } from './ChatTransport.interface';
 import type { ChatMessage } from '../../types/marketplace';
-import { MarketplaceChatRepository } from '../../database/repositories';
+import apiClient from '../api/apiClient';
 
 export class PollingChatTransport implements IChatTransport {
   private _status: ConnectionStatus = 'disconnected';
   private pollingInterval?: NodeJS.Timeout;
-  private chatRepo?: MarketplaceChatRepository;
+  // Plus besoin de repository, on utilise directement l'API
   private conversationId?: string;
   private lastMessageTimestamp: string = new Date(0).toISOString();
+  
+  // Propriétés utilisées dans les méthodes de la classe
+  private config: ChatTransportConfig;
+  private callbacks: ChatTransportCallbacks;
 
-  constructor(
-    private db: SQLiteDatabase,
-    private config: ChatTransportConfig,
-    private callbacks: ChatTransportCallbacks
-  ) {}
+  constructor(config: ChatTransportConfig, callbacks: ChatTransportCallbacks) {
+    this.config = config;
+    this.callbacks = callbacks;
+  }
 
   get status(): ConnectionStatus {
     return this._status;
@@ -41,17 +43,18 @@ export class PollingChatTransport implements IChatTransport {
       this.callbacks.onStatusChange('connecting');
 
       this.conversationId = conversationId;
-      this.chatRepo = new MarketplaceChatRepository(this.db);
 
       // Charger les messages existants
       await this.pollMessages();
 
       // Démarrer le polling
       const interval = this.config.pollingInterval || 5000;
-      this.pollingInterval = setInterval(() => {
+        this.pollingInterval = setInterval(() => {
         this.pollMessages().catch((error) => {
           console.error('[PollingTransport] Erreur polling:', error);
-          this.callbacks.onError(error);
+          this.callbacks.onError(
+            error instanceof Error ? error : new Error(String(error))
+          );
         });
       }, interval);
 
@@ -77,14 +80,16 @@ export class PollingChatTransport implements IChatTransport {
     console.log('[PollingTransport] Déconnecté');
   }
 
-  async sendMessage(
-    message: Omit<ChatMessage, 'id' | 'createdAt'>
-  ): Promise<ChatMessage> {
-    if (!this.chatRepo) {
+  async sendMessage(message: Omit<ChatMessage, 'id' | 'createdAt'>): Promise<ChatMessage> {
+    if (!this.conversationId) {
       throw new Error('Transport non connecté');
     }
 
-    const createdMessage = await this.chatRepo.createMessage(message);
+    // Créer le message via l'API backend
+    const createdMessage = await apiClient.post<any>(`/marketplace/chat/messages`, {
+      ...message,
+      conversationId: this.conversationId,
+    });
 
     // Mettre à jour le timestamp
     this.lastMessageTimestamp = createdMessage.createdAt;
@@ -93,12 +98,12 @@ export class PollingChatTransport implements IChatTransport {
   }
 
   async markAsRead(messageIds: string[]): Promise<void> {
-    if (!this.chatRepo) {
+    if (!this.conversationId) {
       throw new Error('Transport non connecté');
     }
 
     for (const id of messageIds) {
-      await this.chatRepo.markMessageAsRead(id);
+      await apiClient.patch(`/marketplace/chat/messages/${id}/read`);
     }
   }
 
@@ -110,20 +115,16 @@ export class PollingChatTransport implements IChatTransport {
    * Polling des nouveaux messages
    */
   private async pollMessages(): Promise<void> {
-    if (!this.chatRepo || !this.conversationId) {
+    if (!this.conversationId) {
       return;
     }
 
     try {
-      // Récupérer tous les messages de la conversation
-      const allMessages = await this.chatRepo.findConversationMessages(
-        this.conversationId
-      );
+      // Récupérer tous les messages de la conversation depuis l'API backend
+      const allMessages = await apiClient.get<any[]>(`/marketplace/chat/conversations/${this.conversationId}/messages`);
 
       // Filtrer les nouveaux messages (après le dernier timestamp)
-      const newMessages = allMessages.filter(
-        (msg) => msg.createdAt > this.lastMessageTimestamp
-      );
+      const newMessages = allMessages.filter((msg) => msg.createdAt > this.lastMessageTimestamp);
 
       // Notifier pour chaque nouveau message
       for (const message of newMessages) {
@@ -132,8 +133,9 @@ export class PollingChatTransport implements IChatTransport {
       }
     } catch (error: unknown) {
       console.error('[PollingTransport] Erreur récupération messages:', error);
-      this.callbacks.onError(error);
+      this.callbacks.onError(
+        error instanceof Error ? error : new Error(String(error))
+      );
     }
   }
 }
-

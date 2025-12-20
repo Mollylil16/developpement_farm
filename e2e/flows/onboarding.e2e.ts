@@ -1,6 +1,6 @@
 /**
  * Tests E2E pour le flux d'onboarding
- * 
+ *
  * Couvre:
  * - Création de compte utilisateur
  * - Création du premier projet
@@ -44,10 +44,10 @@ jest.mock('../../src/database/repositories/UserRepository', () => {
         return user;
       }),
       findByEmail: jest.fn().mockImplementation(async (email: string) => {
-        return mockUsers.find(u => u.email === email) || null;
+        return mockUsers.find((u) => u.email === email) || null;
       }),
       deleteById: jest.fn().mockImplementation(async (id: string) => {
-        const index = mockUsers.findIndex(u => u.id === id);
+        const index = mockUsers.findIndex((u) => u.id === id);
         if (index >= 0) mockUsers.splice(index, 1);
       }),
     })),
@@ -68,13 +68,13 @@ jest.mock('../../src/database/repositories/ProjetRepository', () => {
         return projet;
       }),
       findById: jest.fn().mockImplementation(async (id: string) => {
-        return mockProjets.find(p => p.id === id) || null;
+        return mockProjets.find((p) => p.id === id) || null;
       }),
       findAllByUserId: jest.fn().mockImplementation(async (userId: string) => {
-        return mockProjets.filter(p => p.userId === userId);
+        return mockProjets.filter((p) => p.userId === userId);
       }),
       deleteById: jest.fn().mockImplementation(async (id: string) => {
-        const index = mockProjets.findIndex(p => p.id === id);
+        const index = mockProjets.findIndex((p) => p.id === id);
         if (index >= 0) mockProjets.splice(index, 1);
       }),
     })),
@@ -141,7 +141,7 @@ describe('E2E: Flux Onboarding', () => {
       expect(foundUser?.id).toBe(user.id);
     });
 
-    it('devrait valider l\'unicité de l\'email', async () => {
+    it("devrait valider l'unicité de l'email", async () => {
       // 1. Créer un premier utilisateur
       const user1 = await userRepository.create({
         email: `unique-${Date.now()}@test.com`,
@@ -199,7 +199,7 @@ describe('E2E: Flux Onboarding', () => {
       // 5. Vérifier que le projet apparaît dans la liste des projets de l'utilisateur
       const userProjets = await projetRepository.findAllByUserId(user.id);
       expect(userProjets.length).toBeGreaterThan(0);
-      expect(userProjets.some(p => p.id === projet.id)).toBe(true);
+      expect(userProjets.some((p) => p.id === projet.id)).toBe(true);
     });
 
     it('devrait initialiser les animaux de base lors de la création du projet', async () => {
@@ -232,7 +232,7 @@ describe('E2E: Flux Onboarding', () => {
     });
   });
 
-  describe('Flux complet d\'onboarding', () => {
+  describe("Flux complet d'onboarding", () => {
     it('devrait compléter le flux complet: compte -> projet -> dashboard', async () => {
       // 1. Créer un utilisateur
       const user = await userRepository.create({

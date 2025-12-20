@@ -1,0 +1,81 @@
+# Configuration pour l'IA de pesée
+
+# Modèles
+models:
+  detection:
+    name: 'yolov8n-pig'
+    path: 'models/detection/yolov8n_pig.pt'
+    input_size: [640, 640]
+    confidence_threshold: 0.5
+    iou_threshold: 0.45
+
+  reid:
+    name: 'pig_reid_resnet50'
+    path: 'models/reid/pig_reid_resnet50.pt'
+    input_size: [256, 128]
+    feature_dim: 512
+
+  weight_estimation:
+    name: 'weight_estimation_cnn'
+    path: 'models/weight/weight_estimation_cnn.pt'
+    input_size: [224, 224]
+    weight_range: [5, 300] # kg
+
+# Paramètres d'entraînement
+training:
+  detection:
+    epochs: 100
+    batch_size: 16
+    learning_rate: 0.001
+    img_size: 640
+
+  reid:
+    epochs: 50
+    batch_size: 32
+    learning_rate: 0.0001
+    num_classes: 100 # Nombre de porcs uniques dans le dataset
+
+  weight_estimation:
+    epochs: 80
+    batch_size: 16
+    learning_rate: 0.0001
+    loss_function: 'mse' # Mean Squared Error
+
+# Paramètres d'inférence
+inference:
+  video:
+    fps: 30
+    frame_skip: 1 # Traiter chaque frame
+    max_detections: 50
+
+  image:
+    max_detections: 20
+
+  tracking:
+    max_age: 30 # Frames avant de perdre une track
+    min_hits: 3 # Frames minimum pour confirmer une track
+    iou_threshold: 0.3
+
+# Précision requise
+accuracy:
+  weight_error_margin: 0.005 # 0.5% d'erreur relative
+  min_confidence: 0.7
+  weight_estimation:
+    mae_threshold: 0.5 # kg
+    rmse_threshold: 0.7 # kg
+
+# Chemins de données
+paths:
+  data_dir: 'data'
+  images_dir: 'data/images'
+  videos_dir: 'data/videos'
+  annotations_dir: 'data/annotations'
+  models_dir: 'models'
+  output_dir: 'outputs'
+
+# API
+api:
+  host: '0.0.0.0'
+  port: 8000
+  max_file_size: 100 # MB
+  allowed_extensions: ['.jpg', '.jpeg', '.png', '.mp4', '.mov', '.avi']

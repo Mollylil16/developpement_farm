@@ -4,7 +4,7 @@
  */
 
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SPACING, FONT_SIZES, BORDER_RADIUS, FONT_WEIGHTS, LIGHT_COLORS } from '../constants/theme';
 
@@ -109,14 +109,15 @@ export default class ModalErrorBoundary extends Component<Props, State> {
 
             {/* Message principal */}
             <Text style={styles.message}>
-              Le formulaire a rencontré une erreur inattendue. Vos données n'ont pas été enregistrées.
+              Le formulaire a rencontré une erreur inattendue. Vos données n'ont pas été
+              enregistrées.
             </Text>
 
             {/* Message d'erreur technique */}
             {error && (
               <View style={styles.errorBox}>
                 <Text style={styles.errorTitle}>
-                  {modalName ? `Erreur dans: ${modalName}` : 'Détails de l\'erreur'}
+                  {modalName ? `Erreur dans: ${modalName}` : "Détails de l'erreur"}
                 </Text>
                 <Text style={styles.errorMessage}>{error.message}</Text>
               </View>
@@ -154,10 +155,10 @@ export default class ModalErrorBoundary extends Component<Props, State> {
               <Text style={styles.tipsTitle}>💡 Que faire ?</Text>
               <Text style={styles.tipText}>• Réessayez en cliquant sur "Réessayer"</Text>
               <Text style={styles.tipText}>• Fermez et rouvrez le formulaire</Text>
-              <Text style={styles.tipText}>• Si le problème persiste, redémarrez l'application</Text>
               <Text style={styles.tipText}>
-                • Contactez le support si l'erreur continue
+                • Si le problème persiste, redémarrez l'application
               </Text>
+              <Text style={styles.tipText}>• Contactez le support si l'erreur continue</Text>
             </View>
           </ScrollView>
         </View>
@@ -185,7 +186,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: FONT_SIZES.xxl,
-    fontWeight: FONT_WEIGHTS.bold as any,
+    fontWeight: FONT_WEIGHTS.bold as TextStyle['fontWeight'],
     color: LIGHT_COLORS.error,
     textAlign: 'center',
     marginBottom: SPACING.md,
@@ -281,4 +282,3 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs / 2,
   },
 });
-

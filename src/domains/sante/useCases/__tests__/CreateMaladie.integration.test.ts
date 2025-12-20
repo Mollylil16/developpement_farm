@@ -74,7 +74,7 @@ describe('CreateMaladieUseCase - Integration', () => {
       expect(result.nomMaladie).toBe('Grippe porcine');
     });
 
-    it('devrait rejeter si le projet n\'est pas fourni', async () => {
+    it("devrait rejeter si le projet n'est pas fourni", async () => {
       const input: CreateMaladieInput = {
         projetId: '',
         animalId: 'animal-1',
@@ -99,9 +99,7 @@ describe('CreateMaladieUseCase - Integration', () => {
         symptomes: 'Toux',
       };
 
-      await expect(useCase.execute(input)).rejects.toThrow(
-        'Le nom de la maladie est requis'
-      );
+      await expect(useCase.execute(input)).rejects.toThrow('Le nom de la maladie est requis');
     });
 
     it('devrait rejeter si les symptômes sont vides', async () => {
@@ -118,7 +116,7 @@ describe('CreateMaladieUseCase - Integration', () => {
       await expect(useCase.execute(input)).rejects.toThrow('Les symptômes sont requis');
     });
 
-    it('devrait rejeter si ni animalId ni lotId n\'est fourni', async () => {
+    it("devrait rejeter si ni animalId ni lotId n'est fourni", async () => {
       const input: CreateMaladieInput = {
         projetId: 'projet-1',
         type: 'respiratoire',
@@ -164,9 +162,8 @@ describe('CreateMaladieUseCase - Integration', () => {
       };
 
       await expect(useCase.execute(input)).rejects.toThrow(
-        'Une maladie critique nécessite l\'intervention d\'un vétérinaire'
+        "Une maladie critique nécessite l'intervention d'un vétérinaire"
       );
     });
   });
 });
-

@@ -9,8 +9,8 @@ import {
   IndicateursPerformance,
   Recommandation,
 } from '../../types';
-import { getDatabase } from '../../services/database';
-import { RapportCroissanceRepository } from '../../database/repositories';
+import { getErrorMessage } from '../../types/common';
+import apiClient from '../../services/api/apiClient';
 
 interface ReportsState {
   rapportsCroissance: RapportCroissance[];
@@ -33,9 +33,10 @@ export const createRapportCroissance = createAsyncThunk(
   'reports/createRapportCroissance',
   async (input: CreateRapportCroissanceInput, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const rapportRepo = new RapportCroissanceRepository(db);
-      const rapport = await rapportRepo.create(input);
+      const rapport = await apiClient.post<RapportCroissance>(
+        '/reports/rapports-croissance',
+        input
+      );
       return rapport;
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création du rapport');
@@ -45,11 +46,11 @@ export const createRapportCroissance = createAsyncThunk(
 
 export const loadRapportsCroissance = createAsyncThunk(
   'reports/loadRapportsCroissance',
-  async (_, { rejectWithValue }) => {
+  async (projetId: string, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const rapportRepo = new RapportCroissanceRepository(db);
-      const rapports = await rapportRepo.findAll();
+      const rapports = await apiClient.get<RapportCroissance[]>('/reports/rapports-croissance', {
+        params: { projet_id: projetId },
+      });
       return rapports;
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des rapports');
@@ -61,9 +62,9 @@ export const loadRapportsCroissanceParProjet = createAsyncThunk(
   'reports/loadRapportsCroissanceParProjet',
   async (projetId: string, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const rapportRepo = new RapportCroissanceRepository(db);
-      const rapports = await rapportRepo.findByProjet(projetId);
+      const rapports = await apiClient.get<RapportCroissance[]>('/reports/rapports-croissance', {
+        params: { projet_id: projetId },
+      });
       return rapports;
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des rapports');
@@ -75,12 +76,30 @@ export const deleteRapportCroissance = createAsyncThunk(
   'reports/deleteRapportCroissance',
   async (id: string, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const rapportRepo = new RapportCroissanceRepository(db);
-      await rapportRepo.delete(id);
+      await apiClient.delete(`/reports/rapports-croissance/${id}`);
       return id;
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la suppression du rapport');
+    }
+  }
+);
+
+// Thunk pour charger les indicateurs de performance depuis le backend
+export const loadIndicateursPerformance = createAsyncThunk(
+  'reports/loadIndicateursPerformance',
+  async (
+    { projetId, periodeJours = 30 }: { projetId: string; periodeJours?: number },
+    { rejectWithValue }
+  ) => {
+    try {
+      const indicateurs = await apiClient.get<IndicateursPerformance>('/reports/indicateurs-performance', {
+        params: { projet_id: projetId, periode_jours: periodeJours },
+      });
+      return indicateurs;
+    } catch (error: unknown) {
+      return rejectWithValue(
+        getErrorMessage(error) || 'Erreur lors du chargement des indicateurs de performance'
+      );
     }
   }
 );
@@ -152,6 +171,19 @@ const reportsSlice = createSlice({
         );
       })
       .addCase(deleteRapportCroissance.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      // loadIndicateursPerformance
+      .addCase(loadIndicateursPerformance.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(loadIndicateursPerformance.fulfilled, (state, action) => {
+        state.loading = false;
+        state.indicateursPerformance = action.payload;
+      })
+      .addCase(loadIndicateursPerformance.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       });

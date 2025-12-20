@@ -43,12 +43,13 @@ export default function CollaborationListComponent() {
   const { activeRole } = useRole();
   const { projetActif } = useAppSelector((state) => state.projet);
   const currentUser = useAppSelector((state) => state.auth.user);
-  
+
   // Vérifier si l'utilisateur est propriétaire du projet actif
-  const isProprietaire = activeRole === 'producer' && 
-    projetActif && 
-    currentUser && 
-    (projetActif.proprietaire_id === currentUser.id || (projetActif as any).user_id === currentUser.id);
+  const isProprietaire =
+    activeRole === 'producer' &&
+    projetActif &&
+    currentUser &&
+    projetActif.proprietaire_id === currentUser.id;
   const { collaborateurs, loading } = useAppSelector((state) => state.collaboration);
   const [selectedCollaborateur, setSelectedCollaborateur] = useState<Collaborateur | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -387,7 +388,7 @@ export default function CollaborationListComponent() {
                     <Text
                       style={[styles.roleBadgeText, { color: getRoleColor(collaborateur.role) }]}
                     >
-                      {ROLE_LABELS[collaborateur.role as RoleCollaborateur]}
+                      {ROLE_LABELS[collaborateur.role]}
                     </Text>
                   </View>
                   <View
@@ -406,7 +407,7 @@ export default function CollaborationListComponent() {
                         { color: getStatutColor(collaborateur.statut) },
                       ]}
                     >
-                      {STATUT_LABELS[collaborateur.statut as StatutCollaborateur]}
+                      {STATUT_LABELS[collaborateur.statut]}
                     </Text>
                   </View>
                 </View>

@@ -50,23 +50,20 @@ describe('PerformanceWidget', () => {
   });
 
   it('affiche le titre correctement', () => {
-    const { getByText } = renderWithProviders(
-      <PerformanceWidget projetId="test-projet" />
-    );
+    const { getByText } = renderWithProviders(<PerformanceWidget projetId="test-projet" />);
 
     expect(getByText('Performance Globale')).toBeTruthy();
   });
 
   it('affiche un loader pendant le chargement', () => {
-    const { getByText } = renderWithProviders(
-      <PerformanceWidget projetId="test-projet" />
-    );
+    const { getByText } = renderWithProviders(<PerformanceWidget projetId="test-projet" />);
 
     expect(getByText('Chargement...')).toBeTruthy();
   });
 
-  it("affiche un message si pas de données quand performance est null", async () => {
-    const PerformanceGlobaleService = require('../../../services/PerformanceGlobaleService').default;
+  it('affiche un message si pas de données quand performance est null', async () => {
+    const PerformanceGlobaleService =
+      require('../../../services/PerformanceGlobaleService').default;
     PerformanceGlobaleService.calculatePerformanceGlobale.mockResolvedValue(null);
 
     const { getByText, queryByText } = renderWithProviders(
@@ -77,13 +74,12 @@ describe('PerformanceWidget', () => {
       expect(queryByText('Chargement...')).toBeNull();
     });
 
-    expect(
-      getByText('Pas assez de données de vente pour calculer la performance.')
-    ).toBeTruthy();
+    expect(getByText('Pas assez de données de vente pour calculer la performance.')).toBeTruthy();
   });
 
   it('affiche les données de performance correctement', async () => {
-    const PerformanceGlobaleService = require('../../../services/PerformanceGlobaleService').default;
+    const PerformanceGlobaleService =
+      require('../../../services/PerformanceGlobaleService').default;
     PerformanceGlobaleService.calculatePerformanceGlobale.mockResolvedValue({
       cout_kg_opex_global: 2500,
       prix_kg_marche: 3000,
@@ -113,7 +109,8 @@ describe('PerformanceWidget', () => {
   });
 
   it('gère les erreurs de chargement gracieusement', async () => {
-    const PerformanceGlobaleService = require('../../../services/PerformanceGlobaleService').default;
+    const PerformanceGlobaleService =
+      require('../../../services/PerformanceGlobaleService').default;
     PerformanceGlobaleService.calculatePerformanceGlobale.mockRejectedValue(
       new Error('Erreur de chargement')
     );
@@ -129,15 +126,14 @@ describe('PerformanceWidget', () => {
     });
 
     // Doit afficher l'état vide en cas d'erreur
-    expect(
-      getByText('Pas assez de données de vente pour calculer la performance.')
-    ).toBeTruthy();
+    expect(getByText('Pas assez de données de vente pour calculer la performance.')).toBeTruthy();
 
     consoleSpy.mockRestore();
   });
 
   it('gère les valeurs undefined/null sans crash', async () => {
-    const PerformanceGlobaleService = require('../../../services/PerformanceGlobaleService').default;
+    const PerformanceGlobaleService =
+      require('../../../services/PerformanceGlobaleService').default;
     PerformanceGlobaleService.calculatePerformanceGlobale.mockResolvedValue({
       cout_kg_opex_global: undefined,
       prix_kg_marche: null,
@@ -165,7 +161,8 @@ describe('PerformanceWidget', () => {
   });
 
   it('formate les montants correctement', async () => {
-    const PerformanceGlobaleService = require('../../../services/PerformanceGlobaleService').default;
+    const PerformanceGlobaleService =
+      require('../../../services/PerformanceGlobaleService').default;
     PerformanceGlobaleService.calculatePerformanceGlobale.mockResolvedValue({
       cout_kg_opex_global: 1234567,
       prix_kg_marche: 3000,
@@ -192,13 +189,9 @@ describe('PerformanceWidget', () => {
   });
 
   it('ne charge pas si projetId est undefined', () => {
-    const { queryByText } = renderWithProviders(
-      <PerformanceWidget projetId={undefined as any} />
-    );
+    const { queryByText } = renderWithProviders(<PerformanceWidget projetId={undefined as any} />);
 
-    expect(
-      queryByText('Pas assez de données de vente pour calculer la performance.')
-    ).toBeTruthy();
+    expect(queryByText('Pas assez de données de vente pour calculer la performance.')).toBeTruthy();
   });
 
   it('appelle onPress quand le widget est cliqué', () => {
@@ -214,4 +207,3 @@ describe('PerformanceWidget', () => {
     }
   });
 });
-

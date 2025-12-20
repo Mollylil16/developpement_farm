@@ -4,7 +4,7 @@
  */
 
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, Dimensions, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, ScrollView, TextStyle } from 'react-native';
 import { BarChart } from 'react-native-chart-kit';
 import { useAppSelector } from '../../store/hooks';
 import { selectAllDepensesPonctuelles } from '../../store/selectors/financeSelectors';
@@ -13,7 +13,10 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { startOfMonth, endOfMonth, subMonths, format, parseISO, isWithinInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { getTypeDepense } from '../../types/finance';
-import { getAmortissementMensuel, getMoisActifsAmortissement } from '../../utils/financeCalculations';
+import {
+  getAmortissementMensuel,
+  getMoisActifsAmortissement,
+} from '../../utils/financeCalculations';
 import { DEFAULT_DUREE_AMORTISSEMENT_MOIS } from '../../types/projet';
 
 const screenWidth = Dimensions.get('window').width;
@@ -38,7 +41,8 @@ export default function OpexCapexChart() {
     const capexAmortiParMois: number[] = [];
     const labels: string[] = [];
 
-    const dureeAmortissement = projetActif?.duree_amortissement_par_defaut_mois || DEFAULT_DUREE_AMORTISSEMENT_MOIS;
+    const dureeAmortissement =
+      projetActif?.duree_amortissement_par_defaut_mois || DEFAULT_DUREE_AMORTISSEMENT_MOIS;
 
     mois.forEach((moisDate) => {
       const debutMois = startOfMonth(moisDate);
@@ -153,8 +157,10 @@ export default function OpexCapexChart() {
             backgroundGradientFrom: colors.surface,
             backgroundGradientTo: colors.surface,
             decimalPlaces: 0,
-            color: (opacity = 1) => (isDark ? `rgba(255, 255, 255, ${opacity})` : `rgba(0, 0, 0, ${opacity})`),
-            labelColor: (opacity = 1) => (isDark ? `rgba(255, 255, 255, ${opacity})` : `rgba(0, 0, 0, ${opacity})`),
+            color: (opacity = 1) =>
+              isDark ? `rgba(255, 255, 255, ${opacity})` : `rgba(0, 0, 0, ${opacity})`,
+            labelColor: (opacity = 1) =>
+              isDark ? `rgba(255, 255, 255, ${opacity})` : `rgba(0, 0, 0, ${opacity})`,
             style: {
               borderRadius: BORDER_RADIUS.md,
             },
@@ -174,7 +180,12 @@ export default function OpexCapexChart() {
 
       {/* Totaux et pourcentages */}
       <View style={styles.totalsContainer}>
-        <View style={[styles.totalCard, { backgroundColor: colors.info + '15', borderColor: colors.info }]}>
+        <View
+          style={[
+            styles.totalCard,
+            { backgroundColor: colors.info + '15', borderColor: colors.info },
+          ]}
+        >
           <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>Total OPEX</Text>
           <Text style={[styles.totalValue, { color: colors.info }]}>
             {new Intl.NumberFormat('fr-FR').format(totalOpex)} F
@@ -184,7 +195,12 @@ export default function OpexCapexChart() {
           </Text>
         </View>
 
-        <View style={[styles.totalCard, { backgroundColor: colors.warning + '15', borderColor: colors.warning }]}>
+        <View
+          style={[
+            styles.totalCard,
+            { backgroundColor: colors.warning + '15', borderColor: colors.warning },
+          ]}
+        >
           <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>Total CAPEX</Text>
           <Text style={[styles.totalValue, { color: colors.warning }]}>
             {new Intl.NumberFormat('fr-FR').format(totalCapex)} F
@@ -199,8 +215,8 @@ export default function OpexCapexChart() {
       <View style={styles.infoBox}>
         <Text style={[styles.infoText, { color: colors.textSecondary }]}>
           💡 Les investissements (CAPEX) sont automatiquement amortis sur{' '}
-          {projetActif?.duree_amortissement_par_defaut_mois || DEFAULT_DUREE_AMORTISSEMENT_MOIS} mois.
-          Seul l'amortissement mensuel est inclus dans les coûts de production.
+          {projetActif?.duree_amortissement_par_defaut_mois || DEFAULT_DUREE_AMORTISSEMENT_MOIS}{' '}
+          mois. Seul l'amortissement mensuel est inclus dans les coûts de production.
         </Text>
       </View>
     </View>
@@ -223,7 +239,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: FONT_SIZES.lg,
-    fontWeight: FONT_WEIGHTS.bold as any,
+    fontWeight: FONT_WEIGHTS.bold as TextStyle['fontWeight'],
     marginBottom: SPACING.xs / 2,
   },
   subtitle: {
@@ -275,7 +291,7 @@ const styles = StyleSheet.create({
   },
   totalValue: {
     fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.bold as any,
+    fontWeight: FONT_WEIGHTS.bold as TextStyle['fontWeight'],
     marginBottom: SPACING.xs / 2,
   },
   totalPercent: {
@@ -294,4 +310,3 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
 });
-

@@ -20,11 +20,11 @@ export function getAmortissementMensuel(
   if (!isCapex(depense.categorie)) {
     return 0; // Pas d'amortissement pour OPEX
   }
-  
+
   if (dureeAmortissementMois <= 0) {
     return 0;
   }
-  
+
   return depense.montant / dureeAmortissementMois;
 }
 
@@ -44,19 +44,19 @@ export function getMoisActifsAmortissement(
 ): number {
   const dateDepense = parseISO(depense.date);
   const finAmortissement = addMonths(dateDepense, dureeAmortissementMois);
-  
+
   // Si la dépense n'a pas encore commencé ou est terminée avant la période
   if (isAfter(dateDepense, dateFin) || isBefore(finAmortissement, dateDebut)) {
     return 0;
   }
-  
+
   // Déterminer les bornes effectives
   const debutEffectif = isAfter(dateDepense, dateDebut) ? dateDepense : dateDebut;
   const finEffective = isBefore(finAmortissement, dateFin) ? finAmortissement : dateFin;
-  
+
   // Calculer le nombre de mois
   const mois = differenceInMonths(finEffective, debutEffectif);
-  
+
   // Au moins 1 mois si la période couvre partiellement
   return Math.max(1, mois);
 }
@@ -107,7 +107,7 @@ export function calculateTotalAmortissementCapex(
     .reduce((sum, d) => {
       const amortissementMensuel = getAmortissementMensuel(d, dureeAmortissementMois);
       const moisActifs = getMoisActifsAmortissement(d, dateDebut, dateFin, dureeAmortissementMois);
-      return sum + (amortissementMensuel * moisActifs);
+      return sum + amortissementMensuel * moisActifs;
     }, 0);
 }
 
@@ -117,10 +117,7 @@ export function calculateTotalAmortissementCapex(
  * @param totalKgVendus Total des kg vendus
  * @returns Coût OPEX par kg
  */
-export function calculateCoutKgOpex(
-  totalOpex: number,
-  totalKgVendus: number
-): number {
+export function calculateCoutKgOpex(totalOpex: number, totalKgVendus: number): number {
   if (totalKgVendus === 0) {
     return 0;
   }
@@ -182,14 +179,14 @@ export function calculateCoutsPeriode(
     dateFin,
     dureeAmortissementMois
   );
-  
+
   const cout_kg_opex = calculateCoutKgOpex(total_opex, totalKgVendus);
   const cout_kg_complet = calculateCoutKgComplet(
     total_opex,
     total_amortissement_capex,
     totalKgVendus
   );
-  
+
   return {
     dateDebut: dateDebut.toISOString(),
     dateFin: dateFin.toISOString(),
@@ -231,10 +228,10 @@ export function calculateAmortissementsParCategorie(
   dureeAmortissementMois: number
 ): AmortissementParCategorie[] {
   const depensesCapex = depenses.filter((d) => isCapex(d.categorie));
-  
+
   // Grouper par catégorie
   const parCategorie = new Map<string, DepensePonctuelle[]>();
-  
+
   depensesCapex.forEach((depense) => {
     const categorie = depense.categorie;
     if (!parCategorie.has(categorie)) {
@@ -242,20 +239,20 @@ export function calculateAmortissementsParCategorie(
     }
     parCategorie.get(categorie)!.push(depense);
   });
-  
+
   // Calculer les amortissements pour chaque catégorie
   const resultats: AmortissementParCategorie[] = [];
-  
+
   parCategorie.forEach((depensesCategorie, categorie) => {
     const montantTotal = depensesCategorie.reduce((sum, d) => sum + d.montant, 0);
     const amortissementMensuelTotal = depensesCategorie.reduce((sum, d) => {
       return sum + getAmortissementMensuel(d, dureeAmortissementMois);
     }, 0);
-    
+
     const depensesDetaillees = depensesCategorie.map((d) => {
       const dateDepense = parseISO(d.date);
       const dateFinAmortissement = addMonths(dateDepense, dureeAmortissementMois);
-      
+
       return {
         id: d.id,
         libelle: d.libelle_categorie || undefined,
@@ -265,7 +262,7 @@ export function calculateAmortissementsParCategorie(
         date_fin_amortissement: dateFinAmortissement.toISOString(),
       };
     });
-    
+
     resultats.push({
       categorie,
       label: categorie, // Sera remplacé par le label dans le composant
@@ -275,8 +272,7 @@ export function calculateAmortissementsParCategorie(
       depenses: depensesDetaillees,
     });
   });
-  
+
   // Trier par montant total décroissant
   return resultats.sort((a, b) => b.montant_total - a.montant_total);
 }
-

@@ -15,4 +15,3 @@ export * from './useCases/GetAnimalStatistics';
 
 // Services
 export * from './services/AnimalStatisticsService';
-

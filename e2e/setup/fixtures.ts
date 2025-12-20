@@ -1,6 +1,6 @@
 /**
  * Fixtures pour les tests E2E
- * 
+ *
  * Données de test réutilisables pour les scénarios E2E
  */
 
@@ -72,4 +72,3 @@ export const TEST_VACCINATION = {
   date_rappel: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
   veterinaire: 'Dr. Test',
 };
-

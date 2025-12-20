@@ -1,6 +1,6 @@
 /**
  * Service de statistiques pour les animaux - Domaine Production
- * 
+ *
  * Contient la logique métier complexe pour les statistiques
  */
 
@@ -72,4 +72,3 @@ export class AnimalStatisticsService {
     return stats;
   }
 }
-
