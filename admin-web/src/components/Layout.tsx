@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   DollarSign,
   Users,
+  FolderOpen,
   Menu,
   X,
   Search,
