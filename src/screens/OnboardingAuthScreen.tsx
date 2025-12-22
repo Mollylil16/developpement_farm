@@ -153,6 +153,7 @@ const OnboardingAuthScreen: React.FC = () => {
         
         // Vérifier si c'est vraiment "utilisateur non trouvé" (cas 1)
         if (errorMsg.includes('Utilisateur non trouvé') || 
+            errorMsg.includes('Aucun compte trouvé') ||
             errorMsg.includes('not found') ||
             errorMsg.includes('introuvable')) {
           // OK, c'est un nouvel utilisateur. On peut naviguer vers la création de compte
