@@ -52,7 +52,7 @@ const ENV_CONFIG = {
       Platform.select({
         // Pour Android/iOS physique, utiliser l'IP locale de votre machine
         // Remplacer par votre IP locale (ex: ipconfig sur Windows, ifconfig sur Mac/Linux)
-        default: 'http://192.168.0.214:3000', // ⚠️ IP Wi‑Fi locale (mise à jour depuis ipconfig)
+        default: 'https://fermier-pro-backend.onrender.com', // ⚠️ IP Wi‑Fi locale (mise à jour depuis ipconfig)
         web: 'http://localhost:3000',
       }) || 'http://localhost:3000',
     timeout: 30000, // 30 secondes en dev (plus long pour les opérations lourdes comme la création de projet)

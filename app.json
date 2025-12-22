@@ -37,7 +37,19 @@
     },
     "install": {
       "exclude": [
-        "expo-font"
+        "expo",
+        "expo-document-picker",
+        "expo-file-system",
+        "expo-font",
+        "expo-image-picker",
+        "expo-keep-awake",
+        "expo-notifications",
+        "expo-sharing",
+        "expo-sqlite",
+        "expo-status-bar",
+        "react-native-worklets",
+        "babel-preset-expo",
+        "jest-expo"
       ]
     }
   }

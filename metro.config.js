@@ -8,7 +8,8 @@ config.resolver.extraNodeModules = {
 };
 
 // Configuration pour forcer l'utilisation des versions CommonJS
-config.resolver.sourceExts = ['js', 'json', 'ts', 'tsx', 'jsx', 'cjs'];
+// Ajouter 'cjs' aux extensions par défaut d'Expo
+config.resolver.sourceExts = [...config.resolver.sourceExts, 'cjs'];
 // Utiliser 'main' avant 'browser' pour éviter les redirections vers .mjs
 // Le champ "browser" de certains packages redirige vers .mjs (ex: make-plural)
 // En priorisant 'main', on force l'utilisation des fichiers .js/.cjs
