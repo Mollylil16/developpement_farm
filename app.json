@@ -3,7 +3,6 @@
     "name": "fermier-pro",
     "slug": "fermier-pro",
     "version": "1.0.0",
-    "main": "index.ts",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
