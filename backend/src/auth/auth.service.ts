@@ -277,23 +277,92 @@ export class AuthService {
 
   /**
    * Authentification Google OAuth
-   * TODO: Implémenter la vérification du token Google avec l'API Google
    */
   async loginWithGoogle(oauthDto: OAuthGoogleDto, ipAddress?: string, userAgent?: string) {
+    console.log('🔐 [AuthService] loginWithGoogle: début');
+    
     try {
-      // TODO: Vérifier le token Google avec l'API Google
-      // const googleUser = await verifyGoogleToken(oauthDto.access_token);
-      // Pour l'instant, simulation
-
-      // En production, vérifier le token avec:
-      // const response = await fetch(`https://www.googleapis.com/oauth2/v1/userinfo?access_token=${oauthDto.access_token}`);
-      // const googleUser = await response.json();
-
-      // Pour l'instant, retourner une erreur indiquant que c'est à implémenter
-      throw new UnauthorizedException(
-        "L'authentification Google n'est pas encore configurée. Veuillez configurer les credentials Google OAuth."
+      // Vérifier le token Google avec l'API Google
+      const response = await fetch(
+        `https://www.googleapis.com/oauth2/v1/userinfo?access_token=${oauthDto.access_token}`
       );
+
+      if (!response.ok) {
+        console.error('❌ [Google API] Erreur:', response.status, response.statusText);
+        throw new UnauthorizedException('Token Google invalide');
+      }
+
+      const googleUser = await response.json();
+      console.log('✅ [Google API] Utilisateur récupéré:', googleUser.email);
+
+      // Vérifier que l'email est présent
+      if (!googleUser.email) {
+        throw new UnauthorizedException('Email manquant dans la réponse Google');
+      }
+
+      // Chercher l'utilisateur existant par email
+      let user = await this.usersService.findByEmail(googleUser.email);
+
+      if (!user) {
+        // Créer un nouvel utilisateur
+        console.log('🆕 [AuthService] Création nouvel utilisateur Google:', googleUser.email);
+        
+        // Séparer le nom complet en nom et prénom (approximatif)
+        const nameParts = (googleUser.name || 'Utilisateur').split(' ');
+        const prenom = nameParts[0] || 'Utilisateur';
+        const nom = nameParts.slice(1).join(' ') || '';
+        
+        const newUser = {
+          email: googleUser.email,
+          nom,
+          prenom,
+          photo: googleUser.picture || null,
+          provider: 'google',
+          provider_id: googleUser.id || null,
+          password_hash: null, // Pas de mot de passe pour OAuth
+        };
+
+        // Utiliser la méthode create de UsersService
+        user = await this.usersService.create(newUser);
+      } else {
+        console.log('✅ [AuthService] Utilisateur existant trouvé:', user.id);
+        
+        // Mettre à jour last_login
+        await this.updateLastLogin(user.id);
+      }
+
+      // Générer les tokens JWT
+      const payload: Omit<JWTPayload, 'exp'> = {
+        sub: user.id,
+        email: user.email,
+        roles: user.roles || [],
+        iat: Math.floor(Date.now() / 1000),
+        jti: uuidv4(),
+      };
+
+      const access_token = this.jwtService.sign(payload);
+      const refreshTokenData = await this.createRefreshToken(user.id, ipAddress, userAgent);
+
+      console.log('✅ [AuthService] Google login réussi pour:', user.email);
+
+      return {
+        access_token,
+        refresh_token: refreshTokenData.token,
+        user: {
+          id: user.id,
+          email: user.email,
+          phone: user.phone,
+          full_name: user.full_name,
+          avatar_url: user.avatar_url,
+          roles: user.roles || {},
+          is_email_verified: user.is_email_verified,
+          is_phone_verified: user.is_phone_verified,
+          created_at: user.created_at,
+        },
+      };
     } catch (error) {
+      console.error('❌ [AuthService] Erreur Google login:', error);
+      
       if (error instanceof UnauthorizedException) {
         throw error;
       }

@@ -26,6 +26,7 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "scheme": "fermierpro",
     "plugins": [
       "expo-sqlite",
       "expo-localization"
@@ -34,23 +35,6 @@
       "eas": {
         "projectId": "bf020624-333a-4bd1-bf4d-c67f6e7c0f7c"
       }
-    },
-    "install": {
-      "exclude": [
-        "expo",
-        "expo-document-picker",
-        "expo-file-system",
-        "expo-font",
-        "expo-image-picker",
-        "expo-keep-awake",
-        "expo-notifications",
-        "expo-sharing",
-        "expo-sqlite",
-        "expo-status-bar",
-        "react-native-worklets",
-        "babel-preset-expo",
-        "jest-expo"
-      ]
     }
   }
 }

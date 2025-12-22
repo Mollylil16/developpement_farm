@@ -136,22 +136,35 @@ const OnboardingAuthScreen: React.FC = () => {
     }
 
     try {
-      // Vérifier si l'utilisateur existe déjà
-      const { UserRepository } = await import('../database/repositories');
-      const userRepo = new UserRepository();
-      const existingUser = await userRepo.findByIdentifier(identifier.trim());
-
-      if (existingUser) {
-        // Utilisateur existant : se connecter
+      // FIX : Vérifier le backend PostgreSQL D'ABORD, pas seulement SQLite local
+      // Pourquoi ? Car SQLite est juste un cache. La source de vérité est PostgreSQL.
+      try {
+        // Essayer de se connecter au backend
         await dispatch(signIn({ identifier: identifier.trim() })).unwrap();
-        // La navigation sera gérée par AppNavigator
-      } else {
-        // Nouvel utilisateur : naviguer vers la sélection de profil
-        // On passera l'identifier pour créer le compte plus tard
-        (navigation as any).navigate(SCREENS.PROFILE_SELECTION, {
-          identifier: identifier.trim(),
-          isEmail,
-        });
+        // Si ça réussit : l'utilisateur existe dans PostgreSQL
+        // La navigation sera gérée automatiquement par AppNavigator
+        return; // Sortir de la fonction, c'est terminé
+      } catch (signInError: unknown) {
+        // L'authentification a échoué. Deux cas possibles :
+        // 1. Utilisateur n'existe pas dans PostgreSQL → C'est OK, on peut créer le compte
+        // 2. Erreur serveur (base de données cassée, réseau, etc.) → Il faut bloquer
+        
+        const errorMsg = signInError instanceof Error ? signInError.message : String(signInError);
+        
+        // Vérifier si c'est vraiment "utilisateur non trouvé" (cas 1)
+        if (errorMsg.includes('Utilisateur non trouvé') || 
+            errorMsg.includes('not found') ||
+            errorMsg.includes('introuvable')) {
+          // OK, c'est un nouvel utilisateur. On peut naviguer vers la création de compte
+          (navigation as any).navigate(SCREENS.PROFILE_SELECTION, {
+            identifier: identifier.trim(),
+            isEmail,
+          });
+        } else {
+          // C'est une autre erreur (base de données cassée, réseau, etc.)
+          // On la relance pour qu'elle soit capturée par le catch général plus bas
+          throw signInError;
+        }
       }
     } catch (error: unknown) {
       // Si c'est une erreur réseau, ne pas naviguer et afficher l'erreur

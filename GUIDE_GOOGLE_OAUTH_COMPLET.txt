@@ -1,0 +1,227 @@
+═══════════════════════════════════════════════════════════════════════
+  🔐 GUIDE COMPLET : CONFIGURER GOOGLE SIGN-IN POUR FERMIER PRO
+═══════════════════════════════════════════════════════════════════════
+
+📱 CE QUE VOUS ALLEZ CONFIGURER :
+- Google OAuth pour Android (pour que les utilisateurs puissent se connecter avec Google)
+- Les credentials nécessaires dans votre app mobile
+- Les credentials nécessaires sur le backend (Render)
+
+⏱️ TEMPS ESTIMÉ : 15-20 minutes
+
+═══════════════════════════════════════════════════════════════════════
+PARTIE 1 : OBTENIR LE SHA-1 DE VOTRE KEYSTORE ANDROID
+═══════════════════════════════════════════════════════════════════════
+
+🔑 LE SHA-1 est l'empreinte digitale de votre application Android.
+   Google l'utilise pour vérifier que c'est bien votre app qui fait la requête.
+
+MÉTHODE 1 : Via le site EAS (RECOMMANDÉ - plus simple)
+-------------------------------------------------------
+1. ✅ Allez sur : https://expo.dev/accounts/brunell663/projects/fermier-pro/credentials
+2. ✅ Connectez-vous avec votre compte Expo
+3. ✅ Sélectionnez : Android
+4. ✅ Cherchez "Keystore" ou "Android Keystore"
+5. ✅ Vous verrez quelque chose comme :
+   
+   SHA-1 Fingerprint: XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX
+   
+6. ✅ COPIEZ CE SHA-1 (format avec les deux-points)
+
+MÉTHODE 2 : Via la ligne de commande (Alternative)
+---------------------------------------------------
+Si vous ne voyez pas le SHA-1 sur le site EAS :
+
+1. Téléchargez votre keystore depuis EAS
+2. Exécutez cette commande (remplacez le chemin) :
+   
+   keytool -list -v -keystore chemin/vers/votre-keystore.jks
+   
+3. Cherchez la ligne "SHA1:" et copiez l'empreinte
+
+═══════════════════════════════════════════════════════════════════════
+PARTIE 2 : CRÉER LES CREDENTIALS GOOGLE OAUTH
+═══════════════════════════════════════════════════════════════════════
+
+ÉTAPE 1 : Aller sur Google Cloud Console
+-----------------------------------------
+✅ Ouvrez : https://console.cloud.google.com/
+✅ Connectez-vous avec votre compte Google
+
+ÉTAPE 2 : Créer ou sélectionner un projet
+------------------------------------------
+✅ En haut à gauche, cliquez sur le sélecteur de projet
+✅ Soit :
+   - Créez un NOUVEAU projet : "Fermier Pro" ou "fermier-pro"
+   - Ou sélectionnez un projet existant si vous en avez déjà un
+
+ÉTAPE 3 : Activer les APIs nécessaires
+---------------------------------------
+✅ Dans le menu ≡ (hamburger), allez dans : APIs & Services > Library
+✅ Recherchez et activez ces APIs :
+   1. "Google+ API" (ou "Google Identity")
+   2. "Google Sign-In API"
+
+ÉTAPE 4 : Configurer l'écran de consentement OAuth
+---------------------------------------------------
+✅ Allez dans : APIs & Services > OAuth consent screen
+✅ Sélectionnez : External (sauf si vous avez un Google Workspace)
+✅ Remplissez les informations :
+   - App name: Fermier Pro
+   - User support email: VOTRE_EMAIL@gmail.com
+   - Developer contact email: VOTRE_EMAIL@gmail.com
+✅ Cliquez sur "Save and Continue"
+✅ Scopes : Vous pouvez sauter cette étape (par défaut c'est OK)
+✅ Test users : Ajoutez votre email pour tester
+✅ Cliquez sur "Save and Continue" jusqu'à la fin
+
+ÉTAPE 5 : Créer les OAuth 2.0 Client IDs
+-----------------------------------------
+✅ Allez dans : APIs & Services > Credentials
+✅ Cliquez sur : + CREATE CREDENTIALS > OAuth 2.0 Client ID
+
+📱 CLIENT ID ANDROID :
+   1. Application type : Android
+   2. Name : Fermier Pro Android
+   3. Package name : com.brunell663.fermierpro
+      (IMPORTANT : doit correspondre exactement à votre app.json)
+   4. SHA-1 certificate fingerprint : [COLLEZ VOTRE SHA-1 ICI]
+      (Le SHA-1 que vous avez copié à la Partie 1)
+   5. Cliquez sur CREATE
+
+✅ Une fois créé, vous verrez :
+   - Client ID : XXXXXX-XXXXXXXX.apps.googleusercontent.com
+   - Il n'y a PAS de Client Secret pour Android (c'est normal)
+
+ÉTAPE 6 : Créer un Web Client ID (pour le backend)
+---------------------------------------------------
+⚠️  IMPORTANT : Créez aussi un Client ID Web pour le backend
+
+✅ Cliquez encore sur : + CREATE CREDENTIALS > OAuth 2.0 Client ID
+   1. Application type : Web application
+   2. Name : Fermier Pro Backend
+   3. Authorized redirect URIs : (laissez vide pour l'instant)
+   4. Cliquez sur CREATE
+
+✅ Cette fois, vous aurez :
+   - Client ID : YYYYYY-YYYYYYYY.apps.googleusercontent.com
+   - Client secret : XXXXXXXXXXXXXXXXXXX
+   
+✅ COPIEZ BIEN LE CLIENT SECRET (vous ne pourrez plus le revoir)
+
+═══════════════════════════════════════════════════════════════════════
+PARTIE 3 : CONFIGURER VOTRE APPLICATION MOBILE
+═══════════════════════════════════════════════════════════════════════
+
+ÉTAPE 1 : Créer le fichier .env.local
+--------------------------------------
+✅ Dans le dossier fermier-pro/, créez un fichier nommé : .env.local
+✅ Ajoutez-y :
+
+EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID=VOTRE_ANDROID_CLIENT_ID.apps.googleusercontent.com
+EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS=
+
+(Remplacez par votre vrai Client ID Android de l'ÉTAPE 5)
+
+ÉTAPE 2 : Redémarrer l'application
+-----------------------------------
+✅ Arrêtez Expo si il tourne (Ctrl+C)
+✅ Relancez : npx expo start --clear
+
+═══════════════════════════════════════════════════════════════════════
+PARTIE 4 : CONFIGURER LE BACKEND (RENDER)
+═══════════════════════════════════════════════════════════════════════
+
+ÉTAPE 1 : Mettre à jour les variables d'environnement sur Render
+-----------------------------------------------------------------
+✅ Allez sur : https://dashboard.render.com/
+✅ Sélectionnez votre service : fermier-pro-backend
+✅ Allez dans : Environment
+✅ Ajoutez ou modifiez ces variables :
+
+   GOOGLE_CLIENT_ID=VOTRE_WEB_CLIENT_ID.apps.googleusercontent.com
+   GOOGLE_CLIENT_SECRET=VOTRE_CLIENT_SECRET
+   
+   (Utilisez le Client ID et Secret WEB de l'ÉTAPE 6)
+
+✅ Cliquez sur "Save Changes"
+✅ Le backend va redémarrer automatiquement
+
+ÉTAPE 2 : Vérifier que le backend fonctionne
+---------------------------------------------
+✅ Attendez que le redéploiement soit terminé
+✅ Vérifiez les logs sur Render pour voir s'il y a des erreurs
+
+═══════════════════════════════════════════════════════════════════════
+PARTIE 5 : TESTER GOOGLE SIGN-IN
+═══════════════════════════════════════════════════════════════════════
+
+ÉTAPE 1 : Tester sur votre téléphone
+-------------------------------------
+✅ Ouvrez l'app Fermier Pro sur votre téléphone
+✅ Sur l'écran de connexion, cliquez sur le bouton Google
+✅ Vous devriez voir :
+   1. Un navigateur s'ouvre
+   2. Page de connexion Google
+   3. Sélectionnez votre compte Google
+   4. Autorisez l'application
+   5. Le navigateur se ferme
+   6. Vous êtes connecté dans l'app !
+
+ÉTAPE 2 : Vérifier les logs
+----------------------------
+✅ Backend (Render) :
+   - Allez dans les logs Render
+   - Vous devriez voir : "✅ [Google API] Utilisateur récupéré: VOTRE_EMAIL"
+
+✅ Mobile :
+   - Dans Metro bundler, vous devriez voir :
+     "🔐 [Google OAuth] Token obtenu, envoi au backend..."
+
+═══════════════════════════════════════════════════════════════════════
+PROBLÈMES COURANTS & SOLUTIONS
+═══════════════════════════════════════════════════════════════════════
+
+❌ Erreur : "Invalid client ID"
+   → Vérifiez que le Client ID dans .env.local est correct
+   → Vérifiez que le package name correspond à app.json
+
+❌ Erreur : "Token Google invalide"
+   → Le SHA-1 n'est pas correct
+   → Vérifiez que vous avez bien utilisé le SHA-1 de votre keystore EAS
+
+❌ Erreur : "Client authentication failed"
+   → Le Client Secret backend est incorrect
+   → Vérifiez les variables d'environnement sur Render
+
+❌ Le navigateur ne s'ouvre pas
+   → Vérifiez que expo-web-browser est bien installé
+   → Essayez de redémarrer l'app avec --clear
+
+❌ Le navigateur s'ouvre mais rien ne se passe
+   → Vérifiez que le scheme "fermierpro" est bien dans app.json
+   → Vérifiez que le redirect URI est correct
+
+═══════════════════════════════════════════════════════════════════════
+RÉSUMÉ DES CREDENTIALS NÉCESSAIRES
+═══════════════════════════════════════════════════════════════════════
+
+Mobile (.env.local dans fermier-pro/) :
+  ✓ EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID
+
+Backend (Variables Render) :
+  ✓ GOOGLE_CLIENT_ID (Web Client ID)
+  ✓ GOOGLE_CLIENT_SECRET
+
+═══════════════════════════════════════════════════════════════════════
+PROCHAINES ÉTAPES APRÈS GOOGLE
+═══════════════════════════════════════════════════════════════════════
+
+Une fois Google Sign-In fonctionnel :
+1. Tester en détail l'authentification
+2. Créer le build production (AAB) avec : eas build --platform android --profile production
+3. Télécharger le .aab
+4. Publier sur Google Play Store
+
+═══════════════════════════════════════════════════════════════════════
+
