@@ -8,12 +8,12 @@ import { getApiBaseUrlSync, getApiTimeout } from './env';
 export const API_CONFIG = {
   /**
    * URL de base de l'API (déterminée automatiquement selon l'environnement)
-   * - Dev: http://192.168.0.214:3000 (ou localhost pour web)
+   * - Dev: http://192.168.1.100:3000 (ou localhost pour web)
    * - Staging: https://staging-api.fermier-pro.com
-   * - Prod: https://fermier-pro-backend.onrender.com (Render)
+   * - Prod: https://api.fermier-pro.com
    *
    * ⚠️ IMPORTANT: Pour tester sur un appareil physique, modifiez l'IP dans src/config/env.ts
-   * Remplacez '192.168.0.214' par l'IP locale de votre machine
+   * Remplacez '192.168.1.100' par l'IP locale de votre machine
    */
   baseURL: getApiBaseUrlSync(),
 

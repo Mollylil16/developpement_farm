@@ -34,6 +34,11 @@
       "eas": {
         "projectId": "bf020624-333a-4bd1-bf4d-c67f6e7c0f7c"
       }
+    },
+    "install": {
+      "exclude": [
+        "expo-font"
+      ]
     }
   }
 }
