@@ -64,7 +64,7 @@ const ENV_CONFIG = {
     enableLogging: true,
   },
   production: {
-    // URL du backend Render
+    // URL du backend Render en production
     apiUrl: process.env.EXPO_PUBLIC_API_URL || 'https://fermier-pro-backend.onrender.com',
     timeout: 10000, // 10 secondes
     enableLogging: false,

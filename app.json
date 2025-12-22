@@ -21,11 +21,20 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.brunell663.fermierpro"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["expo-sqlite", "expo-localization"]
+    "plugins": [
+      "expo-sqlite",
+      "expo-localization"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "bf020624-333a-4bd1-bf4d-c67f6e7c0f7c"
+      }
+    }
   }
 }
