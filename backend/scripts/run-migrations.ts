@@ -1,21 +1,22 @@
 /**
  * Script pour exécuter les migrations SQL
  * Usage: tsx scripts/run-migrations.ts
- * @ts-check
  */
-
-/// <reference types="node" />
 
 import { Pool } from 'pg';
 import * as fs from 'fs';
 import * as path from 'path';
+import dotenv from 'dotenv';
 
-// Support pour DATABASE_URL (Railway, Heroku, etc.) ou variables individuelles
-let poolConfig;
+// Charger le fichier .env
+dotenv.config({ path: path.join(__dirname, '../.env') });
+
+// Support pour DATABASE_URL (Railway, Heroku, Render, etc.) ou variables individuelles
+let poolConfig: any;
 if (process.env.DATABASE_URL) {
   poolConfig = {
     connectionString: process.env.DATABASE_URL,
-    ssl: process.env.DATABASE_URL.includes('sslmode=require') 
+    ssl: process.env.DATABASE_URL.includes('render.com') || process.env.DATABASE_URL.includes('sslmode=require')
       ? { rejectUnauthorized: false } 
       : false,
   };
@@ -33,33 +34,27 @@ if (process.env.DATABASE_URL) {
 const pool = new Pool(poolConfig);
 
 async function runMigrations() {
+  // @ts-ignore - TypeScript a du mal avec le type Pool
   const client = await pool.connect();
 
   try {
-    // Liste des migrations à exécuter dans l'ordre
-    const migrations = [
-      // Marketplace (doit être avant les autres car référencé par d'autres tables)
-      '030_create_marketplace_listings_table.sql',
-      '031_create_marketplace_offers_table.sql',
-      '032_create_marketplace_transactions_table.sql',
-      '033_create_marketplace_ratings_table.sql',
-      '034_create_marketplace_notifications_table.sql',
-      // Admin et subscriptions
-      '035_create_admins_table.sql',
-      '036_create_subscription_plans_table.sql',
-      '037_create_user_subscriptions_table.sql',
-      '038_create_transactions_table.sql',
-      '039_create_promotions_table.sql',
-      '040_create_user_promotions_table.sql',
-      '041_create_admin_messages_table.sql',
-    ];
-
     // Obtenir le répertoire du script (CommonJS avec tsx)
     // @ts-ignore - __dirname est disponible dans CommonJS avec tsx
     const scriptDir = typeof __dirname !== 'undefined' ? __dirname : path.dirname(process.argv[1] || '');
     const migrationsDir = path.resolve(scriptDir, '../database/migrations');
 
-    console.log('🚀 Début de l\'exécution des migrations...\n');
+    // Lire automatiquement TOUS les fichiers .sql et les trier par ordre numérique
+    const migrations = fs.readdirSync(migrationsDir)
+      .filter(file => file.endsWith('.sql'))
+      .sort((a, b) => {
+        // Extraire le numéro de migration (ex: "000" de "000_create_users_table.sql")
+        const numA = parseInt(a.split('_')[0]);
+        const numB = parseInt(b.split('_')[0]);
+        return numA - numB;
+      });
+
+    console.log('🚀 Début de l\'exécution des migrations...');
+    console.log(`📊 ${migrations.length} migrations trouvées\n`);
 
     for (const migrationFile of migrations) {
       const migrationPath = path.join(migrationsDir, migrationFile);
@@ -96,6 +91,7 @@ async function runMigrations() {
     throw error;
   } finally {
     client.release();
+    // @ts-ignore - TypeScript a du mal avec le type Pool
     await pool.end();
   }
 }
