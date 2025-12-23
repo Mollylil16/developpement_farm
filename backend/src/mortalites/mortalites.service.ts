@@ -25,6 +25,12 @@ export class MortalitesService {
     if (result.rows.length === 0) {
       throw new NotFoundException('Projet introuvable');
     }
+    console.log('🔍 [MortaliteService] checkProjetOwnership:', {
+      projetId,
+      proprietaire_id: result.rows[0].proprietaire_id,
+      userId,
+      match: result.rows[0].proprietaire_id === userId
+    });
     if (result.rows[0].proprietaire_id !== userId) {
       throw new ForbiddenException('Ce projet ne vous appartient pas');
     }

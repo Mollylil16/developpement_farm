@@ -16,6 +16,18 @@ export class ProjetsController {
   @Post()
   @ApiOperation({ summary: 'Créer un nouveau projet' })
   create(@Body() createProjetDto: CreateProjetDto, @CurrentUser() user: any) {
+    console.log('🐛 [ProjetsController] Données reçues pour création projet:', {
+      userId: user.id,
+      body: createProjetDto,
+      types: {
+        nom: typeof createProjetDto.nom,
+        nombre_truies: typeof createProjetDto.nombre_truies,
+        nombre_verrats: typeof createProjetDto.nombre_verrats,
+        nombre_porcelets: typeof createProjetDto.nombre_porcelets,
+        poids_moyen_actuel: typeof createProjetDto.poids_moyen_actuel,
+        age_moyen_actuel: typeof createProjetDto.age_moyen_actuel,
+      }
+    });
     return this.projetsService.create(createProjetDto, user.id);
   }
 

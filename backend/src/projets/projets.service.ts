@@ -49,12 +49,20 @@ export class ProjetsService {
     if (!projet) {
       throw new NotFoundException('Projet introuvable');
     }
+    
+    console.log('🐛 [ProjetsService] checkOwnership: COMPARAISON');
+    console.log('  - userId (du JWT):', userId);
+    console.log('  - proprietaire_id (du projet):', projet.proprietaire_id);
+    console.log('  - Match?', projet.proprietaire_id === userId);
+    
     if (projet.proprietaire_id !== userId) {
+      console.error('❌ [ProjetsService] OWNERSHIP MISMATCH!');
       throw new ForbiddenException('Ce projet ne vous appartient pas');
     }
   }
 
   async create(createProjetDto: CreateProjetDto, userId: string) {
+    console.log('🏗️ [ProjetService] create: userId reçu =', userId);
     const id = this.generateProjetId();
     const now = new Date().toISOString();
     const statut = 'actif';
@@ -98,6 +106,12 @@ export class ProjetsService {
         now,
       ]
     );
+
+    console.log('✅ [ProjetService] Projet créé:', {
+      id: result.rows[0].id,
+      proprietaire_id: result.rows[0].proprietaire_id,
+      nom: result.rows[0].nom
+    });
 
     return this.mapRowToProjet(result.rows[0]);
   }

@@ -113,12 +113,12 @@ export class MarketplaceService {
       const params: any[] = ['removed'];
 
       if (projetId) {
-        query += ' AND farm_id = $2';
+        query += ` AND farm_id = $${params.length + 1}`;
         params.push(projetId);
       }
 
       if (userId) {
-        query += ' AND producer_id = $3';
+        query += ` AND producer_id = $${params.length + 1}`;
         params.push(userId);
       }
 
@@ -1068,11 +1068,20 @@ export class MarketplaceService {
   // ========================================
 
   async findPurchaseRequestMatches(producerId: string) {
-    const result = await this.databaseService.query(
-      'SELECT * FROM purchase_request_matches WHERE producer_id = $1 ORDER BY match_score DESC, created_at DESC',
-      [producerId]
-    );
-    return result.rows.map((row) => this.mapRowToPurchaseRequestMatch(row));
+    try {
+      const result = await this.databaseService.query(
+        'SELECT * FROM purchase_request_matches WHERE producer_id = $1 ORDER BY match_score DESC, created_at DESC',
+        [producerId]
+      );
+      return result.rows.map((row) => this.mapRowToPurchaseRequestMatch(row));
+    } catch (error: any) {
+      // Si la table n'existe pas encore, retourner un tableau vide
+      if (error.message?.includes('does not exist') || error.message?.includes('n\'existe pas')) {
+        console.warn('[MarketplaceService] Table purchase_request_matches n\'existe pas encore, retour d\'un tableau vide');
+        return [];
+      }
+      throw error;
+    }
   }
 
   // ========================================
