@@ -33,6 +33,7 @@ export class ProjetRepository extends BaseRepository<Projet> {
       prix_kg_vif: input.prix_kg_vif || null,
       prix_kg_carcasse: input.prix_kg_carcasse || null,
       notes: input.notes || null,
+      management_method: input.management_method || 'individual', // Méthode d'élevage
       duree_amortissement_par_defaut_mois: input.duree_amortissement_par_defaut_mois || null,
     };
 

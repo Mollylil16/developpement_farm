@@ -68,7 +68,7 @@ export async function signInWithGoogle(): Promise<OAuthResult> {
       clientId,
       scopes: ['openid', 'profile', 'email'],
       redirectUri,
-      responseType: AuthSession.ResponseType.Token,
+      responseType: AuthSession.ResponseType.IdToken,
       usePKCE: false, // Google ne nécessite pas PKCE pour mobile
     });
 
@@ -76,14 +76,18 @@ export async function signInWithGoogle(): Promise<OAuthResult> {
     const result = await request.promptAsync(GOOGLE_DISCOVERY);
 
     if (result.type === 'success') {
-      const { access_token } = result.params;
+      const { id_token } = result.params;
       
-      console.log('✅ [Google OAuth] Token obtenu, envoi au backend...');
+      if (!id_token) {
+        throw new Error('ID token manquant dans la réponse Google');
+      }
+      
+      console.log('✅ [Google OAuth] ID Token obtenu, envoi au backend...');
 
       // Envoyer le token Google au backend pour authentification
       const response = await apiClient.post<OAuthResult>(
         '/auth/google',
-        { access_token },
+        { id_token },
         { skipAuth: true }
       );
 

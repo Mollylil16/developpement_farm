@@ -25,6 +25,7 @@ import { CreateProjetInput } from '../types';
 import Button from '../components/Button';
 import FormField from '../components/FormField';
 import Card from '../components/Card';
+import ManagementMethodSelector from '../components/ManagementMethodSelector';
 import { signOut, updateUser } from '../store/slices/authSlice';
 import { SCREENS } from '../navigation/types';
 import InvitationsModal from '../components/InvitationsModal';
@@ -58,6 +59,7 @@ export default function CreateProjectScreen() {
     poids_moyen_actuel: 0,
     age_moyen_actuel: 0,
     notes: '',
+    management_method: 'individual', // Défaut : suivi individuel
   });
 
   // Animations
@@ -349,6 +351,14 @@ export default function CreateProjectScreen() {
                     required
                   />
                 </View>
+              </Card>
+
+              {/* Section Méthode d'élevage */}
+              <Card elevation="small" padding="large" style={styles.sectionCard}>
+                <ManagementMethodSelector
+                  value={formData.management_method || 'individual'}
+                  onChange={(method) => setFormData({ ...formData, management_method: method })}
+                />
               </Card>
 
               {/* Section Effectifs */}

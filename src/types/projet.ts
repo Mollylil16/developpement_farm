@@ -20,6 +20,9 @@ export interface Projet {
   date_creation: string;
   derniere_modification: string;
 
+  // ✨ Méthode de gestion d'élevage
+  management_method: 'individual' | 'batch'; // Suivi individuel ou par bande
+
   // ✨ Paramètres OPEX/CAPEX
   duree_amortissement_par_defaut_mois?: number; // Durée d'amortissement pour CAPEX (défaut: 36 mois)
 }
@@ -38,6 +41,7 @@ export interface CreateProjetInput {
   prix_kg_vif?: number;
   prix_kg_carcasse?: number;
   notes?: string;
+  management_method?: 'individual' | 'batch'; // Méthode de gestion (défaut: 'individual')
   duree_amortissement_par_defaut_mois?: number; // Défaut: 36 mois
 }
 

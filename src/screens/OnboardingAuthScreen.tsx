@@ -24,6 +24,7 @@ import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/t
 import Button from '../components/Button';
 import GoogleLogo from '../components/GoogleLogo';
 import AppleLogo from '../components/AppleLogo';
+import { InfoCard } from '../components/InfoCard';
 import { SCREENS } from '../navigation/types';
 import { getOnboardingService } from '../services/OnboardingService';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
@@ -43,6 +44,9 @@ const OnboardingAuthScreen: React.FC = () => {
   const { isLoading, error, isAuthenticated, user } = useAppSelector((state) => state.auth);
 
   const [identifier, setIdentifier] = useState(''); // email ou téléphone
+  const [showInfoCard, setShowInfoCard] = useState(false);
+  const [infoCardMessage, setInfoCardMessage] = useState('');
+  const [infoCardSubmessage, setInfoCardSubmessage] = useState('');
 
   useEffect(() => {
     if (error) {
@@ -156,11 +160,18 @@ const OnboardingAuthScreen: React.FC = () => {
             errorMsg.includes('Aucun compte trouvé') ||
             errorMsg.includes('not found') ||
             errorMsg.includes('introuvable')) {
-          // OK, c'est un nouvel utilisateur. On peut naviguer vers la création de compte
-          (navigation as any).navigate(SCREENS.PROFILE_SELECTION, {
-            identifier: identifier.trim(),
-            isEmail,
-          });
+          // OK, c'est un nouvel utilisateur. Afficher un message positif
+          setInfoCardMessage('Bienvenue !');
+          setInfoCardSubmessage('Créons votre compte ensemble');
+          setShowInfoCard(true);
+          
+          // Naviguer vers la sélection de profil après un court délai (pour laisser la card s'afficher)
+          setTimeout(() => {
+            (navigation as any).navigate(SCREENS.PROFILE_SELECTION, {
+              identifier: identifier.trim(),
+              isEmail,
+            });
+          }, 1000);
         } else {
           // C'est une autre erreur (base de données cassée, réseau, etc.)
           // On la relance pour qu'elle soit capturée par le catch général plus bas
@@ -192,6 +203,18 @@ const OnboardingAuthScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* InfoCard pour les messages positifs */}
+      {showInfoCard && (
+        <InfoCard
+          message={infoCardMessage}
+          submessage={infoCardSubmessage}
+          icon="checkmark-circle"
+          iconColor="#10B981"
+          duration={2500}
+          onHide={() => setShowInfoCard(false)}
+        />
+      )}
+      
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

@@ -36,6 +36,7 @@ import { useProductionCheptelLogic } from '../hooks/production/useProductionChep
 import { useProductionCheptelStatut } from '../hooks/production/useProductionCheptelStatut';
 import AnimalCard from './production/AnimalCard';
 import CheptelHeader from './production/CheptelHeader';
+import BatchCheptelView from './BatchCheptelView';
 
 export default function ProductionCheptelComponent() {
   const { colors } = useTheme();
@@ -139,6 +140,16 @@ export default function ProductionCheptelComponent() {
     },
     [allAnimaux]
   );
+
+  // Vérifier la méthode de gestion du projet
+  const managementMethod = projetActif?.management_method || 'individual';
+
+  // Si mode "batch", afficher la vue par bande
+  if (managementMethod === 'batch') {
+    return <BatchCheptelView />;
+  }
+
+  // Sinon, continuer avec la vue individuelle (code existant)
 
   // Compter les animaux dans l'historique
   const animauxHistorique = allAnimaux.filter((a) =>

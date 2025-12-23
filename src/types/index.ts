@@ -5,6 +5,7 @@
 export * from './auth';
 export * from './roles';
 export * from './projet';
+export * from './batch';
 export * from './finance';
 export * from './reproduction';
 export * from './nutrition';
