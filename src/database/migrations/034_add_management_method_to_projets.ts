@@ -1,3 +1,4 @@
+
 /**
  * Migration : Ajout du champ management_method à la table projets
  * Pour gérer le mode de suivi : individuel ou par bande
