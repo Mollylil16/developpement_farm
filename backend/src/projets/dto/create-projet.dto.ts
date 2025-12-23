@@ -63,4 +63,13 @@ export class CreateProjetDto {
   @IsInt()
   @Min(1)
   duree_amortissement_par_defaut_mois?: number;
+
+  @ApiPropertyOptional({ 
+    description: "Méthode de gestion d'élevage : individual (suivi individuel) ou batch (suivi par bande)",
+    enum: ['individual', 'batch'],
+    default: 'individual'
+  })
+  @IsOptional()
+  @IsString()
+  management_method?: 'individual' | 'batch';
 }

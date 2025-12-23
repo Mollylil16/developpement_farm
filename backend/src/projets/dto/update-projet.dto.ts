@@ -75,4 +75,12 @@ export class UpdateProjetDto {
   @IsInt()
   @Min(1)
   duree_amortissement_par_defaut_mois?: number;
+
+  @ApiPropertyOptional({ 
+    description: "Méthode de gestion d'élevage",
+    enum: ['individual', 'batch']
+  })
+  @IsOptional()
+  @IsIn(['individual', 'batch'])
+  management_method?: 'individual' | 'batch';
 }

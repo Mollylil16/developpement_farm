@@ -36,6 +36,7 @@ export class ProjetsService {
       proprietaire_id: row.proprietaire_id,
       date_creation: row.date_creation,
       derniere_modification: row.derniere_modification || row.date_creation,
+      management_method: row.management_method || 'individual', // Méthode d'élevage
       duree_amortissement_par_defaut_mois: row.duree_amortissement_par_defaut_mois || 36,
     };
   }
@@ -59,6 +60,7 @@ export class ProjetsService {
     const statut = 'actif';
     const nombre_croissance = createProjetDto.nombre_croissance || 0;
     const duree_amortissement = createProjetDto.duree_amortissement_par_defaut_mois || 36;
+    const management_method = createProjetDto.management_method || 'individual';
 
     // Archiver tous les autres projets actifs de l'utilisateur
     await this.databaseService.query(
@@ -71,9 +73,9 @@ export class ProjetsService {
       `INSERT INTO projets (
         id, nom, localisation, nombre_truies, nombre_verrats, nombre_porcelets,
         nombre_croissance, poids_moyen_actuel, age_moyen_actuel, prix_kg_vif,
-        prix_kg_carcasse, notes, statut, proprietaire_id, duree_amortissement_par_defaut_mois,
-        date_creation, derniere_modification
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        prix_kg_carcasse, notes, statut, proprietaire_id, management_method,
+        duree_amortissement_par_defaut_mois, date_creation, derniere_modification
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       RETURNING *`,
       [
         id,
@@ -90,6 +92,7 @@ export class ProjetsService {
         createProjetDto.notes || null,
         statut,
         userId,
+        management_method,
         duree_amortissement,
         now,
         now,
@@ -195,6 +198,11 @@ export class ProjetsService {
     if (updateProjetDto.duree_amortissement_par_defaut_mois !== undefined) {
       fields.push(`duree_amortissement_par_defaut_mois = $${paramIndex}`);
       values.push(updateProjetDto.duree_amortissement_par_defaut_mois);
+      paramIndex++;
+    }
+    if (updateProjetDto.management_method !== undefined) {
+      fields.push(`management_method = $${paramIndex}`);
+      values.push(updateProjetDto.management_method);
       paramIndex++;
     }
 
