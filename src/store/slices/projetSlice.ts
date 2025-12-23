@@ -25,9 +25,10 @@ const initialState: ProjetState = {
 // Thunks asynchrones
 export const createProjet = createAsyncThunk(
   'projet/create',
-  async (input: CreateProjetInput & { proprietaire_id: string }, { rejectWithValue }) => {
+  async (input: CreateProjetInput, { rejectWithValue }) => {
     try {
-      // Le backend gère automatiquement l'archivage des autres projets actifs
+      // Le backend récupère automatiquement proprietaire_id depuis le JWT
+      // On ne doit PAS l'envoyer dans le body
       const projet = await apiClient.post<Projet>('/projets', input);
       return projet;
     } catch (error: unknown) {

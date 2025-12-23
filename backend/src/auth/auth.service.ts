@@ -280,11 +280,12 @@ export class AuthService {
    */
   async loginWithGoogle(oauthDto: OAuthGoogleDto, ipAddress?: string, userAgent?: string) {
     console.log('🔐 [AuthService] loginWithGoogle: début');
+    console.log('🔐 [AuthService] id_token reçu:', oauthDto.id_token ? 'Oui' : 'Non');
     
     try {
-      // Vérifier le token Google avec l'API Google
+      // Vérifier le token Google avec l'API Google (id_token)
       const response = await fetch(
-        `https://www.googleapis.com/oauth2/v1/userinfo?access_token=${oauthDto.access_token}`
+        `https://oauth2.googleapis.com/tokeninfo?id_token=${oauthDto.id_token}`
       );
 
       if (!response.ok) {
@@ -293,7 +294,25 @@ export class AuthService {
       }
 
       const googleUser = await response.json();
-      console.log('✅ [Google API] Utilisateur récupéré:', googleUser.email);
+      console.log('✅ [Google API] Réponse reçue:', {
+        email: googleUser.email,
+        aud: googleUser.aud,
+        sub: googleUser.sub
+      });
+
+      // SÉCURITÉ CRITIQUE : Vérifier l'audience du token
+      // L'audience doit correspondre aux Client IDs de votre application
+      const validAudiences = [
+        process.env.GOOGLE_CLIENT_ID, // Web Client ID
+        process.env.GOOGLE_CLIENT_ID_ANDROID, // Android Client ID (si configuré)
+        process.env.GOOGLE_CLIENT_ID_IOS, // iOS Client ID (si configuré)
+      ].filter(Boolean); // Enlever les undefined
+
+      if (!validAudiences.includes(googleUser.aud)) {
+        console.error('❌ [Google API] Audience invalide:', googleUser.aud);
+        console.error('Audiences acceptées:', validAudiences);
+        throw new UnauthorizedException('Token Google généré pour une autre application');
+      }
 
       // Vérifier que l'email est présent
       if (!googleUser.email) {
@@ -307,10 +326,9 @@ export class AuthService {
         // Créer un nouvel utilisateur
         console.log('🆕 [AuthService] Création nouvel utilisateur Google:', googleUser.email);
         
-        // Séparer le nom complet en nom et prénom (approximatif)
-        const nameParts = (googleUser.name || 'Utilisateur').split(' ');
-        const prenom = nameParts[0] || 'Utilisateur';
-        const nom = nameParts.slice(1).join(' ') || '';
+        // Utiliser given_name et family_name de Google (plus fiable que parser name)
+        const prenom = googleUser.given_name || googleUser.name?.split(' ')[0] || 'Utilisateur';
+        const nom = googleUser.family_name || googleUser.name?.split(' ').slice(1).join(' ') || '';
         
         const newUser = {
           email: googleUser.email,
@@ -318,7 +336,7 @@ export class AuthService {
           prenom,
           photo: googleUser.picture || null,
           provider: 'google',
-          provider_id: googleUser.id || null,
+          provider_id: googleUser.sub || null, // 'sub' est l'ID Google unique
           password_hash: null, // Pas de mot de passe pour OAuth
         };
 
@@ -351,13 +369,17 @@ export class AuthService {
         user: {
           id: user.id,
           email: user.email,
-          phone: user.phone,
-          full_name: user.full_name,
-          avatar_url: user.avatar_url,
+          telephone: user.telephone || null,
+          nom: user.nom,
+          prenom: user.prenom,
+          provider: user.provider || 'google',
+          photo: user.photo || null,
+          saved_farms: user.saved_farms || [],
+          date_creation: user.date_creation,
+          derniere_connexion: user.derniere_connexion,
+          isOnboarded: user.is_onboarded || false,
+          onboardingCompletedAt: user.onboarding_completed_at || null,
           roles: user.roles || {},
-          is_email_verified: user.is_email_verified,
-          is_phone_verified: user.is_phone_verified,
-          created_at: user.created_at,
         },
       };
     } catch (error) {

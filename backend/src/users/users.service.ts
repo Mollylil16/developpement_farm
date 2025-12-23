@@ -124,6 +124,18 @@ export class UsersService {
     return result.rows[0] ? this.mapRowToUser(result.rows[0]) : null;
   }
 
+  async findByProviderId(provider: string, providerId: string) {
+    if (!provider || !providerId) return null;
+
+    console.log('[UsersService] findByProviderId: recherche de', provider, providerId);
+    const result = await this.databaseService.query(
+      'SELECT * FROM users WHERE provider = $1 AND provider_id = $2 AND is_active = true',
+      [provider, providerId]
+    );
+    console.log('[UsersService] findByProviderId: résultat', result.rows.length, 'utilisateur(s) trouvé(s)');
+    return result.rows[0] ? this.mapRowToUser(result.rows[0]) : null;
+  }
+
   async findByIdentifier(identifier: string) {
     const normalized = identifier.trim();
     const isEmail = normalized.includes('@');

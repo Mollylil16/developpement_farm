@@ -163,7 +163,7 @@ export default function CreateProjectScreen() {
       await dispatch(
         createProjet({
           ...formData,
-          proprietaire_id: finalUserId, // Récupéré depuis l'authentification ou créé
+          // proprietaire_id est récupéré automatiquement par le backend depuis le JWT
         })
       ).unwrap();
 
