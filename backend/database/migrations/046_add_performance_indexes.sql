@@ -36,15 +36,24 @@ CREATE INDEX IF NOT EXISTS idx_mortalites_projet_categorie
 ON mortalites(projet_id, categorie);
 
 -- ==================== MARKETPLACE_LISTINGS ====================
--- Index composite pour requêtes: WHERE status != X ORDER BY listed_at DESC
+-- Index partiel pour requêtes: WHERE status != 'removed' ORDER BY listed_at DESC
 -- Utilisé dans: findAllListings (requête principale du marketplace)
-CREATE INDEX IF NOT EXISTS idx_marketplace_listings_status_listed 
-ON marketplace_listings(status, listed_at DESC);
+-- Note: Index partiel car les index B-tree ne supportent pas efficacement !=
+-- En excluant 'removed' de l'index, PostgreSQL peut utiliser l'index pour le tri
+CREATE INDEX IF NOT EXISTS idx_marketplace_listings_active_listed 
+ON marketplace_listings(listed_at DESC) 
+WHERE status != 'removed';
 
 -- Index composite pour filtrage par projet et statut
--- Utilisé pour les listings d'un fermier spécifique
+-- Utilisé pour les listings d'un fermier spécifique (avec filtres supplémentaires)
 CREATE INDEX IF NOT EXISTS idx_marketplace_listings_farm_status 
 ON marketplace_listings(farm_id, status);
+
+-- Index partiel pour optimiser les requêtes avec farm_id ET status != 'removed'
+-- Utilisé quand projetId est fourni dans findAllListings
+CREATE INDEX IF NOT EXISTS idx_marketplace_listings_farm_active 
+ON marketplace_listings(farm_id, listed_at DESC) 
+WHERE status != 'removed';
 
 -- ==================== BATCH_PIGS ====================
 -- Index composite pour requêtes: WHERE batch_id = X ORDER BY entry_date DESC
@@ -89,6 +98,7 @@ ANALYZE projets;
 COMMENT ON INDEX idx_production_animaux_projet_statut IS 'Index composite pour optimiser les requêtes filtrées par projet et statut';
 COMMENT ON INDEX idx_production_pesees_projet_date IS 'Index composite pour optimiser le chargement des pesées récentes par projet';
 COMMENT ON INDEX idx_mortalites_projet_date IS 'Index composite pour optimiser le chargement des mortalités par projet';
-COMMENT ON INDEX idx_marketplace_listings_status_listed IS 'Index composite pour optimiser les requêtes du marketplace triées par date';
+COMMENT ON INDEX idx_marketplace_listings_active_listed IS 'Index partiel pour optimiser les requêtes du marketplace (status != ''removed'') triées par date';
+COMMENT ON INDEX idx_marketplace_listings_farm_active IS 'Index partiel pour optimiser les requêtes du marketplace par farm_id (status != ''removed'') triées par date';
 COMMENT ON INDEX idx_batch_pigs_batch_entry IS 'Index composite pour optimiser le chargement des porcs d''une bande';
 

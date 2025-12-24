@@ -113,4 +113,15 @@ DROP INDEX IF EXISTS idx_projets_owner_active;
 - Les indexes utilisent `IF NOT EXISTS` donc la migration est idempotente
 - L'instruction `ANALYZE` est incluse pour mettre à jour les statistiques
 - Les indexes peuvent prendre quelques secondes à créer selon la taille des tables
+- **Index partiels**: Les indexes `idx_marketplace_listings_active_listed` et `idx_marketplace_listings_farm_active` sont des index partiels (avec clause WHERE) pour optimiser efficacement les requêtes avec `status != 'removed'`, car les index B-tree ne supportent pas efficacement l'opérateur d'inégalité (`!=`)
 
+## Fix Appliqué
+
+Si vous avez déjà appliqué la version initiale de la migration 046, exécutez le script de correction :
+```bash
+psql -U votre_user -d votre_database -f backend/database/migrations/FIX_046_marketplace_indexes.sql
+```
+
+Ce script :
+- Supprime l'ancien index `idx_marketplace_listings_status_listed`
+- Crée les nouveaux index partiels optimisés
