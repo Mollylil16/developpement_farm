@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { CreateListingDto } from './dto/create-listing.dto';
@@ -16,6 +17,8 @@ import { CreatePurchaseRequestOfferDto } from './dto/create-purchase-request-off
 
 @Injectable()
 export class MarketplaceService {
+  private readonly logger = new Logger(MarketplaceService.name);
+
   constructor(private databaseService: DatabaseService) {}
 
   private generateId(prefix: string): string {
@@ -140,7 +143,7 @@ export class MarketplaceService {
     } catch (error: any) {
       // Si la table n'existe pas encore, retourner un tableau vide
       if (error.message?.includes('does not exist') || error.message?.includes('n\'existe pas')) {
-        console.warn('[MarketplaceService] Table marketplace_listings n\'existe pas encore, retour d\'un tableau vide');
+        this.logger.warn('Table marketplace_listings n\'existe pas encore, retour d\'un tableau vide');
         return [];
       }
       throw error;
@@ -148,8 +151,14 @@ export class MarketplaceService {
   }
 
   async findOneListing(id: string) {
+    // Colonnes nécessaires pour mapRowToListing
+    const listingColumns = `id, subject_id, producer_id, farm_id, price_per_kg, calculated_price, 
+      status, listed_at, updated_at, last_weight_date, 
+      location_latitude, location_longitude, location_address, location_city, location_region,
+      sale_terms, views, inquiries, date_creation, derniere_modification`;
+    
     const result = await this.databaseService.query(
-      'SELECT * FROM marketplace_listings WHERE id = $1',
+      `SELECT ${listingColumns} FROM marketplace_listings WHERE id = $1`,
       [id]
     );
 
@@ -355,7 +364,7 @@ export class MarketplaceService {
     } catch (error: any) {
       // Si la table n'existe pas encore, retourner un tableau vide
       if (error.message?.includes('does not exist') || error.message?.includes('n\'existe pas')) {
-        console.warn('[MarketplaceService] Table marketplace_offers n\'existe pas encore, retour d\'un tableau vide');
+        this.logger.warn('Table marketplace_offers n\'existe pas encore, retour d\'un tableau vide');
         return [];
       }
       throw error;
@@ -475,7 +484,7 @@ export class MarketplaceService {
     } catch (error: any) {
       // Si la table n'existe pas encore, retourner un tableau vide
       if (error.message?.includes('does not exist') || error.message?.includes('n\'existe pas')) {
-        console.warn('[MarketplaceService] Table marketplace_transactions n\'existe pas encore, retour d\'un tableau vide');
+        this.logger.warn('Table marketplace_transactions n\'existe pas encore, retour d\'un tableau vide');
         return [];
       }
       throw error;
@@ -612,7 +621,7 @@ export class MarketplaceService {
     } catch (error: any) {
       // Si la table n'existe pas encore, retourner un tableau vide
       if (error.message?.includes('does not exist') || error.message?.includes('n\'existe pas')) {
-        console.warn('[MarketplaceService] Table marketplace_notifications n\'existe pas encore, retour d\'un tableau vide');
+        this.logger.warn('Table marketplace_notifications n\'existe pas encore, retour d\'un tableau vide');
         return [];
       }
       throw error;
@@ -1095,7 +1104,7 @@ export class MarketplaceService {
     } catch (error: any) {
       // Si la table n'existe pas encore, retourner un tableau vide
       if (error.message?.includes('does not exist') || error.message?.includes('n\'existe pas')) {
-        console.warn('[MarketplaceService] Table purchase_request_matches n\'existe pas encore, retour d\'un tableau vide');
+        this.logger.warn('Table purchase_request_matches n\'existe pas encore, retour d\'un tableau vide');
         return [];
       }
       throw error;

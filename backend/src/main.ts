@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
@@ -98,10 +98,11 @@ async function bootstrap() {
       : `http://${host}:${port}`
     : `http://${host}:${port}`;
   
-  console.log(`🚀 Backend API démarré sur ${serverUrl}`);
-  console.log(`📚 Swagger: ${serverUrl}/api/docs`);
+  const logger = new Logger('Bootstrap');
+  logger.log(`Backend API démarré sur ${serverUrl}`);
+  logger.log(`Swagger: ${serverUrl}/api/docs`);
   if (!isProduction) {
-    console.log(`🌐 Mode développement - accessible depuis le réseau local`);
+    logger.debug('Mode développement - accessible depuis le réseau local');
   }
 }
 

@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(private databaseService: DatabaseService) {}
 
   /**
@@ -38,11 +40,10 @@ export class UsersService {
     // Vérifier si l'email existe déjà (si fourni)
     // NOTE: Cette vérification est déjà faite dans auth.service.register, mais on la garde pour sécurité
     if (normalizedEmail) {
-      console.log('[UsersService] create: vérification email', normalizedEmail);
+      this.logger.debug(`create: vérification email ${normalizedEmail}`);
       const existingEmail = await this.findByEmail(normalizedEmail);
-      console.log('[UsersService] create: utilisateur existant?', existingEmail ? 'OUI' : 'NON');
       if (existingEmail) {
-        console.log('[UsersService] create: email déjà utilisé, utilisateur:', existingEmail.id);
+        this.logger.warn(`create: email déjà utilisé, userId=${existingEmail.id}`);
         throw new Error('Un compte existe déjà avec cet email');
       }
     }
@@ -99,17 +100,17 @@ export class UsersService {
   async findByEmail(email: string) {
     const normalizedEmail = this.normalizeEmail(email);
     if (!normalizedEmail) {
-      console.log('[UsersService] findByEmail: email vide ou invalide');
+      this.logger.debug('findByEmail: email vide ou invalide');
       return null;
     }
 
-    console.log('[UsersService] findByEmail: recherche de', normalizedEmail);
+    this.logger.debug(`findByEmail: recherche de ${normalizedEmail}`);
     const result = await this.databaseService.query(
       'SELECT * FROM users WHERE email = $1 AND is_active = true',
       [normalizedEmail]
     );
     
-    console.log('[UsersService] findByEmail: résultat', result.rows.length, 'utilisateur(s) trouvé(s)');
+    this.logger.debug(`findByEmail: ${result.rows.length} utilisateur(s) trouvé(s)`);
     return result.rows[0] ? this.mapRowToUser(result.rows[0]) : null;
   }
 
@@ -127,12 +128,12 @@ export class UsersService {
   async findByProviderId(provider: string, providerId: string) {
     if (!provider || !providerId) return null;
 
-    console.log('[UsersService] findByProviderId: recherche de', provider, providerId);
+    this.logger.debug(`findByProviderId: recherche de ${provider} ${providerId}`);
     const result = await this.databaseService.query(
       'SELECT * FROM users WHERE provider = $1 AND provider_id = $2 AND is_active = true',
       [provider, providerId]
     );
-    console.log('[UsersService] findByProviderId: résultat', result.rows.length, 'utilisateur(s) trouvé(s)');
+    this.logger.debug(`findByProviderId: ${result.rows.length} utilisateur(s) trouvé(s)`);
     return result.rows[0] ? this.mapRowToUser(result.rows[0]) : null;
   }
 

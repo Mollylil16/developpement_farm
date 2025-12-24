@@ -193,7 +193,12 @@ export class ProductionService {
     const effectiveLimit = limit ? Math.min(limit, 500) : defaultLimit;
     const effectiveOffset = offset || 0;
 
-    let query = `SELECT * FROM production_animaux WHERE projet_id = $1`;
+    // Colonnes nécessaires pour mapRowToAnimal (optimisation: éviter SELECT *)
+    const animalColumns = `id, projet_id, code, nom, origine, sexe, date_naissance, poids_initial, 
+      date_entree, actif, statut, race, reproducteur, categorie_poids, 
+      pere_id, mere_id, notes, photo_uri, date_creation, derniere_modification`;
+    
+    let query = `SELECT ${animalColumns} FROM production_animaux WHERE projet_id = $1`;
     const params: any[] = [projetId];
 
     if (!inclureInactifs) {
@@ -210,8 +215,13 @@ export class ProductionService {
   async findOneAnimal(id: string, userId: string) {
     await this.checkAnimalOwnership(id, userId);
 
+    // Colonnes nécessaires pour mapRowToAnimal
+    const animalColumns = `id, projet_id, code, nom, origine, sexe, date_naissance, poids_initial, 
+      date_entree, actif, statut, race, reproducteur, categorie_poids, 
+      pere_id, mere_id, notes, photo_uri, date_creation, derniere_modification`;
+    
     const result = await this.databaseService.query(
-      'SELECT * FROM production_animaux WHERE id = $1',
+      `SELECT ${animalColumns} FROM production_animaux WHERE id = $1`,
       [id]
     );
     return result.rows[0] ? this.mapRowToAnimal(result.rows[0]) : null;
@@ -342,9 +352,13 @@ export class ProductionService {
     const id = this.generatePeseeId();
     const now = new Date().toISOString();
 
+    // Colonnes nécessaires pour mapRowToPesee
+    const peseeColumns = `id, projet_id, animal_id, date, poids_kg, gmq, difference_standard, 
+      commentaire, cree_par, date_creation`;
+    
     // Récupérer la pesée précédente pour calculer le GMQ
     const previousPeseeResult = await this.databaseService.query(
-      `SELECT * FROM production_pesees 
+      `SELECT ${peseeColumns} FROM production_pesees 
        WHERE animal_id = $1 
        ORDER BY date DESC 
        LIMIT 1`,
@@ -397,8 +411,12 @@ export class ProductionService {
   async findPeseesByAnimal(animalId: string, userId: string) {
     await this.checkAnimalOwnership(animalId, userId);
 
+    // Colonnes nécessaires pour mapRowToPesee
+    const peseeColumns = `id, projet_id, animal_id, date, poids_kg, gmq, difference_standard, 
+      commentaire, cree_par, date_creation`;
+    
     const result = await this.databaseService.query(
-      `SELECT * FROM production_pesees 
+      `SELECT ${peseeColumns} FROM production_pesees 
        WHERE animal_id = $1 
        ORDER BY date DESC`,
       [animalId]
@@ -409,7 +427,11 @@ export class ProductionService {
   async findPeseesByProjet(projetId: string, userId: string, limit?: number) {
     await this.checkProjetOwnership(projetId, userId);
 
-    let query = `SELECT * FROM production_pesees WHERE projet_id = $1 ORDER BY date DESC`;
+    // Colonnes nécessaires pour mapRowToPesee
+    const peseeColumns = `id, projet_id, animal_id, date, poids_kg, gmq, difference_standard, 
+      commentaire, cree_par, date_creation`;
+    
+    let query = `SELECT ${peseeColumns} FROM production_pesees WHERE projet_id = $1 ORDER BY date DESC`;
     const params: any[] = [projetId];
 
     if (limit) {
@@ -467,8 +489,12 @@ export class ProductionService {
       const finalPoids = updatePeseeDto.poids_kg || pesee.poids_kg;
       const finalDate = updatePeseeDto.date || pesee.date;
 
+      // Colonnes nécessaires pour mapRowToPesee
+      const peseeColumns = `id, projet_id, animal_id, date, poids_kg, gmq, difference_standard, 
+        commentaire, cree_par, date_creation`;
+      
       const previousPeseeResult = await this.databaseService.query(
-        `SELECT * FROM production_pesees 
+        `SELECT ${peseeColumns} FROM production_pesees 
          WHERE animal_id = $1 AND id != $2
          ORDER BY date DESC 
          LIMIT 1`,
@@ -668,9 +694,13 @@ export class ProductionService {
   async recalculerGMQ(animalId: string, dateModifiee: string, userId: string) {
     await this.checkAnimalOwnership(animalId, userId);
 
+    // Colonnes nécessaires pour mapRowToPesee
+    const peseeColumns = `id, projet_id, animal_id, date, poids_kg, gmq, difference_standard, 
+      commentaire, cree_par, date_creation`;
+    
     // Récupérer toutes les pesées après la date modifiée
     const peseesResult = await this.databaseService.query(
-      `SELECT * FROM production_pesees 
+      `SELECT ${peseeColumns} FROM production_pesees 
        WHERE animal_id = $1 AND date > $2 
        ORDER BY date ASC`,
       [animalId, dateModifiee]
@@ -692,9 +722,13 @@ export class ProductionService {
 
     // Recalculer le GMQ pour chaque pesée suivante
     for (const peseeRow of peseesResult.rows) {
+      // Colonnes nécessaires pour mapRowToPesee
+      const peseeColumns = `id, projet_id, animal_id, date, poids_kg, gmq, difference_standard, 
+        commentaire, cree_par, date_creation`;
+      
       // Trouver la pesée précédente
       const previousResult = await this.databaseService.query(
-        `SELECT * FROM production_pesees 
+        `SELECT ${peseeColumns} FROM production_pesees 
          WHERE animal_id = $1 AND date < $2 
          ORDER BY date DESC 
          LIMIT 1`,

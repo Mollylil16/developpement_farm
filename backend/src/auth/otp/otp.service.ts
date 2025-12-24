@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit, UnauthorizedException } from '@nestjs/common';
+import { Injectable, OnModuleInit, UnauthorizedException, Logger } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 import { randomBytes, randomInt, createHmac } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
@@ -12,6 +12,7 @@ interface NormalizedIdentifier {
 
 @Injectable()
 export class OtpService implements OnModuleInit {
+  private readonly logger = new Logger(OtpService.name);
   // 5 minutes par défaut
   private readonly otpTtlMs = 5 * 60 * 1000;
   private readonly maxAttempts = 5;
@@ -96,9 +97,8 @@ export class OtpService implements OnModuleInit {
       return { ok: true };
     }
 
-    // Par défaut: log console (dev)
-    // eslint-disable-next-line no-console
-    console.log(`📨 [OTP] channel=${channel} identifier=${normalized} code=${code} expiresAt=${expiresAt}`);
+    // Par défaut: log (dev uniquement)
+    this.logger.debug(`OTP généré: channel=${channel} identifier=${normalized} code=${code} expiresAt=${expiresAt}`);
 
     return { ok: true };
   }

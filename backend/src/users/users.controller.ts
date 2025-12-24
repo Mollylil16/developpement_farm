@@ -8,6 +8,7 @@ import {
   Delete,
   Query,
   UseGuards,
+  Logger,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -81,13 +82,13 @@ export class UsersController {
 
   @Patch(':id')
   async update(@Param('id') id: string, @Body() updateUserDto: any) {
-    console.log('[UsersController] update: mise à jour utilisateur', id, 'avec', Object.keys(updateUserDto));
+    this.logger.debug(`update: mise à jour utilisateur ${id} avec ${Object.keys(updateUserDto).join(', ')}`);
     try {
       const result = await this.usersService.update(id, updateUserDto);
-      console.log('[UsersController] update: utilisateur mis à jour avec succès', result?.id);
+      this.logger.log(`update: utilisateur mis à jour avec succès, userId=${result?.id}`);
       return result;
     } catch (error: any) {
-      console.error('[UsersController] update: erreur', error.message);
+      this.logger.error(`update: erreur pour userId=${id}`, error);
       throw error;
     }
   }

@@ -1,6 +1,7 @@
 import { Module, Global } from '@nestjs/common';
 import { EmailService } from './services/email.service';
 import { CacheService } from './services/cache.service';
+import { ImageService } from './services/image.service';
 
 /**
  * Module commun pour les services partagés
@@ -8,8 +9,8 @@ import { CacheService } from './services/cache.service';
  */
 @Global()
 @Module({
-  providers: [EmailService, CacheService],
-  exports: [EmailService, CacheService],
+  providers: [EmailService, CacheService, ImageService],
+  exports: [EmailService, CacheService, ImageService],
 })
 export class CommonModule {}
 

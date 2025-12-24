@@ -1,8 +1,9 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { Pool } from 'pg';
 
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(DatabaseService.name);
   private pool: Pool;
 
   constructor() {
@@ -38,7 +39,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     this.pool = new Pool(poolConfig);
 
     this.pool.on('error', (err) => {
-      console.error('❌ Erreur inattendue dans le pool PostgreSQL:', err);
+      this.logger.error('Erreur inattendue dans le pool PostgreSQL', err);
     });
   }
 
@@ -46,18 +47,18 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     try {
       const client = await this.pool.connect();
       const result = await client.query('SELECT NOW()');
-      console.log('✅ Connexion PostgreSQL établie avec succès');
-      console.log(`📅 Heure serveur: ${result.rows[0].now}`);
+      this.logger.log('Connexion PostgreSQL établie avec succès');
+      this.logger.debug(`Heure serveur: ${result.rows[0].now}`);
       client.release();
     } catch (error) {
-      console.error('❌ Erreur lors de la connexion à PostgreSQL:', error);
+      this.logger.error('Erreur lors de la connexion à PostgreSQL', error);
       throw error;
     }
   }
 
   async onModuleDestroy() {
     await this.pool.end();
-    console.log('🔌 Pool PostgreSQL fermé');
+    this.logger.log('Pool PostgreSQL fermé');
   }
 
   async getClient() {
@@ -70,12 +71,11 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       const result = await this.pool.query(text, params);
       const duration = Date.now() - start;
       if (duration > 1000) {
-        console.log(`⚠️ Query lente (${duration}ms): ${text.substring(0, 50)}...`);
+        this.logger.warn(`Query lente (${duration}ms): ${text.substring(0, 50)}...`);
       }
       return result;
     } catch (error) {
-      console.error("❌ Erreur lors de l'exécution de la requête:", error);
-      console.error('Query:', text);
+      this.logger.error(`Erreur lors de l'exécution de la requête: ${text.substring(0, 100)}`, error);
       throw error;
     }
   }

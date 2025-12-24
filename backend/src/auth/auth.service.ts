@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, ConflictException, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
@@ -13,6 +13,8 @@ import { JWTPayload } from './interfaces/jwt-payload.interface';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
@@ -137,11 +139,10 @@ export class AuthService {
 
     // Vérifier si l'email existe déjà (si fourni)
     if (registerDto.email) {
-      console.log('[AuthService] register: vérification email', registerDto.email);
+      this.logger.debug(`register: vérification email ${registerDto.email}`);
       const existingUser = await this.usersService.findByEmail(registerDto.email);
-      console.log('[AuthService] register: utilisateur existant?', existingUser ? 'OUI' : 'NON');
       if (existingUser) {
-        console.log('[AuthService] register: email déjà utilisé, utilisateur:', existingUser.id);
+        this.logger.warn(`register: email déjà utilisé, userId=${existingUser.id}`);
         throw new ConflictException('Un compte existe déjà avec cet email');
       }
     }
@@ -308,8 +309,7 @@ export class AuthService {
    * Authentification Google OAuth
    */
   async loginWithGoogle(oauthDto: OAuthGoogleDto, ipAddress?: string, userAgent?: string) {
-    console.log('🔐 [AuthService] loginWithGoogle: début');
-    console.log('🔐 [AuthService] id_token reçu:', oauthDto.id_token ? 'Oui' : 'Non');
+    this.logger.debug('loginWithGoogle: début');
     
     try {
       // Vérifier le token Google avec l'API Google (id_token)
@@ -318,16 +318,12 @@ export class AuthService {
       );
 
       if (!response.ok) {
-        console.error('❌ [Google API] Erreur:', response.status, response.statusText);
+        this.logger.error(`Google API error: ${response.status} ${response.statusText}`);
         throw new UnauthorizedException('Token Google invalide');
       }
 
       const googleUser = await response.json();
-      console.log('✅ [Google API] Réponse reçue:', {
-        email: googleUser.email,
-        aud: googleUser.aud,
-        sub: googleUser.sub
-      });
+      this.logger.debug(`Google API response: email=${googleUser.email}, aud=${googleUser.aud}`);
 
       // SÉCURITÉ CRITIQUE : Vérifier l'audience du token
       // L'audience doit correspondre aux Client IDs de votre application
@@ -338,8 +334,7 @@ export class AuthService {
       ].filter(Boolean); // Enlever les undefined
 
       if (!validAudiences.includes(googleUser.aud)) {
-        console.error('❌ [Google API] Audience invalide:', googleUser.aud);
-        console.error('Audiences acceptées:', validAudiences);
+        this.logger.warn(`Google API: Audience invalide ${googleUser.aud}, audiences acceptées: ${validAudiences.join(', ')}`);
         throw new UnauthorizedException('Token Google généré pour une autre application');
       }
 
@@ -353,7 +348,7 @@ export class AuthService {
 
       if (!user) {
         // Créer un nouvel utilisateur
-        console.log('🆕 [AuthService] Création nouvel utilisateur Google:', googleUser.email);
+        this.logger.log(`Création nouvel utilisateur Google: ${googleUser.email}`);
         
         // Utiliser given_name et family_name de Google (plus fiable que parser name)
         const prenom = googleUser.given_name || googleUser.name?.split(' ')[0] || 'Utilisateur';
@@ -372,7 +367,7 @@ export class AuthService {
         // Utiliser la méthode create de UsersService
         user = await this.usersService.create(newUser);
       } else {
-        console.log('✅ [AuthService] Utilisateur existant trouvé:', user.id);
+        this.logger.debug(`Utilisateur existant trouvé: userId=${user.id}`);
         
         // Mettre à jour last_login
         await this.updateLastLogin(user.id);
@@ -390,7 +385,7 @@ export class AuthService {
       const access_token = this.jwtService.sign(payload);
       const refreshTokenData = await this.createRefreshToken(user.id, ipAddress, userAgent);
 
-      console.log('✅ [AuthService] Google login réussi pour:', user.email);
+      this.logger.log(`Google login réussi pour: ${user.email}`);
 
       return {
         access_token,
@@ -412,7 +407,7 @@ export class AuthService {
         },
       };
     } catch (error) {
-      console.error('❌ [AuthService] Erreur Google login:', error);
+      this.logger.error('Erreur Google login', error);
       
       if (error instanceof UnauthorizedException) {
         throw error;
@@ -456,7 +451,7 @@ export class AuthService {
     // Toujours retourner succès
     if (!user) {
       // Logger l'tentative pour détection de fraude
-      console.warn(`[AuthService] Tentative réinitialisation sur numéro inexistant: ${telephone}`);
+      this.logger.warn(`Tentative réinitialisation sur numéro inexistant: ${telephone}`);
       return;
     }
 
@@ -482,7 +477,7 @@ export class AuthService {
 
     // TODO: Envoyer SMS via service SMS
     // await this.smsService.sendOTP(telephone, otp, 'réinitialisation de mot de passe');
-    console.log(`[AuthService] OTP généré pour ${telephone}: ${otp} (expire dans 10 min)`);
+    this.logger.debug(`OTP généré pour ${telephone}: ${otp} (expire dans 10 min)`);
   }
 
   /**

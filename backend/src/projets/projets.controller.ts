@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Logger } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ProjetsService } from './projets.service';
 import { CreateProjetDto } from './dto/create-projet.dto';
@@ -11,23 +11,14 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class ProjetsController {
+  private readonly logger = new Logger(ProjetsController.name);
+
   constructor(private readonly projetsService: ProjetsService) {}
 
   @Post()
   @ApiOperation({ summary: 'Créer un nouveau projet' })
   create(@Body() createProjetDto: CreateProjetDto, @CurrentUser() user: any) {
-    console.log('🐛 [ProjetsController] Données reçues pour création projet:', {
-      userId: user.id,
-      body: createProjetDto,
-      types: {
-        nom: typeof createProjetDto.nom,
-        nombre_truies: typeof createProjetDto.nombre_truies,
-        nombre_verrats: typeof createProjetDto.nombre_verrats,
-        nombre_porcelets: typeof createProjetDto.nombre_porcelets,
-        poids_moyen_actuel: typeof createProjetDto.poids_moyen_actuel,
-        age_moyen_actuel: typeof createProjetDto.age_moyen_actuel,
-      }
-    });
+    this.logger.debug(`Création projet: userId=${user.id}, nom=${createProjetDto.nom}`);
     return this.projetsService.create(createProjetDto, user.id);
   }
 

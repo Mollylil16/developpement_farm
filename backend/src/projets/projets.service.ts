@@ -60,19 +60,17 @@ export class ProjetsService {
       throw new NotFoundException('Projet introuvable');
     }
     
-    console.log('🐛 [ProjetsService] checkOwnership: COMPARAISON');
-    console.log('  - userId (du JWT):', userId);
-    console.log('  - proprietaire_id (du projet):', projet.proprietaire_id);
-    console.log('  - Match?', projet.proprietaire_id === userId);
+    // Log de debug uniquement en développement
+    this.logger.debug(`checkOwnership: userId=${userId}, proprietaire_id=${projet.proprietaire_id}, match=${projet.proprietaire_id === userId}`);
     
     if (projet.proprietaire_id !== userId) {
-      console.error('❌ [ProjetsService] OWNERSHIP MISMATCH!');
+      this.logger.warn(`Ownership mismatch: userId=${userId} tried to access projet=${projetId} owned by ${projet.proprietaire_id}`);
       throw new ForbiddenException('Ce projet ne vous appartient pas');
     }
   }
 
   async create(createProjetDto: CreateProjetDto, userId: string) {
-    console.log('🏗️ [ProjetService] create: userId reçu =', userId);
+    this.logger.debug(`Creating projet for userId=${userId}`);
     const id = this.generateProjetId();
     const now = new Date().toISOString();
     const statut = 'actif';
@@ -80,57 +78,68 @@ export class ProjetsService {
     const duree_amortissement = createProjetDto.duree_amortissement_par_defaut_mois || 36;
     const management_method = createProjetDto.management_method || 'individual';
 
-    // Archiver tous les autres projets actifs de l'utilisateur
-    await this.databaseService.query(
-      `UPDATE projets SET statut = 'archive', derniere_modification = $1 
-       WHERE proprietaire_id = $2 AND statut = 'actif'`,
-      [now, userId]
-    );
+    // Utiliser une transaction pour garantir la cohérence :
+    // - Archiver tous les autres projets actifs
+    // - Créer le nouveau projet actif
+    // Garantit qu'un seul projet est actif à la fois
+    return await this.databaseService.transaction(async (client) => {
+      // 1. Archiver tous les autres projets actifs de l'utilisateur
+      await client.query(
+        `UPDATE projets SET statut = 'archive', derniere_modification = $1 
+         WHERE proprietaire_id = $2 AND statut = 'actif'`,
+        [now, userId]
+      );
 
-    const result = await this.databaseService.query(
-      `INSERT INTO projets (
-        id, nom, localisation, nombre_truies, nombre_verrats, nombre_porcelets,
-        nombre_croissance, poids_moyen_actuel, age_moyen_actuel, prix_kg_vif,
-        prix_kg_carcasse, notes, statut, proprietaire_id, management_method,
-        duree_amortissement_par_defaut_mois, date_creation, derniere_modification
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
-      RETURNING *`,
-      [
-        id,
-        createProjetDto.nom,
-        createProjetDto.localisation,
-        createProjetDto.nombre_truies,
-        createProjetDto.nombre_verrats,
-        createProjetDto.nombre_porcelets,
-        nombre_croissance,
-        createProjetDto.poids_moyen_actuel,
-        createProjetDto.age_moyen_actuel,
-        createProjetDto.prix_kg_vif || null,
-        createProjetDto.prix_kg_carcasse || null,
-        createProjetDto.notes || null,
-        statut,
-        userId,
-        management_method,
-        duree_amortissement,
-        now,
-        now,
-      ]
-    );
+      // 2. Créer le nouveau projet actif
+      const result = await client.query(
+        `INSERT INTO projets (
+          id, nom, localisation, nombre_truies, nombre_verrats, nombre_porcelets,
+          nombre_croissance, poids_moyen_actuel, age_moyen_actuel, prix_kg_vif,
+          prix_kg_carcasse, notes, statut, proprietaire_id, management_method,
+          duree_amortissement_par_defaut_mois, date_creation, derniere_modification
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        RETURNING *`,
+        [
+          id,
+          createProjetDto.nom,
+          createProjetDto.localisation,
+          createProjetDto.nombre_truies,
+          createProjetDto.nombre_verrats,
+          createProjetDto.nombre_porcelets,
+          nombre_croissance,
+          createProjetDto.poids_moyen_actuel,
+          createProjetDto.age_moyen_actuel,
+          createProjetDto.prix_kg_vif || null,
+          createProjetDto.prix_kg_carcasse || null,
+          createProjetDto.notes || null,
+          statut,
+          userId,
+          management_method,
+          duree_amortissement,
+          now,
+          now,
+        ]
+      );
 
-    console.log('✅ [ProjetService] Projet créé:', {
-      id: result.rows[0].id,
-      proprietaire_id: result.rows[0].proprietaire_id,
-      nom: result.rows[0].nom,
+      const projet = this.mapRowToProjet(result.rows[0]);
+      this.logger.log(`Projet créé: id=${projet.id}, nom=${projet.nom}, proprietaire_id=${projet.proprietaire_id}`);
+
+      return projet;
+    }).then(async (projet) => {
+      // Si mode batch + effectifs initiaux → Auto-regrouper en loges
+      // Fait en dehors de la transaction car c'est une opération complexe qui peut échouer
+      // et ne doit pas empêcher la création du projet
+      if (management_method === 'batch') {
+        try {
+          await this.autoGroupIntoBatches(projet.id, createProjetDto, userId);
+        } catch (error) {
+          this.logger.warn(`Erreur lors de l'auto-groupement en bandes pour projet ${projet.id}:`, error);
+          // Ne pas faire échouer la création du projet si l'auto-groupement échoue
+        }
+      }
+
+      return projet;
     });
-
-    const projet = this.mapRowToProjet(result.rows[0]);
-
-    // Si mode batch + effectifs initiaux → Auto-regrouper en loges
-    if (management_method === 'batch') {
-      await this.autoGroupIntoBatches(projet.id, createProjetDto, userId);
-    }
-
-    return projet;
   }
 
   /**
@@ -373,15 +382,28 @@ export class ProjetsService {
 
     const now = new Date().toISOString();
 
-    // Archiver tous les autres projets actifs
-    await this.databaseService.query(
-      `UPDATE projets SET statut = 'archive', derniere_modification = $1 
-       WHERE proprietaire_id = $2 AND statut = 'actif' AND id != $3`,
-      [now, userId, projetId]
-    );
+    // Utiliser une transaction pour garantir la cohérence :
+    // - Archiver tous les autres projets actifs
+    // - Activer le projet sélectionné
+    // Garantit qu'un seul projet est actif à la fois
+    return await this.databaseService.transaction(async (client) => {
+      // 1. Archiver tous les autres projets actifs
+      await client.query(
+        `UPDATE projets SET statut = 'archive', derniere_modification = $1 
+         WHERE proprietaire_id = $2 AND statut = 'actif' AND id != $3`,
+        [now, userId, projetId]
+      );
 
-    // Activer le nouveau projet
-    return this.update(projetId, { statut: 'actif' }, userId);
+      // 2. Activer le projet sélectionné
+      await client.query(
+        `UPDATE projets SET statut = 'actif', derniere_modification = $1 WHERE id = $2`,
+        [now, projetId]
+      );
+
+      // Récupérer le projet mis à jour
+      const result = await client.query('SELECT * FROM projets WHERE id = $1', [projetId]);
+      return this.mapRowToProjet(result.rows[0]);
+    });
   }
 
   async remove(id: string, userId: string) {

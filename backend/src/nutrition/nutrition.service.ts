@@ -326,10 +326,15 @@ export class NutritionService {
       throw new NotFoundException('Ration introuvable');
     }
 
-    // Supprimer les relations ingredients_ration (CASCADE devrait le faire automatiquement)
-    await this.databaseService.query('DELETE FROM ingredients_ration WHERE ration_id = $1', [id]);
-    await this.databaseService.query('DELETE FROM rations WHERE id = $1', [id]);
-    return { id };
+    // Utiliser une transaction pour garantir la cohérence :
+    // Supprimer les relations ingredients_ration puis la ration
+    // (CASCADE devrait gérer cela, mais transaction garantit l'atomicité)
+    return await this.databaseService.transaction(async (client) => {
+      // Supprimer les relations d'abord (pour clarté, même si CASCADE le ferait)
+      await client.query('DELETE FROM ingredients_ration WHERE ration_id = $1', [id]);
+      await client.query('DELETE FROM rations WHERE id = $1', [id]);
+      return { id };
+    });
   }
 
   // ==================== STOCKS ALIMENTS ====================
@@ -528,63 +533,71 @@ export class NutritionService {
       nouvelleQuantite = createStockMouvementDto.quantite;
     }
 
-    // Créer le mouvement
-    await this.databaseService.query(
-      `INSERT INTO stocks_mouvements (
-        id, projet_id, aliment_id, type, quantite, unite, date, origine, commentaire, cree_par, date_creation
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-      [
-        id,
-        createStockMouvementDto.projet_id,
-        createStockMouvementDto.aliment_id,
-        createStockMouvementDto.type,
-        createStockMouvementDto.quantite,
-        createStockMouvementDto.unite,
-        createStockMouvementDto.date,
-        createStockMouvementDto.origine || null,
-        createStockMouvementDto.commentaire || null,
-        createStockMouvementDto.cree_par || userId,
-        now,
-      ]
-    );
+    // Utiliser une transaction pour garantir la cohérence :
+    // Créer le mouvement et mettre à jour le stock de manière atomique
+    return await this.databaseService.transaction(async (client) => {
+      // 1. Créer le mouvement
+      await client.query(
+        `INSERT INTO stocks_mouvements (
+          id, projet_id, aliment_id, type, quantite, unite, date, origine, commentaire, cree_par, date_creation
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [
+          id,
+          createStockMouvementDto.projet_id,
+          createStockMouvementDto.aliment_id,
+          createStockMouvementDto.type,
+          createStockMouvementDto.quantite,
+          createStockMouvementDto.unite,
+          createStockMouvementDto.date,
+          createStockMouvementDto.origine || null,
+          createStockMouvementDto.commentaire || null,
+          createStockMouvementDto.cree_par || userId,
+          now,
+        ]
+      );
 
-    // Mettre à jour le stock
-    const dateUpdate = createStockMouvementDto.date;
-    const dateDerniereEntree =
-      createStockMouvementDto.type === 'entree' ? dateUpdate : stock.date_derniere_entree;
-    const dateDerniereSortie =
-      createStockMouvementDto.type === 'sortie' ? dateUpdate : stock.date_derniere_sortie;
-    const alerteActive = stock.seuil_alerte !== undefined && nouvelleQuantite <= stock.seuil_alerte;
+      // 2. Mettre à jour le stock
+      const dateUpdate = createStockMouvementDto.date;
+      const dateDerniereEntree =
+        createStockMouvementDto.type === 'entree' ? dateUpdate : stock.date_derniere_entree;
+      const dateDerniereSortie =
+        createStockMouvementDto.type === 'sortie' ? dateUpdate : stock.date_derniere_sortie;
+      const alerteActive = stock.seuil_alerte !== undefined && nouvelleQuantite <= stock.seuil_alerte;
 
-    await this.databaseService.query(
-      `UPDATE stocks_aliments SET
-        quantite_actuelle = $1,
-        date_derniere_entree = $2,
-        date_derniere_sortie = $3,
-        alerte_active = $4,
-        derniere_modification = $5
-       WHERE id = $6`,
-      [
-        nouvelleQuantite,
-        dateDerniereEntree,
-        dateDerniereSortie,
-        alerteActive,
-        now,
-        createStockMouvementDto.aliment_id,
-      ]
-    );
+      await client.query(
+        `UPDATE stocks_aliments SET
+          quantite_actuelle = $1,
+          date_derniere_entree = $2,
+          date_derniere_sortie = $3,
+          alerte_active = $4,
+          derniere_modification = $5
+         WHERE id = $6`,
+        [
+          nouvelleQuantite,
+          dateDerniereEntree,
+          dateDerniereSortie,
+          alerteActive,
+          now,
+          createStockMouvementDto.aliment_id,
+        ]
+      );
 
-    // Récupérer le mouvement créé
-    const mouvementResult = await this.databaseService.query(
-      'SELECT * FROM stocks_mouvements WHERE id = $1',
-      [id]
-    );
-    const mouvement = this.mapRowToStockMouvement(mouvementResult.rows[0]);
+      // Récupérer le mouvement créé
+      const mouvementResult = await client.query(
+        'SELECT * FROM stocks_mouvements WHERE id = $1',
+        [id]
+      );
+      const mouvement = this.mapRowToStockMouvement(mouvementResult.rows[0]);
 
-    // Récupérer le stock mis à jour
-    const stockUpdated = await this.findOneStockAliment(createStockMouvementDto.aliment_id, userId);
+      // Récupérer le stock mis à jour
+      const stockResult = await client.query(
+        'SELECT * FROM stocks_aliments WHERE id = $1 AND projet_id = $2',
+        [createStockMouvementDto.aliment_id, createStockMouvementDto.projet_id]
+      );
+      const stockUpdated = stockResult.rows[0] ? this.mapRowToStockAliment(stockResult.rows[0]) : stock;
 
-    return { mouvement, stock: stockUpdated };
+      return { mouvement, stock: stockUpdated };
+    });
   }
 
   async findMouvementsByAliment(alimentId: string, userId: string, limit?: number) {
@@ -594,14 +607,13 @@ export class NutritionService {
       throw new NotFoundException('Stock aliment introuvable');
     }
 
-    const limitClause = limit ? `LIMIT ${limit}` : '';
-    const result = await this.databaseService.query(
-      `SELECT * FROM stocks_mouvements
-       WHERE aliment_id = $1
-       ORDER BY date DESC, date_creation DESC
-       ${limitClause}`,
-      [alimentId]
-    );
+    // Sécurité: Utiliser un paramètre préparé pour LIMIT (même si c'est un nombre validé)
+    const query = limit 
+      ? `SELECT * FROM stocks_mouvements WHERE aliment_id = $1 ORDER BY date DESC, date_creation DESC LIMIT $2`
+      : `SELECT * FROM stocks_mouvements WHERE aliment_id = $1 ORDER BY date DESC, date_creation DESC`;
+    const params = limit ? [alimentId, limit] : [alimentId];
+    
+    const result = await this.databaseService.query(query, params);
     return result.rows.map((row) => this.mapRowToStockMouvement(row));
   }
 

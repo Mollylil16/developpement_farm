@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { CacheService } from '../common/services/cache.service';
 import { CreateMortaliteDto } from './dto/create-mortalite.dto';
@@ -6,6 +6,8 @@ import { UpdateMortaliteDto } from './dto/update-mortalite.dto';
 
 @Injectable()
 export class MortalitesService {
+  private readonly logger = new Logger(MortalitesService.name);
+
   constructor(
     private databaseService: DatabaseService,
     private cacheService: CacheService
@@ -29,12 +31,7 @@ export class MortalitesService {
     if (result.rows.length === 0) {
       throw new NotFoundException('Projet introuvable');
     }
-    console.log('🔍 [MortaliteService] checkProjetOwnership:', {
-      projetId,
-      proprietaire_id: result.rows[0].proprietaire_id,
-      userId,
-      match: result.rows[0].proprietaire_id === userId
-    });
+    this.logger.debug(`checkProjetOwnership: projetId=${projetId}, proprietaire_id=${result.rows[0].proprietaire_id}, userId=${userId}`);
     if (result.rows[0].proprietaire_id !== userId) {
       throw new ForbiddenException('Ce projet ne vous appartient pas');
     }
@@ -78,7 +75,7 @@ export class MortalitesService {
         } catch (error) {
           // Ne pas faire échouer la création de mortalité si la mise à jour échoue
           // (animal peut ne pas exister ou être déjà marqué comme mort)
-          console.warn("Erreur lors de la mise à jour du statut de l'animal:", error);
+          this.logger.warn(`Erreur lors de la mise à jour du statut de l'animal (code=${createMortaliteDto.animal_code}):`, error);
         }
       }
 
@@ -122,7 +119,7 @@ export class MortalitesService {
       );
     } catch (error) {
       // Ne pas faire échouer la création de mortalité si la mise à jour échoue
-      console.warn("Erreur lors de la mise à jour du statut de l'animal:", error);
+      this.logger.warn(`Erreur lors de la mise à jour du statut de l'animal (code=${animalCode}):`, error);
     }
   }
 
@@ -133,10 +130,14 @@ export class MortalitesService {
     const effectiveLimit = limit ? Math.min(limit, 500) : defaultLimit;
     const effectiveOffset = offset || 0;
 
-    const result = await this.databaseService.query(
-      `SELECT * FROM mortalites WHERE projet_id = $1 ORDER BY date DESC LIMIT $2 OFFSET $3`,
-      [projetId, effectiveLimit, effectiveOffset]
-    );
+      // Colonnes nécessaires pour mapRowToMortalite (optimisation: éviter SELECT *)
+      const mortaliteColumns = `id, projet_id, nombre_porcs, date, cause, categorie, 
+        animal_code, poids_kg, notes, date_creation`;
+      
+      const result = await this.databaseService.query(
+        `SELECT ${mortaliteColumns} FROM mortalites WHERE projet_id = $1 ORDER BY date DESC LIMIT $2 OFFSET $3`,
+        [projetId, effectiveLimit, effectiveOffset]
+      );
     return result.rows.map((row) => this.mapRowToMortalite(row));
   }
 

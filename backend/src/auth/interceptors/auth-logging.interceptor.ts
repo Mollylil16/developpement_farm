@@ -3,7 +3,7 @@
  * Enregistre les tentatives de connexion, échecs, etc.
  */
 
-import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
+import { Injectable, NestInterceptor, ExecutionContext, CallHandler, Logger } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { tap, catchError } from 'rxjs/operators';
 import { throwError } from 'rxjs';
@@ -21,6 +21,7 @@ interface AuthLog {
 
 @Injectable()
 export class AuthLoggingInterceptor implements NestInterceptor {
+  private readonly logger = new Logger(AuthLoggingInterceptor.name);
   private logs: AuthLog[] = [];
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
@@ -63,9 +64,9 @@ export class AuthLoggingInterceptor implements NestInterceptor {
     // En production, envoyer vers un service de logging (ex: Winston, Sentry)
     if (process.env.NODE_ENV === 'production') {
       // TODO: Envoyer vers un service de logging externe
-      console.log('[AuthLog]', JSON.stringify(log));
+      this.logger.log(`[AuthLog] ${JSON.stringify(log)}`);
     } else {
-      console.log('[AuthLog]', log);
+      this.logger.debug(`[AuthLog] ${JSON.stringify(log)}`);
     }
 
     // Garder seulement les 1000 derniers logs en mémoire
