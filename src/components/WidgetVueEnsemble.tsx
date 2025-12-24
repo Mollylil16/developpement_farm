@@ -15,7 +15,7 @@ interface WidgetVueEnsembleProps {
   onPress?: () => void;
 }
 
-export default function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
+function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);

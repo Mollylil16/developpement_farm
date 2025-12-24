@@ -19,7 +19,7 @@ import { useAnimauxActifs } from '../../hooks/useAnimauxActifs';
 
 const TAUX_CARCASSE = 0.75; // 75% du poids vif
 
-export default function LivestockStatsCard() {
+function LivestockStatsCard() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
