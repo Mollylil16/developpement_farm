@@ -2,7 +2,6 @@ import { Injectable, UnauthorizedException, ConflictException, BadRequestExcepti
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
-import { MoreThan } from 'typeorm';
 import { UsersService } from '../users/users.service';
 import { DatabaseService } from '../database/database.service';
 import { LoginDto } from './dto/login.dto';
