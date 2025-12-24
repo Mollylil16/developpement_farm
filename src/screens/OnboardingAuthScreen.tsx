@@ -35,7 +35,281 @@ import {
   signIn,
   clearError,
 } from '../store/slices/authSlice';
-import apiClient from '../services/api/apiClient';
+import apiClient, { APIError } from '../services/api/apiClient';
+
+/**
+ * Types d'erreurs possibles lors de l'authentification
+ */
+enum ErrorType {
+  USER_NOT_FOUND = 'USER_NOT_FOUND',           // Utilisateur introuvable (cas normal pour nouveau compte)
+  NETWORK_ERROR = 'NETWORK_ERROR',             // Problème de connexion Internet
+  SERVER_ERROR = 'SERVER_ERROR',               // Erreur serveur (500, 503, etc.)
+  DATABASE_ERROR = 'DATABASE_ERROR',           // Erreur PostgreSQL (table manquante, migration, etc.)
+  AUTHENTICATION_ERROR = 'AUTHENTICATION_ERROR', // Erreur d'authentification (token invalide, etc.)
+  VALIDATION_ERROR = 'VALIDATION_ERROR',       // Erreur de validation (email invalide, etc.)
+  CONFLICT_ERROR = 'CONFLICT_ERROR',           // Conflit (email déjà utilisé, etc.)
+  CANCELLED = 'CANCELLED',                     // Opération annulée par l'utilisateur
+  UNKNOWN_ERROR = 'UNKNOWN_ERROR',             // Erreur inconnue
+}
+
+/**
+ * Résultat de l'analyse d'erreur
+ */
+interface ErrorAnalysis {
+  type: ErrorType;
+  message: string;
+  originalError: string;
+  shouldShowInfoCard: boolean; // Si true, afficher InfoCard; si false, afficher Alert
+  shouldNavigate: boolean;     // Si true, continuer la navigation malgré l'erreur
+}
+
+/**
+ * Analyse une erreur d'authentification pour déterminer son type et comment la traiter
+ * @param error L'erreur capturée
+ * @returns Analyse détaillée de l'erreur
+ */
+function analyzeAuthError(error: unknown): ErrorAnalysis {
+  // Extraire le message d'erreur
+  let errorMessage = '';
+  let statusCode: number | undefined;
+  
+  if (error instanceof APIError) {
+    errorMessage = error.message;
+    statusCode = error.status;
+  } else if (error instanceof Error) {
+    errorMessage = error.message;
+  } else {
+    errorMessage = String(error);
+  }
+  
+  const lowerMessage = errorMessage.toLowerCase();
+  
+  // 1. UTILISATEUR NON TROUVÉ (cas normal pour nouveau compte)
+  // Patterns: "utilisateur non trouvé", "aucun compte trouvé", "not found", "user not found"
+  // HTTP Status: 401, 404
+  const userNotFoundPatterns = [
+    'utilisateur non trouvé',
+    'aucun compte trouvé',
+    'user not found',
+    'not found',
+    'introuvable',
+    'no user found',
+    'compte inexistant',
+    'n\'existe pas',
+  ];
+  
+  const isUserNotFound = 
+    (statusCode === 401 || statusCode === 404) ||
+    userNotFoundPatterns.some(pattern => lowerMessage.includes(pattern));
+  
+  if (isUserNotFound) {
+    return {
+      type: ErrorType.USER_NOT_FOUND,
+      message: 'Bienvenue ! 🎉',
+      originalError: errorMessage,
+      shouldShowInfoCard: true,
+      shouldNavigate: true,
+    };
+  }
+  
+  // 2. ERREUR BASE DE DONNÉES POSTGRESQL
+  // Patterns: "relation does not exist", "table", "column", "constraint"
+  // Cela arrive quand les migrations ne sont pas appliquées
+  const databaseErrorPatterns = [
+    'relation',
+    'does not exist',
+    'table',
+    'column',
+    'constraint',
+    'syntax error at or near',
+    'duplicate key',
+    'foreign key',
+    'violates',
+    'pg_',
+    'postgresql',
+  ];
+  
+  const isDatabaseError = databaseErrorPatterns.some(pattern => 
+    lowerMessage.includes(pattern)
+  );
+  
+  if (isDatabaseError) {
+    console.warn('⚠️ [ErrorAnalysis] Erreur PostgreSQL détectée:', errorMessage);
+    return {
+      type: ErrorType.DATABASE_ERROR,
+      message: 'Bienvenue ! ✨',
+      originalError: errorMessage,
+      shouldShowInfoCard: true,
+      shouldNavigate: true, // On continue l'onboarding même si la BDD a des soucis
+    };
+  }
+  
+  // 3. ERREUR RÉSEAU
+  // Patterns: "network", "timeout", "connexion", "internet", "fetch failed"
+  // HTTP Status: timeout
+  const networkErrorPatterns = [
+    'network',
+    'timeout',
+    'connexion',
+    'internet',
+    'fetch failed',
+    'failed to fetch',
+    'connection refused',
+    'econnrefused',
+    'enotfound',
+    'getaddrinfo',
+  ];
+  
+  const isNetworkError = networkErrorPatterns.some(pattern => 
+    lowerMessage.includes(pattern)
+  );
+  
+  if (isNetworkError) {
+    return {
+      type: ErrorType.NETWORK_ERROR,
+      message: 'Vérifiez votre connexion Internet',
+      originalError: errorMessage,
+      shouldShowInfoCard: false,
+      shouldNavigate: false,
+    };
+  }
+  
+  // 4. ERREUR SERVEUR (500, 502, 503, etc.)
+  // HTTP Status: 500-599
+  const serverErrorPatterns = [
+    'internal server error',
+    'service unavailable',
+    'bad gateway',
+    'gateway timeout',
+    '500',
+    '502',
+    '503',
+    '504',
+  ];
+  
+  const isServerError = 
+    (statusCode !== undefined && statusCode >= 500) ||
+    serverErrorPatterns.some(pattern => lowerMessage.includes(pattern));
+  
+  if (isServerError) {
+    return {
+      type: ErrorType.SERVER_ERROR,
+      message: 'Service temporairement indisponible',
+      originalError: errorMessage,
+      shouldShowInfoCard: false,
+      shouldNavigate: false,
+    };
+  }
+  
+  // 5. ERREUR D'AUTHENTIFICATION (token invalide, expiré, etc.)
+  // HTTP Status: 401, 403
+  const authErrorPatterns = [
+    'token',
+    'expired',
+    'invalid',
+    'unauthorized',
+    'forbidden',
+    'authentication',
+    'credential',
+  ];
+  
+  const isAuthError = 
+    (statusCode === 401 || statusCode === 403) ||
+    authErrorPatterns.some(pattern => lowerMessage.includes(pattern));
+  
+  if (isAuthError && !isUserNotFound) {
+    return {
+      type: ErrorType.AUTHENTICATION_ERROR,
+      message: 'Authentification échouée',
+      originalError: errorMessage,
+      shouldShowInfoCard: false,
+      shouldNavigate: false,
+    };
+  }
+  
+  // 6. ERREUR DE VALIDATION (email invalide, données manquantes, etc.)
+  // HTTP Status: 400
+  const validationErrorPatterns = [
+    'validation',
+    'invalid email',
+    'invalid phone',
+    'required',
+    'must be',
+    'should be',
+    'format',
+  ];
+  
+  const isValidationError = 
+    (statusCode === 400) ||
+    validationErrorPatterns.some(pattern => lowerMessage.includes(pattern));
+  
+  if (isValidationError) {
+    return {
+      type: ErrorType.VALIDATION_ERROR,
+      message: 'Données invalides',
+      originalError: errorMessage,
+      shouldShowInfoCard: false,
+      shouldNavigate: false,
+    };
+  }
+  
+  // 7. ERREUR DE CONFLIT (email déjà utilisé, etc.)
+  // HTTP Status: 409
+  const conflictErrorPatterns = [
+    'conflict',
+    'already exists',
+    'déjà utilisé',
+    'already used',
+    'duplicate',
+  ];
+  
+  const isConflictError = 
+    (statusCode === 409) ||
+    conflictErrorPatterns.some(pattern => lowerMessage.includes(pattern));
+  
+  if (isConflictError) {
+    return {
+      type: ErrorType.CONFLICT_ERROR,
+      message: 'Ce compte existe déjà',
+      originalError: errorMessage,
+      shouldShowInfoCard: false,
+      shouldNavigate: false,
+    };
+  }
+  
+  // 8. OPÉRATION ANNULÉE (utilisateur a fermé la popup OAuth, etc.)
+  const cancelledPatterns = [
+    'cancelled',
+    'canceled',
+    'annulé',
+    'user cancelled',
+    'dismiss',
+  ];
+  
+  const isCancelled = cancelledPatterns.some(pattern => 
+    lowerMessage.includes(pattern)
+  );
+  
+  if (isCancelled) {
+    return {
+      type: ErrorType.CANCELLED,
+      message: '',
+      originalError: errorMessage,
+      shouldShowInfoCard: false,
+      shouldNavigate: false,
+    };
+  }
+  
+  // 9. ERREUR INCONNUE (par défaut)
+  console.error('❌ [ErrorAnalysis] Erreur non classifiée:', errorMessage);
+  return {
+    type: ErrorType.UNKNOWN_ERROR,
+    message: 'Une erreur inattendue s\'est produite',
+    originalError: errorMessage,
+    shouldShowInfoCard: false,
+    shouldNavigate: false,
+  };
+}
 
 const OnboardingAuthScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -72,16 +346,71 @@ const OnboardingAuthScreen: React.FC = () => {
         const isNewUser = !result.roles || Object.keys(result.roles).length === 0;
 
         if (isNewUser) {
-          // Nouvel utilisateur : naviguer vers la sélection de profil
-          navigation.navigate(SCREENS.PROFILE_SELECTION as never);
+          // Afficher un message de bienvenue pour les nouveaux utilisateurs
+          setInfoCardMessage('Bienvenue sur Fermier Pro ! 🎉');
+          setInfoCardSubmessage('Configurons votre profil');
+          setShowInfoCard(true);
+          
+          // Naviguer vers la sélection de profil après un délai
+          setTimeout(() => {
+            navigation.navigate(SCREENS.PROFILE_SELECTION as never);
+          }, 1200);
         } else {
           // Utilisateur existant : la navigation sera gérée par AppNavigator
           // qui redirigera automatiquement vers le dashboard
         }
       }
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
-      Alert.alert('Erreur', `Erreur lors de la connexion avec Google: ${errorMessage}`);
+      // Analyser l'erreur Google OAuth
+      const analysis = analyzeAuthError(error);
+      
+      console.error('❌ [Google OAuth] Erreur:', {
+        type: analysis.type,
+        originalError: analysis.originalError,
+      });
+      
+      // Ne rien afficher si l'utilisateur a annulé
+      if (analysis.type === ErrorType.CANCELLED) {
+        return;
+      }
+      
+      // Cas spécial : Client ID manquant (erreur de configuration)
+      const errorMsg = analysis.originalError.toLowerCase();
+      if (errorMsg.includes('client id manquant') || errorMsg.includes('not configured')) {
+        Alert.alert(
+          'Configuration requise',
+          'La connexion Google n\'est pas encore configurée. Veuillez utiliser votre email pour créer un compte.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      
+      // Messages d'erreur spécifiques pour Google OAuth
+      let alertTitle = '';
+      let alertMessage = '';
+      
+      switch (analysis.type) {
+        case ErrorType.NETWORK_ERROR:
+          alertTitle = 'Connexion impossible';
+          alertMessage = 'Vérifiez votre connexion Internet et réessayez.';
+          break;
+          
+        case ErrorType.AUTHENTICATION_ERROR:
+          alertTitle = 'Authentification Google échouée';
+          alertMessage = 'La connexion avec Google a échoué. Veuillez réessayer ou utiliser votre email.';
+          break;
+          
+        case ErrorType.SERVER_ERROR:
+          alertTitle = 'Service temporairement indisponible';
+          alertMessage = 'Nos serveurs sont temporairement indisponibles. Veuillez réessayer plus tard.';
+          break;
+          
+        default:
+          alertTitle = 'Oups !';
+          alertMessage = 'La connexion avec Google n\'a pas fonctionné. Essayez de créer un compte avec votre email.';
+      }
+      
+      Alert.alert(alertTitle, alertMessage, [{ text: 'OK' }]);
     }
   };
 
@@ -99,16 +428,55 @@ const OnboardingAuthScreen: React.FC = () => {
         const isNewUser = !result.roles || Object.keys(result.roles).length === 0;
 
         if (isNewUser) {
-          // Nouvel utilisateur : naviguer vers la sélection de profil
-          navigation.navigate(SCREENS.PROFILE_SELECTION as never);
+          // Afficher un message de bienvenue pour les nouveaux utilisateurs
+          setInfoCardMessage('Bienvenue sur Fermier Pro ! 🎉');
+          setInfoCardSubmessage('Configurons votre profil');
+          setShowInfoCard(true);
+          
+          // Naviguer vers la sélection de profil après un délai
+          setTimeout(() => {
+            navigation.navigate(SCREENS.PROFILE_SELECTION as never);
+          }, 1200);
         } else {
           // Utilisateur existant : la navigation sera gérée par AppNavigator
           // qui redirigera automatiquement vers le dashboard
         }
       }
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
-      Alert.alert('Erreur', `Erreur lors de la connexion avec Apple: ${errorMessage}`);
+      // Analyser l'erreur Apple OAuth
+      const analysis = analyzeAuthError(error);
+      
+      console.error('❌ [Apple OAuth] Erreur:', {
+        type: analysis.type,
+        originalError: analysis.originalError,
+      });
+      
+      // Ne rien afficher si l'utilisateur a annulé
+      if (analysis.type === ErrorType.CANCELLED) {
+        return;
+      }
+      
+      // Messages d'erreur spécifiques pour Apple OAuth
+      let alertTitle = '';
+      let alertMessage = '';
+      
+      switch (analysis.type) {
+        case ErrorType.NETWORK_ERROR:
+          alertTitle = 'Connexion impossible';
+          alertMessage = 'Vérifiez votre connexion Internet et réessayez.';
+          break;
+          
+        case ErrorType.AUTHENTICATION_ERROR:
+          alertTitle = 'Authentification Apple échouée';
+          alertMessage = 'La connexion avec Apple a échoué. Veuillez réessayer ou utiliser votre email.';
+          break;
+          
+        default:
+          alertTitle = 'Service non disponible';
+          alertMessage = 'La connexion avec Apple n\'est pas encore disponible. Veuillez utiliser votre email pour créer un compte.';
+      }
+      
+      Alert.alert(alertTitle, alertMessage, [{ text: 'OK' }]);
     }
   };
 
@@ -149,54 +517,92 @@ const OnboardingAuthScreen: React.FC = () => {
         // La navigation sera gérée automatiquement par AppNavigator
         return; // Sortir de la fonction, c'est terminé
       } catch (signInError: unknown) {
-        // L'authentification a échoué. Deux cas possibles :
-        // 1. Utilisateur n'existe pas dans PostgreSQL → C'est OK, on peut créer le compte
-        // 2. Erreur serveur (base de données cassée, réseau, etc.) → Il faut bloquer
+        // Analyser l'erreur pour déterminer son type et comment la traiter
+        const analysis = analyzeAuthError(signInError);
         
-        const errorMsg = signInError instanceof Error ? signInError.message : String(signInError);
+        console.log('🔍 [OnboardingAuth] Analyse erreur:', {
+          type: analysis.type,
+          message: analysis.message,
+          shouldNavigate: analysis.shouldNavigate,
+          shouldShowInfoCard: analysis.shouldShowInfoCard,
+        });
         
-        // Vérifier si c'est vraiment "utilisateur non trouvé" (cas 1)
-        if (errorMsg.includes('Utilisateur non trouvé') || 
-            errorMsg.includes('Aucun compte trouvé') ||
-            errorMsg.includes('not found') ||
-            errorMsg.includes('introuvable')) {
-          // OK, c'est un nouvel utilisateur. Afficher un message positif
-          setInfoCardMessage('Bienvenue !');
+        // CAS 1 : UTILISATEUR NON TROUVÉ ou ERREUR DATABASE (cas normaux pour nouveau compte)
+        if (analysis.shouldNavigate && analysis.shouldShowInfoCard) {
+          // Afficher un message positif avec InfoCard
+          setInfoCardMessage(analysis.message);
           setInfoCardSubmessage('Créons votre compte ensemble');
           setShowInfoCard(true);
           
-          // Naviguer vers la sélection de profil après un court délai (pour laisser la card s'afficher)
+          // Naviguer vers la sélection de profil
           setTimeout(() => {
             (navigation as any).navigate(SCREENS.PROFILE_SELECTION, {
               identifier: identifier.trim(),
               isEmail,
             });
-          }, 1000);
-        } else {
-          // C'est une autre erreur (base de données cassée, réseau, etc.)
-          // On la relance pour qu'elle soit capturée par le catch général plus bas
+          }, 1200);
+        }
+        // CAS 2 : ERREUR À AFFICHER (réseau, serveur, validation, etc.)
+        else if (!analysis.shouldNavigate) {
+          // Ne pas naviguer, relancer l'erreur pour qu'elle soit capturée par le catch général
           throw signInError;
         }
       }
     } catch (error: unknown) {
-      // Si c'est une erreur réseau, ne pas naviguer et afficher l'erreur
-      const errorMessage = error instanceof Error ? error.message : 'Une erreur est survenue';
-      const isNetworkError = errorMessage.includes('connexion au serveur') || 
-                            errorMessage.includes('Network request failed') ||
-                            errorMessage.includes('Internet');
+      // Analyser l'erreur pour afficher un message convivial
+      const analysis = analyzeAuthError(error);
       
-      if (isNetworkError) {
-        Alert.alert(
-          'Erreur de connexion',
-          'Impossible de se connecter au serveur. Vérifiez que:\n' +
-          '1. Le backend est démarré\n' +
-          '2. Votre téléphone et votre ordinateur sont sur le même réseau Wi-Fi\n' +
-          '3. L\'adresse IP du backend est correcte dans la configuration',
-          [{ text: 'OK' }]
-        );
-      } else {
-        Alert.alert('Erreur', errorMessage);
+      console.error('❌ [OnboardingAuth] Erreur capturée:', {
+        type: analysis.type,
+        originalError: analysis.originalError,
+      });
+      
+      // Ne rien afficher si l'utilisateur a annulé
+      if (analysis.type === ErrorType.CANCELLED) {
+        return;
       }
+      
+      // Construire le message d'alerte selon le type d'erreur
+      let alertTitle = '';
+      let alertMessage = '';
+      
+      switch (analysis.type) {
+        case ErrorType.NETWORK_ERROR:
+          alertTitle = 'Connexion impossible';
+          alertMessage = 'Vérifiez votre connexion Internet et réessayez.';
+          break;
+          
+        case ErrorType.SERVER_ERROR:
+          alertTitle = 'Service temporairement indisponible';
+          alertMessage = 'Nos serveurs sont en cours de maintenance. Veuillez réessayer dans quelques instants.';
+          break;
+          
+        case ErrorType.VALIDATION_ERROR:
+          alertTitle = 'Données invalides';
+          alertMessage = 'Vérifiez que votre email ou numéro de téléphone est correct.';
+          break;
+          
+        case ErrorType.CONFLICT_ERROR:
+          alertTitle = 'Compte existant';
+          alertMessage = 'Un compte existe déjà avec cet email ou ce numéro de téléphone.';
+          break;
+          
+        case ErrorType.AUTHENTICATION_ERROR:
+          alertTitle = 'Authentification échouée';
+          alertMessage = 'Impossible de vous authentifier. Veuillez réessayer.';
+          break;
+          
+        case ErrorType.DATABASE_ERROR:
+          alertTitle = 'Erreur technique';
+          alertMessage = 'Un problème technique temporaire est survenu. Veuillez réessayer.';
+          break;
+          
+        default:
+          alertTitle = 'Oups !';
+          alertMessage = 'Une erreur inattendue s\'est produite. Veuillez réessayer.';
+      }
+      
+      Alert.alert(alertTitle, alertMessage, [{ text: 'OK' }]);
       // Ne pas naviguer en cas d'erreur
     }
   };
