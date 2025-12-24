@@ -8,7 +8,6 @@ import {
 import { DatabaseService } from '../database/database.service';
 import { CreateProjetDto } from './dto/create-projet.dto';
 import { UpdateProjetDto } from './dto/update-projet.dto';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { BatchPigsService } from '../batches/batch-pigs.service';
 
 @Injectable()

@@ -17,7 +17,6 @@ import EmptyState from './EmptyState';
 import { PlusCircle } from 'lucide-react-native';
 import BatchActionsModal from './batch/BatchActionsModal';
 import CreateBatchModal from './batch/CreateBatchModal';
-import BatchActionsModal from './batch/BatchActionsModal';
 
 export default function BatchCheptelView() {
   const { colors } = useTheme();
