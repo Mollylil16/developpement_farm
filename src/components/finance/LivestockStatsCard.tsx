@@ -146,3 +146,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+// Mémoriser le composant pour éviter les re-renders inutiles
+const LivestockStatsCardMemoized = memo(LivestockStatsCard);
+export default LivestockStatsCardMemoized;

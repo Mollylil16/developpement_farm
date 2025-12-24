@@ -263,3 +263,7 @@ const styles = StyleSheet.create({
     fontWeight: FONT_WEIGHTS.medium,
   },
 });
+
+// Mémoriser le composant pour éviter les re-renders inutiles
+const WidgetVueEnsembleMemoized = memo(WidgetVueEnsemble);
+export default WidgetVueEnsembleMemoized;
