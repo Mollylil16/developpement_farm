@@ -124,6 +124,10 @@ export default function App() {
     // Initialiser la base de données au démarrage
     const initDatabase = async () => {
       try {
+        // Désactiver le mode local au démarrage
+        const { clearLocalMode } = await import('./src/utils/clearLocalMode');
+        await clearLocalMode();
+        
         await databaseService.initialize();
         // Initialiser les Feature Flags
         initializeFeatureFlags();

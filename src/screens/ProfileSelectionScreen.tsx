@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
@@ -27,8 +27,8 @@ const ProfileSelectionScreen: React.FC = () => {
   const { colors } = useTheme();
   const navigation = useNavigation<NavigationProp<any>>();
   const route = useRoute();
-  const { identifier, isEmail } =
-    (route.params as { identifier?: string; isEmail?: boolean }) || {};
+  const { userId, identifier, isEmail } =
+    (route.params as { userId?: string; identifier?: string; isEmail?: boolean }) || {};
 
   const profileOptions: ProfileOption[] = [
     {
@@ -63,38 +63,53 @@ const ProfileSelectionScreen: React.FC = () => {
     },
   ];
 
-  const handleProfileSelect = (profileType: RoleType) => {
-    // Naviguer vers l'écran de complément d'informations selon le profil
-    // Passer l'identifier si disponible (pour créer le compte)
-    switch (profileType) {
-      case 'producer':
-        (navigation as any).navigate(SCREENS.CREATE_PROJECT, {
-          identifier,
-          isEmail,
-        });
-        break;
-      case 'buyer':
-        (navigation as any).navigate(SCREENS.BUYER_INFO_COMPLETION, {
-          profileType,
-          identifier,
-          isEmail,
-        });
-        break;
-      case 'veterinarian':
-        (navigation as any).navigate(SCREENS.VETERINARIAN_INFO_COMPLETION, {
-          profileType,
-          identifier,
-          isEmail,
-        });
-        break;
-      case 'technician':
-        // Le technicien peut avoir un flux simplifié
-        (navigation as any).navigate(SCREENS.BUYER_INFO_COMPLETION, {
-          profileType: 'technician',
-          identifier,
-          isEmail,
-        });
-        break;
+  const handleProfileSelect = async (profileType: RoleType) => {
+    if (!userId) {
+      Alert.alert('Erreur', 'Identifiant utilisateur manquant. Veuillez recommencer.');
+      navigation.goBack();
+      return;
+    }
+
+    try {
+      // Créer le profil spécialisé via OnboardingService
+      const { getOnboardingService } = await import('../services/OnboardingService');
+      const onboardingService = await getOnboardingService();
+
+      // Créer le profil selon le type
+      await onboardingService.createSpecializedProfile(userId, profileType);
+
+      // Marquer l'onboarding comme terminé
+      await onboardingService.completeOnboarding(userId);
+
+      // Naviguer vers l'écran approprié selon le profil
+      switch (profileType) {
+        case 'producer':
+          // Naviguer vers création de projet
+          (navigation as any).navigate(SCREENS.CREATE_PROJECT);
+          break;
+        case 'buyer':
+          // Naviguer vers complément d'informations acheteur
+          (navigation as any).navigate(SCREENS.BUYER_INFO_COMPLETION, {
+            profileType,
+          });
+          break;
+        case 'veterinarian':
+          // Naviguer vers complément d'informations vétérinaire
+          (navigation as any).navigate(SCREENS.VETERINARIAN_INFO_COMPLETION, {
+            profileType,
+          });
+          break;
+        case 'technician':
+          // Naviguer vers complément d'informations technicien
+          (navigation as any).navigate(SCREENS.BUYER_INFO_COMPLETION, {
+            profileType: 'technician',
+          });
+          break;
+      }
+    } catch (error: unknown) {
+      console.error('Erreur création profil:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+      Alert.alert('Erreur', `Impossible de créer le profil: ${errorMessage}`);
     }
   };
 

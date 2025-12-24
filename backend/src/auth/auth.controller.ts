@@ -16,6 +16,9 @@ import { RegisterDto } from './dto/register.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { OAuthGoogleDto } from './dto/oauth-google.dto';
 import { OAuthAppleDto } from './dto/oauth-apple.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { VerifyResetOtpDto } from './dto/verify-reset-otp.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
@@ -116,5 +119,39 @@ export class AuthController {
     const ipAddress = req.ip || req.connection.remoteAddress;
     const userAgent = req.get('user-agent');
     return this.authService.loginWithApple(oauthDto, ipAddress, userAgent);
+  }
+
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Demander une réinitialisation de mot de passe' })
+  @ApiResponse({ status: 200, description: 'Code de réinitialisation envoyé (si le compte existe)' })
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    await this.authService.requestPasswordReset(dto.telephone);
+    return {
+      message: 'Si ce numéro est enregistré, un code de réinitialisation a été envoyé par SMS',
+    };
+  }
+
+  @Public()
+  @Post('verify-reset-otp')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Vérifier le code OTP de réinitialisation' })
+  @ApiResponse({ status: 200, description: 'Code vérifié, token de réinitialisation retourné' })
+  @ApiResponse({ status: 400, description: 'Code invalide ou expiré' })
+  async verifyResetOtp(@Body() dto: VerifyResetOtpDto) {
+    const resetToken = await this.authService.verifyResetOtp(dto.telephone, dto.otp);
+    return { reset_token: resetToken };
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Réinitialiser le mot de passe avec le token' })
+  @ApiResponse({ status: 200, description: 'Mot de passe réinitialisé avec succès' })
+  @ApiResponse({ status: 401, description: 'Token invalide ou expiré' })
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    await this.authService.resetPassword(dto.reset_token, dto.new_password);
+    return { message: 'Mot de passe réinitialisé avec succès' };
   }
 }

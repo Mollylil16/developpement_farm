@@ -7,9 +7,12 @@ import React, { useMemo, useEffect, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { loadProductionAnimaux, loadPeseesRecents } from '../../store/slices/productionSlice';
-import { selectAllAnimaux } from '../../store/selectors/productionSelectors';
+import { 
+  selectAllAnimaux, 
+  selectPeseesRecents, 
+  selectProductionUpdateCounter 
+} from '../../store/selectors/productionSelectors';
 import { selectAllMortalites } from '../../store/selectors/mortalitesSelectors';
-import { selectPeseesRecents } from '../../store/selectors/productionSelectors';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
@@ -30,13 +33,14 @@ function OverviewWidget({ onPress }: OverviewWidgetProps) {
   const mortalites = useAppSelector(selectAllMortalites);
   const peseesParAnimal = useAppSelector(selectPeseesParAnimal);
   const peseesRecents = useAppSelector(selectPeseesRecents);
+  const updateCounter = useAppSelector(selectProductionUpdateCounter);
 
   // Utiliser useRef pour éviter les chargements multiples (boucle infinie)
   const dataChargeesRef = React.useRef<string | null>(null);
 
   // Charger les animaux du cheptel (une seule fois par projet)
   useEffect(() => {
-    if (!projetActif) {
+    if (!projetActif?.id) {
       dataChargeesRef.current = null;
       return;
     }
@@ -44,8 +48,14 @@ function OverviewWidget({ onPress }: OverviewWidgetProps) {
     if (dataChargeesRef.current === projetActif.id) return; // Déjà chargé !
 
     dataChargeesRef.current = projetActif.id;
-    dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
-    dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 100 })); // Charger plus de pesées pour le calcul des catégories
+    
+    // Dispatcher en parallèle pour meilleure performance
+    Promise.all([
+      dispatch(loadProductionAnimaux({ projetId: projetActif.id })),
+      dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 100 })), // Charger plus de pesées pour le calcul des catégories
+    ]).catch((error) => {
+      console.error('Erreur lors du chargement des données:', error);
+    });
   }, [dispatch, projetActif?.id]);
 
   // ✅ MÉMOÏSER les lengths pour éviter les boucles infinies
@@ -144,6 +154,7 @@ function OverviewWidget({ onPress }: OverviewWidgetProps) {
     mortalites,
     peseesParAnimal,
     peseesRecents,
+    updateCounter, // Forcer la mise à jour quand les animaux changent
   ]);
 
   if (!stats || !projetActif) {

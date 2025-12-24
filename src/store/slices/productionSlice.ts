@@ -258,6 +258,8 @@ const productionSlice = createSlice({
         const normalized = normalizeAnimal(action.payload);
         state.entities.animaux = { ...state.entities.animaux, ...normalized.entities.animaux };
         state.ids.animaux = [normalized.result[0], ...state.ids.animaux];
+        // Incrémenter le compteur pour forcer la synchronisation des widgets
+        state.updateCounter = (state.updateCounter || 0) + 1;
       })
       .addCase(createProductionAnimal.rejected, (state, action) => {
         state.loading = false;
@@ -298,6 +300,8 @@ const productionSlice = createSlice({
         delete state.entities.animaux[animalId];
         delete state.peseesParAnimal[animalId];
         // Supprimer les pesées orphelines de cet animal
+        // Incrémenter le compteur pour forcer la synchronisation des widgets
+        state.updateCounter = (state.updateCounter || 0) + 1;
         const peseeIdsToRemove = state.peseesParAnimal[animalId] || [];
         peseeIdsToRemove.forEach((peseeId) => {
           delete state.entities.pesees[peseeId];

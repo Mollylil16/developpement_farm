@@ -145,3 +145,9 @@ export const selectAnimauxActifs = createSelector(
     return animaux.filter((animal) => animal.statut?.toLowerCase() === 'actif');
   }
 );
+
+// Sélecteur pour obtenir le compteur de mise à jour (pour forcer la synchronisation)
+export const selectProductionUpdateCounter = createSelector(
+  [selectProductionState],
+  (productionState) => productionState.updateCounter || 0
+);

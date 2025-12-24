@@ -44,6 +44,9 @@ export function useBuyerData() {
         (offer) => offer.status === 'pending' || offer.status === 'countered'
       );
 
+      // Petit délai pour éviter le rate limiting
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
       // Charger les transactions complétées depuis l'API backend
       const allTransactions = await apiClient.get<any[]>('/marketplace/transactions', {
         params: { role: 'buyer' },
@@ -51,6 +54,9 @@ export function useBuyerData() {
       const completedTransactions = allTransactions.filter(
         (transaction) => transaction.status === 'completed' || transaction.status === 'delivered'
       );
+
+      // Petit délai pour éviter le rate limiting
+      await new Promise((resolve) => setTimeout(resolve, 150));
 
       // Charger les nouvelles annonces depuis l'API backend
       const allListings = await apiClient.get<any[]>('/marketplace/listings');

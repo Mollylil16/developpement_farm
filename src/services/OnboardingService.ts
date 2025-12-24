@@ -13,13 +13,15 @@ import type {
 } from '../types/roles';
 
 export interface CreateUserInput {
-  email?: string;
-  password?: string;
-  firstName: string;
-  lastName: string;
   phone?: string;
-  profileType: 'producer' | 'buyer' | 'veterinarian' | 'technician';
+  email?: string;
+  firstName: string; // OBLIGATOIRE
+  lastName: string; // OBLIGATOIRE
+  provider: 'telephone' | 'email' | 'google' | 'apple';
+  providerId?: string; // Pour OAuth
 }
+
+export type ProfileType = 'producer' | 'buyer' | 'veterinarian' | 'technician';
 
 export interface CreateBuyerProfileInput {
   buyerType: 'individual' | 'restaurant' | 'butcher' | 'wholesaler' | 'retailer';
@@ -86,7 +88,44 @@ class OnboardingService {
   }
 
   /**
-   * Créer un nouvel utilisateur avec le profil de base
+   * Vérifier si un téléphone existe déjà
+   */
+  async checkPhoneExists(phone: string): Promise<boolean> {
+    try {
+      const cleanPhone = phone.trim().replace(/\s+/g, '');
+      await apiClient.get(`/users/check/phone/${encodeURIComponent(cleanPhone)}`, {
+        skipAuth: true,
+      });
+      return true; // Téléphone existe
+    } catch (error: any) {
+      if (error?.status === 404) {
+        return false; // Téléphone n'existe pas
+      }
+      throw error; // Autre erreur
+    }
+  }
+
+  /**
+   * Vérifier si un email existe déjà
+   */
+  async checkEmailExists(email: string): Promise<boolean> {
+    try {
+      const normalizedEmail = email.trim().toLowerCase();
+      await apiClient.get(`/users/check/email/${encodeURIComponent(normalizedEmail)}`, {
+        skipAuth: true,
+      });
+      return true; // Email existe
+    } catch (error: any) {
+      if (error?.status === 404) {
+        return false; // Email n'existe pas
+      }
+      throw error; // Autre erreur
+    }
+  }
+
+  /**
+   * Créer un nouvel utilisateur (sans profil spécialisé)
+   * Le profil sera créé plus tard via createSpecializedProfile
    */
   async createUser(input: CreateUserInput): Promise<User> {
     // Vérifier si l'email ou le téléphone existe déjà via l'API backend
@@ -141,30 +180,99 @@ class OnboardingService {
       }
     }
 
-    // Vérifier qu'au moins email ou téléphone est fourni
+    // Validation : au moins email ou téléphone requis
     if (!input.email && !input.phone) {
       throw new Error('Email ou numéro de téléphone requis');
     }
 
-    // Créer l'utilisateur de base
-    const user: Partial<User> = {
-      email: input.email,
-      telephone: input.phone,
-      nom: input.lastName || '',
-      prenom: input.firstName || '',
-      provider: input.phone ? 'telephone' : 'email',
-      date_creation: new Date().toISOString(),
-      derniere_connexion: new Date().toISOString(),
-      isOnboarded: false,
-      roles: {},
-      activeRole: input.profileType,
+    // Validation : nom et prénom obligatoires (min 2 caractères)
+    const firstNameTrimmed = input.firstName.trim();
+    const lastNameTrimmed = input.lastName.trim();
+
+    if (firstNameTrimmed.length < 2) {
+      throw new Error('Le prénom doit contenir au moins 2 caractères');
+    }
+
+    if (lastNameTrimmed.length < 2) {
+      throw new Error('Le nom doit contenir au moins 2 caractères');
+    }
+
+    // Vérifier les doublons AVANT création
+    if (input.email) {
+      const exists = await this.checkEmailExists(input.email);
+      if (exists) {
+        throw new Error('Un compte existe déjà avec cet email');
+      }
+    }
+
+    if (input.phone) {
+      const exists = await this.checkPhoneExists(input.phone);
+      if (exists) {
+        throw new Error('Un compte existe déjà avec ce numéro de téléphone');
+      }
+    }
+
+    // Normaliser les données
+    const normalizedEmail = input.email?.trim().toLowerCase() || null;
+    const normalizedPhone = input.phone?.trim().replace(/\s+/g, '') || null;
+
+    // Créer l'utilisateur via l'API backend (endpoint public)
+    // IMPORTANT: Le backend ne doit PAS recevoir 'roles' (il sera créé plus tard via PATCH /users/:id)
+    const registerPayload: {
+      email?: string;
+      telephone?: string;
+      nom: string;
+      prenom: string;
+    } = {
+      email: normalizedEmail || undefined,
+      telephone: normalizedPhone || undefined,
+      nom: lastNameTrimmed,
+      prenom: firstNameTrimmed,
     };
 
-    // Créer le profil selon le type
-    if (input.profileType === 'producer') {
-      // Le profil producteur sera créé lors de la création du projet
-      user.roles = {
-        producer: {
+    const created = await apiClient.post<{
+      access_token: string;
+      refresh_token: string;
+      user: User;
+    }>('/auth/register', registerPayload, { skipAuth: true });
+
+    // Stocker les tokens pour les appels suivants
+    await apiClient.tokens.set(created.access_token, created.refresh_token);
+
+    // Si providerId fourni (OAuth), mettre à jour l'utilisateur
+    if (input.providerId) {
+      try {
+        await apiClient.patch(`/users/${created.user.id}`, {
+          provider: input.provider,
+          provider_id: input.providerId,
+        });
+      } catch (error) {
+        console.warn('[OnboardingService] Erreur mise à jour provider (non bloquant):', error);
+      }
+    }
+
+    // Récupérer l'utilisateur créé avec tous les champs depuis l'API backend
+    const fullUser = await apiClient.get<any>(`/users/${created.user.id}`);
+    if (!fullUser) {
+      throw new Error("Erreur lors de la création de l'utilisateur");
+    }
+    return fullUser;
+  }
+
+  /**
+   * Créer un profil spécialisé pour un utilisateur existant
+   */
+  async createSpecializedProfile(
+    userId: string,
+    profileType: ProfileType,
+    additionalData?: any
+  ): Promise<User> {
+    switch (profileType) {
+      case 'producer':
+        // Le profil producer sera créé lors de la création du premier projet
+        // Pour l'instant, on crée juste la structure de base
+        const user = await apiClient.get<any>(`/users/${userId}`);
+        const producerProfile = {
           isActive: true,
           activatedAt: new Date().toISOString(),
           farmName: '',
@@ -185,82 +293,79 @@ class OnboardingService {
             minimumOfferPercentage: 80,
             notificationsEnabled: true,
           },
-        },
-      };
+        };
+
+        await apiClient.patch(`/users/${userId}`, {
+          roles: {
+            ...user.roles,
+            producer: producerProfile,
+          },
+          activeRole: 'producer',
+        });
+        break;
+
+      case 'buyer':
+        // Créer le profil buyer avec données par défaut
+        await this.createBuyerProfile(userId, {
+          buyerType: additionalData?.buyerType || 'individual',
+          businessInfo: additionalData?.businessInfo,
+        });
+        break;
+
+      case 'veterinarian':
+        // Nécessite des données supplémentaires (qualifications, documents, etc.)
+        if (!additionalData) {
+          throw new Error('Les données vétérinaire sont requises');
+        }
+        await this.createVeterinarianProfile(userId, additionalData);
+        break;
+
+      case 'technician':
+        // Créer le profil technician avec données par défaut
+        await this.createTechnicianProfile(userId, {
+          qualifications: additionalData?.qualifications || { level: 'beginner' },
+          skills: additionalData?.skills || [],
+        });
+        break;
     }
 
-    // Le backend exige nom/prénom (min 2 caractères). Valeurs par défaut si vides ou trop courtes.
-    const firstNameTrimmed = (input.firstName || '').trim();
-    const lastNameTrimmed = (input.lastName || '').trim();
-    const prenom = firstNameTrimmed.length >= 2 ? firstNameTrimmed : 'Utilisateur';
-    const nom = lastNameTrimmed.length >= 2 ? lastNameTrimmed : 'Mobile';
+    // Récupérer l'utilisateur mis à jour
+    const updatedUser = await apiClient.get<any>(`/users/${userId}`);
+    return updatedUser;
+  }
 
-    // Ne pas envoyer un mot de passe si vide ou trop court (< 6 caractères)
-    const password = (input.password || '').trim();
-
-    // Créer l'utilisateur via l'API backend (endpoint public)
-    // IMPORTANT: Le backend ne doit PAS recevoir 'roles' (il sera créé plus tard via PATCH /users/:id)
-    // Le ValidationPipe avec forbidNonWhitelisted: true rejettera toute propriété non déclarée dans RegisterDto
-    const registerPayload: {
-      email?: string;
-      telephone?: string;
-      nom: string;
-      prenom: string;
-      password?: string;
-    } = {
-      email: user.email,
-      telephone: user.telephone,
-      nom,
-      prenom,
-    };
-    
-    // Ne pas inclure password dans le payload s'il est vide ou trop court
-    if (password && password.length >= 6) {
-      registerPayload.password = password;
-    }
-
-    const created = await apiClient.post<{
+  /**
+   * Connexion OAuth (Google ou Apple)
+   * Retourne l'utilisateur et indique si c'est un nouvel utilisateur
+   */
+  async signInWithOAuth(
+    provider: 'google' | 'apple',
+    oauthData: any
+  ): Promise<{ user: User; isNewUser: boolean }> {
+    // Cette méthode sera appelée depuis authSlice
+    // Pour l'instant, on délègue à l'API backend
+    const response = await apiClient.post<{
       access_token: string;
       refresh_token: string;
       user: User;
-    }>('/auth/register', registerPayload, { skipAuth: true });
+    }>(`/auth/${provider}`, oauthData, { skipAuth: true });
 
-    // Stocker les tokens pour les appels suivants (création de projet, etc.)
-    await apiClient.tokens.set(created.access_token, created.refresh_token);
+    // Stocker les tokens
+    await apiClient.tokens.set(response.access_token, response.refresh_token);
 
-    // Si on a besoin de créer le profil producer, le faire maintenant via PATCH
-    // Note: Cette opération est optionnelle et ne bloque pas l'inscription si elle échoue
-    // Le profil producer peut être créé plus tard lors de la création du projet
-    if (input.profileType === 'producer' && user.roles?.producer) {
-      try {
-        // Attendre un peu pour s'assurer que le token est bien stocké et valide
-        await new Promise(resolve => setTimeout(resolve, 200));
-        
-        console.log('[OnboardingService] Tentative de création du profil producer pour:', created.user.id);
-        const updateResult = await apiClient.patch(`/users/${created.user.id}`, {
-          roles: user.roles,
-          activeRole: 'producer',
-        });
-        console.log('[OnboardingService] Profil producer créé avec succès:', updateResult);
-      } catch (error: any) {
-        // Ne pas bloquer si ça échoue, l'utilisateur peut le faire plus tard
-        // Le profil producer sera créé automatiquement lors de la création du premier projet
-        console.warn('Impossible de créer le profil producer immédiatement (non bloquant):', error?.message || error);
-        if (error?.status) {
-          console.warn('Status HTTP:', error.status);
-        }
-        if (error?.data) {
-          console.warn('Données d\'erreur:', error.data);
-        }
-      }
-    }
+    // Vérifier si c'est un nouvel utilisateur (pas de rôles ou nom/prénom incomplets)
+    const isNewUser =
+      !response.user.roles ||
+      Object.keys(response.user.roles).length === 0 ||
+      !response.user.prenom ||
+      response.user.prenom.length < 2 ||
+      !response.user.nom ||
+      response.user.nom.length < 2;
 
-    // Récupérer l'utilisateur créé avec tous les champs depuis l'API backend
-    const fullUser = await apiClient.get<any>(`/users/${created.user.id}`);
-    if (!fullUser) {
-      throw new Error("Erreur lors de la création de l'utilisateur");
-    }
-    return fullUser;
+    return {
+      user: response.user,
+      isNewUser,
+    };
   }
 
   /**
@@ -431,15 +536,125 @@ class OnboardingService {
   /**
    * Marquer l'onboarding comme terminé
    */
-  async completeOnboarding(
-    userId: string,
-    profileType: 'producer' | 'buyer' | 'veterinarian' | 'technician'
-  ): Promise<void> {
+  async completeOnboarding(userId: string): Promise<void> {
+    const user = await apiClient.get<any>(`/users/${userId}`);
+    if (!user) {
+      throw new Error('Utilisateur non trouvé');
+    }
+
     await apiClient.patch(`/users/${userId}`, {
       isOnboarded: true,
       onboardingCompletedAt: new Date().toISOString(),
-      activeRole: profileType,
+      // activeRole est déjà défini lors de la création du profil
     });
+  }
+
+  /**
+   * Créer compte avec téléphone + mot de passe
+   */
+  async createUserWithPhone(input: {
+    phone: string;
+    firstName: string;
+    lastName: string;
+    password: string;
+  }): Promise<User> {
+    // Validation
+    if (input.firstName.length < 2) {
+      throw new Error('Prénom min 2 caractères');
+    }
+    if (input.lastName.length < 2) {
+      throw new Error('Nom min 2 caractères');
+    }
+    if (input.password.length < 6) {
+      throw new Error('Mot de passe min 6 caractères');
+    }
+
+    // Appel API
+    const response = await apiClient.post<{
+      access_token: string;
+      refresh_token: string;
+      user: User;
+    }>(
+      '/auth/register',
+      {
+        telephone: input.phone,
+        nom: input.lastName,
+        prenom: input.firstName,
+        password: input.password,
+        provider: 'telephone',
+      },
+      { skipAuth: true }
+    );
+
+    // Stocker tokens
+    await apiClient.tokens.set(response.access_token, response.refresh_token);
+
+    return response.user;
+  }
+
+  /**
+   * Connexion avec téléphone + mot de passe
+   */
+  async signInWithPhone(phone: string, password: string): Promise<User> {
+    const response = await apiClient.post<{
+      access_token: string;
+      refresh_token: string;
+      user: User;
+    }>(
+      '/auth/login',
+      {
+        telephone: phone,
+        password: password,
+      },
+      { skipAuth: true }
+    );
+
+    await apiClient.tokens.set(response.access_token, response.refresh_token);
+
+    return response.user;
+  }
+
+  /**
+   * Demander réinitialisation mot de passe
+   */
+  async requestPasswordReset(phone: string): Promise<void> {
+    await apiClient.post(
+      '/auth/forgot-password',
+      {
+        telephone: phone,
+      },
+      { skipAuth: true }
+    );
+  }
+
+  /**
+   * Vérifier code OTP de réinitialisation
+   */
+  async verifyResetOTP(phone: string, otp: string): Promise<string> {
+    const response = await apiClient.post<{ reset_token: string }>(
+      '/auth/verify-reset-otp',
+      {
+        telephone: phone,
+        otp: otp,
+      },
+      { skipAuth: true }
+    );
+
+    return response.reset_token;
+  }
+
+  /**
+   * Réinitialiser mot de passe
+   */
+  async resetPassword(resetToken: string, newPassword: string): Promise<void> {
+    await apiClient.post(
+      '/auth/reset-password',
+      {
+        reset_token: resetToken,
+        new_password: newPassword,
+      },
+      { skipAuth: true }
+    );
   }
 
   /**

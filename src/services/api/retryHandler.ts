@@ -16,7 +16,7 @@ export interface RetryOptions {
 const DEFAULT_RETRY_OPTIONS: Required<RetryOptions> = {
   maxRetries: 3,
   retryDelay: 1000, // 1 seconde
-  retryableStatuses: [408, 429, 500, 502, 503, 504], // Timeout, Too Many Requests, Server Errors
+  retryableStatuses: [408, 500, 502, 503, 504], // Timeout, Server Errors (429 exclu - ne pas retry immédiatement)
   retryableErrors: ['Network error', 'Request timeout', 'Failed to fetch'],
 };
 

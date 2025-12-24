@@ -43,28 +43,38 @@ export function useDashboardData({
   });
 
   /**
-   * Charge les données du dashboard
+   * Charge les données du dashboard de manière séquencée pour éviter les rate limits
    */
   const chargerDonnees = useCallback(async () => {
     if (!projetId) return;
 
     try {
-      await Promise.all([
-        dispatch(loadMortalitesParProjet(projetId)).unwrap(),
-        dispatch(loadStatistiquesMortalite(projetId)).unwrap(),
-        dispatch(
-          loadProductionAnimaux({
-            projetId,
-            inclureInactifs: true,
-          })
-        ).unwrap(),
-        dispatch(
-          loadPeseesRecents({
-            projetId,
-            limit: 20,
-          })
-        ).unwrap(),
-      ]);
+      // Séquencer les requêtes pour éviter le rate limiting
+      // Commencer par les données les plus critiques
+      await dispatch(
+        loadProductionAnimaux({
+          projetId,
+          inclureInactifs: true,
+        })
+      ).unwrap();
+
+      // Petit délai entre les requêtes pour éviter le rate limiting
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      await dispatch(loadMortalitesParProjet(projetId)).unwrap();
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      await dispatch(loadStatistiquesMortalite(projetId)).unwrap();
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      await dispatch(
+        loadPeseesRecents({
+          projetId,
+          limit: 20,
+        })
+      ).unwrap();
 
       // Charger aussi la photo de profil si fournie
       if (onProfilPhotoLoad) {
@@ -72,6 +82,8 @@ export function useDashboardData({
       }
     } catch (error) {
       console.error('Erreur lors du chargement des données:', error);
+      // Ne pas bloquer l'application si une requête échoue
+      // Les données disponibles seront affichées
     }
   }, [projetId, dispatch, onProfilPhotoLoad]);
 

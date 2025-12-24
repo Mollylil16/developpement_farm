@@ -206,7 +206,47 @@ export const signIn = createAsyncThunk(
         return rejectWithValue('Veuillez entrer votre email ou numéro de téléphone');
       }
 
-      // Appeler l'API backend pour se connecter
+      // Déterminer si c'est un email ou un téléphone
+      const identifier = input.identifier.trim();
+      const isEmail = identifier.includes('@');
+
+      // Si mot de passe fourni, utiliser /auth/login
+      if (input.password) {
+        const response = await apiClient.post<{
+          access_token: string;
+          refresh_token: string;
+          user: User;
+        }>(
+          '/auth/login',
+          isEmail
+            ? { email: identifier, password: input.password }
+            : { telephone: identifier, password: input.password },
+          { skipAuth: true }
+        );
+
+        const { access_token, refresh_token, user } = response;
+
+        // Stocker les tokens
+        await apiClient.tokens.set(access_token, refresh_token);
+
+        // Vérifier si l'utilisateur est un collaborateur et le lier (SQLite local)
+        if (user && user.email) {
+          try {
+            const { CollaborateurRepository } = await import('../../database/repositories');
+            const collaborateurRepo = new CollaborateurRepository();
+            await collaborateurRepo.lierCollaborateurAUtilisateur(user.id, user.email);
+          } catch (error: unknown) {
+            console.warn(
+              'Avertissement lors de la liaison du collaborateur:',
+              getErrorMessage(error)
+            );
+          }
+        }
+
+        return user;
+      }
+
+      // Sinon, utiliser /auth/login-simple (sans mot de passe)
       const response = await apiClient.post<{
         access_token: string;
         refresh_token: string;
@@ -214,7 +254,7 @@ export const signIn = createAsyncThunk(
       }>(
         '/auth/login-simple',
         {
-          identifier: input.identifier.trim(),
+          identifier: identifier,
         },
         { skipAuth: true }
       );

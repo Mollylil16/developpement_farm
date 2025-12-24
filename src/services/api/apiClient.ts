@@ -261,6 +261,28 @@ async function executeHttpRequest<T>(
     // Gérer les erreurs HTTP
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      
+      // Gestion spéciale pour 429 (Too Many Requests)
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('Retry-After');
+        const retryAfterSeconds = retryAfter ? parseInt(retryAfter, 10) : 60;
+        const retryAfterMs = retryAfterSeconds * 1000;
+        
+        console.warn(
+          `[apiClient] Rate limit atteint. Retry-After: ${retryAfterSeconds}s. Attendez avant de réessayer.`
+        );
+        
+        throw new APIError(
+          errorData.message || `Trop de requêtes. Veuillez réessayer dans ${retryAfterSeconds} seconde(s).`,
+          response.status,
+          {
+            ...errorData,
+            retryAfter: retryAfterSeconds,
+            retryAfterMs,
+          }
+        );
+      }
+      
       throw new APIError(
         errorData.message || `Request failed: ${response.statusText}`,
         response.status,

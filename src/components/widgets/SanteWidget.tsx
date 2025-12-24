@@ -2,7 +2,7 @@
  * Widget Santé pour le Dashboard
  */
 
-import React from 'react';
+import React, { memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -20,7 +20,7 @@ interface Props {
   onPress?: () => void;
 }
 
-export default function SanteWidget({ onPress }: Props) {
+function SanteWidget({ onPress }: Props) {
   const { colors } = useTheme();
 
   const vaccinationsEnRetard = useAppSelector(selectNombreVaccinationsEnRetard);
@@ -271,4 +271,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+});
+
+export default memo(SanteWidget, (prevProps, nextProps) => {
+  return prevProps.onPress === nextProps.onPress;
 });

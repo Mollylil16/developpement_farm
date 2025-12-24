@@ -39,36 +39,19 @@ export function useChatAgent() {
         // Trouver ou créer une conversation via l'API
         let conversationId: string | null = null;
         try {
-          const conversationResponse = await apiClient.get(`/chat-agent/conversations`, {
-            params: { projet_id: projetActif.id, user_id: user.id },
-          });
-          if (conversationResponse.data && conversationResponse.data.length > 0) {
-            conversationId = conversationResponse.data[0].id;
-          } else {
-            // Créer une nouvelle conversation
-            const newConversationResponse = await apiClient.post(`/chat-agent/conversations`, {
-              projet_id: projetActif.id,
-              user_id: user.id,
-            });
-            conversationId = newConversationResponse.data.id;
-          }
+          // Les endpoints de conversation ne sont pas encore implémentés dans le backend
+          // On génère un ID local pour la session
+          conversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          console.log('[useChatAgent] Conversation ID généré localement:', conversationId);
         } catch (error) {
-          console.error('Erreur lors de la récupération/création de la conversation:', error);
-          // Continuer sans conversation ID si l'API n'est pas disponible
+          console.error('Erreur lors de la génération de la conversation:', error);
+          // Continuer sans conversation ID si nécessaire
         }
         conversationIdRef.current = conversationId;
 
-        // Charger l'historique existant via l'API
+        // Les endpoints de messages ne sont pas encore implémentés dans le backend
+        // L'historique sera géré localement pour l'instant
         let savedMessages: ChatMessage[] = [];
-        if (conversationId) {
-          try {
-            const messagesResponse = await apiClient.get(`/chat-agent/conversations/${conversationId}/messages`);
-            savedMessages = messagesResponse.data || [];
-          } catch (error) {
-            console.error('Erreur lors du chargement des messages:', error);
-            // Continuer sans historique si l'API n'est pas disponible
-          }
-        }
 
         // Configuration de l'agent
         const config: AgentConfig = {
@@ -152,15 +135,19 @@ export function useChatAgent() {
           }
 
           setMessages([welcomeMessage]);
-          // Sauvegarder le message de bienvenue via l'API backend
-          if (conversationIdRef.current) {
-            await apiClient.post(`/chat-agent/conversations/${conversationIdRef.current}/messages`, welcomeMessage);
-          }
+          // Les endpoints de messages ne sont pas encore implémentés dans le backend
+          // Les messages sont gérés localement pour l'instant
         }
 
         setIsInitialized(true);
       } catch (error) {
         console.error("Erreur lors de l'initialisation de l'agent:", error);
+        // Même en cas d'erreur, permettre à l'agent de fonctionner avec des capacités limitées
+        // L'erreur peut venir de l'API mais l'agent local peut quand même fonctionner
+        if (agentServiceRef.current) {
+          setIsInitialized(true);
+          console.log('[useChatAgent] Agent initialisé en mode dégradé');
+        }
       }
     };
 
@@ -189,27 +176,15 @@ export function useChatAgent() {
       // Ajouter le message utilisateur à l'état immédiatement
       setMessages((prev) => [...prev, userMessage]);
 
-      // Sauvegarder le message utilisateur
-      if (conversationIdRef.current) {
-        try {
-          await apiClient.post(`/chat-agent/conversations/${conversationIdRef.current}/messages`, userMessage);
-        } catch (error) {
-          console.error('Erreur lors de la sauvegarde du message utilisateur:', error);
-        }
-      }
+      // Les endpoints de messages ne sont pas encore implémentés dans le backend
+      // Les messages sont gérés localement pour l'instant
 
       try {
         const response = await agentServiceRef.current.sendMessage(content);
         setMessages((prev) => [...prev, response]);
 
-        // Sauvegarder la réponse de l'assistant
-        if (conversationIdRef.current) {
-          try {
-            await apiClient.post(`/chat-agent/conversations/${conversationIdRef.current}/messages`, response);
-          } catch (error) {
-            console.error('Erreur lors de la sauvegarde de la réponse:', error);
-          }
-        }
+        // Les endpoints de messages ne sont pas encore implémentés dans le backend
+        // Les messages sont gérés localement pour l'instant
 
         // Si la voix est activée, lire la réponse
         if (voiceServiceRef.current && voiceEnabled) {
@@ -269,14 +244,8 @@ export function useChatAgent() {
       setMessages([]);
     }
 
-    // Supprimer tous les messages de la base de données
-    if (conversationIdRef.current) {
-      try {
-        await apiClient.delete(`/chat-agent/conversations/${conversationIdRef.current}/messages`);
-      } catch (error) {
-        console.error('Erreur lors de la suppression de la conversation:', error);
-      }
-    }
+    // Les endpoints de messages ne sont pas encore implémentés dans le backend
+    // Les messages sont gérés localement pour l'instant
   }, []);
 
   /**
