@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { CacheService } from '../common/services/cache.service';
 import { CreateAnimalDto } from './dto/create-animal.dto';
 import { UpdateAnimalDto } from './dto/update-animal.dto';
 import { CreatePeseeDto } from './dto/create-pesee.dto';
@@ -7,7 +8,10 @@ import { UpdatePeseeDto } from './dto/update-pesee.dto';
 
 @Injectable()
 export class ProductionService {
-  constructor(private databaseService: DatabaseService) {}
+  constructor(
+    private databaseService: DatabaseService,
+    private cacheService: CacheService
+  ) {}
 
   /**
    * Génère un ID comme le frontend : animal_${Date.now()}_${random}
@@ -56,6 +60,13 @@ export class ProductionService {
     if (result.rows[0].proprietaire_id !== userId) {
       throw new ForbiddenException('Cet animal ne vous appartient pas');
     }
+  }
+
+  /**
+   * Invalide le cache pour les statistiques d'un projet
+   */
+  private invalidateProjetCache(projetId: string): void {
+    this.cacheService.delete(`projet_stats:${projetId}`);
   }
 
   /**
@@ -161,11 +172,26 @@ export class ProductionService {
       ]
     );
 
-    return this.mapRowToAnimal(result.rows[0]);
+    const animal = this.mapRowToAnimal(result.rows[0]);
+    // Invalider le cache des stats du projet
+    this.invalidateProjetCache(animal.projet_id);
+    return animal;
   }
 
-  async findAllAnimals(projetId: string, userId: string, inclureInactifs: boolean = true) {
+  async findAllAnimals(
+    projetId: string,
+    userId: string,
+    inclureInactifs: boolean = true,
+    limit?: number,
+    offset?: number
+  ) {
     await this.checkProjetOwnership(projetId, userId);
+
+    // Limite par défaut de 500 pour éviter de charger trop de données
+    // La pagination est optionnelle pour compatibilité avec le frontend existant
+    const defaultLimit = 500;
+    const effectiveLimit = limit ? Math.min(limit, 500) : defaultLimit;
+    const effectiveOffset = offset || 0;
 
     let query = `SELECT * FROM production_animaux WHERE projet_id = $1`;
     const params: any[] = [projetId];
@@ -174,7 +200,8 @@ export class ProductionService {
       query += ` AND statut = 'actif'`;
     }
 
-    query += ` ORDER BY date_creation DESC`;
+    query += ` ORDER BY date_creation DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(effectiveLimit, effectiveOffset);
 
     const result = await this.databaseService.query(query, params);
     return result.rows.map((row) => this.mapRowToAnimal(row));
@@ -290,12 +317,19 @@ export class ProductionService {
     values.push(id);
     const query = `UPDATE production_animaux SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
     const result = await this.databaseService.query(query, values);
-    return this.mapRowToAnimal(result.rows[0]);
+    const animal = this.mapRowToAnimal(result.rows[0]);
+    // Invalider le cache des stats du projet
+    this.invalidateProjetCache(animal.projet_id);
+    return animal;
   }
 
   async deleteAnimal(id: string, userId: string) {
-    await this.checkAnimalOwnership(id, userId);
+    // Récupérer le projet_id avant suppression pour invalider le cache
+    const animal = await this.findOneAnimal(id, userId);
+    const projetId = animal.projet_id;
     await this.databaseService.query('DELETE FROM production_animaux WHERE id = $1', [id]);
+    // Invalider le cache des stats du projet
+    this.invalidateProjetCache(projetId);
     return { id };
   }
 
@@ -354,7 +388,10 @@ export class ProductionService {
       ]
     );
 
-    return this.mapRowToPesee(result.rows[0]);
+    const pesee = this.mapRowToPesee(result.rows[0]);
+    // Invalider le cache des stats du projet (les pesées affectent les stats)
+    this.invalidateProjetCache(pesee.projet_id);
+    return pesee;
   }
 
   async findPeseesByAnimal(animalId: string, userId: string) {
@@ -458,7 +495,10 @@ export class ProductionService {
     values.push(id);
     const query = `UPDATE production_pesees SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
     const result = await this.databaseService.query(query, values);
-    return this.mapRowToPesee(result.rows[0]);
+    const updatedPesee = this.mapRowToPesee(result.rows[0]);
+    // Invalider le cache des stats du projet (les pesées affectent les stats)
+    this.invalidateProjetCache(updatedPesee.projet_id);
+    return updatedPesee;
   }
 
   async deletePesee(id: string, userId: string) {
@@ -566,49 +606,59 @@ export class ProductionService {
   async getProjetStats(projetId: string, userId: string) {
     await this.checkProjetOwnership(projetId, userId);
 
-    // Statistiques des animaux
-    const animauxResult = await this.databaseService.query(
-      `SELECT COUNT(*) as total,
-              COUNT(*) FILTER (WHERE actif = true) as actifs,
-              COUNT(*) FILTER (WHERE actif = false) as inactifs,
-              COUNT(*) FILTER (WHERE statut = 'mort') as morts,
-              COUNT(*) FILTER (WHERE statut = 'vendu') as vendus
-       FROM production_animaux
-       WHERE projet_id = $1`,
-      [projetId]
-    );
+    const cacheKey = `projet_stats:${projetId}`;
+    
+    // Utiliser le cache avec TTL de 2 minutes (120 secondes)
+    // Les stats changent peu fréquemment, mais doivent être relativement à jour
+    return this.cacheService.getOrSet(
+      cacheKey,
+      async () => {
+        // Statistiques des animaux
+        const animauxResult = await this.databaseService.query(
+          `SELECT COUNT(*) as total,
+                  COUNT(*) FILTER (WHERE actif = true) as actifs,
+                  COUNT(*) FILTER (WHERE actif = false) as inactifs,
+                  COUNT(*) FILTER (WHERE statut = 'mort') as morts,
+                  COUNT(*) FILTER (WHERE statut = 'vendu') as vendus
+           FROM production_animaux
+           WHERE projet_id = $1`,
+          [projetId]
+        );
 
-    // Statistiques des pesées
-    const peseesResult = await this.databaseService.query(
-      `SELECT COUNT(*) as total_pesees,
-              AVG(poids_kg) as poids_moyen,
-              MAX(poids_kg) as poids_max,
-              MIN(poids_kg) as poids_min,
-              AVG(gmq) as gmq_moyen
-       FROM production_pesees
-       WHERE projet_id = $1`,
-      [projetId]
-    );
+        // Statistiques des pesées
+        const peseesResult = await this.databaseService.query(
+          `SELECT COUNT(*) as total_pesees,
+                  AVG(poids_kg) as poids_moyen,
+                  MAX(poids_kg) as poids_max,
+                  MIN(poids_kg) as poids_min,
+                  AVG(gmq) as gmq_moyen
+           FROM production_pesees
+           WHERE projet_id = $1`,
+          [projetId]
+        );
 
-    const animaux = animauxResult.rows[0];
-    const pesees = peseesResult.rows[0];
+        const animaux = animauxResult.rows[0];
+        const pesees = peseesResult.rows[0];
 
-    return {
-      animaux: {
-        total: parseInt(animaux.total || '0'),
-        actifs: parseInt(animaux.actifs || '0'),
-        inactifs: parseInt(animaux.inactifs || '0'),
-        morts: parseInt(animaux.morts || '0'),
-        vendus: parseInt(animaux.vendus || '0'),
+        return {
+          animaux: {
+            total: parseInt(animaux.total || '0'),
+            actifs: parseInt(animaux.actifs || '0'),
+            inactifs: parseInt(animaux.inactifs || '0'),
+            morts: parseInt(animaux.morts || '0'),
+            vendus: parseInt(animaux.vendus || '0'),
+          },
+          pesees: {
+            total: parseInt(pesees.total_pesees || '0'),
+            poids_moyen: pesees.poids_moyen ? parseFloat(pesees.poids_moyen) : 0,
+            poids_max: pesees.poids_max ? parseFloat(pesees.poids_max) : 0,
+            poids_min: pesees.poids_min ? parseFloat(pesees.poids_min) : 0,
+            gmq_moyen: pesees.gmq_moyen ? parseFloat(pesees.gmq_moyen) : 0,
+          },
+        };
       },
-      pesees: {
-        total: parseInt(pesees.total_pesees || '0'),
-        poids_moyen: pesees.poids_moyen ? parseFloat(pesees.poids_moyen) : 0,
-        poids_max: pesees.poids_max ? parseFloat(pesees.poids_max) : 0,
-        poids_min: pesees.poids_min ? parseFloat(pesees.poids_min) : 0,
-        gmq_moyen: pesees.gmq_moyen ? parseFloat(pesees.gmq_moyen) : 0,
-      },
-    };
+      120 // TTL: 2 minutes
+    );
   }
 
   /**

@@ -107,8 +107,12 @@ export class MarketplaceService {
     return this.mapRowToListing(result.rows[0]);
   }
 
-  async findAllListings(projetId?: string, userId?: string) {
+  async findAllListings(projetId?: string, userId?: string, limit?: number, offset?: number) {
     try {
+      const defaultLimit = 100; // Marketplace: limite plus basse car liste publique
+      const effectiveLimit = limit ? Math.min(limit, 500) : defaultLimit;
+      const effectiveOffset = offset || 0;
+
       let query = 'SELECT * FROM marketplace_listings WHERE status != $1';
       const params: any[] = ['removed'];
 
@@ -122,7 +126,8 @@ export class MarketplaceService {
         params.push(userId);
       }
 
-      query += ' ORDER BY listed_at DESC';
+      query += ` ORDER BY listed_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+      params.push(effectiveLimit, effectiveOffset);
 
       const result = await this.databaseService.query(query, params);
       return result.rows.map((row) => this.mapRowToListing(row));

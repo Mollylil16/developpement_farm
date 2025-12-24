@@ -4,13 +4,14 @@
  */
 
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useTheme } from '../../contexts/ThemeContext';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../../constants/theme';
 import Card from '../Card';
+import OptimizedImage from '../OptimizedImage';
 import { ProductionAnimal, StatutAnimal, STATUT_ANIMAL_LABELS } from '../../types';
 import { TYPE_PROPHYLAXIE_LABELS, type Vaccination, type Maladie, type Traitement } from '../../types/sante';
 import { calculerAge, getStatutColor } from '../../utils/animalUtils';
@@ -89,11 +90,24 @@ const AnimalCard = React.memo(
       <Card elevation="small" padding="medium" style={styles.card}>
         <View style={styles.header}>
           {animal.photo_uri ? (
-            <Image
+            <OptimizedImage
               key={`photo-${animal.id}-${animal.photo_uri}`}
               source={{ uri: animal.photo_uri }}
               style={styles.photo}
               resizeMode="cover"
+              cachePolicy="memory-disk"
+              priority="normal"
+              placeholder={
+                <View
+                  style={[
+                    styles.photo,
+                    styles.photoPlaceholder,
+                    { backgroundColor: colors.primaryLight + '15', borderColor: colors.primary + '30' },
+                  ]}
+                >
+                  <Text style={{ fontSize: 40 }}>🐷</Text>
+                </View>
+              }
             />
           ) : (
             <View
