@@ -15,6 +15,7 @@ import {
   CreateBatchPigDto,
   TransferPigDto,
   RemovePigDto,
+  CreateBatchWithPigsDto,
 } from './dto';
 
 @Controller('batch-pigs')
@@ -72,6 +73,15 @@ export class BatchPigsController {
     @CurrentUser() user: any,
   ) {
     return await this.batchPigsService.getBatchStats(batchId, user.id);
+  }
+
+  @Post('create-batch')
+  @HttpCode(HttpStatus.CREATED)
+  async createBatchWithPigs(
+    @Body() dto: CreateBatchWithPigsDto,
+    @CurrentUser() user: any,
+  ) {
+    return await this.batchPigsService.createBatchWithPigs(dto, user.id);
   }
 }
 

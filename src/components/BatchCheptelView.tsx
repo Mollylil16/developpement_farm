@@ -16,6 +16,7 @@ import LoadingSpinner from './LoadingSpinner';
 import EmptyState from './EmptyState';
 import { PlusCircle } from 'lucide-react-native';
 import BatchActionsModal from './batch/BatchActionsModal';
+import CreateBatchModal from './batch/CreateBatchModal';
 import BatchActionsModal from './batch/BatchActionsModal';
 
 export default function BatchCheptelView() {
@@ -114,6 +115,7 @@ export default function BatchCheptelView() {
 
   const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
   const [showActionsModal, setShowActionsModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const handleBatchPress = (batch: Batch) => {
     setSelectedBatch(batch);
@@ -130,8 +132,7 @@ export default function BatchCheptelView() {
   };
 
   const handleAddBatch = () => {
-    // TODO: Ouvrir modal de création
-    Alert.alert('Info', 'À implémenter: Modal de création de bande');
+    setShowCreateModal(true);
   };
 
   const renderBatchCard = useCallback(
@@ -308,6 +309,16 @@ export default function BatchCheptelView() {
           onRefresh={handleRefresh}
         />
       )}
+
+      {/* Modal de création */}
+      <CreateBatchModal
+        visible={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={() => {
+          setShowCreateModal(false);
+          handleRefresh();
+        }}
+      />
     </View>
   );
 }

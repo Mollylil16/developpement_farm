@@ -5,7 +5,12 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
-import { CreateBatchPigDto, TransferPigDto, RemovePigDto } from './dto';
+import {
+  CreateBatchPigDto,
+  TransferPigDto,
+  RemovePigDto,
+  CreateBatchWithPigsDto,
+} from './dto';
 
 @Injectable()
 export class BatchPigsService {
@@ -23,6 +28,13 @@ export class BatchPigsService {
    */
   private generateMovementId(): string {
     return `mov_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  /**
+   * Génère un ID pour une bande : batch_${Date.now()}_${random}
+   */
+  private generateBatchId(): string {
+    return `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
   /**
@@ -374,6 +386,247 @@ export class BatchPigsService {
       by_health: byHealth,
       average_weight: averageWeight,
       average_age: averageAge,
+    };
+  }
+
+  /**
+   * Vérifie que le projet appartient à l'utilisateur
+   */
+  private async checkProjetOwnership(
+    projetId: string,
+    userId: string,
+  ): Promise<void> {
+    const result = await this.db.query(
+      'SELECT proprietaire_id FROM projets WHERE id = $1',
+      [projetId],
+    );
+    if (result.rows.length === 0) {
+      throw new NotFoundException('Projet non trouvé');
+    }
+    if (result.rows[0].proprietaire_id !== userId) {
+      throw new ForbiddenException('Ce projet ne vous appartient pas');
+    }
+  }
+
+  /**
+   * Créer une loge avec ou sans population initiale
+   */
+  async createBatchWithPigs(
+    dto: CreateBatchWithPigsDto,
+    userId: string,
+  ): Promise<any> {
+    // Vérifier que le projet appartient à l'utilisateur
+    await this.checkProjetOwnership(dto.projet_id, userId);
+
+    // Calculer le total de population
+    const totalCount = dto.population
+      ? dto.population.male_count +
+        dto.population.female_count +
+        dto.population.castrated_count
+      : 0;
+
+    // Validation : Si population fournie, âge et poids OBLIGATOIRES
+    if (totalCount > 0) {
+      if (!dto.average_age_months || dto.average_age_months <= 0) {
+        throw new BadRequestException(
+          "L'âge moyen est requis pour une loge avec population",
+        );
+      }
+      if (!dto.average_weight_kg || dto.average_weight_kg <= 0) {
+        throw new BadRequestException(
+          'Le poids moyen est requis pour une loge avec population',
+        );
+      }
+    }
+
+    const batchId = this.generateBatchId();
+    const now = new Date().toISOString();
+
+    // Créer la bande
+    await this.db.query(
+      `INSERT INTO batches (
+        id, projet_id, pen_name, category, total_count, male_count, female_count,
+        castrated_count, average_age_months, average_weight_kg, batch_creation_date,
+        notes, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+      [
+        batchId,
+        dto.projet_id,
+        dto.pen_name,
+        dto.category,
+        totalCount,
+        dto.population?.male_count || 0,
+        dto.population?.female_count || 0,
+        dto.population?.castrated_count || 0,
+        dto.average_age_months || 0,
+        dto.average_weight_kg || 0,
+        now.split('T')[0],
+        dto.notes || null,
+        now,
+        now,
+      ],
+    );
+
+    // Si population fournie, créer les sujets individuels
+    if (totalCount > 0 && dto.population && dto.average_age_months && dto.average_weight_kg) {
+      await this.createIndividualPigs(
+        batchId,
+        dto.population,
+        dto.average_age_months,
+        dto.average_weight_kg,
+      );
+    }
+
+    // Retourner la bande créée
+    const result = await this.db.query('SELECT * FROM batches WHERE id = $1', [
+      batchId,
+    ]);
+
+    return {
+      id: result.rows[0].id,
+      projet_id: result.rows[0].projet_id,
+      pen_name: result.rows[0].pen_name,
+      category: result.rows[0].category,
+      total_count: parseInt(result.rows[0].total_count),
+      male_count: parseInt(result.rows[0].male_count),
+      female_count: parseInt(result.rows[0].female_count),
+      castrated_count: parseInt(result.rows[0].castrated_count),
+      average_age_months: parseFloat(result.rows[0].average_age_months),
+      average_weight_kg: parseFloat(result.rows[0].average_weight_kg),
+      batch_creation_date: result.rows[0].batch_creation_date,
+      expected_sale_date: result.rows[0].expected_sale_date || undefined,
+      notes: result.rows[0].notes || undefined,
+      created_at: result.rows[0].created_at,
+      updated_at: result.rows[0].updated_at,
+    };
+  }
+
+  /**
+   * Créer les sujets individuels pour une bande
+   */
+  private async createIndividualPigs(
+    batchId: string,
+    population: {
+      male_count: number;
+      female_count: number;
+      castrated_count: number;
+    },
+    averageAge: number,
+    averageWeight: number,
+  ): Promise<void> {
+    const pigs: any[] = [];
+    let pigIndex = 0;
+
+    // Créer les mâles
+    for (let i = 0; i < population.male_count; i++) {
+      pigs.push(
+        this.generatePig(batchId, 'male', averageAge, averageWeight, pigIndex++),
+      );
+    }
+
+    // Créer les femelles
+    for (let i = 0; i < population.female_count; i++) {
+      pigs.push(
+        this.generatePig(
+          batchId,
+          'female',
+          averageAge,
+          averageWeight,
+          pigIndex++,
+        ),
+      );
+    }
+
+    // Créer les castrés
+    for (let i = 0; i < population.castrated_count; i++) {
+      pigs.push(
+        this.generatePig(
+          batchId,
+          'castrated',
+          averageAge,
+          averageWeight,
+          pigIndex++,
+        ),
+      );
+    }
+
+    // Insérer les porcs un par un (les triggers mettront à jour les compteurs)
+    if (pigs.length > 0) {
+      for (const pig of pigs) {
+        await this.db.query(
+          `INSERT INTO batch_pigs (
+            id, batch_id, name, sex, birth_date, age_months, current_weight_kg,
+            origin, origin_details, supplier_name, purchase_price, health_status,
+            notes, photo_url, entry_date, created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())`,
+          [
+            pig.id,
+            pig.batch_id,
+            pig.name,
+            pig.sex,
+            pig.birth_date,
+            pig.age_months,
+            pig.current_weight_kg,
+            pig.origin,
+            pig.origin_details,
+            pig.supplier_name,
+            pig.purchase_price,
+            pig.health_status,
+            pig.notes,
+            pig.photo_url,
+            pig.entry_date,
+          ],
+        );
+
+        // Enregistrer mouvement d'entrée
+        const movementId = this.generateMovementId();
+        await this.db.query(
+          `INSERT INTO batch_pig_movements (
+            id, pig_id, movement_type, to_batch_id, movement_date, notes, created_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+          [
+            movementId,
+            pig.id,
+            'entry',
+            batchId,
+            pig.entry_date,
+            "Créé lors de l'initialisation de la bande",
+          ],
+        );
+      }
+    }
+  }
+
+  /**
+   * Générer un sujet individuel avec variation autour de la moyenne
+   */
+  private generatePig(
+    batchId: string,
+    sex: 'male' | 'female' | 'castrated',
+    averageAge: number,
+    averageWeight: number,
+    index: number,
+  ): any {
+    // Variation aléatoire ±10% pour simuler la diversité naturelle
+    const ageVariation = averageAge * (0.9 + Math.random() * 0.2); // ±10%
+    const weightVariation = averageWeight * (0.9 + Math.random() * 0.2); // ±10%
+
+    return {
+      id: `pig_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`,
+      batch_id: batchId,
+      name: null,
+      sex,
+      birth_date: null,
+      age_months: Math.round(ageVariation * 10) / 10, // Arrondir à 1 décimale
+      current_weight_kg: Math.round(weightVariation * 10) / 10,
+      origin: 'birth',
+      origin_details: "Créé lors de l'initialisation de la bande",
+      supplier_name: null,
+      purchase_price: null,
+      health_status: 'healthy',
+      notes: null,
+      photo_url: null,
+      entry_date: new Date().toISOString().split('T')[0],
     };
   }
 }
