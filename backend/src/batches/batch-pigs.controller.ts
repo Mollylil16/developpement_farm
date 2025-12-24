@@ -51,6 +51,14 @@ export class BatchPigsController {
     return { message: 'Porc retiré avec succès' };
   }
 
+  @Get('projet/:projetId')
+  async getAllBatchesByProjet(
+    @Param('projetId') projetId: string,
+    @CurrentUser() user: any,
+  ) {
+    return await this.batchPigsService.getAllBatchesByProjet(projetId, user.id);
+  }
+
   @Get('batch/:batchId')
   async getPigsByBatch(
     @Param('batchId') batchId: string,

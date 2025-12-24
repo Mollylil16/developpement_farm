@@ -39,61 +39,19 @@ export default function BatchCheptelView() {
 
     setLoading(true);
     try {
-      // TODO: Implémenter le chargement depuis l'API/DB
-      // Pour l'instant, données de démonstration
-      const demoData: Batch[] = [
-        {
-          id: '1',
-          projet_id: projetActif.id,
-          pen_name: 'Loge A1',
-          category: 'porcelets',
-          total_count: 25,
-          male_count: 12,
-          female_count: 13,
-          castrated_count: 0,
-          average_age_months: 2,
-          average_weight_kg: 15,
-          batch_creation_date: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          id: '2',
-          projet_id: projetActif.id,
-          pen_name: 'Loge A2',
-          category: 'porcs_croissance',
-          total_count: 18,
-          male_count: 9,
-          female_count: 9,
-          castrated_count: 0,
-          average_age_months: 4,
-          average_weight_kg: 45,
-          batch_creation_date: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          id: '3',
-          projet_id: projetActif.id,
-          pen_name: 'Loge B1',
-          category: 'truie_reproductrice',
-          total_count: 5,
-          male_count: 0,
-          female_count: 5,
-          castrated_count: 0,
-          average_age_months: 18,
-          average_weight_kg: 180,
-          batch_creation_date: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      ];
+      // Charger les bandes depuis l'API backend
+      const batchesData = await apiClient.get<Batch[]>(
+        `/batch-pigs/projet/${projetActif.id}`
+      );
 
-      setBatches(demoData);
-      calculateStats(demoData);
-    } catch (error) {
+      setBatches(batchesData);
+      calculateStats(batchesData);
+    } catch (error: any) {
       console.error('Erreur lors du chargement des bandes:', error);
-      Alert.alert('Erreur', 'Impossible de charger les bandes');
+      Alert.alert('Erreur', error.message || 'Impossible de charger les bandes');
+      // En cas d'erreur, initialiser avec tableau vide
+      setBatches([]);
+      calculateStats([]);
     } finally {
       setLoading(false);
     }

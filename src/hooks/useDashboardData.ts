@@ -43,40 +43,35 @@ export function useDashboardData({
   });
 
   /**
-   * Charge les données du dashboard de manière séquencée pour éviter les rate limits
+   * Charge les données du dashboard en parallèle pour meilleure performance
+   * Note: Si rate limiting nécessaire, il doit être géré côté API client avec retry
    */
   const chargerDonnees = useCallback(async () => {
     if (!projetId) return;
 
     try {
-      // Séquencer les requêtes pour éviter le rate limiting
-      // Commencer par les données les plus critiques
-      await dispatch(
-        loadProductionAnimaux({
-          projetId,
-          inclureInactifs: true,
-        })
-      ).unwrap();
+      // Paralléliser toutes les requêtes indépendantes pour meilleure performance
+      const promises = [
+        dispatch(
+          loadProductionAnimaux({
+            projetId,
+            inclureInactifs: true,
+          })
+        ).unwrap(),
+        dispatch(loadMortalitesParProjet(projetId)).unwrap(),
+        dispatch(loadStatistiquesMortalite(projetId)).unwrap(),
+        dispatch(
+          loadPeseesRecents({
+            projetId,
+            limit: 20,
+          })
+        ).unwrap(),
+      ];
 
-      // Petit délai entre les requêtes pour éviter le rate limiting
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      // Exécuter toutes les requêtes en parallèle
+      await Promise.all(promises);
 
-      await dispatch(loadMortalitesParProjet(projetId)).unwrap();
-
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      await dispatch(loadStatistiquesMortalite(projetId)).unwrap();
-
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      await dispatch(
-        loadPeseesRecents({
-          projetId,
-          limit: 20,
-        })
-      ).unwrap();
-
-      // Charger aussi la photo de profil si fournie
+      // Charger aussi la photo de profil si fournie (séparément car optionnel)
       if (onProfilPhotoLoad) {
         await onProfilPhotoLoad();
       }

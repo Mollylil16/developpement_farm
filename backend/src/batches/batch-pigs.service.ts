@@ -347,6 +347,37 @@ export class BatchPigsService {
   }
 
   /**
+   * Obtenir toutes les bandes d'un projet
+   */
+  async getAllBatchesByProjet(projetId: string, userId: string): Promise<any[]> {
+    // Vérifier que le projet appartient à l'utilisateur
+    await this.checkProjetOwnership(projetId, userId);
+
+    const result = await this.db.query(
+      'SELECT * FROM batches WHERE projet_id = $1 ORDER BY batch_creation_date DESC, created_at DESC',
+      [projetId],
+    );
+
+    return result.rows.map((row) => ({
+      id: row.id,
+      projet_id: row.projet_id,
+      pen_name: row.pen_name,
+      category: row.category,
+      total_count: parseInt(row.total_count),
+      male_count: parseInt(row.male_count),
+      female_count: parseInt(row.female_count),
+      castrated_count: parseInt(row.castrated_count),
+      average_age_months: parseFloat(row.average_age_months),
+      average_weight_kg: parseFloat(row.average_weight_kg),
+      batch_creation_date: row.batch_creation_date,
+      expected_sale_date: row.expected_sale_date || undefined,
+      notes: row.notes || undefined,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    }));
+  }
+
+  /**
    * Obtenir statistiques d'une bande
    */
   async getBatchStats(batchId: string, userId: string): Promise<any> {
