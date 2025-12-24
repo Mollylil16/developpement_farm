@@ -1,12 +1,23 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { CreateProjetDto } from './dto/create-projet.dto';
 import { UpdateProjetDto } from './dto/update-projet.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { BatchPigsService } from '../batches/batch-pigs.service';
 
 @Injectable()
 export class ProjetsService {
-  constructor(private databaseService: DatabaseService) {}
+  constructor(
+    private databaseService: DatabaseService,
+    @Inject(forwardRef(() => BatchPigsService))
+    private batchPigsService: BatchPigsService,
+  ) {}
 
   /**
    * Génère un ID comme le frontend : projet_${Date.now()}_${random}
@@ -110,10 +121,133 @@ export class ProjetsService {
     console.log('✅ [ProjetService] Projet créé:', {
       id: result.rows[0].id,
       proprietaire_id: result.rows[0].proprietaire_id,
-      nom: result.rows[0].nom
+      nom: result.rows[0].nom,
     });
 
-    return this.mapRowToProjet(result.rows[0]);
+    const projet = this.mapRowToProjet(result.rows[0]);
+
+    // Si mode batch + effectifs initiaux → Auto-regrouper en loges
+    if (management_method === 'batch') {
+      await this.autoGroupIntoBatches(projet.id, createProjetDto, userId);
+    }
+
+    return projet;
+  }
+
+  /**
+   * Auto-regrouper les effectifs initiaux en loges par catégorie
+   */
+  private async autoGroupIntoBatches(
+    projetId: string,
+    dto: CreateProjetDto,
+    userId: string,
+  ): Promise<void> {
+    // Mapping catégorie → effectifs
+    const categories = [
+      {
+        category: 'truie_reproductrice' as const,
+        count: dto.nombre_truies || 0,
+        defaultAge: 18, // mois
+        defaultWeight: 180, // kg
+      },
+      {
+        category: 'verrat_reproducteur' as const,
+        count: dto.nombre_verrats || 0,
+        defaultAge: 18,
+        defaultWeight: 200,
+      },
+      {
+        category: 'porcelets' as const,
+        count: dto.nombre_porcelets || 0,
+        defaultAge: 2,
+        defaultWeight: 15,
+      },
+      {
+        category: 'porcs_croissance' as const,
+        count: dto.nombre_croissance || 0,
+        defaultAge: 4,
+        defaultWeight: 40,
+      },
+      {
+        category: 'porcs_engraissement' as const,
+        count: 0, // Pas dans le DTO actuel, peut être ajouté plus tard
+        defaultAge: 6,
+        defaultWeight: 70,
+      },
+    ];
+
+    let logeIndex = 1;
+    const letterLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+
+    for (const cat of categories) {
+      if (cat.count > 0) {
+        // Générer nom de loge : A1, A2, A3, etc. puis B1, B2, etc.
+        const letterIndex = Math.floor((logeIndex - 1) / 8);
+        const numberIndex = ((logeIndex - 1) % 8) + 1;
+        const letter =
+          letterIndex < letterLabels.length
+            ? letterLabels[letterIndex]
+            : String.fromCharCode(65 + letterIndex); // A, B, C, etc.
+        const penName = `Loge ${letter}${numberIndex}`;
+
+        // Créer une loge pour cette catégorie
+        await this.batchPigsService.createBatchWithPigs(
+          {
+            projet_id: projetId,
+            pen_name: penName,
+            category: cat.category,
+            population: this.distributeByDefaultSex(cat.count, cat.category),
+            average_age_months: cat.defaultAge,
+            average_weight_kg: cat.defaultWeight,
+            notes: 'Effectif initial - Créé automatiquement lors de la création du projet',
+          },
+          userId,
+        );
+
+        logeIndex++;
+      }
+    }
+  }
+
+  /**
+   * Distribuer par sexe selon la catégorie
+   */
+  private distributeByDefaultSex(
+    total: number,
+    category: string,
+  ): { male_count: number; female_count: number; castrated_count: number } {
+    switch (category) {
+      case 'truie_reproductrice':
+        return { male_count: 0, female_count: total, castrated_count: 0 };
+
+      case 'verrat_reproducteur':
+        return { male_count: total, female_count: 0, castrated_count: 0 };
+
+      case 'porcelets':
+        // Répartition 50/50 mâles-femelles pour porcelets
+        const maleCount = Math.floor(total / 2);
+        const femaleCount = total - maleCount;
+        return {
+          male_count: maleCount,
+          female_count: femaleCount,
+          castrated_count: 0,
+        };
+
+      case 'porcs_croissance':
+      case 'porcs_engraissement':
+        // Répartition : 30% mâles, 40% femelles, 30% castrés
+        const males = Math.floor(total * 0.3);
+        const females = Math.floor(total * 0.4);
+        const castrated = total - males - females;
+        return {
+          male_count: males,
+          female_count: females,
+          castrated_count: castrated,
+        };
+
+      default:
+        return { male_count: 0, female_count: 0, castrated_count: total };
+    }
   }
 
   async findAll(userId: string) {
