@@ -168,12 +168,7 @@ export class ProjetsService {
         defaultAge: 4,
         defaultWeight: 40,
       },
-      {
-        category: 'porcs_engraissement' as const,
-        count: 0, // Pas dans le DTO actuel, peut être ajouté plus tard
-        defaultAge: 6,
-        defaultWeight: 70,
-      },
+      // Note: porcs_engraissement pas encore dans le DTO, à ajouter si nécessaire
     ];
 
     let logeIndex = 1;
