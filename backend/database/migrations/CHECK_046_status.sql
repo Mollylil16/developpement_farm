@@ -94,16 +94,16 @@ ORDER BY indexname;
 -- Résumé: Compter les indexes de la migration 046
 SELECT 
   'RÉSUMÉ' as info,
-  COUNT(*) FILTER (WHERE tablename = 'production_animaux' AND indexname LIKE 'idx_production_animaux_projet%') as prod_animaux_indexes,
-  COUNT(*) FILTER (WHERE tablename = 'production_pesees' AND indexname LIKE 'idx_production_pesees_projet%') as prod_pesees_indexes,
-  COUNT(*) FILTER (WHERE tablename = 'mortalites' AND indexname LIKE 'idx_mortalites_projet%') as mortalites_indexes,
-  COUNT(*) FILTER (WHERE tablename = 'marketplace_listings' AND indexname LIKE 'idx_marketplace_listings%') as marketplace_indexes,
-  COUNT(*) FILTER (WHERE tablename = 'batch_pigs' AND indexname LIKE 'idx_batch_pigs%') as batch_pigs_indexes,
-  COUNT(*) FILTER (WHERE tablename = 'batches' AND indexname LIKE 'idx_batches_projet%') as batches_indexes,
-  COUNT(*) FILTER (WHERE tablename = 'projets' AND indexname LIKE 'idx_projets_owner%') as projets_indexes
+  COUNT(*) FILTER (WHERE tablename = 'production_animaux' AND (indexname = 'idx_production_animaux_projet_statut' OR indexname = 'idx_production_animaux_projet_created')) as prod_animaux_indexes,
+  COUNT(*) FILTER (WHERE tablename = 'production_pesees' AND (indexname = 'idx_production_pesees_projet_date' OR indexname = 'idx_production_pesees_animal_date')) as prod_pesees_indexes,
+  COUNT(*) FILTER (WHERE tablename = 'mortalites' AND (indexname = 'idx_mortalites_projet_date' OR indexname = 'idx_mortalites_projet_categorie')) as mortalites_indexes,
+  COUNT(*) FILTER (WHERE tablename = 'marketplace_listings' AND (indexname = 'idx_marketplace_listings_active_listed' OR indexname = 'idx_marketplace_listings_farm_status' OR indexname = 'idx_marketplace_listings_farm_active')) as marketplace_indexes,
+  COUNT(*) FILTER (WHERE tablename = 'batch_pigs' AND indexname = 'idx_batch_pigs_batch_entry') as batch_pigs_indexes,
+  COUNT(*) FILTER (WHERE tablename = 'batch_pig_movements' AND indexname = 'idx_batch_pig_movements_pig_date') as batch_pig_movements_indexes,
+  COUNT(*) FILTER (WHERE tablename = 'batches' AND indexname = 'idx_batches_projet_creation') as batches_indexes,
+  COUNT(*) FILTER (WHERE tablename = 'projets' AND (indexname = 'idx_projets_owner_statut' OR indexname = 'idx_projets_owner_active')) as projets_indexes
 FROM pg_indexes
-WHERE (tablename IN ('production_animaux', 'production_pesees', 'mortalites', 'marketplace_listings', 'batch_pigs', 'batch_pig_movements', 'batches', 'projets')
-  AND indexname LIKE 'idx_%');
+WHERE tablename IN ('production_animaux', 'production_pesees', 'mortalites', 'marketplace_listings', 'batch_pigs', 'batch_pig_movements', 'batches', 'projets');
 
 -- Vérification spécifique pour le fix marketplace_listings
 SELECT 
