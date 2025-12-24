@@ -15,6 +15,8 @@ import Badge from './Badge';
 import LoadingSpinner from './LoadingSpinner';
 import EmptyState from './EmptyState';
 import { PlusCircle } from 'lucide-react-native';
+import BatchActionsModal from './batch/BatchActionsModal';
+import BatchActionsModal from './batch/BatchActionsModal';
 
 export default function BatchCheptelView() {
   const { colors } = useTheme();
@@ -110,9 +112,21 @@ export default function BatchCheptelView() {
     setStats({ total, by_category });
   };
 
+  const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
+  const [showActionsModal, setShowActionsModal] = useState(false);
+
   const handleBatchPress = (batch: Batch) => {
-    // TODO: Ouvrir modal d'édition
-    Alert.alert('Info', `Batch: ${batch.pen_name}\nÀ implémenter: Modal d'édition`);
+    setSelectedBatch(batch);
+    setShowActionsModal(true);
+  };
+
+  const handleCloseActionsModal = () => {
+    setShowActionsModal(false);
+    setSelectedBatch(null);
+  };
+
+  const handleRefresh = () => {
+    loadBatches();
   };
 
   const handleAddBatch = () => {
@@ -282,6 +296,16 @@ export default function BatchCheptelView() {
           }}
           columnWrapperStyle={styles.row}
           contentContainerStyle={styles.gridContainer}
+        />
+      )}
+
+      {/* Modal d'actions */}
+      {selectedBatch && (
+        <BatchActionsModal
+          visible={showActionsModal}
+          batch={selectedBatch}
+          onClose={handleCloseActionsModal}
+          onRefresh={handleRefresh}
         />
       )}
     </View>

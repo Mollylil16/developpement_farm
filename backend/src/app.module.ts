@@ -17,6 +17,7 @@ import { ReportsModule } from './reports/reports.module';
 import { MarketplaceModule } from './marketplace/marketplace.module';
 import { AiWeightModule } from './ai-weight/ai-weight.module';
 import { AdminModule } from './admin/admin.module';
+import { BatchesModule } from './batches/batches.module';
 import { AppController } from './app.controller';
 import { APP_GUARD, Reflector } from '@nestjs/core';
 import { JwtAuthGlobalGuard } from './common/guards/jwt-auth.global.guard';
@@ -44,6 +45,7 @@ import { JwtAuthGlobalGuard } from './common/guards/jwt-auth.global.guard';
     MarketplaceModule,
     AiWeightModule,
     AdminModule,
+    BatchesModule,
   ],
   controllers: [AppController],
   providers: [
