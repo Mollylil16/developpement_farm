@@ -324,7 +324,8 @@ const styles = StyleSheet.create({
   },
   gridContainer: {
     padding: SPACING.md,
-    paddingTop: 0,
+    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.md,
   },
   row: {
     gap: SPACING.md,
@@ -336,6 +337,7 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1.5,
     minHeight: 220,
+    marginBottom: SPACING.md,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -406,6 +408,7 @@ const styles = StyleSheet.create({
     minHeight: 220,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: SPACING.md,
   },
   addText: {
     marginTop: SPACING.sm,
