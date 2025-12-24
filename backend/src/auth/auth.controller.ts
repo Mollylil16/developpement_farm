@@ -8,6 +8,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -29,6 +30,7 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 requêtes par minute pour l'inscription
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: "Inscription d'un nouvel utilisateur" })
@@ -41,6 +43,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 requêtes par minute pour le login (protection brute force)
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Connexion d'un utilisateur (avec mot de passe)" })
@@ -53,6 +56,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 requêtes par minute pour le login simple
   @Post('login-simple')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Connexion simple sans mot de passe (email ou téléphone)' })
@@ -122,6 +126,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 requêtes par minute pour éviter l'abus de SMS
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Demander une réinitialisation de mot de passe' })
@@ -134,6 +139,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 tentatives par minute pour vérifier l'OTP
   @Post('verify-reset-otp')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Vérifier le code OTP de réinitialisation' })

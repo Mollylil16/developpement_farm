@@ -61,38 +61,52 @@ export class MortalitesService {
   async create(createMortaliteDto: CreateMortaliteDto, userId: string) {
     await this.checkProjetOwnership(createMortaliteDto.projet_id, userId);
 
-    const id = this.generateMortaliteId();
-    const now = new Date().toISOString();
+    // Utiliser une transaction pour garantir la cohérence des données
+    return await this.databaseService.transaction(async (client) => {
+      const id = this.generateMortaliteId();
+      const now = new Date().toISOString();
 
-    // Si un animal_code est fourni, mettre à jour le statut de l'animal
-    if (createMortaliteDto.animal_code) {
-      await this.updateAnimalStatus(createMortaliteDto.animal_code, createMortaliteDto.projet_id);
-    }
+      // Si un animal_code est fourni, mettre à jour le statut de l'animal
+      if (createMortaliteDto.animal_code) {
+        try {
+          await client.query(
+            `UPDATE production_animaux 
+             SET statut = 'mort', actif = FALSE, derniere_modification = $1
+             WHERE code = $2 AND projet_id = $3 AND statut != 'mort'`,
+            [now, createMortaliteDto.animal_code, createMortaliteDto.projet_id]
+          );
+        } catch (error) {
+          // Ne pas faire échouer la création de mortalité si la mise à jour échoue
+          // (animal peut ne pas exister ou être déjà marqué comme mort)
+          console.warn("Erreur lors de la mise à jour du statut de l'animal:", error);
+        }
+      }
 
-    const result = await this.databaseService.query(
-      `INSERT INTO mortalites (
-        id, projet_id, nombre_porcs, date, cause, categorie,
-        animal_code, poids_kg, notes, date_creation
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-      RETURNING *`,
-      [
-        id,
-        createMortaliteDto.projet_id,
-        createMortaliteDto.nombre_porcs,
-        createMortaliteDto.date,
-        createMortaliteDto.cause || null,
-        createMortaliteDto.categorie,
-        createMortaliteDto.animal_code || null,
-        createMortaliteDto.poids_kg || null,
-        createMortaliteDto.notes || null,
-        now,
-      ]
-    );
+      const result = await client.query(
+        `INSERT INTO mortalites (
+          id, projet_id, nombre_porcs, date, cause, categorie,
+          animal_code, poids_kg, notes, date_creation
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        RETURNING *`,
+        [
+          id,
+          createMortaliteDto.projet_id,
+          createMortaliteDto.nombre_porcs,
+          createMortaliteDto.date,
+          createMortaliteDto.cause || null,
+          createMortaliteDto.categorie,
+          createMortaliteDto.animal_code || null,
+          createMortaliteDto.poids_kg || null,
+          createMortaliteDto.notes || null,
+          now,
+        ]
+      );
 
-    const mortalite = this.mapRowToMortalite(result.rows[0]);
-    // Invalider le cache des stats de mortalité
-    this.invalidateMortalitesCache(mortalite.projet_id);
-    return mortalite;
+      const mortalite = this.mapRowToMortalite(result.rows[0]);
+      // Invalider le cache des stats de mortalité
+      this.invalidateMortalitesCache(mortalite.projet_id);
+      return mortalite;
+    });
   }
 
   /**
