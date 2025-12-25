@@ -11,6 +11,9 @@ import type {
 } from './ChatTransport.interface';
 import type { ChatMessage } from '../../types/marketplace';
 import apiClient from '../api/apiClient';
+import { createLoggerWithPrefix } from '../../utils/logger';
+
+const logger = createLoggerWithPrefix('PollingTransport');
 
 export class PollingChatTransport implements IChatTransport {
   private _status: ConnectionStatus = 'disconnected';
