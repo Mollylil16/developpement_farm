@@ -10,6 +10,9 @@ import { getErrorMessage } from '../../types/common';
 import { setProjetActif } from './projetSlice';
 import apiClient from '../../services/api/apiClient';
 import { validateRegisterData } from '../../utils/validation';
+import { createLoggerWithPrefix } from '../../utils/logger';
+
+const logger = createLoggerWithPrefix('AuthSlice');
 
 const AUTH_STORAGE_KEY = '@fermier_pro:auth';
 
@@ -18,7 +21,7 @@ const saveUserToStorage = async (user: User) => {
   try {
     await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
   } catch (error) {
-    console.error("Erreur lors de la sauvegarde de l'utilisateur:", error);
+    logger.error("Erreur lors de la sauvegarde de l'utilisateur:", error);
   }
 };
 
@@ -31,7 +34,7 @@ const loadUserFromStorage = async (): Promise<User | null> => {
     }
     return null;
   } catch (error) {
-    console.error("Erreur lors du chargement de l'utilisateur:", error);
+    logger.error("Erreur lors du chargement de l'utilisateur:", error);
     return null;
   }
 };
@@ -41,7 +44,7 @@ const removeUserFromStorage = async () => {
   try {
     await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
   } catch (error) {
-    console.error("Erreur lors de la suppression de l'utilisateur:", error);
+    logger.error("Erreur lors de la suppression de l'utilisateur:", error);
   }
 };
 
@@ -82,7 +85,7 @@ export const loadUserFromStorageThunk = createAsyncThunk('auth/loadUserFromStora
           await collaborateurRepo.lierCollaborateurAUtilisateur(user.id, user.email);
         } catch (error: unknown) {
           // Ne pas bloquer le chargement si la liaison échoue
-          console.warn(
+          logger.warn(
             'Avertissement lors de la liaison du collaborateur au démarrage:',
             getErrorMessage(error)
           );
@@ -92,7 +95,7 @@ export const loadUserFromStorageThunk = createAsyncThunk('auth/loadUserFromStora
       return user;
     } catch (error: unknown) {
       // Token invalide ou erreur API
-      console.error('❌ Erreur lors de la récupération du profil:', error);
+      logger.error('Erreur lors de la récupération du profil:', error);
 
       // Nettoyer les tokens et l'utilisateur stocké
       await apiClient.tokens.clear();
@@ -100,7 +103,7 @@ export const loadUserFromStorageThunk = createAsyncThunk('auth/loadUserFromStora
       return null;
     }
   } catch (error) {
-    console.error("❌ Erreur lors du chargement de l'utilisateur:", error);
+    logger.error("Erreur lors du chargement de l'utilisateur:", error);
     await apiClient.tokens.clear();
     await removeUserFromStorage();
     return null;
@@ -158,15 +161,15 @@ export const signUp = createAsyncThunk(
           );
 
           if (collaborateur) {
-            console.log(
-              "✅ Collaborateur lié à l'utilisateur lors de l'inscription:",
+            logger.debug(
+              "Collaborateur lié à l'utilisateur lors de l'inscription:",
               collaborateur.id
             );
             // Le projet sera chargé automatiquement dans loadProjetActif
           }
         } catch (error: unknown) {
           // Ne pas bloquer l'inscription si la liaison échoue
-          console.warn(
+          logger.warn(
             "Avertissement lors de la liaison du collaborateur à l'inscription:",
             getErrorMessage(error)
           );
@@ -236,7 +239,7 @@ export const signIn = createAsyncThunk(
             const collaborateurRepo = new CollaborateurRepository();
             await collaborateurRepo.lierCollaborateurAUtilisateur(user.id, user.email);
           } catch (error: unknown) {
-            console.warn(
+            logger.warn(
               'Avertissement lors de la liaison du collaborateur:',
               getErrorMessage(error)
             );
@@ -276,12 +279,12 @@ export const signIn = createAsyncThunk(
           );
 
           if (collaborateur) {
-            console.log("✅ Collaborateur lié à l'utilisateur:", collaborateur.id);
+            logger.debug("Collaborateur lié à l'utilisateur:", collaborateur.id);
             // Le projet sera chargé automatiquement dans loadProjetActif
           }
         } catch (error: unknown) {
           // Ne pas bloquer la connexion si la liaison échoue
-          console.warn(
+          logger.warn(
             'Avertissement lors de la liaison du collaborateur:',
             getErrorMessage(error)
           );
@@ -331,10 +334,10 @@ export const signInWithGoogle = createAsyncThunk(
           );
 
           if (collaborateur) {
-            console.log("✅ Collaborateur lié à l'utilisateur (Google):", collaborateur.id);
+            logger.debug("Collaborateur lié à l'utilisateur (Google):", collaborateur.id);
           }
         } catch (error: unknown) {
-          console.warn(
+          logger.warn(
             'Avertissement lors de la liaison du collaborateur (Google):',
             getErrorMessage(error)
           );
@@ -377,10 +380,10 @@ export const signInWithApple = createAsyncThunk(
           );
 
           if (collaborateur) {
-            console.log("✅ Collaborateur lié à l'utilisateur (Apple):", collaborateur.id);
+            logger.debug("Collaborateur lié à l'utilisateur (Apple):", collaborateur.id);
           }
         } catch (error: unknown) {
-          console.warn(
+          logger.warn(
             'Avertissement lors de la liaison du collaborateur (Apple):',
             getErrorMessage(error)
           );
@@ -412,11 +415,11 @@ export const signOut = createAsyncThunk('auth/signOut', async (_, { dispatch }) 
         await apiClient.post('/auth/logout', { refresh_token: refreshToken }, { skipAuth: true });
       } catch (error) {
         // Ne pas bloquer la déconnexion si l'appel API échoue
-        console.warn('Avertissement lors de la déconnexion côté backend:', error);
+        logger.warn('Avertissement lors de la déconnexion côté backend:', error);
       }
     }
   } catch (error) {
-    console.warn('Avertissement lors de la récupération du refresh token:', error);
+    logger.warn('Avertissement lors de la récupération du refresh token:', error);
   }
 
   // Nettoyer les tokens et l'utilisateur
@@ -440,7 +443,7 @@ const authSlice = createSlice({
       state.user = action.payload;
       // Sauvegarder aussi dans AsyncStorage
       saveUserToStorage(action.payload).catch((error) => {
-        console.error("Erreur lors de la sauvegarde de l'utilisateur:", error);
+        logger.error("Erreur lors de la sauvegarde de l'utilisateur:", error);
       });
     },
   },

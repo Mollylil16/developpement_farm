@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAppSelector } from '../store/hooks';
 import apiClient from '../services/api/apiClient';
 import type { ChatMessage, ChatConversation } from '../types/marketplace';
+import { logger } from '../utils/logger';
 
 export function useMarketplaceChat(transactionId: string) {
   const currentUserId = useAppSelector((state) => state.auth.user?.id);
@@ -73,7 +74,7 @@ export function useMarketplaceChat(transactionId: string) {
 
       setMessages(sortedMessages);
     } catch (err: unknown) {
-      console.error('Erreur chargement messages:', err);
+      logger.error('Erreur chargement messages:', err);
       const errorMessage = err instanceof Error ? err.message : String(err) || 'Impossible de charger les messages';
       setError(errorMessage);
     } finally {
@@ -112,7 +113,7 @@ export function useMarketplaceChat(transactionId: string) {
         // TODO: Envoyer le message au backend quand l'endpoint sera disponible
         // await apiClient.post('/marketplace/chat/messages', newMessage);
       } catch (err: unknown) {
-        console.error('Erreur envoi message:', err);
+        logger.error('Erreur envoi message:', err);
         throw err;
       }
     },
@@ -150,7 +151,7 @@ export function useMarketplaceChat(transactionId: string) {
         // TODO: Envoyer le message au backend quand l'endpoint sera disponible
         // await apiClient.post('/marketplace/chat/messages', newMessage);
       } catch (err: unknown) {
-        console.error('Erreur envoi proposition:', err);
+        logger.error('Erreur envoi proposition:', err);
         throw err;
       }
     },

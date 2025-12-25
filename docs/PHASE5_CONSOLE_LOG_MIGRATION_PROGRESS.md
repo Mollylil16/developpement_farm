@@ -10,8 +10,8 @@
 Migration progressive des `console.log` vers le logger conditionnel (`src/utils/logger.ts`) pour éviter les logs en production.
 
 **Total identifié:** 335 occurrences dans 98 fichiers  
-**Migré:** 61 occurrences dans 14 fichiers critiques  
-**Restant:** ~274 occurrences
+**Migré:** 76 occurrences dans 19 fichiers critiques  
+**Restant:** ~259 occurrences
 
 ---
 
@@ -64,6 +64,24 @@ Migration progressive des `console.log` vers le logger conditionnel (`src/utils/
     - `console.error` → `logger.error`
     - `console.warn` → `logger.warn`
 
+11. ✅ `src/hooks/useMarketplaceNotifications.ts` (4 occurrences)
+    - `console.error` → `logger.error`
+
+12. ✅ `src/hooks/useMarketplaceChat.ts` (3 occurrences)
+    - `console.error` → `logger.error`
+
+### Services
+13. ✅ `src/services/chatAgent/core/ActionParser.ts` (5 occurrences)
+    - `console.log` → `logger.info` / `logger.debug`
+    - `console.error` → `logger.error`
+
+14. ✅ `src/services/chatAgent/AgentActionExecutor.ts` (1 occurrence)
+    - `console.error` → `logger.error`
+
+### Store
+15. ✅ `src/store/slices/planningProductionSlice.ts` (1 occurrence restante corrigée)
+    - `console.error` → `logger.error`
+
 ---
 
 ## ⏳ Fichiers Restants (Par Priorité)
@@ -74,21 +92,20 @@ Migration progressive des `console.log` vers le logger conditionnel (`src/utils/
 - ✅ `src/services/chat/WebSocketChatTransport.ts` (9 occurrences) - **COMPLÉTÉ**
 - ✅ `src/services/chat/PollingChatTransport.ts` (5 occurrences) - **COMPLÉTÉ**
 - ✅ `src/services/notificationsService.ts` (14 occurrences) - **COMPLÉTÉ**
-- `src/services/chatAgent/core/ActionParser.ts` (5 occurrences)
-- `src/services/notificationsService.ts` (14 occurrences)
-- `src/services/chat/WebSocketChatTransport.ts` (9 occurrences)
-- `src/services/chat/PollingChatTransport.ts` (5 occurrences)
+- ✅ `src/services/chatAgent/core/ActionParser.ts` (5 occurrences) - **COMPLÉTÉ**
+- ✅ `src/services/chatAgent/AgentActionExecutor.ts` (1 occurrence) - **COMPLÉTÉ**
 
 ### Priorité Moyenne (Hooks)
 - ✅ `src/hooks/production/useProductionCheptelStatut.ts` (9 occurrences) - **COMPLÉTÉ**
-- `src/hooks/useNotifications.ts` (7 occurrences)
-- `src/hooks/useMarketplaceNotifications.ts` (4 occurrences)
+- ✅ `src/hooks/useMarketplaceNotifications.ts` (4 occurrences) - **COMPLÉTÉ**
+- ✅ `src/hooks/useMarketplaceChat.ts` (3 occurrences) - **COMPLÉTÉ**
+- ✅ `src/hooks/useNotifications.ts` (7 occurrences) - **COMPLÉTÉ**
 - `src/hooks/useShakeToCancel.ts` (4 occurrences)
 - `src/hooks/useSaleStatus.ts` (4 occurrences)
 
 ### Priorité Basse (Store & Utils)
-- `src/store/slices/authSlice.ts` (18 occurrences)
-- `src/store/slices/planningProductionSlice.ts` (11 occurrences)
+- ✅ `src/store/slices/authSlice.ts` (18 occurrences) - **COMPLÉTÉ**
+- ✅ `src/store/slices/planningProductionSlice.ts` (11 occurrences) - **COMPLÉTÉ**
 - `src/store/slices/financeSlice.ts` (10 occurrences)
 - `src/utils/planningProductionCalculs.ts` (11 occurrences)
 - `src/utils/diagnosticDepenses.ts` (17 occurrences)

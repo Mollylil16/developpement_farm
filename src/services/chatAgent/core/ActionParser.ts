@@ -6,6 +6,7 @@
 import { AgentAction, AgentActionType } from '../../../types/chatAgent';
 import { IntentDetector } from '../IntentDetector';
 import { MontantExtractor } from './extractors/MontantExtractor';
+import { logger } from '../../../utils/logger';
 
 export class ActionParser {
   /**
@@ -54,7 +55,7 @@ export class ActionParser {
               }
             }
 
-            console.log('[ActionParser] Action détectée depuis JSON:', parsed.action, params);
+            logger.info('[ActionParser] Action détectée depuis JSON:', parsed.action, params);
 
             return {
               type: parsed.action as AgentActionType,
@@ -64,7 +65,7 @@ export class ActionParser {
             };
           }
         } catch (parseError) {
-          console.error(
+          logger.error(
             '[ActionParser] Erreur parsing JSON:',
             parseError,
             'JSON:',
@@ -73,7 +74,7 @@ export class ActionParser {
         }
       }
     } catch (error) {
-      console.error('[ActionParser] Erreur détection action:', error);
+      logger.error('[ActionParser] Erreur détection action:', error);
     }
 
     // Dernier fallback : détection basique sur la réponse
@@ -87,7 +88,7 @@ export class ActionParser {
       lowerResponse.includes('porc actif') ||
       lowerResponse.includes('cheptel')
     ) {
-      console.log('[ActionParser] Fallback basique: get_statistics');
+      logger.debug('[ActionParser] Fallback basique: get_statistics');
       return { type: 'get_statistics', params: {} };
     }
 
@@ -95,7 +96,7 @@ export class ActionParser {
       lowerResponse.includes('stock') &&
       (lowerResponse.includes('actuel') || lowerResponse.includes('état'))
     ) {
-      console.log('[ActionParser] Fallback basique: get_stock_status');
+      logger.debug('[ActionParser] Fallback basique: get_stock_status');
       return { type: 'get_stock_status', params: {} };
     }
 

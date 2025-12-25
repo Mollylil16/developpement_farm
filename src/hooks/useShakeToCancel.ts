@@ -6,6 +6,7 @@
 import { useEffect, useRef } from 'react';
 import { DeviceMotion, DeviceMotionMeasurement } from 'expo-sensors';
 import * as Haptics from 'expo-haptics';
+import { logger } from '../utils/logger';
 
 interface UseShakeToCancelOptions {
   enabled?: boolean;

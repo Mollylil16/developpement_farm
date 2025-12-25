@@ -19,6 +19,7 @@ import { StatsActions } from './actions/info/StatsActions';
 import { AnalyseActions } from './actions/info/AnalyseActions';
 import apiClient from '../api/apiClient';
 import { format } from 'date-fns';
+import { logger } from '../../utils/logger';
 
 export class AgentActionExecutor {
   private context: AgentContext | null = null;
@@ -102,7 +103,7 @@ export class AgentActionExecutor {
           };
       }
     } catch (error: unknown) {
-      console.error("Erreur lors de l'exécution de l'action:", error);
+      logger.error("Erreur lors de l'exécution de l'action:", error);
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
       return {
         success: false,
