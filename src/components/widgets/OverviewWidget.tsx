@@ -3,7 +3,7 @@
  * Affiche les statistiques principales avec indicateurs de tendance
  */
 
-import React, { useMemo, useEffect, memo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { loadProductionAnimaux, loadPeseesRecents } from '../../store/slices/productionSlice';
@@ -16,37 +16,61 @@ import { selectAllMortalites } from '../../store/selectors/mortalitesSelectors';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
-import { differenceInMonths, parseISO } from 'date-fns';
 import { countAnimalsByCategory, countAnimalsByPoidsCategory } from '../../utils/animalUtils';
 import { selectPeseesParAnimal } from '../../store/selectors/productionSelectors';
-import { SafeTextWrapper } from '../../utils/textRenderingGuard';
 
 interface OverviewWidgetProps {
   onPress?: () => void;
 }
 
 function OverviewWidget({ onPress }: OverviewWidgetProps) {
+  console.log('[OverviewWidget] ⚡ Component mounting/re-rendering - START');
+  
   const { colors } = useTheme();
+  console.log('[OverviewWidget] ✅ Theme loaded');
+  
   const dispatch = useAppDispatch();
+  console.log('[OverviewWidget] ✅ Dispatch loaded');
+  
   const { projetActif } = useAppSelector((state) => state.projet);
+  console.log('[OverviewWidget] ✅ Projet actif loaded:', { hasProjet: !!projetActif, projetId: projetActif?.id });
+  
   const animaux = useAppSelector(selectAllAnimaux);
+  console.log('[OverviewWidget] ✅ Animaux loaded:', { count: animaux?.length || 0 });
+  
   const mortalites = useAppSelector(selectAllMortalites);
+  console.log('[OverviewWidget] ✅ Mortalites loaded:', { count: mortalites?.length || 0 });
+  
   const peseesParAnimal = useAppSelector(selectPeseesParAnimal);
+  console.log('[OverviewWidget] ✅ Pesees par animal loaded:', { keysCount: Object.keys(peseesParAnimal || {}).length });
+  
   const peseesRecents = useAppSelector(selectPeseesRecents);
+  console.log('[OverviewWidget] ✅ Pesees recents loaded:', { count: peseesRecents?.length || 0 });
+  
   const updateCounter = useAppSelector(selectProductionUpdateCounter);
+  console.log('[OverviewWidget] ✅ Update counter loaded:', updateCounter);
+  
+  console.log('[OverviewWidget] ✅ All hooks loaded successfully');
 
   // Utiliser useRef pour éviter les chargements multiples (boucle infinie)
   const dataChargeesRef = React.useRef<string | null>(null);
 
   // Charger les animaux du cheptel (une seule fois par projet)
   useEffect(() => {
+    console.log('[OverviewWidget] useEffect triggered:', { projetId: projetActif?.id, dataChargeesRef: dataChargeesRef.current });
+    
     if (!projetActif?.id) {
+      console.log('[OverviewWidget] No projet actif, resetting ref');
       dataChargeesRef.current = null;
       return;
     }
 
-    if (dataChargeesRef.current === projetActif.id) return; // Déjà chargé !
+    if (dataChargeesRef.current === projetActif.id) {
+      console.log('[OverviewWidget] Data already loaded for projet:', projetActif.id);
+      return; // Déjà chargé !
+    }
 
+    console.log('[OverviewWidget] Loading data for projet:', projetActif.id);
     dataChargeesRef.current = projetActif.id;
     
     // Dispatcher en parallèle pour meilleure performance
@@ -54,61 +78,91 @@ function OverviewWidget({ onPress }: OverviewWidgetProps) {
       dispatch(loadProductionAnimaux({ projetId: projetActif.id })),
       dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 })), // Limité à 20 pesées récentes (suffisant pour stats)
     ]).catch((error) => {
-      console.error('Erreur lors du chargement des données:', error);
+      console.error('[OverviewWidget] Erreur lors du chargement des données:', error);
     });
   }, [dispatch, projetActif?.id]);
 
   // Pré-filtrer les données une seule fois pour optimiser les calculs
-
-  // Pré-filtrer les données une seule fois pour optimiser les calculs
   const animauxActifsProjet = useMemo(() => {
-    if (!projetActif) return [];
-    return animaux.filter(
-      (animal) => animal.projet_id === projetActif.id && animal.statut?.toLowerCase() === 'actif'
-    );
+    console.log('[OverviewWidget] Computing animauxActifsProjet');
+    try {
+      if (!projetActif) {
+        console.log('[OverviewWidget] No projet actif, returning empty array');
+        return [];
+      }
+      const filtered = animaux.filter(
+        (animal) => animal.projet_id === projetActif.id && animal.statut?.toLowerCase() === 'actif'
+      );
+      console.log('[OverviewWidget] Filtered animaux:', { count: filtered.length });
+      return filtered;
+    } catch (error) {
+      console.error('[OverviewWidget] Error in animauxActifsProjet useMemo:', error);
+      return [];
+    }
   }, [animaux, projetActif?.id]);
 
   const mortalitesProjet = useMemo(() => {
-    if (!projetActif) return [];
-    return mortalites.filter((m) => m.projet_id === projetActif.id);
+    console.log('[OverviewWidget] Computing mortalitesProjet');
+    try {
+      if (!projetActif) return [];
+      const filtered = mortalites.filter((m) => m.projet_id === projetActif.id);
+      console.log('[OverviewWidget] Filtered mortalites:', { count: filtered.length });
+      return filtered;
+    } catch (error) {
+      console.error('[OverviewWidget] Error in mortalitesProjet useMemo:', error);
+      return [];
+    }
   }, [mortalites, projetActif?.id]);
 
   // Pré-formater les pesées une seule fois
   const peseesFormatted = useMemo(() => {
-    const formatted: Record<string, Array<{ date: string; poids_kg: number }>> = {};
+    console.log('[OverviewWidget] Computing peseesFormatted');
+    try {
+      const formatted: Record<string, Array<{ date: string; poids_kg: number }>> = {};
 
-    // D'abord, utiliser peseesParAnimal si disponible
-    Object.keys(peseesParAnimal).forEach((animalId) => {
-      formatted[animalId] = peseesParAnimal[animalId].map((pesee) => ({
-        date: pesee.date,
-        poids_kg: pesee.poids_kg,
-      }));
-    });
-
-    // Ensuite, compléter avec les pesées récentes pour les animaux qui n'ont pas encore de pesées chargées
-    // Utiliser un Set pour éviter les doublons plus efficacement
-    const seen = new Set<string>();
-    peseesRecents.forEach((pesee) => {
-      const key = `${pesee.animal_id}_${pesee.date}_${pesee.poids_kg}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        if (!formatted[pesee.animal_id]) {
-          formatted[pesee.animal_id] = [];
-        }
-        formatted[pesee.animal_id].push({
+      // D'abord, utiliser peseesParAnimal si disponible
+      Object.keys(peseesParAnimal).forEach((animalId) => {
+        formatted[animalId] = peseesParAnimal[animalId].map((pesee) => ({
           date: pesee.date,
           poids_kg: pesee.poids_kg,
-        });
-      }
-    });
+        }));
+      });
 
-    return formatted;
+      // Ensuite, compléter avec les pesées récentes pour les animaux qui n'ont pas encore de pesées chargées
+      // Utiliser un Set pour éviter les doublons plus efficacement
+      const seen = new Set<string>();
+      peseesRecents.forEach((pesee) => {
+        const key = `${pesee.animal_id}_${pesee.date}_${pesee.poids_kg}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          if (!formatted[pesee.animal_id]) {
+            formatted[pesee.animal_id] = [];
+          }
+          formatted[pesee.animal_id].push({
+            date: pesee.date,
+            poids_kg: pesee.poids_kg,
+          });
+        }
+      });
+
+      console.log('[OverviewWidget] Formatted pesees:', { keysCount: Object.keys(formatted).length });
+      return formatted;
+    } catch (error) {
+      console.error('[OverviewWidget] Error in peseesFormatted useMemo:', error);
+      return {};
+    }
   }, [peseesParAnimal, peseesRecents]);
 
   const stats = useMemo(() => {
-    if (!projetActif) return null;
+    console.log('[OverviewWidget] Computing stats');
+    try {
+      if (!projetActif) {
+        console.log('[OverviewWidget] No projet actif, stats = null');
+        return null;
+      }
 
-    const hasAnimauxActifs = animauxActifsProjet.length > 0;
+      const hasAnimauxActifs = animauxActifsProjet.length > 0;
+      console.log('[OverviewWidget] Has animaux actifs:', hasAnimauxActifs);
 
     // Calculer les catégories reproducteurs (Truies, Verrats, Porcelets)
     let categoriesReproducteurs = { truies: 0, verrats: 0, porcelets: 0 };
@@ -145,15 +199,22 @@ function OverviewWidget({ onPress }: OverviewWidgetProps) {
       };
     }
 
-    return {
-      // Catégories reproducteurs
-      truies: categoriesReproducteurs.truies,
-      verrats: categoriesReproducteurs.verrats,
-      // Catégories de poids (pour les non-reproducteurs uniquement)
-      porcelets: categoriesPoids.porcelets, // 7-25kg
-      croissance: categoriesPoids.croissance, // 25-60kg
-      finition: categoriesPoids.finition, // >60kg
-    };
+      const statsResult = {
+        // Catégories reproducteurs
+        truies: categoriesReproducteurs.truies,
+        verrats: categoriesReproducteurs.verrats,
+        // Catégories de poids (pour les non-reproducteurs uniquement)
+        porcelets: categoriesPoids.porcelets, // 7-25kg
+        croissance: categoriesPoids.croissance, // 25-60kg
+        finition: categoriesPoids.finition, // >60kg
+      };
+      console.log('[OverviewWidget] Stats computed:', statsResult);
+      return statsResult;
+    } catch (error) {
+      console.error('[OverviewWidget] Error in stats useMemo:', error);
+      return null;
+    }
+  }, [
     projetActif,
     animauxActifsProjet,
     mortalitesProjet,
@@ -161,84 +222,95 @@ function OverviewWidget({ onPress }: OverviewWidgetProps) {
     updateCounter, // Forcer la mise à jour quand les animaux changent
   ]);
 
+  console.log('[OverviewWidget] Before render check:', { hasStats: !!stats, hasProjet: !!projetActif });
+  
   if (!stats || !projetActif) {
+    console.log('[OverviewWidget] Returning null (no stats or projet)');
     return null;
   }
 
-  const WidgetContent = (
-    <SafeTextWrapper componentName="OverviewWidget">
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.emoji}>🏠</Text>
-          <Text style={[styles.title, { color: colors.text }]}>Vue d'ensemble</Text>
-        </View>
+  console.log('[OverviewWidget] Creating WidgetContent');
+  let WidgetContent;
+  
+  try {
+    WidgetContent = (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.emoji}>🏠</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Vue d'ensemble</Text>
+      </View>
 
-        <View style={[styles.divider, { backgroundColor: colors.divider }]} />
+      <View style={[styles.divider, { backgroundColor: colors.divider }]} />
 
-        {/* Section Reproducteurs */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Reproducteurs</Text>
-          <View style={styles.statsGrid}>
-            <View style={styles.statItem}>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Truies</Text>
-              <View style={styles.statValueRow}>
-                <Text style={[styles.statValue, { color: colors.primary }]}>
-                  {stats.truies ?? 0}
-                </Text>
-                <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
-              </View>
-            </View>
-
-            <View style={styles.statItem}>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Verrats</Text>
-              <View style={styles.statValueRow}>
-                <Text style={[styles.statValue, { color: colors.secondary }]}>
-                  {stats.verrats ?? 0}
-                </Text>
-                <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
-              </View>
+      {/* Section Reproducteurs */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Reproducteurs</Text>
+        <View style={styles.statsGrid}>
+          <View style={styles.statItem}>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Truies</Text>
+            <View style={styles.statValueRow}>
+              <Text style={[styles.statValue, { color: colors.primary }]}>
+                {stats.truies ?? 0}
+              </Text>
+              <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
             </View>
           </View>
-        </View>
 
-        {/* Section Production (basée sur le poids) */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Production</Text>
-          <View style={styles.statsGrid}>
-            <View style={styles.statItem}>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Porcelets</Text>
-              <View style={styles.statValueRow}>
-                <Text style={[styles.statValue, { color: colors.accent }]}>
-                  {stats.porcelets ?? 0}
-                </Text>
-                <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
-              </View>
-            </View>
-
-            <View style={styles.statItem}>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Croissance</Text>
-              <View style={styles.statValueRow}>
-                <Text style={[styles.statValue, { color: colors.primary }]}>
-                  {stats.croissance ?? 0}
-                </Text>
-                <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
-              </View>
-            </View>
-
-            <View style={styles.statItem}>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Finition</Text>
-              <View style={styles.statValueRow}>
-                <Text style={[styles.statValue, { color: colors.secondary }]}>
-                  {stats.finition ?? 0}
-                </Text>
-                <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
-              </View>
+          <View style={styles.statItem}>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Verrats</Text>
+            <View style={styles.statValueRow}>
+              <Text style={[styles.statValue, { color: colors.secondary }]}>
+                {stats.verrats ?? 0}
+              </Text>
+              <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
             </View>
           </View>
         </View>
       </View>
-    </SafeTextWrapper>
+
+      {/* Section Production (basée sur le poids) */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Production</Text>
+        <View style={styles.statsGrid}>
+          <View style={styles.statItem}>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Porcelets</Text>
+            <View style={styles.statValueRow}>
+              <Text style={[styles.statValue, { color: colors.accent }]}>
+                {stats.porcelets ?? 0}
+              </Text>
+              <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
+            </View>
+          </View>
+
+          <View style={styles.statItem}>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Croissance</Text>
+            <View style={styles.statValueRow}>
+              <Text style={[styles.statValue, { color: colors.primary }]}>
+                {stats.croissance ?? 0}
+              </Text>
+              <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
+            </View>
+          </View>
+
+          <View style={styles.statItem}>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Finition</Text>
+            <View style={styles.statValueRow}>
+              <Text style={[styles.statValue, { color: colors.secondary }]}>
+                {stats.finition ?? 0}
+              </Text>
+              <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    </View>
   );
+  } catch (error) {
+    console.error('[OverviewWidget] Error creating WidgetContent:', error);
+    return null;
+  }
+
+  console.log('[OverviewWidget] WidgetContent created, rendering with onPress:', !!onPress);
 
   if (onPress) {
     return (
@@ -316,4 +388,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default memo(OverviewWidget);
+export default OverviewWidget;
