@@ -9,6 +9,9 @@ import { ChatMessage, AgentConfig, VoiceConfig, Reminder } from '../types/chatAg
 import { format } from 'date-fns';
 import apiClient from '../services/api/apiClient';
 import { OPENAI_CONFIG } from '../config/openaiConfig';
+import { createLoggerWithPrefix } from '../utils/logger';
+
+const logger = createLoggerWithPrefix('useChatAgent');
 
 export function useChatAgent() {
   const { projetActif } = useAppSelector((state) => state.projet);
@@ -42,9 +45,9 @@ export function useChatAgent() {
           // Les endpoints de conversation ne sont pas encore implémentés dans le backend
           // On génère un ID local pour la session
           conversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          console.log('[useChatAgent] Conversation ID généré localement:', conversationId);
+          logger.debug('Conversation ID généré localement:', conversationId);
         } catch (error) {
-          console.error('Erreur lors de la génération de la conversation:', error);
+          logger.error('Erreur lors de la génération de la conversation:', error);
           // Continuer sans conversation ID si nécessaire
         }
         conversationIdRef.current = conversationId;
@@ -141,12 +144,12 @@ export function useChatAgent() {
 
         setIsInitialized(true);
       } catch (error) {
-        console.error("Erreur lors de l'initialisation de l'agent:", error);
+        logger.error("Erreur lors de l'initialisation de l'agent:", error);
         // Même en cas d'erreur, permettre à l'agent de fonctionner avec des capacités limitées
         // L'erreur peut venir de l'API mais l'agent local peut quand même fonctionner
         if (agentServiceRef.current) {
           setIsInitialized(true);
-          console.log('[useChatAgent] Agent initialisé en mode dégradé');
+          logger.warn('Agent initialisé en mode dégradé');
         }
       }
     };
@@ -191,7 +194,7 @@ export function useChatAgent() {
           await voiceServiceRef.current.speak(response.content);
         }
       } catch (error) {
-        console.error("Erreur lors de l'envoi du message:", error);
+        logger.error("Erreur lors de l'envoi du message:", error);
         const errorMessage: ChatMessage = {
           id: `error_${Date.now()}`,
           role: 'assistant',

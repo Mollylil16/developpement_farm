@@ -8,6 +8,9 @@ import { API_CONFIG } from '../../config/api.config';
 import { isLoggingEnabled } from '../../config/env';
 import { withRetry, RetryOptions } from './retryHandler';
 import { checkNetworkConnectivity } from '../network/networkService';
+import { createLoggerWithPrefix } from '../../utils/logger';
+
+const logger = createLoggerWithPrefix('apiClient');
 
 // Configuration depuis le fichier de config
 const API_BASE_URL = API_CONFIG.baseURL;
@@ -51,12 +54,11 @@ async function getAccessToken(): Promise<string | null> {
   try {
     const token = await AsyncStorage.getItem(ACCESS_TOKEN_KEY);
     if (isLoggingEnabled() && token) {
-      // eslint-disable-next-line no-console
-      console.log('[apiClient] Token récupéré');
+      logger.debug('Token récupéré');
     }
     return token;
   } catch (error) {
-    console.error('[apiClient] Erreur lors de la récupération du token:', error);
+    logger.error('Erreur lors de la récupération du token:', error);
     return null;
   }
 }
@@ -71,7 +73,7 @@ async function setTokens(accessToken: string, refreshToken?: string): Promise<vo
       await AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
     }
   } catch (error) {
-    console.error('[apiClient] Erreur lors du stockage des tokens:', error);
+    logger.error('Erreur lors du stockage des tokens:', error);
   }
 }
 
@@ -82,7 +84,7 @@ async function clearTokens(): Promise<void> {
   try {
     await AsyncStorage.multiRemove([ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY]);
   } catch (error) {
-    console.error('[apiClient] Erreur lors de la suppression des tokens:', error);
+    logger.error('Erreur lors de la suppression des tokens:', error);
   }
 }
 
@@ -113,7 +115,7 @@ async function refreshAccessToken(): Promise<string | null> {
 
     return data.access_token;
   } catch (error) {
-    console.error('[apiClient] Erreur lors du rafraîchissement du token:', error);
+    logger.error('Erreur lors du rafraîchissement du token:', error);
     await clearTokens();
     return null;
   }
@@ -268,8 +270,8 @@ async function executeHttpRequest<T>(
         const retryAfterSeconds = retryAfter ? parseInt(retryAfter, 10) : 60;
         const retryAfterMs = retryAfterSeconds * 1000;
         
-        console.warn(
-          `[apiClient] Rate limit atteint. Retry-After: ${retryAfterSeconds}s. Attendez avant de réessayer.`
+        logger.warn(
+          `Rate limit atteint. Retry-After: ${retryAfterSeconds}s. Attendez avant de réessayer.`
         );
         
         throw new APIError(
@@ -304,7 +306,7 @@ async function executeHttpRequest<T>(
       return JSON.parse(text) as T;
     } catch (parseError) {
       // Si le parsing échoue, c'est peut-être une réponse vide ou malformée
-      console.warn('[apiClient] Erreur de parsing JSON, réponse:', text.substring(0, 100));
+      logger.warn('Erreur de parsing JSON, réponse:', text.substring(0, 100));
       throw new APIError('JSON Parse error: Unexpected end of input', response.status);
     }
   } catch (error) {
@@ -320,7 +322,7 @@ async function executeHttpRequest<T>(
 
     // Erreur réseau - améliorer le message d'erreur
     if (error instanceof TypeError && error.message.includes('fetch')) {
-      console.error('[apiClient] Erreur réseau - Backend inaccessible:', {
+      logger.error('Erreur réseau - Backend inaccessible:', {
         url,
         endpoint,
         API_BASE_URL,
@@ -346,8 +348,7 @@ async function handleOfflineRequest<T>(endpoint: string, fetchOptions: RequestIn
   // Utiliser fetchOptions pour déterminer la méthode HTTP et logger si nécessaire
   const method = fetchOptions.method || 'GET';
   if (isLoggingEnabled()) {
-    // eslint-disable-next-line no-console
-    console.log(`[apiClient] Mode hors ligne: ${method} ${endpoint}`);
+    logger.debug(`Mode hors ligne: ${method} ${endpoint}`);
   }
 
   if (endpoint === '/auth/me' && method === 'GET') {
@@ -359,7 +360,7 @@ async function handleOfflineRequest<T>(endpoint: string, fetchOptions: RequestIn
         return JSON.parse(userData) as T;
       }
     } catch (error) {
-      console.warn('[apiClient] Erreur lors du fallback hors ligne:', error);
+      logger.warn('Erreur lors du fallback hors ligne:', error);
     }
   }
 

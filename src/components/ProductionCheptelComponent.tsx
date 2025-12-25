@@ -37,6 +37,9 @@ import { useProductionCheptelStatut } from '../hooks/production/useProductionChe
 import AnimalCard from './production/AnimalCard';
 import CheptelHeader from './production/CheptelHeader';
 import BatchCheptelView from './BatchCheptelView';
+import { createLoggerWithPrefix } from '../utils/logger';
+
+const logger = createLoggerWithPrefix('ProductionCheptel');
 
 export default function ProductionCheptelComponent() {
   const { colors } = useTheme();
@@ -121,9 +124,7 @@ export default function ProductionCheptelComponent() {
 
       // Charger uniquement une fois par projet (quand le projet change)
       if (aChargeRef.current !== projetActif.id) {
-        console.log(
-          '🔄 [ProductionCheptelComponent] Rechargement des animaux et données associées...'
-        );
+        logger.info('Rechargement des animaux et données associées...');
         aChargeRef.current = projetActif.id;
         
         // Dispatcher toutes les actions en parallèle pour meilleure performance
@@ -133,7 +134,7 @@ export default function ProductionCheptelComponent() {
           dispatch(loadMaladies(projetActif.id)),
           dispatch(loadTraitements(projetActif.id)),
         ]).catch((error) => {
-          console.error('Erreur lors du chargement des données:', error);
+          logger.error('Erreur lors du chargement des données:', error);
         });
       }
     }, [dispatch, projetActif?.id])
@@ -147,7 +148,7 @@ export default function ProductionCheptelComponent() {
     try {
       await dispatch(loadProductionAnimaux({ projetId: projetActif.id })).unwrap();
     } catch (error) {
-      console.error('Erreur lors du rafraîchissement:', error);
+      logger.error('Erreur lors du rafraîchissement:', error);
     } finally {
       setRefreshing(false);
     }

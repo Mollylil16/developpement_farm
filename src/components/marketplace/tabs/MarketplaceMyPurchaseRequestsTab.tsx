@@ -21,6 +21,9 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import type { PurchaseRequest, PurchaseRequestOffer } from '../../../types/marketplace';
 import apiClient from '../../../services/api/apiClient';
+import { createLoggerWithPrefix } from '../../../utils/logger';
+
+const logger = createLoggerWithPrefix('MarketplaceMyPurchaseRequests');
 
 interface MarketplaceMyPurchaseRequestsTabProps {
   buyerId: string;
@@ -62,7 +65,7 @@ export default function MarketplaceMyPurchaseRequestsTab({
       });
       setRequests(allRequests);
     } catch (error) {
-      console.error('Erreur chargement demandes:', error);
+      logger.error('Erreur chargement demandes:', error);
       Alert.alert('Erreur', "Impossible de charger vos demandes d'achat");
     } finally {
       setLoading(false);
@@ -116,12 +119,12 @@ export default function MarketplaceMyPurchaseRequestsTab({
 
   const handleEdit = useCallback(
     (request: PurchaseRequest) => {
-      console.log('🔄 [MarketplaceMyPurchaseRequestsTab] handleEdit appelé pour:', request.id);
+      logger.debug('handleEdit appelé pour:', request.id);
       if (onEditRequest) {
-        console.log('✅ [MarketplaceMyPurchaseRequestsTab] Appel de onEditRequest');
+        logger.debug('Appel de onEditRequest');
         onEditRequest(request);
       } else {
-        console.warn("⚠️ [MarketplaceMyPurchaseRequestsTab] onEditRequest n'est pas défini");
+        logger.warn("onEditRequest n'est pas défini");
         Alert.alert('Modifier', `Modification de la demande: ${request.title}`, [
           { text: 'Annuler', style: 'cancel' },
           {

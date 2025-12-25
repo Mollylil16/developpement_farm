@@ -10,6 +10,9 @@ import type {
   ConnectionStatus,
 } from './ChatTransport.interface';
 import type { ChatMessage } from '../../types/marketplace';
+import { createLoggerWithPrefix } from '../../utils/logger';
+
+const logger = createLoggerWithPrefix('WebSocketTransport');
 
 export class WebSocketChatTransport implements IChatTransport {
   private _status: ConnectionStatus = 'disconnected';
@@ -33,7 +36,7 @@ export class WebSocketChatTransport implements IChatTransport {
 
   async connect(conversationId: string): Promise<void> {
     if (this._status === 'connected') {
-      console.log('[WebSocketTransport] Déjà connecté');
+      logger.debug('Déjà connecté');
       return;
     }
 
@@ -53,7 +56,7 @@ export class WebSocketChatTransport implements IChatTransport {
           this._status = 'connected';
           this.callbacks.onStatusChange('connected');
           this.reconnectAttempts = 0;
-          console.log('[WebSocketTransport] Connecté');
+          logger.info('Connecté');
           resolve();
         };
 
@@ -62,7 +65,7 @@ export class WebSocketChatTransport implements IChatTransport {
             const message: ChatMessage = JSON.parse(event.data);
             this.callbacks.onMessage(message);
           } catch (error: unknown) {
-            console.error('[WebSocketTransport] Erreur parsing message:', error);
+            logger.error('Erreur parsing message:', error);
             this.callbacks.onError(
               error instanceof Error ? error : new Error(String(error))
             );
@@ -70,7 +73,7 @@ export class WebSocketChatTransport implements IChatTransport {
         };
 
         this.ws.onerror = (error) => {
-          console.error('[WebSocketTransport] Erreur WebSocket:', error);
+          logger.error('Erreur WebSocket:', error);
           this._status = 'error';
           this.callbacks.onStatusChange('error');
           this.callbacks.onError(new Error('Erreur WebSocket'));

@@ -30,6 +30,9 @@ import { selectAllAnimaux } from '../store/selectors/productionSelectors';
 import { getCategorieAnimal } from '../utils/animalUtils';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
 import { useFocusEffect } from '@react-navigation/native';
+import { createLoggerWithPrefix } from '../utils/logger';
+
+const logger = createLoggerWithPrefix('PrevisionVentes');
 
 interface Props {
   refreshControl: React.ReactElement<React.ComponentProps<typeof import('react-native').RefreshControl>>;
@@ -66,7 +69,7 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
   useFocusEffect(
     React.useCallback(() => {
       if (projetActif && !hasLoadedAnimaux.current) {
-        console.log('🔄 PrevisionVentesComponent: Chargement des animaux...');
+        logger.info('Chargement des animaux...');
         dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
         hasLoadedAnimaux.current = true;
       }
@@ -92,7 +95,7 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
 
   // Debug log
   useEffect(() => {
-    console.log('📊 PrevisionVentesComponent Debug:', {
+    logger.debug('Debug:', {
       totalAnimaux: animaux?.length || 0,
       animauxAVendre: animauxAVendre.length,
       animaux: animaux?.map((a) => ({

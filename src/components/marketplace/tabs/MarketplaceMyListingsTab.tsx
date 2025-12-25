@@ -24,6 +24,9 @@ import EmptyState from '../../EmptyState';
 import type { MarketplaceListing } from '../../../types/marketplace';
 import type { ProductionAnimal } from '../../../types/production';
 import { getErrorMessage } from '../../../types/errors';
+import { createLoggerWithPrefix } from '../../../utils/logger';
+
+const logger = createLoggerWithPrefix('MarketplaceMyListings');
 
 interface MarketplaceMyListingsTabProps {
   listings: MarketplaceListing[];
@@ -59,7 +62,7 @@ export default function MarketplaceMyListingsTab({
             onRefresh();
             Alert.alert('Succès', 'Annonce retirée du marketplace');
           } catch (error) {
-            console.error('Erreur retrait du marketplace:', error);
+            logger.error('Erreur retrait du marketplace:', error);
             Alert.alert('Erreur', getErrorMessage(error));
           }
         },

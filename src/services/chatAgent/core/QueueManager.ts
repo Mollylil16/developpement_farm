@@ -6,6 +6,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AgentAction, AgentActionResult, AgentContext } from '../../../types/chatAgent';
 import { checkNetworkConnectivity } from '../../network/networkService';
+import { createLoggerWithPrefix } from '../../../utils/logger';
+
+const logger = createLoggerWithPrefix('QueueManager');
 
 const QUEUE_STORAGE_KEY = '@kouakou:action_queue';
 const MAX_QUEUE_SIZE = 100; // Limite pour éviter de remplir le stockage
@@ -34,10 +37,10 @@ export class QueueManager {
       const stored = await AsyncStorage.getItem(QUEUE_STORAGE_KEY);
       if (stored) {
         this.queue = JSON.parse(stored);
-        console.log(`[QueueManager] Queue chargée : ${this.queue.length} action(s) en attente`);
+        logger.info(`Queue chargée : ${this.queue.length} action(s) en attente`);
       }
     } catch (error) {
-      console.error('[QueueManager] Erreur lors du chargement de la queue:', error);
+      logger.error('Erreur lors du chargement de la queue:', error);
       this.queue = [];
     }
   }
@@ -48,7 +51,7 @@ export class QueueManager {
   async enqueue(action: AgentAction, context: AgentContext, error?: string): Promise<void> {
     // Vérifier la taille maximale
     if (this.queue.length >= MAX_QUEUE_SIZE) {
-      console.warn('[QueueManager] Queue pleine, suppression de la plus ancienne action');
+      logger.warn('Queue pleine, suppression de la plus ancienne action');
       this.queue.shift(); // Supprimer la plus ancienne
     }
 
@@ -64,7 +67,7 @@ export class QueueManager {
     this.queue.push(queuedAction);
     await this.saveQueue();
 
-    console.log(`[QueueManager] Action ajoutée à la queue (${this.queue.length} au total)`);
+    logger.debug(`Action ajoutée à la queue (${this.queue.length} au total)`);
   }
 
   /**
@@ -98,7 +101,7 @@ export class QueueManager {
     executor: (action: AgentAction, context: AgentContext) => Promise<AgentActionResult>
   ): Promise<{ succeeded: number; failed: number }> {
     if (this.isProcessing) {
-      console.log('[QueueManager] Déjà en cours de traitement');
+      logger.debug('Déjà en cours de traitement');
       return { succeeded: 0, failed: 0 };
     }
 
@@ -110,11 +113,11 @@ export class QueueManager {
       // Vérifier la connectivité
       const networkState = await checkNetworkConnectivity();
       if (!networkState.isConnected) {
-        console.log('[QueueManager] Pas de connexion, traitement annulé');
+        logger.debug('Pas de connexion, traitement annulé');
         return { succeeded: 0, failed: 0 };
       }
 
-      console.log(`[QueueManager] Traitement de ${this.queue.length} action(s) en attente`);
+      logger.info(`Traitement de ${this.queue.length} action(s) en attente`);
 
       const actionsToProcess = [...this.queue]; // Copie pour éviter les modifications pendant l'itération
       const failedActions: QueuedAction[] = [];
@@ -123,7 +126,7 @@ export class QueueManager {
         try {
           // Limiter le nombre de retries
           if (queuedAction.retryCount >= 3) {
-            console.warn(`[QueueManager] Action ${queuedAction.id} abandonnée après 3 tentatives`);
+            logger.warn(`Action ${queuedAction.id} abandonnée après 3 tentatives`);
             await this.dequeue(queuedAction.id);
             failed++;
             continue;
@@ -136,7 +139,7 @@ export class QueueManager {
             // Action réussie, la retirer de la queue
             await this.dequeue(queuedAction.id);
             succeeded++;
-            console.log(`[QueueManager] Action ${queuedAction.id} traitée avec succès`);
+            logger.debug(`Action ${queuedAction.id} traitée avec succès`);
           } else {
             // Action échouée, incrémenter le compteur de retry
             queuedAction.retryCount++;
@@ -149,7 +152,7 @@ export class QueueManager {
           queuedAction.retryCount++;
           queuedAction.lastError = errorMessage;
           failedActions.push(queuedAction);
-          console.error(`[QueueManager] Erreur lors du traitement de l'action ${queuedAction.id}:`, errorMessage);
+          logger.error(`Erreur lors du traitement de l'action ${queuedAction.id}:`, errorMessage);
         }
       }
 
@@ -159,12 +162,12 @@ export class QueueManager {
 
       failed = failedActions.length;
     } catch (error) {
-      console.error('[QueueManager] Erreur lors du traitement de la queue:', error);
+      logger.error('Erreur lors du traitement de la queue:', error);
     } finally {
       this.isProcessing = false;
     }
 
-    console.log(`[QueueManager] Traitement terminé : ${succeeded} succès, ${failed} échecs`);
+    logger.info(`Traitement terminé : ${succeeded} succès, ${failed} échecs`);
     return { succeeded, failed };
   }
 
@@ -175,7 +178,7 @@ export class QueueManager {
     try {
       await AsyncStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(this.queue));
     } catch (error) {
-      console.error('[QueueManager] Erreur lors de la sauvegarde de la queue:', error);
+      logger.error('Erreur lors de la sauvegarde de la queue:', error);
     }
   }
 
