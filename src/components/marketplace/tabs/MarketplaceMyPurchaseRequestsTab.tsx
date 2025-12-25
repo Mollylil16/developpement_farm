@@ -306,6 +306,11 @@ export default function MarketplaceMyPurchaseRequestsTab({
           <Text style={[styles.emptyTitle, { color: colors.text }]}>Aucune demande d'achat</Text>
         </View>
       }
+      // Optimisations FlatList (Phase 4)
+      removeClippedSubviews={true}
+      maxToRenderPerBatch={10}
+      windowSize={5}
+      initialNumToRender={10}
     />
   );
 }

@@ -3,7 +3,7 @@
  */
 
 import { configureStore, combineReducers } from '@reduxjs/toolkit';
-import { persistStore, persistReducer } from 'redux-persist';
+import { persistStore, persistReducer, createTransform } from 'redux-persist';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import authReducer from './slices/authSlice';
 import projetReducer from './slices/projetSlice';
@@ -20,11 +20,58 @@ import productionReducer from './slices/productionSlice';
 import santeReducer from './slices/santeSlice';
 import marketplaceReducer from './slices/marketplaceSlice';
 
-// Configuration de la persistance
+// Transform pour auth: exclure isLoading et error (données temporaires) - Phase 3
+const authTransform = createTransform(
+  // Transform à l'entrée (avant stockage)
+  (inboundState: any) => {
+    if (!inboundState) return inboundState;
+    return {
+      user: inboundState.user,
+      isAuthenticated: inboundState.isAuthenticated,
+      // Exclure isLoading et error (données temporaires)
+    };
+  },
+  // Transform à la sortie (après récupération)
+  (outboundState: any) => {
+    if (!outboundState) return outboundState;
+    return {
+      ...outboundState,
+      isLoading: false, // Réinitialiser à false au démarrage
+      error: null, // Réinitialiser l'erreur
+    };
+  },
+  { whitelist: ['auth'] }
+);
+
+// Transform pour projet: exclure loading, error, et projets (seulement projetActif) - Phase 3
+const projetTransform = createTransform(
+  // Transform à l'entrée (avant stockage)
+  (inboundState: any) => {
+    if (!inboundState) return inboundState;
+    return {
+      projetActif: inboundState.projetActif,
+      // Exclure projets (liste complète), loading, error (données temporaires ou volumineuses)
+    };
+  },
+  // Transform à la sortie (après récupération)
+  (outboundState: any) => {
+    if (!outboundState) return outboundState;
+    return {
+      ...outboundState,
+      projets: [], // Réinitialiser la liste (sera rechargée depuis l'API)
+      loading: false, // Réinitialiser à false au démarrage
+      error: null, // Réinitialiser l'erreur
+    };
+  },
+  { whitelist: ['projet'] }
+);
+
+// Configuration de la persistance (Phase 3 - Optimisée)
 const persistConfig = {
   key: 'root',
   storage: AsyncStorage,
   whitelist: ['projet', 'auth'], // Projet actif et authentification sont persistés
+  transforms: [authTransform, projetTransform], // Transforms sélectifs pour réduire la taille
 };
 
 // Combiner les reducers

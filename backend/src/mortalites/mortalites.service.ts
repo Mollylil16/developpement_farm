@@ -142,8 +142,12 @@ export class MortalitesService {
   }
 
   async findOne(id: string, userId: string) {
+    // Colonnes nécessaires pour mapRowToMortalite (optimisation: éviter SELECT *)
+    const mortaliteColumns = `m.id, m.projet_id, m.nombre_porcs, m.date, m.cause, m.categorie, 
+      m.animal_code, m.poids_kg, m.notes, m.date_creation`;
+    
     const result = await this.databaseService.query(
-      `SELECT m.* FROM mortalites m
+      `SELECT ${mortaliteColumns} FROM mortalites m
        JOIN projets p ON m.projet_id = p.id
        WHERE m.id = $1 AND p.proprietaire_id = $2`,
       [id, userId]

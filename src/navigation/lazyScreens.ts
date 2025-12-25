@@ -1,25 +1,98 @@
 /**
- * Lazy-loaded screens
+ * Lazy-loaded screens avec code splitting
  *
  * IMPORTANT: React.lazy() n'est pas supporté par React Native.
- * On utilise une approche alternative avec des imports conditionnels.
+ * On utilise une approche alternative avec des composants wrapper
+ * qui chargent les écrans seulement quand ils sont rendus.
  *
- * Pour React Native, on charge tous les écrans normalement mais on peut
- * optimiser avec des imports dynamiques si nécessaire.
+ * Stratégie:
+ * - Écrans critiques: chargés immédiatement (Dashboard, Production, etc.)
+ * - Écrans secondaires: chargés à la demande (Admin, Training, etc.)
  */
 
-// Écrans principaux
+import React, { ComponentType, useState, useEffect } from 'react';
+import { View, ActivityIndicator } from 'react-native';
+import LoadingSpinner from '../components/LoadingSpinner';
+
+// ============================================
+// Helper: Composant wrapper pour lazy loading
+// ============================================
+function createLazyScreen<T extends ComponentType<any>>(
+  importFn: () => Promise<{ default: T }>,
+  fallback?: React.ReactNode
+): T {
+  const LazyComponent = React.forwardRef<any, any>((props, ref) => {
+    const [ScreenComponent, setScreenComponent] = useState<T | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<Error | null>(null);
+
+    useEffect(() => {
+      let isMounted = true;
+
+      importFn()
+        .then((module) => {
+          if (isMounted) {
+            setScreenComponent(() => module.default);
+            setLoading(false);
+          }
+        })
+        .catch((err) => {
+          if (isMounted) {
+            setError(err);
+            setLoading(false);
+            console.error('Erreur lors du chargement de l\'écran:', err);
+          }
+        });
+
+      return () => {
+        isMounted = false;
+      };
+    }, []);
+
+    if (loading) {
+      return fallback || (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <LoadingSpinner message="Chargement..." />
+        </View>
+      );
+    }
+
+    if (error) {
+      return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <LoadingSpinner message="Erreur de chargement. Veuillez réessayer." />
+        </View>
+      );
+    }
+
+    if (!ScreenComponent) {
+      return null;
+    }
+
+    return <ScreenComponent {...props} ref={ref} />;
+  }) as T;
+
+  LazyComponent.displayName = `LazyScreen(${importFn.name || 'Unknown'})`;
+
+  return LazyComponent;
+}
+
+// ============================================
+// ÉCRANS CRITIQUES: Chargés immédiatement
+// ============================================
+// Ces écrans sont utilisés fréquemment et doivent être disponibles rapidement
+
 export { default as WelcomeScreen } from '../screens/WelcomeScreen';
 export { default as AuthScreen } from '../screens/AuthScreen';
 export { default as CreateProjectScreen } from '../screens/CreateProjectScreen';
 
-// Dashboards
+// Dashboards (écrans principaux)
 export { default as DashboardScreen } from '../screens/DashboardScreen';
 export { default as DashboardBuyerScreen } from '../screens/DashboardBuyerScreen';
 export { default as DashboardVetScreen } from '../screens/DashboardVetScreen';
 export { default as DashboardTechScreen } from '../screens/DashboardTechScreen';
 
-// Modules principaux
+// Modules principaux (utilisés quotidiennement)
 export { default as ProductionScreen } from '../screens/ProductionScreen';
 export { default as ReproductionScreen } from '../screens/ReproductionScreen';
 export { default as NutritionScreen } from '../screens/NutritionScreen';
@@ -29,30 +102,22 @@ export { default as PlanningProductionScreen } from '../screens/PlanningProducti
 export { default as PlanificationScreen } from '../screens/PlanificationScreen';
 export { default as MortalitesScreen } from '../screens/MortalitesScreen';
 
-// Profil et paramètres
+// Profil et paramètres (accès fréquent)
 export { default as ProfilScreen } from '../screens/ProfilScreen';
 export { default as ParametresScreen } from '../screens/ParametresScreen';
 export { default as CollaborationScreen } from '../screens/CollaborationScreen';
 
-// Rapports et documents
+// Rapports (utilisés régulièrement)
 export { default as ReportsScreen } from '../screens/ReportsScreen';
-export { default as DocumentsScreen } from '../screens/DocumentsScreen';
 export { default as RecordsScreen } from '../screens/RecordsScreen';
 
-// Admin
-export { default as AdminScreen } from '../screens/AdminScreen';
-
-// Marketplace
+// Marketplace (fonctionnalité principale)
 export { default as MarketplaceScreen } from '../screens/marketplace/MarketplaceScreen';
 export { default as ChatScreen } from '../screens/marketplace/ChatScreen';
 export { default as ProducerOffersScreen } from '../screens/marketplace/ProducerOffersScreen';
 
-// Agent conversationnel
-export { default as ChatAgentScreen } from '../screens/ChatAgentScreen';
-
-// Onboarding
+// Onboarding et authentification (écrans de démarrage)
 export { default as OnboardingAuthScreen } from '../screens/OnboardingAuthScreen';
-export { default as WelcomeScreen } from '../screens/WelcomeScreen';
 export { default as SignUpMethodScreen } from '../screens/SignUpMethodScreen';
 export { default as PhoneSignUpScreen } from '../screens/PhoneSignUpScreen';
 export { default as UserInfoScreen } from '../screens/UserInfoScreen';
@@ -66,17 +131,47 @@ export { default as VeterinarianInfoCompletionScreen } from '../screens/Veterina
 export { default as VetProposeFarmsScreen } from '../screens/VetProposeFarmsScreen';
 export { default as ServiceProposalNotificationsScreen } from '../screens/ServiceProposalNotificationsScreen';
 
-// Rôles spécifiques
+// Rôles spécifiques (utilisés selon le rôle)
 export { default as MyPurchasesScreen } from '../screens/MyPurchasesScreen';
 export { default as MyClientsScreen } from '../screens/MyClientsScreen';
 export { default as ConsultationsScreen } from '../screens/ConsultationsScreen';
 export { default as MyFarmsScreen } from '../screens/MyFarmsScreen';
 export { default as TasksScreen } from '../screens/TasksScreen';
 
-// Autres
-export { default as CalculateurNavigationScreen } from '../screens/CalculateurNavigationScreen';
-export { default as TrainingScreen } from '../screens/TrainingScreen';
-export { default as VaccinationScreen } from '../screens/VaccinationScreen';
+// ============================================
+// ÉCRANS SECONDAIRES: Chargés à la demande
+// ============================================
+// Ces écrans sont moins utilisés et peuvent être chargés seulement quand nécessaire
+
+// Admin (utilisé rarement, seulement par les admins)
+export const AdminScreen = createLazyScreen(
+  () => import('../screens/AdminScreen')
+);
+
+// Documents (utilisé occasionnellement)
+export const DocumentsScreen = createLazyScreen(
+  () => import('../screens/DocumentsScreen')
+);
+
+// Agent conversationnel (fonctionnalité optionnelle)
+export const ChatAgentScreen = createLazyScreen(
+  () => import('../screens/ChatAgentScreen')
+);
+
+// Calculateur (outil secondaire)
+export const CalculateurNavigationScreen = createLazyScreen(
+  () => import('../screens/CalculateurNavigationScreen')
+);
+
+// Training (formation, utilisé rarement)
+export const TrainingScreen = createLazyScreen(
+  () => import('../screens/TrainingScreen')
+);
+
+// Vaccination (écran dédié, peut être chargé à la demande si SanteScreen est principal)
+export const VaccinationScreen = createLazyScreen(
+  () => import('../screens/VaccinationScreen')
+);
 
 // Note: Les écrans de détails et d'ajout sont chargés dynamiquement
 // lorsqu'ils sont nécessaires, pas besoin de les exporter ici

@@ -158,6 +158,11 @@ export default function MarketplaceMyListingsTab({
           icon="storefront-outline"
         />
       }
+      // Optimisations FlatList (Phase 4)
+      removeClippedSubviews={true}
+      maxToRenderPerBatch={10}
+      windowSize={5}
+      initialNumToRender={10}
     />
   );
 }

@@ -114,6 +114,11 @@ export default function MarketplaceBuyTab({
         ListEmptyComponent={renderEmpty}
         onEndReached={onLoadMore}
         onEndReachedThreshold={0.5}
+        // Optimisations FlatList (Phase 4)
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        initialNumToRender={10}
       />
     );
   }
@@ -142,6 +147,11 @@ export default function MarketplaceBuyTab({
           </View>
         ) : null
       }
+      // Optimisations FlatList (Phase 4)
+      removeClippedSubviews={true}
+      maxToRenderPerBatch={10}
+      windowSize={5}
+      initialNumToRender={10}
     />
   );
 }

@@ -90,8 +90,13 @@ export class UsersService {
   }
 
   async findOne(id: string) {
+    // Colonnes nécessaires pour mapRowToUser (optimisation: éviter SELECT *)
+    const userColumns = `id, email, telephone, nom, prenom, provider, provider_id, photo, 
+      saved_farms, date_creation, derniere_connexion, roles, active_role, 
+      is_onboarded, onboarding_completed_at, is_active`;
+    
     const result = await this.databaseService.query(
-      'SELECT * FROM users WHERE id = $1 AND is_active = true',
+      `SELECT ${userColumns} FROM users WHERE id = $1 AND is_active = true`,
       [id]
     );
     return result.rows[0] ? this.mapRowToUser(result.rows[0]) : null;
@@ -105,8 +110,13 @@ export class UsersService {
     }
 
     this.logger.debug(`findByEmail: recherche de ${normalizedEmail}`);
+    // Colonnes nécessaires pour mapRowToUser (optimisation: éviter SELECT *)
+    const userColumns = `id, email, telephone, nom, prenom, provider, provider_id, photo, 
+      saved_farms, date_creation, derniere_connexion, roles, active_role, 
+      is_onboarded, onboarding_completed_at, is_active`;
+    
     const result = await this.databaseService.query(
-      'SELECT * FROM users WHERE email = $1 AND is_active = true',
+      `SELECT ${userColumns} FROM users WHERE email = $1 AND is_active = true`,
       [normalizedEmail]
     );
     
@@ -118,8 +128,13 @@ export class UsersService {
     const normalizedTelephone = this.normalizeTelephone(telephone);
     if (!normalizedTelephone) return null;
 
+    // Colonnes nécessaires pour mapRowToUser (optimisation: éviter SELECT *)
+    const userColumns = `id, email, telephone, nom, prenom, provider, provider_id, photo, 
+      saved_farms, date_creation, derniere_connexion, roles, active_role, 
+      is_onboarded, onboarding_completed_at, is_active`;
+
     const result = await this.databaseService.query(
-      'SELECT * FROM users WHERE telephone = $1 AND is_active = true',
+      `SELECT ${userColumns} FROM users WHERE telephone = $1 AND is_active = true`,
       [normalizedTelephone]
     );
     return result.rows[0] ? this.mapRowToUser(result.rows[0]) : null;
@@ -129,8 +144,13 @@ export class UsersService {
     if (!provider || !providerId) return null;
 
     this.logger.debug(`findByProviderId: recherche de ${provider} ${providerId}`);
+    // Colonnes nécessaires pour mapRowToUser (optimisation: éviter SELECT *)
+    const userColumns = `id, email, telephone, nom, prenom, provider, provider_id, photo, 
+      saved_farms, date_creation, derniere_connexion, roles, active_role, 
+      is_onboarded, onboarding_completed_at, is_active`;
+    
     const result = await this.databaseService.query(
-      'SELECT * FROM users WHERE provider = $1 AND provider_id = $2 AND is_active = true',
+      `SELECT ${userColumns} FROM users WHERE provider = $1 AND provider_id = $2 AND is_active = true`,
       [provider, providerId]
     );
     this.logger.debug(`findByProviderId: ${result.rows.length} utilisateur(s) trouvé(s)`);
@@ -157,8 +177,13 @@ export class UsersService {
   }
 
   async findAll() {
+    // Colonnes nécessaires pour mapRowToUser (optimisation: éviter SELECT *)
+    const userColumns = `id, email, telephone, nom, prenom, provider, provider_id, photo, 
+      saved_farms, date_creation, derniere_connexion, roles, active_role, 
+      is_onboarded, onboarding_completed_at, is_active`;
+    
     const result = await this.databaseService.query(
-      'SELECT * FROM users WHERE is_active = true ORDER BY date_creation DESC'
+      `SELECT ${userColumns} FROM users WHERE is_active = true ORDER BY date_creation DESC`
     );
     return result.rows.map((row) => this.mapRowToUser(row));
   }

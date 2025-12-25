@@ -30,23 +30,6 @@ function SanteWidget({ onPress }: Props) {
   const totalMortalites = useAppSelector(selectNombreTotalMortalites);
   const loading = useAppSelector(selectSanteLoading);
 
-  // Log pour déboguer
-  React.useEffect(() => {
-    console.log('🏥 [SanteWidget] Stats:', {
-      vaccinations: vaccinationsEnRetard,
-      maladies: maladiesEnCours,
-      mortalites: totalMortalites,
-      traitements: traitementsEnCours,
-      alertes: alertesCritiques,
-    });
-  }, [
-    vaccinationsEnRetard,
-    maladiesEnCours,
-    totalMortalites,
-    traitementsEnCours,
-    alertesCritiques,
-  ]);
-
   const hasAlertes = vaccinationsEnRetard > 0 || alertesCritiques > 0;
 
   return (

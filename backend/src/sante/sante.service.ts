@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { ImageService } from '../common/services/image.service';
+import { compressImage } from '../common/helpers/image-compression.helper';
 import { CreateCalendrierVaccinationDto } from './dto/create-calendrier-vaccination.dto';
 import { UpdateCalendrierVaccinationDto } from './dto/update-calendrier-vaccination.dto';
 import { CreateVaccinationDto } from './dto/create-vaccination.dto';
@@ -13,7 +15,10 @@ import { UpdateVisiteVeterinaireDto } from './dto/update-visite-veterinaire.dto'
 
 @Injectable()
 export class SanteService {
-  constructor(private databaseService: DatabaseService) {}
+  constructor(
+    private databaseService: DatabaseService,
+    private imageService: ImageService
+  ) {}
 
   /**
    * Génère un ID comme le frontend : calendrier_${Date.now()}_${random}
@@ -156,8 +161,12 @@ export class SanteService {
   async findAllCalendrierVaccinations(projetId: string, userId: string) {
     await this.checkProjetOwnership(projetId, userId);
 
+    // Colonnes nécessaires pour mapRowToCalendrierVaccination (optimisation: éviter SELECT *)
+    const calendrierColumns = `id, projet_id, vaccin, nom_vaccin, categorie, age_jours, 
+      date_planifiee, frequence_jours, obligatoire, notes, date_creation`;
+
     const result = await this.databaseService.query(
-      `SELECT * FROM calendrier_vaccinations WHERE projet_id = $1 ORDER BY age_jours ASC, categorie ASC`,
+      `SELECT ${calendrierColumns} FROM calendrier_vaccinations WHERE projet_id = $1 ORDER BY age_jours ASC, categorie ASC`,
       [projetId]
     );
     return result.rows.map((row) => this.mapRowToCalendrierVaccination(row));
@@ -293,6 +302,13 @@ export class SanteService {
         ? createVaccinationDto.animal_ids[0]
         : null;
 
+    // Compresser l'image avant stockage (Phase 3)
+    const compressedPhotoFlacon = await compressImage(
+      createVaccinationDto.photo_flacon,
+      this.imageService,
+      { maxWidth: 1920, maxHeight: 1920, quality: 80 }
+    );
+
     const result = await this.databaseService.query(
       `INSERT INTO vaccinations (
         id, projet_id, calendrier_id, animal_id, animal_ids, lot_id, vaccin, nom_vaccin,
@@ -312,7 +328,7 @@ export class SanteService {
         createVaccinationDto.nom_vaccin || null,
         createVaccinationDto.type_prophylaxie,
         createVaccinationDto.produit_administre,
-        createVaccinationDto.photo_flacon || null,
+        compressedPhotoFlacon,
         createVaccinationDto.date_vaccination,
         createVaccinationDto.date_rappel || null,
         createVaccinationDto.numero_lot_vaccin || null,
@@ -336,8 +352,15 @@ export class SanteService {
   async findAllVaccinations(projetId: string, userId: string) {
     await this.checkProjetOwnership(projetId, userId);
 
+    // Colonnes nécessaires pour mapRowToVaccination (optimisation: éviter SELECT *)
+    const vaccinationColumns = `id, projet_id, calendrier_id, animal_id, animal_ids, lot_id, 
+      vaccin, nom_vaccin, type_prophylaxie, produit_administre, photo_flacon, 
+      date_vaccination, date_rappel, numero_lot_vaccin, dosage, unite_dosage, 
+      raison_traitement, raison_autre, veterinaire, effets_secondaires, notes, 
+      date_creation, derniere_modification`;
+
     const result = await this.databaseService.query(
-      `SELECT * FROM vaccinations WHERE projet_id = $1 ORDER BY date_vaccination DESC`,
+      `SELECT ${vaccinationColumns} FROM vaccinations WHERE projet_id = $1 ORDER BY date_vaccination DESC`,
       [projetId]
     );
     return result.rows.map((row) => this.mapRowToVaccination(row));
@@ -413,8 +436,14 @@ export class SanteService {
       paramIndex++;
     }
     if (updateVaccinationDto.photo_flacon !== undefined) {
+      // Compresser l'image avant stockage (Phase 3)
+      const compressedPhotoFlacon = await compressImage(
+        updateVaccinationDto.photo_flacon,
+        this.imageService,
+        { maxWidth: 1920, maxHeight: 1920, quality: 80 }
+      );
       fields.push(`photo_flacon = $${paramIndex}`);
-      values.push(updateVaccinationDto.photo_flacon || null);
+      values.push(compressedPhotoFlacon);
       paramIndex++;
     }
     if (updateVaccinationDto.date_vaccination !== undefined) {
@@ -573,8 +602,13 @@ export class SanteService {
   async findAllMaladies(projetId: string, userId: string) {
     await this.checkProjetOwnership(projetId, userId);
 
+    // Colonnes nécessaires pour mapRowToMaladie (optimisation: éviter SELECT *)
+    const maladieColumns = `id, projet_id, animal_id, lot_id, type, nom_maladie, gravite, 
+      date_debut, date_fin, symptomes, diagnostic, contagieux, nombre_animaux_affectes, 
+      nombre_deces, veterinaire, cout_traitement, gueri, notes, date_creation, derniere_modification`;
+
     const result = await this.databaseService.query(
-      `SELECT * FROM maladies WHERE projet_id = $1 ORDER BY date_debut DESC`,
+      `SELECT ${maladieColumns} FROM maladies WHERE projet_id = $1 ORDER BY date_debut DESC`,
       [projetId]
     );
     return result.rows.map((row) => this.mapRowToMaladie(row));
@@ -783,8 +817,14 @@ export class SanteService {
   async findAllTraitements(projetId: string, userId: string) {
     await this.checkProjetOwnership(projetId, userId);
 
+    // Colonnes nécessaires pour mapRowToTraitement (optimisation: éviter SELECT *)
+    const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, type, nom_medicament, 
+      voie_administration, dosage, frequence, date_debut, date_fin, duree_jours, 
+      temps_attente_jours, veterinaire, cout, termine, efficace, effets_secondaires, 
+      notes, temps_attente_abattage_jours, date_creation, derniere_modification`;
+
     const result = await this.databaseService.query(
-      `SELECT * FROM traitements WHERE projet_id = $1 ORDER BY date_debut DESC`,
+      `SELECT ${traitementColumns} FROM traitements WHERE projet_id = $1 ORDER BY date_debut DESC`,
       [projetId]
     );
     return result.rows.map((row) => this.mapRowToTraitement(row));
@@ -995,8 +1035,13 @@ export class SanteService {
   async findAllVisitesVeterinaires(projetId: string, userId: string) {
     await this.checkProjetOwnership(projetId, userId);
 
+    // Colonnes nécessaires pour mapRowToVisiteVeterinaire (optimisation: éviter SELECT *)
+    const visiteColumns = `id, projet_id, date_visite, veterinaire, motif, animaux_examines, 
+      diagnostic, prescriptions, recommandations, traitement, cout, prochaine_visite, 
+      notes, date_creation, derniere_modification`;
+
     const result = await this.databaseService.query(
-      `SELECT * FROM visites_veterinaires WHERE projet_id = $1 ORDER BY date_visite DESC`,
+      `SELECT ${visiteColumns} FROM visites_veterinaires WHERE projet_id = $1 ORDER BY date_visite DESC`,
       [projetId]
     );
     return result.rows.map((row) => this.mapRowToVisiteVeterinaire(row));

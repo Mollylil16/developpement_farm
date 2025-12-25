@@ -73,7 +73,7 @@ export class AdminService {
           },
         };
       } catch (jwtError: any) {
-        console.error('Erreur lors de la signature JWT:', jwtError);
+        this.logger.error('Erreur lors de la signature JWT:', jwtError);
         if (jwtError.message?.includes('secret') || jwtError.message?.includes('Secret')) {
           throw new Error('JWT_SECRET n\'est pas configuré. Vérifiez votre fichier .env');
         }

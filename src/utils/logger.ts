@@ -1,138 +1,72 @@
 /**
- * Système de logging conditionnel
- * Les logs ne s'affichent qu'en mode développement pour améliorer les performances
+ * Utilitaire de logging pour React Native
+ * Conditionne les logs avec __DEV__ pour éviter les logs en production
  */
 
-const isDev = __DEV__;
+type LogLevel = 'log' | 'warn' | 'error' | 'debug' | 'info';
+
+interface Logger {
+  log: (...args: any[]) => void;
+  warn: (...args: any[]) => void;
+  error: (...args: any[]) => void;
+  debug: (...args: any[]) => void;
+  info: (...args: any[]) => void;
+}
 
 /**
- * Logger conditionnel - ne log que en développement
+ * Logger conditionnel qui n'affiche les logs qu'en développement
  */
-export const logger = {
-  log: (...args: unknown[]) => {
-    if (isDev) {
-      console.log(...args);
+const createLogger = (prefix?: string): Logger => {
+  const formatMessage = (level: LogLevel, ...args: any[]): any[] => {
+    if (prefix) {
+      return [`[${prefix}]`, `[${level.toUpperCase()}]`, ...args];
     }
-  },
-  warn: (...args: unknown[]) => {
-    if (isDev) {
-      console.warn(...args);
-    }
-  },
-  error: (...args: unknown[]) => {
-    // Toujours logger les erreurs, même en production
-    console.error(...args);
-  },
-  info: (...args: unknown[]) => {
-    if (isDev) {
-      console.info(...args);
-    }
-  },
-  debug: (...args: unknown[]) => {
-    if (isDev) {
-      console.debug(...args);
-    }
-  },
+    return [`[${level.toUpperCase()}]`, ...args];
+  };
+
+  return {
+    log: (...args: any[]) => {
+      if (__DEV__) {
+        console.log(...formatMessage('log', ...args));
+      }
+    },
+    warn: (...args: any[]) => {
+      if (__DEV__) {
+        console.warn(...formatMessage('warn', ...args));
+      }
+    },
+    error: (...args: any[]) => {
+      // Les erreurs sont toujours loggées, même en production
+      console.error(...formatMessage('error', ...args));
+    },
+    debug: (...args: any[]) => {
+      if (__DEV__) {
+        console.log(...formatMessage('debug', ...args));
+      }
+    },
+    info: (...args: any[]) => {
+      if (__DEV__) {
+        console.log(...formatMessage('info', ...args));
+      }
+    },
+  };
 };
 
 /**
- * Logger pour la base de données - logs détaillés uniquement en dev
+ * Logger global par défaut
  */
-export const dbLogger = {
-  log: (...args: unknown[]) => {
-    if (isDev) {
-      console.log('📋 [DB]', ...args);
-    }
-  },
-  success: (...args: unknown[]) => {
-    if (isDev) {
-      console.log('✅ [DB]', ...args);
-    }
-  },
-  error: (...args: unknown[]) => {
-    console.error('❌ [DB]', ...args);
-  },
-  warn: (...args: unknown[]) => {
-    if (isDev) {
-      console.warn('⚠️ [DB]', ...args);
-    }
-  },
-  info: (...args: unknown[]) => {
-    if (isDev) {
-      console.log('ℹ️  [DB]', ...args);
-    }
-  },
-  step: (...args: unknown[]) => {
-    if (isDev) {
-      console.log('🔄 [DB]', ...args);
-    }
-  },
+export const logger = createLogger();
+
+/**
+ * Créer un logger avec un préfixe personnalisé
+ * @param prefix - Préfixe à ajouter à tous les logs
+ * @returns Logger avec préfixe
+ */
+export const createLoggerWithPrefix = (prefix: string): Logger => {
+  return createLogger(prefix);
 };
 
 /**
- * Logger pour les schémas - logs détaillés uniquement en dev
+ * Export par défaut pour compatibilité
  */
-export const schemaLogger = {
-  log: (...args: unknown[]) => {
-    if (isDev) {
-      console.log('📋 [Schema]', ...args);
-    }
-  },
-  success: (...args: unknown[]) => {
-    if (isDev) {
-      console.log('✅ [Schema]', ...args);
-    }
-  },
-  error: (...args: unknown[]) => {
-    console.error('❌ [Schema]', ...args);
-  },
-  warn: (...args: unknown[]) => {
-    if (isDev) {
-      console.warn('⚠️ [Schema]', ...args);
-    }
-  },
-  info: (...args: unknown[]) => {
-    if (isDev) {
-      console.log('ℹ️  [Schema]', ...args);
-    }
-  },
-  step: (...args: unknown[]) => {
-    if (isDev) {
-      console.log('🔄 [Schema]', ...args);
-    }
-  },
-};
-
-/**
- * Logger pour les migrations - logs détaillés uniquement en dev
- */
-export const migrationLogger = {
-  log: (...args: unknown[]) => {
-    if (isDev) {
-      console.log('📋 [Migration]', ...args);
-    }
-  },
-  success: (...args: unknown[]) => {
-    if (isDev) {
-      console.log('✅ [Migration]', ...args);
-    }
-  },
-  error: (...args: unknown[]) => {
-    console.error('❌ [Migration]', ...args);
-  },
-  warn: (...args: unknown[]) => {
-    if (isDev) {
-      console.warn('⚠️ [Migration]', ...args);
-    }
-  },
-  info: (...args: unknown[]) => {
-    if (isDev) {
-      console.log('ℹ️  [Migration]', ...args);
-    }
-  },
-  step: (...args: unknown[]) => {
-    if (isDev) {
-      console.log('🔄 [Migration]', ...args);
-    }
-  },
-};
+export default logger;

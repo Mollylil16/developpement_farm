@@ -228,6 +228,11 @@ export default function MarketplaceMatchedRequestsTab({
       keyExtractor={(item) => item.match.id}
       contentContainerStyle={styles.listContent}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+      // Optimisations FlatList (Phase 4)
+      removeClippedSubviews={true}
+      maxToRenderPerBatch={10}
+      windowSize={5}
+      initialNumToRender={10}
     />
   );
 }

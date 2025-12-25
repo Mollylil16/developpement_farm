@@ -1,10 +1,12 @@
 /**
  * Extracteur de paramètres robuste pour l'agent conversationnel
  * Système multi-couches avec validation contextuelle
+ * Utilise les services dédiés pour éviter les duplications
  */
 
-import { parse, addDays, startOfDay, format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { MontantExtractor } from './extractors/MontantExtractor';
+import { CategoryNormalizer } from './extractors/CategoryNormalizer';
+import { DateExtractor } from './extractors/DateExtractor';
 
 export interface ExtractedParams {
   montant?: number;
@@ -29,12 +31,14 @@ export interface ExtractionContext {
 
 export class ParameterExtractor {
   private context: ExtractionContext;
+  private categoryNormalizer: CategoryNormalizer;
 
   constructor(context: ExtractionContext = {}) {
     this.context = {
       currentDate: new Date().toISOString().split('T')[0],
       ...context,
     };
+    this.categoryNormalizer = new CategoryNormalizer();
   }
 
   /**
@@ -60,115 +64,23 @@ export class ParameterExtractor {
 
   /**
    * Extrait un montant avec validation contextuelle
-   * Priorité : Montant après "à", "pour", "de" > Montant avec FCFA > Formats "k"/"million" > Plus grand nombre
-   * Supporte : "800000", "800 000", "800k", "800 k", "1 million", "1.5 million"
+   * Utilise MontantExtractor pour centraliser la logique
+   * Supporte : "800000", "800 000", "800k", "1 million", "150 balles" (150000 FCFA)
    */
   extractMontant(text: string): number | undefined {
-    const normalized = text.toLowerCase();
-    // Utiliser normalized pour améliorer la détection (supprimer accents, normaliser)
+    // Exclure les nombres déjà extraits comme quantités ou poids
+    const excludeNumbers: number[] = [];
+    const nombre = this.extractNombre(text);
+    if (nombre) excludeNumbers.push(nombre);
+    const poids = this.extractPoids(text);
+    if (poids) excludeNumbers.push(poids);
 
-    // Pattern 1 : Montant après préposition (le plus fiable)
-    const prepositionPatterns = [
-      /(?:a|pour|de|montant|prix|cout|vendu a|vendu pour|achete a|achete pour|depense de|depense a|paye|paye pour)[:\s]+(\d[\d\s,]+(?:\s*k|\s*million)?)(?:\s*(?:f\s*c\s*f\s*a|fcfa|francs?|f\s*))?/i,
-    ];
+    const montant = MontantExtractor.extract(text, {
+      excludeNumbers,
+      strict: false,
+    });
 
-    for (const pattern of prepositionPatterns) {
-      // Utiliser normalized pour la recherche (plus fiable pour les accents)
-      const match = normalized.match(pattern);
-      if (match && match[1]) {
-        const montant = this.parseNumberWithUnits(match[1]);
-        if (montant && this.isValidMontant(montant)) {
-          return montant;
-        }
-      }
-    }
-
-    // Pattern 2 : Montant avec devise
-    const devisePattern = /(\d[\d\s,]+(?:\s*k|\s*million)?)\s*(?:f\s*c\s*f\s*a|fcfa|francs?|f\s*)/i;
-    // Utiliser normalized pour la recherche
-    const deviseMatch = normalized.match(devisePattern);
-    if (deviseMatch && deviseMatch[1]) {
-      const montant = this.parseNumberWithUnits(deviseMatch[1]);
-      if (montant && this.isValidMontant(montant)) {
-        return montant;
-      }
-    }
-
-    // Pattern 3 : Formats "k" ou "million" (ex: "800k", "1 million")
-    const kPattern = /(\d+[\d\s,]*)\s*k\b/i;
-    // Utiliser normalized pour la recherche
-    const kMatch = normalized.match(kPattern);
-    if (kMatch && kMatch[1]) {
-      const base = this.parseNumber(kMatch[1]);
-      if (base && this.isValidMontant(base * 1000)) {
-        return base * 1000;
-      }
-    }
-
-    const millionPattern = /(\d+[.,]?\d*)\s*million/i;
-    // Utiliser normalized pour la recherche
-    const millionMatch = normalized.match(millionPattern);
-    if (millionMatch && millionMatch[1]) {
-      const base = parseFloat(millionMatch[1].replace(',', '.'));
-      if (!isNaN(base) && this.isValidMontant(base * 1000000)) {
-        return base * 1000000;
-      }
-    }
-
-    // Pattern 4 : Plus grand nombre (exclure quantités et poids)
-    // Utiliser normalized pour la recherche
-    const allNumbers = normalized.match(/\b(\d[\d\s,]{3,})\b/g);
-    if (allNumbers) {
-      const validNumbers = allNumbers
-        .map((n) => this.parseNumber(n))
-        .filter((n) => this.isValidMontant(n))
-        .sort((a, b) => b - a); // Tri décroissant
-
-      if (validNumbers.length > 0) {
-        // Prendre le plus grand, mais vérifier qu'il n'est pas une quantité ou un poids
-        const maxNumber = validNumbers[0];
-        const numberIndex = text.toLowerCase().indexOf(maxNumber.toString());
-        const afterNumber = text.substring(numberIndex, numberIndex + 30).toLowerCase();
-
-        // Si suivi de "porc", "kg", "sac" → probablement quantité/poids, pas montant
-        if (!afterNumber.match(/\s*(?:porc|porcs|kg|kilogramme|kilo|sac|sacs|tete|tetes)/i)) {
-          return maxNumber;
-        }
-      }
-    }
-
-    return undefined;
-  }
-
-  /**
-   * Parse un nombre avec unités (k, million)
-   */
-  private parseNumberWithUnits(value: string): number | null {
-    const cleaned = value.trim().toLowerCase();
-
-    // Format "k" (ex: "800k", "800 k")
-    if (cleaned.includes('k') && !cleaned.includes('kg') && !cleaned.includes('kilo')) {
-      const numStr = cleaned.replace(/\s*k\s*$/i, '').replace(/[\s,]/g, '');
-      const num = parseFloat(numStr);
-      if (!isNaN(num)) {
-        return num * 1000;
-      }
-    }
-
-    // Format "million" (ex: "1 million", "1.5 million")
-    if (cleaned.includes('million')) {
-      const numStr = cleaned
-        .replace(/\s*million.*$/i, '')
-        .replace(/[\s,]/g, '')
-        .replace(',', '.');
-      const num = parseFloat(numStr);
-      if (!isNaN(num)) {
-        return num * 1000000;
-      }
-    }
-
-    // Format normal
-    return this.parseNumber(value);
+    return montant || undefined;
   }
 
   /**
@@ -239,93 +151,15 @@ export class ParameterExtractor {
 
   /**
    * Extrait une date (relative ou absolue)
+   * Utilise DateExtractor pour centraliser la logique
    */
   extractDate(text: string): string | undefined {
-    const normalized = text.toLowerCase();
-    const today = new Date(this.context.currentDate || new Date().toISOString().split('T')[0]);
-    today.setHours(0, 0, 0, 0);
-
-    // Dates relatives
-    if (normalized.includes("aujourd'hui") || normalized.includes('aujourd hui')) {
-      return format(today, 'yyyy-MM-dd');
-    }
-
-    if (normalized.includes('demain')) {
-      return format(addDays(today, 1), 'yyyy-MM-dd');
-    }
-
-    if (normalized.includes('hier')) {
-      return format(addDays(today, -1), 'yyyy-MM-dd');
-    }
-
-    // Jours de la semaine
-    const jours = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
-    for (let i = 0; i < jours.length; i++) {
-      if (normalized.includes(jours[i])) {
-        const jourIndex = i; // 0 = lundi
-        const todayIndex = today.getDay() === 0 ? 6 : today.getDay() - 1; // Convertir dimanche = 6
-        let daysToAdd = jourIndex - todayIndex;
-        if (daysToAdd <= 0) daysToAdd += 7; // Prochain jour de la semaine
-        return format(addDays(today, daysToAdd), 'yyyy-MM-dd');
-      }
-    }
-
-    // Dates absolues (DD/MM/YYYY ou DD-MM-YYYY)
-    const datePatterns = [
-      /(\d{1,2})[/-](\d{1,2})[/-]?(\d{4})?/,
-      /(\d{4})[/-](\d{1,2})[/-](\d{1,2})/,
-    ];
-
-    for (const pattern of datePatterns) {
-      const match = text.match(pattern);
-      if (match) {
-        try {
-          let day, month, year;
-          if (match[3]) {
-            // Format DD/MM/YYYY
-            day = parseInt(match[1]);
-            month = parseInt(match[2]);
-            year = parseInt(match[3]);
-          } else if (match[1].length === 4) {
-            // Format YYYY-MM-DD
-            year = parseInt(match[1]);
-            month = parseInt(match[2]);
-            day = parseInt(match[3]);
-          } else {
-            // Format DD/MM (année actuelle)
-            day = parseInt(match[1]);
-            month = parseInt(match[2]);
-            year = today.getFullYear();
-          }
-
-          // Utiliser parse et startOfDay pour normaliser la date
-          const dateStr = `${day}/${month}/${year}`;
-          try {
-            const parsedDate = parse(dateStr, 'd/M/yyyy', new Date(), { locale: fr });
-            const normalizedDate = startOfDay(parsedDate);
-            if (!isNaN(normalizedDate.getTime())) {
-              return format(normalizedDate, 'yyyy-MM-dd');
-            }
-          } catch (parseError) {
-            // Utiliser parseError pour logger et comprendre pourquoi parse a échoué
-            const errorMessage = parseError instanceof Error ? parseError.message : 'Erreur inconnue';
-            console.debug(`[ParameterExtractor] Parse date échoué, fallback simple: ${errorMessage}`);
-            // Fallback sur la méthode simple si parse échoue
-            const date = new Date(year, month - 1, day);
-            if (!isNaN(date.getTime())) {
-              return format(date, 'yyyy-MM-dd');
-            }
-          }
-        } catch (error) {
-          // Utiliser error pour logger si nécessaire
-          console.warn('[ParameterExtractor] Erreur lors de l\'extraction de date:', error instanceof Error ? error.message : 'Erreur inconnue');
-        }
-      }
-    }
-
-    // Par défaut, utiliser la date actuelle normalisée avec startOfDay
-    const normalizedToday = startOfDay(today);
-    return format(normalizedToday, 'yyyy-MM-dd');
+    const refDate = this.context.currentDate || new Date().toISOString().split('T')[0];
+    return DateExtractor.extract(text, {
+      referenceDate: refDate,
+      allowFuture: true,
+      allowPast: true,
+    });
   }
 
   /**
@@ -500,41 +334,18 @@ export class ParameterExtractor {
 
   /**
    * Extrait une catégorie de dépense
+   * Utilise CategoryNormalizer pour centraliser la logique et supporter les synonymes ivoiriens
    */
   extractCategorie(text: string): string | undefined {
-    const normalized = text.toLowerCase();
+    const category = this.categoryNormalizer.extractFromText(text);
+    return category || undefined;
+  }
 
-    const categoryMap: Record<string, string> = {
-      aliment: 'alimentation',
-      alimentation: 'alimentation',
-      provende: 'alimentation',
-      nourriture: 'alimentation',
-      ration: 'alimentation',
-      mais: 'alimentation',
-      soja: 'alimentation',
-      medicament: 'medicaments',
-      medicaments: 'medicaments',
-      vaccin: 'vaccins',
-      vaccins: 'vaccins',
-      veterinaire: 'veterinaire',
-      veto: 'veterinaire',
-      consultation: 'veterinaire',
-      entretien: 'entretien',
-      reparation: 'entretien',
-      maintenance: 'entretien',
-      equipement: 'equipements',
-      materiel: 'equipements',
-      salaire: 'salaires',
-      salaires: 'salaires',
-    };
-
-    for (const [keyword, category] of Object.entries(categoryMap)) {
-      if (normalized.includes(keyword)) {
-        return category;
-      }
-    }
-
-    return 'autre';
+  /**
+   * Définit les préférences utilisateur pour la normalisation de catégories
+   */
+  setCategoryPreferences(preferences: import('./extractors/CategoryNormalizer').UserCategoryPreferences): void {
+    this.categoryNormalizer.setUserPreferences(preferences);
   }
 
   /**
@@ -586,13 +397,6 @@ export class ParameterExtractor {
       .replace(/,/g, '.'); // Remplacer virgule par point
 
     return parseFloat(cleaned);
-  }
-
-  /**
-   * Valide qu'un nombre est un montant valide (pas une quantité ou un poids)
-   */
-  private isValidMontant(value: number): boolean {
-    return !isNaN(value) && value >= 100 && value < 1000000000; // Entre 100 FCFA et 1 milliard
   }
 
   /**

@@ -67,15 +67,37 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
   async query(text: string, params?: any[]) {
     const start = Date.now();
+    const slowQueryThreshold = parseInt(process.env.SLOW_QUERY_THRESHOLD_MS || '1000', 10);
+    
     try {
       const result = await this.pool.query(text, params);
       const duration = Date.now() - start;
-      if (duration > 1000) {
-        this.logger.warn(`Query lente (${duration}ms): ${text.substring(0, 50)}...`);
+      
+      // Monitoring des requêtes lentes (Phase 3)
+      if (duration > slowQueryThreshold) {
+        const queryPreview = text.length > 100 ? `${text.substring(0, 100)}...` : text;
+        const paramsPreview = params && params.length > 0 
+          ? `[${params.slice(0, 3).map(p => typeof p === 'string' ? `"${p.substring(0, 20)}"` : p).join(', ')}${params.length > 3 ? '...' : ''}]`
+          : '[]';
+        
+        this.logger.warn(
+          `⚠️ SLOW QUERY (${duration}ms > ${slowQueryThreshold}ms): ${queryPreview} | Params: ${paramsPreview}`
+        );
+        
+        // En production, on peut aussi envoyer à un service de monitoring (DataDog, New Relic, etc.)
+        if (process.env.NODE_ENV === 'production' && process.env.ENABLE_QUERY_MONITORING === 'true') {
+          // TODO: Intégrer avec un service de monitoring externe
+          // Exemple: this.monitoringService.recordSlowQuery({ query: text, duration, params });
+        }
       }
+      
       return result;
     } catch (error) {
-      this.logger.error(`Erreur lors de l'exécution de la requête: ${text.substring(0, 100)}`, error);
+      const duration = Date.now() - start;
+      this.logger.error(
+        `❌ QUERY ERROR (${duration}ms): ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}`,
+        error
+      );
       throw error;
     }
   }

@@ -1256,12 +1256,20 @@ function normalizeText(text: string): string {
 /**
  * Système RAG pour la détection d'intention
  * Mode hybride : OpenAI embeddings (si configuré) + Jaccard (fallback)
+ * Version 3.0 - Optimisé avec index inversé et cache
  */
 export class IntentRAG {
   private knowledgeBase: TrainingExample[];
   private openAIService: OpenAIIntentService | null;
   private useOpenAI: boolean;
   private embeddingsCache: Map<string, number[]> = new Map();
+
+  // Cache pour normalisations (optimisation v3.0)
+  private normalizedTextCache: Map<string, string> = new Map();
+  
+  // Index inversé pour recherche rapide (optimisation v3.0)
+  private invertedIndex: Map<string, Set<number>> = new Map();
+  private exampleNormalizedTexts: Map<number, string> = new Map();
 
   constructor(
     knowledgeBase: TrainingExample[] = INTENT_KNOWLEDGE_BASE_COMPLETE,
@@ -1272,10 +1280,13 @@ export class IntentRAG {
     this.openAIService = openAIService || null;
     this.useOpenAI = !!openAIService && openAIService.isConfigured();
 
+    // Construire l'index inversé et précalculer les normalisations (optimisation v3.0)
+    this.buildInvertedIndex();
+
     // Log pour monitoring (en développement)
     if (process.env.NODE_ENV === 'development') {
       console.log(
-        `📚 IntentRAG initialisé avec ${this.knowledgeBase.length} exemples d'entraînement`
+        `📚 IntentRAG initialisé avec ${this.knowledgeBase.length} exemples d'entraînement (index inversé: ${this.invertedIndex.size} mots-clés)`
       );
     }
   }
@@ -1344,16 +1355,27 @@ export class IntentRAG {
   }
 
   /**
-   * Détection d'intention avec Jaccard (fallback)
+   * Détection d'intention avec Jaccard (fallback) - Version optimisée v3.0
+   * Utilise l'index inversé pour limiter la recherche aux top 100 candidats
    */
   private detectIntentWithJaccard(message: string): DetectedIntent | null {
-    const normalized = normalizeText(message);
+    const normalized = this.getNormalizedText(message);
 
-    // Calculer la similarité avec tous les exemples
-    const similarities = this.knowledgeBase.map((example) => ({
-      example,
-      similarity: calculateSimilarity(normalized, normalizeText(example.text)),
-    }));
+    // Étape 1 : Utiliser l'index inversé pour trouver les candidats pertinents
+    const candidateIndices = this.findCandidateIndices(normalized);
+    
+    // Étape 2 : Limiter à top 100 candidats avant calcul Jaccard complet
+    const topCandidates = candidateIndices.slice(0, 100);
+
+    // Étape 3 : Calculer la similarité seulement pour les candidats sélectionnés
+    const similarities = topCandidates.map((index) => {
+      const example = this.knowledgeBase[index];
+      const exampleNormalized = this.exampleNormalizedTexts.get(index) || this.getNormalizedText(example.text);
+      return {
+        example,
+        similarity: calculateSimilarity(normalized, exampleNormalized),
+      };
+    });
 
     // Trier par similarité décroissante
     similarities.sort((a, b) => b.similarity - a.similarity);
@@ -1424,18 +1446,26 @@ export class IntentRAG {
   }
 
   /**
-   * Recherche avec Jaccard
+   * Recherche avec Jaccard - Version optimisée v3.0
    */
   private findTopMatchesWithJaccard(
     message: string,
     topN: number
   ): Array<{ example: TrainingExample; similarity: number }> {
-    const normalized = normalizeText(message);
+    const normalized = this.getNormalizedText(message);
 
-    const similarities = this.knowledgeBase.map((example) => ({
-      example,
-      similarity: calculateSimilarity(normalized, normalizeText(example.text)),
-    }));
+    // Utiliser l'index inversé pour trouver les candidats pertinents
+    const candidateIndices = this.findCandidateIndices(normalized);
+    const topCandidates = candidateIndices.slice(0, 100);
+
+    const similarities = topCandidates.map((index) => {
+      const example = this.knowledgeBase[index];
+      const exampleNormalized = this.exampleNormalizedTexts.get(index) || this.getNormalizedText(example.text);
+      return {
+        example,
+        similarity: calculateSimilarity(normalized, exampleNormalized),
+      };
+    });
 
     similarities.sort((a, b) => b.similarity - a.similarity);
     return similarities.slice(0, topN);
@@ -1443,9 +1473,26 @@ export class IntentRAG {
 
   /**
    * Ajoute un nouvel exemple à la base de connaissances
+   * Met à jour l'index inversé automatiquement
    */
   addExample(example: TrainingExample): void {
+    const index = this.knowledgeBase.length;
     this.knowledgeBase.push(example);
+
+    // Mettre à jour l'index inversé
+    const normalized = normalizeText(example.text);
+    this.exampleNormalizedTexts.set(index, normalized);
+
+    const words = normalized
+      .split(/\s+/)
+      .filter((w) => w.length >= 3 && !w.startsWith('[') && !w.endsWith(']'));
+
+    words.forEach((word) => {
+      if (!this.invertedIndex.has(word)) {
+        this.invertedIndex.set(word, new Set());
+      }
+      this.invertedIndex.get(word)!.add(index);
+    });
   }
 
   /**
@@ -1490,5 +1537,96 @@ export class IntentRAG {
    */
   isUsingOpenAI(): boolean {
     return this.useOpenAI;
+  }
+
+  // ============================================
+  // OPTIMISATIONS V3.0 - Index inversé et cache
+  // ============================================
+
+  /**
+   * Construit l'index inversé pour recherche rapide
+   * Mots-clés fréquents → indices des exemples qui les contiennent
+   */
+  private buildInvertedIndex(): void {
+    this.invertedIndex.clear();
+    this.exampleNormalizedTexts.clear();
+
+    this.knowledgeBase.forEach((example, index) => {
+      const normalized = normalizeText(example.text);
+      this.exampleNormalizedTexts.set(index, normalized);
+
+      // Extraire les mots significatifs (longueur >= 3, pas de placeholders)
+      const words = normalized
+        .split(/\s+/)
+        .filter((w) => w.length >= 3 && !w.startsWith('[') && !w.endsWith(']'));
+
+      words.forEach((word) => {
+        if (!this.invertedIndex.has(word)) {
+          this.invertedIndex.set(word, new Set());
+        }
+        this.invertedIndex.get(word)!.add(index);
+      });
+    });
+
+    // Filtrer les mots trop fréquents (stop words) - apparaissent dans >30% des exemples
+    const stopWordThreshold = Math.floor(this.knowledgeBase.length * 0.3);
+    for (const [word, indices] of this.invertedIndex.entries()) {
+      if (indices.size > stopWordThreshold) {
+        this.invertedIndex.delete(word);
+      }
+    }
+  }
+
+  /**
+   * Trouve les indices des exemples candidats en utilisant l'index inversé
+   * Retourne les indices triés par score de pertinence (nombre de mots en commun)
+   */
+  private findCandidateIndices(normalizedMessage: string): number[] {
+    const messageWords = normalizedMessage
+      .split(/\s+/)
+      .filter((w) => w.length >= 3 && !w.startsWith('[') && !w.endsWith(']'));
+
+    // Compter les occurrences de chaque exemple (nombre de mots en commun)
+    const candidateScores = new Map<number, number>();
+
+    messageWords.forEach((word) => {
+      const exampleIndices = this.invertedIndex.get(word);
+      if (exampleIndices) {
+        exampleIndices.forEach((index) => {
+          candidateScores.set(index, (candidateScores.get(index) || 0) + 1);
+        });
+      }
+    });
+
+    // Si aucun candidat trouvé via index, retourner tous les indices (fallback)
+    if (candidateScores.size === 0) {
+      return this.knowledgeBase.map((_, index) => index);
+    }
+
+    // Trier par score décroissant
+    return Array.from(candidateScores.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([index]) => index);
+  }
+
+  /**
+   * Récupère le texte normalisé avec cache
+   */
+  private getNormalizedText(text: string): string {
+    if (this.normalizedTextCache.has(text)) {
+      return this.normalizedTextCache.get(text)!;
+    }
+
+    const normalized = normalizeText(text);
+    this.normalizedTextCache.set(text, normalized);
+    return normalized;
+  }
+
+  /**
+   * Réinitialise les caches (utile pour tests ou si la base change)
+   */
+  clearCache(): void {
+    this.normalizedTextCache.clear();
+    this.buildInvertedIndex();
   }
 }

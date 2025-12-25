@@ -15,6 +15,14 @@ export interface PerformanceMetrics {
   actionSuccessRate: number;
   errors: Array<{ message: string; error: string; timestamp: string }>;
   lastUpdated: string;
+  // V3.0 - Métriques détaillées par étape
+  averageFastPathTime?: number;
+  averageRAGTime?: number;
+  averageExtractionTime?: number;
+  averageAPICallTime?: number;
+  averageActionExecutionTime?: number;
+  fastPathUsageCount?: number;
+  ragUsageCount?: number;
 }
 
 export class PerformanceMonitor {
@@ -34,6 +42,13 @@ export class PerformanceMonitor {
   private responseTimeHistory: number[] = [];
   private extractionHistory: boolean[] = [];
   private actionHistory: boolean[] = [];
+  
+  // V3.0 - Historiques détaillés par étape
+  private fastPathTimeHistory: number[] = [];
+  private ragTimeHistory: number[] = [];
+  private extractionTimeHistory: number[] = [];
+  private apiCallTimeHistory: number[] = [];
+  private actionExecutionTimeHistory: number[] = [];
 
   /**
    * Enregistre une interaction avec l'agent
@@ -88,6 +103,65 @@ export class PerformanceMonitor {
     }
 
     this.metrics.lastUpdated = new Date().toISOString();
+  }
+
+  /**
+   * Enregistre les temps détaillés par étape (V3.0)
+   */
+  recordStepTiming(timings: {
+    fastPathTime?: number;
+    ragTime?: number;
+    extractionTime?: number;
+    apiCallTime?: number;
+    actionExecutionTime?: number;
+  }): void {
+    if (timings.fastPathTime !== undefined) {
+      this.fastPathTimeHistory.push(timings.fastPathTime);
+      this.metrics.fastPathUsageCount = (this.metrics.fastPathUsageCount || 0) + 1;
+      this.updateAverageFastPathTime();
+    }
+
+    if (timings.ragTime !== undefined) {
+      this.ragTimeHistory.push(timings.ragTime);
+      this.metrics.ragUsageCount = (this.metrics.ragUsageCount || 0) + 1;
+      this.updateAverageRAGTime();
+    }
+
+    if (timings.extractionTime !== undefined) {
+      this.extractionTimeHistory.push(timings.extractionTime);
+      this.updateAverageExtractionTime();
+    }
+
+    if (timings.apiCallTime !== undefined) {
+      this.apiCallTimeHistory.push(timings.apiCallTime);
+      this.updateAverageAPICallTime();
+    }
+
+    if (timings.actionExecutionTime !== undefined) {
+      this.actionExecutionTimeHistory.push(timings.actionExecutionTime);
+      this.updateAverageActionExecutionTime();
+    }
+
+    // Log détaillé en développement
+    if (process.env.NODE_ENV === 'development') {
+      const logParts: string[] = ['[PerformanceMonitor]'];
+      if (timings.fastPathTime !== undefined) {
+        logParts.push(`FastPath: ${timings.fastPathTime}ms`);
+      }
+      if (timings.ragTime !== undefined) {
+        logParts.push(`RAG: ${timings.ragTime}ms`);
+      }
+      if (timings.extractionTime !== undefined) {
+        logParts.push(`Extraction: ${timings.extractionTime}ms`);
+      }
+      if (timings.apiCallTime !== undefined) {
+        logParts.push(`API: ${timings.apiCallTime}ms`);
+      }
+      if (timings.actionExecutionTime !== undefined) {
+        logParts.push(`Action: ${timings.actionExecutionTime}ms`);
+      }
+      console.log(logParts.join(' | '));
+    }
   }
 
   /**
@@ -151,6 +225,25 @@ export class PerformanceMonitor {
       `  ⚙️  Taux de succès actions: ${(this.metrics.actionSuccessRate * 100).toFixed(2)}%`
     );
     lines.push('');
+    
+    // V3.0 - Métriques détaillées par étape
+    if (this.metrics.averageFastPathTime !== undefined) {
+      lines.push('TEMPS PAR ÉTAPE (V3.0):');
+      lines.push(`  ⚡ Fast Path moyen: ${this.metrics.averageFastPathTime.toFixed(0)}ms (utilisé ${this.metrics.fastPathUsageCount || 0} fois)`);
+      if (this.metrics.averageRAGTime !== undefined) {
+        lines.push(`  🔍 RAG moyen: ${this.metrics.averageRAGTime.toFixed(0)}ms (utilisé ${this.metrics.ragUsageCount || 0} fois)`);
+      }
+      if (this.metrics.averageExtractionTime !== undefined) {
+        lines.push(`  📝 Extraction moyenne: ${this.metrics.averageExtractionTime.toFixed(0)}ms`);
+      }
+      if (this.metrics.averageAPICallTime !== undefined) {
+        lines.push(`  🌐 Appel API moyen: ${this.metrics.averageAPICallTime.toFixed(0)}ms`);
+      }
+      if (this.metrics.averageActionExecutionTime !== undefined) {
+        lines.push(`  ⚙️  Exécution action moyenne: ${this.metrics.averageActionExecutionTime.toFixed(0)}ms`);
+      }
+      lines.push('');
+    }
 
     if (this.metrics.errors.length > 0) {
       lines.push(`⚠️  Erreurs récentes (${this.metrics.errors.length}):`);
@@ -193,6 +286,12 @@ export class PerformanceMonitor {
     this.responseTimeHistory = [];
     this.extractionHistory = [];
     this.actionHistory = [];
+    // V3.0 - Réinitialiser historiques détaillés
+    this.fastPathTimeHistory = [];
+    this.ragTimeHistory = [];
+    this.extractionTimeHistory = [];
+    this.apiCallTimeHistory = [];
+    this.actionExecutionTimeHistory = [];
   }
 
   private updateAverageConfidence(): void {
@@ -217,5 +316,37 @@ export class PerformanceMonitor {
     if (this.actionHistory.length === 0) return;
     const successes = this.actionHistory.filter((b) => b).length;
     this.metrics.actionSuccessRate = successes / this.actionHistory.length;
+  }
+
+  // V3.0 - Méthodes de mise à jour pour métriques détaillées
+  private updateAverageFastPathTime(): void {
+    if (this.fastPathTimeHistory.length === 0) return;
+    this.metrics.averageFastPathTime =
+      this.fastPathTimeHistory.reduce((sum, t) => sum + t, 0) / this.fastPathTimeHistory.length;
+  }
+
+  private updateAverageRAGTime(): void {
+    if (this.ragTimeHistory.length === 0) return;
+    this.metrics.averageRAGTime =
+      this.ragTimeHistory.reduce((sum, t) => sum + t, 0) / this.ragTimeHistory.length;
+  }
+
+  private updateAverageExtractionTime(): void {
+    if (this.extractionTimeHistory.length === 0) return;
+    this.metrics.averageExtractionTime =
+      this.extractionTimeHistory.reduce((sum, t) => sum + t, 0) / this.extractionTimeHistory.length;
+  }
+
+  private updateAverageAPICallTime(): void {
+    if (this.apiCallTimeHistory.length === 0) return;
+    this.metrics.averageAPICallTime =
+      this.apiCallTimeHistory.reduce((sum, t) => sum + t, 0) / this.apiCallTimeHistory.length;
+  }
+
+  private updateAverageActionExecutionTime(): void {
+    if (this.actionExecutionTimeHistory.length === 0) return;
+    this.metrics.averageActionExecutionTime =
+      this.actionExecutionTimeHistory.reduce((sum, t) => sum + t, 0) /
+      this.actionExecutionTimeHistory.length;
   }
 }

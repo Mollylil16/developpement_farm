@@ -122,7 +122,13 @@ export class MarketplaceService {
       const effectiveLimit = limit ? Math.min(limit, 500) : defaultLimit;
       const effectiveOffset = offset || 0;
 
-      let query = 'SELECT * FROM marketplace_listings WHERE status != $1';
+      // Colonnes nécessaires pour mapRowToListing (optimisation: éviter SELECT *)
+      const listingColumns = `id, subject_id, producer_id, farm_id, price_per_kg, calculated_price, 
+        status, listed_at, updated_at, last_weight_date, 
+        location_latitude, location_longitude, location_address, location_city, location_region,
+        sale_terms, views, inquiries, date_creation, derniere_modification`;
+
+      let query = `SELECT ${listingColumns} FROM marketplace_listings WHERE status != $1`;
       const params: any[] = ['removed'];
 
       if (projetId) {

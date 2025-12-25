@@ -84,6 +84,30 @@ export default function ProductionCheptelComponent() {
   const [expandedHistorique, setExpandedHistorique] = useState<string | null>(null);
   const [showRevenuModal, setShowRevenuModal] = useState(false);
   const [animalVendu, setAnimalVendu] = useState<ProductionAnimal | null>(null);
+  
+  // Pagination frontend: afficher seulement un nombre limité d'animaux à la fois
+  const ITEMS_PER_PAGE = 50; // Nombre d'animaux à afficher par page
+  const [displayedCount, setDisplayedCount] = useState(ITEMS_PER_PAGE);
+  
+  // Réinitialiser la pagination quand les filtres changent
+  React.useEffect(() => {
+    setDisplayedCount(ITEMS_PER_PAGE);
+  }, [filterCategorie, searchQuery, projetActif?.id]);
+  
+  // Paginer les animaux filtrés
+  const animauxPagines = React.useMemo(() => {
+    return animauxFiltres.slice(0, displayedCount);
+  }, [animauxFiltres, displayedCount]);
+  
+  // Vérifier s'il y a plus d'animaux à charger
+  const hasMore = animauxFiltres.length > displayedCount;
+  
+  // Charger plus d'animaux (scroll infini)
+  const loadMore = useCallback(() => {
+    if (hasMore && !loading) {
+      setDisplayedCount((prev) => prev + ITEMS_PER_PAGE);
+    }
+  }, [hasMore, loading]);
 
   // Charger les données uniquement quand l'onglet est visible (éviter les boucles infinies)
   const aChargeRef = useRef<string | null>(null);
@@ -243,7 +267,7 @@ export default function ProductionCheptelComponent() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <FlatList
-        data={animauxFiltres}
+        data={animauxPagines}
         renderItem={renderAnimal}
         keyExtractor={(item) => item.id}
         getItemLayout={getItemLayout}
@@ -279,6 +303,8 @@ export default function ProductionCheptelComponent() {
             tintColor={colors.primary}
           />
         }
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
         ListEmptyComponent={
           searchQuery.trim() ? (
             <EmptyState
@@ -310,6 +336,13 @@ export default function ProductionCheptelComponent() {
               }
             />
           )
+        }
+        ListFooterComponent={
+          hasMore && loading ? (
+            <View style={styles.footerLoader}>
+              <LoadingSpinner message="Chargement..." />
+            </View>
+          ) : null
         }
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
@@ -362,13 +395,17 @@ export default function ProductionCheptelComponent() {
   );
 }
 
-const styles = StyleSheet.create({
+  const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
   listContent: {
     padding: SPACING.md,
     paddingBottom: 100,
+  },
+  footerLoader: {
+    paddingVertical: SPACING.lg,
+    alignItems: 'center',
   },
   header: {
     marginBottom: SPACING.lg,

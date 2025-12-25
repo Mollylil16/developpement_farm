@@ -24,6 +24,12 @@ import {
   OpenAIIntentService,
   OpenAIParameterExtractor,
 } from './core';
+import { MontantExtractor } from './core/extractors/MontantExtractor';
+import { CategoryNormalizer } from './core/extractors/CategoryNormalizer';
+import { FastPathDetector } from './core/FastPathDetector';
+import { ConfirmationManager } from './core/ConfirmationManager';
+import { LearningService } from './core/LearningService';
+import type { DetectedIntent } from './IntentDetector';
 
 export class ChatAgentService {
   private actionExecutor: AgentActionExecutor;
@@ -37,6 +43,8 @@ export class ChatAgentService {
   private conversationContext: ConversationContextManager;
   private dataValidator: DataValidator;
   private openAIService: OpenAIIntentService | null = null;
+  private confirmationManager: ConfirmationManager;
+  private learningService: LearningService;
 
   // Monitoring de performance (optionnel)
   private performanceMonitor?: unknown; // PerformanceMonitor (importé dynamiquement si nécessaire)
@@ -63,6 +71,8 @@ export class ChatAgentService {
     this.intentRAG = new IntentRAG(undefined, this.openAIService || undefined);
     this.conversationContext = new ConversationContextManager();
     this.dataValidator = new DataValidator();
+    this.confirmationManager = new ConfirmationManager();
+    this.learningService = new LearningService();
   }
 
   /**
@@ -118,69 +128,81 @@ export class ChatAgentService {
       // Mettre à jour le contexte conversationnel
       this.conversationContext.updateFromMessage(userMsg);
 
-      // DÉTECTION D'INTENTION : Utiliser RAG en priorité (plus précis)
+      // FAST PATH : Détection rapide pour les cas courants (bypass RAG/OpenAI si confiance > 0.95)
+      const fastPathResult = FastPathDetector.detectFastPath(userMessage);
       let action: AgentAction | null = null;
-      let detectedIntent = await this.intentRAG.detectIntent(userMessage);
+      let detectedIntent: DetectedIntent | null = null;
 
-      // Si RAG ne trouve rien ou confiance faible, essayer OpenAI classification directe (priorité pour 100%)
-      if ((!detectedIntent || detectedIntent.confidence < 0.85) && this.openAIService) {
-        const availableActions: AgentActionType[] = [
-          'get_statistics',
-          'get_stock_status',
-          'calculate_costs',
-          'get_reminders',
-          'analyze_data',
-          'search_animal',
-          'create_revenu',
-          'create_depense',
-          'create_charge_fixe',
-          'create_pesee',
-          'create_vaccination',
-          'create_visite_veterinaire',
-          'create_traitement',
-          'create_maladie',
-          'create_ingredient',
-          'create_planification',
-          'other',
-        ];
-
-        const openAIClassification = await this.openAIService.classifyIntent(
-          userMessage,
-          availableActions
+      if (fastPathResult.intent && fastPathResult.confidence >= 0.95) {
+        // Utiliser le fast path si confiance élevée
+        detectedIntent = fastPathResult.intent;
+        console.log(
+          `[ChatAgentService] Fast path activé: ${detectedIntent.action}, confiance: ${fastPathResult.confidence}`
         );
-        if (openAIClassification && openAIClassification.confidence >= 0.85) {
-          detectedIntent = {
-            action: openAIClassification.action,
-            confidence: openAIClassification.confidence,
-            params: {},
-          };
+      } else {
+        // DÉTECTION D'INTENTION : Utiliser RAG en priorité (plus précis)
+        detectedIntent = await this.intentRAG.detectIntent(userMessage);
+
+        // Si RAG ne trouve rien ou confiance faible, essayer OpenAI classification directe (priorité pour 100%)
+        if ((!detectedIntent || detectedIntent.confidence < 0.85) && this.openAIService) {
+          const availableActions: AgentActionType[] = [
+            'get_statistics',
+            'get_stock_status',
+            'calculate_costs',
+            'get_reminders',
+            'analyze_data',
+            'search_animal',
+            'create_revenu',
+            'create_depense',
+            'create_charge_fixe',
+            'create_pesee',
+            'create_vaccination',
+            'create_visite_veterinaire',
+            'create_traitement',
+            'create_maladie',
+            'create_ingredient',
+            'create_planification',
+            'other',
+          ];
+
+          const openAIClassification = await this.openAIService.classifyIntent(
+            userMessage,
+            availableActions
+          );
+          if (openAIClassification && openAIClassification.confidence >= 0.85) {
+            detectedIntent = {
+              action: openAIClassification.action,
+              confidence: openAIClassification.confidence,
+              params: {},
+            };
+            console.log(
+              '[ChatAgentService] Action détectée depuis OpenAI classification:',
+              detectedIntent.action,
+              'confiance:',
+              detectedIntent.confidence
+            );
+          }
+        }
+
+        // Fallback sur IntentDetector si RAG et OpenAI ne trouvent rien (dernier recours)
+        if (!detectedIntent || detectedIntent.confidence < 0.85) {
+          const fallbackIntent = IntentDetector.detectIntent(userMessage);
+          if (fallbackIntent && fallbackIntent.confidence >= 0.75) {
+            detectedIntent = fallbackIntent;
+            console.log(
+              '[ChatAgentService] Action détectée depuis IntentDetector (fallback):',
+              detectedIntent.action
+            );
+          }
+        } else {
+          const method = this.intentRAG.isUsingOpenAI() ? 'RAG (OpenAI embeddings)' : 'RAG (Jaccard)';
           console.log(
-            '[ChatAgentService] Action détectée depuis OpenAI classification:',
+            `[ChatAgentService] Action détectée depuis ${method}:`,
             detectedIntent.action,
             'confiance:',
             detectedIntent.confidence
           );
         }
-      }
-
-      // Fallback sur IntentDetector si RAG et OpenAI ne trouvent rien (dernier recours)
-      if (!detectedIntent || detectedIntent.confidence < 0.85) {
-        const fallbackIntent = IntentDetector.detectIntent(userMessage);
-        if (fallbackIntent && fallbackIntent.confidence >= 0.75) {
-          detectedIntent = fallbackIntent;
-          console.log(
-            '[ChatAgentService] Action détectée depuis IntentDetector (fallback):',
-            detectedIntent.action
-          );
-        }
-      } else {
-        const method = this.intentRAG.isUsingOpenAI() ? 'RAG (OpenAI embeddings)' : 'RAG (Jaccard)';
-        console.log(
-          `[ChatAgentService] Action détectée depuis ${method}:`,
-          detectedIntent.action,
-          'confiance:',
-          detectedIntent.confidence
-        );
       }
 
       if (detectedIntent && detectedIntent.confidence >= 0.85) {
@@ -267,20 +289,32 @@ export class ChatAgentService {
           );
         }
 
-        // Déterminer si confirmation nécessaire
-        const requiresConfirmation = this.requiresConfirmation(detectedIntent.action, mergedParams);
+        // Déterminer si confirmation nécessaire avec seuils adaptatifs
+        const confirmationDecision = this.confirmationManager.shouldConfirmAndExecute(
+          {
+            type: detectedIntent.action,
+            params: mergedParams,
+          },
+          detectedIntent.confidence,
+          userMessage
+        );
 
         action = {
           type: detectedIntent.action,
           params: mergedParams,
-          requiresConfirmation,
+          requiresConfirmation: confirmationDecision.requiresConfirmation,
         };
       } else {
         // Fallback : parser la réponse de l'IA
         action = this.parseActionFromResponse(aiResponse, userMessage);
         if (action) {
-          // Vérifier si confirmation nécessaire
-          action.requiresConfirmation = this.requiresConfirmation(action.type, action.params);
+          // Vérifier si confirmation nécessaire (confiance par défaut 0.7 pour fallback)
+          const confirmationDecision = this.confirmationManager.shouldConfirmAndExecute(
+            action,
+            0.7,
+            userMessage
+          );
+          action.requiresConfirmation = confirmationDecision.requiresConfirmation;
         }
       }
 
@@ -288,12 +322,20 @@ export class ChatAgentService {
       let actionResult: AgentActionResult | null = null;
 
       if (action && action.type !== 'other') {
-        // Si confirmation requise (cas critiques uniquement), demander d'abord
-        if (action.requiresConfirmation) {
+        // Déterminer la décision de confirmation avec le nouveau système
+        const confidence = detectedIntent?.confidence || 0.7;
+        const confirmationDecision = this.confirmationManager.shouldConfirmAndExecute(
+          action,
+          confidence,
+          userMessage
+        );
+
+        if (confirmationDecision.requiresConfirmation && !confirmationDecision.shouldExecute) {
+          // Demander confirmation avant d'exécuter
           assistantMessage = {
             id: this.generateId(),
             role: 'assistant',
-            content: this.buildConfirmationMessage(action, userMessage),
+            content: confirmationDecision.message || this.buildConfirmationMessage(action, userMessage),
             timestamp: new Date().toISOString(),
             metadata: {
               pendingAction: {
@@ -304,14 +346,17 @@ export class ChatAgentService {
             },
           };
         } else {
-          // MODE AUTONOME : Exécuter l'action directement sans demander confirmation
+          // MODE AUTONOME : Exécuter l'action directement
           actionResult = await this.actionExecutor.execute(action, this.context);
+
+          // Utiliser le message du ConfirmationManager si disponible, sinon le message du résultat
+          const responseMessage = confirmationDecision.message || actionResult.message;
 
           // Créer le message de réponse avec le résultat de l'action
           assistantMessage = {
             id: this.generateId(),
             role: 'assistant',
-            content: actionResult.message,
+            content: responseMessage,
             timestamp: new Date().toISOString(),
             metadata: {
               actionExecuted: action.type,
@@ -325,13 +370,28 @@ export class ChatAgentService {
           };
         }
       } else {
-        // Réponse simple sans action
-        assistantMessage = {
-          id: this.generateId(),
-          role: 'assistant',
-          content: aiResponse,
-          timestamp: new Date().toISOString(),
-        };
+        // Réponse simple sans action - Enregistrer comme échec de compréhension si pas d'intention détectée
+        if (!detectedIntent || !action) {
+          this.learningService.recordFailure(userMessage, undefined, 'Aucune intention détectée');
+          const suggestion = this.learningService.generateEducationalSuggestion(userMessage);
+          
+          assistantMessage = {
+            id: this.generateId(),
+            role: 'assistant',
+            content: suggestion ? suggestion.explanation : aiResponse,
+            timestamp: new Date().toISOString(),
+            metadata: {
+              educationalSuggestion: suggestion,
+            },
+          };
+        } else {
+          assistantMessage = {
+            id: this.generateId(),
+            role: 'assistant',
+            content: aiResponse,
+            timestamp: new Date().toISOString(),
+          };
+        }
       }
 
       this.conversationHistory.push(assistantMessage);
@@ -346,17 +406,27 @@ export class ChatAgentService {
     } catch (error: unknown) {
       console.error("Erreur lors de l'envoi du message:", error);
 
-      // Message d'erreur plus spécifique selon le type d'erreur
-      let errorContent =
-        "Désolé, j'ai rencontré une erreur. Pouvez-vous reformuler votre demande ?";
+      // Enregistrer l'échec pour apprentissage
+      const errorMsg = error instanceof Error ? error.message : 'Erreur inconnue';
+      this.learningService.recordFailure(userMessage, undefined, errorMsg);
+
+      // Générer une suggestion éducative
+      const suggestion = this.learningService.generateEducationalSuggestion(userMessage);
+
+      // Message d'erreur avec suggestion éducative
+      let errorContent = suggestion
+        ? suggestion.explanation
+        : "Désolé, j'ai rencontré une erreur. Pouvez-vous reformuler votre demande ?";
 
       if (error instanceof Error && error.message) {
         // Si l'erreur vient de l'exécution d'une action, utiliser le message d'erreur
         if (error.message.includes('montant') || error.message.includes('Montant')) {
-          errorContent = `Désolé, ${error.message}. Peux-tu me donner le montant exact de la dépense ? Par exemple : "J'ai dépensé 5000 FCFA pour l'alimentation".`;
+          errorContent = suggestion
+            ? suggestion.explanation
+            : `Désolé, ${error.message}. Peux-tu me donner le montant exact de la dépense ? Par exemple : "J'ai dépensé 5000 FCFA pour l'alimentation".`;
         } else if (error.message.includes('Contexte non initialisé')) {
           errorContent = 'Désolé, je ne suis pas encore prêt. Réessaie dans quelques instants.';
-        } else {
+        } else if (!suggestion) {
           errorContent = `Désolé, ${error.message}. Peux-tu reformuler ta demande avec plus de détails ?`;
         }
       }
@@ -366,6 +436,10 @@ export class ChatAgentService {
         role: 'assistant',
         content: errorContent,
         timestamp: new Date().toISOString(),
+        metadata: {
+          error: errorMsg,
+          educationalSuggestion: suggestion,
+        },
       };
       this.conversationHistory.push(errorMessage);
       return errorMessage;
@@ -827,42 +901,9 @@ FORMAT DE RÉPONSE:
 
   /**
    * Extrait un montant depuis un texte
-   * Cherche des patterns comme "5000 FCFA", "5 000 francs", etc.
+   * Utilise MontantExtractor pour centraliser la logique
    */
   private extractMontantFromText(text: string): number | null {
-    // Regex pour trouver un montant dans le texte
-    // Patterns prioritaires (plus fiables)
-    const priorityPatterns = [
-      // Pattern 1: Montant après "à", "pour", "de", "montant", "prix", "coût"
-      /(?:a|pour|de|montant|prix|cout|vendu a|vendu pour|depense|achete|paye)[:\s]+(\d[\d\s,]{3,})(?:\s*(?:f\s*c\s*f\s*a|fcfa|francs?|f\s*))?/i,
-      // Pattern 2: "5000 FCFA", "5 000 francs" (avec devise, minimum 3 chiffres)
-      /(\d[\d\s,]{3,})\s*(?:FCFA|CFA|francs?|F\s*)/i,
-    ];
-
-    for (const pattern of priorityPatterns) {
-      const match = text.match(pattern);
-      if (match && match[1]) {
-        const montantStr = match[1].replace(/[\s,]/g, '');
-        const montant = parseInt(montantStr);
-        if (!isNaN(montant) && montant > 100) {
-          // Ignorer les petits nombres (probablement des quantités)
-          return montant;
-        }
-      }
-    }
-
-    // Pattern 3: Chercher tous les nombres de 3+ chiffres et prendre le plus grand
-    const allNumbers = text.match(/\b(\d[\d\s,]{3,})\b/g);
-    if (allNumbers) {
-      const validNumbers = allNumbers
-        .map((n) => parseInt(n.replace(/[\s,]/g, '')))
-        .filter((n) => n > 100 && n < 100000000); // Ignorer les trop petits ou trop grands
-
-      if (validNumbers.length > 0) {
-        return Math.max(...validNumbers);
-      }
-    }
-
-    return null;
+    return MontantExtractor.extract(text) || null;
   }
 }

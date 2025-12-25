@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { ImageService } from '../common/services/image.service';
+import { compressImage } from '../common/helpers/image-compression.helper';
 import { CacheService } from '../common/services/cache.service';
 import { CreateAnimalDto } from './dto/create-animal.dto';
 import { UpdateAnimalDto } from './dto/update-animal.dto';
@@ -10,7 +12,8 @@ import { UpdatePeseeDto } from './dto/update-pesee.dto';
 export class ProductionService {
   constructor(
     private databaseService: DatabaseService,
-    private cacheService: CacheService
+    private cacheService: CacheService,
+    private imageService: ImageService
   ) {}
 
   /**
@@ -141,6 +144,13 @@ export class ProductionService {
     const actif = statut === 'actif';
     const reproducteur = createAnimalDto.reproducteur || false;
 
+    // Compresser l'image avant stockage (Phase 3)
+    const compressedPhotoUri = await compressImage(
+      createAnimalDto.photo_uri,
+      this.imageService,
+      { maxWidth: 1920, maxHeight: 1920, quality: 80 }
+    );
+
     const result = await this.databaseService.query(
       `INSERT INTO production_animaux (
         id, projet_id, code, nom, origine, sexe, date_naissance, poids_initial,
@@ -166,7 +176,7 @@ export class ProductionService {
         createAnimalDto.pere_id || null,
         createAnimalDto.mere_id || null,
         createAnimalDto.notes || null,
-        createAnimalDto.photo_uri || null,
+        compressedPhotoUri,
         now,
         now,
       ]
@@ -311,8 +321,14 @@ export class ProductionService {
       paramIndex++;
     }
     if (updateAnimalDto.photo_uri !== undefined) {
+      // Compresser l'image avant stockage (Phase 3)
+      const compressedPhotoUri = await compressImage(
+        updateAnimalDto.photo_uri,
+        this.imageService,
+        { maxWidth: 1920, maxHeight: 1920, quality: 80 }
+      );
       fields.push(`photo_uri = $${paramIndex}`);
-      values.push(updateAnimalDto.photo_uri || null);
+      values.push(compressedPhotoUri);
       paramIndex++;
     }
 

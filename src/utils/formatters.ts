@@ -290,66 +290,41 @@ export function toSafeNumber(valeur: unknown, defaultValue: number = 0): number 
 
 /**
  * Extrait un montant depuis un texte
- * Cherche les montants après "à", "pour", "de", "montant", "prix", etc.
- * Supporte les formats: "800000", "800 000", "800k", "1 million"
+ * @deprecated Utiliser MontantExtractor.extract() à la place
+ * Conservé pour compatibilité avec le code existant
  * @param text - Texte à analyser
  * @returns Montant extrait ou null si non trouvé
  */
 export function extractMontantFromText(text: string): number | null {
-  if (!text || typeof text !== 'string') {
-    return null;
-  }
+  // Déléguer à MontantExtractor (import dynamique pour éviter les dépendances circulaires)
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { MontantExtractor } = require('../services/chatAgent/core/extractors/MontantExtractor');
+    return MontantExtractor.extract(text) || null;
+  } catch (error) {
+    // Fallback sur l'ancienne implémentation si import échoue
+    console.warn('[formatters] Fallback sur ancienne implémentation extractMontantFromText');
+    if (!text || typeof text !== 'string') {
+      return null;
+    }
 
-  // Patterns prioritaires (plus fiables)
-  const priorityPatterns = [
-    // Pattern 1: Montant après "à", "pour", "de", "montant", "prix", "coût"
-    /(?:a|pour|de|montant|prix|cout|vendu a|vendu pour|depense|achete|paye)[:\s]+(\d[\d\s,]{3,})(?:\s*(?:f\s*c\s*f\s*a|fcfa|francs?|f\s*))?/i,
-    // Pattern 2: "5000 FCFA", "5 000 francs" (avec devise, minimum 3 chiffres)
-    /(\d[\d\s,]{3,})\s*(?:FCFA|CFA|francs?|F\s*)/i,
-  ];
+    // Patterns prioritaires (plus fiables)
+    const priorityPatterns = [
+      /(?:a|pour|de|montant|prix|cout|vendu a|vendu pour|depense|achete|paye)[:\s]+(\d[\d\s,]{3,})(?:\s*(?:f\s*c\s*f\s*a|fcfa|francs?|f\s*))?/i,
+      /(\d[\d\s,]{3,})\s*(?:FCFA|CFA|francs?|F\s*)/i,
+    ];
 
-  for (const pattern of priorityPatterns) {
-    const match = text.match(pattern);
-    if (match && match[1]) {
-      const montantStr = match[1].replace(/[\s,]/g, '');
-      const montant = parseInt(montantStr);
-      if (!isNaN(montant) && montant > 100) {
-        // Ignorer les petits nombres (probablement des quantités)
-        return montant;
+    for (const pattern of priorityPatterns) {
+      const match = text.match(pattern);
+      if (match && match[1]) {
+        const montantStr = match[1].replace(/[\s,]/g, '');
+        const montant = parseInt(montantStr);
+        if (!isNaN(montant) && montant > 100) {
+          return montant;
+        }
       }
     }
+
+    return null;
   }
-
-  // Pattern 3: Formats "k" ou "million" (ex: "800k", "1 million")
-  const kPattern = /(\d+[\d\s,]*)\s*k\b/i;
-  const kMatch = text.match(kPattern);
-  if (kMatch && kMatch[1]) {
-    const base = parseMontant(kMatch[1]);
-    if (base > 0) {
-      return base * 1000;
-    }
-  }
-
-  const millionPattern = /(\d+[\d\s,.]*)\s*million/i;
-  const millionMatch = text.match(millionPattern);
-  if (millionMatch && millionMatch[1]) {
-    const base = parseMontant(millionMatch[1]);
-    if (base > 0) {
-      return base * 1000000;
-    }
-  }
-
-  // Pattern 4: Plus grand nombre dans le texte (fallback)
-  const numbers = text.match(/\d[\d\s,]{3,}/g);
-  if (numbers && numbers.length > 0) {
-    const montants = numbers
-      .map((n) => parseInt(n.replace(/[\s,]/g, '')))
-      .filter((n) => !isNaN(n) && n > 100);
-
-    if (montants.length > 0) {
-      return Math.max(...montants);
-    }
-  }
-
-  return null;
 }

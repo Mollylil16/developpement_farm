@@ -16,15 +16,23 @@ export interface RetryOptions {
 const DEFAULT_RETRY_OPTIONS: Required<RetryOptions> = {
   maxRetries: 3,
   retryDelay: 1000, // 1 seconde
-  retryableStatuses: [408, 500, 502, 503, 504], // Timeout, Server Errors (429 exclu - ne pas retry immédiatement)
+  retryableStatuses: [408, 429, 500, 502, 503, 504], // Timeout, Rate Limit, Server Errors
   retryableErrors: ['Network error', 'Request timeout', 'Failed to fetch'],
 };
 
 /**
  * Calcule le délai avant le prochain retry (backoff exponentiel)
+ * Pour les erreurs 429 (rate limit), utilise un délai plus long
  */
-function calculateRetryDelay(attempt: number, baseDelay: number): number {
-  return baseDelay * Math.pow(2, attempt - 1);
+function calculateRetryDelay(attempt: number, baseDelay: number, statusCode?: number): number {
+  const baseBackoff = baseDelay * Math.pow(2, attempt - 1);
+  
+  // Pour les erreurs 429 (rate limiting), attendre plus longtemps (5-10 secondes)
+  if (statusCode === 429) {
+    return Math.max(5000, baseBackoff * 5);
+  }
+  
+  return baseBackoff;
 }
 
 /**
@@ -67,6 +75,7 @@ function wait(ms: number): Promise<void> {
 export async function withRetry<T>(fn: () => Promise<T>, options: RetryOptions = {}): Promise<T> {
   const config = { ...DEFAULT_RETRY_OPTIONS, ...options };
   let lastError: unknown;
+  let lastStatusCode: number | undefined;
 
   for (let attempt = 1; attempt <= config.maxRetries; attempt++) {
     try {
@@ -82,6 +91,11 @@ export async function withRetry<T>(fn: () => Promise<T>, options: RetryOptions =
     } catch (error) {
       lastError = error;
 
+      // Extraire le code de statut si c'est une APIError
+      if (error instanceof APIError) {
+        lastStatusCode = error.status;
+      }
+
       // Ne pas retry si ce n'est pas une erreur retryable
       if (!isRetryableError(error, config)) {
         throw error;
@@ -92,12 +106,12 @@ export async function withRetry<T>(fn: () => Promise<T>, options: RetryOptions =
         break;
       }
 
-      // Calculer le délai avant le prochain retry
-      const delay = calculateRetryDelay(attempt, config.retryDelay);
+      // Calculer le délai avant le prochain retry (avec prise en compte du status code)
+      const delay = calculateRetryDelay(attempt, config.retryDelay, lastStatusCode);
 
       if (__DEV__) {
         console.log(
-          `[RetryHandler] Tentative ${attempt}/${config.maxRetries} échouée. Nouvelle tentative dans ${delay}ms...`
+          `[RetryHandler] Tentative ${attempt}/${config.maxRetries} échouée${lastStatusCode ? ` (${lastStatusCode})` : ''}. Nouvelle tentative dans ${delay}ms...`
         );
       }
 
