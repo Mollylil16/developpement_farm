@@ -180,14 +180,14 @@ export class WebSocketChatTransport implements IChatTransport {
       this.config.reconnectTimeout || 16000
     );
 
-    console.log(
-      `[WebSocketTransport] Reconnexion dans ${delay}ms (tentative ${this.reconnectAttempts}/${maxAttempts})`
+    logger.debug(
+      `Reconnexion dans ${delay}ms (tentative ${this.reconnectAttempts}/${maxAttempts})`
     );
 
     this.reconnectTimeout = setTimeout(() => {
       if (this.conversationId) {
         this.connect(this.conversationId).catch((error) => {
-          console.error('[WebSocketTransport] Échec reconnexion:', error);
+          logger.error('Échec reconnexion:', error);
         });
       }
     }, delay);
