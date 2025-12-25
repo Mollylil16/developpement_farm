@@ -12,7 +12,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Kouakou a besoin du microphone pour comprendre vos commandes vocales et vous aider à gérer votre élevage plus facilement.",
+        "NSSpeechRecognitionUsageDescription": "Kouakou utilise la reconnaissance vocale pour transcrire ce que vous dites et enregistrer vos dépenses, ventes ou pesées."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -21,7 +25,11 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.brunell663.fermierpro"
+      "package": "com.brunell663.fermierpro",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -29,7 +37,14 @@
     "scheme": "fermierpro",
     "plugins": [
       "expo-sqlite",
-      "expo-localization"
+      "expo-localization",
+      [
+        "@react-native-voice/voice",
+        {
+          "microphonePermission": "Autorisez l'accès au microphone pour parler à Kouakou",
+          "speechRecognitionPermission": "Autorisez la reconnaissance vocale pour que Kouakou comprenne vos commandes"
+        }
+      ]
     ],
     "extra": {
       "eas": {

@@ -29,7 +29,12 @@ import { CategoryNormalizer } from './core/extractors/CategoryNormalizer';
 import { FastPathDetector } from './core/FastPathDetector';
 import { ConfirmationManager } from './core/ConfirmationManager';
 import { LearningService } from './core/LearningService';
+import { ActionParser } from './core/ActionParser';
+import { PerformanceMonitor } from './monitoring/PerformanceMonitor';
 import type { DetectedIntent } from './IntentDetector';
+import { createLoggerWithPrefix } from '../../utils/logger';
+
+const logger = createLoggerWithPrefix('ChatAgentService');
 
 export class ChatAgentService {
   private actionExecutor: AgentActionExecutor;
@@ -45,9 +50,7 @@ export class ChatAgentService {
   private openAIService: OpenAIIntentService | null = null;
   private confirmationManager: ConfirmationManager;
   private learningService: LearningService;
-
-  // Monitoring de performance (optionnel)
-  private performanceMonitor?: unknown; // PerformanceMonitor (importé dynamiquement si nécessaire)
+  private performanceMonitor: PerformanceMonitor;
 
   constructor(config: AgentConfig) {
     this.config = {
@@ -73,6 +76,7 @@ export class ChatAgentService {
     this.dataValidator = new DataValidator();
     this.confirmationManager = new ConfirmationManager();
     this.learningService = new LearningService();
+    this.performanceMonitor = new PerformanceMonitor();
   }
 
   /**
@@ -123,7 +127,9 @@ export class ChatAgentService {
       ];
 
       // Appeler l'API de l'IA
+      const apiCallStartTime = Date.now();
       const aiResponse = await this.api.sendMessage(messagesForAPI);
+      const apiCallTime = Date.now() - apiCallStartTime;
 
       // Mettre à jour le contexte conversationnel
       this.conversationContext.updateFromMessage(userMsg);
@@ -136,12 +142,15 @@ export class ChatAgentService {
       if (fastPathResult.intent && fastPathResult.confidence >= 0.95) {
         // Utiliser le fast path si confiance élevée
         detectedIntent = fastPathResult.intent;
-        console.log(
-          `[ChatAgentService] Fast path activé: ${detectedIntent.action}, confiance: ${fastPathResult.confidence}`
+        logger.debug(
+          `Fast path activé: ${detectedIntent.action}, confiance: ${fastPathResult.confidence}`
         );
+        this.performanceMonitor.recordStepTiming({ fastPathTime });
       } else {
         // DÉTECTION D'INTENTION : Utiliser RAG en priorité (plus précis)
+        const ragStartTime = Date.now();
         detectedIntent = await this.intentRAG.detectIntent(userMessage);
+        ragTime = Date.now() - ragStartTime;
 
         // Si RAG ne trouve rien ou confiance faible, essayer OpenAI classification directe (priorité pour 100%)
         if ((!detectedIntent || detectedIntent.confidence < 0.85) && this.openAIService) {
@@ -175,8 +184,8 @@ export class ChatAgentService {
               confidence: openAIClassification.confidence,
               params: {},
             };
-            console.log(
-              '[ChatAgentService] Action détectée depuis OpenAI classification:',
+            logger.debug(
+              'Action détectée depuis OpenAI classification:',
               detectedIntent.action,
               'confiance:',
               detectedIntent.confidence
@@ -189,19 +198,24 @@ export class ChatAgentService {
           const fallbackIntent = IntentDetector.detectIntent(userMessage);
           if (fallbackIntent && fallbackIntent.confidence >= 0.75) {
             detectedIntent = fallbackIntent;
-            console.log(
-              '[ChatAgentService] Action détectée depuis IntentDetector (fallback):',
+            logger.debug(
+              'Action détectée depuis IntentDetector (fallback):',
               detectedIntent.action
             );
           }
         } else {
           const method = this.intentRAG.isUsingOpenAI() ? 'RAG (OpenAI embeddings)' : 'RAG (Jaccard)';
-          console.log(
-            `[ChatAgentService] Action détectée depuis ${method}:`,
+          logger.debug(
+            `Action détectée depuis ${method}:`,
             detectedIntent.action,
             'confiance:',
             detectedIntent.confidence
           );
+        }
+        
+        // Enregistrer temps RAG dans PerformanceMonitor
+        if (ragTime !== undefined) {
+          this.performanceMonitor.recordStepTiming({ ragTime });
         }
       }
 
@@ -219,7 +233,7 @@ export class ChatAgentService {
 
         // Si OpenAI disponible ET paramètres manquants ou confiance < 0.85 → extraction OpenAI
         if (this.openAIService && this.config.apiKey) {
-          const hasMissingParams = this.hasMissingCriticalParams(
+          const hasMissingParams = ActionParser.hasMissingCriticalParams(
             detectedIntent.action,
             extractedParams
           );
@@ -239,16 +253,19 @@ export class ChatAgentService {
                 ...openAIParams, // OpenAI écrase/ajoute (plus précis)
               };
 
-              console.log('[ChatAgentService] Extraction OpenAI utilisée pour précision maximale');
+              logger.debug('Extraction OpenAI utilisée pour précision maximale');
             } catch (error) {
-              console.warn(
-                '[ChatAgentService] Erreur extraction OpenAI, utilisation extraction classique:',
+              logger.warn(
+                'Erreur extraction OpenAI, utilisation extraction classique:',
                 error
               );
               // Continuer avec extraction classique
             }
           }
         }
+
+        // Enregistrer temps extraction dans PerformanceMonitor
+        this.performanceMonitor.recordStepTiming({ extractionTime });
 
         // Fusionner avec les paramètres détectés par l'intention
         const mergedParams = {
@@ -283,8 +300,8 @@ export class ChatAgentService {
 
         // Avertissements (mais on continue)
         if (validationResult.warnings.length > 0) {
-          console.warn(
-            '[ChatAgentService] Avertissements de validation:',
+          logger.warn(
+            'Avertissements de validation:',
             validationResult.warnings
           );
         }
@@ -304,9 +321,9 @@ export class ChatAgentService {
           params: mergedParams,
           requiresConfirmation: confirmationDecision.requiresConfirmation,
         };
-      } else {
-        // Fallback : parser la réponse de l'IA
-        action = this.parseActionFromResponse(aiResponse, userMessage);
+        } else {
+          // Fallback : parser la réponse de l'IA
+          action = ActionParser.parseActionFromResponse(aiResponse, userMessage);
         if (action) {
           // Vérifier si confirmation nécessaire (confiance par défaut 0.7 pour fallback)
           const confirmationDecision = this.confirmationManager.shouldConfirmAndExecute(
@@ -335,7 +352,7 @@ export class ChatAgentService {
           assistantMessage = {
             id: this.generateId(),
             role: 'assistant',
-            content: confirmationDecision.message || this.buildConfirmationMessage(action, userMessage),
+            content: confirmationDecision.message || 'Je veux juste confirmer avant d\'enregistrer. C\'est bon pour toi ?',
             timestamp: new Date().toISOString(),
             metadata: {
               pendingAction: {
@@ -347,7 +364,17 @@ export class ChatAgentService {
           };
         } else {
           // MODE AUTONOME : Exécuter l'action directement
+          const actionExecutionStartTime = Date.now();
           actionResult = await this.actionExecutor.execute(action, this.context);
+          const actionExecutionTime = Date.now() - actionExecutionStartTime;
+
+          // Enregistrer succès d'intention dans LearningService analytics (V3.0)
+          if (detectedIntent && actionResult.success) {
+            this.learningService.recordIntentSuccess(detectedIntent.action, detectedIntent.confidence);
+          }
+
+          // Enregistrer temps d'exécution dans PerformanceMonitor (V3.0)
+          this.performanceMonitor.recordStepTiming({ actionExecutionTime });
 
           // Utiliser le message du ConfirmationManager si disponible, sinon le message du résultat
           const responseMessage = confirmationDecision.message || actionResult.message;
@@ -396,15 +423,14 @@ export class ChatAgentService {
 
       this.conversationHistory.push(assistantMessage);
 
-      // Enregistrer dans le monitoring si disponible
-      if (this.performanceMonitor) {
-        const responseTime = Date.now() - startTime;
-        this.performanceMonitor.recordInteraction(userMsg, assistantMessage, responseTime);
-      }
+      // Enregistrer dans le monitoring (V3.0 - métriques détaillées)
+      const responseTime = Date.now() - startTime;
+      this.performanceMonitor.recordInteraction(userMsg, assistantMessage, responseTime);
+      this.performanceMonitor.recordStepTiming({ apiCallTime });
 
       return assistantMessage;
     } catch (error: unknown) {
-      console.error("Erreur lors de l'envoi du message:", error);
+      logger.error("Erreur lors de l'envoi du message:", error);
 
       // Enregistrer l'échec pour apprentissage
       const errorMsg = error instanceof Error ? error.message : 'Erreur inconnue';
@@ -469,34 +495,26 @@ export class ChatAgentService {
   }
 
   /**
-   * Construit le prompt système pour l'IA
-   * @deprecated Utiliser buildOptimizedSystemPrompt() à la place
-   * Conservé pour compatibilité, sera supprimé dans une prochaine version
+   * Résout les références dans les paramètres ("le même", "celui-là", etc.)
+   * V3.0 - Simplifié, utilise ConversationContext
    */
-  private buildSystemPrompt(): string {
-    if (!this.context) {
-      return '';
+  private resolveReferences(params: Record<string, unknown>): void {
+    // Résoudre "le même acheteur"
+    if (params.acheteur && typeof params.acheteur === 'string') {
+      const resolved = this.conversationContext.resolveReference(params.acheteur, 'acheteur');
+      if (resolved) {
+        params.acheteur = resolved;
+      }
     }
-    // Utiliser le nouveau prompt optimisé
-    return buildOptimizedSystemPrompt(this.context);
+
+    // Résoudre "le même animal"
+    if (params.animal_code && typeof params.animal_code === 'string') {
+      const resolved = this.conversationContext.resolveReference(params.animal_code, 'animal');
+      if (resolved) {
+        params.animal_code = resolved;
+      }
+    }
   }
-
-  /**
-   * @deprecated Ancien prompt système - remplacé par buildOptimizedSystemPrompt()
-   * Conservé temporairement pour référence
-   */
-  private buildSystemPromptOld(): string {
-    if (!this.context) {
-      return '';
-    }
-
-    return `Tu es Kouakou, un assistant professionnel et chaleureux pour éleveurs de porcs en Côte d'Ivoire.
-Tu es compétent, efficace et tu comprends le langage terre-à-terre ivoirien tout en restant professionnel.
-
-CONTEXTE:
-- Projet: ${this.context.projetId}
-- Date actuelle: ${this.context.currentDate}
-- Utilisateur: ${this.context.userName || 'Éleveur'}
 
 TON ET LANGUE:
 - Professionnel mais chaleureux et accessible
@@ -667,105 +685,6 @@ FORMAT DE RÉPONSE:
   }
 
   /**
-   * Parse la réponse de l'IA pour détecter des actions
-   * Utilise d'abord le JSON de l'IA, puis le détecteur d'intention comme fallback
-   * @param response - Réponse de l'IA à parser
-   * @param userMessage - Message original de l'utilisateur (utilisé pour améliorer la détection)
-   */
-  private parseActionFromResponse(response: string, userMessage?: string): AgentAction | null {
-    // Utiliser userMessage pour améliorer la détection d'intention si la réponse n'est pas claire
-    const hasUserMessage = userMessage && userMessage.trim().length > 0;
-    
-    // Si le message utilisateur existe, l'utiliser pour améliorer le parsing
-    if (hasUserMessage && !response.includes('action')) {
-      // Essayer de détecter l'intention depuis le message utilisateur si la réponse IA est vide
-      const detectedIntent = IntentDetector.detectIntent(userMessage || '');
-      if (detectedIntent) {
-        return {
-          type: detectedIntent.action,
-          params: detectedIntent.params || {},
-        };
-      }
-    }
-    
-    try {
-      // Chercher un JSON dans la réponse (peut être sur plusieurs lignes)
-      // Essayer d'abord avec un match simple
-      let jsonMatch = response.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/);
-
-      // Si pas trouvé, essayer avec un match multiligne plus permissif
-      if (!jsonMatch) {
-        jsonMatch = response.match(/\{[\s\S]*?\}/);
-      }
-
-      if (jsonMatch) {
-        try {
-          const parsed = JSON.parse(jsonMatch[0]);
-          if (parsed.action) {
-            const params = parsed.params || {};
-
-            // Si c'est une dépense et que le montant n'est pas dans params, essayer de l'extraire depuis la réponse
-            if (
-              parsed.action === 'create_depense' &&
-              (!params.montant || params.montant === null || params.montant === undefined)
-            ) {
-              const montantExtrait = this.extractMontantFromText(response);
-              if (montantExtrait) {
-                params.montant = montantExtrait;
-              }
-            }
-
-            console.log('[ChatAgentService] Action détectée depuis JSON:', parsed.action, params);
-
-            return {
-              type: parsed.action as AgentAction['type'],
-              params,
-              requiresConfirmation: parsed.requiresConfirmation || false,
-              confirmationMessage: parsed.confirmationMessage,
-            };
-          }
-        } catch (parseError) {
-          console.error(
-            '[ChatAgentService] Erreur parsing JSON:',
-            parseError,
-            'JSON:',
-            jsonMatch[0]
-          );
-        }
-      }
-    } catch (error) {
-      console.error('[ChatAgentService] Erreur détection action:', error);
-    }
-
-    // Note: Le détecteur d'intention est maintenant appelé avant cette méthode dans sendMessage
-
-    // Dernier fallback : détection basique sur la réponse
-    const lowerResponse = response.toLowerCase();
-
-    if (
-      lowerResponse.includes('statistique') ||
-      lowerResponse.includes('bilan') ||
-      lowerResponse.includes('combien de porc') ||
-      lowerResponse.includes('nombre de porc') ||
-      lowerResponse.includes('porc actif') ||
-      lowerResponse.includes('cheptel')
-    ) {
-      console.log('[ChatAgentService] Fallback basique: get_statistics');
-      return { type: 'get_statistics', params: {} };
-    }
-
-    if (
-      lowerResponse.includes('stock') &&
-      (lowerResponse.includes('actuel') || lowerResponse.includes('état'))
-    ) {
-      console.log('[ChatAgentService] Fallback basique: get_stock_status');
-      return { type: 'get_stock_status', params: {} };
-    }
-
-    return null;
-  }
-
-  /**
    * Réinitialise l'historique de conversation
    */
   clearHistory(): void {
@@ -793,26 +712,8 @@ FORMAT DE RÉPONSE:
   }
 
   /**
-   * Vérifie si des paramètres critiques manquent pour une action
-   */
-  private hasMissingCriticalParams(actionType: string, params: ExtractedParams): boolean {
-    switch (actionType) {
-      case 'create_revenu':
-        return !params.montant; // Montant est critique
-      case 'create_depense':
-        return !params.montant; // Montant est critique
-      case 'create_pesee':
-        return !params.poids_kg || !params.animal_code; // Poids et code sont critiques
-      case 'create_vaccination':
-      case 'create_traitement':
-        return !params.animal_code; // Code animal est critique
-      default:
-        return false;
-    }
-  }
-
-  /**
    * Résout les références dans les paramètres ("le même", "celui-là", etc.)
+   * V3.0 - Simplifié, utilise ConversationContext
    */
   private resolveReferences(params: Record<string, unknown>): void {
     // Résoudre "le même acheteur"
@@ -834,76 +735,5 @@ FORMAT DE RÉPONSE:
 
   private generateId(): string {
     return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }
-
-  /**
-   * Détermine si une action nécessite confirmation (uniquement pour cas critiques)
-   */
-  private requiresConfirmation(actionType: string, params: Record<string, unknown>): boolean {
-    // Suppression de données → TOUJOURS demander confirmation
-    if (
-      actionType.includes('delete') ||
-      actionType.includes('supprimer') ||
-      actionType.includes('effacer')
-    ) {
-      return true;
-    }
-
-    // Montants très élevés (> 5 millions FCFA) → demander confirmation
-    const montant = params.montant || params.prix || params.cout || params.amount;
-    if (montant && typeof montant === 'number' && montant > 5000000) {
-      return true;
-    }
-    // Si montant est une string, essayer de parser
-    if (montant && typeof montant === 'string') {
-      const parsed = parseInt(montant.replace(/[\s,]/g, ''));
-      if (!isNaN(parsed) && parsed > 5000000) {
-        return true;
-      }
-    }
-
-    // Décisions sanitaires graves → demander confirmation
-    const lowerMessage = JSON.stringify(params).toLowerCase();
-    if (
-      lowerMessage.includes('abattage') ||
-      lowerMessage.includes('euthanasie') ||
-      lowerMessage.includes('quarantaine totale') ||
-      lowerMessage.includes('abattre tous')
-    ) {
-      return true;
-    }
-
-    // Pour tout le reste → pas de confirmation nécessaire (autonomie maximale)
-    return false;
-  }
-
-  /**
-   * Construit un message de confirmation pour les cas critiques
-   */
-  private buildConfirmationMessage(action: AgentAction, userMessage: string): string {
-    const montant = action.params.montant || action.params.prix || action.params.cout;
-
-    if (montant && typeof montant === 'number' && montant > 5000000) {
-      return `Attention patron ! C'est un montant important : ${montant.toLocaleString('fr-FR')} FCFA. Tu confirmes que je peux enregistrer ça ?`;
-    }
-
-    if (action.type.includes('delete') || action.type.includes('supprimer')) {
-      return `Attention ! Tu veux vraiment supprimer cette donnée ? C'est une action irréversible. Tu confirmes ?`;
-    }
-
-    const lowerMessage = userMessage.toLowerCase();
-    if (lowerMessage.includes('abattage') || lowerMessage.includes('euthanasie')) {
-      return `Yako ! C'est une décision sanitaire grave. Tu confirmes vraiment qu'il faut procéder à l'abattage ?`;
-    }
-
-    return `Je veux juste confirmer avant d'enregistrer. C'est bon pour toi ?`;
-  }
-
-  /**
-   * Extrait un montant depuis un texte
-   * Utilise MontantExtractor pour centraliser la logique
-   */
-  private extractMontantFromText(text: string): number | null {
-    return MontantExtractor.extract(text) || null;
   }
 }

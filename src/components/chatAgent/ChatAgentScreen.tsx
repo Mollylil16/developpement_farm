@@ -27,6 +27,8 @@ import { fr } from 'date-fns/locale';
 import { useAppSelector } from '../../store/hooks';
 import { Image } from 'react-native';
 import { VoiceService } from '../../services/chatAgent';
+import { VoiceInputButton } from '../chat/VoiceInputButton';
+import { VoiceServiceV2 } from '../../services/chatAgent/VoiceServiceV2';
 
 interface ChatAgentScreenProps {
   onClose?: () => void;
@@ -51,6 +53,15 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
   const [isListening, setIsListening] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const voiceServiceRef = useRef<VoiceService | null>(null);
+  const voiceServiceV2Ref = useRef<VoiceServiceV2 | null>(null);
+  
+  // Initialiser VoiceServiceV2
+  useEffect(() => {
+    voiceServiceV2Ref.current = new VoiceServiceV2();
+    return () => {
+      voiceServiceV2Ref.current?.destroy().catch(console.error);
+    };
+  }, []);
 
   // Générer les initiales de l'utilisateur
   const userInitials = user?.prenom?.[0] || user?.nom?.[0] || 'U';
@@ -62,14 +73,25 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
     }
   }, [voiceService]);
 
-  // Auto-scroll au dernier message
+  // Auto-scroll au dernier message et faire parler Kouakou si nécessaire
   useEffect(() => {
     if (messages.length > 0) {
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
+      
+      // Faire parler Kouakou si la voix est activée et qu'on vient de recevoir une réponse
+      if (voiceEnabled && voiceServiceV2Ref.current) {
+        const lastMessage = messages[messages.length - 1];
+        if (lastMessage.role === 'assistant' && lastMessage.content) {
+          // Attendre un peu pour que l'utilisateur voie le message
+          setTimeout(() => {
+            voiceServiceV2Ref.current?.speak(lastMessage.content);
+          }, 800);
+        }
+      }
     }
-  }, [messages.length]);
+  }, [messages.length, voiceEnabled]);
 
   const handleSend = async () => {
     const content = inputText.trim();
@@ -79,6 +101,18 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
       setSending(true);
       setInputText('');
       await sendMessage(content);
+      
+      // Faire parler Kouakou si la voix est activée
+      // On attend que le message soit ajouté à la liste avant de parler
+      setTimeout(() => {
+        if (voiceEnabled && voiceServiceV2Ref.current && messages.length > 0) {
+          // Prendre le dernier message de l'assistant
+          const lastAssistantMessage = [...messages].reverse().find(msg => msg.role === 'assistant');
+          if (lastAssistantMessage?.content) {
+            voiceServiceV2Ref.current.speak(lastAssistantMessage.content);
+          }
+        }
+      }, 1000); // Attendre 1 seconde pour que le message soit traité
     } catch (error) {
       console.error('Erreur envoi message:', error);
       Alert.alert('Erreur', "Impossible d'envoyer le message. Réessayez.");
@@ -359,17 +393,33 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
         )}
 
         <View style={styles.inputContainer}>
-          <TouchableOpacity
-            style={[styles.voiceButton, isListening && styles.voiceButtonActive]}
-            onPress={handleVoiceInput}
-            disabled={sending || !isInitialized}
-          >
-            {isListening ? (
-              <ActivityIndicator size="small" color={COLORS.error} />
-            ) : (
-              <Ionicons name="mic" size={24} color={COLORS.primary} />
-            )}
-          </TouchableOpacity>
+          {/* Bouton vocal amélioré */}
+          {voiceEnabled && voiceServiceV2Ref.current ? (
+            <VoiceInputButton
+              onTranscription={(text) => {
+                setInputText(text);
+                // Optionnel : envoyer automatiquement après transcription
+                // handleSend();
+              }}
+              onError={(message) => {
+                Alert.alert('Erreur vocale', message);
+              }}
+              disabled={sending || !isInitialized}
+              voiceService={voiceServiceV2Ref.current}
+            />
+          ) : (
+            <TouchableOpacity
+              style={[styles.voiceButton, isListening && styles.voiceButtonActive]}
+              onPress={handleVoiceInput}
+              disabled={sending || !isInitialized}
+            >
+              {isListening ? (
+                <ActivityIndicator size="small" color={COLORS.error} />
+              ) : (
+                <Ionicons name="mic" size={24} color={COLORS.primary} />
+              )}
+            </TouchableOpacity>
+          )}
 
           <TextInput
             style={styles.textInput}
