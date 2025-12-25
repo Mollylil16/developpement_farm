@@ -81,7 +81,7 @@ export class WebSocketChatTransport implements IChatTransport {
         };
 
         this.ws.onclose = () => {
-          console.log('[WebSocketTransport] Connexion fermée');
+          logger.debug('Connexion fermée');
           this._status = 'disconnected';
           this.callbacks.onStatusChange('disconnected');
 
@@ -109,7 +109,7 @@ export class WebSocketChatTransport implements IChatTransport {
 
     this._status = 'disconnected';
     this.callbacks.onStatusChange('disconnected');
-    console.log('[WebSocketTransport] Déconnecté');
+    logger.debug('Déconnecté');
   }
 
   async sendMessage(message: Omit<ChatMessage, 'id' | 'createdAt'>): Promise<ChatMessage> {
@@ -167,7 +167,7 @@ export class WebSocketChatTransport implements IChatTransport {
     const maxAttempts = this.config.maxReconnectAttempts || 5;
 
     if (this.reconnectAttempts >= maxAttempts) {
-      console.error('[WebSocketTransport] Max reconnexions atteint');
+      logger.error('Max reconnexions atteint');
       this.callbacks.onError(new Error('Impossible de se reconnecter au serveur'));
       return;
     }
