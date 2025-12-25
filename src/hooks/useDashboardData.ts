@@ -13,6 +13,7 @@ import {
   loadStatistiquesMortalite,
 } from '../store/slices/mortalitesSlice';
 import { loadProductionAnimaux, loadPeseesRecents } from '../store/slices/productionSlice';
+import { logger } from '../utils/logger';
 
 interface UseDashboardDataProps {
   projetId: string | undefined;
@@ -76,7 +77,7 @@ export function useDashboardData({
         await onProfilPhotoLoad();
       }
     } catch (error) {
-      console.error('Erreur lors du chargement des données:', error);
+      logger.error('Erreur lors du chargement des données:', error);
       // Ne pas bloquer l'application si une requête échoue
       // Les données disponibles seront affichées
     }
@@ -92,7 +93,7 @@ export function useDashboardData({
     try {
       await chargerDonnees();
     } catch (error) {
-      console.error('Erreur lors du rafraîchissement:', error);
+      logger.error('Erreur lors du rafraîchissement:', error);
     } finally {
       setRefreshing(false);
     }

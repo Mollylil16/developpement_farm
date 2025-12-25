@@ -6,6 +6,9 @@ import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { Planification, CreatePlanificationInput, UpdatePlanificationInput } from '../../types';
 import apiClient from '../../services/api/apiClient';
 import { getErrorMessage } from '../../types/common';
+import { createLoggerWithPrefix } from '../../utils/logger';
+
+const logger = createLoggerWithPrefix('PlanificationSlice');
 
 interface PlanificationState {
   planifications: Planification[];
@@ -122,14 +125,14 @@ export const createPlanificationsBatch = createAsyncThunk(
   'planification/createPlanificationsBatch',
   async (inputs: CreatePlanificationInput[], { rejectWithValue }) => {
     try {
-      console.log(`📋 [BATCH] Création de ${inputs.length} tâches...`);
+      logger.debug(`[BATCH] Création de ${inputs.length} tâches...`);
 
       const planifications = await apiClient.post<Planification[]>('/planifications/batch', inputs);
 
-      console.log(`✅ [BATCH] ${planifications.length} tâches créées avec succès`);
+      logger.debug(`[BATCH] ${planifications.length} tâches créées avec succès`);
       return planifications;
     } catch (error: unknown) {
-      console.error('❌ [BATCH] Erreur:', error);
+      logger.error('[BATCH] Erreur:', error);
       return rejectWithValue(
         getErrorMessage(error) || 'Erreur lors de la création des planifications'
       );

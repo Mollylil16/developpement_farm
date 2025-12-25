@@ -2,6 +2,8 @@
  * Utilitaires pour la gestion des dates
  */
 
+import { logger } from './logger';
+
 /**
  * Formate une date ISO en format local (YYYY-MM-DD)
  * @param isoDate Date au format ISO (ex: "2024-01-15T10:30:00.000Z")
@@ -20,7 +22,7 @@ export function formatLocalDate(isoDate: string): string {
 
     return `${year}-${month}-${day}`;
   } catch (error) {
-    console.error('Erreur lors du formatage de la date:', error);
+    logger.error('Erreur lors du formatage de la date:', error);
     return '';
   }
 }
@@ -45,7 +47,7 @@ export function parseLocalDate(localDate: string): Date {
 
     return date;
   } catch (error) {
-    console.error('Erreur lors du parsing de la date:', error);
+    logger.error('Erreur lors du parsing de la date:', error);
     return new Date();
   }
 }
@@ -77,7 +79,7 @@ export function formatDisplayDate(isoDate: string, locale: string = 'fr-FR'): st
       day: 'numeric',
     });
   } catch (error) {
-    console.error('Erreur lors du formatage de la date:', error);
+    logger.error('Erreur lors du formatage de la date:', error);
     return '';
   }
 }
@@ -102,7 +104,7 @@ export function getDaysDifference(date1: string, date2: string): number {
 
     return diffDays;
   } catch (error) {
-    console.error('Erreur lors du calcul de la différence:', error);
+    logger.error('Erreur lors du calcul de la différence:', error);
     return 0;
   }
 }
@@ -123,7 +125,7 @@ export function isDateInPast(isoDate: string): boolean {
 
     return date < now;
   } catch (error) {
-    console.error('Erreur lors de la vérification de la date:', error);
+    logger.error('Erreur lors de la vérification de la date:', error);
     return false;
   }
 }
@@ -144,7 +146,7 @@ export function isDateInFuture(isoDate: string): boolean {
 
     return date > now;
   } catch (error) {
-    console.error('Erreur lors de la vérification de la date:', error);
+    logger.error('Erreur lors de la vérification de la date:', error);
     return false;
   }
 }
@@ -166,7 +168,7 @@ export function addDays(isoDate: string, days: number): string {
     date.setDate(date.getDate() + days);
     return date.toISOString();
   } catch (error) {
-    console.error("Erreur lors de l'ajout de jours:", error);
+    logger.error("Erreur lors de l'ajout de jours:", error);
     return new Date().toISOString();
   }
 }

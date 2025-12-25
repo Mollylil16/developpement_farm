@@ -12,6 +12,8 @@ import {
   Alert,
   TextInput,
 } from 'react-native';
+import Swipeable from 'react-native-gesture-handler/Swipeable';
+import { RectButton } from 'react-native-gesture-handler';
 import { useNavigation, useFocusEffect, NavigationProp } from '@react-navigation/native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import {
@@ -19,6 +21,7 @@ import {
   switchProjetActif,
   updateProjet,
   loadProjetActif,
+  deleteProjet,
 } from '../store/slices/projetSlice';
 import { loadMortalitesParProjet } from '../store/slices/mortalitesSlice';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
@@ -33,6 +36,8 @@ import EmptyState from './EmptyState';
 import FormField from './FormField';
 import Button from './Button';
 import { countAnimalsByCategory } from '../utils/animalUtils';
+import { SCREENS } from '../navigation/types';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function ParametresProjetComponent() {
   const { colors } = useTheme();
@@ -91,7 +96,7 @@ export default function ParametresProjetComponent() {
     }
   }, [projetActif?.id, isEditing]);
 
-  const handleSwitchProjet = (projetId: string) => {
+  const handleSwitchProjet = React.useCallback((projetId: string) => {
     Alert.alert(
       'Changer de projet',
       'Voulez-vous activer ce projet ? Les données affichées seront celles de ce projet.',
@@ -106,16 +111,24 @@ export default function ParametresProjetComponent() {
         },
       ]
     );
-  };
+  }, [dispatch]);
+
+  // Mémoriser les animaux et mortalités filtrés par projet
+  const animauxActifsProjet = useMemo(() => {
+    if (!projetActif) return [];
+    return animaux.filter(
+      (animal) => animal.projet_id === projetActif.id && animal.statut?.toLowerCase() === 'actif'
+    );
+  }, [projetActif?.id, animaux]);
+
+  const mortalitesProjet = useMemo(() => {
+    if (!projetActif) return [];
+    return mortalites.filter((m) => m.projet_id === projetActif.id);
+  }, [projetActif?.id, mortalites]);
 
   // Calculer les effectifs réels à partir du cheptel (animaux réellement enregistrés)
   const effectifsReels = useMemo(() => {
     if (!projetActif) return { truies: 0, verrats: 0, porcelets: 0 };
-
-    // Filtrer les animaux actifs du projet (insensible à la casse)
-    const animauxActifs = animaux.filter(
-      (animal) => animal.projet_id === projetActif.id && animal.statut?.toLowerCase() === 'actif'
-    );
 
     const baseCounts = {
       truies: projetActif.nombre_truies ?? 0,
@@ -124,10 +137,9 @@ export default function ParametresProjetComponent() {
     };
 
     // Utiliser la fonction utilitaire pour compter les animaux par catégorie
-    const { truies, verrats, porcelets } = countAnimalsByCategory(animauxActifs);
+    const { truies, verrats, porcelets } = countAnimalsByCategory(animauxActifsProjet);
 
-    if (animauxActifs.length === 0) {
-      const mortalitesProjet = mortalites.filter((m) => m.projet_id === projetActif.id);
+    if (animauxActifsProjet.length === 0) {
       const mortalitesTruies = mortalitesProjet
         .filter((m) => m.categorie === 'truie')
         .reduce((sum, m) => sum + (m.nombre_porcs || 0), 0);
@@ -150,7 +162,13 @@ export default function ParametresProjetComponent() {
       verrats,
       porcelets,
     };
-  }, [projetActif?.id, animaux, mortalites]);
+  }, [projetActif, animauxActifsProjet, mortalitesProjet]);
+
+  // Mémoriser la liste des projets filtrés pour éviter double filtrage
+  const autresProjets = useMemo(
+    () => projets.filter((p) => p.id !== projetActif?.id),
+    [projets, projetActif?.id]
+  );
 
   const handleSaveEdit = async () => {
     if (!projetActif) return;
@@ -179,6 +197,46 @@ export default function ParametresProjetComponent() {
       Alert.alert('Erreur', errorMessage);
     }
   };
+
+  const handleDeleteProjet = React.useCallback(async (projetId: string) => {
+    const projet = projets.find((p) => p.id === projetId);
+    const isActive = projetActif?.id === projetId;
+
+    Alert.alert(
+      'Supprimer ce projet ?',
+      'Toutes les données de ce projet (animaux, finances, pesées, vaccinations, etc.) seront définitivement supprimées.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await dispatch(deleteProjet(projetId)).unwrap();
+              
+              // Recharger les projets après suppression
+              await dispatch(loadProjets());
+              
+              // Si le projet supprimé était actif, charger un autre projet actif ou rediriger
+              if (isActive) {
+                await dispatch(loadProjets());
+                const result = await dispatch(loadProjetActif());
+                const updatedProjetActif = result.payload;
+                
+                if (!updatedProjetActif) {
+                  // Plus de projets → rediriger vers création
+                  navigation.navigate(SCREENS.CREATE_PROJECT);
+                }
+              }
+            } catch (error: unknown) {
+              const errorMessage = error instanceof Error ? error.message : 'Erreur lors de la suppression';
+              Alert.alert('Erreur', errorMessage);
+            }
+          },
+        },
+      ]
+    );
+  }, [dispatch, projets, projetActif?.id, navigation]);
 
   if (loading) {
     return <LoadingSpinner message="Chargement..." />;
@@ -276,20 +334,41 @@ export default function ParametresProjetComponent() {
                     )}
                   </View>
                 </View>
-                <TouchableOpacity
-                  style={[
-                    styles.editButton,
-                    {
-                      backgroundColor: colors.primary,
-                    },
-                  ]}
-                  onPress={() => setIsEditing(true)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.editButtonText, { color: colors.textOnPrimary }]}>
-                    Modifier
-                  </Text>
-                </TouchableOpacity>
+                <View style={styles.editActions}>
+                  <TouchableOpacity
+                    style={[
+                      styles.editButton,
+                      {
+                        backgroundColor: colors.primary,
+                        flex: 1,
+                        marginRight: SPACING.xs,
+                      },
+                    ]}
+                    onPress={() => setIsEditing(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.editButtonText, { color: colors.textOnPrimary }]}>
+                      Modifier
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.editButton,
+                      {
+                        backgroundColor: '#FF3B30',
+                        flex: 1,
+                        marginLeft: SPACING.xs,
+                      },
+                    ]}
+                    onPress={() => handleDeleteProjet(projetActif.id)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.editButtonText, { color: '#FFFFFF' }]}>
+                      Supprimer
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </>
             ) : (
               <>
@@ -432,6 +511,63 @@ export default function ParametresProjetComponent() {
         </View>
       )}
 
+      {/* Actions du projet */}
+      {projetActif && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Actions</Text>
+          </View>
+
+          <TouchableOpacity
+            style={[
+              styles.actionCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                ...colors.shadow.small,
+              },
+            ]}
+            onPress={() => navigation.navigate(SCREENS.MIGRATION_WIZARD)}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.actionIconContainer, { backgroundColor: colors.primaryLight + '15' }]}>
+              <Ionicons name="swap-horizontal-outline" size={24} color={colors.primary} />
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={[styles.actionTitle, { color: colors.text }]}>Migration de données</Text>
+              <Text style={[styles.actionDescription, { color: colors.textSecondary }]}>
+                Convertir entre modes batch et individualisé
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.actionCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                ...colors.shadow.small,
+              },
+            ]}
+            onPress={() => navigation.navigate(SCREENS.MIGRATION_HISTORY)}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.actionIconContainer, { backgroundColor: colors.successLight + '15' }]}>
+              <Ionicons name="time-outline" size={24} color={colors.success} />
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={[styles.actionTitle, { color: colors.text }]}>Historique des migrations</Text>
+              <Text style={[styles.actionDescription, { color: colors.textSecondary }]}>
+                Consulter l'historique des conversions
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Liste des projets */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
@@ -442,7 +578,7 @@ export default function ParametresProjetComponent() {
             size="small"
           />
         </View>
-        {projets.filter((p) => p.id !== projetActif?.id).length === 0 ? (
+        {autresProjets.length === 0 ? (
           <EmptyState
             title="Aucun autre projet"
             message="Créez d'autres projets pour gérer plusieurs fermes"
@@ -454,59 +590,79 @@ export default function ParametresProjetComponent() {
             }
           />
         ) : (
-          projets
-            .filter((p) => p.id !== projetActif?.id)
-            .map((projet) => (
-              <TouchableOpacity
-                key={projet.id}
-                style={[
-                  styles.projetCard,
-                  {
-                    backgroundColor: colors.surface,
-                    borderColor: colors.border,
-                    ...colors.shadow.small,
-                  },
-                ]}
-                onPress={() => handleSwitchProjet(projet.id)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.projetCardContent}>
-                  <View style={styles.projetCardHeader}>
-                    <Text style={[styles.projetCardTitle, { color: colors.text }]}>
-                      {projet.nom}
-                    </Text>
-                    <View
-                      style={[
-                        styles.badge,
-                        projet.statut === 'actif'
-                          ? { backgroundColor: colors.success + '15' }
-                          : { backgroundColor: colors.textSecondary + '15' },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.badgeText,
-                          {
-                            color:
-                              projet.statut === 'actif' ? colors.success : colors.textSecondary,
-                          },
-                        ]}
-                      >
-                        {projet.statut === 'actif' ? 'Actif' : 'Archivé'}
+          autresProjets.map((projet) => {
+            // Fonction render pour les actions de swipe
+            const renderRightActions = () => {
+              return (
+                <RectButton
+                  style={[
+                    styles.deleteButtonContainer,
+                    { backgroundColor: colors.error },
+                  ]}
+                  onPress={() => handleDeleteProjet(projet.id)}
+                >
+                  <Text style={styles.deleteButtonText}>Supprimer</Text>
+                </RectButton>
+              );
+            };
+
+              return (
+                <Swipeable
+                  key={projet.id}
+                  renderRightActions={renderRightActions}
+                  overshootRight={false}
+                >
+                  <TouchableOpacity
+                    style={[
+                      styles.projetCard,
+                      {
+                        backgroundColor: colors.surface,
+                        borderColor: colors.border,
+                        ...colors.shadow.small,
+                      },
+                    ]}
+                    onPress={() => handleSwitchProjet(projet.id)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.projetCardContent}>
+                      <View style={styles.projetCardHeader}>
+                        <Text style={[styles.projetCardTitle, { color: colors.text }]}>
+                          {projet.nom}
+                        </Text>
+                        <View
+                          style={[
+                            styles.badge,
+                            projet.statut === 'actif'
+                              ? { backgroundColor: colors.success + '15' }
+                              : { backgroundColor: colors.textSecondary + '15' },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.badgeText,
+                              {
+                                color:
+                                  projet.statut === 'actif' ? colors.success : colors.textSecondary,
+                              },
+                            ]}
+                          >
+                            {projet.statut === 'actif' ? 'Actif' : 'Archivé'}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={[styles.projetCardLocation, { color: colors.textSecondary }]}>
+                        {projet.localisation}
                       </Text>
                     </View>
-                  </View>
-                  <Text style={[styles.projetCardLocation, { color: colors.textSecondary }]}>
-                    {projet.localisation}
-                  </Text>
-                </View>
-                <View
-                  style={[styles.switchIconContainer, { backgroundColor: colors.primary + '10' }]}
-                >
-                  <Text style={[styles.switchIcon, { color: colors.primary }]}>›</Text>
-                </View>
-              </TouchableOpacity>
-            ))
+                    <View
+                      style={[styles.switchIconContainer, { backgroundColor: colors.primary + '10' }]}
+                    >
+                      <Text style={[styles.switchIcon, { color: colors.primary }]}>›</Text>
+                    </View>
+                  </TouchableOpacity>
+                </Swipeable>
+              );
+            })
         )}
       </View>
     </ScrollView>
@@ -608,7 +764,6 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.md,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: SPACING.xs,
   },
   editButtonText: {
     fontSize: FONT_SIZES.md,
@@ -683,5 +838,44 @@ const styles = StyleSheet.create({
   helperText: {
     fontSize: FONT_SIZES.xs,
     lineHeight: 16,
+  },
+  actionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+    borderWidth: 1,
+  },
+  actionIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: BORDER_RADIUS.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: SPACING.md,
+  },
+  actionContent: {
+    flex: 1,
+  },
+  actionTitle: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+    marginBottom: SPACING.xs / 2,
+  },
+  actionDescription: {
+    fontSize: FONT_SIZES.sm,
+  },
+  deleteButtonContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 100,
+    borderRadius: BORDER_RADIUS.md,
+    marginLeft: SPACING.sm,
+  },
+  deleteButtonText: {
+    color: '#FFFFFF',
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
   },
 });

@@ -5,6 +5,7 @@
 
 import { AgentAction, AgentContext } from '../../../types/chatAgent';
 import apiClient from '../../../services/api/apiClient';
+import { logger } from '../../../utils/logger';
 
 export interface ValidationResult {
   valid: boolean;
@@ -245,7 +246,7 @@ export class DataValidator {
           animal = animaux.find((a) => a.code === animalIdentifier);
         } catch (apiError) {
           // En cas d'erreur API (permissions, réseau, etc.), on ne bloque pas
-          console.warn('[DataValidator] Erreur lors de la vérification de l\'animal:', apiError);
+          logger.warn('[DataValidator] Erreur lors de la vérification de l\'animal:', apiError);
           // On accepte l'animal par défaut plutôt que de bloquer
           return;
         }
@@ -255,7 +256,7 @@ export class DataValidator {
           animal = await apiClient.get<any>(`/production/animaux/${animalIdentifier}`);
         } catch (apiError) {
           // En cas d'erreur API, on ne bloque pas
-          console.warn('[DataValidator] Erreur lors de la vérification de l\'animal:', apiError);
+          logger.warn('[DataValidator] Erreur lors de la vérification de l\'animal:', apiError);
           return;
         }
       }
@@ -270,7 +271,7 @@ export class DataValidator {
     } catch (error) {
       // Erreur générale - ne pas bloquer pour permettre le fonctionnement de l'agent
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
-      console.warn('[DataValidator] Erreur lors de la validation de l\'animal:', errorMessage);
+      logger.warn('[DataValidator] Erreur lors de la validation de l\'animal:', errorMessage);
       // On accepte l'animal par défaut plutôt que de bloquer
     }
   }

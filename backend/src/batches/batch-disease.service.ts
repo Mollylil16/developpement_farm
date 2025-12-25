@@ -214,4 +214,3 @@ export class BatchDiseaseService {
     return result.rows;
   }
 }
-

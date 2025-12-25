@@ -560,4 +560,28 @@ export class AuthService {
       throw new UnauthorizedException('Erreur lors de la réinitialisation du mot de passe');
     }
   }
+
+  /**
+   * Supprime définitivement le compte utilisateur et toutes ses données
+   */
+  async deleteAccount(userId: string): Promise<void> {
+    this.logger.warn(`Suppression du compte utilisateur: userId=${userId}`);
+
+    // Utiliser une transaction pour garantir la cohérence
+    await this.db.transaction(async (client) => {
+      // Les contraintes ON DELETE CASCADE s'occuperont automatiquement de supprimer :
+      // - Tous les projets (et leurs données via CASCADE sur projets)
+      // - Tous les refresh tokens
+      // - Tous les reset tokens
+      // - Toutes les collaborations (via foreign keys avec ON DELETE CASCADE)
+      
+      // Supprimer l'utilisateur (cela déclenchera les CASCADE)
+      await client.query(
+        `DELETE FROM users WHERE id = $1`,
+        [userId]
+      );
+
+      this.logger.log(`Compte utilisateur supprimé avec succès: userId=${userId}`);
+    });
+  }
 }

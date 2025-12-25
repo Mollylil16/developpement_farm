@@ -160,4 +160,16 @@ export class AuthController {
     await this.authService.resetPassword(dto.reset_token, dto.new_password);
     return { message: 'Mot de passe réinitialisé avec succès' };
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete('delete-account')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Supprimer définitivement le compte utilisateur' })
+  @ApiResponse({ status: 200, description: 'Compte supprimé avec succès' })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  async deleteAccount(@CurrentUser() user: any) {
+    await this.authService.deleteAccount(user.id);
+    return { message: 'Compte supprimé avec succès' };
+  }
 }

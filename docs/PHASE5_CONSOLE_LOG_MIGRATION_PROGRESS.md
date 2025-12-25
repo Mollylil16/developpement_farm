@@ -10,8 +10,8 @@
 Migration progressive des `console.log` vers le logger conditionnel (`src/utils/logger.ts`) pour éviter les logs en production.
 
 **Total identifié:** 335 occurrences dans 98 fichiers  
-**Migré:** 76 occurrences dans 19 fichiers critiques  
-**Restant:** ~259 occurrences
+**Migré:** 260 occurrences dans 55 fichiers critiques  
+**Restant:** ~75 occurrences
 
 ---
 
@@ -82,6 +82,155 @@ Migration progressive des `console.log` vers le logger conditionnel (`src/utils/
 15. ✅ `src/store/slices/planningProductionSlice.ts` (1 occurrence restante corrigée)
     - `console.error` → `logger.error`
 
+16. ✅ `src/store/slices/financeSlice.ts` (10 occurrences)
+    - `console.log` → `logger.debug`
+    - `console.error` → `logger.error`
+
+### Hooks (Suite)
+17. ✅ `src/hooks/useShakeToCancel.ts` (4 occurrences)
+    - `console.log` → `logger.debug`
+    - `console.warn` → `logger.warn`
+    - `console.error` → `logger.error`
+
+18. ✅ `src/hooks/useSaleStatus.ts` (4 occurrences)
+    - `console.error` → `logger.error`
+
+19. ✅ `src/hooks/useMarketplace.ts` (4 occurrences)
+    - `console.error` → `logger.error`
+
+### Utils
+20. ✅ `src/utils/planningProductionCalculs.ts` (11 occurrences)
+    - `console.log` → `logger.debug`
+    - `console.warn` → `logger.warn`
+
+### Store (Suite)
+21. ✅ `src/store/slices/productionSlice.ts` (4 occurrences)
+    - `console.log` → `logger.debug`
+    - `console.error` → `logger.error`
+
+22. ✅ `src/store/slices/mortalitesSlice.ts` (4 occurrences)
+    - `console.log` → `logger.debug`
+    - `console.error` → `logger.error`
+
+23. ✅ `src/store/slices/stocksSlice.ts` (3 occurrences)
+    - `console.log` → `logger.debug`
+    - `console.warn` → `logger.warn`
+
+24. ✅ `src/store/slices/planificationSlice.ts` (3 occurrences)
+    - `console.log` → `logger.debug`
+    - `console.error` → `logger.error`
+
+### Services ChatAgent (Core)
+25. ✅ `src/services/chatAgent/core/IntentRAG.ts` (3 occurrences)
+    - `console.log` → `logger.debug`
+    - `console.warn` → `logger.warn`
+
+26. ✅ `src/services/chatAgent/core/OpenAIIntentService.ts` (4 occurrences)
+    - `console.error` → `logger.error`
+
+27. ✅ `src/services/chatAgent/core/OpenAIParameterExtractor.ts` (2 occurrences)
+    - `console.error` → `logger.error`
+
+28. ✅ `src/services/chatAgent/core/DataValidator.ts` (3 occurrences)
+    - `console.warn` → `logger.warn`
+
+29. ✅ `src/services/chatAgent/VoiceService.ts` (14 occurrences)
+    - `console.log` → `logger.debug`
+    - `console.warn` → `logger.warn`
+    - `console.error` → `logger.error`
+
+30. ✅ `src/services/chatAgent/VoiceServiceV2.ts` (20 occurrences)
+    - `console.log` → `logger.debug`
+    - `console.warn` → `logger.warn`
+    - `console.error` → `logger.error`
+
+31. ✅ `src/services/chatAgent/ChatAgentAPI.ts` (2 occurrences)
+    - `console.error` → `logger.error`
+
+32. ✅ `src/services/chatAgent/ProactiveRemindersService.ts` (1 occurrence)
+    - `console.error` → `logger.error`
+
+33. ✅ `src/services/chatAgent/core/extractors/DateExtractor.ts` (2 occurrences)
+    - `console.debug` → `logger.debug`
+
+### Services Marketplace & Pricing
+34. ✅ `src/services/MarketplaceService.ts` (6 occurrences)
+    - `console.warn` → `logger.warn`
+    - `console.error` → `logger.error`
+
+35. ✅ `src/services/RegionalPriceService.ts` (7 occurrences)
+    - `console.warn` → `logger.warn`
+    - `console.error` → `logger.error`
+
+36. ✅ `src/services/PorkPriceTrendService.ts` (5 occurrences)
+    - `console.warn` → `logger.warn`
+
+37. ✅ `src/services/aiWeightService.ts` (6 occurrences)
+    - `console.error` → `logger.error`
+
+### Utils
+38. ✅ `src/utils/diagnosticDepenses.ts` (18 occurrences)
+    - `console.log` → `logger.info`
+    - `console.warn` → `logger.warn`
+    - `console.error` → `logger.error`
+
+### Services Auth & Onboarding
+39. ✅ `src/services/OnboardingService.ts` (7 occurrences)
+    - `console.log` → `logger.debug`
+    - `console.error` → `logger.error`
+    - `console.warn` → `logger.warn`
+
+40. ✅ `src/services/auth/oauthService.ts` (3 occurrences)
+    - `console.log` → `logger.debug`
+    - `console.error` → `logger.error`
+
+41. ✅ `src/services/auth/autoLogout.ts` (4 occurrences)
+    - `console.log` → `logger.debug`
+    - `console.error` → `logger.error`
+
+### Services Utils
+42. ✅ `src/services/pdfService.ts` (4 occurrences)
+    - `console.log` → `logger.debug`
+    - `console.error` → `logger.error`
+
+43. ✅ `src/services/ServiceProposalNotificationService.ts` (6 occurrences)
+    - `console.error` → `logger.error`
+
+### Hooks
+44. ✅ `src/hooks/useGeolocation.ts` (3 occurrences)
+    - `console.error` → `logger.error`
+    - `console.warn` → `logger.warn`
+
+### Utils (Suite)
+45. ✅ `src/utils/photoUtils.ts` (14 occurrences)
+    - `console.log` → `logger.debug`
+    - `console.warn` → `logger.warn`
+    - `console.error` → `logger.error`
+
+46. ✅ `src/utils/dateUtils.ts` (7 occurrences)
+    - `console.error` → `logger.error`
+
+### Hooks (Suite)
+47. ✅ `src/hooks/useBuyerData.ts` (1 occurrence)
+    - `console.error` → `logger.error`
+
+48. ✅ `src/hooks/useDashboardData.ts` (2 occurrences)
+    - `console.error` → `logger.error`
+
+49. ✅ `src/hooks/useFormValidation.ts` (3 occurrences)
+    - `console.error` → `logger.error`
+
+### Services (Suite)
+50. ✅ `src/services/UserDataService.ts` (2 occurrences)
+    - `console.log` → `logger.info`
+    - `console.error` → `logger.error`
+
+51. ✅ `src/services/FarmService.ts` (2 occurrences)
+    - `console.warn` → `logger.warn`
+
+52. ✅ `src/services/PurchaseRequestService.ts` (2 occurrences)
+    - `console.error` → `logger.error`
+
 ---
 
 ## ⏳ Fichiers Restants (Par Priorité)
@@ -100,13 +249,19 @@ Migration progressive des `console.log` vers le logger conditionnel (`src/utils/
 - ✅ `src/hooks/useMarketplaceNotifications.ts` (4 occurrences) - **COMPLÉTÉ**
 - ✅ `src/hooks/useMarketplaceChat.ts` (3 occurrences) - **COMPLÉTÉ**
 - ✅ `src/hooks/useNotifications.ts` (7 occurrences) - **COMPLÉTÉ**
-- `src/hooks/useShakeToCancel.ts` (4 occurrences)
-- `src/hooks/useSaleStatus.ts` (4 occurrences)
+- ✅ `src/hooks/useShakeToCancel.ts` (4 occurrences) - **COMPLÉTÉ**
+- ✅ `src/hooks/useSaleStatus.ts` (4 occurrences) - **COMPLÉTÉ**
+- ✅ `src/hooks/useMarketplace.ts` (4 occurrences) - **COMPLÉTÉ**
 
 ### Priorité Basse (Store & Utils)
 - ✅ `src/store/slices/authSlice.ts` (18 occurrences) - **COMPLÉTÉ**
 - ✅ `src/store/slices/planningProductionSlice.ts` (11 occurrences) - **COMPLÉTÉ**
-- `src/store/slices/financeSlice.ts` (10 occurrences)
+- ✅ `src/store/slices/financeSlice.ts` (10 occurrences) - **COMPLÉTÉ**
+- ✅ `src/store/slices/productionSlice.ts` (4 occurrences) - **COMPLÉTÉ**
+- ✅ `src/store/slices/mortalitesSlice.ts` (4 occurrences) - **COMPLÉTÉ**
+- ✅ `src/store/slices/stocksSlice.ts` (3 occurrences) - **COMPLÉTÉ**
+- ✅ `src/store/slices/planificationSlice.ts` (3 occurrences) - **COMPLÉTÉ**
+- ✅ `src/utils/planningProductionCalculs.ts` (11 occurrences) - **COMPLÉTÉ**
 - `src/utils/planningProductionCalculs.ts` (11 occurrences)
 - `src/utils/diagnosticDepenses.ts` (17 occurrences)
 

@@ -13,6 +13,9 @@ import {
 } from '../../types';
 import { getErrorMessage } from '../../types/common';
 import apiClient from '../../services/api/apiClient';
+import { createLoggerWithPrefix } from '../../utils/logger';
+
+const logger = createLoggerWithPrefix('StocksSlice');
 
 interface StocksState {
   stocks: StockAliment[];
@@ -226,7 +229,7 @@ const stocksSlice = createSlice({
       .addCase(createStockMouvement.fulfilled, (state, action) => {
         const { mouvement, stock } = action.payload;
         const index = state.stocks.findIndex((s) => s.id === stock.id);
-        console.log('[stocksSlice] createStockMouvement.fulfilled:', {
+        logger.debug('[stocksSlice] createStockMouvement.fulfilled:', {
           stockId: stock.id,
           index,
           quantite_actuelle: stock.quantite_actuelle,
@@ -234,12 +237,12 @@ const stocksSlice = createSlice({
         });
         if (index !== -1) {
           state.stocks[index] = stock;
-          console.log('[stocksSlice] Stock mis à jour dans Redux:', {
+          logger.debug('[stocksSlice] Stock mis à jour dans Redux:', {
             stockId: stock.id,
             quantite_actuelle: state.stocks[index].quantite_actuelle,
           });
         } else {
-          console.warn('[stocksSlice] Stock non trouvé dans state.stocks:', stock.id);
+          logger.warn('[stocksSlice] Stock non trouvé dans state.stocks:', stock.id);
         }
         const mouvements = state.mouvementsParAliment[stock.id] || [];
         state.mouvementsParAliment[stock.id] = [mouvement, ...mouvements];

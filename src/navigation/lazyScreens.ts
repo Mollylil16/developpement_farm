@@ -173,5 +173,13 @@ export const VaccinationScreen = createLazyScreen(
   () => import('../screens/VaccinationScreen')
 );
 
+// Migration (fonctionnalité de conversion entre modes)
+export const MigrationWizardScreen = createLazyScreen(
+  () => import('../screens/MigrationWizardScreen')
+);
+export const MigrationHistoryScreen = createLazyScreen(
+  () => import('../screens/MigrationHistoryScreen')
+);
+
 // Note: Les écrans de détails et d'ajout sont chargés dynamiquement
 // lorsqu'ils sont nécessaires, pas besoin de les exporter ici

@@ -6,22 +6,23 @@
 import { DepensePonctuelleRepository } from '../database/repositories';
 import { RevenuRepository } from '../database/repositories';
 import apiClient from '../services/api/apiClient';
+import { logger } from './logger';
 
 export async function diagnosticDepenses(projetId: string): Promise<void> {
-  console.log('');
-  console.log('🔍 ========================================');
-  console.log('🔍 DIAGNOSTIC DES DÉPENSES');
-  console.log('🔍 ========================================');
+  logger.info('');
+  logger.info('========================================');
+  logger.info('DIAGNOSTIC DES DÉPENSES');
+  logger.info('========================================');
 
   try {
     const depenseRepo = new DepensePonctuelleRepository();
     const revenuRepo = new RevenuRepository();
 
     // 1. Note: La vérification de structure de table n'est plus possible via l'API
-    console.log('\n📋 Note: La vérification de structure de table nécessite un accès direct à la base de données');
+    logger.info('\nNote: La vérification de structure de table nécessite un accès direct à la base de données');
 
     // 2. Compter les dépenses par type
-    console.log('\n📊 Répartition des dépenses:');
+    logger.info('\nRépartition des dépenses:');
     try {
       const depenses = await apiClient.get<any[]>(`/finance/depenses-ponctuelles`, {
         params: { projet_id: projetId },
@@ -41,13 +42,13 @@ export async function diagnosticDepenses(projetId: string): Promise<void> {
 
       if (countByType.size > 0) {
         countByType.forEach((stats, type) => {
-          console.log(`  ${type}: ${stats.count} dépenses, Total: ${stats.total.toLocaleString()} FCFA`);
+          logger.info(`  ${type}: ${stats.count} dépenses, Total: ${stats.total.toLocaleString()} FCFA`);
         });
       } else {
-        console.log('  ⚠️  Aucune dépense trouvée');
+        logger.warn('  Aucune dépense trouvée');
       }
     } catch (error) {
-      console.log("  ⚠️  Impossible d'analyser par type:", error);
+      logger.warn("  Impossible d'analyser par type:", error);
     }
 
     // 3. Total général
@@ -56,12 +57,12 @@ export async function diagnosticDepenses(projetId: string): Promise<void> {
     });
     const totalCount = allDepenses.length;
     const totalMontant = allDepenses.reduce((sum: number, d: any) => sum + (d.montant || 0), 0);
-    console.log(
-      `\n💰 TOTAL DÉPENSES PONCTUELLES: ${totalCount} dépenses, ${totalMontant.toLocaleString()} FCFA`
+    logger.info(
+      `\nTOTAL DÉPENSES PONCTUELLES: ${totalCount} dépenses, ${totalMontant.toLocaleString()} FCFA`
     );
 
     // 3b. Lister les 10 dernières dépenses
-    console.log('\n📝 Dernières dépenses enregistrées:');
+    logger.info('\nDernières dépenses enregistrées:');
     const dernieres = allDepenses
       .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 10);
@@ -71,11 +72,11 @@ export async function diagnosticDepenses(projetId: string): Promise<void> {
       const date = d.date ? String(d.date).substring(0, 10) : 'Date inconnue';
       const montant = d.montant !== null ? d.montant.toLocaleString() : '0';
       const type = d.type_depense || 'NULL';
-      console.log(`  ${i + 1}. ${date} - ${montant} FCFA - ${type} - ${libelle}`);
+      logger.info(`  ${i + 1}. ${date} - ${montant} FCFA - ${type} - ${libelle}`);
     });
 
     // 4. Vérifier les ventes
-    console.log('\n🐷 Ventes de porcs:');
+    logger.info('\nVentes de porcs:');
     try {
       const revenus = await apiClient.get<any[]>(`/finance/revenus`, {
         params: { projet_id: projetId },
@@ -84,16 +85,16 @@ export async function diagnosticDepenses(projetId: string): Promise<void> {
       
       if (ventes.length > 0) {
         const totalKg = ventes.reduce((sum: number, v: any) => sum + (v.poids_kg || 0), 0);
-        console.log(`  ${ventes.length} ventes, Total: ${totalKg} kg`);
+        logger.info(`  ${ventes.length} ventes, Total: ${totalKg} kg`);
       } else {
-        console.log('  ⚠️  Aucune vente enregistrée');
+        logger.warn('  Aucune vente enregistrée');
       }
     } catch (error) {
-      console.log('  ⚠️  Impossible de récupérer les ventes:', error);
+      logger.warn('  Impossible de récupérer les ventes:', error);
     }
 
-    console.log('\n🔍 ========================================\n');
+    logger.info('\n========================================\n');
   } catch (error) {
-    console.error('❌ Erreur lors du diagnostic:', error);
+    logger.error('Erreur lors du diagnostic:', error);
   }
 }

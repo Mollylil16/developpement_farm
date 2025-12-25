@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import * as ExpoLocation from 'expo-location';
+import { logger } from '../utils/logger';
 import type { Location } from '../types/marketplace';
 
 export interface UserLocation {
@@ -56,7 +57,7 @@ export function useGeolocation() {
       return status === 'granted';
     } catch (err: unknown) {
       setError('Erreur lors de la demande de permission');
-      console.error('Permission error:', err);
+      logger.error('Permission error:', err);
       return false;
     }
   }, []);
@@ -104,14 +105,14 @@ export function useGeolocation() {
         }
       } catch (geocodeError) {
         // Ignorer les erreurs de geocoding, on a au moins les coordonnées
-        console.warn('Geocoding error:', geocodeError);
+        logger.warn('Geocoding error:', geocodeError);
       }
 
       setLocation(userLocation);
       return userLocation;
     } catch (err: unknown) {
       setError("Impossible d'obtenir votre localisation");
-      console.error('Location error:', err);
+      logger.error('Location error:', err);
       return null;
     } finally {
       setLoading(false);

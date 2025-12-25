@@ -11,6 +11,7 @@ import type {
   TechnicianProfile,
   ProfileStatus,
 } from '../types/roles';
+import { logger } from '../utils/logger';
 
 export interface CreateUserInput {
   phone?: string;
@@ -142,15 +143,15 @@ class OnboardingService {
       } catch (error: any) {
         // Si c'est une erreur réseau (status 0), ne pas continuer car on ne peut pas créer sans backend
         if (error?.status === 0 || error?.message?.includes('Network request failed')) {
-          console.error('[OnboardingService] Erreur réseau lors de la vérification de l\'email:', error.message);
+          logger.error('[OnboardingService] Erreur réseau lors de la vérification de l\'email:', error.message);
           throw new Error('Impossible de se connecter au serveur. Vérifiez votre connexion Internet.');
         }
         // Si c'est une erreur 404, l'email n'existe pas, on peut continuer pour créer
         if (error?.status === 404) {
-          console.log('[OnboardingService] Email non trouvé, création d\'un nouvel utilisateur');
+          logger.debug('[OnboardingService] Email non trouvé, création d\'un nouvel utilisateur');
         } else {
           // Autre erreur, logger et continuer (peut-être que l'utilisateur n'existe pas)
-          console.log('[OnboardingService] Erreur lors de la vérification de l\'email, continuation:', error?.status || error?.message);
+          logger.debug('[OnboardingService] Erreur lors de la vérification de l\'email, continuation:', error?.status || error?.message);
         }
       }
     }
@@ -167,15 +168,15 @@ class OnboardingService {
       } catch (error: any) {
         // Si c'est une erreur réseau (status 0), ne pas continuer car on ne peut pas créer sans backend
         if (error?.status === 0 || error?.message?.includes('Network request failed')) {
-          console.error('[OnboardingService] Erreur réseau lors de la vérification du téléphone:', error.message);
+          logger.error('[OnboardingService] Erreur réseau lors de la vérification du téléphone:', error.message);
           throw new Error('Impossible de se connecter au serveur. Vérifiez votre connexion Internet.');
         }
         // Si c'est une erreur 404, le téléphone n'existe pas, on peut continuer pour créer
         if (error?.status === 404) {
-          console.log('[OnboardingService] Téléphone non trouvé, création d\'un nouvel utilisateur');
+          logger.debug('[OnboardingService] Téléphone non trouvé, création d\'un nouvel utilisateur');
         } else {
           // Autre erreur, logger et continuer (peut-être que l'utilisateur n'existe pas)
-          console.log('[OnboardingService] Erreur lors de la vérification du téléphone, continuation:', error?.status || error?.message);
+          logger.debug('[OnboardingService] Erreur lors de la vérification du téléphone, continuation:', error?.status || error?.message);
         }
       }
     }
@@ -247,7 +248,7 @@ class OnboardingService {
           provider_id: input.providerId,
         });
       } catch (error) {
-        console.warn('[OnboardingService] Erreur mise à jour provider (non bloquant):', error);
+        logger.warn('[OnboardingService] Erreur mise à jour provider (non bloquant):', error);
       }
     }
 

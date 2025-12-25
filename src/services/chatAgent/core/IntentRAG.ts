@@ -7,6 +7,7 @@
 import { AgentActionType } from '../../../types/chatAgent';
 import { DetectedIntent } from '../IntentDetector';
 import { OpenAIIntentService } from './OpenAIIntentService';
+import { logger } from '../../../utils/logger';
 
 export interface TrainingExample {
   text: string;
@@ -1284,11 +1285,9 @@ export class IntentRAG {
     this.buildInvertedIndex();
 
     // Log pour monitoring (en développement)
-    if (process.env.NODE_ENV === 'development') {
-      console.log(
-        `📚 IntentRAG initialisé avec ${this.knowledgeBase.length} exemples d'entraînement (index inversé: ${this.invertedIndex.size} mots-clés)`
-      );
-    }
+    logger.debug(
+      `IntentRAG initialisé avec ${this.knowledgeBase.length} exemples d'entraînement (index inversé: ${this.invertedIndex.size} mots-clés)`
+    );
   }
 
   /**
@@ -1349,7 +1348,7 @@ export class IntentRAG {
 
       return null;
     } catch (error) {
-      console.warn('[IntentRAG] Erreur avec OpenAI embeddings, fallback sur Jaccard:', error);
+      logger.warn('[IntentRAG] Erreur avec OpenAI embeddings, fallback sur Jaccard:', error);
       return this.detectIntentWithJaccard(message);
     }
   }
@@ -1440,7 +1439,7 @@ export class IntentRAG {
       similarities.sort((a, b) => b.similarity - a.similarity);
       return similarities.slice(0, topN);
     } catch (error) {
-      console.warn('[IntentRAG] Erreur avec OpenAI, fallback sur Jaccard:', error);
+      logger.warn('[IntentRAG] Erreur avec OpenAI, fallback sur Jaccard:', error);
       return this.findTopMatchesWithJaccard(message, topN);
     }
   }

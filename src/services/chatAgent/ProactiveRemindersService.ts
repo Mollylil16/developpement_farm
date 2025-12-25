@@ -13,6 +13,7 @@ import {
 import { differenceInDays, addDays } from 'date-fns';
 import { scheduleNotification } from '../notificationsService';
 import apiClient from '../api/apiClient';
+import { logger } from '../../utils/logger';
 
 export class ProactiveRemindersService {
   private context: AgentContext | null = null;
@@ -239,7 +240,7 @@ export class ProactiveRemindersService {
           priority: 'default',
         });
       } catch (error) {
-        console.error(`Erreur lors de la programmation du rappel ${reminder.id}:`, error);
+        logger.error(`Erreur lors de la programmation du rappel ${reminder.id}:`, error);
       }
     }
   }

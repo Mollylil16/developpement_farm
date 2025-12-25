@@ -6,6 +6,7 @@
 import { AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiClient from '../api/apiClient';
+import { logger } from '../../utils/logger';
 
 const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes
 const LAST_ACTIVITY_KEY = '@fermier_pro:last_activity';
@@ -21,7 +22,7 @@ export async function recordActivity(): Promise<void> {
     await AsyncStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
     resetInactivityTimer();
   } catch (error) {
-    console.error("[autoLogout] Erreur lors de l'enregistrement de l'activité:", error);
+    logger.error("[autoLogout] Erreur lors de l'enregistrement de l'activité:", error);
   }
 }
 
@@ -43,7 +44,7 @@ function resetInactivityTimer(): void {
  */
 async function handleAutoLogout(): Promise<void> {
   try {
-    console.log('[autoLogout] Déconnexion automatique après inactivité');
+    logger.debug('[autoLogout] Déconnexion automatique après inactivité');
 
     // Nettoyer les tokens
     await apiClient.tokens.clear();
@@ -53,7 +54,7 @@ async function handleAutoLogout(): Promise<void> {
       onLogoutCallback();
     }
   } catch (error) {
-    console.error('[autoLogout] Erreur lors de la déconnexion automatique:', error);
+    logger.error('[autoLogout] Erreur lors de la déconnexion automatique:', error);
   }
 }
 
@@ -81,7 +82,7 @@ export async function checkInactivity(): Promise<boolean> {
     resetInactivityTimer();
     return false;
   } catch (error) {
-    console.error("[autoLogout] Erreur lors de la vérification de l'inactivité:", error);
+    logger.error("[autoLogout] Erreur lors de la vérification de l'inactivité:", error);
     return false;
   }
 }

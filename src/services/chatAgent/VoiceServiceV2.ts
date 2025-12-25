@@ -8,6 +8,7 @@ import Voice from '@react-native-voice/voice';
 import * as Speech from 'expo-speech';
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
+import { logger } from '../../utils/logger';
 
 export interface VoiceServiceCallbacks {
   onResult?: (text: string) => void;
@@ -26,19 +27,19 @@ export class VoiceServiceV2 {
 
   private setupListeners(): void {
     Voice.onSpeechStart = () => {
-      console.log('[VoiceServiceV2] Speech start');
+      logger.debug('[VoiceServiceV2] Speech start');
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       this.callbacks.onStart?.();
     };
 
     Voice.onSpeechEnd = () => {
-      console.log('[VoiceServiceV2] Speech end');
+      logger.debug('[VoiceServiceV2] Speech end');
       this.isListening = false;
       this.callbacks.onEnd?.();
     };
 
     Voice.onSpeechResults = (e: any) => {
-      console.log('[VoiceServiceV2] Speech results:', e.value);
+      logger.debug('[VoiceServiceV2] Speech results:', e.value);
       const text = e.value?.[0];
       if (text && this.callbacks.onResult) {
         this.callbacks.onResult(text.trim());
@@ -55,7 +56,7 @@ export class VoiceServiceV2 {
     };
 
     Voice.onSpeechError = (e: any) => {
-      console.error('[VoiceServiceV2] Speech error:', e);
+      logger.error('[VoiceServiceV2] Speech error:', e);
       let message = "Je n'ai pas bien entendu. Réessaie, mon frère.";
 
       if (e.error?.message) {
@@ -84,7 +85,7 @@ export class VoiceServiceV2 {
    */
   async startListening(callbacks: VoiceServiceCallbacks): Promise<void> {
     if (this.isListening) {
-      console.warn('[VoiceServiceV2] Already listening');
+      logger.warn('[VoiceServiceV2] Already listening');
       return;
     }
 
@@ -104,9 +105,9 @@ export class VoiceServiceV2 {
 
       await Voice.start(locale);
       this.isListening = true;
-      console.log('[VoiceServiceV2] Listening started with locale:', locale);
+      logger.debug('[VoiceServiceV2] Listening started with locale:', locale);
     } catch (error) {
-      console.error('[VoiceServiceV2] Error starting listening:', error);
+      logger.error('[VoiceServiceV2] Error starting listening:', error);
       this.isListening = false;
 
       let errorMessage = 'Impossible de démarrer le microphone.';
@@ -134,9 +135,9 @@ export class VoiceServiceV2 {
     try {
       await Voice.stop();
       this.isListening = false;
-      console.log('[VoiceServiceV2] Listening stopped');
+      logger.debug('[VoiceServiceV2] Listening stopped');
     } catch (error) {
-      console.error('[VoiceServiceV2] Error stopping listening:', error);
+      logger.error('[VoiceServiceV2] Error stopping listening:', error);
       this.isListening = false;
     }
   }
@@ -152,9 +153,9 @@ export class VoiceServiceV2 {
     try {
       await Voice.cancel();
       this.isListening = false;
-      console.log('[VoiceServiceV2] Listening cancelled');
+      logger.debug('[VoiceServiceV2] Listening cancelled');
     } catch (error) {
-      console.error('[VoiceServiceV2] Error cancelling listening:', error);
+      logger.error('[VoiceServiceV2] Error cancelling listening:', error);
       this.isListening = false;
     }
   }
@@ -164,7 +165,7 @@ export class VoiceServiceV2 {
    */
   async speak(text: string, onDone?: () => void): Promise<void> {
     if (!text || text.trim().length === 0) {
-      console.warn('[VoiceServiceV2] Empty text, cannot speak');
+      logger.warn('[VoiceServiceV2] Empty text, cannot speak');
       return;
     }
 
@@ -177,18 +178,18 @@ export class VoiceServiceV2 {
         pitch: 1.0,
         rate: 0.9, // Légèrement plus lent pour une meilleure compréhension
         onDone: () => {
-          console.log('[VoiceServiceV2] Speech finished');
+          logger.debug('[VoiceServiceV2] Speech finished');
           onDone?.();
         },
         onStopped: () => {
-          console.log('[VoiceServiceV2] Speech stopped');
+          logger.debug('[VoiceServiceV2] Speech stopped');
         },
         onError: (error) => {
-          console.error('[VoiceServiceV2] Speech error:', error);
+          logger.error('[VoiceServiceV2] Speech error:', error);
         },
       });
     } catch (error) {
-      console.error('[VoiceServiceV2] Error speaking:', error);
+      logger.error('[VoiceServiceV2] Error speaking:', error);
     }
   }
 
@@ -198,9 +199,9 @@ export class VoiceServiceV2 {
   stopSpeaking(): void {
     try {
       Speech.stop();
-      console.log('[VoiceServiceV2] Speech stopped');
+      logger.debug('[VoiceServiceV2] Speech stopped');
     } catch (error) {
-      console.error('[VoiceServiceV2] Error stopping speech:', error);
+      logger.error('[VoiceServiceV2] Error stopping speech:', error);
     }
   }
 
@@ -256,9 +257,9 @@ export class VoiceServiceV2 {
       }
       await Voice.destroy();
       this.callbacks = {};
-      console.log('[VoiceServiceV2] Destroyed');
+      logger.debug('[VoiceServiceV2] Destroyed');
     } catch (error) {
-      console.error('[VoiceServiceV2] Error destroying:', error);
+      logger.error('[VoiceServiceV2] Error destroying:', error);
     }
   }
 }

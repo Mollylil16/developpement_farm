@@ -22,6 +22,7 @@ import {
   MarketplaceRatingRepository,
   MarketplaceNotificationRepository,
 } from '../database/repositories';
+import { logger } from '../utils/logger';
 
 export class MarketplaceService {
   private listingRepo: MarketplaceListingRepository;
@@ -129,7 +130,7 @@ export class MarketplaceService {
         // Pour l'instant, on laisse le backend gérer ces champs
       });
     } catch (error) {
-      console.warn('Erreur mise à jour statut marketplace dans production_animaux:', error);
+      logger.warn('Erreur mise à jour statut marketplace dans production_animaux:', error);
       // Ne pas bloquer si la mise à jour échoue
     }
 
@@ -233,7 +234,7 @@ export class MarketplaceService {
             available: listing.status === 'available',
           };
         } catch (error) {
-          console.error(`Erreur lors de l'enrichissement du listing ${listing.id}:`, error);
+          logger.error(`Erreur lors de l'enrichissement du listing ${listing.id}:`, error);
           return null;
         }
       })
@@ -275,7 +276,7 @@ export class MarketplaceService {
           savedFarms = user.saved_farms;
         }
       } catch (error) {
-        console.warn('Erreur récupération favoris:', error);
+        logger.warn('Erreur récupération favoris:', error);
       }
     }
     // Filtrer les listings de l'utilisateur si userId fourni
@@ -421,7 +422,7 @@ export class MarketplaceService {
 
         farmCards.push(farmCard);
       } catch (error) {
-        console.error(`Erreur lors de la création de la FarmCard pour ${farmId}:`, error);
+        logger.error(`Erreur lors de la création de la FarmCard pour ${farmId}:`, error);
       }
     }
 
@@ -558,7 +559,7 @@ export class MarketplaceService {
         };
       }
     } catch (error) {
-      console.error('Erreur lors de la vérification du propriétaire:', error);
+      logger.error('Erreur lors de la vérification du propriétaire:', error);
       // En cas d'erreur, on fait une vérification de secours
       // Si le producerId correspond directement à l'userId (ancien système), bloquer aussi
       if (listing.producerId === userId) {
@@ -876,7 +877,7 @@ export class MarketplaceService {
             });
           }
         } catch (error) {
-          console.warn(`Erreur mise à jour sujet ${subjectId} après vente:`, error);
+          logger.warn(`Erreur mise à jour sujet ${subjectId} après vente:`, error);
         }
       }
 

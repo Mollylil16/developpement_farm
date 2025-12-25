@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Inject,
   forwardRef,
+  Logger,
 } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { CreateProjetDto } from './dto/create-projet.dto';
@@ -408,7 +409,22 @@ export class ProjetsService {
 
   async remove(id: string, userId: string) {
     await this.checkOwnership(id, userId);
-    await this.databaseService.query('DELETE FROM projets WHERE id = $1', [id]);
-    return { id };
+    
+    this.logger.warn(`Suppression du projet: projetId=${id}, userId=${userId}`);
+
+    // Utiliser une transaction pour garantir la cohérence
+    await this.databaseService.transaction(async (client) => {
+      // Les contraintes ON DELETE CASCADE s'occuperont automatiquement de supprimer :
+      // - Toutes les bandes (batches) et leurs données associées
+      // - Tous les animaux individuels (production_animaux)
+      // - Toutes les données liées (santé, finance, reproduction, etc.)
+      
+      // Supprimer le projet (cela déclenchera les CASCADE)
+      await client.query('DELETE FROM projets WHERE id = $1', [id]);
+      
+      this.logger.log(`Projet supprimé avec succès: projetId=${id}`);
+    });
+
+    return { id, message: 'Projet supprimé avec succès' };
   }
 }

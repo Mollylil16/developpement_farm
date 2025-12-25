@@ -8,6 +8,7 @@ import {
 } from '../database/repositories/ServiceProposalNotificationRepository';
 import apiClient from './api/apiClient';
 import type { VeterinarianProfile } from '../types/roles';
+import { logger } from '../utils/logger';
 
 // Réexporter le type pour compatibilité
 export type { ServiceProposalNotification };
@@ -121,7 +122,7 @@ class ServiceProposalNotificationService {
       const repo = await this.getNotificationRepo();
       return await repo.findUnreadByUserId(userId);
     } catch (error) {
-      console.error('Erreur récupération notifications non lues:', error);
+      logger.error('Erreur récupération notifications non lues:', error);
       return [];
     }
   }
@@ -134,7 +135,7 @@ class ServiceProposalNotificationService {
       const repo = await this.getNotificationRepo();
       return await repo.findByUserId(userId, true);
     } catch (error) {
-      console.error('Erreur récupération notifications:', error);
+      logger.error('Erreur récupération notifications:', error);
       return [];
     }
   }
@@ -147,7 +148,7 @@ class ServiceProposalNotificationService {
       const repo = await this.getNotificationRepo();
       return await repo.countUnreadByUserId(userId);
     } catch (error) {
-      console.error('Erreur comptage notifications:', error);
+      logger.error('Erreur comptage notifications:', error);
       return 0;
     }
   }
@@ -160,7 +161,7 @@ class ServiceProposalNotificationService {
       const repo = await this.getNotificationRepo();
       await repo.markAsRead(notificationId);
     } catch (error) {
-      console.error('Erreur marquage notification:', error);
+      logger.error('Erreur marquage notification:', error);
       throw error;
     }
   }
@@ -173,7 +174,7 @@ class ServiceProposalNotificationService {
       const repo = await this.getNotificationRepo();
       await repo.markAllAsRead(userId);
     } catch (error) {
-      console.error('Erreur marquage notifications:', error);
+      logger.error('Erreur marquage notifications:', error);
       throw error;
     }
   }
@@ -186,7 +187,7 @@ class ServiceProposalNotificationService {
       const repo = await this.getNotificationRepo();
       await repo.delete(notificationId);
     } catch (error) {
-      console.error('Erreur suppression notification:', error);
+      logger.error('Erreur suppression notification:', error);
       throw error;
     }
   }

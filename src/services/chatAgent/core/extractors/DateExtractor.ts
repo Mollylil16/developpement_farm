@@ -6,6 +6,7 @@
 
 import { parse, addDays, startOfDay, format, nextDay, addWeeks } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { logger } from '../../../utils/logger';
 
 /**
  * Options d'extraction de date
@@ -182,7 +183,7 @@ export class DateExtractor {
           return format(normalizedDate, 'yyyy-MM-dd');
         }
       } catch (error) {
-        console.debug('[DateExtractor] Erreur parsing date:', error);
+        logger.debug('[DateExtractor] Erreur parsing date:', error);
         return undefined;
       }
     }
@@ -208,7 +209,7 @@ export class DateExtractor {
           return format(normalizedDate, 'yyyy-MM-dd');
         }
       } catch (error) {
-        console.debug('[DateExtractor] Erreur parsing date ISO:', error);
+        logger.debug('[DateExtractor] Erreur parsing date ISO:', error);
         return undefined;
       }
     }

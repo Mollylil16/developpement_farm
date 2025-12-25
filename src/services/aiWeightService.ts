@@ -4,6 +4,7 @@
  */
 
 import apiClient from './api/apiClient';
+import { logger } from '../utils/logger';
 
 export interface PredictWeightRequest {
   image: string; // base64
@@ -114,7 +115,7 @@ class AiWeightService {
       const response = await apiClient.get(`${this.baseUrl}/health`);
       return response.data;
     } catch (error: any) {
-      console.error('Erreur lors de la vérification de santé IA:', error);
+      logger.error('Erreur lors de la vérification de santé IA:', error);
       throw error;
     }
   }
@@ -132,7 +133,7 @@ class AiWeightService {
       );
       return response.data;
     } catch (error: any) {
-      console.error('Erreur lors de la prédiction de poids:', error);
+      logger.error('Erreur lors de la prédiction de poids:', error);
       throw error;
     }
   }
@@ -150,7 +151,7 @@ class AiWeightService {
       );
       return response.data;
     } catch (error: any) {
-      console.error('Erreur lors de la prédiction batch:', error);
+      logger.error('Erreur lors de la prédiction batch:', error);
       throw error;
     }
   }
@@ -193,7 +194,7 @@ class AiWeightService {
       );
       return response.data;
     } catch (error: any) {
-      console.error('Erreur lors de la prédiction vidéo:', error);
+      logger.error('Erreur lors de la prédiction vidéo:', error);
       throw error;
     }
   }
@@ -214,7 +215,7 @@ class AiWeightService {
       const response = await apiClient.get(`${this.baseUrl}/models`);
       return response.data;
     } catch (error: any) {
-      console.error('Erreur lors de la récupération des modèles:', error);
+      logger.error('Erreur lors de la récupération des modèles:', error);
       throw error;
     }
   }
@@ -234,7 +235,7 @@ class AiWeightService {
       });
       return `data:image/jpeg;base64,${base64}`;
     } catch (error) {
-      console.error('Erreur lors de la conversion image en base64:', error);
+      logger.error('Erreur lors de la conversion image en base64:', error);
       throw error;
     }
   }

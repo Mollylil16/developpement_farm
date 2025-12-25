@@ -86,6 +86,19 @@ export const updateProjet = createAsyncThunk(
   }
 );
 
+export const deleteProjet = createAsyncThunk(
+  'projet/delete',
+  async (projetId: string, { rejectWithValue, getState }) => {
+    try {
+      // Le backend vérifie automatiquement que le projet appartient à l'utilisateur connecté
+      await apiClient.delete(`/projets/${projetId}`);
+      return projetId;
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la suppression du projet');
+    }
+  }
+);
+
 const projetSlice = createSlice({
   name: 'projet',
   initialState,
@@ -173,6 +186,25 @@ const projetSlice = createSlice({
         }));
       })
       .addCase(switchProjetActif.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      // deleteProjet
+      .addCase(deleteProjet.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(deleteProjet.fulfilled, (state, action) => {
+        state.loading = false;
+        const deletedId = action.payload;
+        // Retirer le projet de la liste
+        state.projets = state.projets.filter((p: Projet) => p.id !== deletedId);
+        // Si le projet supprimé était actif, le retirer
+        if (state.projetActif?.id === deletedId) {
+          state.projetActif = null;
+        }
+      })
+      .addCase(deleteProjet.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       });

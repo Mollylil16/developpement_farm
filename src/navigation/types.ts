@@ -49,6 +49,9 @@ export const SCREENS = {
   SERVICE_PROPOSAL_NOTIFICATIONS: 'ServiceProposalNotifications',
   // Agent conversationnel
   CHAT_AGENT: 'ChatAgent',
+  // Migration
+  MIGRATION_WIZARD: 'MigrationWizard',
+  MIGRATION_HISTORY: 'MigrationHistory',
 } as const;
 
 export type ScreenName = (typeof SCREENS)[keyof typeof SCREENS];

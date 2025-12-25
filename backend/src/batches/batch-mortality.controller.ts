@@ -1,7 +1,9 @@
 import {
   Controller,
   Post,
+  Get,
   Body,
+  Param,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -27,6 +29,15 @@ export class BatchMortalityController {
     @CurrentUser() user: any,
   ) {
     return await this.mortalityService.createMortality(dto, user.id);
+  }
+
+  @Get('batch/:batchId')
+  @ApiOperation({ summary: 'Récupérer les mortalités d\'une bande' })
+  async getMortalitiesByBatch(
+    @Param('batchId') batchId: string,
+    @CurrentUser() user: any,
+  ) {
+    return await this.mortalityService.getMortalitiesByBatch(batchId, user.id);
   }
 }
 

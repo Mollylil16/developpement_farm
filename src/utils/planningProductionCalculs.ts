@@ -17,6 +17,9 @@ import {
 import { ProductionAnimal, ProductionPesee } from '../types/production';
 import { addDays, addMonths, differenceInDays, format } from 'date-fns';
 import { getCategorieAnimal } from './animalUtils';
+import { createLoggerWithPrefix } from './logger';
+
+const logger = createLoggerWithPrefix('PlanningCalculs');
 
 // ============================================
 // SIMULATION DE PRODUCTION
@@ -32,21 +35,21 @@ export function simulerProduction(
   truiesEnLactation: number,
   verratsDisponibles: number
 ): SimulationProductionResultat {
-  console.log('🧮 [CALCUL] simulerProduction - Début');
-  console.log('📥 Input:', input);
-  console.log('🐷 Truies:', {
+  logger.debug('simulerProduction - Début');
+  logger.debug('Input:', input);
+  logger.debug('Truies:', {
     disponibles: truiesDisponibles,
     gestation: truiesEnGestation,
     lactation: truiesEnLactation,
   });
-  console.log('🐗 Verrats:', verratsDisponibles);
+  logger.debug('Verrats:', verratsDisponibles);
 
   const { objectif_tonnes, periode_mois, poids_moyen_vente, porcelets_par_portee_moyen } = input;
 
   const poids_moyen_vente_kg = poids_moyen_vente || CONST.POIDS_MOYEN_VENTE_KG;
   const duree_mois = periode_mois;
 
-  console.log('✅ Paramètres extraits:', {
+  logger.debug('Paramètres extraits:', {
     objectif_tonnes,
     periode_mois,
     poids_moyen_vente_kg,
@@ -81,7 +84,7 @@ export function simulerProduction(
   const duree_cycle_complet_jours =
     CONST.DUREE_GESTATION_JOURS + CONST.DUREE_LACTATION_JOURS + duree_engraissement_jours;
 
-  console.log('⏱️ [CALCUL] Durées temporelles:', {
+  logger.debug('Durées temporelles:', {
     GMQ_theorique: CONST.GMQ_MOYEN_G_JOUR,
     coefficient_pessimiste: CONST.COEFFICIENT_PESSIMISTE_GMQ,
     GMQ_realiste: GMQ_REALISTE,
@@ -115,8 +118,8 @@ export function simulerProduction(
   const fenetre_saillies_jours = periode_disponible_jours - duree_cycle_complet_jours;
 
   if (fenetre_saillies_jours < 0) {
-    console.warn(
-      '⚠️ [CALCUL] Période trop courte! Le cycle complet dépasse la période disponible.'
+    logger.warn(
+      'Période trop courte! Le cycle complet dépasse la période disponible.'
     );
   }
 
@@ -139,7 +142,7 @@ export function simulerProduction(
   // Nombre de saillies par mois
   const nombre_saillies_par_mois = Math.ceil(nombre_portees_necessaires / duree_mois);
 
-  console.log('📐 [CALCUL] Planification temporelle:', {
+  logger.debug('Planification temporelle:', {
     portees_necessaires: nombre_portees_necessaires,
     periode_disponible_jours,
     duree_cycle_complet_jours,
@@ -462,7 +465,7 @@ export function genererRecommandationsStrategiques(
     });
   }
 
-  console.log(`📋 [RECOMMANDATIONS] ${recommandations.length} recommandations générées`);
+  logger.debug(`${recommandations.length} recommandations générées`);
 
   return recommandations;
 }
@@ -586,8 +589,8 @@ export function calculerPrevisionVentes(
       const poids_a_gagner = poids_cible_kg - poids_actuel;
       const jours_restants = Math.ceil((poids_a_gagner * 1000) / gmq_utilise);
 
-      console.log(
-        `🐷 [PRÉVISION] ${animal.code}: GMQ=${gmq_historique}g → ${gmq_utilise.toFixed(0)}g (×${COEFFICIENT_PESSIMISTE}), jours=${jours_restants}`
+      logger.debug(
+        `${animal.code}: GMQ=${gmq_historique}g → ${gmq_utilise.toFixed(0)}g (×${COEFFICIENT_PESSIMISTE}), jours=${jours_restants}`
       );
 
       const date_vente_prevue = addDays(new Date(dernierePesee.date), jours_restants);
@@ -690,7 +693,7 @@ export function calculerPrevisionsFutures(
   const poids_a_gagner_kg = POIDS_CIBLE - POIDS_AU_SEVRAGE_KG;
   const DUREE_ENGRAISSEMENT = Math.ceil((poids_a_gagner_kg * 1000) / GMQ_REALISTE);
 
-  console.log('📊 [PRÉVISIONS FUTURES] Paramètres:', {
+  logger.debug('Paramètres:', {
     GMQ_theorique: GMQ_THEORIQUE,
     coefficient_pessimiste: COEFFICIENT_PESSIMISTE,
     GMQ_realiste: GMQ_REALISTE,
@@ -1010,7 +1013,7 @@ export function genererTachesDepuisSaillie(
     });
   }
 
-  console.log(`📋 [TÂCHES] ${taches.length} tâches générées pour la saillie ${saillie.id}`);
+  logger.debug(`${taches.length} tâches générées pour la saillie ${saillie.id}`);
 
   return taches;
 }

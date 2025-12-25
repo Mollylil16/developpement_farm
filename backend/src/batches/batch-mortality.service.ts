@@ -106,15 +106,26 @@ export class BatchMortalityService {
       throw new BadRequestException('Aucun porc disponible');
     }
 
+    // Récupérer les informations des porcs avant suppression pour préserver l'historique
+    const pigsInfo = await this.db.query(
+      `SELECT id, name FROM batch_pigs WHERE id = ANY($1::varchar[])`,
+      [pigIds],
+    );
+    const pigsMap = new Map(
+      pigsInfo.rows.map((pig: any) => [pig.id, pig.name || `Porc ${pig.id.slice(-6)}`]),
+    );
+
     // Créer les mouvements de retrait pour chaque porc
     const movements = [];
     for (const pigId of pigIds) {
       const movementId = this.generateMovementId();
+      const pigName = pigsMap.get(pigId) || `Porc ${pigId.slice(-6)}`;
+      
       await this.db.query(
         `INSERT INTO batch_pig_movements (
           id, pig_id, movement_type, from_batch_id, removal_reason,
-          death_cause, veterinary_report, movement_date, notes
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          death_cause, veterinary_report, movement_date, removal_details, notes
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
         [
           movementId,
           pigId,
@@ -124,6 +135,7 @@ export class BatchMortalityService {
           dto.death_cause || null,
           dto.veterinary_report || null,
           dto.death_date,
+          pigName, // Stocker le nom du porc dans removal_details pour préserver l'historique
           dto.notes || null,
         ],
       );
@@ -131,19 +143,12 @@ export class BatchMortalityService {
     }
 
     // Supprimer les porcs de batch_pigs
+    // Note: La contrainte FK est maintenant ON DELETE SET NULL, donc les mouvements sont préservés
+    // Le trigger update_batch_counts() mettra automatiquement à jour total_count, donc pas besoin de le faire manuellement
     await this.db.query(
       `DELETE FROM batch_pigs 
        WHERE id = ANY($1::varchar[])`,
       [pigIds],
-    );
-
-    // Mettre à jour le compteur de la bande (les triggers le feront automatiquement, mais on peut aussi le faire manuellement)
-    await this.db.query(
-      `UPDATE batches 
-       SET total_count = total_count - $1,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2`,
-      [pigIds.length, dto.batch_id],
     );
 
     return {
@@ -151,6 +156,33 @@ export class BatchMortalityService {
       removed_pigs: pigIds.length,
       movements,
     };
+  }
+
+  /**
+   * Récupère les mortalités d'une bande
+   */
+  async getMortalitiesByBatch(batchId: string, userId: string): Promise<any[]> {
+    await this.checkBatchOwnership(batchId, userId);
+
+    const result = await this.db.query(
+      `SELECT 
+        m.id,
+        m.pig_id,
+        m.death_cause,
+        m.movement_date as death_date,
+        m.notes,
+        m.veterinary_report,
+        COALESCE(m.removal_details, bp.name, 'Porc inconnu') as pig_name
+       FROM batch_pig_movements m
+       LEFT JOIN batch_pigs bp ON m.pig_id = bp.id
+       WHERE m.from_batch_id = $1
+         AND m.movement_type = 'removal'
+         AND m.removal_reason = 'death'
+       ORDER BY m.movement_date DESC`,
+      [batchId],
+    );
+
+    return result.rows;
   }
 }
 

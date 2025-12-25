@@ -432,6 +432,33 @@ export const signOut = createAsyncThunk('auth/signOut', async (_, { dispatch }) 
   return null;
 });
 
+// Thunk pour la suppression de compte
+export const deleteAccount = createAsyncThunk(
+  'auth/deleteAccount',
+  async (_, { dispatch, rejectWithValue }) => {
+    try {
+      // Appeler l'API pour supprimer le compte
+      await apiClient.delete('/auth/delete-account');
+
+      // Nettoyer complètement le storage local
+      await apiClient.tokens.clear();
+      await removeUserFromStorage();
+      
+      // Nettoyer AsyncStorage complètement
+      await AsyncStorage.clear();
+
+      // Réinitialiser le projet actif
+      dispatch(setProjetActif(null));
+
+      logger.log('Compte supprimé avec succès');
+      return null;
+    } catch (error: unknown) {
+      logger.error('Erreur lors de la suppression du compte:', error);
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la suppression du compte');
+    }
+  }
+);
+
 const authSlice = createSlice({
   name: 'auth',
   initialState,
@@ -537,6 +564,20 @@ const authSlice = createSlice({
         state.isLoading = false;
         state.user = null;
         state.isAuthenticated = false;
+      })
+      // deleteAccount
+      .addCase(deleteAccount.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(deleteAccount.fulfilled, (state) => {
+        state.isLoading = false;
+        state.user = null;
+        state.isAuthenticated = false;
+      })
+      .addCase(deleteAccount.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
       });
   },
 });

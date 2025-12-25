@@ -138,19 +138,11 @@ export class BatchSaleService {
     }
 
     // Supprimer les porcs de batch_pigs
+    // Le trigger update_batch_counts() mettra automatiquement à jour total_count, donc pas besoin de le faire manuellement
     await this.db.query(
       `DELETE FROM batch_pigs 
        WHERE id = ANY($1::varchar[])`,
       [pigIds],
-    );
-
-    // Mettre à jour le compteur de la bande
-    await this.db.query(
-      `UPDATE batches 
-       SET total_count = total_count - $1,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2`,
-      [pigIds.length, dto.batch_id],
     );
 
     // Créer un revenu dans la table revenus pour la comptabilité

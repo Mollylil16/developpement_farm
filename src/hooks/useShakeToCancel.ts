@@ -68,14 +68,14 @@ export function useShakeToCancel({
         // Vérifier si les capteurs sont disponibles
         const isAvailable = await DeviceMotion.isAvailableAsync();
         if (!isAvailable) {
-          console.warn('⚠️ Capteurs de mouvement non disponibles sur cet appareil');
+          logger.warn('Capteurs de mouvement non disponibles sur cet appareil');
           return;
         }
 
         // Demander la permission (sur iOS)
         const { status } = await DeviceMotion.requestPermissionsAsync();
         if (status !== 'granted') {
-          console.warn('⚠️ Permission refusée pour les capteurs de mouvement');
+          logger.warn('Permission refusée pour les capteurs de mouvement');
           return;
         }
 
@@ -92,7 +92,7 @@ export function useShakeToCancel({
             if (now - lastShakeTime.current > cooldown) {
               lastShakeTime.current = now;
 
-              console.log('🔔 Secousse détectée ! Accélération:', acceleration.toFixed(2));
+              logger.debug('Secousse détectée ! Accélération:', acceleration.toFixed(2));
 
               // Déclencher un retour haptique fort
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -103,7 +103,7 @@ export function useShakeToCancel({
           }
         });
       } catch (error) {
-        console.error('❌ Erreur lors du démarrage de la détection:', error);
+        logger.error('Erreur lors du démarrage de la détection:', error);
       }
     };
 

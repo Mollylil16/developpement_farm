@@ -445,13 +445,16 @@ export default function AppNavigator() {
       (currentRoute === SCREENS.AUTH && targetRoute !== SCREENS.AUTH);
 
     if (shouldNavigate) {
-      console.log(
-        '🚀 Navigation vers:',
-        targetRoute,
-        '(depuis:',
-        lastRouteRef.current || currentRoute,
-        ')'
-      );
+      if (process.env.NODE_ENV === 'development') {
+        // Logger uniquement en développement pour éviter les ralentissements en production
+        logger.debug(
+          'Navigation vers:',
+          targetRoute,
+          '(depuis:',
+          lastRouteRef.current || currentRoute,
+          ')'
+        );
+      }
       try {
         navigationRef.current.reset({
           index: 0,
@@ -459,10 +462,8 @@ export default function AppNavigator() {
         });
         lastRouteRef.current = targetRoute;
       } catch (error) {
-        console.error('❌ Erreur lors de la navigation:', error);
+        logger.error('Erreur lors de la navigation:', error);
       }
-    } else {
-      console.log('⏸️ Pas de changement de route nécessaire');
     }
   }, [isAuthenticated, user, projetActif?.id, authLoading, invitationsEnAttente.length]);
 
@@ -584,6 +585,13 @@ export default function AppNavigator() {
         <Stack.Screen name={SCREENS.OFFERS}>{() => <LazyScreens.MarketplaceScreen />}</Stack.Screen>
         <Stack.Screen name={SCREENS.CHAT_AGENT}>
           {() => <LazyScreens.ChatAgentScreen />}
+        </Stack.Screen>
+        {/* Migration */}
+        <Stack.Screen name={SCREENS.MIGRATION_WIZARD}>
+          {() => <LazyScreens.MigrationWizardScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.MIGRATION_HISTORY}>
+          {() => <LazyScreens.MigrationHistoryScreen />}
         </Stack.Screen>
         <Stack.Screen name="Main" component={MainTabs} />
       </Stack.Navigator>

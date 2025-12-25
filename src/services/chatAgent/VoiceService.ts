@@ -8,6 +8,7 @@ import { Platform } from 'react-native';
 import { Audio } from 'expo-av';
 // Note: Utilisation de require pour éviter les erreurs TypeScript avec expo-file-system
 import { SpeechTranscriptionService, TranscriptionProvider } from './SpeechTranscriptionService';
+import { logger } from '../../utils/logger';
 // import * as Speech from 'expo-speech'; // TODO: Installer expo-speech si nécessaire pour TTS
 
 // Note: Pour la reconnaissance vocale, on utilise expo-av pour l'enregistrement
@@ -117,12 +118,12 @@ export class VoiceService {
           language: config.language === 'fr-CI' ? 'fr' : config.language,
           timeout: 30000,
         });
-        console.log(
+        logger.debug(
           '[VoiceService] Service de transcription initialisé:',
           config.transcriptionProvider
         );
       } catch (error) {
-        console.error('[VoiceService] Erreur initialisation transcription:', error);
+        logger.error('[VoiceService] Erreur initialisation transcription:', error);
       }
     }
   }
@@ -140,13 +141,13 @@ export class VoiceService {
    */
   async speak(text: string): Promise<void> {
     if (!this.config.enableTextToSpeech) {
-      console.warn('[VoiceService] Text-to-Speech désactivé, texte ignoré:', text.substring(0, 50));
+      logger.warn('[VoiceService] Text-to-Speech désactivé, texte ignoré:', text.substring(0, 50));
       return;
     }
 
     // Utiliser text pour la synthèse vocale
     if (!text || text.trim().length === 0) {
-      console.warn('[VoiceService] Texte vide, impossible de parler');
+      logger.warn('[VoiceService] Texte vide, impossible de parler');
       return;
     }
 
@@ -157,9 +158,9 @@ export class VoiceService {
       //   pitch: this.config.pitch || 1.0,
       //   rate: this.config.speechRate || 1.0,
       // });
-      console.log('[VoiceService] Text-to-Speech (non implémenté):', text);
+      logger.debug('[VoiceService] Text-to-Speech (non implémenté):', text);
     } catch (error) {
-      console.error('Erreur lors de la synthèse vocale:', error);
+      logger.error('Erreur lors de la synthèse vocale:', error);
     }
   }
 
@@ -169,7 +170,7 @@ export class VoiceService {
   stopSpeaking(): void {
     // TODO: Implémenter avec expo-speech
     // Speech.stop();
-    console.log('[VoiceService] Stop speaking (non implémenté)');
+    logger.debug('[VoiceService] Stop speaking (non implémenté)');
   }
 
   /**
@@ -328,7 +329,7 @@ export class VoiceService {
 
       // Note: Sur mobile, la transcription nécessite une API externe
       // Pour l'instant, on informe l'utilisateur qu'il doit utiliser le texte
-      console.log(
+      logger.debug(
         '[VoiceService] Enregistrement démarré. La transcription nécessite une API externe.'
       );
     } catch (error: unknown) {
@@ -354,7 +355,7 @@ export class VoiceService {
         try {
           this.webRecognition.stop();
         } catch (error) {
-          console.error("Erreur lors de l'arrêt de la reconnaissance web:", error);
+          logger.error("Erreur lors de l'arrêt de la reconnaissance web:", error);
         }
         this.webRecognition = null;
       }
@@ -375,24 +376,24 @@ export class VoiceService {
         // Si un service de transcription est configuré, l'utiliser
         if (this.transcriptionService) {
           try {
-            console.log('[VoiceService] Début transcription...');
+            logger.debug('[VoiceService] Début transcription...');
             const result = await this.transcriptionService.transcribe(uri);
-            console.log('[VoiceService] Transcription réussie:', result.text);
+            logger.debug('[VoiceService] Transcription réussie:', result.text);
             return result.text || '';
           } catch (error: unknown) {
-            console.error('[VoiceService] Erreur transcription:', error);
+            logger.error('[VoiceService] Erreur transcription:', error);
             // Ne pas bloquer l'utilisateur, retourner une chaîne vide
             return '';
           }
         }
 
         // Si pas de service de transcription, informer l'utilisateur
-        console.log(
+        logger.debug(
           '[VoiceService] Enregistrement arrêté. Aucun service de transcription configuré.'
         );
         return ''; // Retourner une chaîne vide
       } catch (error) {
-        console.error("Erreur lors de l'arrêt de l'enregistrement:", error);
+        logger.error("Erreur lors de l'arrêt de l'enregistrement:", error);
         this.recording = null;
         return '';
       }

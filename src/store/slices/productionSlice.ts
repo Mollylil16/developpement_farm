@@ -17,6 +17,9 @@ import {
 import apiClient from '../../services/api/apiClient';
 import { animauxSchema, peseesSchema, animalSchema, peseeSchema } from '../normalization/schemas';
 import type { RootState } from '../store';
+import { createLoggerWithPrefix } from '../../utils/logger';
+
+const logger = createLoggerWithPrefix('ProductionSlice');
 
 // Structure normalisée de l'état
 interface NormalizedEntities {
@@ -85,7 +88,7 @@ export const loadProductionAnimaux = createAsyncThunk(
       });
       return animaux;
     } catch (error: unknown) {
-      console.error('❌ [loadProductionAnimaux] Erreur:', error);
+      logger.error('[loadProductionAnimaux] Erreur:', error);
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des animaux');
     }
   }
@@ -266,12 +269,12 @@ const productionSlice = createSlice({
         state.error = action.payload as string;
       })
       .addCase(updateProductionAnimal.fulfilled, (state, action) => {
-        console.log(
-          '🔄 [updateProductionAnimal.fulfilled] Animal mis à jour:',
+        logger.debug(
+          '[updateProductionAnimal.fulfilled] Animal mis à jour:',
           action.payload.id,
           action.payload.code
         );
-        console.log('🔄 [updateProductionAnimal.fulfilled] Photo URI:', action.payload.photo_uri);
+        logger.debug('[updateProductionAnimal.fulfilled] Photo URI:', action.payload.photo_uri);
 
         const normalized = normalizeAnimal(action.payload);
         const animalId = action.payload.id;
@@ -285,8 +288,8 @@ const productionSlice = createSlice({
         // Incrémenter un compteur de version pour invalider les caches si nécessaire
         state.updateCounter = (state.updateCounter || 0) + 1;
 
-        console.log(
-          '✅ [updateProductionAnimal.fulfilled] Animal actualisé (version:',
+        logger.debug(
+          '[updateProductionAnimal.fulfilled] Animal actualisé (version:',
           state.updateCounter,
           ')'
         );

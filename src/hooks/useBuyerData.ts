@@ -8,6 +8,7 @@ import { useAppSelector } from '../store/hooks';
 import { getErrorMessage } from '../types/common';
 import apiClient from '../services/api/apiClient';
 import type { Offer, Transaction, MarketplaceListing } from '../types/marketplace';
+import { logger } from '../utils/logger';
 
 interface BuyerData {
   activeOffers: Offer[];
@@ -67,7 +68,7 @@ export function useBuyerData() {
         error: null,
       });
     } catch (error: unknown) {
-      console.error('Erreur lors du chargement des données acheteur:', error);
+      logger.error('Erreur lors du chargement des données acheteur:', error);
       setData((prev) => ({
         ...prev,
         loading: false,

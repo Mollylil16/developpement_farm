@@ -5,7 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch } from 'react-native';
 import { useAppDispatch } from '../store/hooks';
-import { signOut } from '../store/slices/authSlice';
+import { signOut, deleteAccount } from '../store/slices/authSlice';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -92,6 +92,29 @@ export default function ParametresAppComponent() {
         },
       },
     ]);
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Supprimer définitivement votre compte ?',
+      'Toutes vos données seront supprimées de façon irréversible. Vous pourrez recréer un compte plus tard, mais sans récupérer les anciennes données.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer mon compte',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await dispatch(deleteAccount()).unwrap();
+              // La navigation sera gérée automatiquement par AppNavigator après suppression
+            } catch (error: unknown) {
+              const errorMessage = error instanceof Error ? error.message : 'Échec de la suppression, réessayez.';
+              Alert.alert('Erreur', errorMessage);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleResetDatabase = () => {
@@ -187,6 +210,30 @@ export default function ParametresAppComponent() {
           </View>
           <View style={[styles.actionCardArrowContainer, { backgroundColor: colors.error + '10' }]}>
             <Text style={[styles.actionCardArrow, { color: colors.error }]}>›</Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.actionCard,
+            { 
+              backgroundColor: colors.surface, 
+              borderColor: colors.border, 
+              ...colors.shadow.small,
+              marginTop: SPACING.sm,
+            },
+          ]}
+          onPress={handleDeleteAccount}
+          activeOpacity={0.7}
+        >
+          <View style={styles.actionCardContent}>
+            <Text style={[styles.actionCardTitle, { color: '#FF3B30' }]}>Supprimer mon compte</Text>
+            <Text style={[styles.actionCardDescription, { color: colors.textSecondary }]}>
+              Suppression définitive de toutes vos données
+            </Text>
+          </View>
+          <View style={[styles.actionCardArrowContainer, { backgroundColor: '#FF3B30' + '10' }]}>
+            <Text style={[styles.actionCardArrow, { color: '#FF3B30' }]}>›</Text>
           </View>
         </TouchableOpacity>
       </View>

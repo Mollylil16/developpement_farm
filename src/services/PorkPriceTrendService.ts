@@ -10,6 +10,7 @@ import {
 import type { Transaction, Offer, MarketplaceListing } from '../types/marketplace';
 import { getRegionalPriceService } from './RegionalPriceService';
 import apiClient from './api/apiClient';
+import { logger } from '../utils/logger';
 
 /**
  * Prix moyen régional par défaut (FCFA/kg)
@@ -77,7 +78,7 @@ export class PorkPriceTrendService {
             const pricePerKg = transaction.finalPrice / weight;
             // Utiliser pricePerKg pour valider que le prix est raisonnable (entre 1000 et 10000 FCFA/kg)
             if (pricePerKg < 1000 || pricePerKg > 10000) {
-              console.warn(
+              logger.warn(
                 `[PorkPriceTrendService] Prix par kg suspect pour transaction ${transaction.id}: ${pricePerKg.toFixed(0)} FCFA/kg`
               );
             }
@@ -111,7 +112,7 @@ export class PorkPriceTrendService {
               const pricePerKg = offer.proposedPrice / weight;
               // Utiliser pricePerKg pour valider que le prix est raisonnable
               if (pricePerKg < 1000 || pricePerKg > 10000) {
-                console.warn(
+                logger.warn(
                   `[PorkPriceTrendService] Prix par kg suspect pour offre ${offer.id}: ${pricePerKg.toFixed(0)} FCFA/kg`
                 );
               }
@@ -182,8 +183,8 @@ export class PorkPriceTrendService {
       const regionalPriceService = getRegionalPriceService();
       avgPriceRegional = await regionalPriceService.getCurrentRegionalPrice();
     } catch (error) {
-      console.warn(
-        '⚠️ [PorkPriceTrendService] Erreur lors de la récupération du prix régional, utilisation du prix par défaut:',
+      logger.warn(
+        '[PorkPriceTrendService] Erreur lors de la récupération du prix régional, utilisation du prix par défaut:',
         error
       );
       avgPriceRegional = DEFAULT_REGIONAL_PRICE;
@@ -245,7 +246,7 @@ export class PorkPriceTrendService {
         const trend = await this.calculateWeeklyTrend(year, week);
         trends.push(trend);
       } catch (error) {
-        console.warn(`Erreur lors du calcul de la tendance pour S${week}/${year}:`, error);
+        logger.warn(`Erreur lors du calcul de la tendance pour S${week}/${year}:`, error);
       }
     }
 
@@ -254,7 +255,7 @@ export class PorkPriceTrendService {
       const currentTrend = await this.calculateWeeklyTrend(currentYear, currentWeek);
       trends.push(currentTrend);
     } catch (error) {
-      console.warn(`Erreur lors du calcul de la tendance pour la semaine en cours:`, error);
+      logger.warn(`Erreur lors du calcul de la tendance pour la semaine en cours:`, error);
     }
 
     return trends.sort((a, b) => {
