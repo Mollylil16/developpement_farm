@@ -135,7 +135,7 @@ export class PollingChatTransport implements IChatTransport {
         this.lastMessageTimestamp = message.createdAt;
       }
     } catch (error: unknown) {
-      console.error('[PollingTransport] Erreur récupération messages:', error);
+      logger.error('Erreur récupération messages:', error);
       this.callbacks.onError(
         error instanceof Error ? error : new Error(String(error))
       );
