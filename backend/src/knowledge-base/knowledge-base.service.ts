@@ -155,31 +155,42 @@ export class KnowledgeBaseService {
       return [];
     }
 
-    // Construire la clause WHERE pour les mots-clés
-    const keywordConditions = searchTerms.map((_, i) => 
-      `EXISTS (SELECT 1 FROM unnest(keywords) AS kw WHERE lower(kw) LIKE $${i + 1})`
-    );
-    const titleConditions = searchTerms.map((_, i) => 
-      `lower(title) LIKE $${i + 1}`
-    );
+    // Construire les conditions avec paramètres séparés pour éviter les conflits d'index
+    // Chaque terme a son propre paramètre pour keywords ET title
+    const conditions: string[] = [];
+    const params: (string | number)[] = [];
+    let paramIndex = 1;
 
-    const conditions = [
-      `(${keywordConditions.join(' OR ')})`,
-      `(${titleConditions.join(' OR ')})`,
-    ].join(' OR ');
+    for (const term of searchTerms) {
+      const termPattern = `%${term}%`;
+      // Condition pour keywords
+      conditions.push(`EXISTS (SELECT 1 FROM unnest(keywords) AS kw WHERE lower(kw) LIKE $${paramIndex})`);
+      params.push(termPattern);
+      paramIndex++;
+      
+      // Condition pour title
+      conditions.push(`lower(title) LIKE $${paramIndex}`);
+      params.push(termPattern);
+      paramIndex++;
+    }
 
-    const params = searchTerms.map(t => `%${t}%`);
-    params.push(projetId || 'global');
-    params.push(String(limit));
+    // Paramètre pour projet_id (peut être NULL)
+    const projetIdParamIndex = paramIndex;
+    params.push(projetId || null as any);
+    paramIndex++;
+
+    // Paramètre pour limit
+    const limitParamIndex = paramIndex;
+    params.push(limit);
 
     const result = await this.databaseService.query(
       `SELECT id, category, title, content, summary, keywords
        FROM knowledge_base
        WHERE is_active = true
-         AND (visibility = 'global' OR projet_id = $${searchTerms.length + 1})
-         AND (${conditions})
+         AND (visibility = 'global' OR ($${projetIdParamIndex} IS NOT NULL AND projet_id = $${projetIdParamIndex}))
+         AND (${conditions.join(' OR ')})
        ORDER BY priority DESC, view_count DESC
-       LIMIT $${searchTerms.length + 2}`,
+       LIMIT $${limitParamIndex}`,
       params
     );
 

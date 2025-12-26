@@ -127,6 +127,12 @@ CREATE TRIGGER trigger_update_knowledge_base_timestamp
   EXECUTE FUNCTION update_knowledge_base_timestamp();
 
 -- ============================================
+-- EXTENSION unaccent (pour recherche sans accents)
+-- IMPORTANT: Doit être créé AVANT la fonction search_knowledge
+-- ============================================
+CREATE EXTENSION IF NOT EXISTS unaccent;
+
+-- ============================================
 -- FONCTION: Recherche full-text dans la base
 -- ============================================
 CREATE OR REPLACE FUNCTION search_knowledge(
@@ -200,11 +206,6 @@ BEGIN
   LIMIT p_limit;
 END;
 $$ LANGUAGE plpgsql;
-
--- ============================================
--- EXTENSION unaccent (pour recherche sans accents)
--- ============================================
-CREATE EXTENSION IF NOT EXISTS unaccent;
 
 -- ============================================
 -- COMMENTAIRES
