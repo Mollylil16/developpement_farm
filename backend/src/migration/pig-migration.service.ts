@@ -961,7 +961,8 @@ export class PigMigrationService {
         ? ages.reduce((sum: number, a: number) => sum + a, 0) / ages.length
         : 0;
 
-    const maleCount = pigs.filter((p: any) => p.sexe === 'male').length;
+    // Compter les mâles (gérer à la fois 'male' et 'mâle' pour robustesse et cohérence avec le mapping)
+    const maleCount = pigs.filter((p: any) => p.sexe === 'male' || p.sexe === 'mâle').length;
     const femaleCount = pigs.filter((p: any) => p.sexe === 'femelle').length;
     // Compter explicitement les animaux indéterminés et les inclure dans castratedCount
     // pour être cohérent avec le mapping qui mappe 'indetermine' → 'castrated' dans batch_pigs
