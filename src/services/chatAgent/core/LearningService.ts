@@ -149,15 +149,17 @@ export class LearningService {
   }
 
   /**
-   * Incrémente le compteur d'utilisation (en arrière-plan)
+   * Incrémente le compteur d'utilisation (fire-and-forget)
+   * Note: Pas d'await intentionnel - opération non-critique en arrière-plan
    */
-  private async incrementUsageCount(learningId: string): Promise<void> {
-    // Fire and forget
-    apiClient.post('/agent-learnings/success', {
-      projet_id: this.projetId,
-      user_message: '',
-      intent: '',
-    }).catch(() => { /* ignorer les erreurs */ });
+  private incrementUsageCount(learningId: string): void {
+    if (!learningId) return;
+    
+    apiClient.post('/agent-learnings/increment-usage', {
+      learning_id: learningId,
+    }).catch((error) => {
+      console.warn('[LearningService] Erreur incrémentation usage:', error);
+    });
   }
 
   /**
@@ -225,14 +227,15 @@ export class LearningService {
 
   /**
    * Enregistre un succès d'intention (V4.0 - Avec persistance API)
+   * Note: Méthode synchrone pour stats locales, l'API est fire-and-forget
    */
-  async recordIntentSuccess(
+  recordIntentSuccess(
     intentType: string, 
     confidence: number, 
     userMessage?: string,
     params?: Record<string, any>
-  ): Promise<void> {
-    // Enregistrer localement
+  ): void {
+    // Enregistrer localement (synchrone)
     if (!this.intentStats.has(intentType)) {
       this.intentStats.set(intentType, { successes: 0, failures: 0, totalConfidence: 0 });
     }
@@ -241,35 +244,32 @@ export class LearningService {
     stats.successes++;
     stats.totalConfidence += confidence;
 
-    // V4.0 - Enregistrer dans l'API (en arrière-plan)
+    // V4.0 - Enregistrer dans l'API (fire-and-forget, non-bloquant)
     if (this.projetId && userMessage) {
       this.recordSuccessToAPI(userMessage, intentType, params, confidence);
     }
   }
 
   /**
-   * Enregistre un succès dans l'API (V4.0)
+   * Enregistre un succès dans l'API (fire-and-forget)
    */
-  private async recordSuccessToAPI(
+  private recordSuccessToAPI(
     userMessage: string, 
     intent: string, 
     params?: Record<string, any>,
     confidence?: number
-  ): Promise<void> {
+  ): void {
     if (!this.projetId) return;
 
-    try {
-      await apiClient.post('/agent-learnings/success', {
-        projet_id: this.projetId,
-        user_message: userMessage,
-        intent,
-        params,
-        confidence,
-      });
-    } catch (error) {
-      // Ignorer silencieusement
+    apiClient.post('/agent-learnings/success', {
+      projet_id: this.projetId,
+      user_message: userMessage,
+      intent,
+      params,
+      confidence,
+    }).catch((error) => {
       console.warn('[LearningService] Erreur enregistrement succès:', error);
-    }
+    });
   }
 
   /**
@@ -300,30 +300,29 @@ export class LearningService {
   }
 
   /**
-   * Enregistre un message de conversation (V4.0)
+   * Enregistre un message de conversation (fire-and-forget)
+   * Note: Pas d'await requis - opération non-critique en arrière-plan
    */
-  async recordConversationMessage(
+  recordConversationMessage(
     role: 'user' | 'assistant',
     content: string,
     intent?: string,
     actionExecuted?: string,
     actionSuccess?: boolean
-  ): Promise<void> {
+  ): void {
     if (!this.projetId || !this.conversationId) return;
 
-    try {
-      await apiClient.post('/agent-learnings/conversation', {
-        projet_id: this.projetId,
-        conversation_id: this.conversationId,
-        message_role: role,
-        message_content: content,
-        intent,
-        action_executed: actionExecuted,
-        action_success: actionSuccess,
-      });
-    } catch (error) {
-      // Ignorer silencieusement
-    }
+    apiClient.post('/agent-learnings/conversation', {
+      projet_id: this.projetId,
+      conversation_id: this.conversationId,
+      message_role: role,
+      message_content: content,
+      intent,
+      action_executed: actionExecuted,
+      action_success: actionSuccess,
+    }).catch((error) => {
+      console.warn('[LearningService] Erreur enregistrement conversation:', error);
+    });
   }
 
   /**

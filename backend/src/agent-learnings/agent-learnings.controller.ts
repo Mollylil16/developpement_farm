@@ -134,5 +134,12 @@ export class AgentLearningsController {
       keywords: this.learningsService.extractKeywords(body.message),
     };
   }
+
+  @Post('increment-usage')
+  @ApiOperation({ summary: 'Incrémenter le compteur d\'utilisation d\'un apprentissage' })
+  async incrementUsage(@Body() body: { learning_id: string }) {
+    await this.learningsService.incrementUsageCount(body.learning_id);
+    return { success: true };
+  }
 }
 

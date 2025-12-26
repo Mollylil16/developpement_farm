@@ -116,7 +116,7 @@ export class ChatAgentService {
     };
     this.conversationHistory.push(userMsg);
 
-    // V4.0 - Enregistrer le message utilisateur dans la conversation
+    // V4.0 - Enregistrer le message utilisateur (fire-and-forget, non-bloquant)
     this.learningService.recordConversationMessage('user', userMessage);
 
     try {
@@ -338,7 +338,7 @@ export class ChatAgentService {
           actionResult = await this.actionExecutor.execute(action, this.context);
           const actionExecutionTime = Date.now() - actionExecutionStartTime;
 
-          // V4.0 - Enregistrer le succès pour apprentissage
+          // V4.0 - Enregistrer le succès pour apprentissage (fire-and-forget, non-bloquant)
           if (detectedIntent && actionResult.success) {
             this.learningService.recordIntentSuccess(
               detectedIntent.action,
@@ -404,7 +404,7 @@ export class ChatAgentService {
 
       this.conversationHistory.push(assistantMessage);
 
-      // V4.0 - Enregistrer la réponse assistant dans la conversation
+      // V4.0 - Enregistrer la réponse assistant (fire-and-forget, non-bloquant)
       this.learningService.recordConversationMessage(
         'assistant',
         assistantMessage.content,
