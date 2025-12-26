@@ -250,16 +250,16 @@ export default function HomeView({
             style={[styles.menuItem, { borderBottomColor: colors.border }]}
             onPress={() => {
               onClose();
-              navigation.navigate('Main', { screen: SCREENS.PARAMETRES });
+              navigation.navigate('Main', { screen: SCREENS.TRAINING });
             }}
           >
             <Ionicons name="school-outline" size={24} color={colors.primary} />
             <View style={styles.menuItemContent}>
               <Text style={[styles.menuItemTitle, { color: colors.text }]}>
-                Formation & Configuration
+                Formation
               </Text>
               <Text style={[styles.menuItemSubtitle, { color: colors.textSecondary }]}>
-                Guide d'élevage, paramètres projet et application
+                Guide d'élevage et tutoriels
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />

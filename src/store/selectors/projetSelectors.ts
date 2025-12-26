@@ -5,7 +5,7 @@
 
 import { createSelector } from '@reduxjs/toolkit';
 import { RootState } from '../store';
-import { Projet } from '../../types';
+import type { Projet } from '../../types/projet';
 
 // Sélecteur de base pour l'état projet
 const selectProjetState = (state: RootState) => state.projet;

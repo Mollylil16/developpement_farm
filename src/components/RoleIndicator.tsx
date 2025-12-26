@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRole } from '../contexts/RoleContext';
-import { RoleType } from '../types';
+import type { RoleType } from '../types/roles';
 import { useTheme } from '../contexts/ThemeContext';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
 import RoleSwitcherModal from './RoleSwitcherModal';

@@ -4,13 +4,13 @@
  */
 
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
-import {
+import type {
   StockAliment,
   StockMouvement,
   CreateStockAlimentInput,
   UpdateStockAlimentInput,
   CreateStockMouvementInput,
-} from '../../types';
+} from '../../types/nutrition';
 import { getErrorMessage } from '../../types/common';
 import apiClient from '../../services/api/apiClient';
 import { createLoggerWithPrefix } from '../../utils/logger';

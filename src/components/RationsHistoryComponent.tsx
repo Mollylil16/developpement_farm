@@ -6,7 +6,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadRations, deleteRation } from '../store/slices/nutritionSlice';
-import { Ration, IngredientRation } from '../types';
+import type { Ration, IngredientRation } from '../types/nutrition';
 import { getTypePorcLabel } from '../types/nutrition';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';

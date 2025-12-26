@@ -7,7 +7,7 @@ import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
 import apiClient, { APIError } from '../api/apiClient';
-import { User } from '../../types';
+import type { User } from '../../types/auth';
 import { logger } from '../../utils/logger';
 
 // Nécessaire pour que le navigateur se ferme correctement après l'authentification

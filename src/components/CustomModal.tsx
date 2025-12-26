@@ -18,6 +18,7 @@ import {
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useShakeToCancel } from '../hooks/useShakeToCancel';
+import { logger } from '../utils/logger';
 
 export interface CustomModalProps {
   visible: boolean;
@@ -111,7 +112,7 @@ export default function CustomModal({
         }
       );
     } catch (error) {
-      console.warn('Erreur lors de la configuration des listeners clavier:', error);
+      logger.warn('Erreur lors de la configuration des listeners clavier:', error);
     }
 
     return () => {
@@ -123,7 +124,7 @@ export default function CustomModal({
           keyboardHideListener.remove();
         }
       } catch (error) {
-        console.warn('Erreur lors du nettoyage des listeners clavier:', error);
+        logger.warn('Erreur lors du nettoyage des listeners clavier:', error);
       }
     };
   }, [visible, keyboardOffsetAnim]);

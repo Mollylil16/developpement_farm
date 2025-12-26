@@ -22,6 +22,7 @@ import {
   CALENDRIER_VACCINAL_TYPE,
   TYPE_PROPHYLAXIE_LABELS,
 } from '../types/sante';
+import { logger } from '../utils/logger';
 
 export interface StatsGlobales {
   totalAnimaux: number;
@@ -83,7 +84,7 @@ export function useVaccinationLogic(): VaccinationLogicReturn {
         dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: true })).unwrap(),
       ]);
     } catch (error) {
-      console.error('Erreur chargement données vaccination:', error);
+      logger.error('Erreur chargement données vaccination:', error);
     }
   };
 

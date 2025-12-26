@@ -10,13 +10,14 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { createPesee, updatePesee } from '../store/slices/productionSlice';
-import { ProductionAnimal, ProductionPesee, CreatePeseeInput } from '../types';
+import type { ProductionAnimal, ProductionPesee, CreatePeseeInput } from '../types/production';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import aiWeightService from '../services/aiWeightService';
+import { logger } from '../utils/logger';
 
 // Fonction helper pour convertir une date en format local YYYY-MM-DD
 const formatDateToLocal = (date: Date): string => {
@@ -201,7 +202,7 @@ export default function ProductionPeseeFormModal({
         Alert.alert('Avertissement', 'Aucun porc détecté dans l\'image. Veuillez saisir le poids manuellement ou réessayer.');
       }
     } catch (error: any) {
-      console.error('Erreur IA:', error);
+      logger.error('Erreur IA:', error);
       Alert.alert(
         'Erreur',
         error.response?.data?.detail || error.message || 'Erreur lors de l\'estimation du poids'
@@ -250,7 +251,7 @@ export default function ProductionPeseeFormModal({
         Alert.alert('Avertissement', 'Aucun porc détecté dans la vidéo.');
       }
     } catch (error: any) {
-      console.error('Erreur IA vidéo:', error);
+      logger.error('Erreur IA vidéo:', error);
       Alert.alert(
         'Erreur',
         error.response?.data?.detail || error.message || 'Erreur lors de l\'estimation du poids'

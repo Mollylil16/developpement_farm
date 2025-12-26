@@ -23,7 +23,8 @@ import {
 } from '../store/slices/reproductionSlice';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
 import { selectAllAnimaux } from '../store/selectors/productionSelectors';
-import { Gestation, ProductionAnimal } from '../types';
+import type { Gestation } from '../types/reproduction';
+import type { ProductionAnimal } from '../types/production';
 import { doitGenererAlerte, joursRestantsAvantMiseBas } from '../types/reproduction';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';

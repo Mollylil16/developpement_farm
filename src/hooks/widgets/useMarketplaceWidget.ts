@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { logger } from '../../utils/logger';
 
 export interface MarketplaceWidgetData {
   emoji: string;
@@ -51,7 +52,7 @@ export function useMarketplaceWidget(projetId?: string): MarketplaceWidgetData |
           available: availableListings,
         });
       } catch (error) {
-        console.error('Erreur chargement stats marketplace:', error);
+        logger.error('Erreur chargement stats marketplace:', error);
       }
     })();
   }, [projetId]);

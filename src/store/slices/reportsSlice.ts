@@ -3,12 +3,12 @@
  */
 
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import {
+import type {
   RapportCroissance,
   CreateRapportCroissanceInput,
   IndicateursPerformance,
   Recommandation,
-} from '../../types';
+} from '../../types/rapports';
 import { getErrorMessage } from '../../types/common';
 import apiClient from '../../services/api/apiClient';
 

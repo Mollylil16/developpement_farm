@@ -6,15 +6,13 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { createCollaborateur, updateCollaborateur } from '../store/slices/collaborationSlice';
-import {
+import type {
   Collaborateur,
   CreateCollaborateurInput,
   RoleCollaborateur,
   StatutCollaborateur,
-  ROLE_LABELS,
-  STATUT_LABELS,
-  DEFAULT_PERMISSIONS,
-} from '../types';
+} from '../types/collaboration';
+import { ROLE_LABELS, STATUT_LABELS, DEFAULT_PERMISSIONS } from '../types/collaboration';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';

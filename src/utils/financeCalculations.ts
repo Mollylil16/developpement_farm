@@ -3,7 +3,7 @@
  * Gestion des coûts de production et amortissements
  */
 
-import { DepensePonctuelle } from '../types';
+import type { DepensePonctuelle } from '../types/finance';
 import { isCapex } from '../types/finance';
 import { addMonths, differenceInMonths, isAfter, isBefore, parseISO } from 'date-fns';
 

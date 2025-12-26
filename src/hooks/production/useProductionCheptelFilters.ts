@@ -6,7 +6,7 @@
 import { useState, useMemo } from 'react';
 import { useAppSelector } from '../../store/hooks';
 import { selectAllAnimaux } from '../../store/selectors/productionSelectors';
-import { ProductionAnimal, StatutAnimal } from '../../types';
+import type { ProductionAnimal, StatutAnimal } from '../../types/production';
 import { getCategorieAnimal } from '../../utils/animalUtils';
 import { useDebounce } from '../useDebounce';
 

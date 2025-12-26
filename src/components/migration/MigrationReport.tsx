@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { MigrationResult } from '../../services/migration/migrationService';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { logger } from '../../utils/logger';
 
 interface MigrationReportProps {
   result: MigrationResult;
@@ -30,7 +31,7 @@ export default function MigrationReport({ result, type, onClose }: MigrationRepo
         title: 'Rapport de migration',
       });
     } catch (error) {
-      console.error('Erreur lors du partage:', error);
+      logger.error('Erreur lors du partage:', error);
     }
   };
 

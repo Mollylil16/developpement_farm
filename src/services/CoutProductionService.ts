@@ -4,7 +4,8 @@
  */
 
 import apiClient from './api/apiClient';
-import { Projet, Revenu } from '../types';
+import type { Projet } from '../types/projet';
+import type { Revenu } from '../types/finance';
 import { CoutProductionPeriode } from '../utils/financeCalculations';
 import { calculateMargeVente, MargeVente } from '../utils/margeCalculations';
 import { startOfMonth, endOfMonth, parseISO } from 'date-fns';

@@ -31,6 +31,7 @@ import { createListing } from '../../store/slices/marketplaceSlice';
 import { loadProductionAnimaux, loadPeseesRecents } from '../../store/slices/productionSlice';
 import { useGeolocation } from '../../hooks/useGeolocation';
 import { getErrorMessage } from '../../types/common';
+import { logger } from '../../utils/logger';
 
 interface BatchAddModalProps {
   visible: boolean;
@@ -136,7 +137,7 @@ export default function BatchAddModal({
       setPeseesParAnimal(peseesMap);
       setLocalSubjects(animauxActifs);
     } catch (error: unknown) {
-      console.error('Erreur chargement animaux:', error);
+      logger.error('Erreur chargement animaux:', error);
       Alert.alert('Erreur', 'Impossible de charger les animaux disponibles');
     } finally {
       setLoadingSubjects(false);
@@ -149,7 +150,7 @@ export default function BatchAddModal({
     try {
       await loadAvailableSubjects();
     } catch (error) {
-      console.error('Erreur lors du rafraîchissement:', error);
+      logger.error('Erreur lors du rafraîchissement:', error);
     } finally {
       setRefreshing(false);
     }

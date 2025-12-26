@@ -9,6 +9,7 @@ import { getErrorMessage } from '../types/common';
 import apiClient from '../services/api/apiClient';
 import { loadPlanificationsParProjet } from '../store/slices/planificationSlice';
 import { format, startOfDay, endOfDay, isToday, parseISO } from 'date-fns';
+import { logger } from '../utils/logger';
 
 interface TechData {
   assistedFarms: Array<{
@@ -152,7 +153,7 @@ export function useTechData(techUserId?: string) {
         error: null,
       });
     } catch (error: unknown) {
-      console.error('Erreur lors du chargement des données technicien:', error);
+      logger.error('Erreur lors du chargement des données technicien:', error);
       setData((prev) => ({
         ...prev,
         loading: false,

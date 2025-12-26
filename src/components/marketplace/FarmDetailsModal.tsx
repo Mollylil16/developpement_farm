@@ -27,6 +27,7 @@ import { useAppSelector } from '../../store/hooks';
 import apiClient from '../../services/api/apiClient';
 import { TYPE_PROPHYLAXIE_LABELS } from '../../types/sante';
 import SubjectCard from './SubjectCard';
+import { logger } from '../../utils/logger';
 
 interface FarmDetailsModalProps {
   visible: boolean;
@@ -135,7 +136,7 @@ export default function FarmDetailsModal({
               available: true,
             };
           } catch (error) {
-            console.error(`Erreur enrichissement listing ${listing.id}:`, error);
+            logger.error(`Erreur enrichissement listing ${listing.id}:`, error);
             return null;
           }
         })
@@ -143,7 +144,7 @@ export default function FarmDetailsModal({
 
       setListings(enrichedListings.filter((l): l is MarketplaceListing => l !== null));
     } catch (error: unknown) {
-      console.error('Erreur chargement listings:', error);
+      logger.error('Erreur chargement listings:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -174,7 +175,7 @@ export default function FarmDetailsModal({
           },
         }));
       } catch (error) {
-        console.error('Erreur chargement détails sanitaires:', error);
+        logger.error('Erreur chargement détails sanitaires:', error);
       }
     },
     [farm, healthDetails]
@@ -334,7 +335,7 @@ export default function FarmDetailsModal({
                 `${count} sujet${count > 1 ? 's' : ''} retiré${count > 1 ? 's' : ''} du marketplace`
               );
             } catch (error: unknown) {
-              console.error('Erreur retrait du marketplace:', error);
+              logger.error('Erreur retrait du marketplace:', error);
               const errorMessage = error instanceof Error ? error.message : 'Impossible de retirer les sujets du marketplace';
               Alert.alert('Erreur', errorMessage);
             } finally {

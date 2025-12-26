@@ -8,6 +8,7 @@ import { TouchableOpacity, View, Text, StyleSheet, Animated } from 'react-native
 import { VoiceServiceV2 } from '../../services/chatAgent/VoiceServiceV2';
 import * as Haptics from 'expo-haptics';
 import { COLORS } from '../../constants/theme';
+import { logger } from '../../utils/logger';
 
 interface VoiceInputButtonProps {
   onTranscription: (text: string) => void;
@@ -32,7 +33,7 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
     return () => {
       pulseAnim.current?.stop();
       if (isListening) {
-        service.stopListening().catch(console.error);
+        service.stopListening().catch((error) => logger.error('[VoiceInputButton] Stop error:', error));
       }
     };
   }, [isListening, service]);
@@ -83,16 +84,16 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
         onError: (message) => {
           setIsListening(false);
           stopPulseAnimation();
-          console.warn('[VoiceInputButton] Error:', message);
+          logger.warn('[VoiceInputButton] Error:', message);
           if (onError) {
             onError(message);
           } else {
             // Optionnel: afficher un toast ou Alert ici
-            console.error(message);
+            logger.error(message);
           }
         },
         onStart: () => {
-          console.log('[VoiceInputButton] Listening started');
+          logger.debug('[VoiceInputButton] Listening started');
         },
         onEnd: () => {
           setIsListening(false);
@@ -104,7 +105,7 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
       stopPulseAnimation();
       const errorMessage =
         error instanceof Error ? error.message : 'Impossible de démarrer la reconnaissance vocale';
-      console.error('[VoiceInputButton] Start error:', errorMessage);
+      logger.error('[VoiceInputButton] Start error:', errorMessage);
       if (onError) {
         onError(errorMessage);
       }
@@ -117,7 +118,7 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
         await service.stopListening();
         // L'état sera mis à jour via le callback onEnd
       } catch (error) {
-        console.error('[VoiceInputButton] Stop error:', error);
+        logger.error('[VoiceInputButton] Stop error:', error);
         setIsListening(false);
         stopPulseAnimation();
       }

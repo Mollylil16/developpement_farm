@@ -2,7 +2,7 @@
  * Utilitaires pour la gestion des animaux
  */
 
-import { ProductionAnimal, ProductionPesee } from '../types';
+import type { ProductionAnimal, ProductionPesee } from '../types/production';
 
 /**
  * Récupère le poids actuel d'un animal

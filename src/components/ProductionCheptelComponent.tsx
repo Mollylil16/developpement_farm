@@ -21,7 +21,7 @@ import {
   selectAllTraitements,
 } from '../store/selectors/santeSelectors';
 import { loadVaccinations, loadMaladies, loadTraitements } from '../store/slices/santeSlice';
-import { ProductionAnimal } from '../types';
+import type { ProductionAnimal } from '../types/production';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import LoadingSpinner from './LoadingSpinner';

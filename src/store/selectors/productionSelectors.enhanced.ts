@@ -9,7 +9,7 @@ import { createSelector } from '@reduxjs/toolkit';
 import { normalize } from 'normalizr';
 import { RootState } from '../store';
 import { animauxSchema } from '../normalization/schemas';
-import { ProductionAnimal, ProductionPesee } from '../../types';
+import type { ProductionAnimal, ProductionPesee } from '../../types/production';
 import * as baseSelectors from './productionSelectors';
 
 /**

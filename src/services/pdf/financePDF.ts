@@ -10,7 +10,8 @@ import {
   formatDate,
   generateAndSharePDF,
 } from '../pdfService';
-import { Projet, ChargeFixe, DepensePonctuelle, Revenu } from '../../types';
+import type { Projet } from '../../types/projet';
+import type { ChargeFixe, DepensePonctuelle, Revenu } from '../../types/finance';
 
 interface FinanceData {
   projet: Projet;

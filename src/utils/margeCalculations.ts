@@ -3,7 +3,7 @@
  * Calcule les marges OPEX et complètes pour chaque vente de porc
  */
 
-import { Revenu } from '../types';
+import type { Revenu } from '../types/finance';
 
 /**
  * Calcule une marge simple (revenu - coût)

@@ -6,7 +6,7 @@
 
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { normalize } from 'normalizr';
-import {
+import type {
   ChargeFixe,
   DepensePonctuelle,
   Revenu,
@@ -15,7 +15,7 @@ import {
   UpdateDepensePonctuelleInput,
   CreateRevenuInput,
   UpdateRevenuInput,
-} from '../../types';
+} from '../../types/finance';
 import { getErrorMessage } from '../../types/common';
 import apiClient from '../../services/api/apiClient';
 import {

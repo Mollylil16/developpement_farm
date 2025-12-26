@@ -21,7 +21,7 @@ import { createProjet } from '../store/slices/projetSlice';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useRole } from '../contexts/RoleContext';
-import { CreateProjetInput } from '../types';
+import type { CreateProjetInput } from '../types/projet';
 import Button from '../components/Button';
 import FormField from '../components/FormField';
 import Card from '../components/Card';

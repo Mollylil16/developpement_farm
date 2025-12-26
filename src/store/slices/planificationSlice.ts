@@ -3,7 +3,7 @@
  */
 
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { Planification, CreatePlanificationInput, UpdatePlanificationInput } from '../../types';
+import type { Planification, CreatePlanificationInput, UpdatePlanificationInput } from '../../types/planification';
 import apiClient from '../../services/api/apiClient';
 import { getErrorMessage } from '../../types/common';
 import { createLoggerWithPrefix } from '../../utils/logger';

@@ -5,7 +5,7 @@
 
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { User, AuthState, SignUpInput, SignInInput, AuthProvider } from '../../types';
+import type { User, AuthState, SignUpInput, SignInInput, AuthProvider } from '../../types/auth';
 import { getErrorMessage } from '../../types/common';
 import { setProjetActif } from './projetSlice';
 import apiClient from '../../services/api/apiClient';

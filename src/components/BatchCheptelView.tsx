@@ -18,6 +18,7 @@ import { PlusCircle } from 'lucide-react-native';
 import BatchActionsModal from './batch/BatchActionsModal';
 import CreateBatchModal from './batch/CreateBatchModal';
 import apiClient from '../services/api/apiClient';
+import { logger } from '../utils/logger';
 
 export default function BatchCheptelView() {
   const { colors } = useTheme();
@@ -48,7 +49,7 @@ export default function BatchCheptelView() {
       setBatches(batchesData);
       calculateStats(batchesData);
     } catch (error: any) {
-      console.error('Erreur lors du chargement des bandes:', error);
+      logger.error('Erreur lors du chargement des bandes:', error);
       Alert.alert('Erreur', error.message || 'Impossible de charger les bandes');
       // En cas d'erreur, initialiser avec tableau vide
       setBatches([]);

@@ -3,7 +3,7 @@
  */
 
 import { RootState } from '../store';
-import { Collaborateur } from '../../types';
+import type { Collaborateur } from '../../types/collaboration';
 
 /**
  * Sélectionner tous les collaborateurs

@@ -30,7 +30,7 @@ import {
   loadPeseesRecents,
   deletePesee,
 } from '../store/slices/productionSlice';
-import { ProductionAnimal, ProductionPesee } from '../types';
+import type { ProductionAnimal, ProductionPesee } from '../types/production';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import LoadingSpinner from './LoadingSpinner';

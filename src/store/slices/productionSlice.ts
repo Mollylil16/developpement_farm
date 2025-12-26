@@ -7,13 +7,13 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { getErrorMessage } from '../../types/common';
 import { normalize, denormalize } from 'normalizr';
-import {
+import type {
   ProductionAnimal,
   CreateProductionAnimalInput,
   UpdateProductionAnimalInput,
   ProductionPesee,
   CreatePeseeInput,
-} from '../../types';
+} from '../../types/production';
 import apiClient from '../../services/api/apiClient';
 import { animauxSchema, peseesSchema, animalSchema, peseeSchema } from '../normalization/schemas';
 import type { RootState } from '../store';

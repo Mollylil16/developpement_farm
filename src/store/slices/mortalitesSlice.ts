@@ -6,12 +6,12 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { getErrorMessage } from '../../types/common';
 import { normalize } from 'normalizr';
-import {
+import type {
   Mortalite,
   CreateMortaliteInput,
   UpdateMortaliteInput,
   StatistiquesMortalite,
-} from '../../types';
+} from '../../types/mortalites';
 import apiClient from '../../services/api/apiClient';
 import { mortalitesSchema, mortaliteSchema } from '../normalization/schemas';
 import { createLoggerWithPrefix } from '../../utils/logger';

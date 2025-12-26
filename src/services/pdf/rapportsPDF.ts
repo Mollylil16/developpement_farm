@@ -11,7 +11,7 @@ import {
   formatDate,
   generateAndSharePDF,
 } from '../pdfService';
-import { Projet } from '../../types';
+import type { Projet } from '../../types/projet';
 
 // Type ProductionAnimal utilisé pour typer les données de production dans les tendances
 type ProductionAnimal = {

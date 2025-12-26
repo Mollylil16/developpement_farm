@@ -29,6 +29,7 @@ import { Image } from 'react-native';
 import { VoiceService } from '../../services/chatAgent';
 import { VoiceInputButton } from '../chat/VoiceInputButton';
 import { VoiceServiceV2 } from '../../services/chatAgent/VoiceServiceV2';
+import { logger } from '../../utils/logger';
 
 interface ChatAgentScreenProps {
   onClose?: () => void;
@@ -59,7 +60,7 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
   useEffect(() => {
     voiceServiceV2Ref.current = new VoiceServiceV2();
     return () => {
-      voiceServiceV2Ref.current?.destroy().catch(console.error);
+      voiceServiceV2Ref.current?.destroy().catch((error) => logger.error('[ChatAgentScreen] Destroy error:', error));
     };
   }, []);
 
@@ -114,7 +115,7 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
         }
       }, 1000); // Attendre 1 seconde pour que le message soit traité
     } catch (error) {
-      console.error('Erreur envoi message:', error);
+      logger.error('Erreur envoi message:', error);
       Alert.alert('Erreur', "Impossible d'envoyer le message. Réessayez.");
     } finally {
       setSending(false);
@@ -150,7 +151,7 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
           setInputText(transcript.trim());
         }
       } catch (error: unknown) {
-        console.error('Erreur arrêt écoute:', error);
+        logger.error('Erreur arrêt écoute:', error);
         setIsListening(false);
       }
     } else {
@@ -183,7 +184,7 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
           timeoutPromise,
         ]);
       } catch (error: unknown) {
-        console.error('Erreur démarrage écoute:', error);
+        logger.error('Erreur démarrage écoute:', error);
         setIsListening(false);
 
         // Message d'erreur plus informatif

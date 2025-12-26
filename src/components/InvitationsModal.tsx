@@ -11,7 +11,8 @@ import {
   loadInvitationsEnAttente,
 } from '../store/slices/collaborationSlice';
 import { loadProjets, loadProjetActif } from '../store/slices/projetSlice';
-import { Collaborateur, ROLE_LABELS } from '../types';
+import type { Collaborateur } from '../types/collaboration';
+import { ROLE_LABELS } from '../types/collaboration';
 import CustomModal from './CustomModal';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';

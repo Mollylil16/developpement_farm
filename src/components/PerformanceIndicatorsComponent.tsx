@@ -29,15 +29,10 @@ import {
 } from '../store/selectors/financeSelectors';
 import { selectAllGestations, selectAllSevrages } from '../store/selectors/reproductionSelectors';
 import { selectAllMortalites } from '../store/selectors/mortalitesSelectors';
-import {
-  IndicateursPerformance,
-  Recommandation,
-  ChargeFixe,
-  DepensePonctuelle,
-  Gestation,
-  Sevrage,
-  Mortalite,
-} from '../types';
+import type { IndicateursPerformance, Recommandation } from '../types/rapports';
+import type { ChargeFixe, DepensePonctuelle } from '../types/finance';
+import type { Gestation, Sevrage } from '../types/reproduction';
+import type { Mortalite } from '../types/mortalites';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import StatCard from './StatCard';

@@ -102,9 +102,8 @@ export { default as PlanningProductionScreen } from '../screens/PlanningProducti
 export { default as PlanificationScreen } from '../screens/PlanificationScreen';
 export { default as MortalitesScreen } from '../screens/MortalitesScreen';
 
-// Profil et paramètres (accès fréquent)
+// Profil (accès fréquent)
 export { default as ProfilScreen } from '../screens/ProfilScreen';
-export { default as ParametresScreen } from '../screens/ParametresScreen';
 export { default as CollaborationScreen } from '../screens/CollaborationScreen';
 
 // Rapports (utilisés régulièrement)

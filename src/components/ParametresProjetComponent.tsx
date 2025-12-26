@@ -27,7 +27,7 @@ import { loadMortalitesParProjet } from '../store/slices/mortalitesSlice';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
 import { selectAllAnimaux } from '../store/selectors/productionSelectors';
 import { selectAllMortalites } from '../store/selectors/mortalitesSelectors';
-import { Projet } from '../types';
+import type { Projet } from '../types/projet';
 import { differenceInMonths, parseISO } from 'date-fns';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';

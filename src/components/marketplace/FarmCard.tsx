@@ -21,6 +21,7 @@ import { formatDate } from '../../utils/formatters';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import apiClient from '../../services/api/apiClient';
 import { loadUserFromStorageThunk } from '../../store/slices/authSlice';
+import { logger } from '../../utils/logger';
 
 interface FarmCardProps {
   farm: FarmCardType;
@@ -93,10 +94,10 @@ ID Ferme: ${farm.farmId}`;
       });
 
       if (result.action === Share.sharedAction) {
-        console.log('Partage réussi');
+        logger.debug('Partage réussi');
       }
     } catch (error: unknown) {
-      console.error('Erreur lors du partage:', error);
+      logger.error('Erreur lors du partage:', error);
       Alert.alert('Erreur', 'Impossible de partager cette ferme');
     }
   };
@@ -138,7 +139,7 @@ ID Ferme: ${farm.farmId}`;
         onFavoriteChange(farm.farmId, newIsFavorite);
       }
     } catch (error: unknown) {
-      console.error('Erreur lors du toggle favori:', error);
+      logger.error('Erreur lors du toggle favori:', error);
       Alert.alert('Erreur', 'Impossible de sauvegarder cette ferme');
     } finally {
       setIsTogglingFavorite(false);

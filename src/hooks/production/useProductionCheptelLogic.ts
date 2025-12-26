@@ -24,7 +24,7 @@ import { selectAllMortalites } from '../../store/selectors/mortalitesSelectors';
 import { useActionPermissions } from '../useActionPermissions';
 import { useGeolocation } from '../useGeolocation';
 import apiClient from '../../services/api/apiClient';
-import { ProductionAnimal, StatutAnimal } from '../../types';
+import type { ProductionAnimal, StatutAnimal } from '../../types/production';
 import { getCategorieAnimal } from '../../utils/animalUtils';
 import type { UpdateProductionAnimalInput } from '../../types/production';
 import { getErrorMessage } from '../../types/errors';

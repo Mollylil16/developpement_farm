@@ -18,7 +18,8 @@ import {
 } from '../../store/slices/mortalitesSlice';
 import { selectAllAnimaux } from '../../store/selectors/productionSelectors';
 import { selectAllMortalites } from '../../store/selectors/mortalitesSelectors';
-import { ProductionAnimal, StatutAnimal, STATUT_ANIMAL_LABELS } from '../../types';
+import type { ProductionAnimal, StatutAnimal } from '../../types/production';
+import { STATUT_ANIMAL_LABELS } from '../../types/production';
 import { getCategorieAnimal } from '../../utils/animalUtils';
 import { useActionPermissions } from '../useActionPermissions';
 import { getErrorMessage } from '../../types/errors';

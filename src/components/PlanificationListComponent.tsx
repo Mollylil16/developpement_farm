@@ -21,15 +21,12 @@ import {
   deletePlanification,
   updatePlanification,
 } from '../store/slices/planificationSlice';
-import {
+import type {
   Planification,
   TypeTache,
   StatutTache,
-  TYPE_TACHE_LABELS,
-  STATUT_TACHE_LABELS,
-  getTachesAVenir,
-  getTachesEnRetard,
-} from '../types';
+} from '../types/planification';
+import { TYPE_TACHE_LABELS, STATUT_TACHE_LABELS, getTachesAVenir, getTachesEnRetard } from '../types/planification';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';

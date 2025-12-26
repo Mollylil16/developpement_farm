@@ -4,7 +4,7 @@
  */
 
 import apiClient from '../api/apiClient';
-import type { Vaccination, Traitement, VisiteVeterinaire } from '../../types';
+import type { Vaccination, Traitement, VisiteVeterinaire } from '../../types/sante';
 
 export interface CoutsVeterinaires {
   vaccinations: number;

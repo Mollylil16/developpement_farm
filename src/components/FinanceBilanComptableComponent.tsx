@@ -53,7 +53,7 @@ export default function FinanceBilanComptableComponent() {
     try {
       await dispatch(loadDepensesPonctuelles(projetActif.id)).unwrap();
     } catch (error) {
-      console.error('Erreur rafraîchissement:', error);
+      logger.error('Erreur rafraîchissement:', error);
     } finally {
       setRefreshing(false);
     }

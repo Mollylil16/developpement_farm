@@ -7,7 +7,8 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { getErrorMessage } from '../../types/common';
 import { normalize } from 'normalizr';
-import { Gestation, Sevrage, CreateGestationInput, CreateSevrageInput } from '../../types';
+import type { Gestation, CreateGestationInput } from '../../types/reproduction';
+import type { Sevrage, CreateSevrageInput } from '../../types/reproduction';
 import apiClient from '../../services/api/apiClient';
 import {
   gestationsSchema,

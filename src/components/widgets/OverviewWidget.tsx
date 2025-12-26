@@ -18,6 +18,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
 import { countAnimalsByCategory, countAnimalsByPoidsCategory } from '../../utils/animalUtils';
 import { selectPeseesParAnimal } from '../../store/selectors/productionSelectors';
+import { logger } from '../../utils/logger';
 
 interface OverviewWidgetProps {
   onPress?: () => void;
@@ -54,7 +55,7 @@ function OverviewWidget({ onPress }: OverviewWidgetProps) {
       dispatch(loadProductionAnimaux({ projetId: projetActif.id })),
       dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 })), // Limité à 20 pesées récentes (suffisant pour stats)
     ]).catch((error) => {
-      console.error('[OverviewWidget] Erreur lors du chargement des données:', error);
+      logger.error('[OverviewWidget] Erreur lors du chargement des données:', error);
     });
   }, [dispatch, projetActif?.id]);
 

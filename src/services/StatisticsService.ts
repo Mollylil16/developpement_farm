@@ -3,7 +3,8 @@
  * Évite la duplication de code dans les composants
  */
 
-import { ProductionAnimal, ProductionPesee, Mortalite } from '../types';
+import type { ProductionAnimal, ProductionPesee } from '../types/production';
+import type { Mortalite } from '../types/mortalites';
 
 export interface AnimalStats {
   total: number;

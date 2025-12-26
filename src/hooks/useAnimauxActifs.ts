@@ -6,7 +6,7 @@
 import { useMemo } from 'react';
 import { useAppSelector } from '../store/hooks';
 import { selectAllAnimaux } from '../store/selectors/productionSelectors';
-import { ProductionAnimal } from '../types';
+import type { ProductionAnimal } from '../types/production';
 import { filterActiveAnimals, getCategorieAnimal } from '../utils/animalUtils';
 
 interface UseAnimauxActifsOptions {

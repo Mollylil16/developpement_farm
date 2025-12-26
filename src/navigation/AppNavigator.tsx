@@ -324,14 +324,14 @@ function MainTabs() {
         </Tab.Screen>
       )}
 
-      {/* Paramètres - Accessible via menu profil (caché de la barre) */}
+      {/* Formation - Accessible via menu profil (caché de la barre) */}
       <Tab.Screen
-        name={SCREENS.PARAMETRES}
+        name={SCREENS.TRAINING}
         options={{
           tabBarButton: () => <></>,
         }}
       >
-        {() => <LazyScreens.ParametresScreen />}
+        {() => <LazyScreens.TrainingScreen />}
       </Tab.Screen>
 
       {/* Marketplace Chat - Accessible via navigation */}

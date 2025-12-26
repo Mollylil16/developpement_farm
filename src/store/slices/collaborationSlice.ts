@@ -4,12 +4,12 @@
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { getErrorMessage } from '../../types/common';
-import {
+import type {
   Collaborateur,
   CreateCollaborateurInput,
   UpdateCollaborateurInput,
-  DEFAULT_PERMISSIONS,
-} from '../../types';
+} from '../../types/collaboration';
+import { DEFAULT_PERMISSIONS } from '../../types/collaboration';
 import apiClient from '../../services/api/apiClient';
 
 interface CollaborationState {

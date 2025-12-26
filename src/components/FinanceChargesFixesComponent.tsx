@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadChargesFixes, deleteChargeFixe, updateChargeFixe } from '../store/slices/financeSlice';
-import { ChargeFixe, StatutChargeFixe } from '../types';
+import type { ChargeFixe, StatutChargeFixe } from '../types/finance';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';
@@ -23,6 +23,7 @@ import ChargeFixeFormModal from './ChargeFixeFormModal';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { selectAllChargesFixes, selectFinanceLoading } from '../store/selectors/financeSelectors';
 import { selectProjetActif } from '../store/selectors/projetSelectors';
+import { logger } from '../utils/logger';
 
 export default function FinanceChargesFixesComponent() {
   const { colors } = useTheme();
@@ -113,7 +114,7 @@ export default function FinanceChargesFixesComponent() {
     try {
       await dispatch(loadChargesFixes(projetActif.id)).unwrap();
     } catch (error) {
-      console.error('Erreur lors du rafraîchissement:', error);
+      logger.error('Erreur lors du rafraîchissement:', error);
     } finally {
       setRefreshing(false);
     }

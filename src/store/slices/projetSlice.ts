@@ -4,7 +4,7 @@
  */
 
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { Projet, CreateProjetInput } from '../../types';
+import type { Projet, CreateProjetInput } from '../../types/projet';
 import { getErrorMessage } from '../../types/common';
 import apiClient from '../../services/api/apiClient';
 

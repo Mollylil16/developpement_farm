@@ -24,6 +24,7 @@ import { RACES_LIST } from '../../constants/races';
 import { useGeolocation } from '../../hooks/useGeolocation';
 import apiClient from '../../services/api/apiClient';
 import type { PurchaseRequest } from '../../types/marketplace';
+import { logger } from '../../utils/logger';
 
 interface CreatePurchaseRequestModalProps {
   visible: boolean;
@@ -53,8 +54,8 @@ export default function CreatePurchaseRequestModal({
   // Debug: Log quand le modal devient visible
   useEffect(() => {
     if (visible) {
-      console.log(
-        '🔄 [CreatePurchaseRequestModal] Modal visible:',
+      logger.debug(
+        '[CreatePurchaseRequestModal] Modal visible:',
         visible,
         'editRequest:',
         editRequest?.id
@@ -231,7 +232,7 @@ export default function CreatePurchaseRequestModal({
 
           Alert.alert('Succès', "Votre demande d'achat a été modifiée.");
         } catch (error: unknown) {
-          console.error('Erreur lors de la modification:', error);
+          logger.error('Erreur lors de la modification:', error);
           const errorMessage = error instanceof Error ? error.message : "Impossible de modifier la demande d'achat";
           Alert.alert('Erreur', errorMessage);
           setLoading(false);

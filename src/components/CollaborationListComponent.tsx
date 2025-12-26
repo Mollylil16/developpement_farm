@@ -21,13 +21,8 @@ import {
   updateCollaborateur,
   accepterInvitation,
 } from '../store/slices/collaborationSlice';
-import {
-  Collaborateur,
-  RoleCollaborateur,
-  StatutCollaborateur,
-  ROLE_LABELS,
-  STATUT_LABELS,
-} from '../types';
+import type { Collaborateur, RoleCollaborateur, StatutCollaborateur } from '../types/collaboration';
+import { ROLE_LABELS, STATUT_LABELS } from '../types/collaboration';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';
