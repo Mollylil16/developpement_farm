@@ -5,7 +5,8 @@
 
 import React, { createContext, useContext, useMemo, useCallback, useEffect, useState } from 'react';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { User, RoleType } from '../types';
+import type { User } from '../types/auth';
+import type { RoleType } from '../types/roles';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { updateUser } from '../store/slices/authSlice';
 

@@ -15,7 +15,7 @@ import { doitGenererAlerte } from '../types/reproduction';
 import { loadStocks } from '../store/slices/stocksSlice';
 import { loadPlanificationsParProjet } from '../store/slices/planificationSlice';
 import { loadSevrages } from '../store/slices/reproductionSlice';
-import { Gestation, Sevrage } from '../types';
+import type { Gestation, Sevrage } from '../types/reproduction';
 import { selectAllGestations, selectAllSevrages } from '../store/selectors/reproductionSelectors';
 import { AlertePlanningProduction } from '../types/planningProduction';
 

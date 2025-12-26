@@ -36,11 +36,30 @@ export class MortalitesController {
   }
 
   @Get()
-  @ApiOperation({ summary: "Récupérer toutes les mortalités d'un projet" })
+  @ApiOperation({ summary: "Récupérer toutes les mortalités d'un projet (avec pagination optionnelle)" })
   @ApiQuery({ name: 'projet_id', required: true, description: 'ID du projet' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Nombre maximum de résultats (défaut: 500, max: 500)',
+    type: Number,
+  })
+  @ApiQuery({
+    name: 'offset',
+    required: false,
+    description: 'Nombre d\'éléments à ignorer pour la pagination',
+    type: Number,
+  })
   @ApiResponse({ status: 200, description: 'Liste des mortalités.' })
-  async findAll(@Query('projet_id') projetId: string, @CurrentUser('id') userId: string) {
-    return this.mortalitesService.findAll(projetId, userId);
+  async findAll(
+    @Query('projet_id') projetId: string,
+    @CurrentUser('id') userId: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string
+  ) {
+    const limitNum = limit ? parseInt(limit, 10) : undefined;
+    const offsetNum = offset ? parseInt(offset, 10) : undefined;
+    return this.mortalitesService.findAll(projetId, userId, limitNum, offsetNum);
   }
 
   @Get('statistiques')

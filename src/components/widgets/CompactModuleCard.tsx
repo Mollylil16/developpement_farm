@@ -3,7 +3,7 @@
  * Version réduite pour affichage en grille 2×N
  */
 
-import React from 'react';
+import React, { memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS } from '../../constants/theme';
@@ -19,7 +19,7 @@ interface CompactModuleCardProps {
   onPress?: () => void;
 }
 
-export default function CompactModuleCard({
+function CompactModuleCard({
   icon,
   title,
   primaryValue,
@@ -125,4 +125,16 @@ const styles = StyleSheet.create({
     width: 1,
     height: 25,
   },
+});
+
+export default memo(CompactModuleCard, (prevProps, nextProps) => {
+  return (
+    prevProps.icon === nextProps.icon &&
+    prevProps.title === nextProps.title &&
+    prevProps.primaryValue === nextProps.primaryValue &&
+    prevProps.secondaryValue === nextProps.secondaryValue &&
+    prevProps.labelPrimary === nextProps.labelPrimary &&
+    prevProps.labelSecondary === nextProps.labelSecondary &&
+    prevProps.onPress === nextProps.onPress
+  );
 });

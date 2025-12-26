@@ -7,7 +7,7 @@ import { createSelector } from '@reduxjs/toolkit';
 import { denormalize } from 'normalizr';
 import { RootState } from '../store';
 import { animauxSchema, peseesSchema } from '../normalization/schemas';
-import { ProductionAnimal, ProductionPesee } from '../../types';
+import type { ProductionAnimal, ProductionPesee } from '../../types/production';
 
 // Sélecteur de base pour l'état production
 const selectProductionState = (state: RootState) => state.production;
@@ -144,4 +144,10 @@ export const selectAnimauxActifs = createSelector(
   (animaux): ProductionAnimal[] => {
     return animaux.filter((animal) => animal.statut?.toLowerCase() === 'actif');
   }
+);
+
+// Sélecteur pour obtenir le compteur de mise à jour (pour forcer la synchronisation)
+export const selectProductionUpdateCounter = createSelector(
+  [selectProductionState],
+  (productionState) => productionState.updateCounter || 0
 );

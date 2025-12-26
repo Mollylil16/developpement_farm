@@ -18,7 +18,7 @@ export const SCREENS = {
   FINANCE: 'Finance',
   REPORTS: 'Reports',
   PLANIFICATION: 'Planification',
-  PARAMETRES: 'Parametres',
+  TRAINING: 'Training',
   COLLABORATION: 'Collaboration',
   MORTALITES: 'Mortalites',
   ADMIN: 'Admin',
@@ -33,20 +33,25 @@ export const SCREENS = {
   TASKS: 'Tasks',
   RECORDS: 'Records',
   OFFERS: 'Offers',
-  // 🆕 Écrans d'authentification et onboarding
+  // 🆕 Écrans d'authentification et onboarding - NOUVELLE ARCHITECTURE
   ONBOARDING_AUTH: 'OnboardingAuth', // Ancien (à supprimer progressivement)
   SIGN_UP_METHOD: 'SignUpMethod', // Nouveau : Choix méthode inscription
   PHONE_SIGN_UP: 'PhoneSignUp', // Nouveau : Inscription par téléphone
   USER_INFO: 'UserInfo', // Nouveau : Collecte nom/prénom
   SIGN_IN: 'SignIn', // Nouveau : Connexion
-  OTP_VERIFICATION: 'OtpVerification', // Vérification OTP (existe déjà)
+  OTP_VERIFICATION: 'OtpVerification', // Vérification OTP
   PROFILE_SELECTION: 'ProfileSelection',
+  FORGOT_PASSWORD: 'ForgotPassword',
+  RESET_PASSWORD: 'ResetPassword',
   BUYER_INFO_COMPLETION: 'BuyerInfoCompletion',
   VETERINARIAN_INFO_COMPLETION: 'VeterinarianInfoCompletion',
   VET_PROPOSE_FARMS: 'VetProposeFarms',
   SERVICE_PROPOSAL_NOTIFICATIONS: 'ServiceProposalNotifications',
   // Agent conversationnel
   CHAT_AGENT: 'ChatAgent',
+  // Migration
+  MIGRATION_WIZARD: 'MigrationWizard',
+  MIGRATION_HISTORY: 'MigrationHistory',
 } as const;
 
 export type ScreenName = (typeof SCREENS)[keyof typeof SCREENS];

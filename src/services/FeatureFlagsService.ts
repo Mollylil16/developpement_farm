@@ -10,6 +10,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { logger } from '../utils/logger';
 
 export type FeatureFlagKey = string;
 export type UserId = string | null;
@@ -294,7 +295,7 @@ class FeatureFlagsService {
         return userMap.get(flagKey);
       }
     } catch (error) {
-      console.warn('[FeatureFlags] Erreur lors du chargement du cache:', error);
+      logger.warn('[FeatureFlags] Erreur lors du chargement du cache:', error);
     }
 
     return undefined;
@@ -323,7 +324,7 @@ class FeatureFlagsService {
         JSON.stringify(assignments)
       );
     } catch (error) {
-      console.warn('[FeatureFlags] Erreur lors de la sauvegarde:', error);
+      logger.warn('[FeatureFlags] Erreur lors de la sauvegarde:', error);
     }
   }
 
@@ -350,7 +351,7 @@ class FeatureFlagsService {
         });
       }
     } catch (error) {
-      console.warn('[FeatureFlags] Erreur lors du chargement du cache:', error);
+      logger.warn('[FeatureFlags] Erreur lors du chargement du cache:', error);
     }
   }
 
@@ -362,7 +363,7 @@ class FeatureFlagsService {
       const flags = Object.fromEntries(this.remoteFlags);
       await AsyncStorage.setItem(this.STORAGE_KEY, JSON.stringify(flags));
     } catch (error) {
-      console.warn('[FeatureFlags] Erreur lors de la sauvegarde:', error);
+      logger.warn('[FeatureFlags] Erreur lors de la sauvegarde:', error);
     }
   }
 

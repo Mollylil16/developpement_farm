@@ -1,23 +1,14 @@
 /**
- * Écran de collecte des informations utilisateur (Nom + Prénom)
- * OBLIGATOIRE : Minimum 2 caractères pour chaque champ
- * Pas de valeurs par défaut "Mobile" ou "Utilisateur"
+ * Écran de collecte des informations utilisateur
+ * Collecte nom et prénom obligatoires (min 2 caractères chacun)
+ * Puis création du compte via OnboardingService
  */
 
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import type { NavigationProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
@@ -25,332 +16,208 @@ import Button from '../components/Button';
 import { SCREENS } from '../navigation/types';
 import { getOnboardingService } from '../services/OnboardingService';
 import { useAppDispatch } from '../store/hooks';
-import { setUser } from '../store/slices/authSlice';
+import { updateUser } from '../store/slices/authSlice';
+import apiClient from '../services/api/apiClient';
 
-type UserInfoScreenParams = {
+interface RouteParams {
   phone?: string;
   email?: string;
-  userId?: string; // Si l'utilisateur existe déjà (OAuth avec infos incomplètes)
-  provider: 'phone' | 'google' | 'apple';
-};
+  provider?: 'telephone' | 'google' | 'apple';
+  providerId?: string;
+  existingUser?: any; // Utilisateur existant (OAuth) qui a besoin de compléter ses infos
+}
 
-export default function UserInfoScreen() {
+const UserInfoScreen: React.FC = () => {
   const { colors } = useTheme();
-  const navigation = useNavigation();
-  const route = useRoute<RouteProp<{ params: UserInfoScreenParams }, 'params'>>();
+  const navigation = useNavigation<NavigationProp<any>>();
+  const route = useRoute();
   const dispatch = useAppDispatch();
+  const params = (route.params || {}) as RouteParams;
 
-  const { phone, email, userId, provider } = route.params;
-
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [firstName, setFirstName] = useState(params.existingUser?.prenom || '');
+  const [lastName, setLastName] = useState(params.existingUser?.nom || '');
+  const [isLoading, setIsLoading] = useState(false);
 
   // Validation en temps réel
-  const [firstNameError, setFirstNameError] = useState('');
-  const [lastNameError, setLastNameError] = useState('');
+  const isFirstNameValid = firstName.trim().length >= 2;
+  const isLastNameValid = lastName.trim().length >= 2;
+  const canSubmit = isFirstNameValid && isLastNameValid;
 
-  /**
-   * Valider le prénom
-   */
-  const validateFirstName = (value: string): string => {
-    if (!value.trim()) {
-      return 'Le prénom est obligatoire';
-    }
-    if (value.trim().length < 2) {
-      return 'Le prénom doit contenir au moins 2 caractères';
-    }
-    if (!/^[a-zA-ZÀ-ÿ\s\-']+$/.test(value)) {
-      return 'Le prénom ne peut contenir que des lettres';
-    }
-    return '';
-  };
-
-  /**
-   * Valider le nom
-   */
-  const validateLastName = (value: string): string => {
-    if (!value.trim()) {
-      return 'Le nom est obligatoire';
-    }
-    if (value.trim().length < 2) {
-      return 'Le nom doit contenir au moins 2 caractères';
-    }
-    if (!/^[a-zA-ZÀ-ÿ\s\-']+$/.test(value)) {
-      return 'Le nom ne peut contenir que des lettres';
-    }
-    return '';
-  };
-
-  /**
-   * Gérer le changement de prénom avec validation en temps réel
-   */
-  const handleFirstNameChange = (value: string) => {
-    setFirstName(value);
-    if (value) {
-      setFirstNameError(validateFirstName(value));
-    } else {
-      setFirstNameError('');
-    }
-  };
-
-  /**
-   * Gérer le changement de nom avec validation en temps réel
-   */
-  const handleLastNameChange = (value: string) => {
-    setLastName(value);
-    if (value) {
-      setLastNameError(validateLastName(value));
-    } else {
-      setLastNameError('');
-    }
-  };
-
-  /**
-   * Gérer la soumission du formulaire
-   */
   const handleSubmit = async () => {
     // Validation finale
-    const firstNameErr = validateFirstName(firstName);
-    const lastNameErr = validateLastName(lastName);
+    if (!isFirstNameValid) {
+      Alert.alert('Erreur', 'Le prénom doit contenir au moins 2 caractères');
+      return;
+    }
 
-    setFirstNameError(firstNameErr);
-    setLastNameError(lastNameErr);
-
-    if (firstNameErr || lastNameErr) {
+    if (!isLastNameValid) {
+      Alert.alert('Erreur', 'Le nom doit contenir au moins 2 caractères');
       return;
     }
 
     try {
-      setLoading(true);
+      setIsLoading(true);
 
-      const onboardingService = getOnboardingService();
+      const onboardingService = await getOnboardingService();
 
-      let createdUserId: string;
-
-      if (userId) {
-        // Cas OAuth : L'utilisateur existe déjà, on met à jour ses infos
-        console.log('[UserInfo] Mise à jour utilisateur OAuth:', userId);
-        
-        // TODO: Créer une méthode updateUser dans OnboardingService
-        // Pour l'instant, on va créer un nouvel utilisateur avec les bonnes infos
-        // En production, il faudrait faire un PATCH /users/:id
-        
-        // Workaround temporaire : on va directement vers ProfileSelection
-        // avec l'assumption que le backend gère la mise à jour
-        createdUserId = userId;
-      } else {
-        // Cas téléphone : Créer un nouvel utilisateur
-        console.log('[UserInfo] Création nouvel utilisateur:', { phone, email, provider });
-
-        const newUser = await onboardingService.createUser({
-          phone,
-          email,
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          provider,
+      // Si c'est un utilisateur existant (OAuth avec infos incomplètes), mettre à jour
+      if (params.existingUser) {
+        await apiClient.patch(`/users/${params.existingUser.id}`, {
+          prenom: firstName.trim(),
+          nom: lastName.trim(),
         });
 
-        createdUserId = newUser.id;
+        // Mettre à jour le Redux store
+        dispatch(
+          updateUser({
+            ...params.existingUser,
+            prenom: firstName.trim(),
+            nom: lastName.trim(),
+          })
+        );
 
-        // Mettre à jour le store Redux
-        dispatch(setUser(newUser));
-      }
-
-      // Naviguer vers ProfileSelection avec le userId
-      navigation.navigate(SCREENS.PROFILE_SELECTION as never, {
-        userId: createdUserId,
-      });
-    } catch (error: any) {
-      console.error('[UserInfo] Erreur création utilisateur:', error);
-
-      let errorMessage = 'Une erreur est survenue. Veuillez réessayer.';
-
-      if (error.message?.includes('déjà utilisé') || error.message?.includes('already exists')) {
-        errorMessage =
-          'Ce numéro ou email est déjà utilisé. Voulez-vous vous connecter à la place ?';
-        Alert.alert('Compte existant', errorMessage, [
-          { text: 'Annuler', style: 'cancel' },
-          {
-            text: 'Se connecter',
-            onPress: () => {
-              navigation.navigate(SCREENS.SIGN_IN as never, { phone, email });
-            },
-          },
-        ]);
+        // Naviguer vers ProfileSelection
+        navigation.navigate(SCREENS.PROFILE_SELECTION as never, {
+          userId: params.existingUser.id,
+        });
         return;
       }
 
-      Alert.alert('Erreur', errorMessage, [{ text: 'OK' }]);
+      // Sinon, créer un nouvel utilisateur
+      const user = await onboardingService.createUser({
+        phone: params.phone,
+        email: params.email,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        provider: params.provider || (params.phone ? 'telephone' : 'email'),
+        providerId: params.providerId,
+      });
+
+      // Naviguer vers ProfileSelection avec userId
+      navigation.navigate(SCREENS.PROFILE_SELECTION as never, {
+        userId: user.id,
+      });
+    } catch (error: unknown) {
+      console.error('Erreur création compte:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+      
+      if (errorMessage.includes('existe déjà') || errorMessage.includes('already exists')) {
+        Alert.alert(
+          'Compte existant',
+          'Un compte existe déjà avec ces informations. Voulez-vous vous connecter ?',
+          [
+            { text: 'Annuler', style: 'cancel' },
+            {
+              text: 'Se connecter',
+              onPress: () => navigation.navigate(SCREENS.SIGN_IN as never),
+            },
+          ]
+        );
+      } else {
+        Alert.alert('Erreur', `Impossible de créer le compte: ${errorMessage}`);
+      }
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const handleBack = () => {
-    navigation.goBack();
-  };
-
-  // Vérifier si le formulaire est valide
-  const isFormValid =
-    firstName.trim().length >= 2 &&
-    lastName.trim().length >= 2 &&
-    !firstNameError &&
-    !lastNameError;
-
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <KeyboardAvoidingView
         style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Header avec bouton retour */}
+        <View style={styles.content}>
+          {/* Header */}
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
+          </TouchableOpacity>
+
           <View style={styles.header}>
-            <TouchableOpacity
-              onPress={handleBack}
-              style={[styles.backButton, { backgroundColor: colors.surface }]}
-              disabled={loading}
-            >
-              <Ionicons name="arrow-back" size={24} color={colors.text} />
-            </TouchableOpacity>
+            <Text style={[styles.title, { color: colors.text }]}>Vos informations</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              Nous avons besoin de votre nom et prénom pour créer votre compte
+            </Text>
           </View>
-
-          {/* Illustration */}
-          <View style={styles.illustrationContainer}>
-            <Text style={styles.illustrationEmoji}>👤</Text>
-          </View>
-
-          {/* Titre */}
-          <Text style={[styles.title, { color: colors.text }]}>Vos informations</Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            Entrez votre nom et prénom pour créer votre compte
-          </Text>
 
           {/* Formulaire */}
           <View style={styles.form}>
-            {/* Prénom */}
-            <View style={styles.inputContainer}>
+            <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: colors.text }]}>
-                Prénom <Text style={styles.required}>*</Text>
+                Prénom <Text style={{ color: colors.error }}>*</Text>
               </Text>
-              <View
+              <TextInput
                 style={[
                   styles.input,
                   {
                     backgroundColor: colors.surface,
-                    borderColor: firstNameError ? colors.error : colors.border,
+                    borderColor: isFirstNameValid ? colors.border : colors.error,
+                    color: colors.text,
                   },
                 ]}
-              >
-                <Ionicons
-                  name="person"
-                  size={20}
-                  color={colors.textSecondary}
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  style={[styles.textInput, { color: colors.text }]}
-                  placeholder="Ex: Jean"
-                  placeholderTextColor={colors.textSecondary}
-                  value={firstName}
-                  onChangeText={handleFirstNameChange}
-                  autoFocus
-                  editable={!loading}
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                />
-                {firstName.length >= 2 && !firstNameError && (
-                  <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-                )}
-              </View>
-              {firstNameError ? (
-                <Text style={[styles.errorText, { color: colors.error }]}>{firstNameError}</Text>
-              ) : (
-                <Text style={[styles.hint, { color: colors.textSecondary }]}>
-                  Minimum 2 caractères
+                value={firstName}
+                onChangeText={setFirstName}
+                placeholder="Votre prénom"
+                placeholderTextColor={colors.textSecondary}
+                autoCapitalize="words"
+                autoFocus
+                maxLength={100}
+              />
+              {firstName.length > 0 && !isFirstNameValid && (
+                <Text style={[styles.errorText, { color: colors.error }]}>
+                  Le prénom doit contenir au moins 2 caractères
                 </Text>
               )}
             </View>
 
-            {/* Nom */}
-            <View style={styles.inputContainer}>
+            <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: colors.text }]}>
-                Nom <Text style={styles.required}>*</Text>
+                Nom <Text style={{ color: colors.error }}>*</Text>
               </Text>
-              <View
+              <TextInput
                 style={[
                   styles.input,
                   {
                     backgroundColor: colors.surface,
-                    borderColor: lastNameError ? colors.error : colors.border,
+                    borderColor: isLastNameValid ? colors.border : colors.error,
+                    color: colors.text,
                   },
                 ]}
-              >
-                <Ionicons
-                  name="person"
-                  size={20}
-                  color={colors.textSecondary}
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  style={[styles.textInput, { color: colors.text }]}
-                  placeholder="Ex: Dupont"
-                  placeholderTextColor={colors.textSecondary}
-                  value={lastName}
-                  onChangeText={handleLastNameChange}
-                  editable={!loading}
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                />
-                {lastName.length >= 2 && !lastNameError && (
-                  <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-                )}
-              </View>
-              {lastNameError ? (
-                <Text style={[styles.errorText, { color: colors.error }]}>{lastNameError}</Text>
-              ) : (
-                <Text style={[styles.hint, { color: colors.textSecondary }]}>
-                  Minimum 2 caractères
+                value={lastName}
+                onChangeText={setLastName}
+                placeholder="Votre nom"
+                placeholderTextColor={colors.textSecondary}
+                autoCapitalize="words"
+                maxLength={100}
+              />
+              {lastName.length > 0 && !isLastNameValid && (
+                <Text style={[styles.errorText, { color: colors.error }]}>
+                  Le nom doit contenir au moins 2 caractères
                 </Text>
               )}
             </View>
-          </View>
 
-          {/* Information */}
-          <View style={[styles.infoBox, { backgroundColor: colors.primaryLight + '10' }]}>
-            <Ionicons name="information-circle" size={20} color={colors.primary} />
-            <Text style={[styles.infoText, { color: colors.text }]}>
-              Vos nom et prénom seront utilisés pour personnaliser votre expérience Fermier Pro.
-            </Text>
+            <Button
+              title="Continuer"
+              onPress={handleSubmit}
+              variant="primary"
+              size="large"
+              fullWidth
+              loading={isLoading}
+              disabled={!canSubmit || isLoading}
+              style={styles.submitButton}
+            />
           </View>
-
-          {/* Bouton de soumission */}
-          <Button
-            title={loading ? 'Création du compte...' : 'Continuer'}
-            onPress={handleSubmit}
-            variant="primary"
-            size="large"
-            fullWidth
-            disabled={!isFormValid || loading}
-          />
-
-          {/* Indications de sécurité */}
-          <View style={styles.securityInfo}>
-            <Ionicons name="shield-checkmark" size={16} color={colors.success} />
-            <Text style={[styles.securityText, { color: colors.textSecondary }]}>
-              Vos données sont sécurisées et confidentielles
-            </Text>
-          </View>
-        </ScrollView>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -359,101 +226,52 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: SPACING.xl,
-    paddingBottom: SPACING.xxl,
-  },
-  header: {
-    paddingTop: SPACING.md,
-    marginBottom: SPACING.lg,
+  content: {
+    flex: 1,
+    padding: SPACING.lg,
   },
   backButton: {
-    width: 48,
-    height: 48,
-    borderRadius: BORDER_RADIUS.full,
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: SPACING.sm,
+    marginBottom: SPACING.md,
+    alignSelf: 'flex-start',
   },
-  illustrationContainer: {
-    alignItems: 'center',
+  header: {
     marginBottom: SPACING.xl,
   },
-  illustrationEmoji: {
-    fontSize: 80,
-  },
   title: {
-    fontSize: FONT_SIZES.xxxl,
+    fontSize: FONT_SIZES.xxl,
     fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.sm,
   },
   subtitle: {
     fontSize: FONT_SIZES.md,
-    marginBottom: SPACING.xxl,
     lineHeight: 22,
   },
   form: {
-    marginBottom: SPACING.lg,
+    flex: 1,
   },
-  inputContainer: {
+  inputGroup: {
     marginBottom: SPACING.lg,
   },
   label: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semibold,
+    fontSize: FONT_SIZES.sm,
+    fontWeight: FONT_WEIGHTS.semiBold,
     marginBottom: SPACING.sm,
   },
-  required: {
-    color: '#EF4444',
-    fontSize: FONT_SIZES.lg,
-  },
   input: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    borderWidth: 1,
     borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1.5,
-    paddingHorizontal: SPACING.md,
-    height: 56,
-  },
-  inputIcon: {
-    marginRight: SPACING.sm,
-  },
-  textInput: {
-    flex: 1,
+    padding: SPACING.md,
     fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.medium,
-  },
-  hint: {
-    fontSize: FONT_SIZES.sm,
-    marginTop: SPACING.xs,
   },
   errorText: {
-    fontSize: FONT_SIZES.sm,
+    fontSize: FONT_SIZES.xs,
     marginTop: SPACING.xs,
-    fontWeight: FONT_WEIGHTS.medium,
   },
-  infoBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    marginBottom: SPACING.xl,
-  },
-  infoText: {
-    flex: 1,
-    fontSize: FONT_SIZES.sm,
-    marginLeft: SPACING.sm,
-    lineHeight: 20,
-  },
-  securityInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: SPACING.lg,
-  },
-  securityText: {
-    fontSize: FONT_SIZES.sm,
-    marginLeft: SPACING.xs,
+  submitButton: {
+    marginTop: SPACING.xl,
   },
 });
+
+export default UserInfoScreen;
 

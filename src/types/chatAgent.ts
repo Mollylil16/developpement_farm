@@ -50,6 +50,8 @@ export type AgentActionType =
   | 'search_lot'
   | 'get_stock_status'
   | 'calculate_costs'
+  | 'answer_knowledge_question'
+  | 'list_knowledge_topics'
   | 'other';
 
 export interface AgentAction {

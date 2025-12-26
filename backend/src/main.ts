@@ -1,10 +1,28 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import * as compression from 'compression';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Headers de sécurité HTTP (Phase 5 - Priorité Haute)
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"], // Swagger UI nécessite unsafe-inline
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Swagger UI nécessite unsafe-eval
+        imgSrc: ["'self'", 'data:', 'https:'],
+      },
+    },
+    crossOriginEmbedderPolicy: false, // Désactivé pour compatibilité avec Swagger
+  }));
+
+  // Compression HTTP (gzip/brotli) pour réduire la taille des réponses
+  app.use(compression());
 
   // CORS - Configuration pour autoriser le frontend admin
   const allowedOrigins = process.env.CORS_ORIGIN 
@@ -98,10 +116,11 @@ async function bootstrap() {
       : `http://${host}:${port}`
     : `http://${host}:${port}`;
   
-  console.log(`🚀 Backend API démarré sur ${serverUrl}`);
-  console.log(`📚 Swagger: ${serverUrl}/api/docs`);
+  const logger = new Logger('Bootstrap');
+  logger.log(`Backend API démarré sur ${serverUrl}`);
+  logger.log(`Swagger: ${serverUrl}/api/docs`);
   if (!isProduction) {
-    console.log(`🌐 Mode développement - accessible depuis le réseau local`);
+    logger.debug('Mode développement - accessible depuis le réseau local');
   }
 }
 

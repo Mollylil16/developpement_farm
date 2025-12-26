@@ -7,16 +7,19 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { getErrorMessage } from '../../types/common';
 import { normalize, denormalize } from 'normalizr';
-import {
+import type {
   ProductionAnimal,
   CreateProductionAnimalInput,
   UpdateProductionAnimalInput,
   ProductionPesee,
   CreatePeseeInput,
-} from '../../types';
+} from '../../types/production';
 import apiClient from '../../services/api/apiClient';
 import { animauxSchema, peseesSchema, animalSchema, peseeSchema } from '../normalization/schemas';
 import type { RootState } from '../store';
+import { createLoggerWithPrefix } from '../../utils/logger';
+
+const logger = createLoggerWithPrefix('ProductionSlice');
 
 // Structure normalisée de l'état
 interface NormalizedEntities {
@@ -85,7 +88,7 @@ export const loadProductionAnimaux = createAsyncThunk(
       });
       return animaux;
     } catch (error: unknown) {
-      console.error('❌ [loadProductionAnimaux] Erreur:', error);
+      logger.error('[loadProductionAnimaux] Erreur:', error);
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des animaux');
     }
   }
@@ -258,18 +261,20 @@ const productionSlice = createSlice({
         const normalized = normalizeAnimal(action.payload);
         state.entities.animaux = { ...state.entities.animaux, ...normalized.entities.animaux };
         state.ids.animaux = [normalized.result[0], ...state.ids.animaux];
+        // Incrémenter le compteur pour forcer la synchronisation des widgets
+        state.updateCounter = (state.updateCounter || 0) + 1;
       })
       .addCase(createProductionAnimal.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })
       .addCase(updateProductionAnimal.fulfilled, (state, action) => {
-        console.log(
-          '🔄 [updateProductionAnimal.fulfilled] Animal mis à jour:',
+        logger.debug(
+          '[updateProductionAnimal.fulfilled] Animal mis à jour:',
           action.payload.id,
           action.payload.code
         );
-        console.log('🔄 [updateProductionAnimal.fulfilled] Photo URI:', action.payload.photo_uri);
+        logger.debug('[updateProductionAnimal.fulfilled] Photo URI:', action.payload.photo_uri);
 
         const normalized = normalizeAnimal(action.payload);
         const animalId = action.payload.id;
@@ -283,8 +288,8 @@ const productionSlice = createSlice({
         // Incrémenter un compteur de version pour invalider les caches si nécessaire
         state.updateCounter = (state.updateCounter || 0) + 1;
 
-        console.log(
-          '✅ [updateProductionAnimal.fulfilled] Animal actualisé (version:',
+        logger.debug(
+          '[updateProductionAnimal.fulfilled] Animal actualisé (version:',
           state.updateCounter,
           ')'
         );
@@ -298,6 +303,8 @@ const productionSlice = createSlice({
         delete state.entities.animaux[animalId];
         delete state.peseesParAnimal[animalId];
         // Supprimer les pesées orphelines de cet animal
+        // Incrémenter le compteur pour forcer la synchronisation des widgets
+        state.updateCounter = (state.updateCounter || 0) + 1;
         const peseeIdsToRemove = state.peseesParAnimal[animalId] || [];
         peseeIdsToRemove.forEach((peseeId) => {
           delete state.entities.pesees[peseeId];

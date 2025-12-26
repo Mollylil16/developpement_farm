@@ -7,7 +7,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { Calendar, DateData } from 'react-native-calendars';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadPlanificationsParProjet } from '../store/slices/planificationSlice';
-import { Planification, TypeTache } from '../types';
+import type { Planification, TypeTache } from '../types/planification';
 import { SPACING, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { format, addMonths, subMonths, parseISO, isAfter } from 'date-fns';

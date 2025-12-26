@@ -22,8 +22,9 @@ import { SPACING, FONT_SIZES, FONT_WEIGHTS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
 import { startOfMonth, parseISO, isAfter } from 'date-fns';
-import { Mortalite } from '../../types';
+import type { Mortalite } from '../../types/mortalites';
 import { SafeTextWrapper } from '../../utils/textRenderingGuard';
+import { logger } from '../../utils/logger';
 
 interface SecondaryWidgetProps {
   type:
@@ -114,7 +115,7 @@ function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
               available: availableListings,
             });
           } catch (error) {
-            console.error('Erreur chargement stats marketplace:', error);
+            logger.error('Erreur chargement stats marketplace:', error);
           }
         })();
         break;

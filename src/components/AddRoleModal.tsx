@@ -10,7 +10,7 @@ import type { NavigationProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useRole } from '../contexts/RoleContext';
-import { RoleType } from '../types';
+import type { RoleType } from '../types/roles';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
 import { SCREENS } from '../navigation/types';
 import ModalLayout from './ModalLayout';

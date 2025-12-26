@@ -24,6 +24,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { selectAllAnimaux } from '../store/selectors/productionSelectors';
 import { createVaccination } from '../store/slices/santeSlice';
+import { logger } from '../utils/logger';
 import {
   TypeProphylaxie,
   TYPE_PROPHYLAXIE_LABELS,
@@ -166,7 +167,7 @@ export default function VaccinationFormModalNew({
         setPhotoFlacon(result.assets[0].uri);
       }
     } catch (error) {
-      console.error('Erreur lors de la prise de photo:', error);
+      logger.error('Erreur lors de la prise de photo:', error);
       Alert.alert('Erreur', "Impossible d'ajouter la photo");
     } finally {
       setPhotoLoading(false);
@@ -254,7 +255,7 @@ export default function VaccinationFormModalNew({
         [{ text: 'OK', onPress: onClose }]
       );
     } catch (error) {
-      console.error("Erreur lors de l'enregistrement:", error);
+      logger.error("Erreur lors de l'enregistrement:", error);
       Alert.alert('Erreur', "Impossible d'enregistrer la vaccination");
     }
   };

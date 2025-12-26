@@ -13,13 +13,13 @@ import { useTheme } from '../contexts/ThemeContext';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 import Button from './Button';
-import {
+import type {
   StockAliment,
   UniteStock,
   CreateStockAlimentInput,
   RationBudget,
-  getTypePorcLabel,
-} from '../types';
+} from '../types/nutrition';
+import { getTypePorcLabel } from '../types/nutrition';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { validateStockAliment } from '../validation/stocksSchemas';
 

@@ -5,7 +5,7 @@
  */
 
 import apiClient from './api/apiClient';
-import { Projet } from '../types';
+import type { Projet } from '../types/projet';
 
 export interface PerformanceGlobale {
   // Données brutes

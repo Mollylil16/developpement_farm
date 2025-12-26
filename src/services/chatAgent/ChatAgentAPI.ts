@@ -5,6 +5,7 @@
 
 import { AgentConfig } from '../../types/chatAgent';
 import { IntentDetector } from './IntentDetector';
+import { logger } from '../../utils/logger';
 
 interface APIMessage {
   role: 'system' | 'user' | 'assistant';
@@ -59,7 +60,7 @@ export class ChatAgentAPI {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         const errorMessage = errorData.error?.message || `API error: ${response.status}`;
-        console.error('[ChatAgentAPI] Erreur API:', errorMessage);
+        logger.error('[ChatAgentAPI] Erreur API:', errorMessage);
         throw new Error(errorMessage);
       }
 
@@ -72,7 +73,7 @@ export class ChatAgentAPI {
 
       return content;
     } catch (error: unknown) {
-      console.error("[ChatAgentAPI] Erreur lors de l'appel API:", error);
+      logger.error("[ChatAgentAPI] Erreur lors de l'appel API:", error);
       // Fallback vers simulation
       return this.simulateResponse(messages);
     }

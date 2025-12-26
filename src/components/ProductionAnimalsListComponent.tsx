@@ -2,7 +2,7 @@
  * Composant pour afficher la liste des animaux en production avec leurs pesées
  */
 
-import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef, memo } from 'react';
 import {
   View,
   Text,
@@ -30,7 +30,7 @@ import {
   loadPeseesRecents,
   deletePesee,
 } from '../store/slices/productionSlice';
-import { ProductionAnimal, ProductionPesee } from '../types';
+import type { ProductionAnimal, ProductionPesee } from '../types/production';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import LoadingSpinner from './LoadingSpinner';
@@ -248,7 +248,7 @@ export default function ProductionAnimalsListComponent() {
   );
 
   // Composant mémorisé pour chaque carte d'animal - défini AVANT les retours anticipés pour éviter les problèmes de hooks
-  const AnimalCard = React.memo(
+  const AnimalCard = memo(
     ({
       item,
       isSelected,

@@ -6,7 +6,7 @@
 
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { normalize } from 'normalizr';
-import {
+import type {
   ChargeFixe,
   DepensePonctuelle,
   Revenu,
@@ -15,7 +15,7 @@ import {
   UpdateDepensePonctuelleInput,
   CreateRevenuInput,
   UpdateRevenuInput,
-} from '../../types';
+} from '../../types/finance';
 import { getErrorMessage } from '../../types/common';
 import apiClient from '../../services/api/apiClient';
 import {
@@ -26,6 +26,9 @@ import {
   depensePonctuelleSchema,
   revenuSchema,
 } from '../normalization/schemas';
+import { createLoggerWithPrefix } from '../../utils/logger';
+
+const logger = createLoggerWithPrefix('FinanceSlice');
 
 // Structure normalisée de l'état
 interface NormalizedEntities {
@@ -151,14 +154,14 @@ export const loadDepensesPonctuelles = createAsyncThunk(
   'finance/loadDepensesPonctuelles',
   async (projetId: string, { rejectWithValue }) => {
     try {
-      console.log(`🔄 [financeSlice] loadDepensesPonctuelles appelé pour projetId: ${projetId}`);
+      logger.debug(`loadDepensesPonctuelles appelé pour projetId: ${projetId}`);
       const depenses = await apiClient.get<DepensePonctuelle[]>('/finance/depenses-ponctuelles', {
         params: { projet_id: projetId },
       });
-      console.log(`✅ [financeSlice] ${depenses.length} dépenses chargées depuis l'API`);
+      logger.debug(`${depenses.length} dépenses chargées depuis l'API`);
       return depenses;
     } catch (error: unknown) {
-      console.error(`❌ [financeSlice] Erreur lors du chargement des dépenses:`, error);
+      logger.error(`Erreur lors du chargement des dépenses:`, error);
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des dépenses');
     }
   }
@@ -216,14 +219,14 @@ export const loadRevenus = createAsyncThunk(
   'finance/loadRevenus',
   async (projetId: string, { rejectWithValue }) => {
     try {
-      console.log(`🔄 [financeSlice] loadRevenus appelé pour projetId: ${projetId}`);
+      logger.debug(`loadRevenus appelé pour projetId: ${projetId}`);
       const revenus = await apiClient.get<Revenu[]>('/finance/revenus', {
         params: { projet_id: projetId },
       });
-      console.log(`✅ [financeSlice] ${revenus.length} revenus chargés depuis l'API`);
+      logger.debug(`${revenus.length} revenus chargés depuis l'API`);
       return revenus;
     } catch (error: unknown) {
-      console.error(`❌ [financeSlice] Erreur lors du chargement des revenus:`, error);
+      logger.error(`Erreur lors du chargement des revenus:`, error);
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des revenus');
     }
   }
@@ -442,15 +445,15 @@ const financeSlice = createSlice({
       })
       .addCase(loadDepensesPonctuelles.fulfilled, (state, action) => {
         state.loading = false;
-        console.log(`📦 [financeSlice] Stockage de ${action.payload.length} dépenses dans Redux`);
+        logger.debug(`Stockage de ${action.payload.length} dépenses dans Redux`);
         const normalized = normalizeDepensesPonctuelles(action.payload);
         state.entities.depensesPonctuelles = {
           ...state.entities.depensesPonctuelles,
           ...normalized.entities.depensesPonctuelles,
         };
         state.ids.depensesPonctuelles = normalized.result;
-        console.log(
-          `✅ [financeSlice] State Redux mis à jour: ${state.ids.depensesPonctuelles.length} dépenses`
+        logger.debug(
+          `State Redux mis à jour: ${state.ids.depensesPonctuelles.length} dépenses`
         );
       })
       .addCase(loadDepensesPonctuelles.rejected, (state, action) => {
@@ -498,12 +501,12 @@ const financeSlice = createSlice({
       })
       .addCase(loadRevenus.fulfilled, (state, action) => {
         state.loading = false;
-        console.log(`📦 [financeSlice] Stockage de ${action.payload.length} revenus dans Redux`);
+        logger.debug(`Stockage de ${action.payload.length} revenus dans Redux`);
         const normalized = normalizeRevenus(action.payload);
         state.entities.revenus = { ...state.entities.revenus, ...normalized.entities.revenus };
         state.ids.revenus = normalized.result;
-        console.log(
-          `✅ [financeSlice] State Redux mis à jour: ${state.ids.revenus.length} revenus`
+        logger.debug(
+          `State Redux mis à jour: ${state.ids.revenus.length} revenus`
         );
       })
       .addCase(loadRevenus.rejected, (state, action) => {

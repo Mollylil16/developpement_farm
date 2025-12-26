@@ -1,5 +1,7 @@
 /**
  * Point d'entrée principal de l'application avec animations
+ * 
+ * NOTE: react-native-gesture-handler est déjà importé dans index.ts (doit être en premier)
  */
 
 import React, { useEffect, useState, useRef } from 'react';
@@ -35,18 +37,35 @@ if (__DEV__) {
   // Masquer les overlays de développement qui peuvent rester affichés
   try {
     // Désactiver les indicateurs de progression d'Expo
+    // Utiliser Object.defineProperty avec configurable: true pour éviter "property is not configurable"
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (typeof (global as any).__expo !== 'undefined') {
-      // Masquer les overlays de développement
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (global as any).__expo = {
+      try {
+        // Essayer de modifier avec defineProperty si possible
+        Object.defineProperty(global, '__expo', {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          value: {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            ...(global as any).__expo,
+            hideDevMenu: true,
+          },
+          writable: true,
+          enumerable: false,
+          configurable: true, // ← CRITIQUE: doit être true
+        });
+      } catch {
+        // Si defineProperty échoue, essayer l'assignation directe
+        // (peut échouer si __expo est déjà défini comme non-configurable)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ...(global as any).__expo,
-        hideDevMenu: true,
-      };
+        (global as any).__expo = {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ...(global as any).__expo,
+          hideDevMenu: true,
+        };
+      }
     }
   } catch {
-    // Ignorer les erreurs
+    // Ignorer les erreurs silencieusement
   }
 }
 
@@ -124,6 +143,10 @@ export default function App() {
     // Initialiser la base de données au démarrage
     const initDatabase = async () => {
       try {
+        // Désactiver le mode local au démarrage
+        const { clearLocalMode } = await import('./src/utils/clearLocalMode');
+        await clearLocalMode();
+        
         await databaseService.initialize();
         // Initialiser les Feature Flags
         initializeFeatureFlags();
@@ -207,10 +230,12 @@ const styles = StyleSheet.create({
   },
 });
 
-// Enregistrer l'application pour Expo
+// Enregistrer l'application
+// Utiliser registerRootComponent d'Expo (recommandé pour Expo)
 registerRootComponent(App);
 
 // Enregistrer également avec AppRegistry pour compatibilité React Native CLI
-if (!AppRegistry.getAppKeys().includes('main')) {
+// Note: registerRootComponent devrait déjà enregistrer avec AppRegistry, mais on le fait explicitement pour être sûr
+if (typeof AppRegistry !== 'undefined' && !AppRegistry.getAppKeys().includes('main')) {
   AppRegistry.registerComponent('main', () => App);
 }

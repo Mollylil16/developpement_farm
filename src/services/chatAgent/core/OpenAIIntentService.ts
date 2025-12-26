@@ -4,6 +4,7 @@
  */
 
 import { AgentActionType } from '../../../types/chatAgent';
+import { logger } from '../../../utils/logger';
 
 export interface OpenAIEmbedding {
   embedding: number[];
@@ -86,7 +87,7 @@ export class OpenAIIntentService {
       this.cache.set(text, embedding);
       return embedding;
     } catch (error: unknown) {
-      console.error("[OpenAIIntentService] Erreur lors du calcul d'embedding:", error);
+      logger.error("[OpenAIIntentService] Erreur lors du calcul d'embedding:", error);
       throw error;
     }
   }
@@ -147,7 +148,7 @@ export class OpenAIIntentService {
 
       return allEmbeddings;
     } catch (error: unknown) {
-      console.error("[OpenAIIntentService] Erreur lors du calcul d'embeddings:", error);
+      logger.error("[OpenAIIntentService] Erreur lors du calcul d'embeddings:", error);
       throw error;
     }
   }
@@ -271,12 +272,12 @@ Confiance minimale requise: 0.85 pour exécution automatique.`;
           };
         }
       } catch (parseError) {
-        console.error('[OpenAIIntentService] Erreur parsing JSON:', parseError);
+        logger.error('[OpenAIIntentService] Erreur parsing JSON:', parseError);
       }
 
       return null;
     } catch (error: unknown) {
-      console.error('[OpenAIIntentService] Erreur lors de la classification:', error);
+      logger.error('[OpenAIIntentService] Erreur lors de la classification:', error);
       return null;
     }
   }

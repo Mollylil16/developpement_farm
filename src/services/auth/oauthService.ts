@@ -7,7 +7,8 @@ import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
 import apiClient, { APIError } from '../api/apiClient';
-import { User } from '../../types';
+import type { User } from '../../types/auth';
+import { logger } from '../../utils/logger';
 
 // Nécessaire pour que le navigateur se ferme correctement après l'authentification
 WebBrowser.maybeCompleteAuthSession();
@@ -62,7 +63,7 @@ export async function signInWithGoogle(): Promise<OAuthResult> {
       path: 'oauth/google',
     });
 
-    console.log('🔐 [Google OAuth] Redirect URI:', redirectUri);
+    logger.debug('[Google OAuth] Redirect URI:', redirectUri);
 
     const request = new AuthSession.AuthRequest({
       clientId,
@@ -82,7 +83,7 @@ export async function signInWithGoogle(): Promise<OAuthResult> {
         throw new Error('ID token manquant dans la réponse Google');
       }
       
-      console.log('✅ [Google OAuth] ID Token obtenu, envoi au backend...');
+      logger.debug('[Google OAuth] ID Token obtenu, envoi au backend...');
 
       // Envoyer le token Google au backend pour authentification
       const response = await apiClient.post<OAuthResult>(
@@ -98,7 +99,7 @@ export async function signInWithGoogle(): Promise<OAuthResult> {
       throw new Error(`Erreur lors de l'authentification: ${result.type}`);
     }
   } catch (error: unknown) {
-    console.error('❌ [Google OAuth] Erreur:', error);
+    logger.error('[Google OAuth] Erreur:', error);
     
     if (error instanceof APIError && error.status === 404) {
       throw new Error(

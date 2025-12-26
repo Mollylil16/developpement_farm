@@ -17,7 +17,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../constants/theme';
 import { format, parseISO } from 'date-fns';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { ProductionAnimal, ProductionPesee } from '../types';
+import type { ProductionAnimal, ProductionPesee } from '../types/production';
 import type { DepensePonctuelle, ChargeFixe } from '../types/finance';
 import type { Mortalite } from '../types/mortalites';
 

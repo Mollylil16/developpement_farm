@@ -11,7 +11,7 @@ import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constant
 import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
 import { startOfMonth, endOfMonth, parseISO, isWithinInterval } from 'date-fns';
-import { ChargeFixe, DepensePonctuelle } from '../../types';
+import type { ChargeFixe, DepensePonctuelle } from '../../types/finance';
 import {
   selectAllChargesFixes,
   selectAllDepensesPonctuelles,

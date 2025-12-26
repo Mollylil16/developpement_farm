@@ -25,6 +25,7 @@ import type {
   MarketplaceListing,
 } from '../../types/marketplace';
 import apiClient from '../../services/api/apiClient';
+import { logger } from '../../utils/logger';
 
 interface CreatePurchaseRequestOfferModalProps {
   visible: boolean;
@@ -83,7 +84,7 @@ export default function CreatePurchaseRequestOfferModal({
 
       setListing(listingData);
     } catch (error) {
-      console.error('Erreur chargement listing:', error);
+      logger.error('Erreur chargement listing:', error);
       Alert.alert('Erreur', "Impossible de charger les détails de l'annonce");
     } finally {
       setFetchingListing(false);

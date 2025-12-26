@@ -9,6 +9,52 @@ import { ChatMessage, AgentConfig, VoiceConfig, Reminder } from '../types/chatAg
 import { format } from 'date-fns';
 import apiClient from '../services/api/apiClient';
 import { OPENAI_CONFIG } from '../config/openaiConfig';
+import { createLoggerWithPrefix } from '../utils/logger';
+
+const logger = createLoggerWithPrefix('useChatAgent');
+
+/**
+ * Calcule le temps de réflexion (en ms) basé sur la complexité du message
+ * @param message - Le message de l'utilisateur
+ * @returns Délai en millisecondes (1000-3000ms)
+ */
+function calculateThinkingTime(message: string): number {
+  const normalizedMessage = message.toLowerCase().trim();
+  const wordCount = normalizedMessage.split(/\s+/).length;
+  
+  // Base: 1 seconde minimum
+  let thinkingTime = 1000;
+  
+  // Questions de formation/éducatives = plus de réflexion (jusqu'à 3s)
+  const educativePatterns = [
+    /comment|pourquoi|qu'?est[- ]ce que|c'?est quoi|explique|conseils?/i,
+    /difference|avantage|inconvenient|meilleur/i,
+    /race|alimentation|vaccination|maladie|rentabilite/i,
+  ];
+  
+  const isEducativeQuestion = educativePatterns.some(p => p.test(normalizedMessage));
+  if (isEducativeQuestion) {
+    thinkingTime += 1500; // +1.5s pour questions éducatives
+  }
+  
+  // Longueur du message = plus de réflexion
+  if (wordCount > 10) {
+    thinkingTime += 500; // +0.5s pour messages longs
+  }
+  
+  // Questions avec chiffres/calculs = plus de réflexion
+  if (/\d+/.test(normalizedMessage)) {
+    thinkingTime += 300; // +0.3s pour les calculs
+  }
+  
+  // Questions d'analyse = plus de réflexion
+  if (/analyse|diagnostic|situation|performance|evolution/i.test(normalizedMessage)) {
+    thinkingTime += 800; // +0.8s pour les analyses
+  }
+  
+  // Limiter entre 1s et 3s
+  return Math.min(Math.max(thinkingTime, 1000), 3000);
+}
 
 export function useChatAgent() {
   const { projetActif } = useAppSelector((state) => state.projet);
@@ -16,6 +62,7 @@ export function useChatAgent() {
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isThinking, setIsThinking] = useState(false); // Nouvel état pour la phase de réflexion
   const [isInitialized, setIsInitialized] = useState(false);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [voiceEnabled, setVoiceEnabled] = useState(true); // Activé par défaut pour la reconnaissance vocale
@@ -39,36 +86,19 @@ export function useChatAgent() {
         // Trouver ou créer une conversation via l'API
         let conversationId: string | null = null;
         try {
-          const conversationResponse = await apiClient.get(`/chat-agent/conversations`, {
-            params: { projet_id: projetActif.id, user_id: user.id },
-          });
-          if (conversationResponse.data && conversationResponse.data.length > 0) {
-            conversationId = conversationResponse.data[0].id;
-          } else {
-            // Créer une nouvelle conversation
-            const newConversationResponse = await apiClient.post(`/chat-agent/conversations`, {
-              projet_id: projetActif.id,
-              user_id: user.id,
-            });
-            conversationId = newConversationResponse.data.id;
-          }
+          // Les endpoints de conversation ne sont pas encore implémentés dans le backend
+          // On génère un ID local pour la session
+          conversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          logger.debug('Conversation ID généré localement:', conversationId);
         } catch (error) {
-          console.error('Erreur lors de la récupération/création de la conversation:', error);
-          // Continuer sans conversation ID si l'API n'est pas disponible
+          logger.error('Erreur lors de la génération de la conversation:', error);
+          // Continuer sans conversation ID si nécessaire
         }
         conversationIdRef.current = conversationId;
 
-        // Charger l'historique existant via l'API
+        // Les endpoints de messages ne sont pas encore implémentés dans le backend
+        // L'historique sera géré localement pour l'instant
         let savedMessages: ChatMessage[] = [];
-        if (conversationId) {
-          try {
-            const messagesResponse = await apiClient.get(`/chat-agent/conversations/${conversationId}/messages`);
-            savedMessages = messagesResponse.data || [];
-          } catch (error) {
-            console.error('Erreur lors du chargement des messages:', error);
-            // Continuer sans historique si l'API n'est pas disponible
-          }
-        }
 
         // Configuration de l'agent
         const config: AgentConfig = {
@@ -152,15 +182,19 @@ export function useChatAgent() {
           }
 
           setMessages([welcomeMessage]);
-          // Sauvegarder le message de bienvenue via l'API backend
-          if (conversationIdRef.current) {
-            await apiClient.post(`/chat-agent/conversations/${conversationIdRef.current}/messages`, welcomeMessage);
-          }
+          // Les endpoints de messages ne sont pas encore implémentés dans le backend
+          // Les messages sont gérés localement pour l'instant
         }
 
         setIsInitialized(true);
       } catch (error) {
-        console.error("Erreur lors de l'initialisation de l'agent:", error);
+        logger.error("Erreur lors de l'initialisation de l'agent:", error);
+        // Même en cas d'erreur, permettre à l'agent de fonctionner avec des capacités limitées
+        // L'erreur peut venir de l'API mais l'agent local peut quand même fonctionner
+        if (agentServiceRef.current) {
+          setIsInitialized(true);
+          logger.warn('Agent initialisé en mode dégradé');
+        }
       }
     };
 
@@ -168,15 +202,13 @@ export function useChatAgent() {
   }, [projetActif?.id, user?.id, voiceEnabled]);
 
   /**
-   * Envoie un message à l'agent
+   * Envoie un message à l'agent avec délai de réflexion
    */
   const sendMessage = useCallback(
     async (content: string) => {
-      if (!agentServiceRef.current || isLoading) {
+      if (!agentServiceRef.current || isLoading || isThinking) {
         return;
       }
-
-      setIsLoading(true);
 
       // Créer et ajouter le message de l'utilisateur immédiatement
       const userMessage: ChatMessage = {
@@ -189,34 +221,29 @@ export function useChatAgent() {
       // Ajouter le message utilisateur à l'état immédiatement
       setMessages((prev) => [...prev, userMessage]);
 
-      // Sauvegarder le message utilisateur
-      if (conversationIdRef.current) {
-        try {
-          await apiClient.post(`/chat-agent/conversations/${conversationIdRef.current}/messages`, userMessage);
-        } catch (error) {
-          console.error('Erreur lors de la sauvegarde du message utilisateur:', error);
-        }
-      }
+      // Phase 1: Kouakou "réfléchit" (délai variable selon complexité)
+      const thinkingTime = calculateThinkingTime(content);
+      logger.debug(`[useChatAgent] Temps de réflexion calculé: ${thinkingTime}ms pour "${content.substring(0, 50)}..."`);
+      
+      setIsThinking(true);
+      
+      // Attendre le délai de réflexion
+      await new Promise(resolve => setTimeout(resolve, thinkingTime));
+      
+      // Phase 2: Kouakou répond (appel API)
+      setIsThinking(false);
+      setIsLoading(true);
 
       try {
         const response = await agentServiceRef.current.sendMessage(content);
         setMessages((prev) => [...prev, response]);
-
-        // Sauvegarder la réponse de l'assistant
-        if (conversationIdRef.current) {
-          try {
-            await apiClient.post(`/chat-agent/conversations/${conversationIdRef.current}/messages`, response);
-          } catch (error) {
-            console.error('Erreur lors de la sauvegarde de la réponse:', error);
-          }
-        }
 
         // Si la voix est activée, lire la réponse
         if (voiceServiceRef.current && voiceEnabled) {
           await voiceServiceRef.current.speak(response.content);
         }
       } catch (error) {
-        console.error("Erreur lors de l'envoi du message:", error);
+        logger.error("Erreur lors de l'envoi du message:", error);
         const errorMessage: ChatMessage = {
           id: `error_${Date.now()}`,
           role: 'assistant',
@@ -228,7 +255,7 @@ export function useChatAgent() {
         setIsLoading(false);
       }
     },
-    [isLoading, voiceEnabled]
+    [isLoading, isThinking, voiceEnabled]
   );
 
   /**
@@ -269,14 +296,8 @@ export function useChatAgent() {
       setMessages([]);
     }
 
-    // Supprimer tous les messages de la base de données
-    if (conversationIdRef.current) {
-      try {
-        await apiClient.delete(`/chat-agent/conversations/${conversationIdRef.current}/messages`);
-      } catch (error) {
-        console.error('Erreur lors de la suppression de la conversation:', error);
-      }
-    }
+    // Les endpoints de messages ne sont pas encore implémentés dans le backend
+    // Les messages sont gérés localement pour l'instant
   }, []);
 
   /**
@@ -294,6 +315,7 @@ export function useChatAgent() {
   return {
     messages,
     isLoading,
+    isThinking, // Nouveau: Kouakou est en train de réfléchir
     isInitialized,
     reminders,
     voiceEnabled,

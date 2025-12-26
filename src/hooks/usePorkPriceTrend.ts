@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { getPorkPriceTrendService } from '../services/PorkPriceTrendService';
 import { getErrorMessage } from '../types/common';
 import type { WeeklyPorkPriceTrend } from '../database/repositories/WeeklyPorkPriceTrendRepository';
+import { logger } from '../utils/logger';
 
 interface PorkPriceTrendData {
   trends: WeeklyPorkPriceTrend[];
@@ -86,7 +87,7 @@ export function usePorkPriceTrend() {
         });
       }
     } catch (error: unknown) {
-      console.error('Erreur lors du chargement des tendances de prix:', error);
+      logger.error('Erreur lors du chargement des tendances de prix:', error);
       setData((prev) => ({
         ...prev,
         loading: false,

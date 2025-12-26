@@ -23,6 +23,7 @@ import type {
   MarketplaceListing,
 } from '../types/marketplace';
 import type { ProductionAnimal } from '../types/production';
+import { logger } from '../utils/logger';
 
 /**
  * Calculer la distance entre deux points (formule de Haversine)
@@ -189,7 +190,7 @@ export class PurchaseRequestService {
 
     // Lancer le matching en arrière-plan
     this.findMatchesForRequest(request.id).catch((error) => {
-      console.error('Erreur lors du matching automatique:', error);
+      logger.error('Erreur lors du matching automatique:', error);
     });
 
     return request;
@@ -276,7 +277,7 @@ export class PurchaseRequestService {
         currentWeight = lastPesee.poids_kg;
       }
     } catch (error) {
-      console.error('Error fetching weight:', error);
+      logger.error('Error fetching weight:', error);
     }
 
     if (currentWeight !== null) {

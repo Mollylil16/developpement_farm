@@ -10,6 +10,7 @@ import apiClient from '../services/api/apiClient';
 import { loadPlanificationsParProjet } from '../store/slices/planificationSlice';
 import type { VisiteVeterinaire } from '../types/sante';
 import { format, startOfDay, endOfDay, isToday } from 'date-fns';
+import { logger } from '../utils/logger';
 
 interface VetData {
   todayConsultations: VisiteVeterinaire[];
@@ -184,7 +185,7 @@ export function useVetData(vetUserId?: string) {
         error: null,
       });
     } catch (error: unknown) {
-      console.error('Erreur lors du chargement des données vétérinaire:', error);
+      logger.error('Erreur lors du chargement des données vétérinaire:', error);
       setData((prev) => ({
         ...prev,
         loading: false,

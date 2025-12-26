@@ -11,6 +11,7 @@ import { useState, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppSelector } from '../store/hooks';
 import apiClient from '../services/api/apiClient';
+import { logger } from '../utils/logger';
 
 interface UseProfilDataReturn {
   profilPhotoUri: string | null;
@@ -67,7 +68,7 @@ export function useProfilData(): UseProfilDataReturn {
         }
       }
     } catch (error) {
-      console.error('Erreur chargement photo profil:', error);
+      logger.error('Erreur chargement photo profil:', error);
       // En cas d'erreur, utiliser les données du state Redux comme fallback
       if (user) {
         setProfilPhotoUri(user.photo || null);

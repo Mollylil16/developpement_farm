@@ -30,7 +30,7 @@ import {
   deleteMortalite,
 } from '../store/slices/mortalitesSlice';
 import { loadProductionAnimaux, loadPeseesRecents } from '../store/slices/productionSlice';
-import { Mortalite, CategorieMortalite } from '../types';
+import type { Mortalite, CategorieMortalite } from '../types/mortalites';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';

@@ -6,14 +6,17 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { getErrorMessage } from '../../types/common';
 import { normalize } from 'normalizr';
-import {
+import type {
   Mortalite,
   CreateMortaliteInput,
   UpdateMortaliteInput,
   StatistiquesMortalite,
-} from '../../types';
+} from '../../types/mortalites';
 import apiClient from '../../services/api/apiClient';
 import { mortalitesSchema, mortaliteSchema } from '../normalization/schemas';
+import { createLoggerWithPrefix } from '../../utils/logger';
+
+const logger = createLoggerWithPrefix('MortalitesSlice');
 
 // Structure normalisée de l'état
 interface NormalizedEntities {
@@ -94,14 +97,14 @@ export const loadStatistiquesMortalite = createAsyncThunk(
   'mortalites/loadStatistiquesMortalite',
   async (projetId: string, { rejectWithValue }) => {
     try {
-      console.log('🔄 [loadStatistiquesMortalite] Début du chargement pour projet:', projetId);
+      logger.debug('[loadStatistiquesMortalite] Début du chargement pour projet:', projetId);
       const stats = await apiClient.get<StatistiquesMortalite>('/mortalites/statistiques', {
         params: { projet_id: projetId },
       });
-      console.log('✅ [loadStatistiquesMortalite] Stats retournées:', stats);
+      logger.debug('[loadStatistiquesMortalite] Stats retournées:', stats);
       return stats;
     } catch (error: unknown) {
-      console.error('❌ Erreur chargement statistiques mortalité:', error);
+      logger.error('Erreur chargement statistiques mortalité:', error);
       return rejectWithValue(
         getErrorMessage(error) || 'Erreur lors du chargement des statistiques'
       );
@@ -205,7 +208,7 @@ const mortalitesSlice = createSlice({
       .addCase(loadStatistiquesMortalite.fulfilled, (state, action) => {
         state.loading = false;
         state.statistiques = action.payload;
-        console.log('📊 [mortalitesSlice] Statistiques chargées:', action.payload);
+        logger.debug('[mortalitesSlice] Statistiques chargées:', action.payload);
       })
       .addCase(loadStatistiquesMortalite.rejected, (state, action) => {
         state.loading = false;

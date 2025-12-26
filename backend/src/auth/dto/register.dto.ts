@@ -21,15 +21,33 @@ export class RegisterDto {
   email?: string;
 
   @ApiProperty({
-    description: 'Mot de passe (optionnel pour compatibilité avec frontend)',
+    description: 'Mot de passe (obligatoire si téléphone sans OAuth)',
     example: 'SecurePassword123!',
     required: false,
   })
-  @IsOptional()
+  @ValidateIf((o) => o.telephone && !o.provider_id)
   @IsString()
   @MinLength(6, { message: 'Le mot de passe doit contenir au moins 6 caractères' })
   @MaxLength(100, { message: 'Le mot de passe ne peut pas dépasser 100 caractères' })
   password?: string;
+
+  @ApiProperty({
+    description: 'Provider (email, telephone, google, apple)',
+    example: 'telephone',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  provider?: string;
+
+  @ApiProperty({
+    description: 'Provider ID (pour OAuth)',
+    example: 'google_123456',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  provider_id?: string;
 
   @ApiProperty({
     description: "Nom de l'utilisateur",

@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../../../contexts/ThemeContext';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../../../../constants/theme';
 import CustomModal from '../../../CustomModal';
+import { logger } from '../../../../utils/logger';
 
 const UNITS_STORAGE_KEY = '@fermier_pro:units';
 
@@ -48,7 +49,7 @@ export default function UnitsSettingsModal({ visible, onClose }: UnitsSettingsMo
         setDistanceUnit(units.distance || 'km');
       }
     } catch (error) {
-      console.error('Erreur chargement unités:', error);
+      logger.error('Erreur chargement unités:', error);
     }
   };
 
@@ -60,7 +61,7 @@ export default function UnitsSettingsModal({ visible, onClose }: UnitsSettingsMo
       );
       onClose();
     } catch (error) {
-      console.error('Erreur sauvegarde unités:', error);
+      logger.error('Erreur sauvegarde unités:', error);
     }
   };
 

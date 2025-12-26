@@ -13,6 +13,7 @@ import {
   loadStatistiquesMortalite,
 } from '../store/slices/mortalitesSlice';
 import { loadProductionAnimaux, loadPeseesRecents } from '../store/slices/productionSlice';
+import { logger } from '../utils/logger';
 
 interface UseDashboardDataProps {
   projetId: string | undefined;
@@ -43,35 +44,42 @@ export function useDashboardData({
   });
 
   /**
-   * Charge les données du dashboard
+   * Charge les données du dashboard en parallèle pour meilleure performance
+   * Note: Si rate limiting nécessaire, il doit être géré côté API client avec retry
    */
   const chargerDonnees = useCallback(async () => {
     if (!projetId) return;
 
     try {
-      await Promise.all([
-        dispatch(loadMortalitesParProjet(projetId)).unwrap(),
-        dispatch(loadStatistiquesMortalite(projetId)).unwrap(),
+      // Paralléliser toutes les requêtes indépendantes pour meilleure performance
+      const promises = [
         dispatch(
           loadProductionAnimaux({
             projetId,
             inclureInactifs: true,
           })
         ).unwrap(),
+        dispatch(loadMortalitesParProjet(projetId)).unwrap(),
+        dispatch(loadStatistiquesMortalite(projetId)).unwrap(),
         dispatch(
           loadPeseesRecents({
             projetId,
             limit: 20,
           })
         ).unwrap(),
-      ]);
+      ];
 
-      // Charger aussi la photo de profil si fournie
+      // Exécuter toutes les requêtes en parallèle
+      await Promise.all(promises);
+
+      // Charger aussi la photo de profil si fournie (séparément car optionnel)
       if (onProfilPhotoLoad) {
         await onProfilPhotoLoad();
       }
     } catch (error) {
-      console.error('Erreur lors du chargement des données:', error);
+      logger.error('Erreur lors du chargement des données:', error);
+      // Ne pas bloquer l'application si une requête échoue
+      // Les données disponibles seront affichées
     }
   }, [projetId, dispatch, onProfilPhotoLoad]);
 
@@ -85,7 +93,7 @@ export function useDashboardData({
     try {
       await chargerDonnees();
     } catch (error) {
-      console.error('Erreur lors du rafraîchissement:', error);
+      logger.error('Erreur lors du rafraîchissement:', error);
     } finally {
       setRefreshing(false);
     }

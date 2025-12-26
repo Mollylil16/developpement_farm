@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadStocks, loadMouvementsParAliment } from '../store/slices/stocksSlice';
-import { StockAliment, StockMouvement } from '../types';
+import type { StockAliment, StockMouvement } from '../types/nutrition';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import LoadingSpinner from './LoadingSpinner';

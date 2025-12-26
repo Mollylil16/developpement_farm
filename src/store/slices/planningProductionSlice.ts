@@ -28,6 +28,9 @@ import { getErrorMessage } from '../../types/common';
 import { ProductionAnimal, ProductionPesee } from '../../types/production';
 import { Gestation } from '../../types/reproduction';
 import { CreatePlanificationInput } from '../../types/planification';
+import { createLoggerWithPrefix } from '../../utils/logger';
+
+const logger = createLoggerWithPrefix('PlanningProductionSlice');
 
 // Etat initial
 const initialState: PlanningProductionState = {
@@ -93,7 +96,7 @@ export const simulerProduction = createAsyncThunk(
 
       return result;
     } catch (error: unknown) {
-      console.error('❌ [REDUX] simulerProduction - Erreur:', error);
+      logger.error('simulerProduction - Erreur:', error);
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la simulation');
     }
   }
@@ -164,17 +167,17 @@ export const genererPlanSaillies = createAsyncThunk(
 
       // Log pour déboguer
       const tousAnimaux = Object.values(animaux).filter(isProductionAnimal);
-      console.log('🔍 [genererPlanSaillies] Total animaux dans state:', tousAnimaux.length);
-      console.log('🔍 [genererPlanSaillies] Projet actif:', projetActif.id);
+      logger.debug('Total animaux dans state:', tousAnimaux.length);
+      logger.debug('Projet actif:', projetActif.id);
 
       const animauxProjet = tousAnimaux.filter((a) => a.projet_id === projetActif.id);
-      console.log('🔍 [genererPlanSaillies] Animaux du projet:', animauxProjet.length);
+      logger.debug('Animaux du projet:', animauxProjet.length);
 
       const truiesProjet = animauxProjet.filter((a) => a.sexe === 'femelle');
-      console.log('🔍 [genererPlanSaillies] Truies du projet:', truiesProjet.length);
+      logger.debug('Truies du projet:', truiesProjet.length);
       if (truiesProjet.length > 0) {
-        console.log(
-          '🔍 [genererPlanSaillies] Détails truies:',
+        logger.debug(
+          'Détails truies:',
           truiesProjet.map((a) => ({
             id: a.id,
             code: a.code,
@@ -199,8 +202,8 @@ export const genererPlanSaillies = createAsyncThunk(
         return isFemelle && isReproductrice && isActive && isDuProjet && !estEnGestation;
       });
 
-      console.log(
-        '🔍 [genererPlanSaillies] Truies disponibles après filtrage:',
+      logger.debug(
+        'Truies disponibles après filtrage:',
         truiesDisponibles.length
       );
 
@@ -354,7 +357,7 @@ export const genererPlanSaillies = createAsyncThunk(
           }
 
           if (!verratChoisi) {
-            console.warn('⚠️ Aucun verrat disponible');
+            logger.warn('Aucun verrat disponible');
             continue;
           }
 
@@ -367,8 +370,8 @@ export const genererPlanSaillies = createAsyncThunk(
           const dateVente = addDays(dateSevrage, dureeEngraissementJours);
 
           if (dateVente > dateLimite) {
-            console.warn(
-              `⚠️ Saillie ignorée: vente ${format(dateVente, 'dd/MM/yyyy')} > deadline ${format(dateLimite, 'dd/MM/yyyy')}`
+            logger.warn(
+              `Saillie ignorée: vente ${format(dateVente, 'dd/MM/yyyy')} > deadline ${format(dateLimite, 'dd/MM/yyyy')}`
             );
             break; // Arrêter cette vague, trop tard
           }
@@ -400,7 +403,7 @@ export const genererPlanSaillies = createAsyncThunk(
 
       // Si on n'a pas assez de saillies (truies insuffisantes), ajouter un avertissement dans les notes
       if (saillies.length < nombrePorteesNecessaires) {
-        console.warn(
+        logger.warn(
           `Attention: Seulement ${saillies.length} saillies planifiées sur ${nombrePorteesNecessaires} nécessaires. ` +
             `Vous avez ${nombreTruies} truie(s) mais il en faudrait environ ${Math.ceil(nombrePorteesNecessaires / parametresProduction.cycles_par_an)}.`
         );
@@ -624,7 +627,7 @@ export const validerPlanningSaillies = createAsyncThunk(
         throw new Error('Échec de la création des tâches');
       }
     } catch (error: unknown) {
-      console.error('❌ [VALIDATION] Erreur:', error);
+      logger.error('[VALIDATION] Erreur:', error);
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la validation du planning');
     }
   }

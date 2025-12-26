@@ -5,6 +5,7 @@
 
 import { useState, useCallback } from 'react';
 import { useAppDispatch } from '../store/hooks';
+import { logger } from '../utils/logger';
 
 interface UseRefreshControlOptions {
   onRefresh?: () => Promise<void> | void;
@@ -21,7 +22,7 @@ export function useRefreshControl(options?: UseRefreshControlOptions) {
         await options.onRefresh();
       }
     } catch (error) {
-      console.error('Erreur lors du refresh:', error);
+      logger.error('Erreur lors du refresh:', error);
     } finally {
       setRefreshing(false);
     }

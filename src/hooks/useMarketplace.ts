@@ -13,6 +13,7 @@ import type {
   Transaction,
 } from '../types/marketplace';
 import { getMarketplaceService } from '../services/MarketplaceService';
+import { logger } from '../utils/logger';
 
 export function useMarketplace() {
   const [listings, setListings] = useState<MarketplaceListing[]>([]);
@@ -56,7 +57,7 @@ export function useMarketplace() {
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : 'Erreur lors de la recherche';
         setError(errorMessage);
-        console.error('Error searching listings:', err);
+        logger.error('Error searching listings:', err);
       } finally {
         setLoading(false);
       }
@@ -122,7 +123,7 @@ export function useOffers(userId: string, role: 'buyer' | 'producer') {
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Erreur lors du chargement des offres';
       setError(errorMessage);
-      console.error('Error loading offers:', err);
+      logger.error('Error loading offers:', err);
     } finally {
       setLoading(false);
     }
@@ -160,7 +161,7 @@ export function useTransactions(userId: string, role: 'buyer' | 'producer') {
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Erreur lors du chargement des transactions';
       setError(errorMessage);
-      console.error('Error loading transactions:', err);
+      logger.error('Error loading transactions:', err);
     } finally {
       setLoading(false);
     }
@@ -203,7 +204,7 @@ export function useListing(listingId: string | null) {
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "Erreur lors du chargement de l'annonce";
       setError(errorMessage);
-      console.error('Error loading listing:', err);
+      logger.error('Error loading listing:', err);
     } finally {
       setLoading(false);
     }

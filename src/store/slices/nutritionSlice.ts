@@ -4,7 +4,7 @@
  */
 
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import {
+import type {
   Ingredient,
   Ration,
   CreateIngredientInput,
@@ -12,7 +12,7 @@ import {
   RationBudget,
   CreateRationBudgetInput,
   UpdateRationBudgetInput,
-} from '../../types';
+} from '../../types/nutrition';
 import { getErrorMessage } from '../../types/common';
 import apiClient from '../../services/api/apiClient';
 

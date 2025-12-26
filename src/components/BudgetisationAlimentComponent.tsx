@@ -22,14 +22,16 @@ import {
   updateRationBudget,
 } from '../store/slices/nutritionSlice';
 import {
-  TypePorc,
   getTypePorcLabel,
   RECOMMANDATIONS_NUTRITION,
   FORMULES_RECOMMANDEES,
+} from '../types/nutrition';
+import type {
+  TypePorc,
   RationBudget,
   CreateRationBudgetInput,
   FormuleAlimentaire,
-} from '../types';
+} from '../types/nutrition';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import FormField from './FormField';
@@ -37,6 +39,7 @@ import LoadingSpinner from './LoadingSpinner';
 import EmptyState from './EmptyState';
 import CustomModal from './CustomModal';
 import ModifierIngredientsRationModal from './ModifierIngredientsRationModal';
+import { logger } from '../utils/logger';
 
 export default function BudgetisationAlimentComponent() {
   const { colors, isDark } = useTheme();
@@ -229,7 +232,7 @@ export default function BudgetisationAlimentComponent() {
 
           Alert.alert('✅ Succès', 'Ration modifiée avec succès');
         } catch (error: unknown) {
-          console.error('Erreur lors de la modification de la ration:', error);
+          logger.error('Erreur lors de la modification de la ration:', error);
           const errorMessage = error?.message || error || 'Impossible de modifier la ration';
           Alert.alert('Erreur', errorMessage);
           // Ne pas fermer le modal en cas d'erreur pour permettre à l'utilisateur de réessayer
@@ -250,7 +253,7 @@ export default function BudgetisationAlimentComponent() {
       resetForm();
       setShowModal(false);
     } catch (error: unknown) {
-      console.error('Erreur lors de la création/modification de la ration:', error);
+      logger.error('Erreur lors de la création/modification de la ration:', error);
       const errorMessage =
         error?.message ||
         error ||

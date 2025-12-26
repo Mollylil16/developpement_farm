@@ -7,6 +7,7 @@ import apiClient from './api/apiClient';
 import { getServiceProposalNotificationService } from './ServiceProposalNotificationService';
 import { DEFAULT_PERMISSIONS } from '../types/collaboration';
 import type { VeterinarianProfile } from '../types/roles';
+import { logger } from '../utils/logger';
 
 export interface Farm {
   id: string;
@@ -87,7 +88,7 @@ class FarmService {
               });
             }
           } catch (error) {
-            console.warn(`Erreur lors de la récupération du producteur ${producerId}:`, error);
+            logger.warn(`Erreur lors de la récupération du producteur ${producerId}:`, error);
           }
         }
       }
@@ -283,7 +284,7 @@ class FarmService {
           });
         }
       } catch (error) {
-        console.warn('Erreur lors de la création de la collaboration:', error);
+        logger.warn('Erreur lors de la création de la collaboration:', error);
       }
     }
 

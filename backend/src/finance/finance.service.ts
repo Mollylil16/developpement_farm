@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { ImageService } from '../common/services/image.service';
+import { compressImagesArray } from '../common/helpers/image-compression.helper';
 import { CreateChargeFixeDto } from './dto/create-charge-fixe.dto';
 import { UpdateChargeFixeDto } from './dto/update-charge-fixe.dto';
 import { CreateDepensePonctuelleDto } from './dto/create-depense-ponctuelle.dto';
@@ -9,7 +11,10 @@ import { UpdateRevenuDto } from './dto/update-revenu.dto';
 
 @Injectable()
 export class FinanceService {
-  constructor(private databaseService: DatabaseService) {}
+  constructor(
+    private databaseService: DatabaseService,
+    private imageService: ImageService
+  ) {}
 
   /**
    * Génère un ID comme le frontend : charge_fixe_${Date.now()}_${random}
@@ -137,8 +142,12 @@ export class FinanceService {
   async findAllChargesFixes(projetId: string, userId: string) {
     await this.checkProjetOwnership(projetId, userId);
 
+    // Colonnes nécessaires pour mapRowToChargeFixe (optimisation: éviter SELECT *)
+    const chargeFixeColumns = `id, projet_id, categorie, libelle, montant, date_debut, 
+      frequence, jour_paiement, notes, statut, date_creation, derniere_modification`;
+
     const result = await this.databaseService.query(
-      `SELECT * FROM charges_fixes 
+      `SELECT ${chargeFixeColumns} FROM charges_fixes 
        WHERE projet_id = $1 
        ORDER BY date_debut DESC`,
       [projetId]
@@ -262,6 +271,13 @@ export class FinanceService {
       createDepensePonctuelleDto.type_opex_capex ||
       this.getTypeOpexCapex(createDepensePonctuelleDto.categorie);
 
+    // Compresser les images avant stockage (Phase 3)
+    const compressedPhotos = await compressImagesArray(
+      createDepensePonctuelleDto.photos,
+      this.imageService,
+      { maxWidth: 1920, maxHeight: 1920, quality: 80 }
+    );
+
     const result = await this.databaseService.query(
       `INSERT INTO depenses_ponctuelles (
         id, projet_id, montant, categorie, libelle_categorie, type_opex_capex,
@@ -278,7 +294,7 @@ export class FinanceService {
         createDepensePonctuelleDto.duree_amortissement_mois || null,
         createDepensePonctuelleDto.date,
         createDepensePonctuelleDto.commentaire || null,
-        this.stringifyArray(createDepensePonctuelleDto.photos),
+        this.stringifyArray(compressedPhotos),
         now,
         now,
       ]
@@ -290,8 +306,13 @@ export class FinanceService {
   async findAllDepensesPonctuelles(projetId: string, userId: string) {
     await this.checkProjetOwnership(projetId, userId);
 
+    // Colonnes nécessaires pour mapRowToDepensePonctuelle (optimisation: éviter SELECT *)
+    const depenseColumns = `id, projet_id, montant, categorie, libelle_categorie, 
+      type_opex_capex, duree_amortissement_mois, date, commentaire, photos, 
+      date_creation, derniere_modification`;
+
     const result = await this.databaseService.query(
-      `SELECT * FROM depenses_ponctuelles 
+      `SELECT ${depenseColumns} FROM depenses_ponctuelles 
        WHERE projet_id = $1 
        ORDER BY date DESC`,
       [projetId]
@@ -363,8 +384,14 @@ export class FinanceService {
       paramIndex++;
     }
     if (updateDepensePonctuelleDto.photos !== undefined) {
+      // Compresser les images avant stockage (Phase 3)
+      const compressedPhotos = await compressImagesArray(
+        updateDepensePonctuelleDto.photos,
+        this.imageService,
+        { maxWidth: 1920, maxHeight: 1920, quality: 80 }
+      );
       fields.push(`photos = $${paramIndex}`);
-      values.push(this.stringifyArray(updateDepensePonctuelleDto.photos));
+      values.push(this.stringifyArray(compressedPhotos));
       paramIndex++;
     }
 
@@ -430,6 +457,13 @@ export class FinanceService {
     const id = this.generateRevenuId();
     const now = new Date().toISOString();
 
+    // Compresser les images avant stockage (Phase 3)
+    const compressedPhotos = await compressImagesArray(
+      createRevenuDto.photos,
+      this.imageService,
+      { maxWidth: 1920, maxHeight: 1920, quality: 80 }
+    );
+
     const result = await this.databaseService.query(
       `INSERT INTO revenus (
         id, projet_id, montant, categorie, libelle_categorie, date,
@@ -446,7 +480,7 @@ export class FinanceService {
         createRevenuDto.date,
         createRevenuDto.description || null,
         createRevenuDto.commentaire || null,
-        this.stringifyArray(createRevenuDto.photos),
+        this.stringifyArray(compressedPhotos),
         createRevenuDto.poids_kg || null,
         createRevenuDto.animal_id || null,
         now,
@@ -460,8 +494,14 @@ export class FinanceService {
   async findAllRevenus(projetId: string, userId: string) {
     await this.checkProjetOwnership(projetId, userId);
 
+    // Colonnes nécessaires pour mapRowToRevenu (optimisation: éviter SELECT *)
+    const revenuColumns = `id, projet_id, montant, categorie, libelle_categorie, date, 
+      description, commentaire, photos, poids_kg, animal_id, cout_kg_opex, 
+      cout_kg_complet, cout_reel_opex, cout_reel_complet, marge_opex, marge_complete, 
+      marge_opex_pourcent, marge_complete_pourcent, date_creation, derniere_modification`;
+
     const result = await this.databaseService.query(
-      `SELECT * FROM revenus 
+      `SELECT ${revenuColumns} FROM revenus 
        WHERE projet_id = $1 
        ORDER BY date DESC`,
       [projetId]
@@ -520,8 +560,14 @@ export class FinanceService {
       paramIndex++;
     }
     if (updateRevenuDto.photos !== undefined) {
+      // Compresser les images avant stockage (Phase 3)
+      const compressedPhotos = await compressImagesArray(
+        updateRevenuDto.photos,
+        this.imageService,
+        { maxWidth: 1920, maxHeight: 1920, quality: 80 }
+      );
       fields.push(`photos = $${paramIndex}`);
-      values.push(this.stringifyArray(updateRevenuDto.photos));
+      values.push(this.stringifyArray(compressedPhotos));
       paramIndex++;
     }
     if (updateRevenuDto.poids_kg !== undefined) {
@@ -716,8 +762,11 @@ export class FinanceService {
     );
 
     // 2. Charger toutes les dépenses ponctuelles du projet
+    // Colonnes nécessaires (optimisation: éviter SELECT *)
+    const depenseColumns = `id, montant, date, categorie, type_opex_capex, duree_amortissement_mois`;
+    
     const depensesResult = await this.databaseService.query(
-      `SELECT * FROM depenses_ponctuelles 
+      `SELECT ${depenseColumns} FROM depenses_ponctuelles 
        WHERE projet_id = $1 
        ORDER BY date ASC`,
       [projetId]

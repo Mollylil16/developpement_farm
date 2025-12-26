@@ -11,6 +11,9 @@ import type {
 } from './ChatTransport.interface';
 import type { ChatMessage } from '../../types/marketplace';
 import apiClient from '../api/apiClient';
+import { createLoggerWithPrefix } from '../../utils/logger';
+
+const logger = createLoggerWithPrefix('PollingTransport');
 
 export class PollingChatTransport implements IChatTransport {
   private _status: ConnectionStatus = 'disconnected';
@@ -34,7 +37,7 @@ export class PollingChatTransport implements IChatTransport {
 
   async connect(conversationId: string): Promise<void> {
     if (this._status === 'connected') {
-      console.log('[PollingTransport] Déjà connecté');
+      logger.debug('Déjà connecté');
       return;
     }
 
@@ -51,7 +54,7 @@ export class PollingChatTransport implements IChatTransport {
       const interval = this.config.pollingInterval || 5000;
         this.pollingInterval = setInterval(() => {
         this.pollMessages().catch((error) => {
-          console.error('[PollingTransport] Erreur polling:', error);
+          logger.error('Erreur polling:', error);
           this.callbacks.onError(
             error instanceof Error ? error : new Error(String(error))
           );
@@ -61,7 +64,7 @@ export class PollingChatTransport implements IChatTransport {
       this._status = 'connected';
       this.callbacks.onStatusChange('connected');
 
-      console.log(`[PollingTransport] Connecté (polling ${interval}ms)`);
+      logger.info(`Connecté (polling ${interval}ms)`);
     } catch (error) {
       this._status = 'error';
       this.callbacks.onStatusChange('error');
@@ -77,7 +80,7 @@ export class PollingChatTransport implements IChatTransport {
 
     this._status = 'disconnected';
     this.callbacks.onStatusChange('disconnected');
-    console.log('[PollingTransport] Déconnecté');
+    logger.debug('Déconnecté');
   }
 
   async sendMessage(message: Omit<ChatMessage, 'id' | 'createdAt'>): Promise<ChatMessage> {
@@ -132,7 +135,7 @@ export class PollingChatTransport implements IChatTransport {
         this.lastMessageTimestamp = message.createdAt;
       }
     } catch (error: unknown) {
-      console.error('[PollingTransport] Erreur récupération messages:', error);
+      logger.error('Erreur récupération messages:', error);
       this.callbacks.onError(
         error instanceof Error ? error : new Error(String(error))
       );

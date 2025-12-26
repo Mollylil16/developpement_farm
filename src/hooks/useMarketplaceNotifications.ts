@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAppSelector } from '../store/hooks';
 import apiClient from '../services/api/apiClient';
 import type { Notification } from '../types/marketplace';
+import { logger } from '../utils/logger';
 
 export function useMarketplaceNotifications() {
   const { projetActif } = useAppSelector((state) => state.projet);
@@ -44,7 +45,7 @@ export function useMarketplaceNotifications() {
       const unread = sortedNotifications.filter((n) => !n.read).length;
       setUnreadCount(unread);
     } catch (err: unknown) {
-      console.error('Erreur chargement notifications:', err);
+      logger.error('Erreur chargement notifications:', err);
       const errorMessage = err instanceof Error ? err.message : 'Impossible de charger les notifications';
       setError(errorMessage);
     } finally {
@@ -67,7 +68,7 @@ export function useMarketplaceNotifications() {
 
       setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch (err: unknown) {
-      console.error('Erreur marquage notification:', err);
+      logger.error('Erreur marquage notification:', err);
     }
   }, []);
 
@@ -91,7 +92,7 @@ export function useMarketplaceNotifications() {
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       setUnreadCount(0);
     } catch (err: unknown) {
-      console.error('Erreur marquage toutes notifications:', err);
+      logger.error('Erreur marquage toutes notifications:', err);
     }
   }, [currentUserId]);
 
@@ -113,7 +114,7 @@ export function useMarketplaceNotifications() {
         return prev.filter((n) => n.id !== notificationId);
       });
     } catch (err: unknown) {
-      console.error('Erreur suppression notification:', err);
+      logger.error('Erreur suppression notification:', err);
     }
   }, []);
 

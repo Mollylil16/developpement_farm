@@ -10,7 +10,7 @@ import { useAppSelector } from '../store/hooks';
 import ProtectedScreen from '../components/ProtectedScreen';
 import StandardHeader from '../components/StandardHeader';
 import CollaborationListComponent from '../components/CollaborationListComponent';
-import { Collaborateur } from '../types';
+import type { Collaborateur } from '../types/collaboration';
 
 function CollaborationScreenContent() {
   const { colors } = useTheme();

@@ -1,8 +1,9 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { Pool } from 'pg';
 
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(DatabaseService.name);
   private pool: Pool;
 
   constructor() {
@@ -71,6 +72,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     this.pool.on('error', (err, client) => {
       console.error('❌ Erreur inattendue dans le pool PostgreSQL:', err);
       console.error('   Client concerné:', client ? 'Oui' : 'Non');
+      this.logger.error('Erreur inattendue dans le pool PostgreSQL', err);
     });
     
     // Log du nombre de connexions actives (pour debug)
@@ -106,11 +108,15 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         console.log(`📅 Heure serveur: ${result.rows[0].now}`);
         console.log(`📊 Pool status: ${this.pool.totalCount} total, ${this.pool.idleCount} idle`);
         
+        this.logger.log('Connexion PostgreSQL établie avec succès');
+        this.logger.debug(`Heure serveur: ${result.rows[0].now}`);
+        
         client.release();
         return; // Succès, on sort de la fonction
       } catch (error: any) {
         lastError = error;
         console.error(`❌ Tentative ${attempt}/${maxAttempts} échouée:`, error.message);
+        this.logger.error(`Tentative ${attempt}/${maxAttempts} échouée`, error);
         
         if (attempt < maxAttempts) {
           const delayMs = attempt * 2000; // Délai progressif: 2s, 4s, 6s, 8s
@@ -123,12 +129,13 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     // Si on arrive ici, toutes les tentatives ont échoué
     console.error('❌ Impossible de se connecter à PostgreSQL après', maxAttempts, 'tentatives');
     console.error('   DATABASE_URL:', process.env.DATABASE_URL ? 'Défini' : 'Non défini');
+    this.logger.error('Impossible de se connecter à PostgreSQL après toutes les tentatives');
     throw lastError;
   }
 
   async onModuleDestroy() {
     await this.pool.end();
-    console.log('🔌 Pool PostgreSQL fermé');
+    this.logger.log('Pool PostgreSQL fermé');
   }
 
   async getClient() {
@@ -144,6 +151,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
    */
   async query(text: string, params?: any[], maxRetries: number = 3, retryDelay: number = 1000) {
     const start = Date.now();
+    const slowQueryThreshold = parseInt(process.env.SLOW_QUERY_THRESHOLD_MS || '1000', 10);
     let lastError: any;
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -151,8 +159,17 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         const result = await this.pool.query(text, params);
         const duration = Date.now() - start;
         
-        if (duration > 1000) {
-          console.log(`⚠️ Query lente (${duration}ms): ${text.substring(0, 50)}...`);
+        // Monitoring des requêtes lentes
+        if (duration > slowQueryThreshold) {
+          const queryPreview = text.length > 100 ? `${text.substring(0, 100)}...` : text;
+          const paramsPreview = params && params.length > 0 
+            ? `[${params.slice(0, 3).map(p => typeof p === 'string' ? `"${p.substring(0, 20)}"` : p).join(', ')}${params.length > 3 ? '...' : ''}]`
+            : '[]';
+          
+          console.log(`⚠️ Query lente (${duration}ms): ${queryPreview}`);
+          this.logger.warn(
+            `⚠️ SLOW QUERY (${duration}ms > ${slowQueryThreshold}ms): ${queryPreview} | Params: ${paramsPreview}`
+          );
         }
         
         // Si on réussit après un retry, le signaler
@@ -164,6 +181,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       } catch (error: any) {
         lastError = error;
         const errorMessage = error.message || String(error);
+        const duration = Date.now() - start;
         
         // Vérifier si c'est une erreur de connexion qui mérite un retry
         const isConnectionError = 
@@ -186,13 +204,17 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           retryDelay *= 1.5;
         } else {
           // Ce n'est pas une erreur de connexion OU on a épuisé les retries
+          this.logger.error(
+            `❌ QUERY ERROR (${duration}ms): ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}`,
+            error
+          );
           break;
         }
       }
     }
     
     // Si on arrive ici, toutes les tentatives ont échoué
-    console.error("❌ Erreur lors de l'exécution de la requête après", maxRetries, "tentative(s):", lastError);
+    console.error("❌ Erreur lors de l'exécution de la requête:", lastError);
     console.error('Query:', text);
     throw lastError;
   }

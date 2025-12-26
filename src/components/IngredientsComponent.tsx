@@ -20,14 +20,14 @@ import {
   deleteIngredient,
   createIngredient,
 } from '../store/slices/nutritionSlice';
-import { Ingredient } from '../types';
+import type { Ingredient } from '../types/nutrition';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import IngredientFormModal from './IngredientFormModal';
 import PriceScannerModal from './PriceScannerModal';
 import LoadingSpinner from './LoadingSpinner';
 import { useActionPermissions } from '../hooks/useActionPermissions';
-import { FORMULES_RECOMMANDEES, getValeursNutritionnelles } from '../types';
+import { FORMULES_RECOMMANDEES, getValeursNutritionnelles } from '../types/nutrition';
 
 export default function IngredientsComponent() {
   const { colors, isDark } = useTheme();

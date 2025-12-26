@@ -12,13 +12,9 @@ import {
   formatDate,
   generateAndSharePDF,
 } from '../pdfService';
-import {
-  Projet,
-  ProductionAnimal,
-  ChargeFixe,
-  DepensePonctuelle,
-  Revenu,
-} from '../../types';
+import type { Projet } from '../../types/projet';
+import type { ProductionAnimal } from '../../types/production';
+import type { ChargeFixe, DepensePonctuelle, Revenu } from '../../types/finance';
 
 // Types utilisés pour typer les données de reproduction dans le rapport
 type Gestation = {

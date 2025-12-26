@@ -25,6 +25,7 @@ import NotificationsManager from '../components/NotificationsManager';
 import * as LazyScreens from './lazyScreens';
 
 import { COLORS } from '../constants/theme';
+import { logger } from '../utils/logger';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -39,9 +40,9 @@ const TAB_WIDTH = SCREEN_WIDTH / 5;
 function MainTabs() {
   const { activeRole, availableRoles } = useRole();
   const rolePermissions = useRolePermissions();
-  const projetActif = useAppSelector((state) => state.projet.projetActif);
-  const currentUser = useAppSelector((state) => state.auth.user);
-  const collaborateurActuel = useAppSelector((state) => state.collaboration.collaborateurActuel);
+  const projetActif = useAppSelector((state) => state.projet?.projetActif);
+  const currentUser = useAppSelector((state) => state.auth?.user);
+  const collaborateurActuel = useAppSelector((state) => state.collaboration?.collaborateurActuel);
 
   // Helper pour vérifier les permissions par module (compatibilité avec l'ancien système)
   const hasPermission = (module: string): boolean => {
@@ -324,14 +325,14 @@ function MainTabs() {
         </Tab.Screen>
       )}
 
-      {/* Paramètres - Accessible via menu profil (caché de la barre) */}
+      {/* Formation - Accessible via menu profil (caché de la barre) */}
       <Tab.Screen
-        name={SCREENS.PARAMETRES}
+        name={SCREENS.TRAINING}
         options={{
           tabBarButton: () => <></>,
         }}
       >
-        {() => <LazyScreens.ParametresScreen />}
+        {() => <LazyScreens.TrainingScreen />}
       </Tab.Screen>
 
       {/* Marketplace Chat - Accessible via navigation */}
@@ -350,9 +351,11 @@ function MainTabs() {
 // Navigation principale avec stack pour gestion du projet
 export default function AppNavigator() {
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
-  const { isAuthenticated, isLoading: authLoading, user } = useAppSelector((state) => state.auth);
-  const { invitationsEnAttente } = useAppSelector((state) => state.collaboration);
+  const projetActif = useAppSelector((state) => state.projet?.projetActif);
+  const isAuthenticated = useAppSelector((state) => state.auth?.isAuthenticated);
+  const authLoading = useAppSelector((state) => state.auth?.isLoading);
+  const user = useAppSelector((state) => state.auth?.user);
+  const invitationsEnAttente = useAppSelector((state) => state.collaboration?.invitationsEnAttente || []);
   const navigationRef = React.useRef<NavigationContainerRef<ParamListBase> | null>(null);
   const lastRouteRef = React.useRef<string | null>(null);
 
@@ -445,13 +448,16 @@ export default function AppNavigator() {
       (currentRoute === SCREENS.AUTH && targetRoute !== SCREENS.AUTH);
 
     if (shouldNavigate) {
-      console.log(
-        '🚀 Navigation vers:',
-        targetRoute,
-        '(depuis:',
-        lastRouteRef.current || currentRoute,
-        ')'
-      );
+      if (process.env.NODE_ENV === 'development') {
+        // Logger uniquement en développement pour éviter les ralentissements en production
+        logger.debug(
+          'Navigation vers:',
+          targetRoute,
+          '(depuis:',
+          lastRouteRef.current || currentRoute,
+          ')'
+        );
+      }
       try {
         navigationRef.current.reset({
           index: 0,
@@ -459,10 +465,8 @@ export default function AppNavigator() {
         });
         lastRouteRef.current = targetRoute;
       } catch (error) {
-        console.error('❌ Erreur lors de la navigation:', error);
+        logger.error('Erreur lors de la navigation:', error);
       }
-    } else {
-      console.log('⏸️ Pas de changement de route nécessaire');
     }
   }, [isAuthenticated, user, projetActif?.id, authLoading, invitationsEnAttente.length]);
 
@@ -544,6 +548,12 @@ export default function AppNavigator() {
         <Stack.Screen name={SCREENS.SIGN_IN} options={{ headerShown: false }}>
           {() => <LazyScreens.SignInScreen />}
         </Stack.Screen>
+        <Stack.Screen name={SCREENS.FORGOT_PASSWORD}>
+          {() => <LazyScreens.ForgotPasswordScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.RESET_PASSWORD}>
+          {() => <LazyScreens.ResetPasswordScreen />}
+        </Stack.Screen>
         <Stack.Screen name={SCREENS.PROFILE_SELECTION}>
           {() => <LazyScreens.ProfileSelectionScreen />}
         </Stack.Screen>
@@ -575,6 +585,13 @@ export default function AppNavigator() {
         <Stack.Screen name={SCREENS.OFFERS}>{() => <LazyScreens.MarketplaceScreen />}</Stack.Screen>
         <Stack.Screen name={SCREENS.CHAT_AGENT}>
           {() => <LazyScreens.ChatAgentScreen />}
+        </Stack.Screen>
+        {/* Migration */}
+        <Stack.Screen name={SCREENS.MIGRATION_WIZARD}>
+          {() => <LazyScreens.MigrationWizardScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.MIGRATION_HISTORY}>
+          {() => <LazyScreens.MigrationHistoryScreen />}
         </Stack.Screen>
         <Stack.Screen name="Main" component={MainTabs} />
       </Stack.Navigator>

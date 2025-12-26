@@ -11,6 +11,7 @@ import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constant
 import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
 import { getMargeColor, getStatutMarge } from '../../utils/margeCalculations';
+import { logger } from '../../utils/logger';
 
 interface CoutProductionWidgetProps {
   projetId: string;
@@ -46,7 +47,7 @@ function CoutProductionWidget({ projetId, onPress }: CoutProductionWidgetProps) 
           marge_moyenne: result.margeMoyenne,
         });
       } catch (error) {
-        console.error('Erreur chargement stats coût production:', error);
+        logger.error('Erreur chargement stats coût production:', error);
       } finally {
         setLoading(false);
       }

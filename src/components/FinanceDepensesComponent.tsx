@@ -21,13 +21,14 @@ import {
   selectAllDepensesPonctuelles,
   selectAllChargesFixes,
 } from '../store/selectors/financeSelectors';
-import { DepensePonctuelle } from '../types';
+import type { DepensePonctuelle } from '../types/finance';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';
 import LoadingSpinner from './LoadingSpinner';
 import DepenseFormModal from './DepenseFormModal';
 import { useActionPermissions } from '../hooks/useActionPermissions';
+import { logger } from '../utils/logger';
 
 export default function FinanceDepensesComponent() {
   const { colors } = useTheme();
@@ -142,7 +143,7 @@ export default function FinanceDepensesComponent() {
     try {
       await dispatch(loadDepensesPonctuelles(projetActif.id)).unwrap();
     } catch (error) {
-      console.error('Erreur lors du rafraîchissement:', error);
+      logger.error('Erreur lors du rafraîchissement:', error);
     } finally {
       setRefreshing(false);
     }

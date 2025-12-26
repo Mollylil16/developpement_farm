@@ -20,7 +20,8 @@ import {
   loadPeseesRecents,
 } from '../store/slices/productionSlice';
 import { selectAllAnimaux, selectProductionLoading } from '../store/selectors/productionSelectors';
-import { ProductionAnimal, StatutAnimal, STATUT_ANIMAL_LABELS } from '../types';
+import type { ProductionAnimal, StatutAnimal } from '../types/production';
+import { STATUT_ANIMAL_LABELS } from '../types/production';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import LoadingSpinner from './LoadingSpinner';

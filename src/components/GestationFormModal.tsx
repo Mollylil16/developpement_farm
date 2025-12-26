@@ -17,7 +17,9 @@ import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { createGestation, updateGestation } from '../store/slices/reproductionSlice';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
 import { loadMortalitesParProjet } from '../store/slices/mortalitesSlice';
-import { Gestation, CreateGestationInput, ProductionAnimal, Mortalite } from '../types';
+import type { Gestation, CreateGestationInput } from '../types/reproduction';
+import type { ProductionAnimal } from '../types/production';
+import type { Mortalite } from '../types/mortalites';
 import { calculerDateMiseBasPrevue } from '../types/reproduction';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
@@ -26,6 +28,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { selectAllAnimaux } from '../store/selectors/productionSelectors';
 import { selectAllMortalites } from '../store/selectors/mortalitesSelectors';
+import { logger } from '../utils/logger';
 import {
   detecterConsanguinite,
   getCouleurRisque,
@@ -725,7 +728,7 @@ export default function GestationFormModal({
                             },
                           ]}
                           onPress={() => {
-                            console.log('Verrat sélectionné:', verrat);
+                            logger.debug('Verrat sélectionné:', verrat);
                             setFormData((prev) => ({
                               ...prev,
                               verrat_id: verrat.id,

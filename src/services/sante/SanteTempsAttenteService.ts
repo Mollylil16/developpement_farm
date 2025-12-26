@@ -4,7 +4,7 @@
  */
 
 import apiClient from '../api/apiClient';
-import type { Traitement } from '../../types';
+import type { Traitement } from '../../types/sante';
 
 export interface AnimalTempsAttente {
   animal_id: string;

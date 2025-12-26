@@ -1,415 +1,282 @@
 /**
- * Écran de choix de méthode d'inscription
- * L'utilisateur choisit : Téléphone, Google ou Apple
+ * Écran de sélection de la méthode d'inscription
+ * Permet de choisir entre téléphone, Google ou Apple
  */
 
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  Platform,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import type { NavigationProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
-import Button from '../components/Button';
-import GoogleLogo from '../components/GoogleLogo';
-import AppleLogo from '../components/AppleLogo';
 import { SCREENS } from '../navigation/types';
 import { useAppDispatch } from '../store/hooks';
 import { signInWithGoogle, signInWithApple } from '../store/slices/authSlice';
+import GoogleLogo from '../components/GoogleLogo';
+import AppleLogo from '../components/AppleLogo';
 
-export default function SignUpMethodScreen() {
+const SignUpMethodScreen: React.FC = () => {
   const { colors } = useTheme();
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp<any>>();
   const dispatch = useAppDispatch();
-  const [loading, setLoading] = useState(false);
-  const [loadingMethod, setLoadingMethod] = useState<'phone' | 'google' | 'apple' | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  /**
-   * Inscription par téléphone
-   */
   const handlePhoneSignUp = () => {
     navigation.navigate(SCREENS.PHONE_SIGN_UP as never);
   };
 
-  /**
-   * Inscription via Google
-   */
   const handleGoogleSignUp = async () => {
     try {
-      setLoading(true);
-      setLoadingMethod('google');
-
+      setIsLoading(true);
       const result = await dispatch(signInWithGoogle()).unwrap();
 
-      // Vérifier si nom/prénom sont complets
-      const hasCompleteInfo =
-        result.user.prenom &&
-        result.user.prenom.length >= 2 &&
-        result.user.nom &&
-        result.user.nom.length >= 2;
+      if (result) {
+        // Vérifier si c'est un nouvel utilisateur (pas de rôles ou nom/prénom incomplets)
+        const isNewUser = !result.roles || Object.keys(result.roles).length === 0;
+        const hasIncompleteName = !result.prenom || result.prenom.length < 2 || !result.nom || result.nom.length < 2;
 
-      if (!hasCompleteInfo) {
-        // Rediriger vers UserInfoScreen pour compléter les informations
-        navigation.navigate(SCREENS.USER_INFO as never, {
-          userId: result.user.id,
-          email: result.user.email,
-          provider: 'google',
-        });
-      } else {
-        // Informations complètes, vérifier si onboarding terminé
-        const isOnboarded = result.user.isOnboarded;
-
-        if (!isOnboarded) {
-          // Rediriger vers ProfileSelection
-          navigation.navigate(SCREENS.PROFILE_SELECTION as never, {
-            userId: result.user.id,
+        if (isNewUser || hasIncompleteName) {
+          // Naviguer vers UserInfo pour compléter les informations
+          navigation.navigate(SCREENS.USER_INFO as never, {
+            email: result.email,
+            provider: 'google',
+            providerId: result.id,
+            existingUser: result,
           });
         } else {
-          // Utilisateur déjà onboardé, navigation automatique gérée par AppNavigator
-          // (normalement ne devrait pas arriver ici car c'est l'écran d'inscription)
+          // Utilisateur existant avec profil complet → Dashboard
+          // La navigation sera gérée par AppNavigator
         }
       }
-    } catch (error: any) {
-      console.error('[SignUpMethod] Erreur Google:', error);
-
-      // Gestion élégante des erreurs
-      if (error.message?.includes('annulée') || error.message?.includes('cancelled')) {
-        // Utilisateur a annulé, ne rien afficher
-        return;
+    } catch (error: unknown) {
+      console.error('Erreur Google OAuth:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+      
+      if (errorMessage.includes('cancelled') || errorMessage.includes('annulé')) {
+        return; // Utilisateur a annulé, ne rien afficher
       }
 
       Alert.alert(
-        'Erreur',
-        error.message || "Impossible de s'inscrire avec Google. Veuillez réessayer.",
+        'Erreur de connexion',
+        'La connexion avec Google a échoué. Veuillez réessayer ou utiliser votre téléphone.',
         [{ text: 'OK' }]
       );
     } finally {
-      setLoading(false);
-      setLoadingMethod(null);
+      setIsLoading(false);
     }
   };
 
-  /**
-   * Inscription via Apple
-   */
   const handleAppleSignUp = async () => {
     if (Platform.OS !== 'ios') {
-      Alert.alert('Non disponible', "L'inscription Apple n'est disponible que sur iOS", [
-        { text: 'OK' },
-      ]);
+      Alert.alert('Info', "La connexion Apple n'est disponible que sur iOS");
       return;
     }
 
     try {
-      setLoading(true);
-      setLoadingMethod('apple');
-
+      setIsLoading(true);
       const result = await dispatch(signInWithApple()).unwrap();
 
-      // Vérifier si nom/prénom sont complets
-      const hasCompleteInfo =
-        result.user.prenom &&
-        result.user.prenom.length >= 2 &&
-        result.user.nom &&
-        result.user.nom.length >= 2;
+      if (result) {
+        // Vérifier si c'est un nouvel utilisateur (pas de rôles ou nom/prénom incomplets)
+        const isNewUser = !result.roles || Object.keys(result.roles).length === 0;
+        const hasIncompleteName = !result.prenom || result.prenom.length < 2 || !result.nom || result.nom.length < 2;
 
-      if (!hasCompleteInfo) {
-        // Rediriger vers UserInfoScreen pour compléter les informations
-        navigation.navigate(SCREENS.USER_INFO as never, {
-          userId: result.user.id,
-          email: result.user.email,
-          provider: 'apple',
-        });
-      } else {
-        // Informations complètes, vérifier si onboarding terminé
-        const isOnboarded = result.user.isOnboarded;
-
-        if (!isOnboarded) {
-          // Rediriger vers ProfileSelection
-          navigation.navigate(SCREENS.PROFILE_SELECTION as never, {
-            userId: result.user.id,
+        if (isNewUser || hasIncompleteName) {
+          // Naviguer vers UserInfo pour compléter les informations
+          navigation.navigate(SCREENS.USER_INFO as never, {
+            email: result.email,
+            provider: 'apple',
+            providerId: result.id,
+            existingUser: result,
           });
+        } else {
+          // Utilisateur existant avec profil complet → Dashboard
+          // La navigation sera gérée par AppNavigator
         }
       }
-    } catch (error: any) {
-      console.error('[SignUpMethod] Erreur Apple:', error);
-
-      if (error.message?.includes('annulée') || error.message?.includes('cancelled')) {
-        return;
+    } catch (error: unknown) {
+      console.error('Erreur Apple OAuth:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+      
+      if (errorMessage.includes('cancelled') || errorMessage.includes('annulé')) {
+        return; // Utilisateur a annulé, ne rien afficher
       }
 
       Alert.alert(
-        'Erreur',
-        error.message || "Impossible de s'inscrire avec Apple. Veuillez réessayer.",
+        'Erreur de connexion',
+        'La connexion avec Apple a échoué. Veuillez réessayer ou utiliser votre téléphone.',
         [{ text: 'OK' }]
       );
     } finally {
-      setLoading(false);
-      setLoadingMethod(null);
+      setIsLoading(false);
     }
   };
 
-  const handleBackToWelcome = () => {
-    navigation.goBack();
-  };
-
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header avec bouton retour */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={handleBackToWelcome}
-            style={[styles.backButton, { backgroundColor: colors.surface }]}
-            disabled={loading}
-          >
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
-          </TouchableOpacity>
-        </View>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+      <View style={styles.content}>
+        {/* Header */}
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
+        </TouchableOpacity>
 
-        {/* Illustration */}
-        <View style={styles.illustrationContainer}>
-          <Text style={styles.illustrationEmoji}>🐷</Text>
-          <Text style={[styles.illustrationText, { color: colors.textSecondary }]}>
-            Rejoignez Fermier Pro
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: colors.text }]}>Créer un compte</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            Choisissez votre méthode d'inscription
           </Text>
         </View>
 
-        {/* Titre */}
-        <Text style={[styles.title, { color: colors.text }]}>Créer un compte</Text>
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          Choisissez votre méthode d'inscription préférée
-        </Text>
-
-        {/* Options d'inscription */}
-        <View style={styles.methodsContainer}>
-          {/* Téléphone */}
+        {/* Options */}
+        <View style={styles.optionsContainer}>
+          {/* Option Téléphone */}
           <TouchableOpacity
             style={[
-              styles.methodButton,
+              styles.optionCard,
               {
                 backgroundColor: colors.surface,
                 borderColor: colors.border,
-                ...colors.shadow.medium,
+                ...colors.shadow?.small,
               },
             ]}
             onPress={handlePhoneSignUp}
-            disabled={loading}
+            disabled={isLoading}
+            activeOpacity={0.7}
           >
-            <View
-              style={[
-                styles.methodIconContainer,
-                { backgroundColor: colors.primary + '15', borderColor: colors.primary + '30' },
-              ]}
-            >
-              <Ionicons name="call" size={28} color={colors.primary} />
+            <View style={[styles.optionIcon, { backgroundColor: colors.primary + '15' }]}>
+              <Ionicons name="call" size={32} color={colors.primary} />
             </View>
-            <View style={styles.methodContent}>
-              <Text style={[styles.methodTitle, { color: colors.text }]}>
-                Numéro de téléphone
-              </Text>
-              <Text style={[styles.methodDescription, { color: colors.textSecondary }]}>
-                Inscription rapide par SMS
+            <View style={styles.optionContent}>
+              <Text style={[styles.optionTitle, { color: colors.text }]}>Téléphone</Text>
+              <Text style={[styles.optionDescription, { color: colors.textSecondary }]}>
+                Inscription avec votre numéro de téléphone
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
 
-          {/* Divider */}
-          <View style={styles.divider}>
-            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-            <Text style={[styles.dividerText, { color: colors.textSecondary }]}>ou</Text>
-            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-          </View>
-
-          {/* Google */}
+          {/* Option Google */}
           <TouchableOpacity
             style={[
-              styles.methodButton,
+              styles.optionCard,
               {
                 backgroundColor: colors.surface,
                 borderColor: colors.border,
-                ...colors.shadow.medium,
+                ...colors.shadow?.small,
               },
             ]}
             onPress={handleGoogleSignUp}
-            disabled={loading}
+            disabled={isLoading}
+            activeOpacity={0.7}
           >
-            <View style={[styles.methodIconContainer, { backgroundColor: '#DB4437' + '15' }]}>
-              <GoogleLogo size={28} />
+            <View style={styles.optionIcon}>
+              <GoogleLogo size={32} />
             </View>
-            <View style={styles.methodContent}>
-              <Text style={[styles.methodTitle, { color: colors.text }]}>Continuer avec Google</Text>
-              <Text style={[styles.methodDescription, { color: colors.textSecondary }]}>
-                Inscription en un clic
+            <View style={styles.optionContent}>
+              <Text style={[styles.optionTitle, { color: colors.text }]}>Google</Text>
+              <Text style={[styles.optionDescription, { color: colors.textSecondary }]}>
+                Continuer avec votre compte Google
               </Text>
             </View>
-            {loadingMethod === 'google' ? (
-              <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
-              <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
-            )}
+            <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
 
-          {/* Apple (iOS uniquement) */}
+          {/* Option Apple (iOS uniquement) */}
           {Platform.OS === 'ios' && (
             <TouchableOpacity
               style={[
-                styles.methodButton,
+                styles.optionCard,
                 {
                   backgroundColor: colors.surface,
                   borderColor: colors.border,
-                  ...colors.shadow.medium,
+                  ...colors.shadow?.small,
                 },
               ]}
               onPress={handleAppleSignUp}
-              disabled={loading}
+              disabled={isLoading}
+              activeOpacity={0.7}
             >
-              <View style={[styles.methodIconContainer, { backgroundColor: '#000' + '15' }]}>
-                <AppleLogo size={28} color="#000" />
+              <View style={styles.optionIcon}>
+                <AppleLogo size={32} />
               </View>
-              <View style={styles.methodContent}>
-                <Text style={[styles.methodTitle, { color: colors.text }]}>
-                  Continuer avec Apple
-                </Text>
-                <Text style={[styles.methodDescription, { color: colors.textSecondary }]}>
-                  Inscription sécurisée
+              <View style={styles.optionContent}>
+                <Text style={[styles.optionTitle, { color: colors.text }]}>Apple</Text>
+                <Text style={[styles.optionDescription, { color: colors.textSecondary }]}>
+                  Continuer avec votre compte Apple
                 </Text>
               </View>
-              {loadingMethod === 'apple' ? (
-                <ActivityIndicator size="small" color={colors.primary} />
-              ) : (
-                <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
-              )}
+              <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           )}
         </View>
-
-        {/* Lien vers connexion */}
-        <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: colors.textSecondary }]}>
-            Vous avez déjà un compte ?{' '}
-          </Text>
-          <TouchableOpacity onPress={() => navigation.navigate(SCREENS.SIGN_IN as never)} disabled={loading}>
-            <Text style={[styles.footerLink, { color: colors.primary }]}>Se connecter</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+      </View>
     </SafeAreaView>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: SPACING.xl,
-    paddingBottom: SPACING.xxl,
-  },
-  header: {
-    paddingTop: SPACING.md,
-    marginBottom: SPACING.lg,
+  content: {
+    flex: 1,
+    padding: SPACING.lg,
   },
   backButton: {
-    width: 48,
-    height: 48,
-    borderRadius: BORDER_RADIUS.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  illustrationContainer: {
-    alignItems: 'center',
-    marginBottom: SPACING.xl,
-  },
-  illustrationEmoji: {
-    fontSize: 80,
+    padding: SPACING.sm,
     marginBottom: SPACING.md,
+    alignSelf: 'flex-start',
   },
-  illustrationText: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: FONT_WEIGHTS.medium,
+  header: {
+    marginBottom: SPACING.xl * 2,
   },
   title: {
-    fontSize: FONT_SIZES.xxxl,
+    fontSize: FONT_SIZES.xxl,
     fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.sm,
   },
   subtitle: {
     fontSize: FONT_SIZES.md,
-    marginBottom: SPACING.xxl,
     lineHeight: 22,
   },
-  methodsContainer: {
-    marginBottom: SPACING.xl,
+  optionsContainer: {
+    gap: SPACING.md,
   },
-  methodButton: {
+  optionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: SPACING.lg,
-    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
   },
-  methodIconContainer: {
+  optionIcon: {
     width: 56,
     height: 56,
     borderRadius: BORDER_RADIUS.md,
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
     marginRight: SPACING.md,
-    borderWidth: 1,
   },
-  methodContent: {
+  optionContent: {
     flex: 1,
   },
-  methodTitle: {
-    fontSize: FONT_SIZES.md,
+  optionTitle: {
+    fontSize: FONT_SIZES.lg,
     fontWeight: FONT_WEIGHTS.bold,
-    marginBottom: SPACING.xs / 2,
+    marginBottom: SPACING.xs,
   },
-  methodDescription: {
+  optionDescription: {
     fontSize: FONT_SIZES.sm,
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: SPACING.lg,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-  },
-  dividerText: {
-    marginHorizontal: SPACING.md,
-    fontSize: FONT_SIZES.sm,
-    fontWeight: FONT_WEIGHTS.medium,
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: SPACING.lg,
-  },
-  footerText: {
-    fontSize: FONT_SIZES.md,
-  },
-  footerLink: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.bold,
+    lineHeight: 20,
   },
 });
+
+export default SignUpMethodScreen;
 

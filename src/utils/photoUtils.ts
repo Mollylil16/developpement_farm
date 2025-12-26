@@ -5,6 +5,7 @@
 
 // Utiliser l'API legacy pour éviter les avertissements de dépréciation
 import * as FileSystem from 'expo-file-system/legacy';
+import { logger } from './logger';
 
 // Dossier de stockage des photos d'animaux
 const PHOTOS_DIRECTORY = `${FileSystem.documentDirectory}animal_photos/`;
@@ -28,10 +29,10 @@ const initPhotosDirectory = async (): Promise<void> => {
     const dirInfo = await FileSystem.getInfoAsync(PHOTOS_DIRECTORY);
     if (!dirInfo.exists) {
       await FileSystem.makeDirectoryAsync(PHOTOS_DIRECTORY, { intermediates: true });
-      console.log('✅ Dossier photos créé:', PHOTOS_DIRECTORY);
+      logger.debug('Dossier photos créé:', PHOTOS_DIRECTORY);
     }
   } catch (error) {
-    console.error('❌ Erreur création dossier photos:', error);
+    logger.error('Erreur création dossier photos:', error);
     // Ne pas lancer d'erreur, juste logger
   }
 };
@@ -63,10 +64,10 @@ export const savePhotoToAppStorage = async (sourceUri: string): Promise<string> 
       to: destUri,
     });
 
-    console.log('✅ Photo sauvegardée:', destUri);
+    logger.debug('Photo sauvegardée:', destUri);
     return destUri;
   } catch (error) {
-    console.error('❌ Erreur sauvegarde photo:', error);
+    logger.error('Erreur sauvegarde photo:', error);
     throw error;
   }
 };
@@ -85,10 +86,10 @@ export const deletePhotoFromStorage = async (photoUri: string): Promise<void> =>
     const fileInfo = await FileSystem.getInfoAsync(photoUri);
     if (fileInfo.exists) {
       await FileSystem.deleteAsync(photoUri);
-      console.log('🗑️ Photo supprimée:', photoUri);
+      logger.debug('Photo supprimée:', photoUri);
     }
   } catch (error) {
-    console.error('❌ Erreur suppression photo:', error);
+    logger.error('Erreur suppression photo:', error);
   }
 };
 
@@ -115,13 +116,13 @@ export const cleanupOrphanedPhotos = async (activePhotoUris: string[]): Promise<
     // Vérifier si le dossier existe
     const dirInfo = await FileSystem.getInfoAsync(PHOTOS_DIRECTORY);
     if (!dirInfo.exists) {
-      console.log("ℹ️ Dossier photos n'existe pas encore");
+      logger.debug("Dossier photos n'existe pas encore");
       return;
     }
 
     // Lister toutes les photos dans le dossier
     const files = await FileSystem.readDirectoryAsync(PHOTOS_DIRECTORY);
-    console.log(`📋 ${files.length} photos trouvées dans le dossier`);
+    logger.debug(`${files.length} photos trouvées dans le dossier`);
 
     // Filtrer les photos orphelines
     const orphanedFiles = files.filter((filename) => {
@@ -129,21 +130,21 @@ export const cleanupOrphanedPhotos = async (activePhotoUris: string[]): Promise<
       return !activePhotoUris.includes(fullPath);
     });
 
-    console.log(`🗑️ ${orphanedFiles.length} photos orphelines à supprimer`);
+    logger.debug(`${orphanedFiles.length} photos orphelines à supprimer`);
 
     // Supprimer les photos orphelines
     for (const filename of orphanedFiles) {
       try {
         await FileSystem.deleteAsync(PHOTOS_DIRECTORY + filename, { idempotent: true });
-        console.log('🗑️ Photo orpheline supprimée:', filename);
+        logger.debug('Photo orpheline supprimée:', filename);
       } catch (error) {
-        console.warn('⚠️ Erreur suppression photo orpheline:', filename, error);
+        logger.warn('Erreur suppression photo orpheline:', filename, error);
       }
     }
 
-    console.log('✅ Nettoyage des photos orphelines terminé');
+    logger.debug('Nettoyage des photos orphelines terminé');
   } catch (error) {
-    console.error('❌ Erreur nettoyage photos orphelines:', error);
+    logger.error('Erreur nettoyage photos orphelines:', error);
   }
 };
 
@@ -167,7 +168,7 @@ export const getPhotoStorageSize = async (): Promise<number> => {
 
     return totalSize;
   } catch (error) {
-    console.error('❌ Erreur calcul taille stockage:', error);
+    logger.error('Erreur calcul taille stockage:', error);
     return 0;
   }
 };

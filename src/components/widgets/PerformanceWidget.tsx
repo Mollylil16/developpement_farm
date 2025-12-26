@@ -11,6 +11,7 @@ import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constant
 import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
 import type { PerformanceGlobale } from '../../services/PerformanceGlobaleService';
+import { logger } from '../../utils/logger';
 
 interface PerformanceWidgetProps {
   projetId: string;
@@ -48,7 +49,7 @@ function PerformanceWidget({ projetId, onPress }: PerformanceWidgetProps) {
         );
         setPerformance(result);
       } catch (error) {
-        console.error('Erreur chargement performance globale:', error);
+        logger.error('Erreur chargement performance globale:', error);
         setPerformance(null);
       } finally {
         setLoading(false);

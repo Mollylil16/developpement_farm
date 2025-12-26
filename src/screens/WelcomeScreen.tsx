@@ -10,11 +10,11 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Image,
   Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import type { NavigationProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
@@ -23,9 +23,9 @@ import { SCREENS } from '../navigation/types';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-export default function WelcomeScreen() {
+const WelcomeScreen: React.FC = () => {
   const { colors } = useTheme();
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp<any>>();
 
   const handleCreateAccount = () => {
     navigation.navigate(SCREENS.SIGN_UP_METHOD as never);
@@ -43,7 +43,7 @@ export default function WelcomeScreen() {
       >
         {/* Logo et illustration */}
         <View style={styles.heroSection}>
-          <View style={[styles.logoContainer, { backgroundColor: colors.primaryLight + '15' }]}>
+          <View style={[styles.logoContainer, { backgroundColor: colors.primary + '15' }]}>
             <Text style={styles.logoEmoji}>🐷</Text>
           </View>
           <Text style={[styles.appName, { color: colors.primary }]}>Fermier Pro</Text>
@@ -116,7 +116,7 @@ export default function WelcomeScreen() {
       </ScrollView>
     </SafeAreaView>
   );
-}
+};
 
 /**
  * Composant pour afficher une fonctionnalité
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
   },
   appName: {
     fontSize: FONT_SIZES.xxxl + 4,
-    fontWeight: FONT_WEIGHTS.extraBold,
+    fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.xs,
   },
   tagline: {
@@ -233,9 +233,11 @@ const styles = StyleSheet.create({
   },
   footerLink: {
     fontSize: FONT_SIZES.sm,
-    fontWeight: FONT_WEIGHTS.semibold,
+    fontWeight: FONT_WEIGHTS.semiBold,
   },
   footerSeparator: {
     fontSize: FONT_SIZES.sm,
   },
 });
+
+export default WelcomeScreen;

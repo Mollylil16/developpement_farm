@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { CreateListingDto } from './dto/create-listing.dto';
@@ -16,6 +17,8 @@ import { CreatePurchaseRequestOfferDto } from './dto/create-purchase-request-off
 
 @Injectable()
 export class MarketplaceService {
+  private readonly logger = new Logger(MarketplaceService.name);
+
   constructor(private databaseService: DatabaseService) {}
 
   private generateId(prefix: string): string {
@@ -50,66 +53,82 @@ export class MarketplaceService {
       throw new BadRequestException('Ce sujet est déjà en vente sur le marketplace');
     }
 
-    const id = this.generateId('listing');
-    const now = new Date().toISOString();
-    const calculatedPrice = createListingDto.pricePerKg * createListingDto.weight;
+    // Utiliser une transaction pour garantir la cohérence des données
+    return await this.databaseService.transaction(async (client) => {
+      const id = this.generateId('listing');
+      const now = new Date().toISOString();
+      const calculatedPrice = createListingDto.pricePerKg * createListingDto.weight;
 
-    const result = await this.databaseService.query(
-      `INSERT INTO marketplace_listings (
-        id, subject_id, producer_id, farm_id, price_per_kg, calculated_price,
-        status, listed_at, updated_at, last_weight_date,
-        location_latitude, location_longitude, location_address, location_city, location_region,
-        sale_terms, views, inquiries, date_creation, derniere_modification
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
-      RETURNING *`,
-      [
-        id,
-        createListingDto.subjectId,
-        userId, // producerId = userId
-        createListingDto.farmId,
-        createListingDto.pricePerKg,
-        calculatedPrice,
-        'available',
-        now,
-        now,
-        createListingDto.lastWeightDate,
-        createListingDto.location.latitude,
-        createListingDto.location.longitude,
-        createListingDto.location.address,
-        createListingDto.location.city,
-        createListingDto.location.region,
-        JSON.stringify(
-          createListingDto.saleTerms || {
-            transport: 'buyer_responsibility',
-            slaughter: 'buyer_responsibility',
-            paymentTerms: 'on_delivery',
-            warranty: 'Tous les documents sanitaires et certificats seront fournis.',
-            cancellationPolicy: "Annulation possible jusqu'à 48h avant la date de livraison.",
-          }
-        ),
-        0, // views
-        0, // inquiries
-        now,
-        now,
-      ]
-    );
+      const result = await client.query(
+        `INSERT INTO marketplace_listings (
+          id, subject_id, producer_id, farm_id, price_per_kg, calculated_price,
+          status, listed_at, updated_at, last_weight_date,
+          location_latitude, location_longitude, location_address, location_city, location_region,
+          sale_terms, views, inquiries, date_creation, derniere_modification
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+        RETURNING *`,
+        [
+          id,
+          createListingDto.subjectId,
+          userId, // producerId = userId
+          createListingDto.farmId,
+          createListingDto.pricePerKg,
+          calculatedPrice,
+          'available',
+          now,
+          now,
+          createListingDto.lastWeightDate,
+          createListingDto.location.latitude,
+          createListingDto.location.longitude,
+          createListingDto.location.address,
+          createListingDto.location.city,
+          createListingDto.location.region,
+          JSON.stringify(
+            createListingDto.saleTerms || {
+              transport: 'buyer_responsibility',
+              slaughter: 'buyer_responsibility',
+              paymentTerms: 'on_delivery',
+              warranty: 'Tous les documents sanitaires et certificats seront fournis.',
+              cancellationPolicy: "Annulation possible jusqu'à 48h avant la date de livraison.",
+            }
+          ),
+          0, // views
+          0, // inquiries
+          now,
+          now,
+        ]
+      );
 
-    // Mettre à jour le statut marketplace de l'animal
-    await this.databaseService
-      .query(
-        'UPDATE production_animaux SET marketplace_status = $1, marketplace_listing_id = $2 WHERE id = $3',
-        ['available', id, createListingDto.subjectId]
-      )
-      .catch(() => {
-        // Ignorer si les colonnes n'existent pas
-      });
+      // Mettre à jour le statut marketplace de l'animal (si les colonnes existent)
+      try {
+        await client.query(
+          'UPDATE production_animaux SET marketplace_status = $1, marketplace_listing_id = $2 WHERE id = $3',
+          ['available', id, createListingDto.subjectId]
+        );
+      } catch (error: any) {
+        // Ignorer si les colonnes n'existent pas (erreur SQL)
+        if (!error.message?.includes('does not exist') && !error.message?.includes('n\'existe pas')) {
+          throw error; // Re-throw si c'est une autre erreur
+        }
+      }
 
-    return this.mapRowToListing(result.rows[0]);
+      return this.mapRowToListing(result.rows[0]);
+    });
   }
 
-  async findAllListings(projetId?: string, userId?: string) {
+  async findAllListings(projetId?: string, userId?: string, limit?: number, offset?: number) {
     try {
-      let query = 'SELECT * FROM marketplace_listings WHERE status != $1';
+      const defaultLimit = 100; // Marketplace: limite plus basse car liste publique
+      const effectiveLimit = limit ? Math.min(limit, 500) : defaultLimit;
+      const effectiveOffset = offset || 0;
+
+      // Colonnes nécessaires pour mapRowToListing (optimisation: éviter SELECT *)
+      const listingColumns = `id, subject_id, producer_id, farm_id, price_per_kg, calculated_price, 
+        status, listed_at, updated_at, last_weight_date, 
+        location_latitude, location_longitude, location_address, location_city, location_region,
+        sale_terms, views, inquiries, date_creation, derniere_modification`;
+
+      let query = `SELECT ${listingColumns} FROM marketplace_listings WHERE status != $1`;
       const params: any[] = ['removed'];
 
       if (projetId) {
@@ -122,14 +141,15 @@ export class MarketplaceService {
         params.push(userId);
       }
 
-      query += ' ORDER BY listed_at DESC';
+      query += ` ORDER BY listed_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+      params.push(effectiveLimit, effectiveOffset);
 
       const result = await this.databaseService.query(query, params);
       return result.rows.map((row) => this.mapRowToListing(row));
     } catch (error: any) {
       // Si la table n'existe pas encore, retourner un tableau vide
       if (error.message?.includes('does not exist') || error.message?.includes('n\'existe pas')) {
-        console.warn('[MarketplaceService] Table marketplace_listings n\'existe pas encore, retour d\'un tableau vide');
+        this.logger.warn('Table marketplace_listings n\'existe pas encore, retour d\'un tableau vide');
         return [];
       }
       throw error;
@@ -137,8 +157,14 @@ export class MarketplaceService {
   }
 
   async findOneListing(id: string) {
+    // Colonnes nécessaires pour mapRowToListing
+    const listingColumns = `id, subject_id, producer_id, farm_id, price_per_kg, calculated_price, 
+      status, listed_at, updated_at, last_weight_date, 
+      location_latitude, location_longitude, location_address, location_city, location_region,
+      sale_terms, views, inquiries, date_creation, derniere_modification`;
+    
     const result = await this.databaseService.query(
-      'SELECT * FROM marketplace_listings WHERE id = $1',
+      `SELECT ${listingColumns} FROM marketplace_listings WHERE id = $1`,
       [id]
     );
 
@@ -344,7 +370,7 @@ export class MarketplaceService {
     } catch (error: any) {
       // Si la table n'existe pas encore, retourner un tableau vide
       if (error.message?.includes('does not exist') || error.message?.includes('n\'existe pas')) {
-        console.warn('[MarketplaceService] Table marketplace_offers n\'existe pas encore, retour d\'un tableau vide');
+        this.logger.warn('Table marketplace_offers n\'existe pas encore, retour d\'un tableau vide');
         return [];
       }
       throw error;
@@ -352,6 +378,7 @@ export class MarketplaceService {
   }
 
   async acceptOffer(offerId: string, producerId: string) {
+    // Récupérer l'offre avant la transaction pour validation
     const offer = await this.databaseService.query(
       'SELECT * FROM marketplace_offers WHERE id = $1',
       [offerId]
@@ -371,44 +398,47 @@ export class MarketplaceService {
       throw new BadRequestException('Cette offre ne peut plus être acceptée');
     }
 
-    // Mettre à jour l'offre
-    await this.databaseService.query(
-      'UPDATE marketplace_offers SET status = $1, responded_at = $2, derniere_modification = $2 WHERE id = $3',
-      ['accepted', new Date().toISOString(), offerId]
-    );
+    // Utiliser une transaction pour garantir la cohérence des données
+    return await this.databaseService.transaction(async (client) => {
+      const now = new Date().toISOString();
 
-    // Mettre à jour le listing
-    await this.databaseService.query(
-      'UPDATE marketplace_listings SET status = $1, derniere_modification = $2 WHERE id = $3',
-      ['reserved', new Date().toISOString(), offerData.listing_id]
-    );
+      // Mettre à jour l'offre
+      await client.query(
+        'UPDATE marketplace_offers SET status = $1, responded_at = $2, derniere_modification = $2 WHERE id = $3',
+        ['accepted', now, offerId]
+      );
 
-    // Créer la transaction
-    const transactionId = this.generateId('transaction');
-    const now = new Date().toISOString();
+      // Mettre à jour le listing
+      await client.query(
+        'UPDATE marketplace_listings SET status = $1, derniere_modification = $2 WHERE id = $3',
+        ['reserved', now, offerData.listing_id]
+      );
 
-    const transaction = await this.databaseService.query(
-      `INSERT INTO marketplace_transactions (
-        id, offer_id, listing_id, subject_ids, buyer_id, producer_id,
-        final_price, status, created_at, date_creation, derniere_modification
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-      RETURNING *`,
-      [
-        transactionId,
-        offerId,
-        offerData.listing_id,
-        offerData.subject_ids,
-        offerData.buyer_id,
-        offerData.producer_id,
-        offerData.proposed_price,
-        'confirmed',
-        now,
-        now,
-        now,
-      ]
-    );
+      // Créer la transaction
+      const transactionId = this.generateId('transaction');
+      const transaction = await client.query(
+        `INSERT INTO marketplace_transactions (
+          id, offer_id, listing_id, subject_ids, buyer_id, producer_id,
+          final_price, status, created_at, date_creation, derniere_modification
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        RETURNING *`,
+        [
+          transactionId,
+          offerId,
+          offerData.listing_id,
+          offerData.subject_ids,
+          offerData.buyer_id,
+          offerData.producer_id,
+          offerData.proposed_price,
+          'confirmed',
+          now,
+          now,
+          now,
+        ]
+      );
 
-    return this.mapRowToTransaction(transaction.rows[0]);
+      return this.mapRowToTransaction(transaction.rows[0]);
+    });
   }
 
   async rejectOffer(offerId: string, producerId: string) {
@@ -460,7 +490,7 @@ export class MarketplaceService {
     } catch (error: any) {
       // Si la table n'existe pas encore, retourner un tableau vide
       if (error.message?.includes('does not exist') || error.message?.includes('n\'existe pas')) {
-        console.warn('[MarketplaceService] Table marketplace_transactions n\'existe pas encore, retour d\'un tableau vide');
+        this.logger.warn('Table marketplace_transactions n\'existe pas encore, retour d\'un tableau vide');
         return [];
       }
       throw error;
@@ -597,7 +627,7 @@ export class MarketplaceService {
     } catch (error: any) {
       // Si la table n'existe pas encore, retourner un tableau vide
       if (error.message?.includes('does not exist') || error.message?.includes('n\'existe pas')) {
-        console.warn('[MarketplaceService] Table marketplace_notifications n\'existe pas encore, retour d\'un tableau vide');
+        this.logger.warn('Table marketplace_notifications n\'existe pas encore, retour d\'un tableau vide');
         return [];
       }
       throw error;
@@ -991,40 +1021,43 @@ export class MarketplaceService {
       throw new BadRequestException('Cette demande n\'est plus active');
     }
 
-    const id = this.generateId('pro');
-    const now = new Date().toISOString();
+    // Utiliser une transaction pour garantir la cohérence des données
+    return await this.databaseService.transaction(async (client) => {
+      const id = this.generateId('pro');
+      const now = new Date().toISOString();
 
-    const result = await this.databaseService.query(
-      `INSERT INTO purchase_request_offers (
-        id, purchase_request_id, producer_id, listing_id, subject_ids,
-        proposed_price_per_kg, proposed_total_price, quantity,
-        available_date, message, status, created_at, expires_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-      RETURNING *`,
-      [
-        id,
-        createPurchaseRequestOfferDto.purchaseRequestId,
-        userId,
-        createPurchaseRequestOfferDto.listingId || null,
-        JSON.stringify(createPurchaseRequestOfferDto.subjectIds),
-        createPurchaseRequestOfferDto.proposedPricePerKg,
-        createPurchaseRequestOfferDto.proposedTotalPrice,
-        createPurchaseRequestOfferDto.quantity,
-        createPurchaseRequestOfferDto.availableDate || null,
-        createPurchaseRequestOfferDto.message || null,
-        'pending',
-        now,
-        createPurchaseRequestOfferDto.expiresAt || null,
-      ]
-    );
+      const result = await client.query(
+        `INSERT INTO purchase_request_offers (
+          id, purchase_request_id, producer_id, listing_id, subject_ids,
+          proposed_price_per_kg, proposed_total_price, quantity,
+          available_date, message, status, created_at, expires_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        RETURNING *`,
+        [
+          id,
+          createPurchaseRequestOfferDto.purchaseRequestId,
+          userId,
+          createPurchaseRequestOfferDto.listingId || null,
+          JSON.stringify(createPurchaseRequestOfferDto.subjectIds),
+          createPurchaseRequestOfferDto.proposedPricePerKg,
+          createPurchaseRequestOfferDto.proposedTotalPrice,
+          createPurchaseRequestOfferDto.quantity,
+          createPurchaseRequestOfferDto.availableDate || null,
+          createPurchaseRequestOfferDto.message || null,
+          'pending',
+          now,
+          createPurchaseRequestOfferDto.expiresAt || null,
+        ]
+      );
 
-    // Mettre à jour le compteur d'offres de la demande
-    await this.databaseService.query(
-      'UPDATE purchase_requests SET offers_count = offers_count + 1 WHERE id = $1',
-      [createPurchaseRequestOfferDto.purchaseRequestId]
-    );
+      // Mettre à jour le compteur d'offres de la demande
+      await client.query(
+        'UPDATE purchase_requests SET offers_count = offers_count + 1 WHERE id = $1',
+        [createPurchaseRequestOfferDto.purchaseRequestId]
+      );
 
-    return this.mapRowToPurchaseRequestOffer(result.rows[0]);
+      return this.mapRowToPurchaseRequestOffer(result.rows[0]);
+    });
   }
 
   async findAllPurchaseRequestOffers(purchaseRequestId?: string, producerId?: string) {
@@ -1077,7 +1110,7 @@ export class MarketplaceService {
     } catch (error: any) {
       // Si la table n'existe pas encore, retourner un tableau vide
       if (error.message?.includes('does not exist') || error.message?.includes('n\'existe pas')) {
-        console.warn('[MarketplaceService] Table purchase_request_matches n\'existe pas encore, retour d\'un tableau vide');
+        this.logger.warn('Table purchase_request_matches n\'existe pas encore, retour d\'un tableau vide');
         return [];
       }
       throw error;

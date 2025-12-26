@@ -1,286 +1,239 @@
 /**
  * Écran de connexion (distinct de l'inscription)
- * Support : Email/Téléphone + OAuth (Google/Apple)
+ * Permet de se connecter avec email/téléphone + mot de passe ou OAuth
  */
 
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, Platform, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import type { NavigationProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
 import Button from '../components/Button';
-import GoogleLogo from '../components/GoogleLogo';
-import AppleLogo from '../components/AppleLogo';
 import { SCREENS } from '../navigation/types';
 import { useAppDispatch } from '../store/hooks';
 import { signIn, signInWithGoogle, signInWithApple } from '../store/slices/authSlice';
+import GoogleLogo from '../components/GoogleLogo';
+import AppleLogo from '../components/AppleLogo';
 
-type SignInScreenParams = {
-  phone?: string;
-  email?: string;
-};
-
-export default function SignInScreen() {
+const SignInScreen: React.FC = () => {
   const { colors } = useTheme();
-  const navigation = useNavigation();
-  const route = useRoute<RouteProp<{ params?: SignInScreenParams }, 'params'>>();
+  const navigation = useNavigation<NavigationProp<any>>();
+  const route = useRoute();
   const dispatch = useAppDispatch();
+  const params = (route.params || {}) as { phone?: string };
 
-  // Pré-remplir avec le phone ou email passé en paramètre
-  const [identifier, setIdentifier] = useState(route.params?.phone || route.params?.email || '');
-  const [loading, setLoading] = useState(false);
-  const [loadingMethod, setLoadingMethod] = useState<'email' | 'google' | 'apple' | null>(null);
+  const [identifier, setIdentifier] = useState(params.phone || '');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  /**
-   * Connexion avec email/téléphone
-   */
-  const handleEmailPhoneSignIn = async () => {
+  const handleSignIn = async () => {
     if (!identifier.trim()) {
-      Alert.alert('Erreur', 'Veuillez entrer votre email ou numéro de téléphone', [
-        { text: 'OK' },
-      ]);
+      Alert.alert('Erreur', 'Veuillez entrer votre email ou numéro de téléphone');
       return;
     }
 
     try {
-      setLoading(true);
-      setLoadingMethod('email');
-
-      // Tenter de se connecter
-      await dispatch(signIn({ identifier: identifier.trim() })).unwrap();
-
-      // Succès : navigation automatique gérée par AppNavigator
-    } catch (error: any) {
-      console.error('[SignIn] Erreur:', error);
-
-      const errorMsg = error.message || String(error);
-
-      // Vérifier si c'est un utilisateur introuvable
-      if (
-        errorMsg.includes('Utilisateur non trouvé') ||
-        errorMsg.includes('Aucun compte trouvé') ||
-        errorMsg.includes('not found') ||
-        errorMsg.includes('introuvable')
-      ) {
+      setIsLoading(true);
+      await dispatch(signIn({ identifier: identifier.trim(), password: password || undefined })).unwrap();
+      // La navigation sera gérée par AppNavigator qui détecte isAuthenticated
+    } catch (error: unknown) {
+      console.error('Erreur connexion:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+      
+      if (errorMessage.includes('introuvable') || errorMessage.includes('not found')) {
         Alert.alert(
           'Compte introuvable',
-          'Aucun compte n\'existe avec cet identifiant. Voulez-vous créer un compte ?',
+          'Aucun compte trouvé avec ces identifiants. Voulez-vous créer un compte ?',
           [
             { text: 'Annuler', style: 'cancel' },
             {
               text: 'Créer un compte',
-              onPress: () => {
-                navigation.navigate(SCREENS.SIGN_UP_METHOD as never);
-              },
+              onPress: () => navigation.navigate(SCREENS.SIGN_UP_METHOD as never),
             },
           ]
         );
+      } else if (errorMessage.includes('mot de passe') || errorMessage.includes('password')) {
+        Alert.alert('Erreur', 'Mot de passe incorrect. Veuillez réessayer.');
       } else {
-        Alert.alert('Erreur', errorMsg, [{ text: 'OK' }]);
+        Alert.alert('Erreur de connexion', errorMessage);
       }
     } finally {
-      setLoading(false);
-      setLoadingMethod(null);
+      setIsLoading(false);
     }
   };
 
-  /**
-   * Connexion via Google
-   */
   const handleGoogleSignIn = async () => {
     try {
-      setLoading(true);
-      setLoadingMethod('google');
-
+      setIsLoading(true);
       await dispatch(signInWithGoogle()).unwrap();
-
-      // Succès : navigation automatique gérée par AppNavigator
-    } catch (error: any) {
-      console.error('[SignIn] Erreur Google:', error);
-
-      if (error.message?.includes('annulée') || error.message?.includes('cancelled')) {
+      // La navigation sera gérée par AppNavigator
+    } catch (error: unknown) {
+      console.error('Erreur Google OAuth:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+      
+      if (errorMessage.includes('cancelled') || errorMessage.includes('annulé')) {
         return;
       }
 
-      Alert.alert(
-        'Erreur',
-        error.message || 'Impossible de se connecter avec Google. Réessayez.',
-        [{ text: 'OK' }]
-      );
+      Alert.alert('Erreur', 'La connexion avec Google a échoué. Veuillez réessayer.');
     } finally {
-      setLoading(false);
-      setLoadingMethod(null);
+      setIsLoading(false);
     }
   };
 
-  /**
-   * Connexion via Apple
-   */
   const handleAppleSignIn = async () => {
     if (Platform.OS !== 'ios') {
-      Alert.alert('Non disponible', 'La connexion Apple n\'est disponible que sur iOS', [
-        { text: 'OK' },
-      ]);
+      Alert.alert('Info', "La connexion Apple n'est disponible que sur iOS");
       return;
     }
 
     try {
-      setLoading(true);
-      setLoadingMethod('apple');
-
+      setIsLoading(true);
       await dispatch(signInWithApple()).unwrap();
-
-      // Succès : navigation automatique gérée par AppNavigator
-    } catch (error: any) {
-      console.error('[SignIn] Erreur Apple:', error);
-
-      if (error.message?.includes('annulée') || error.message?.includes('cancelled')) {
+      // La navigation sera gérée par AppNavigator
+    } catch (error: unknown) {
+      console.error('Erreur Apple OAuth:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+      
+      if (errorMessage.includes('cancelled') || errorMessage.includes('annulé')) {
         return;
       }
 
-      Alert.alert(
-        'Erreur',
-        error.message || 'Impossible de se connecter avec Apple. Réessayez.',
-        [{ text: 'OK' }]
-      );
+      Alert.alert('Erreur', 'La connexion avec Apple a échoué. Veuillez réessayer.');
     } finally {
-      setLoading(false);
-      setLoadingMethod(null);
+      setIsLoading(false);
     }
   };
 
-  const handleBack = () => {
-    navigation.goBack();
-  };
-
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <KeyboardAvoidingView
         style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Header avec bouton retour */}
-          <View style={styles.header}>
-            <TouchableOpacity
-              onPress={handleBack}
-              style={[styles.backButton, { backgroundColor: colors.surface }]}
-              disabled={loading}
-            >
-              <Ionicons name="arrow-back" size={24} color={colors.text} />
-            </TouchableOpacity>
-          </View>
+        <View style={styles.content}>
+          {/* Header */}
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
+          </TouchableOpacity>
 
-          {/* Illustration */}
-          <View style={styles.illustrationContainer}>
-            <Text style={styles.illustrationEmoji}>🔐</Text>
-            <Text style={[styles.illustrationText, { color: colors.textSecondary }]}>
-              Content de vous revoir !
+          <View style={styles.header}>
+            <Text style={[styles.title, { color: colors.text }]}>Se connecter</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              Connectez-vous à votre compte Fermier Pro
             </Text>
           </View>
 
-          {/* Titre */}
-          <Text style={[styles.title, { color: colors.text }]}>Se connecter</Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            Connectez-vous à votre compte Fermier Pro
-          </Text>
-
-          {/* Formulaire Email/Téléphone */}
+          {/* Formulaire */}
           <View style={styles.form}>
-            <Text style={[styles.label, { color: colors.text }]}>Email ou Téléphone</Text>
-            <View
-              style={[
-                styles.input,
-                {
-                  backgroundColor: colors.surface,
-                  borderColor: colors.border,
-                },
-              ]}
-            >
-              <Ionicons
-                name="person-circle"
-                size={20}
-                color={colors.textSecondary}
-                style={styles.inputIcon}
-              />
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: colors.text }]}>Email ou Téléphone</Text>
               <TextInput
-                style={[styles.textInput, { color: colors.text }]}
-                placeholder="Email ou numéro de téléphone"
-                placeholderTextColor={colors.textSecondary}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    color: colors.text,
+                  },
+                ]}
                 value={identifier}
                 onChangeText={setIdentifier}
-                keyboardType="email-address"
+                placeholder="email@exemple.com ou 0123456789"
+                placeholderTextColor={colors.textSecondary}
+                keyboardType="default"
                 autoCapitalize="none"
-                autoCorrect={false}
-                editable={!loading}
-                autoFocus={!route.params?.phone && !route.params?.email}
+                autoFocus
               />
             </View>
 
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: colors.text }]}>Mot de passe (optionnel)</Text>
+              <View style={styles.passwordContainer}>
+                <TextInput
+                  style={[
+                    styles.passwordInput,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      color: colors.text,
+                    },
+                  ]}
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="Votre mot de passe"
+                  placeholderTextColor={colors.textSecondary}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity
+                  style={styles.eyeButton}
+                  onPress={() => setShowPassword(!showPassword)}
+                >
+                  <Ionicons
+                    name={showPassword ? 'eye-off' : 'eye'}
+                    size={24}
+                    color={colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+              {/* Lien mot de passe oublié */}
+              <TouchableOpacity
+                onPress={() => navigation.navigate(SCREENS.FORGOT_PASSWORD as never)}
+                style={styles.forgotLink}
+              >
+                <Text style={[styles.forgotText, { color: colors.primary }]}>
+                  Mot de passe oublié ?
+                </Text>
+              </TouchableOpacity>
+            </View>
+
             <Button
-              title={
-                loadingMethod === 'email' ? 'Connexion en cours...' : 'Se connecter'
-              }
-              onPress={handleEmailPhoneSignIn}
+              title="Se connecter"
+              onPress={handleSignIn}
               variant="primary"
               size="large"
               fullWidth
-              disabled={loading}
-              style={{ marginTop: SPACING.lg }}
+              loading={isLoading}
+              style={styles.submitButton}
             />
           </View>
 
-          {/* Divider */}
-          <View style={styles.divider}>
-            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-            <Text style={[styles.dividerText, { color: colors.textSecondary }]}>ou</Text>
-            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+          {/* Séparateur */}
+          <View style={styles.separator}>
+            <View style={[styles.separatorLine, { backgroundColor: colors.border }]} />
+            <Text style={[styles.separatorText, { color: colors.textSecondary }]}>Ou</Text>
+            <View style={[styles.separatorLine, { backgroundColor: colors.border }]} />
           </View>
 
-          {/* OAuth Buttons */}
-          <View style={styles.oauthButtons}>
-            {/* Google */}
+          {/* OAuth */}
+          <View style={styles.oauthContainer}>
             <TouchableOpacity
               style={[
                 styles.oauthButton,
                 {
                   backgroundColor: colors.surface,
                   borderColor: colors.border,
-                  ...colors.shadow.medium,
+                  ...colors.shadow?.small,
                 },
               ]}
               onPress={handleGoogleSignIn}
-              disabled={loading}
+              disabled={isLoading}
+              activeOpacity={0.7}
             >
-              <View style={[styles.oauthIconContainer, { backgroundColor: '#DB4437' + '15' }]}>
-                <GoogleLogo size={24} />
-              </View>
-              <Text style={[styles.oauthButtonText, { color: colors.text }]}>
-                Google
-              </Text>
-              {loadingMethod === 'google' && (
-                <ActivityIndicator size="small" color={colors.primary} style={styles.oauthLoader} />
-              )}
+              <GoogleLogo size={20} />
+              <Text style={[styles.oauthText, { color: colors.text }]}>Continuer avec Google</Text>
             </TouchableOpacity>
 
-            {/* Apple (iOS uniquement) */}
             {Platform.OS === 'ios' && (
               <TouchableOpacity
                 style={[
@@ -288,25 +241,15 @@ export default function SignInScreen() {
                   {
                     backgroundColor: colors.surface,
                     borderColor: colors.border,
-                    ...colors.shadow.medium,
+                    ...colors.shadow?.small,
                   },
                 ]}
                 onPress={handleAppleSignIn}
-                disabled={loading}
+                disabled={isLoading}
+                activeOpacity={0.7}
               >
-                <View style={[styles.oauthIconContainer, { backgroundColor: '#000' + '15' }]}>
-                  <AppleLogo size={24} color="#000" />
-                </View>
-                <Text style={[styles.oauthButtonText, { color: colors.text }]}>
-                  Apple
-                </Text>
-                {loadingMethod === 'apple' && (
-                  <ActivityIndicator
-                    size="small"
-                    color={colors.primary}
-                    style={styles.oauthLoader}
-                  />
-                )}
+                <AppleLogo size={20} />
+                <Text style={[styles.oauthText, { color: colors.text }]}>Continuer avec Apple</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -316,20 +259,15 @@ export default function SignInScreen() {
             <Text style={[styles.footerText, { color: colors.textSecondary }]}>
               Vous n'avez pas de compte ?{' '}
             </Text>
-            <TouchableOpacity
-              onPress={() => navigation.navigate(SCREENS.SIGN_UP_METHOD as never)}
-              disabled={loading}
-            >
-              <Text style={[styles.footerLink, { color: colors.primary }]}>
-                Créer un compte
-              </Text>
+            <TouchableOpacity onPress={() => navigation.navigate(SCREENS.SIGN_UP_METHOD as never)}>
+              <Text style={[styles.footerLink, { color: colors.primary }]}>Créer un compte</Text>
             </TouchableOpacity>
           </View>
-        </ScrollView>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -338,125 +276,114 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: SPACING.xl,
-    paddingBottom: SPACING.xxl,
-  },
-  header: {
-    paddingTop: SPACING.md,
-    marginBottom: SPACING.lg,
+  content: {
+    flex: 1,
+    padding: SPACING.lg,
   },
   backButton: {
-    width: 48,
-    height: 48,
-    borderRadius: BORDER_RADIUS.full,
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: SPACING.sm,
+    marginBottom: SPACING.md,
+    alignSelf: 'flex-start',
   },
-  illustrationContainer: {
-    alignItems: 'center',
+  header: {
     marginBottom: SPACING.xl,
   },
-  illustrationEmoji: {
-    fontSize: 80,
-    marginBottom: SPACING.md,
-  },
-  illustrationText: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: FONT_WEIGHTS.medium,
-  },
   title: {
-    fontSize: FONT_SIZES.xxxl,
+    fontSize: FONT_SIZES.xxl,
     fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.sm,
   },
   subtitle: {
     fontSize: FONT_SIZES.md,
-    marginBottom: SPACING.xxl,
     lineHeight: 22,
   },
   form: {
+    marginBottom: SPACING.xl,
+  },
+  inputGroup: {
     marginBottom: SPACING.lg,
   },
   label: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semibold,
+    fontSize: FONT_SIZES.sm,
+    fontWeight: FONT_WEIGHTS.semiBold,
     marginBottom: SPACING.sm,
   },
   input: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
-    paddingHorizontal: SPACING.md,
-    height: 56,
-  },
-  inputIcon: {
-    marginRight: SPACING.sm,
-  },
-  textInput: {
-    flex: 1,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
     fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.medium,
   },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: SPACING.lg,
+  passwordContainer: {
+    position: 'relative',
   },
-  dividerLine: {
-    flex: 1,
-    height: 1,
+  passwordInput: {
+    borderWidth: 1,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    paddingRight: SPACING.xl * 2,
+    fontSize: FONT_SIZES.md,
   },
-  dividerText: {
-    marginHorizontal: SPACING.md,
+  eyeButton: {
+    position: 'absolute',
+    right: SPACING.md,
+    top: SPACING.md,
+    padding: SPACING.xs,
+  },
+  forgotLink: {
+    marginTop: SPACING.sm,
+    alignSelf: 'flex-end',
+  },
+  forgotText: {
     fontSize: FONT_SIZES.sm,
     fontWeight: FONT_WEIGHTS.medium,
   },
-  oauthButtons: {
+  submitButton: {
+    marginTop: SPACING.md,
+  },
+  separator: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginVertical: SPACING.xl,
+  },
+  separatorLine: {
+    flex: 1,
+    height: 1,
+  },
+  separatorText: {
+    marginHorizontal: SPACING.md,
+    fontSize: FONT_SIZES.sm,
+  },
+  oauthContainer: {
     gap: SPACING.md,
     marginBottom: SPACING.xl,
   },
   oauthButton: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     padding: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
-    minHeight: 56,
+    gap: SPACING.sm,
   },
-  oauthIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: BORDER_RADIUS.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: SPACING.sm,
-  },
-  oauthButtonText: {
+  oauthText: {
     fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semibold,
-  },
-  oauthLoader: {
-    marginLeft: SPACING.xs,
+    fontWeight: FONT_WEIGHTS.medium,
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: SPACING.lg,
   },
   footerText: {
-    fontSize: FONT_SIZES.md,
+    fontSize: FONT_SIZES.sm,
   },
   footerLink: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.bold,
+    fontSize: FONT_SIZES.sm,
+    fontWeight: FONT_WEIGHTS.semiBold,
   },
 });
+
+export default SignInScreen;
 

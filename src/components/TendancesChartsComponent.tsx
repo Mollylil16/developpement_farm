@@ -14,7 +14,9 @@ import { fr } from 'date-fns/locale';
 import Card from './Card';
 import { loadPeseesRecents } from '../store/slices/productionSlice';
 import { loadMortalitesParProjet } from '../store/slices/mortalitesSlice';
-import { ChargeFixe, DepensePonctuelle, Mortalite, ProductionPesee } from '../types';
+import type { ChargeFixe, DepensePonctuelle } from '../types/finance';
+import type { Mortalite } from '../types/mortalites';
+import type { ProductionPesee } from '../types/production';
 import { selectPeseesRecents } from '../store/selectors/productionSelectors';
 import { selectAllMortalites } from '../store/selectors/mortalitesSelectors';
 import {

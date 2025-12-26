@@ -8,6 +8,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -16,6 +17,9 @@ import { RegisterDto } from './dto/register.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { OAuthGoogleDto } from './dto/oauth-google.dto';
 import { OAuthAppleDto } from './dto/oauth-apple.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { VerifyResetOtpDto } from './dto/verify-reset-otp.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
@@ -26,6 +30,7 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 requêtes par minute pour l'inscription
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: "Inscription d'un nouvel utilisateur" })
@@ -38,6 +43,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 requêtes par minute pour le login (protection brute force)
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Connexion d'un utilisateur (avec mot de passe)" })
@@ -50,6 +56,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 requêtes par minute pour le login simple
   @Post('login-simple')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Connexion simple sans mot de passe (email ou téléphone)' })
@@ -116,5 +123,53 @@ export class AuthController {
     const ipAddress = req.ip || req.connection.remoteAddress;
     const userAgent = req.get('user-agent');
     return this.authService.loginWithApple(oauthDto, ipAddress, userAgent);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 requêtes par minute pour éviter l'abus de SMS
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Demander une réinitialisation de mot de passe' })
+  @ApiResponse({ status: 200, description: 'Code de réinitialisation envoyé (si le compte existe)' })
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    await this.authService.requestPasswordReset(dto.telephone);
+    return {
+      message: 'Si ce numéro est enregistré, un code de réinitialisation a été envoyé par SMS',
+    };
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 tentatives par minute pour vérifier l'OTP
+  @Post('verify-reset-otp')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Vérifier le code OTP de réinitialisation' })
+  @ApiResponse({ status: 200, description: 'Code vérifié, token de réinitialisation retourné' })
+  @ApiResponse({ status: 400, description: 'Code invalide ou expiré' })
+  async verifyResetOtp(@Body() dto: VerifyResetOtpDto) {
+    const resetToken = await this.authService.verifyResetOtp(dto.telephone, dto.otp);
+    return { reset_token: resetToken };
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Réinitialiser le mot de passe avec le token' })
+  @ApiResponse({ status: 200, description: 'Mot de passe réinitialisé avec succès' })
+  @ApiResponse({ status: 401, description: 'Token invalide ou expiré' })
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    await this.authService.resetPassword(dto.reset_token, dto.new_password);
+    return { message: 'Mot de passe réinitialisé avec succès' };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete('delete-account')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Supprimer définitivement le compte utilisateur' })
+  @ApiResponse({ status: 200, description: 'Compte supprimé avec succès' })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  async deleteAccount(@CurrentUser() user: any) {
+    await this.authService.deleteAccount(user.id);
+    return { message: 'Compte supprimé avec succès' };
   }
 }

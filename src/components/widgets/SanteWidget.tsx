@@ -2,7 +2,7 @@
  * Widget Santé pour le Dashboard
  */
 
-import React from 'react';
+import React, { memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -20,7 +20,7 @@ interface Props {
   onPress?: () => void;
 }
 
-export default function SanteWidget({ onPress }: Props) {
+function SanteWidget({ onPress }: Props) {
   const { colors } = useTheme();
 
   const vaccinationsEnRetard = useAppSelector(selectNombreVaccinationsEnRetard);
@@ -29,23 +29,6 @@ export default function SanteWidget({ onPress }: Props) {
   const alertesCritiques = useAppSelector(selectNombreAlertesCritiques);
   const totalMortalites = useAppSelector(selectNombreTotalMortalites);
   const loading = useAppSelector(selectSanteLoading);
-
-  // Log pour déboguer
-  React.useEffect(() => {
-    console.log('🏥 [SanteWidget] Stats:', {
-      vaccinations: vaccinationsEnRetard,
-      maladies: maladiesEnCours,
-      mortalites: totalMortalites,
-      traitements: traitementsEnCours,
-      alertes: alertesCritiques,
-    });
-  }, [
-    vaccinationsEnRetard,
-    maladiesEnCours,
-    totalMortalites,
-    traitementsEnCours,
-    alertesCritiques,
-  ]);
 
   const hasAlertes = vaccinationsEnRetard > 0 || alertesCritiques > 0;
 
@@ -271,4 +254,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+});
+
+export default memo(SanteWidget, (prevProps, nextProps) => {
+  return prevProps.onPress === nextProps.onPress;
 });

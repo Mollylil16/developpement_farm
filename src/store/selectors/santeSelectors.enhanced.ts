@@ -4,7 +4,7 @@
  */
 
 import { createSelector } from '@reduxjs/toolkit';
-import { Vaccination, Maladie } from '../../types';
+import type { Vaccination, Maladie } from '../../types/sante';
 import * as baseSelectors from './santeSelectors';
 
 /**

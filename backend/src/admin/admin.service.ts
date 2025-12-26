@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, NotFoundException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, NotFoundException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
@@ -8,6 +8,8 @@ import { EmailService } from '../common/services/email.service';
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     private db: DatabaseService,
     private jwtService: JwtService,
@@ -71,14 +73,14 @@ export class AdminService {
           },
         };
       } catch (jwtError: any) {
-        console.error('Erreur lors de la signature JWT:', jwtError);
+        this.logger.error('Erreur lors de la signature JWT:', jwtError);
         if (jwtError.message?.includes('secret') || jwtError.message?.includes('Secret')) {
           throw new Error('JWT_SECRET n\'est pas configuré. Vérifiez votre fichier .env');
         }
         throw jwtError;
       }
     } catch (error) {
-      console.error('Erreur dans admin login:', error);
+      this.logger.error('Erreur dans admin login', error);
       throw error;
     }
   }

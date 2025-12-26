@@ -18,13 +18,14 @@ import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { createMortalite, updateMortalite } from '../store/slices/mortalitesSlice';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
 import { selectAllAnimaux } from '../store/selectors/productionSelectors';
-import { Mortalite, CreateMortaliteInput, CategorieMortalite } from '../types';
+import type { Mortalite, CreateMortaliteInput, CategorieMortalite } from '../types/mortalites';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { getCategorieAnimal } from '../utils/animalUtils';
+import { logger } from '../utils/logger';
 
 // Fonction helper pour convertir une date en format local YYYY-MM-DD
 const formatDateToLocal = (date: Date): string => {
@@ -416,7 +417,7 @@ export default function MortalitesFormModal({
                   onPress={() => {
                     // Auto-détecter la catégorie de l'animal sélectionné
                     const categorieDetectee = getCategorieAnimal(animal);
-                    console.log('🐷 Animal sélectionné:', {
+                    logger.debug('Animal sélectionné:', {
                       code: animal.code,
                       sexe: animal.sexe,
                       reproducteur: animal.reproducteur,

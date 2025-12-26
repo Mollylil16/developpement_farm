@@ -2,7 +2,7 @@
  * Header du cheptel avec filtres et recherche
  */
 
-import React from 'react';
+import React, { memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../../constants/theme';
@@ -21,7 +21,7 @@ interface CheptelHeaderProps {
   canCreate: boolean;
 }
 
-export default function CheptelHeader({
+function CheptelHeader({
   totalCount,
   countByCategory,
   filterCategorie,
@@ -226,3 +226,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
+// Mémoriser le composant pour éviter les re-renders inutiles
+export default memo(CheptelHeader);

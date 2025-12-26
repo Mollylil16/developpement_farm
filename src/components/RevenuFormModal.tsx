@@ -21,13 +21,15 @@ import {
   updateRevenu,
   calculateAndSaveMargesVente,
 } from '../store/slices/financeSlice';
-import { Revenu, CreateRevenuInput, CategorieRevenu, ProductionAnimal } from '../types';
+import type { Revenu, CreateRevenuInput, CategorieRevenu } from '../types/finance';
+import type { ProductionAnimal } from '../types/production';
 import { selectAllAnimaux, selectPeseesRecents } from '../store/selectors/productionSelectors';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { logger } from '../utils/logger';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { revenuSchema, validateWithSchema, validateField } from '../validation/financeSchemas';
 
@@ -133,7 +135,7 @@ export default function RevenuFormModal({
           return newErrors;
         });
       } catch (err) {
-        console.error('Erreur validation champ:', err);
+        logger.error('Erreur validation champ:', err);
       }
     },
     [formData, poidsKg]

@@ -4,6 +4,7 @@
  */
 
 import apiClient from './api/apiClient';
+import { logger } from '../utils/logger';
 
 export class UserDataService {
   /**
@@ -40,9 +41,9 @@ export class UserDataService {
       // Note: Nécessite un endpoint DELETE /users/:id dans le backend
       await apiClient.delete(`/users/${userId}`);
 
-      console.log(`✅ Données de l'utilisateur ${userId} supprimées avec succès`);
+      logger.info(`Données de l'utilisateur ${userId} supprimées avec succès`);
     } catch (error) {
-      console.error(`❌ Erreur lors de la suppression des données utilisateur:`, error);
+      logger.error(`Erreur lors de la suppression des données utilisateur:`, error);
       throw error;
     }
   }

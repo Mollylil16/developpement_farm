@@ -62,4 +62,5 @@ export interface SignUpInput {
 
 export interface SignInInput {
   identifier: string; // email ou téléphone
+  password?: string; // Mot de passe (optionnel, requis pour téléphone)
 }

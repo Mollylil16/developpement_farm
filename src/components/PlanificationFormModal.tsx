@@ -8,14 +8,13 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Platform } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { createPlanification, updatePlanification } from '../store/slices/planificationSlice';
-import {
+import type {
   Planification,
   CreatePlanificationInput,
   TypeTache,
-  TYPE_TACHE_LABELS,
   StatutTache,
-  STATUT_TACHE_LABELS,
-} from '../types';
+} from '../types/planification';
+import { TYPE_TACHE_LABELS, STATUT_TACHE_LABELS } from '../types/planification';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING } from '../constants/theme';

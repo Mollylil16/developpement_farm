@@ -7,7 +7,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image, Alert } from 'react-na
 import * as ImagePicker from 'expo-image-picker';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { createDepensePonctuelle, updateDepensePonctuelle } from '../store/slices/financeSlice';
-import { DepensePonctuelle, CreateDepensePonctuelleInput, CategorieDepense } from '../types';
+import type { DepensePonctuelle, CreateDepensePonctuelleInput, CategorieDepense } from '../types/finance';
 import { getTypeDepense, CATEGORIE_DEPENSE_LABELS } from '../types/finance';
 import CustomModal from './CustomModal';
 import FormField from './FormField';

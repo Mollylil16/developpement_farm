@@ -6,7 +6,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Calendar, DateData, MarkedDates } from 'react-native-calendars';
 import { useAppSelector } from '../store/hooks';
-import { Gestation } from '../types';
+import type { Gestation } from '../types/reproduction';
 import { doitGenererAlerte } from '../types/reproduction';
 import { SPACING, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';

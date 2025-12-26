@@ -21,6 +21,9 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import type { PurchaseRequestMatch, PurchaseRequest } from '../../../types/marketplace';
 import apiClient from '../../../services/api/apiClient';
+import { createLoggerWithPrefix } from '../../../utils/logger';
+
+const logger = createLoggerWithPrefix('MarketplaceMatchedRequests');
 
 interface MarketplaceMatchedRequestsTabProps {
   producerId: string;
@@ -63,7 +66,7 @@ export default function MarketplaceMatchedRequestsTab({
 
       setMatches(activeMatches);
     } catch (error) {
-      console.error('Erreur chargement matches:', error);
+      logger.error('Erreur chargement matches:', error);
       Alert.alert('Erreur', 'Impossible de charger les demandes correspondantes');
     } finally {
       setLoading(false);
@@ -228,6 +231,11 @@ export default function MarketplaceMatchedRequestsTab({
       keyExtractor={(item) => item.match.id}
       contentContainerStyle={styles.listContent}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+      // Optimisations FlatList (Phase 4)
+      removeClippedSubviews={true}
+      maxToRenderPerBatch={10}
+      windowSize={5}
+      initialNumToRender={10}
     />
   );
 }

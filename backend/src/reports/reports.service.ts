@@ -78,8 +78,12 @@ export class ReportsService {
   async findAll(projetId: string, userId: string) {
     await this.checkProjetOwnership(projetId, userId);
 
+    // Colonnes nécessaires pour mapRowToRapport (optimisation: éviter SELECT *)
+    const rapportColumns = `id, projet_id, date, poids_moyen, nombre_porcs, 
+      gain_quotidien, poids_cible, notes, date_creation`;
+
     const result = await this.databaseService.query(
-      `SELECT * FROM rapports_croissance 
+      `SELECT ${rapportColumns} FROM rapports_croissance 
        WHERE projet_id = $1 
        ORDER BY date DESC`,
       [projetId]
@@ -89,8 +93,12 @@ export class ReportsService {
   }
 
   async findOne(id: string, userId: string) {
+    // Colonnes nécessaires pour mapRowToRapport (optimisation: éviter SELECT *)
+    const rapportColumns = `r.id, r.projet_id, r.date, r.poids_moyen, r.nombre_porcs, 
+      r.gain_quotidien, r.poids_cible, r.notes, r.date_creation`;
+
     const result = await this.databaseService.query(
-      `SELECT r.* FROM rapports_croissance r
+      `SELECT ${rapportColumns} FROM rapports_croissance r
        INNER JOIN projets p ON r.projet_id = p.id
        WHERE r.id = $1 AND p.proprietaire_id = $2`,
       [id, userId]
@@ -525,8 +533,11 @@ export class ReportsService {
     const dureeAmortissementMois = parseInt(projet.duree_amortissement_par_defaut_mois) || 36;
 
     // 2. Charger toutes les dépenses ponctuelles
+    // Colonnes nécessaires (optimisation: éviter SELECT *)
+    const depenseColumns = `id, montant, date, type_opex_capex, duree_amortissement_mois`;
+    
     const depensesResult = await this.databaseService.query(
-      `SELECT * FROM depenses_ponctuelles 
+      `SELECT ${depenseColumns} FROM depenses_ponctuelles 
        WHERE projet_id = $1 
        ORDER BY date ASC`,
       [projetId]
@@ -536,15 +547,18 @@ export class ReportsService {
       id: row.id,
       montant: parseFloat(row.montant),
       date: row.date,
-      type_depense: row.type_depense || 'OPEX',
+      type_depense: row.type_opex_capex || 'OPEX',
       duree_amortissement_mois: row.duree_amortissement_mois
         ? parseInt(row.duree_amortissement_mois)
         : null,
     }));
 
     // 3. Charger toutes les ventes de porcs (revenus avec catégorie 'vente_porc')
+    // Colonnes nécessaires (optimisation: éviter SELECT *)
+    const revenuColumns = `id, poids_kg, date`;
+    
     const ventesResult = await this.databaseService.query(
-      `SELECT * FROM revenus 
+      `SELECT ${revenuColumns} FROM revenus 
        WHERE projet_id = $1 
        AND categorie = 'vente_porc'
        ORDER BY date ASC`,

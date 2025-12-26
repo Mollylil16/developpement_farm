@@ -6,6 +6,7 @@
 import { I18n } from 'i18n-js';
 import * as Localization from 'expo-localization';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { logger } from '../utils/logger';
 
 // Import des traductions
 import fr from '../locales/fr.json';
@@ -58,7 +59,7 @@ export async function initLanguage(): Promise<string> {
     i18n.locale = 'fr';
     return 'fr';
   } catch (error) {
-    console.error("Erreur lors de l'initialisation de la langue:", error);
+    logger.error("Erreur lors de l'initialisation de la langue:", error);
     i18n.locale = 'fr';
     return 'fr';
   }
@@ -72,7 +73,7 @@ export async function setLanguage(languageCode: 'fr' | 'en'): Promise<void> {
     i18n.locale = languageCode;
     await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, languageCode);
   } catch (error) {
-    console.error('Erreur lors de la sauvegarde de la langue:', error);
+    logger.error('Erreur lors de la sauvegarde de la langue:', error);
     throw error;
   }
 }

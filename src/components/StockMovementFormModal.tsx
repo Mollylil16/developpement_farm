@@ -11,7 +11,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 import Button from './Button';
-import { StockAliment, TypeMouvementStock, UniteStock } from '../types';
+import type { StockAliment, TypeMouvementStock, UniteStock } from '../types/nutrition';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 
 interface StockMovementFormModalProps {

@@ -18,10 +18,14 @@ import {
 } from '../../store/slices/mortalitesSlice';
 import { selectAllAnimaux } from '../../store/selectors/productionSelectors';
 import { selectAllMortalites } from '../../store/selectors/mortalitesSelectors';
-import { ProductionAnimal, StatutAnimal, STATUT_ANIMAL_LABELS } from '../../types';
+import type { ProductionAnimal, StatutAnimal } from '../../types/production';
+import { STATUT_ANIMAL_LABELS } from '../../types/production';
 import { getCategorieAnimal } from '../../utils/animalUtils';
 import { useActionPermissions } from '../useActionPermissions';
 import { getErrorMessage } from '../../types/errors';
+import { createLoggerWithPrefix } from '../../utils/logger';
+
+const logger = createLoggerWithPrefix('useProductionCheptelStatut');
 
 export function useProductionCheptelStatut() {
   const dispatch = useAppDispatch();
@@ -121,7 +125,7 @@ export function useProductionCheptelStatut() {
                       dispatch(loadStatistiquesMortalite(projetActif.id)).unwrap(),
                     ]);
                   } catch (mortaliteError) {
-                    console.warn('Erreur lors de la création de la mortalité:', mortaliteError);
+                    logger.warn('Erreur lors de la création de la mortalité:', mortaliteError);
                     // Ne pas bloquer si la création de mortalité échoue
                   }
 
@@ -160,28 +164,28 @@ export function useProductionCheptelStatut() {
 
                   // 1. Si on passe de "mort" à "actif", supprimer l'entrée de mortalité
                   if (animal.statut === 'mort' && nouveauStatut === 'actif') {
-                    console.log('🔄 Changement de statut: mort → actif pour', animal.code);
+                    logger.debug('Changement de statut: mort → actif pour', animal.code);
                     // Trouver l'entrée de mortalité correspondant à cet animal
                     const mortaliteCorrespondante = mortalites.find(
                       (m) => m.animal_code === animal.code && m.projet_id === projetActif.id
                     );
 
-                    console.log('🔍 Mortalité trouvée:', mortaliteCorrespondante?.id);
+                    logger.debug('Mortalité trouvée:', mortaliteCorrespondante?.id);
 
                     if (mortaliteCorrespondante) {
                       try {
-                        console.log('🗑️ Suppression de la mortalité:', mortaliteCorrespondante.id);
+                        logger.debug('Suppression de la mortalité:', mortaliteCorrespondante.id);
                         await dispatch(deleteMortalite(mortaliteCorrespondante.id)).unwrap();
-                        console.log('✅ Mortalité supprimée avec succès');
+                        logger.debug('Mortalité supprimée avec succès');
                       } catch (deleteError) {
-                        console.error(
-                          '❌ Erreur lors de la suppression de la mortalité:',
+                        logger.error(
+                          'Erreur lors de la suppression de la mortalité:',
                           deleteError
                         );
                         // Ne pas bloquer si la suppression échoue
                       }
                     } else {
-                      console.warn('⚠️ Aucune mortalité trouvée pour', animal.code);
+                      logger.warn('Aucune mortalité trouvée pour', animal.code);
                     }
                   }
 
@@ -201,12 +205,12 @@ export function useProductionCheptelStatut() {
 
                   // Si on a touché au statut "mort", recharger les mortalités
                   if (animal.statut === 'mort' || nouveauStatut === 'mort') {
-                    console.log('📊 Rechargement des mortalités après changement de statut');
+                    logger.debug('Rechargement des mortalités après changement de statut');
                     await Promise.all([
                       dispatch(loadMortalitesParProjet(projetActif.id)).unwrap(),
                       dispatch(loadStatistiquesMortalite(projetActif.id)).unwrap(),
                     ]);
-                    console.log('✅ Mortalités et statistiques rechargées');
+                    logger.debug('Mortalités et statistiques rechargées');
                   }
                 } catch (error) {
                   Alert.alert('Erreur', getErrorMessage(error));

@@ -10,7 +10,7 @@ import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/t
 import { useTheme } from '../contexts/ThemeContext';
 import { denormalize } from 'normalizr';
 import { gestationsSchema } from '../store/normalization/schemas';
-import { Gestation } from '../types';
+import type { Gestation } from '../types/reproduction';
 
 interface WidgetReproductionProps {
   onPress?: () => void;

@@ -34,7 +34,7 @@ export class ProductionController {
   }
 
   @Get('animaux')
-  @ApiOperation({ summary: "Récupérer tous les animaux d'un projet" })
+  @ApiOperation({ summary: "Récupérer tous les animaux d'un projet (avec pagination optionnelle)" })
   @ApiQuery({ name: 'projet_id', required: true, description: 'ID du projet' })
   @ApiQuery({
     name: 'inclure_inactifs',
@@ -42,13 +42,35 @@ export class ProductionController {
     description: 'Inclure les animaux inactifs',
     type: Boolean,
   })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Nombre maximum de résultats (défaut: 500, max: 500)',
+    type: Number,
+  })
+  @ApiQuery({
+    name: 'offset',
+    required: false,
+    description: 'Nombre d\'éléments à ignorer pour la pagination',
+    type: Number,
+  })
   findAllAnimals(
     @Query('projet_id') projetId: string,
     @Query('inclure_inactifs') inclureInactifs: string,
-    @CurrentUser() user: any
+    @CurrentUser() user: any,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string
   ) {
     const inclureInactifsBool = inclureInactifs !== 'false';
-    return this.productionService.findAllAnimals(projetId, user.id, inclureInactifsBool);
+    const limitNum = limit ? parseInt(limit, 10) : undefined;
+    const offsetNum = offset ? parseInt(offset, 10) : undefined;
+    return this.productionService.findAllAnimals(
+      projetId,
+      user.id,
+      inclureInactifsBool,
+      limitNum,
+      offsetNum
+    );
   }
 
   @Get('animaux/:id')

@@ -2,10 +2,14 @@
  * Composant pour afficher les statistiques du cheptel actif
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, memo } from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
-import { selectPeseesParAnimal, selectAllAnimaux } from '../../store/selectors/productionSelectors';
+import { 
+  selectPeseesParAnimal, 
+  selectAllAnimaux,
+  selectProductionUpdateCounter 
+} from '../../store/selectors/productionSelectors';
 import { loadProductionAnimaux } from '../../store/slices/productionSlice';
 import { SPACING, FONT_SIZES } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -15,12 +19,13 @@ import { useAnimauxActifs } from '../../hooks/useAnimauxActifs';
 
 const TAUX_CARCASSE = 0.75; // 75% du poids vif
 
-export default function LivestockStatsCard() {
+function LivestockStatsCard() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   const peseesParAnimal = useAppSelector(selectPeseesParAnimal);
   const animaux = useAppSelector(selectAllAnimaux);
+  const updateCounter = useAppSelector(selectProductionUpdateCounter);
   const { animauxActifs } = useAnimauxActifs({ projetId: projetActif?.id });
 
   // Charger les animaux uniquement si nécessaire (une seule fois par projet)
@@ -65,7 +70,7 @@ export default function LivestockStatsCard() {
       poidsCarcasse,
       poidsMoyen,
     };
-  }, [animauxActifs, peseesParAnimal, projetActif]);
+  }, [animauxActifs, peseesParAnimal, projetActif, updateCounter]); // Forcer la mise à jour quand les animaux changent
 
   if (!projetActif) return null;
 
@@ -141,3 +146,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+// Mémoriser le composant pour éviter les re-renders inutiles
+const LivestockStatsCardMemoized = memo(LivestockStatsCard);
+export default LivestockStatsCardMemoized;

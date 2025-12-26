@@ -6,6 +6,7 @@
 import { useState, useCallback } from 'react';
 import apiClient from '../services/api/apiClient';
 import type { MarketplaceStatus } from '../types/marketplace';
+import { logger } from '../utils/logger';
 
 export interface SubjectSaleStatus {
   inMarketplace: boolean;
@@ -49,7 +50,7 @@ export function useSaleStatus(subjectId: string) {
       }
     } catch (err: unknown) {
       setError('Erreur lors du chargement du statut');
-      console.error('Error loading sale status:', err);
+      logger.error('Error loading sale status:', err);
     } finally {
       setLoading(false);
     }
@@ -77,7 +78,7 @@ export function useSaleStatus(subjectId: string) {
         });
       } catch (err: unknown) {
         setError('Erreur lors de la mise à jour du statut');
-        console.error('Error updating sale status:', err);
+        logger.error('Error updating sale status:', err);
         throw err;
       } finally {
         setLoading(false);
@@ -167,7 +168,7 @@ export function useBulkSaleStatus(subjectIds: string[]) {
       setStatuses(statusMap);
     } catch (err: unknown) {
       setError('Erreur lors du chargement des statuts');
-      console.error('Error loading bulk sale statuses:', err);
+      logger.error('Error loading bulk sale statuses:', err);
     } finally {
       setLoading(false);
     }
@@ -196,7 +197,7 @@ export function useBulkSaleStatus(subjectIds: string[]) {
         await loadStatuses();
       } catch (err: unknown) {
         setError('Erreur lors de la mise à jour multiple');
-        console.error('Error bulk updating sale status:', err);
+        logger.error('Error bulk updating sale status:', err);
         throw err;
       } finally {
         setLoading(false);

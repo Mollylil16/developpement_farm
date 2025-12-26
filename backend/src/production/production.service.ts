@@ -1,5 +1,8 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { ImageService } from '../common/services/image.service';
+import { compressImage } from '../common/helpers/image-compression.helper';
+import { CacheService } from '../common/services/cache.service';
 import { CreateAnimalDto } from './dto/create-animal.dto';
 import { UpdateAnimalDto } from './dto/update-animal.dto';
 import { CreatePeseeDto } from './dto/create-pesee.dto';
@@ -7,7 +10,11 @@ import { UpdatePeseeDto } from './dto/update-pesee.dto';
 
 @Injectable()
 export class ProductionService {
-  constructor(private databaseService: DatabaseService) {}
+  constructor(
+    private databaseService: DatabaseService,
+    private cacheService: CacheService,
+    private imageService: ImageService
+  ) {}
 
   /**
    * Génère un ID comme le frontend : animal_${Date.now()}_${random}
@@ -56,6 +63,13 @@ export class ProductionService {
     if (result.rows[0].proprietaire_id !== userId) {
       throw new ForbiddenException('Cet animal ne vous appartient pas');
     }
+  }
+
+  /**
+   * Invalide le cache pour les statistiques d'un projet
+   */
+  private invalidateProjetCache(projetId: string): void {
+    this.cacheService.delete(`projet_stats:${projetId}`);
   }
 
   /**
@@ -130,6 +144,13 @@ export class ProductionService {
     const actif = statut === 'actif';
     const reproducteur = createAnimalDto.reproducteur || false;
 
+    // Compresser l'image avant stockage (Phase 3)
+    const compressedPhotoUri = await compressImage(
+      createAnimalDto.photo_uri,
+      this.imageService,
+      { maxWidth: 1920, maxHeight: 1920, quality: 80 }
+    );
+
     const result = await this.databaseService.query(
       `INSERT INTO production_animaux (
         id, projet_id, code, nom, origine, sexe, date_naissance, poids_initial,
@@ -155,26 +176,47 @@ export class ProductionService {
         createAnimalDto.pere_id || null,
         createAnimalDto.mere_id || null,
         createAnimalDto.notes || null,
-        createAnimalDto.photo_uri || null,
+        compressedPhotoUri,
         now,
         now,
       ]
     );
 
-    return this.mapRowToAnimal(result.rows[0]);
+    const animal = this.mapRowToAnimal(result.rows[0]);
+    // Invalider le cache des stats du projet
+    this.invalidateProjetCache(animal.projet_id);
+    return animal;
   }
 
-  async findAllAnimals(projetId: string, userId: string, inclureInactifs: boolean = true) {
+  async findAllAnimals(
+    projetId: string,
+    userId: string,
+    inclureInactifs: boolean = true,
+    limit?: number,
+    offset?: number
+  ) {
     await this.checkProjetOwnership(projetId, userId);
 
-    let query = `SELECT * FROM production_animaux WHERE projet_id = $1`;
+    // Limite par défaut de 500 pour éviter de charger trop de données
+    // La pagination est optionnelle pour compatibilité avec le frontend existant
+    const defaultLimit = 500;
+    const effectiveLimit = limit ? Math.min(limit, 500) : defaultLimit;
+    const effectiveOffset = offset || 0;
+
+    // Colonnes nécessaires pour mapRowToAnimal (optimisation: éviter SELECT *)
+    const animalColumns = `id, projet_id, code, nom, origine, sexe, date_naissance, poids_initial, 
+      date_entree, actif, statut, race, reproducteur, categorie_poids, 
+      pere_id, mere_id, notes, photo_uri, date_creation, derniere_modification`;
+    
+    let query = `SELECT ${animalColumns} FROM production_animaux WHERE projet_id = $1`;
     const params: any[] = [projetId];
 
     if (!inclureInactifs) {
       query += ` AND statut = 'actif'`;
     }
 
-    query += ` ORDER BY date_creation DESC`;
+    query += ` ORDER BY date_creation DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(effectiveLimit, effectiveOffset);
 
     const result = await this.databaseService.query(query, params);
     return result.rows.map((row) => this.mapRowToAnimal(row));
@@ -183,8 +225,13 @@ export class ProductionService {
   async findOneAnimal(id: string, userId: string) {
     await this.checkAnimalOwnership(id, userId);
 
+    // Colonnes nécessaires pour mapRowToAnimal
+    const animalColumns = `id, projet_id, code, nom, origine, sexe, date_naissance, poids_initial, 
+      date_entree, actif, statut, race, reproducteur, categorie_poids, 
+      pere_id, mere_id, notes, photo_uri, date_creation, derniere_modification`;
+    
     const result = await this.databaseService.query(
-      'SELECT * FROM production_animaux WHERE id = $1',
+      `SELECT ${animalColumns} FROM production_animaux WHERE id = $1`,
       [id]
     );
     return result.rows[0] ? this.mapRowToAnimal(result.rows[0]) : null;
@@ -274,8 +321,14 @@ export class ProductionService {
       paramIndex++;
     }
     if (updateAnimalDto.photo_uri !== undefined) {
+      // Compresser l'image avant stockage (Phase 3)
+      const compressedPhotoUri = await compressImage(
+        updateAnimalDto.photo_uri,
+        this.imageService,
+        { maxWidth: 1920, maxHeight: 1920, quality: 80 }
+      );
       fields.push(`photo_uri = $${paramIndex}`);
-      values.push(updateAnimalDto.photo_uri || null);
+      values.push(compressedPhotoUri);
       paramIndex++;
     }
 
@@ -290,12 +343,19 @@ export class ProductionService {
     values.push(id);
     const query = `UPDATE production_animaux SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
     const result = await this.databaseService.query(query, values);
-    return this.mapRowToAnimal(result.rows[0]);
+    const animal = this.mapRowToAnimal(result.rows[0]);
+    // Invalider le cache des stats du projet
+    this.invalidateProjetCache(animal.projet_id);
+    return animal;
   }
 
   async deleteAnimal(id: string, userId: string) {
-    await this.checkAnimalOwnership(id, userId);
+    // Récupérer le projet_id avant suppression pour invalider le cache
+    const animal = await this.findOneAnimal(id, userId);
+    const projetId = animal.projet_id;
     await this.databaseService.query('DELETE FROM production_animaux WHERE id = $1', [id]);
+    // Invalider le cache des stats du projet
+    this.invalidateProjetCache(projetId);
     return { id };
   }
 
@@ -308,9 +368,13 @@ export class ProductionService {
     const id = this.generatePeseeId();
     const now = new Date().toISOString();
 
+    // Colonnes nécessaires pour mapRowToPesee
+    const peseeColumns = `id, projet_id, animal_id, date, poids_kg, gmq, difference_standard, 
+      commentaire, cree_par, date_creation`;
+    
     // Récupérer la pesée précédente pour calculer le GMQ
     const previousPeseeResult = await this.databaseService.query(
-      `SELECT * FROM production_pesees 
+      `SELECT ${peseeColumns} FROM production_pesees 
        WHERE animal_id = $1 
        ORDER BY date DESC 
        LIMIT 1`,
@@ -354,14 +418,21 @@ export class ProductionService {
       ]
     );
 
-    return this.mapRowToPesee(result.rows[0]);
+    const pesee = this.mapRowToPesee(result.rows[0]);
+    // Invalider le cache des stats du projet (les pesées affectent les stats)
+    this.invalidateProjetCache(pesee.projet_id);
+    return pesee;
   }
 
   async findPeseesByAnimal(animalId: string, userId: string) {
     await this.checkAnimalOwnership(animalId, userId);
 
+    // Colonnes nécessaires pour mapRowToPesee
+    const peseeColumns = `id, projet_id, animal_id, date, poids_kg, gmq, difference_standard, 
+      commentaire, cree_par, date_creation`;
+    
     const result = await this.databaseService.query(
-      `SELECT * FROM production_pesees 
+      `SELECT ${peseeColumns} FROM production_pesees 
        WHERE animal_id = $1 
        ORDER BY date DESC`,
       [animalId]
@@ -372,7 +443,11 @@ export class ProductionService {
   async findPeseesByProjet(projetId: string, userId: string, limit?: number) {
     await this.checkProjetOwnership(projetId, userId);
 
-    let query = `SELECT * FROM production_pesees WHERE projet_id = $1 ORDER BY date DESC`;
+    // Colonnes nécessaires pour mapRowToPesee
+    const peseeColumns = `id, projet_id, animal_id, date, poids_kg, gmq, difference_standard, 
+      commentaire, cree_par, date_creation`;
+    
+    let query = `SELECT ${peseeColumns} FROM production_pesees WHERE projet_id = $1 ORDER BY date DESC`;
     const params: any[] = [projetId];
 
     if (limit) {
@@ -430,8 +505,12 @@ export class ProductionService {
       const finalPoids = updatePeseeDto.poids_kg || pesee.poids_kg;
       const finalDate = updatePeseeDto.date || pesee.date;
 
+      // Colonnes nécessaires pour mapRowToPesee
+      const peseeColumns = `id, projet_id, animal_id, date, poids_kg, gmq, difference_standard, 
+        commentaire, cree_par, date_creation`;
+      
       const previousPeseeResult = await this.databaseService.query(
-        `SELECT * FROM production_pesees 
+        `SELECT ${peseeColumns} FROM production_pesees 
          WHERE animal_id = $1 AND id != $2
          ORDER BY date DESC 
          LIMIT 1`,
@@ -458,7 +537,10 @@ export class ProductionService {
     values.push(id);
     const query = `UPDATE production_pesees SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
     const result = await this.databaseService.query(query, values);
-    return this.mapRowToPesee(result.rows[0]);
+    const updatedPesee = this.mapRowToPesee(result.rows[0]);
+    // Invalider le cache des stats du projet (les pesées affectent les stats)
+    this.invalidateProjetCache(updatedPesee.projet_id);
+    return updatedPesee;
   }
 
   async deletePesee(id: string, userId: string) {
@@ -566,49 +648,59 @@ export class ProductionService {
   async getProjetStats(projetId: string, userId: string) {
     await this.checkProjetOwnership(projetId, userId);
 
-    // Statistiques des animaux
-    const animauxResult = await this.databaseService.query(
-      `SELECT COUNT(*) as total,
-              COUNT(*) FILTER (WHERE actif = true) as actifs,
-              COUNT(*) FILTER (WHERE actif = false) as inactifs,
-              COUNT(*) FILTER (WHERE statut = 'mort') as morts,
-              COUNT(*) FILTER (WHERE statut = 'vendu') as vendus
-       FROM production_animaux
-       WHERE projet_id = $1`,
-      [projetId]
-    );
+    const cacheKey = `projet_stats:${projetId}`;
+    
+    // Utiliser le cache avec TTL de 2 minutes (120 secondes)
+    // Les stats changent peu fréquemment, mais doivent être relativement à jour
+    return this.cacheService.getOrSet(
+      cacheKey,
+      async () => {
+        // Statistiques des animaux
+        const animauxResult = await this.databaseService.query(
+          `SELECT COUNT(*) as total,
+                  COUNT(*) FILTER (WHERE actif = true) as actifs,
+                  COUNT(*) FILTER (WHERE actif = false) as inactifs,
+                  COUNT(*) FILTER (WHERE statut = 'mort') as morts,
+                  COUNT(*) FILTER (WHERE statut = 'vendu') as vendus
+           FROM production_animaux
+           WHERE projet_id = $1`,
+          [projetId]
+        );
 
-    // Statistiques des pesées
-    const peseesResult = await this.databaseService.query(
-      `SELECT COUNT(*) as total_pesees,
-              AVG(poids_kg) as poids_moyen,
-              MAX(poids_kg) as poids_max,
-              MIN(poids_kg) as poids_min,
-              AVG(gmq) as gmq_moyen
-       FROM production_pesees
-       WHERE projet_id = $1`,
-      [projetId]
-    );
+        // Statistiques des pesées
+        const peseesResult = await this.databaseService.query(
+          `SELECT COUNT(*) as total_pesees,
+                  AVG(poids_kg) as poids_moyen,
+                  MAX(poids_kg) as poids_max,
+                  MIN(poids_kg) as poids_min,
+                  AVG(gmq) as gmq_moyen
+           FROM production_pesees
+           WHERE projet_id = $1`,
+          [projetId]
+        );
 
-    const animaux = animauxResult.rows[0];
-    const pesees = peseesResult.rows[0];
+        const animaux = animauxResult.rows[0];
+        const pesees = peseesResult.rows[0];
 
-    return {
-      animaux: {
-        total: parseInt(animaux.total || '0'),
-        actifs: parseInt(animaux.actifs || '0'),
-        inactifs: parseInt(animaux.inactifs || '0'),
-        morts: parseInt(animaux.morts || '0'),
-        vendus: parseInt(animaux.vendus || '0'),
+        return {
+          animaux: {
+            total: parseInt(animaux.total || '0'),
+            actifs: parseInt(animaux.actifs || '0'),
+            inactifs: parseInt(animaux.inactifs || '0'),
+            morts: parseInt(animaux.morts || '0'),
+            vendus: parseInt(animaux.vendus || '0'),
+          },
+          pesees: {
+            total: parseInt(pesees.total_pesees || '0'),
+            poids_moyen: pesees.poids_moyen ? parseFloat(pesees.poids_moyen) : 0,
+            poids_max: pesees.poids_max ? parseFloat(pesees.poids_max) : 0,
+            poids_min: pesees.poids_min ? parseFloat(pesees.poids_min) : 0,
+            gmq_moyen: pesees.gmq_moyen ? parseFloat(pesees.gmq_moyen) : 0,
+          },
+        };
       },
-      pesees: {
-        total: parseInt(pesees.total_pesees || '0'),
-        poids_moyen: pesees.poids_moyen ? parseFloat(pesees.poids_moyen) : 0,
-        poids_max: pesees.poids_max ? parseFloat(pesees.poids_max) : 0,
-        poids_min: pesees.poids_min ? parseFloat(pesees.poids_min) : 0,
-        gmq_moyen: pesees.gmq_moyen ? parseFloat(pesees.gmq_moyen) : 0,
-      },
-    };
+      120 // TTL: 2 minutes
+    );
   }
 
   /**
@@ -618,9 +710,13 @@ export class ProductionService {
   async recalculerGMQ(animalId: string, dateModifiee: string, userId: string) {
     await this.checkAnimalOwnership(animalId, userId);
 
+    // Colonnes nécessaires pour mapRowToPesee
+    const peseeColumns = `id, projet_id, animal_id, date, poids_kg, gmq, difference_standard, 
+      commentaire, cree_par, date_creation`;
+    
     // Récupérer toutes les pesées après la date modifiée
     const peseesResult = await this.databaseService.query(
-      `SELECT * FROM production_pesees 
+      `SELECT ${peseeColumns} FROM production_pesees 
        WHERE animal_id = $1 AND date > $2 
        ORDER BY date ASC`,
       [animalId, dateModifiee]
@@ -642,9 +738,13 @@ export class ProductionService {
 
     // Recalculer le GMQ pour chaque pesée suivante
     for (const peseeRow of peseesResult.rows) {
+      // Colonnes nécessaires pour mapRowToPesee
+      const peseeColumns = `id, projet_id, animal_id, date, poids_kg, gmq, difference_standard, 
+        commentaire, cree_par, date_creation`;
+      
       // Trouver la pesée précédente
       const previousResult = await this.databaseService.query(
-        `SELECT * FROM production_pesees 
+        `SELECT ${peseeColumns} FROM production_pesees 
          WHERE animal_id = $1 AND date < $2 
          ORDER BY date DESC 
          LIMIT 1`,

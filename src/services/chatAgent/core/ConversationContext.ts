@@ -46,6 +46,16 @@ export interface ConversationContext {
     missingParams: string[];
     timestamp: string;
   };
+
+  // Mémorisation des corrections utilisateur (pour apprentissage)
+  userCorrections?: Array<{
+    originalCategory?: string;
+    correctedCategory?: string;
+    originalValue?: string;
+    correctedValue?: string;
+    timestamp: string;
+    count: number;
+  }>;
 }
 
 export class ConversationContextManager {
@@ -263,5 +273,99 @@ export class ConversationContextManager {
    */
   getContext(): ConversationContext {
     return { ...this.context };
+  }
+
+  /**
+   * Enregistre une correction utilisateur (pour apprentissage)
+   */
+  recordCorrection(
+    originalCategory?: string,
+    correctedCategory?: string,
+    originalValue?: string,
+    correctedValue?: string
+  ): void {
+    if (!this.context.userCorrections) {
+      this.context.userCorrections = [];
+    }
+
+    // Chercher si cette correction existe déjà
+    const existingCorrection = this.context.userCorrections.find(
+      (c) =>
+        c.originalCategory === originalCategory &&
+        c.correctedCategory === correctedCategory &&
+        c.originalValue === originalValue &&
+        c.correctedValue === correctedValue
+    );
+
+    if (existingCorrection) {
+      existingCorrection.count++;
+      existingCorrection.timestamp = new Date().toISOString();
+    } else {
+      this.context.userCorrections.push({
+        originalCategory,
+        correctedCategory,
+        originalValue,
+        correctedValue,
+        timestamp: new Date().toISOString(),
+        count: 1,
+      });
+    }
+
+    // Garder seulement les 100 dernières corrections
+    if (this.context.userCorrections.length > 100) {
+      this.context.userCorrections.shift();
+    }
+  }
+
+  /**
+   * Récupère les corrections utilisateur (pour apprentissage)
+   */
+  getUserCorrections(): Array<{
+    originalCategory?: string;
+    correctedCategory?: string;
+    originalValue?: string;
+    correctedValue?: string;
+    timestamp: string;
+    count: number;
+  }> {
+    return this.context.userCorrections || [];
+  }
+
+  /**
+   * Récupère les préférences utilisateur basées sur les corrections
+   */
+  getUserPreferences(): {
+    categoryMappings: Record<string, string>;
+    commonCorrections: Array<{
+      original: string;
+      corrected: string;
+      count: number;
+    }>;
+  } {
+    const categoryMappings: Record<string, string> = {};
+    const commonCorrections: Array<{ original: string; corrected: string; count: number }> = [];
+
+    if (this.context.userCorrections) {
+      // Mapper les corrections fréquentes (>= 3 fois)
+      this.context.userCorrections.forEach((correction) => {
+        if (correction.count >= 3) {
+          if (correction.originalCategory && correction.correctedCategory) {
+            categoryMappings[correction.originalCategory] = correction.correctedCategory;
+          }
+          if (correction.originalValue && correction.correctedValue) {
+            commonCorrections.push({
+              original: correction.originalValue,
+              corrected: correction.correctedValue,
+              count: correction.count,
+            });
+          }
+        }
+      });
+    }
+
+    return {
+      categoryMappings,
+      commonCorrections: commonCorrections.sort((a, b) => b.count - a.count).slice(0, 20),
+    };
   }
 }

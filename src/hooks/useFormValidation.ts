@@ -9,6 +9,7 @@ import {
   validateWithSchema,
   validateField as validateYupField,
 } from '../validation/financeSchemas';
+import { logger } from '../utils/logger';
 
 interface UseFormValidationOptions<T extends Record<string, any>> {
   schema: yup.ObjectSchema<T>;
@@ -82,7 +83,7 @@ export function useFormValidation<T extends Record<string, unknown>>({
 
         return !error;
       } catch (err) {
-        console.error('Erreur validation champ:', err);
+        logger.error('Erreur validation champ:', err);
         return false;
       }
     },
@@ -174,7 +175,7 @@ export function useFormValidation<T extends Record<string, unknown>>({
       // Appeler le callback de soumission
       await onSubmit(values);
     } catch (error) {
-      console.error('Erreur soumission formulaire:', error);
+      logger.error('Erreur soumission formulaire:', error);
       throw error;
     } finally {
       setIsSubmitting(false);
@@ -223,7 +224,7 @@ export function useFormValidationSimple<T extends Record<string, any>>(schema: y
 
         return !error;
       } catch (err) {
-        console.error('Erreur validation:', err);
+        logger.error('Erreur validation:', err);
         return false;
       }
     },

@@ -19,7 +19,7 @@ import { Image } from 'expo-image';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadRevenus, deleteRevenu } from '../store/slices/financeSlice';
 import { selectAllRevenus } from '../store/selectors/financeSelectors';
-import { Revenu } from '../types';
+import type { Revenu } from '../types/finance';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';
@@ -27,6 +27,7 @@ import LoadingSpinner from './LoadingSpinner';
 import RevenuFormModal from './RevenuFormModal';
 import VenteDetailModal from './VenteDetailModal';
 import { useActionPermissions } from '../hooks/useActionPermissions';
+import { logger } from '../utils/logger';
 
 export default function FinanceRevenusComponent() {
   const { colors } = useTheme();
@@ -143,7 +144,7 @@ export default function FinanceRevenusComponent() {
     try {
       await dispatch(loadRevenus(projetActif.id)).unwrap();
     } catch (error) {
-      console.error('Erreur lors du rafraîchissement:', error);
+      logger.error('Erreur lors du rafraîchissement:', error);
     } finally {
       setRefreshing(false);
     }

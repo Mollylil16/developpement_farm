@@ -1,388 +1,362 @@
 /**
- * Écran d'inscription par téléphone
- * Étape 1 : Saisie numéro + vérification doublon
- * Étape 2 : Vérification OTP
+ * Écran d'inscription par téléphone avec mot de passe
+ * Remplace l'ancien système OTP
  */
 
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import type { NavigationProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
 import Button from '../components/Button';
 import { SCREENS } from '../navigation/types';
-import apiClient from '../services/api/apiClient';
+import { getOnboardingService } from '../services/OnboardingService';
 
-type Step = 'phone' | 'otp';
+// Helpers pour force du mot de passe
+function getPasswordStrength(password: string): string {
+  if (password.length < 6) return 'Trop faible';
+  if (password.length < 8) return 'Faible';
+  if (password.length < 10) return 'Moyen';
+  if (password.length >= 10 && /[A-Z]/.test(password) && /[0-9]/.test(password)) {
+    return 'Fort';
+  }
+  return 'Moyen';
+}
 
-export default function PhoneSignUpScreen() {
+function getPasswordStrengthPercent(password: string): number {
+  if (password.length < 6) return 25;
+  if (password.length < 8) return 50;
+  if (password.length < 10) return 75;
+  return 100;
+}
+
+function getPasswordStrengthColor(password: string): string {
+  const strength = getPasswordStrength(password);
+  if (strength === 'Trop faible' || strength === 'Faible') return '#EF4444';
+  if (strength === 'Moyen') return '#F59E0B';
+  return '#10B981';
+}
+
+const PhoneSignUpScreen: React.FC = () => {
   const { colors } = useTheme();
-  const navigation = useNavigation();
-  const [step, setStep] = useState<Step>('phone');
+  const navigation = useNavigation<NavigationProp<any>>();
   const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  /**
-   * Valider le format du numéro de téléphone (8-15 chiffres)
-   */
-  const validatePhone = (phoneNumber: string): boolean => {
-    const cleanPhone = phoneNumber.replace(/[\s\-\(\)]/g, '');
-    const phoneRegex = /^[0-9]{8,15}$/;
-    return phoneRegex.test(cleanPhone);
-  };
+  const handleSignUp = async () => {
+    const cleanPhone = phone.trim().replace(/\s+/g, '');
 
-  /**
-   * Vérifier si le téléphone existe déjà
-   */
-  const checkPhoneExists = async (phoneNumber: string): Promise<boolean> => {
-    try {
-      // Appel API pour vérifier si le téléphone existe
-      const response = await apiClient.get<{ exists: boolean }>(
-        `/users/check/phone/${encodeURIComponent(phoneNumber)}`,
-        { skipAuth: true }
-      );
-      return response.exists;
-    } catch (error: any) {
-      console.error('[PhoneSignUp] Erreur vérification téléphone:', error);
-      // En cas d'erreur API, on assume que le téléphone n'existe pas (pour ne pas bloquer)
-      return false;
-    }
-  };
-
-  /**
-   * Envoyer l'OTP (simulé pour l'instant, à implémenter avec un service SMS réel)
-   */
-  const sendOTP = async (phoneNumber: string): Promise<boolean> => {
-    try {
-      // TODO: Implémenter l'envoi réel d'OTP via Twilio, AWS SNS, etc.
-      // Pour l'instant, on simule avec un délai
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      console.log(`[PhoneSignUp] OTP envoyé à ${phoneNumber}: 123456 (simulé)`);
-      return true;
-    } catch (error: any) {
-      console.error('[PhoneSignUp] Erreur envoi OTP:', error);
-      return false;
-    }
-  };
-
-  /**
-   * Vérifier l'OTP (simulé pour l'instant)
-   */
-  const verifyOTP = async (phoneNumber: string, otpCode: string): Promise<boolean> => {
-    try {
-      // TODO: Implémenter la vérification réelle d'OTP
-      // Pour l'instant, on accepte 123456 ou n'importe quel code de 6 chiffres
-      const isValid = otpCode.length === 6;
-
-      console.log(`[PhoneSignUp] Vérification OTP ${otpCode}: ${isValid ? 'Valide' : 'Invalide'}`);
-      return isValid;
-    } catch (error: any) {
-      console.error('[PhoneSignUp] Erreur vérification OTP:', error);
-      return false;
-    }
-  };
-
-  /**
-   * Gérer la soumission du numéro de téléphone (Étape 1)
-   */
-  const handlePhoneSubmit = async () => {
     // Validation
-    if (!phone.trim()) {
-      Alert.alert('Erreur', 'Veuillez entrer votre numéro de téléphone', [{ text: 'OK' }]);
+    if (!cleanPhone || cleanPhone.length < 8) {
+      Alert.alert('Erreur', 'Veuillez entrer un numéro de téléphone valide (minimum 8 chiffres)');
       return;
     }
 
-    const cleanPhone = phone.trim().replace(/[\s\-\(\)]/g, '');
-
-    if (!validatePhone(cleanPhone)) {
-      Alert.alert(
-        'Numéro invalide',
-        'Veuillez entrer un numéro de téléphone valide (8-15 chiffres)',
-        [{ text: 'OK' }]
-      );
+    const phoneRegex = /^[0-9]{8,15}$/;
+    if (!phoneRegex.test(cleanPhone)) {
+      Alert.alert('Erreur', 'Format de téléphone invalide. Utilisez uniquement des chiffres (8-15 chiffres)');
       return;
     }
+
+    if (!firstName.trim() || firstName.trim().length < 2) {
+      Alert.alert('Erreur', 'Le prénom doit contenir au moins 2 caractères');
+      return;
+    }
+
+    if (!lastName.trim() || lastName.trim().length < 2) {
+      Alert.alert('Erreur', 'Le nom doit contenir au moins 2 caractères');
+      return;
+    }
+
+    if (!password || password.length < 6) {
+      Alert.alert('Erreur', 'Le mot de passe doit contenir au moins 6 caractères');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert('Erreur', 'Les mots de passe ne correspondent pas');
+      return;
+    }
+
+    setIsLoading(true);
 
     try {
-      setLoading(true);
+      const onboardingService = await getOnboardingService();
 
-      // Vérifier si le téléphone existe déjà
-      const exists = await checkPhoneExists(cleanPhone);
+      // Vérifier si téléphone existe déjà
+      const exists = await onboardingService.checkPhoneExists(cleanPhone);
 
       if (exists) {
         Alert.alert(
           'Compte existant',
-          'Un compte existe déjà avec ce numéro de téléphone. Voulez-vous vous connecter ?',
+          'Ce numéro est déjà enregistré. Voulez-vous vous connecter ?',
           [
             { text: 'Annuler', style: 'cancel' },
             {
               text: 'Se connecter',
-              onPress: () => {
-                navigation.navigate(SCREENS.SIGN_IN as never, { phone: cleanPhone });
-              },
+              onPress: () => navigation.navigate(SCREENS.SIGN_IN as never, { phone: cleanPhone }),
             },
           ]
         );
         return;
       }
 
-      // Envoyer l'OTP
-      const otpSent = await sendOTP(cleanPhone);
-
-      if (!otpSent) {
-        Alert.alert('Erreur', "Impossible d'envoyer le code de vérification. Réessayez.", [
-          { text: 'OK' },
-        ]);
-        return;
-      }
-
-      // Passer à l'étape 2 (vérification OTP)
-      setStep('otp');
-      setPhone(cleanPhone); // Sauvegarder le numéro nettoyé
-
-      Alert.alert(
-        'Code envoyé',
-        `Un code de vérification a été envoyé au ${cleanPhone}`,
-        [{ text: 'OK' }]
-      );
-    } catch (error: any) {
-      console.error('[PhoneSignUp] Erreur:', error);
-      Alert.alert('Erreur', 'Une erreur est survenue. Veuillez réessayer.', [{ text: 'OK' }]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  /**
-   * Gérer la soumission de l'OTP (Étape 2)
-   */
-  const handleOTPSubmit = async () => {
-    if (!otp.trim() || otp.length !== 6) {
-      Alert.alert('Code invalide', 'Veuillez entrer le code à 6 chiffres', [{ text: 'OK' }]);
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      // Vérifier l'OTP
-      const isValid = await verifyOTP(phone, otp);
-
-      if (!isValid) {
-        Alert.alert('Code incorrect', 'Le code de vérification est incorrect. Réessayez.', [
-          { text: 'OK' },
-        ]);
-        return;
-      }
-
-      // OTP valide, rediriger vers UserInfoScreen pour collecter nom/prénom
-      navigation.navigate(SCREENS.USER_INFO as never, {
-        phone,
-        provider: 'phone',
+      // Créer le compte avec mot de passe
+      const user = await onboardingService.createUserWithPhone({
+        phone: cleanPhone,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        password,
       });
-    } catch (error: any) {
-      console.error('[PhoneSignUp] Erreur vérification OTP:', error);
-      Alert.alert('Erreur', 'Une erreur est survenue. Veuillez réessayer.', [{ text: 'OK' }]);
+
+      // Navigation vers sélection de profil
+      navigation.navigate(SCREENS.PROFILE_SELECTION as never, { userId: user.id });
+    } catch (error: unknown) {
+      console.error('Erreur création compte:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Impossible de créer le compte';
+      Alert.alert('Erreur', errorMessage);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  /**
-   * Renvoyer l'OTP
-   */
-  const handleResendOTP = async () => {
-    try {
-      setLoading(true);
-      const otpSent = await sendOTP(phone);
-
-      if (otpSent) {
-        Alert.alert('Code renvoyé', 'Un nouveau code de vérification a été envoyé', [
-          { text: 'OK' },
-        ]);
-      } else {
-        Alert.alert('Erreur', "Impossible d'envoyer le code. Réessayez.", [{ text: 'OK' }]);
-      }
-    } catch (error: any) {
-      Alert.alert('Erreur', 'Une erreur est survenue.', [{ text: 'OK' }]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  /**
-   * Retour à l'étape précédente
-   */
-  const handleBack = () => {
-    if (step === 'otp') {
-      setStep('phone');
-      setOtp('');
-    } else {
-      navigation.goBack();
-    }
-  };
+  const isFormValid =
+    phone.trim().length >= 8 &&
+    firstName.trim().length >= 2 &&
+    lastName.trim().length >= 2 &&
+    password.length >= 6 &&
+    password === confirmPassword;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <KeyboardAvoidingView
         style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
         <ScrollView
+          style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Header avec bouton retour */}
-          <View style={styles.header}>
-            <TouchableOpacity
-              onPress={handleBack}
-              style={[styles.backButton, { backgroundColor: colors.surface }]}
-              disabled={loading}
-            >
-              <Ionicons name="arrow-back" size={24} color={colors.text} />
-            </TouchableOpacity>
-          </View>
+          {/* Header */}
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
+          </TouchableOpacity>
 
-          {/* Illustration */}
-          <View style={styles.illustrationContainer}>
-            <Text style={styles.illustrationEmoji}>
-              {step === 'phone' ? '📱' : '🔐'}
+          <View style={styles.header}>
+            <Text style={[styles.title, { color: colors.text }]}>Créer un compte</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              Inscrivez-vous avec votre numéro de téléphone
             </Text>
           </View>
 
-          {/* ÉTAPE 1 : Saisie numéro */}
-          {step === 'phone' && (
-            <>
-              <Text style={[styles.title, { color: colors.text }]}>Votre numéro</Text>
-              <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-                Entrez votre numéro de téléphone pour créer votre compte
+          {/* Formulaire */}
+          <View style={styles.form}>
+            {/* Téléphone */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: colors.text }]}>
+                Numéro de téléphone <Text style={{ color: colors.error }}>*</Text>
               </Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    color: colors.text,
+                  },
+                ]}
+                value={phone}
+                onChangeText={setPhone}
+                placeholder="Ex: 0712345678"
+                placeholderTextColor={colors.textSecondary}
+                keyboardType="phone-pad"
+                autoFocus
+                maxLength={15}
+              />
+            </View>
 
-              <View style={styles.inputContainer}>
-                <Text style={[styles.label, { color: colors.text }]}>Numéro de téléphone</Text>
-                <View
+            {/* Prénom */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: colors.text }]}>
+                Prénom <Text style={{ color: colors.error }}>*</Text>
+              </Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    color: colors.text,
+                  },
+                ]}
+                value={firstName}
+                onChangeText={setFirstName}
+                placeholder="Ex: Jean"
+                placeholderTextColor={colors.textSecondary}
+                autoCapitalize="words"
+                maxLength={100}
+              />
+            </View>
+
+            {/* Nom */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: colors.text }]}>
+                Nom <Text style={{ color: colors.error }}>*</Text>
+              </Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    color: colors.text,
+                  },
+                ]}
+                value={lastName}
+                onChangeText={setLastName}
+                placeholder="Ex: Kouassi"
+                placeholderTextColor={colors.textSecondary}
+                autoCapitalize="words"
+                maxLength={100}
+              />
+            </View>
+
+            {/* Mot de passe */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: colors.text }]}>
+                Mot de passe <Text style={{ color: colors.error }}>*</Text>
+              </Text>
+              <View style={styles.passwordContainer}>
+                <TextInput
                   style={[
-                    styles.input,
+                    styles.passwordInput,
                     {
                       backgroundColor: colors.surface,
                       borderColor: colors.border,
+                      color: colors.text,
                     },
                   ]}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  placeholder="Minimum 6 caractères"
+                  placeholderTextColor={colors.textSecondary}
+                />
+                <TouchableOpacity
+                  style={styles.eyeButton}
+                  onPress={() => setShowPassword(!showPassword)}
                 >
                   <Ionicons
-                    name="call"
-                    size={20}
+                    name={showPassword ? 'eye-off' : 'eye'}
+                    size={24}
                     color={colors.textSecondary}
-                    style={styles.inputIcon}
                   />
-                  <TextInput
-                    style={[styles.textInput, { color: colors.text }]}
-                    placeholder="Ex: 0707070707"
-                    placeholderTextColor={colors.textSecondary}
-                    value={phone}
-                    onChangeText={setPhone}
-                    keyboardType="phone-pad"
-                    autoFocus
-                    editable={!loading}
-                  />
-                </View>
-                <Text style={[styles.hint, { color: colors.textSecondary }]}>
-                  Format : 8 à 15 chiffres
-                </Text>
+                </TouchableOpacity>
               </View>
+            </View>
 
-              <Button
-                title={loading ? 'Envoi en cours...' : 'Continuer'}
-                onPress={handlePhoneSubmit}
-                variant="primary"
-                size="large"
-                fullWidth
-                disabled={loading}
-              />
-            </>
-          )}
-
-          {/* ÉTAPE 2 : Vérification OTP */}
-          {step === 'otp' && (
-            <>
-              <Text style={[styles.title, { color: colors.text }]}>Code de vérification</Text>
-              <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-                Entrez le code à 6 chiffres envoyé au {phone}
+            {/* Confirmer mot de passe */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: colors.text }]}>
+                Confirmer le mot de passe <Text style={{ color: colors.error }}>*</Text>
               </Text>
-
-              <View style={styles.inputContainer}>
-                <Text style={[styles.label, { color: colors.text }]}>Code OTP</Text>
-                <View
+              <View style={styles.passwordContainer}>
+                <TextInput
                   style={[
-                    styles.input,
+                    styles.passwordInput,
                     {
                       backgroundColor: colors.surface,
                       borderColor: colors.border,
+                      color: colors.text,
                     },
                   ]}
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  secureTextEntry={!showConfirmPassword}
+                  placeholder="Retapez votre mot de passe"
+                  placeholderTextColor={colors.textSecondary}
+                />
+                <TouchableOpacity
+                  style={styles.eyeButton}
+                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
                 >
                   <Ionicons
-                    name="lock-closed"
-                    size={20}
+                    name={showConfirmPassword ? 'eye-off' : 'eye'}
+                    size={24}
                     color={colors.textSecondary}
-                    style={styles.inputIcon}
                   />
-                  <TextInput
-                    style={[styles.textInput, { color: colors.text, letterSpacing: 8 }]}
-                    placeholder="000000"
-                    placeholderTextColor={colors.textSecondary}
-                    value={otp}
-                    onChangeText={setOtp}
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    autoFocus
-                    editable={!loading}
+                </TouchableOpacity>
+              </View>
+              {confirmPassword.length > 0 && password !== confirmPassword && (
+                <Text style={[styles.errorText, { color: colors.error }]}>
+                  Les mots de passe ne correspondent pas
+                </Text>
+              )}
+            </View>
+
+            {/* Indicateur force du mot de passe */}
+            {password.length > 0 && (
+              <View style={styles.passwordStrength}>
+                <Text style={[styles.passwordStrengthLabel, { color: colors.textSecondary }]}>
+                  Force du mot de passe : {getPasswordStrength(password)}
+                </Text>
+                <View style={[styles.strengthBar, { backgroundColor: colors.border }]}>
+                  <View
+                    style={[
+                      styles.strengthFill,
+                      {
+                        width: `${getPasswordStrengthPercent(password)}%`,
+                        backgroundColor: getPasswordStrengthColor(password),
+                      },
+                    ]}
                   />
                 </View>
               </View>
+            )}
 
-              <Button
-                title={loading ? 'Vérification...' : 'Vérifier'}
-                onPress={handleOTPSubmit}
-                variant="primary"
-                size="large"
-                fullWidth
-                disabled={loading}
-              />
+            {/* Bouton inscription */}
+            <Button
+              title="Créer mon compte"
+              onPress={handleSignUp}
+              variant="primary"
+              size="large"
+              fullWidth
+              loading={isLoading}
+              disabled={!isFormValid || isLoading}
+              style={styles.submitButton}
+            />
 
-              {/* Renvoyer le code */}
-              <TouchableOpacity
-                style={styles.resendButton}
-                onPress={handleResendOTP}
-                disabled={loading}
-              >
-                <Text style={[styles.resendText, { color: colors.primary }]}>
-                  Renvoyer le code
-                </Text>
-              </TouchableOpacity>
-            </>
-          )}
+            {/* Lien connexion */}
+            <TouchableOpacity
+              onPress={() => navigation.navigate(SCREENS.SIGN_IN as never)}
+              style={styles.linkContainer}
+            >
+              <Text style={[styles.linkText, { color: colors.textSecondary }]}>
+                Vous avez déjà un compte ?{' '}
+                <Text style={[styles.linkBold, { color: colors.primary }]}>Se connecter</Text>
+              </Text>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -391,75 +365,97 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: SPACING.xl,
-    paddingBottom: SPACING.xxl,
+  scrollView: {
+    flex: 1,
   },
-  header: {
-    paddingTop: SPACING.md,
-    marginBottom: SPACING.lg,
+  scrollContent: {
+    padding: SPACING.lg,
+    paddingBottom: SPACING.xl * 2,
   },
   backButton: {
-    width: 48,
-    height: 48,
-    borderRadius: BORDER_RADIUS.full,
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: SPACING.sm,
+    marginBottom: SPACING.md,
+    alignSelf: 'flex-start',
   },
-  illustrationContainer: {
-    alignItems: 'center',
+  header: {
     marginBottom: SPACING.xl,
   },
-  illustrationEmoji: {
-    fontSize: 80,
-  },
   title: {
-    fontSize: FONT_SIZES.xxxl,
+    fontSize: FONT_SIZES.xxl,
     fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.sm,
   },
   subtitle: {
     fontSize: FONT_SIZES.md,
-    marginBottom: SPACING.xxl,
     lineHeight: 22,
   },
-  inputContainer: {
-    marginBottom: SPACING.xl,
+  form: {
+    marginTop: SPACING.md,
+  },
+  inputGroup: {
+    marginBottom: SPACING.lg,
   },
   label: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semibold,
+    fontSize: FONT_SIZES.sm,
+    fontWeight: FONT_WEIGHTS.semiBold,
     marginBottom: SPACING.sm,
   },
   input: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
-    paddingHorizontal: SPACING.md,
-    height: 56,
-  },
-  inputIcon: {
-    marginRight: SPACING.sm,
-  },
-  textInput: {
-    flex: 1,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
     fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.medium,
   },
-  hint: {
-    fontSize: FONT_SIZES.sm,
+  passwordContainer: {
+    position: 'relative',
+  },
+  passwordInput: {
+    borderWidth: 1,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    paddingRight: SPACING.xl * 2,
+    fontSize: FONT_SIZES.md,
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: SPACING.md,
+    top: SPACING.md,
+    padding: SPACING.xs,
+  },
+  errorText: {
+    fontSize: FONT_SIZES.xs,
     marginTop: SPACING.xs,
   },
-  resendButton: {
-    marginTop: SPACING.lg,
-    alignItems: 'center',
-    padding: SPACING.md,
+  passwordStrength: {
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.md,
   },
-  resendText: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.bold,
+  passwordStrengthLabel: {
+    fontSize: FONT_SIZES.xs,
+    marginBottom: SPACING.xs,
+  },
+  strengthBar: {
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  strengthFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  submitButton: {
+    marginTop: SPACING.lg,
+  },
+  linkContainer: {
+    marginTop: SPACING.xl,
+    alignItems: 'center',
+  },
+  linkText: {
+    fontSize: FONT_SIZES.sm,
+  },
+  linkBold: {
+    fontWeight: FONT_WEIGHTS.semiBold,
   },
 });
 
+export default PhoneSignUpScreen;

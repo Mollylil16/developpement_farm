@@ -4,7 +4,7 @@
  */
 
 import { useRole } from '../contexts/RoleContext';
-import { RoleType } from '../types';
+import type { RoleType } from '../types/roles';
 
 /**
  * Permissions disponibles dans l'application

@@ -2,11 +2,11 @@
  * Widget Vue d'Ensemble - Grand widget avec stats principales
  */
 
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
-import { selectAllAnimaux } from '../store/selectors/productionSelectors';
+import { selectAllAnimaux, selectProductionUpdateCounter } from '../store/selectors/productionSelectors';
 import { countAnimalsByCategory } from '../utils/animalUtils';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -15,7 +15,7 @@ interface WidgetVueEnsembleProps {
   onPress?: () => void;
 }
 
-export default function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
+function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
@@ -23,6 +23,7 @@ export default function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
   const { chargesFixes, depensesPonctuelles } = useAppSelector((state) => state.finance);
   const { indicateursPerformance } = useAppSelector((state) => state.reports);
   const animaux = useAppSelector(selectAllAnimaux);
+  const updateCounter = useAppSelector(selectProductionUpdateCounter);
 
   // Charger les animaux du cheptel
   const dataChargeesRef = React.useRef<string | null>(null);
@@ -46,7 +47,7 @@ export default function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
       (a) => a.projet_id === projetActif?.id && a.statut?.toLowerCase() === 'actif'
     );
     return countAnimalsByCategory(animauxActifs);
-  }, [animaux, projetActif?.id]);
+  }, [animaux, projetActif?.id, updateCounter]); // Forcer la mise à jour quand les animaux changent
 
   // Calculer les alertes (mises bas prévues dans les 7 prochains jours)
   const alertesMisesBas = useMemo(() => {
@@ -262,3 +263,7 @@ const styles = StyleSheet.create({
     fontWeight: FONT_WEIGHTS.medium,
   },
 });
+
+// Mémoriser le composant pour éviter les re-renders inutiles
+const WidgetVueEnsembleMemoized = memo(WidgetVueEnsemble);
+export default WidgetVueEnsembleMemoized;

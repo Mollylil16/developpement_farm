@@ -15,6 +15,10 @@ import Badge from './Badge';
 import LoadingSpinner from './LoadingSpinner';
 import EmptyState from './EmptyState';
 import { PlusCircle } from 'lucide-react-native';
+import BatchActionsModal from './batch/BatchActionsModal';
+import CreateBatchModal from './batch/CreateBatchModal';
+import apiClient from '../services/api/apiClient';
+import { logger } from '../utils/logger';
 
 export default function BatchCheptelView() {
   const { colors } = useTheme();
@@ -37,61 +41,19 @@ export default function BatchCheptelView() {
 
     setLoading(true);
     try {
-      // TODO: Implémenter le chargement depuis l'API/DB
-      // Pour l'instant, données de démonstration
-      const demoData: Batch[] = [
-        {
-          id: '1',
-          projet_id: projetActif.id,
-          pen_name: 'Loge A1',
-          category: 'porcelets',
-          total_count: 25,
-          male_count: 12,
-          female_count: 13,
-          castrated_count: 0,
-          average_age_months: 2,
-          average_weight_kg: 15,
-          batch_creation_date: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          id: '2',
-          projet_id: projetActif.id,
-          pen_name: 'Loge A2',
-          category: 'porcs_croissance',
-          total_count: 18,
-          male_count: 9,
-          female_count: 9,
-          castrated_count: 0,
-          average_age_months: 4,
-          average_weight_kg: 45,
-          batch_creation_date: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          id: '3',
-          projet_id: projetActif.id,
-          pen_name: 'Loge B1',
-          category: 'truie_reproductrice',
-          total_count: 5,
-          male_count: 0,
-          female_count: 5,
-          castrated_count: 0,
-          average_age_months: 18,
-          average_weight_kg: 180,
-          batch_creation_date: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      ];
+      // Charger les bandes depuis l'API backend
+      const batchesData = await apiClient.get<Batch[]>(
+        `/batch-pigs/projet/${projetActif.id}`
+      );
 
-      setBatches(demoData);
-      calculateStats(demoData);
-    } catch (error) {
-      console.error('Erreur lors du chargement des bandes:', error);
-      Alert.alert('Erreur', 'Impossible de charger les bandes');
+      setBatches(batchesData);
+      calculateStats(batchesData);
+    } catch (error: any) {
+      logger.error('Erreur lors du chargement des bandes:', error);
+      Alert.alert('Erreur', error.message || 'Impossible de charger les bandes');
+      // En cas d'erreur, initialiser avec tableau vide
+      setBatches([]);
+      calculateStats([]);
     } finally {
       setLoading(false);
     }
@@ -110,14 +72,26 @@ export default function BatchCheptelView() {
     setStats({ total, by_category });
   };
 
+  const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
+  const [showActionsModal, setShowActionsModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+
   const handleBatchPress = (batch: Batch) => {
-    // TODO: Ouvrir modal d'édition
-    Alert.alert('Info', `Batch: ${batch.pen_name}\nÀ implémenter: Modal d'édition`);
+    setSelectedBatch(batch);
+    setShowActionsModal(true);
+  };
+
+  const handleCloseActionsModal = () => {
+    setShowActionsModal(false);
+    setSelectedBatch(null);
+  };
+
+  const handleRefresh = () => {
+    loadBatches();
   };
 
   const handleAddBatch = () => {
-    // TODO: Ouvrir modal de création
-    Alert.alert('Info', 'À implémenter: Modal de création de bande');
+    setShowCreateModal(true);
   };
 
   const renderBatchCard = useCallback(
@@ -284,6 +258,26 @@ export default function BatchCheptelView() {
           contentContainerStyle={styles.gridContainer}
         />
       )}
+
+      {/* Modal d'actions */}
+      {selectedBatch && (
+        <BatchActionsModal
+          visible={showActionsModal}
+          batch={selectedBatch}
+          onClose={handleCloseActionsModal}
+          onRefresh={handleRefresh}
+        />
+      )}
+
+      {/* Modal de création */}
+      <CreateBatchModal
+        visible={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={() => {
+          setShowCreateModal(false);
+          handleRefresh();
+        }}
+      />
     </View>
   );
 }
@@ -324,7 +318,8 @@ const styles = StyleSheet.create({
   },
   gridContainer: {
     padding: SPACING.md,
-    paddingTop: 0,
+    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.md,
   },
   row: {
     gap: SPACING.md,
@@ -336,6 +331,7 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1.5,
     minHeight: 220,
+    marginBottom: SPACING.md,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -406,6 +402,7 @@ const styles = StyleSheet.create({
     minHeight: 220,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: SPACING.md,
   },
   addText: {
     marginTop: SPACING.sm,

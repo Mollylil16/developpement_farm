@@ -21,7 +21,7 @@ import {
   selectAllTraitements,
 } from '../store/selectors/santeSelectors';
 import { loadVaccinations, loadMaladies, loadTraitements } from '../store/slices/santeSlice';
-import { ProductionAnimal } from '../types';
+import type { ProductionAnimal } from '../types/production';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import LoadingSpinner from './LoadingSpinner';
@@ -37,6 +37,9 @@ import { useProductionCheptelStatut } from '../hooks/production/useProductionChe
 import AnimalCard from './production/AnimalCard';
 import CheptelHeader from './production/CheptelHeader';
 import BatchCheptelView from './BatchCheptelView';
+import { createLoggerWithPrefix } from '../utils/logger';
+
+const logger = createLoggerWithPrefix('ProductionCheptel');
 
 export default function ProductionCheptelComponent() {
   const { colors } = useTheme();
@@ -84,27 +87,55 @@ export default function ProductionCheptelComponent() {
   const [expandedHistorique, setExpandedHistorique] = useState<string | null>(null);
   const [showRevenuModal, setShowRevenuModal] = useState(false);
   const [animalVendu, setAnimalVendu] = useState<ProductionAnimal | null>(null);
+  
+  // Pagination frontend: afficher seulement un nombre limité d'animaux à la fois
+  const ITEMS_PER_PAGE = 50; // Nombre d'animaux à afficher par page
+  const [displayedCount, setDisplayedCount] = useState(ITEMS_PER_PAGE);
+  
+  // Réinitialiser la pagination quand les filtres changent
+  React.useEffect(() => {
+    setDisplayedCount(ITEMS_PER_PAGE);
+  }, [filterCategorie, searchQuery, projetActif?.id]);
+  
+  // Paginer les animaux filtrés
+  const animauxPagines = React.useMemo(() => {
+    return animauxFiltres.slice(0, displayedCount);
+  }, [animauxFiltres, displayedCount]);
+  
+  // Vérifier s'il y a plus d'animaux à charger
+  const hasMore = animauxFiltres.length > displayedCount;
+  
+  // Charger plus d'animaux (scroll infini)
+  const loadMore = useCallback(() => {
+    if (hasMore && !loading) {
+      setDisplayedCount((prev) => prev + ITEMS_PER_PAGE);
+    }
+  }, [hasMore, loading]);
 
   // Charger les données uniquement quand l'onglet est visible (éviter les boucles infinies)
   const aChargeRef = useRef<string | null>(null);
 
   useFocusEffect(
     React.useCallback(() => {
-      if (!projetActif) {
+      if (!projetActif?.id) {
         aChargeRef.current = null;
         return;
       }
 
       // Charger uniquement une fois par projet (quand le projet change)
       if (aChargeRef.current !== projetActif.id) {
-        console.log(
-          '🔄 [ProductionCheptelComponent] Rechargement des animaux et données associées...'
-        );
+        logger.info('Rechargement des animaux et données associées...');
         aChargeRef.current = projetActif.id;
-        dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
-        dispatch(loadVaccinations(projetActif.id));
-        dispatch(loadMaladies(projetActif.id));
-        dispatch(loadTraitements(projetActif.id));
+        
+        // Dispatcher toutes les actions en parallèle pour meilleure performance
+        Promise.all([
+          dispatch(loadProductionAnimaux({ projetId: projetActif.id })),
+          dispatch(loadVaccinations(projetActif.id)),
+          dispatch(loadMaladies(projetActif.id)),
+          dispatch(loadTraitements(projetActif.id)),
+        ]).catch((error) => {
+          logger.error('Erreur lors du chargement des données:', error);
+        });
       }
     }, [dispatch, projetActif?.id])
   );
@@ -117,7 +148,7 @@ export default function ProductionCheptelComponent() {
     try {
       await dispatch(loadProductionAnimaux({ projetId: projetActif.id })).unwrap();
     } catch (error) {
-      console.error('Erreur lors du rafraîchissement:', error);
+      logger.error('Erreur lors du rafraîchissement:', error);
     } finally {
       setRefreshing(false);
     }
@@ -156,6 +187,27 @@ export default function ProductionCheptelComponent() {
     ['vendu', 'offert', 'mort'].includes(a.statut)
   );
 
+  // Mémoriser les handlers séparément pour éviter les re-renders
+  const handleToggleHistorique = useCallback((animalId: string) => {
+    setExpandedHistorique((prev) => (prev === animalId ? null : animalId));
+  }, []);
+
+  const handleEdit = useCallback((animal: ProductionAnimal) => {
+    setSelectedAnimal(animal);
+    setIsEditing(true);
+    setShowAnimalModal(true);
+  }, []);
+
+  const handleChangeStatutWithCallback = useCallback(
+    (animal: ProductionAnimal, statut: string) => {
+      handleChangeStatut(animal, statut, (animal) => {
+        setAnimalVendu(animal);
+        setShowRevenuModal(true);
+      });
+    },
+    [handleChangeStatut]
+  );
+
   // Render animal using AnimalCard component
   const renderAnimal = useCallback(
     ({ item }: { item: ProductionAnimal }) => {
@@ -166,22 +218,11 @@ export default function ProductionCheptelComponent() {
           maladies={maladies}
           traitements={traitements}
           expandedHistorique={expandedHistorique}
-          onToggleHistorique={(animalId) =>
-            setExpandedHistorique(expandedHistorique === animalId ? null : animalId)
-          }
+          onToggleHistorique={handleToggleHistorique}
           onToggleMarketplace={handleToggleMarketplace}
-          onEdit={(animal) => {
-            setSelectedAnimal(animal);
-            setIsEditing(true);
-            setShowAnimalModal(true);
-          }}
+          onEdit={handleEdit}
           onDelete={handleDelete}
-          onChangeStatut={(animal, statut) =>
-            handleChangeStatut(animal, statut, (animal) => {
-              setAnimalVendu(animal);
-              setShowRevenuModal(true);
-            })
-          }
+          onChangeStatut={handleChangeStatutWithCallback}
           togglingMarketplace={togglingMarketplace}
           canUpdate={canUpdate('reproduction')}
           canDelete={canDelete('reproduction')}
@@ -194,14 +235,29 @@ export default function ProductionCheptelComponent() {
       maladies,
       traitements,
       expandedHistorique,
+      handleToggleHistorique,
       handleToggleMarketplace,
+      handleEdit,
       handleDelete,
-      handleChangeStatut,
+      handleChangeStatutWithCallback,
       togglingMarketplace,
       canUpdate,
       canDelete,
       getParentLabel,
     ]
+  );
+
+  // Constante pour la hauteur estimée d'un AnimalCard (ajuster selon votre design)
+  const ESTIMATED_ITEM_HEIGHT = 200;
+
+  // Optimisation FlatList : getItemLayout pour items de taille fixe
+  const getItemLayout = useCallback(
+    (_: any, index: number) => ({
+      length: ESTIMATED_ITEM_HEIGHT,
+      offset: ESTIMATED_ITEM_HEIGHT * index,
+      index,
+    }),
+    []
   );
 
   // Afficher le spinner uniquement lors du premier chargement (pas à chaque re-render)
@@ -212,9 +268,14 @@ export default function ProductionCheptelComponent() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <FlatList
-        data={animauxFiltres}
+        data={animauxPagines}
         renderItem={renderAnimal}
         keyExtractor={(item) => item.id}
+        getItemLayout={getItemLayout}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        initialNumToRender={10}
         ListHeaderComponent={
           <CheptelHeader
             totalCount={animauxFiltres.length}
@@ -243,6 +304,8 @@ export default function ProductionCheptelComponent() {
             tintColor={colors.primary}
           />
         }
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
         ListEmptyComponent={
           searchQuery.trim() ? (
             <EmptyState
@@ -274,6 +337,13 @@ export default function ProductionCheptelComponent() {
               }
             />
           )
+        }
+        ListFooterComponent={
+          hasMore && loading ? (
+            <View style={styles.footerLoader}>
+              <LoadingSpinner message="Chargement..." />
+            </View>
+          ) : null
         }
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
@@ -326,13 +396,17 @@ export default function ProductionCheptelComponent() {
   );
 }
 
-const styles = StyleSheet.create({
+  const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
   listContent: {
     padding: SPACING.md,
     paddingBottom: 100,
+  },
+  footerLoader: {
+    paddingVertical: SPACING.lg,
+    alignItems: 'center',
   },
   header: {
     marginBottom: SPACING.lg,

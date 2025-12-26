@@ -4,7 +4,7 @@
  */
 
 import apiClient from '../api/apiClient';
-import type { Vaccination, Maladie, Traitement, VisiteVeterinaire } from '../../types';
+import type { Vaccination, Maladie, Traitement, VisiteVeterinaire } from '../../types/sante';
 
 export interface HistoriqueMedicalAnimal {
   vaccinations: Vaccination[];

@@ -18,6 +18,7 @@ import {
 } from '../store/selectors/financeSelectors';
 import { selectAllGestations, selectAllSevrages } from '../store/selectors/reproductionSelectors';
 import { exportDashboardPDF } from '../services/pdf/dashboardPDF';
+import { logger } from '../utils/logger';
 
 interface UseDashboardExportReturn {
   exportingPDF: boolean;
@@ -132,7 +133,7 @@ export function useDashboardExport(projetActif: unknown): UseDashboardExportRetu
         [{ text: 'OK' }]
       );
     } catch (error) {
-      console.error("Erreur lors de l'export PDF:", error);
+      logger.error("Erreur lors de l'export PDF:", error);
       Alert.alert('Erreur', 'Impossible de générer le PDF. Vérifiez vos données et réessayez.', [
         { text: 'OK' },
       ]);

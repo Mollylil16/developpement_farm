@@ -15,6 +15,7 @@ import {
 } from '../../../services/notificationsService';
 import { NOTIFICATIONS_ENABLED_KEY } from '../../../constants/notifications';
 import NotificationTypesModal from './modals/NotificationTypesModal';
+import { logger } from '../../../utils/logger';
 
 interface SettingsNotificationsViewProps {
   onBack: () => void;
@@ -45,7 +46,7 @@ export default function SettingsNotificationsView({ onBack }: SettingsNotificati
       const notifications = await getAllScheduledNotifications();
       setScheduledCount(notifications.length);
     } catch (error) {
-      console.error('Erreur lors du chargement des notifications:', error);
+      logger.error('Erreur lors du chargement des notifications:', error);
     }
   };
 

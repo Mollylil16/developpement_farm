@@ -4,6 +4,7 @@
  */
 
 import type { SQLiteDatabase } from 'expo-sqlite';
+import { logger } from '../utils/logger';
 
 /**
  * Prix moyen régional par défaut (FCFA/kg)
@@ -86,8 +87,8 @@ export class RegionalPriceService {
             return apiPrice;
           }
         } catch (error) {
-          console.warn(
-            "⚠️ [RegionalPriceService] Erreur lors de la récupération depuis l'API:",
+          logger.warn(
+            "[RegionalPriceService] Erreur lors de la récupération depuis l'API:",
             error
           );
           // Continuer avec le fallback
@@ -102,8 +103,8 @@ export class RegionalPriceService {
       // 4. Fallback vers la constante par défaut
       return DEFAULT_REGIONAL_PRICE;
     } catch (error) {
-      console.error(
-        '❌ [RegionalPriceService] Erreur lors de la récupération du prix régional:',
+      logger.error(
+        '[RegionalPriceService] Erreur lors de la récupération du prix régional:',
         error
       );
       return DEFAULT_REGIONAL_PRICE;
@@ -157,7 +158,7 @@ export class RegionalPriceService {
       // Cette logique peut être adaptée selon l'API
       if (data.currency && data.currency !== 'FCFA' && data.currency !== 'XOF') {
         // Ici, on pourrait ajouter une conversion de devise si nécessaire
-        console.warn(`⚠️ [RegionalPriceService] Devise non-FCFA détectée: ${data.currency}`);
+        logger.warn(`[RegionalPriceService] Devise non-FCFA détectée: ${data.currency}`);
       }
 
       return Math.round(price);
@@ -182,7 +183,7 @@ export class RegionalPriceService {
     } catch (error) {
       // La table n'existe peut-être pas encore
       // Logger l'erreur pour le debugging
-      console.warn('[RegionalPriceService] Erreur lors de la récupération du prix depuis la DB:', error);
+      logger.warn('[RegionalPriceService] Erreur lors de la récupération du prix depuis la DB:', error);
       return null;
     }
   }
@@ -198,7 +199,7 @@ export class RegionalPriceService {
       return row?.updated_at || null;
     } catch (error) {
       // Logger l'erreur pour le debugging
-      console.warn('[RegionalPriceService] Erreur lors de la récupération de la date de mise à jour:', error);
+      logger.warn('[RegionalPriceService] Erreur lors de la récupération de la date de mise à jour:', error);
       return null;
     }
   }
@@ -220,7 +221,7 @@ export class RegionalPriceService {
       );
     } catch (error) {
       // La table n'existe peut-être pas encore, on ignore l'erreur
-      console.warn('⚠️ [RegionalPriceService] Impossible de sauvegarder le prix:', error);
+      logger.warn('[RegionalPriceService] Impossible de sauvegarder le prix:', error);
     }
   }
 
@@ -243,7 +244,7 @@ export class RegionalPriceService {
           return apiPrice;
         }
       } catch (error) {
-        console.error('❌ [RegionalPriceService] Erreur lors de la mise à jour forcée:', error);
+        logger.error('[RegionalPriceService] Erreur lors de la mise à jour forcée:', error);
       }
     }
     return await this.getCurrentRegionalPrice();

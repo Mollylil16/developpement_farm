@@ -33,7 +33,7 @@ import {
   RAISON_TRAITEMENT_LABELS,
   Maladie,
 } from '../types/sante';
-import { ProductionAnimal } from '../types';
+import type { ProductionAnimal } from '../types/production';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);

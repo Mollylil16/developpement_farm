@@ -22,7 +22,7 @@ export function usePreloadScreens() {
 
     // Précharger les écrans communs
     const preloadCommonScreens = async () => {
-      await Promise.all([import('../screens/ProfilScreen'), import('../screens/ParametresScreen')]);
+      await Promise.all([import('../screens/ProfilScreen'), import('../screens/TrainingScreen')]);
     };
 
     // Précharger selon le rôle

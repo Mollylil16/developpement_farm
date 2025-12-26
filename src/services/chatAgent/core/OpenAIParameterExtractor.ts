@@ -4,6 +4,7 @@
  */
 
 import { ExtractedParams } from './ParameterExtractor';
+import { logger } from '../../../utils/logger';
 
 export class OpenAIParameterExtractor {
   private apiKey: string;
@@ -111,11 +112,11 @@ Réponds UNIQUEMENT avec le JSON, sans texte supplémentaire.`;
         }
         return cleaned;
       } catch (parseError) {
-        console.error('[OpenAIParameterExtractor] Erreur parsing JSON:', parseError);
+        logger.error('[OpenAIParameterExtractor] Erreur parsing JSON:', parseError);
         return {};
       }
     } catch (error: unknown) {
-      console.error('[OpenAIParameterExtractor] Erreur extraction:', error);
+      logger.error('[OpenAIParameterExtractor] Erreur extraction:', error);
       return {}; // Retourner objet vide en cas d'erreur
     }
   }

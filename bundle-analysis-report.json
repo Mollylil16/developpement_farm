@@ -1,0 +1,46 @@
+{
+  "timestamp": "2025-12-25T14:13:11.751Z",
+  "heavyDependencies": [
+    {
+      "name": "date-fns",
+      "version": "^4.1.0",
+      "size": "~70KB (minified)",
+      "optimization": "Utiliser des imports ciblés: import { format } from \"date-fns/format\"",
+      "impact": "medium"
+    },
+    {
+      "name": "expo",
+      "version": "~54.0.25",
+      "size": "~500KB+",
+      "optimization": "N/A - Core dependency",
+      "impact": "low"
+    },
+    {
+      "name": "lodash",
+      "version": "^4.17.21",
+      "size": "~70KB (minified)",
+      "optimization": "Utiliser des imports ciblés: import debounce from \"lodash/debounce\"",
+      "impact": "high"
+    },
+    {
+      "name": "react-native-calendars",
+      "version": "^1.1313.0",
+      "size": "~100KB",
+      "optimization": "Lazy load si possible",
+      "impact": "medium"
+    },
+    {
+      "name": "react-native-chart-kit",
+      "version": "^6.12.0",
+      "size": "~50KB",
+      "optimization": "Lazy load si possible",
+      "impact": "medium"
+    }
+  ],
+  "nonOptimizedImports": [],
+  "summary": {
+    "totalFiles": 691,
+    "filesWithIssues": 0,
+    "totalIssues": 0
+  }
+}

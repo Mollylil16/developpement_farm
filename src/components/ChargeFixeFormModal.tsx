@@ -6,13 +6,14 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { createChargeFixe, updateChargeFixe } from '../store/slices/financeSlice';
-import { ChargeFixe, CreateChargeFixeInput, CategorieChargeFixe, FrequenceCharge } from '../types';
+import type { ChargeFixe, CreateChargeFixeInput, CategorieChargeFixe, FrequenceCharge } from '../types/finance';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { Alert } from 'react-native';
+import { logger } from '../utils/logger';
 
 interface ChargeFixeFormModalProps {
   visible: boolean;
@@ -116,7 +117,7 @@ export default function ChargeFixeFormModal({
       }
       onSuccess();
     } catch (error: unknown) {
-      console.error('Erreur:', error);
+      logger.error('Erreur:', error);
     } finally {
       setLoading(false);
     }

@@ -11,6 +11,9 @@ import {
   TASK_REMINDER_HOURS,
 } from '../constants/notifications';
 import { getErrorMessage } from '../types/common';
+import { createLoggerWithPrefix } from '../utils/logger';
+
+const logger = createLoggerWithPrefix('NotificationsService');
 
 export interface NotificationConfig {
   title: string;
@@ -58,8 +61,8 @@ export async function configureNotifications(): Promise<void> {
     if (finalStatus !== 'granted') {
       // En mode développement avec Expo Go, on ne lance pas d'erreur
       if (isExpoGo) {
-        console.warn(
-          'Notifications: Les permissions ne sont pas accordées. Les notifications locales peuvent ne pas fonctionner dans Expo Go.'
+        logger.warn(
+          'Les permissions ne sont pas accordées. Les notifications locales peuvent ne pas fonctionner dans Expo Go.'
         );
         return;
       }
@@ -68,13 +71,13 @@ export async function configureNotifications(): Promise<void> {
   } catch (error: unknown) {
     // En mode développement, on log l'erreur sans la lancer
     if (__DEV__) {
-      console.warn(
-        'Notifications: Erreur lors de la configuration (peut être normal dans Expo Go):',
+      logger.warn(
+        'Erreur lors de la configuration (peut être normal dans Expo Go):',
         getErrorMessage(error)
       );
       return;
     }
-    console.error('Erreur lors de la configuration des notifications:', error);
+    logger.error('Erreur lors de la configuration des notifications:', error);
     throw error;
   }
 }
@@ -86,7 +89,7 @@ export async function cancelAllNotifications(): Promise<void> {
   try {
     await Notifications.cancelAllScheduledNotificationsAsync();
   } catch (error: unknown) {
-    console.error("Erreur lors de l'annulation des notifications:", error);
+    logger.error("Erreur lors de l'annulation des notifications:", error);
   }
 }
 
@@ -114,7 +117,7 @@ export async function scheduleNotification(
 
     return notificationId;
   } catch (error: unknown) {
-    console.error('Erreur lors de la planification de la notification:', error);
+    logger.error('Erreur lors de la planification de la notification:', error);
     throw error;
   }
 }
@@ -151,7 +154,7 @@ export async function scheduleGestationAlert(
 
     return notificationId;
   } catch (error: unknown) {
-    console.error("Erreur lors de la planification de l'alerte de gestation:", error);
+    logger.error("Erreur lors de la planification de l'alerte de gestation:", error);
     return null;
   }
 }
@@ -212,7 +215,7 @@ export async function scheduleGestationAlerts(gestations: unknown[]): Promise<vo
       }
     }
   } catch (error: unknown) {
-    console.error('Erreur lors de la planification des alertes de gestations:', error);
+    logger.error('Erreur lors de la planification des alertes de gestations:', error);
   }
 }
 
@@ -261,7 +264,7 @@ export async function scheduleStockAlert(
 
     return notificationId;
   } catch (error: unknown) {
-    console.error("Erreur lors de la planification de l'alerte de stock:", error);
+    logger.error("Erreur lors de la planification de l'alerte de stock:", error);
     return null;
   }
 }
@@ -337,7 +340,7 @@ export async function scheduleStockAlerts(stocks: unknown[]): Promise<void> {
       }
     }
   } catch (error: unknown) {
-    console.error('Erreur lors de la planification des alertes de stocks:', error);
+    logger.error('Erreur lors de la planification des alertes de stocks:', error);
   }
 }
 
@@ -373,7 +376,7 @@ export async function scheduleTaskReminder(
 
     return notificationId;
   } catch (error: unknown) {
-    console.error('Erreur lors de la planification du rappel de tâche:', error);
+    logger.error('Erreur lors de la planification du rappel de tâche:', error);
     return null;
   }
 }
@@ -440,7 +443,7 @@ export async function scheduleTaskReminders(tasks: unknown[]): Promise<void> {
       }
     }
   } catch (error: unknown) {
-    console.error('Erreur lors de la planification des rappels de tâches:', error);
+    logger.error('Erreur lors de la planification des rappels de tâches:', error);
   }
 }
 
@@ -451,7 +454,7 @@ export async function getAllScheduledNotifications(): Promise<unknown[]> {
   try {
     return await Notifications.getAllScheduledNotificationsAsync();
   } catch (error: unknown) {
-    console.error('Erreur lors de la récupération des notifications:', error);
+    logger.error('Erreur lors de la récupération des notifications:', error);
     return [];
   }
 }
@@ -550,7 +553,7 @@ export async function cleanupObsoleteNotifications(
       }
     }
   } catch (error: unknown) {
-    console.error('Erreur lors du nettoyage des notifications obsolètes:', error);
+    logger.error('Erreur lors du nettoyage des notifications obsolètes:', error);
   }
 }
 
@@ -561,6 +564,6 @@ export async function cancelNotification(notificationId: string): Promise<void> 
   try {
     await Notifications.cancelScheduledNotificationAsync(notificationId);
   } catch (error: unknown) {
-    console.error("Erreur lors de l'annulation de la notification:", error);
+    logger.error("Erreur lors de l'annulation de la notification:", error);
   }
 }

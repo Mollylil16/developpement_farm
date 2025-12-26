@@ -7,6 +7,7 @@
 import { AgentActionType } from '../../../types/chatAgent';
 import { DetectedIntent } from '../IntentDetector';
 import { OpenAIIntentService } from './OpenAIIntentService';
+import { logger } from '../../../utils/logger';
 
 export interface TrainingExample {
   text: string;
@@ -1151,6 +1152,110 @@ export const INTENT_KNOWLEDGE_BASE: TrainingExample[] = [
   { text: 'j ai detecte une maladie', action: 'create_maladie', params: {}, confidence: 0.9 },
   { text: 'maladie constatee', action: 'create_maladie', params: {}, confidence: 0.85 },
   { text: 'mes porcs sont malades', action: 'create_maladie', params: {}, confidence: 0.9 },
+
+  // ========== QUESTIONS DE FORMATION / CONNAISSANCES (answer_knowledge_question) ==========
+  // Types d'élevage
+  { text: 'c est quoi un naisseur', action: 'answer_knowledge_question', params: { topic: 'types_elevage' }, confidence: 0.95 },
+  { text: 'c est quoi un engraisseur', action: 'answer_knowledge_question', params: { topic: 'types_elevage' }, confidence: 0.95 },
+  { text: 'difference entre naisseur et engraisseur', action: 'answer_knowledge_question', params: { topic: 'types_elevage' }, confidence: 0.95 },
+  { text: 'les types d elevage', action: 'answer_knowledge_question', params: { topic: 'types_elevage' }, confidence: 0.95 },
+  { text: 'quels sont les types d elevage porcin', action: 'answer_knowledge_question', params: { topic: 'types_elevage' }, confidence: 0.95 },
+  { text: 'cycle complet c est quoi', action: 'answer_knowledge_question', params: { topic: 'types_elevage' }, confidence: 0.9 },
+  { text: 'production de porcelets', action: 'answer_knowledge_question', params: { topic: 'types_elevage' }, confidence: 0.9 },
+
+  // Objectifs et démarrage
+  { text: 'comment demarrer un elevage', action: 'answer_knowledge_question', params: { topic: 'objectifs' }, confidence: 0.95 },
+  { text: 'combien pour demarrer un elevage', action: 'answer_knowledge_question', params: { topic: 'objectifs' }, confidence: 0.95 },
+  { text: 'quel capital pour un elevage', action: 'answer_knowledge_question', params: { topic: 'objectifs' }, confidence: 0.95 },
+  { text: 'budget pour elevage porcin', action: 'answer_knowledge_question', params: { topic: 'objectifs' }, confidence: 0.95 },
+  { text: 'quelle surface pour un elevage', action: 'answer_knowledge_question', params: { topic: 'objectifs' }, confidence: 0.9 },
+  { text: 'comment definir son objectif', action: 'answer_knowledge_question', params: { topic: 'objectifs' }, confidence: 0.9 },
+  { text: 'par ou commencer', action: 'answer_knowledge_question', params: { topic: 'objectifs' }, confidence: 0.9 },
+
+  // Races
+  { text: 'quelle race choisir', action: 'answer_knowledge_question', params: { topic: 'races' }, confidence: 0.95 },
+  { text: 'quelle race pour engraissement', action: 'answer_knowledge_question', params: { topic: 'races' }, confidence: 0.95 },
+  { text: 'quelle race pour la reproduction', action: 'answer_knowledge_question', params: { topic: 'races' }, confidence: 0.95 },
+  { text: 'c est quoi large white', action: 'answer_knowledge_question', params: { topic: 'races' }, confidence: 0.95 },
+  { text: 'c est quoi landrace', action: 'answer_knowledge_question', params: { topic: 'races' }, confidence: 0.95 },
+  { text: 'c est quoi duroc', action: 'answer_knowledge_question', params: { topic: 'races' }, confidence: 0.95 },
+  { text: 'c est quoi pietrain', action: 'answer_knowledge_question', params: { topic: 'races' }, confidence: 0.95 },
+  { text: 'les races de porcs', action: 'answer_knowledge_question', params: { topic: 'races' }, confidence: 0.95 },
+  { text: 'croisement de races', action: 'answer_knowledge_question', params: { topic: 'races' }, confidence: 0.9 },
+  { text: 'meilleure race de porc', action: 'answer_knowledge_question', params: { topic: 'races' }, confidence: 0.9 },
+
+  // Emplacement
+  { text: 'ou construire ma ferme', action: 'answer_knowledge_question', params: { topic: 'emplacement' }, confidence: 0.95 },
+  { text: 'criteres pour emplacement', action: 'answer_knowledge_question', params: { topic: 'emplacement' }, confidence: 0.95 },
+  { text: 'comment choisir le terrain', action: 'answer_knowledge_question', params: { topic: 'emplacement' }, confidence: 0.95 },
+  { text: 'distance des habitations', action: 'answer_knowledge_question', params: { topic: 'emplacement' }, confidence: 0.9 },
+  { text: 'quel terrain pour elevage', action: 'answer_knowledge_question', params: { topic: 'emplacement' }, confidence: 0.9 },
+
+  // Eau
+  { text: 'besoin en eau des porcs', action: 'answer_knowledge_question', params: { topic: 'eau' }, confidence: 0.95 },
+  { text: 'combien d eau pour un porc', action: 'answer_knowledge_question', params: { topic: 'eau' }, confidence: 0.95 },
+  { text: 'qualite de l eau', action: 'answer_knowledge_question', params: { topic: 'eau' }, confidence: 0.9 },
+  { text: 'forage ou puits', action: 'answer_knowledge_question', params: { topic: 'eau' }, confidence: 0.9 },
+  { text: 'systeme d eau pour porcherie', action: 'answer_knowledge_question', params: { topic: 'eau' }, confidence: 0.9 },
+
+  // Alimentation
+  { text: 'comment nourrir mes porcs', action: 'answer_knowledge_question', params: { topic: 'alimentation' }, confidence: 0.95 },
+  { text: 'combien coute l alimentation', action: 'answer_knowledge_question', params: { topic: 'alimentation' }, confidence: 0.95 },
+  { text: 'quel aliment pour porcs', action: 'answer_knowledge_question', params: { topic: 'alimentation' }, confidence: 0.95 },
+  { text: 'aliment porcelet', action: 'answer_knowledge_question', params: { topic: 'alimentation' }, confidence: 0.9 },
+  { text: 'aliment croissance', action: 'answer_knowledge_question', params: { topic: 'alimentation' }, confidence: 0.9 },
+  { text: 'aliment finition', action: 'answer_knowledge_question', params: { topic: 'alimentation' }, confidence: 0.9 },
+  { text: 'indice de consommation', action: 'answer_knowledge_question', params: { topic: 'alimentation' }, confidence: 0.9 },
+  { text: 'fabriquer son propre aliment', action: 'answer_knowledge_question', params: { topic: 'alimentation' }, confidence: 0.9 },
+  { text: 'reduire le cout de l alimentation', action: 'answer_knowledge_question', params: { topic: 'alimentation' }, confidence: 0.9 },
+
+  // Santé et prophylaxie
+  { text: 'comment vacciner mes porcs', action: 'answer_knowledge_question', params: { topic: 'sante' }, confidence: 0.95 },
+  { text: 'calendrier de vaccination', action: 'answer_knowledge_question', params: { topic: 'sante' }, confidence: 0.95 },
+  { text: 'quels vaccins pour les porcs', action: 'answer_knowledge_question', params: { topic: 'sante' }, confidence: 0.95 },
+  { text: 'maladies des porcs', action: 'answer_knowledge_question', params: { topic: 'sante' }, confidence: 0.95 },
+  { text: 'peste porcine africaine', action: 'answer_knowledge_question', params: { topic: 'sante' }, confidence: 0.95 },
+  { text: 'prevention des maladies', action: 'answer_knowledge_question', params: { topic: 'sante' }, confidence: 0.9 },
+  { text: 'biosecurite', action: 'answer_knowledge_question', params: { topic: 'sante' }, confidence: 0.9 },
+  { text: 'parasitage des porcs', action: 'answer_knowledge_question', params: { topic: 'sante' }, confidence: 0.9 },
+  { text: 'soins veterinaires', action: 'answer_knowledge_question', params: { topic: 'sante' }, confidence: 0.9 },
+
+  // Finance
+  { text: 'rentabilite elevage porcin', action: 'answer_knowledge_question', params: { topic: 'finance' }, confidence: 0.95 },
+  { text: 'combien peut on gagner', action: 'answer_knowledge_question', params: { topic: 'finance' }, confidence: 0.95 },
+  { text: 'marge par porc', action: 'answer_knowledge_question', params: { topic: 'finance' }, confidence: 0.95 },
+  { text: 'cout d un porc', action: 'answer_knowledge_question', params: { topic: 'finance' }, confidence: 0.95 },
+  { text: 'investissement initial', action: 'answer_knowledge_question', params: { topic: 'finance' }, confidence: 0.95 },
+  { text: 'seuil de rentabilite', action: 'answer_knowledge_question', params: { topic: 'finance' }, confidence: 0.9 },
+  { text: 'retour sur investissement', action: 'answer_knowledge_question', params: { topic: 'finance' }, confidence: 0.9 },
+  { text: 'fonds de roulement', action: 'answer_knowledge_question', params: { topic: 'finance' }, confidence: 0.9 },
+
+  // Commerce
+  { text: 'comment vendre mes porcs', action: 'answer_knowledge_question', params: { topic: 'commerce' }, confidence: 0.95 },
+  { text: 'ou vendre mes porcs', action: 'answer_knowledge_question', params: { topic: 'commerce' }, confidence: 0.95 },
+  { text: 'prix de vente des porcs', action: 'answer_knowledge_question', params: { topic: 'commerce' }, confidence: 0.95 },
+  { text: 'canaux de commercialisation', action: 'answer_knowledge_question', params: { topic: 'commerce' }, confidence: 0.9 },
+  { text: 'trouver des clients', action: 'answer_knowledge_question', params: { topic: 'commerce' }, confidence: 0.9 },
+  { text: 'poids optimal de vente', action: 'answer_knowledge_question', params: { topic: 'commerce' }, confidence: 0.9 },
+  { text: 'meilleure periode pour vendre', action: 'answer_knowledge_question', params: { topic: 'commerce' }, confidence: 0.9 },
+
+  // Réglementation
+  { text: 'reglementation elevage porcin', action: 'answer_knowledge_question', params: { topic: 'reglementation' }, confidence: 0.95 },
+  { text: 'obligations legales', action: 'answer_knowledge_question', params: { topic: 'reglementation' }, confidence: 0.95 },
+  { text: 'declaration d elevage', action: 'answer_knowledge_question', params: { topic: 'reglementation' }, confidence: 0.9 },
+  { text: 'normes sanitaires', action: 'answer_knowledge_question', params: { topic: 'reglementation' }, confidence: 0.9 },
+  { text: 'bien etre animal', action: 'answer_knowledge_question', params: { topic: 'reglementation' }, confidence: 0.9 },
+  { text: 'fiscalite elevage', action: 'answer_knowledge_question', params: { topic: 'reglementation' }, confidence: 0.9 },
+
+  // Questions générales sur la formation
+  { text: 'apprends moi l elevage', action: 'answer_knowledge_question', params: {}, confidence: 0.9 },
+  { text: 'je veux apprendre', action: 'answer_knowledge_question', params: {}, confidence: 0.85 },
+  { text: 'formation elevage porcin', action: 'answer_knowledge_question', params: {}, confidence: 0.9 },
+  { text: 'conseils pour elevage', action: 'answer_knowledge_question', params: {}, confidence: 0.9 },
+  { text: 'explique moi', action: 'answer_knowledge_question', params: {}, confidence: 0.85 },
+  { text: 'aide moi a comprendre', action: 'answer_knowledge_question', params: {}, confidence: 0.85 },
+  { text: 'les themes de formation', action: 'list_knowledge_topics', params: {}, confidence: 0.95 },
+  { text: 'quels sujets tu connais', action: 'list_knowledge_topics', params: {}, confidence: 0.9 },
 ];
 
 /**
@@ -1256,12 +1361,20 @@ function normalizeText(text: string): string {
 /**
  * Système RAG pour la détection d'intention
  * Mode hybride : OpenAI embeddings (si configuré) + Jaccard (fallback)
+ * Version 3.0 - Optimisé avec index inversé et cache
  */
 export class IntentRAG {
   private knowledgeBase: TrainingExample[];
   private openAIService: OpenAIIntentService | null;
   private useOpenAI: boolean;
   private embeddingsCache: Map<string, number[]> = new Map();
+
+  // Cache pour normalisations (optimisation v3.0)
+  private normalizedTextCache: Map<string, string> = new Map();
+  
+  // Index inversé pour recherche rapide (optimisation v3.0)
+  private invertedIndex: Map<string, Set<number>> = new Map();
+  private exampleNormalizedTexts: Map<number, string> = new Map();
 
   constructor(
     knowledgeBase: TrainingExample[] = INTENT_KNOWLEDGE_BASE_COMPLETE,
@@ -1272,12 +1385,13 @@ export class IntentRAG {
     this.openAIService = openAIService || null;
     this.useOpenAI = !!openAIService && openAIService.isConfigured();
 
+    // Construire l'index inversé et précalculer les normalisations (optimisation v3.0)
+    this.buildInvertedIndex();
+
     // Log pour monitoring (en développement)
-    if (process.env.NODE_ENV === 'development') {
-      console.log(
-        `📚 IntentRAG initialisé avec ${this.knowledgeBase.length} exemples d'entraînement`
-      );
-    }
+    logger.debug(
+      `IntentRAG initialisé avec ${this.knowledgeBase.length} exemples d'entraînement (index inversé: ${this.invertedIndex.size} mots-clés)`
+    );
   }
 
   /**
@@ -1338,22 +1452,33 @@ export class IntentRAG {
 
       return null;
     } catch (error) {
-      console.warn('[IntentRAG] Erreur avec OpenAI embeddings, fallback sur Jaccard:', error);
+      logger.warn('[IntentRAG] Erreur avec OpenAI embeddings, fallback sur Jaccard:', error);
       return this.detectIntentWithJaccard(message);
     }
   }
 
   /**
-   * Détection d'intention avec Jaccard (fallback)
+   * Détection d'intention avec Jaccard (fallback) - Version optimisée v3.0
+   * Utilise l'index inversé pour limiter la recherche aux top 100 candidats
    */
   private detectIntentWithJaccard(message: string): DetectedIntent | null {
-    const normalized = normalizeText(message);
+    const normalized = this.getNormalizedText(message);
 
-    // Calculer la similarité avec tous les exemples
-    const similarities = this.knowledgeBase.map((example) => ({
-      example,
-      similarity: calculateSimilarity(normalized, normalizeText(example.text)),
-    }));
+    // Étape 1 : Utiliser l'index inversé pour trouver les candidats pertinents
+    const candidateIndices = this.findCandidateIndices(normalized);
+    
+    // Étape 2 : Limiter à top 100 candidats avant calcul Jaccard complet
+    const topCandidates = candidateIndices.slice(0, 100);
+
+    // Étape 3 : Calculer la similarité seulement pour les candidats sélectionnés
+    const similarities = topCandidates.map((index) => {
+      const example = this.knowledgeBase[index];
+      const exampleNormalized = this.exampleNormalizedTexts.get(index) || this.getNormalizedText(example.text);
+      return {
+        example,
+        similarity: calculateSimilarity(normalized, exampleNormalized),
+      };
+    });
 
     // Trier par similarité décroissante
     similarities.sort((a, b) => b.similarity - a.similarity);
@@ -1418,24 +1543,32 @@ export class IntentRAG {
       similarities.sort((a, b) => b.similarity - a.similarity);
       return similarities.slice(0, topN);
     } catch (error) {
-      console.warn('[IntentRAG] Erreur avec OpenAI, fallback sur Jaccard:', error);
+      logger.warn('[IntentRAG] Erreur avec OpenAI, fallback sur Jaccard:', error);
       return this.findTopMatchesWithJaccard(message, topN);
     }
   }
 
   /**
-   * Recherche avec Jaccard
+   * Recherche avec Jaccard - Version optimisée v3.0
    */
   private findTopMatchesWithJaccard(
     message: string,
     topN: number
   ): Array<{ example: TrainingExample; similarity: number }> {
-    const normalized = normalizeText(message);
+    const normalized = this.getNormalizedText(message);
 
-    const similarities = this.knowledgeBase.map((example) => ({
-      example,
-      similarity: calculateSimilarity(normalized, normalizeText(example.text)),
-    }));
+    // Utiliser l'index inversé pour trouver les candidats pertinents
+    const candidateIndices = this.findCandidateIndices(normalized);
+    const topCandidates = candidateIndices.slice(0, 100);
+
+    const similarities = topCandidates.map((index) => {
+      const example = this.knowledgeBase[index];
+      const exampleNormalized = this.exampleNormalizedTexts.get(index) || this.getNormalizedText(example.text);
+      return {
+        example,
+        similarity: calculateSimilarity(normalized, exampleNormalized),
+      };
+    });
 
     similarities.sort((a, b) => b.similarity - a.similarity);
     return similarities.slice(0, topN);
@@ -1443,9 +1576,26 @@ export class IntentRAG {
 
   /**
    * Ajoute un nouvel exemple à la base de connaissances
+   * Met à jour l'index inversé automatiquement
    */
   addExample(example: TrainingExample): void {
+    const index = this.knowledgeBase.length;
     this.knowledgeBase.push(example);
+
+    // Mettre à jour l'index inversé
+    const normalized = normalizeText(example.text);
+    this.exampleNormalizedTexts.set(index, normalized);
+
+    const words = normalized
+      .split(/\s+/)
+      .filter((w) => w.length >= 3 && !w.startsWith('[') && !w.endsWith(']'));
+
+    words.forEach((word) => {
+      if (!this.invertedIndex.has(word)) {
+        this.invertedIndex.set(word, new Set());
+      }
+      this.invertedIndex.get(word)!.add(index);
+    });
   }
 
   /**
@@ -1490,5 +1640,96 @@ export class IntentRAG {
    */
   isUsingOpenAI(): boolean {
     return this.useOpenAI;
+  }
+
+  // ============================================
+  // OPTIMISATIONS V3.0 - Index inversé et cache
+  // ============================================
+
+  /**
+   * Construit l'index inversé pour recherche rapide
+   * Mots-clés fréquents → indices des exemples qui les contiennent
+   */
+  private buildInvertedIndex(): void {
+    this.invertedIndex.clear();
+    this.exampleNormalizedTexts.clear();
+
+    this.knowledgeBase.forEach((example, index) => {
+      const normalized = normalizeText(example.text);
+      this.exampleNormalizedTexts.set(index, normalized);
+
+      // Extraire les mots significatifs (longueur >= 3, pas de placeholders)
+      const words = normalized
+        .split(/\s+/)
+        .filter((w) => w.length >= 3 && !w.startsWith('[') && !w.endsWith(']'));
+
+      words.forEach((word) => {
+        if (!this.invertedIndex.has(word)) {
+          this.invertedIndex.set(word, new Set());
+        }
+        this.invertedIndex.get(word)!.add(index);
+      });
+    });
+
+    // Filtrer les mots trop fréquents (stop words) - apparaissent dans >30% des exemples
+    const stopWordThreshold = Math.floor(this.knowledgeBase.length * 0.3);
+    for (const [word, indices] of this.invertedIndex.entries()) {
+      if (indices.size > stopWordThreshold) {
+        this.invertedIndex.delete(word);
+      }
+    }
+  }
+
+  /**
+   * Trouve les indices des exemples candidats en utilisant l'index inversé
+   * Retourne les indices triés par score de pertinence (nombre de mots en commun)
+   */
+  private findCandidateIndices(normalizedMessage: string): number[] {
+    const messageWords = normalizedMessage
+      .split(/\s+/)
+      .filter((w) => w.length >= 3 && !w.startsWith('[') && !w.endsWith(']'));
+
+    // Compter les occurrences de chaque exemple (nombre de mots en commun)
+    const candidateScores = new Map<number, number>();
+
+    messageWords.forEach((word) => {
+      const exampleIndices = this.invertedIndex.get(word);
+      if (exampleIndices) {
+        exampleIndices.forEach((index) => {
+          candidateScores.set(index, (candidateScores.get(index) || 0) + 1);
+        });
+      }
+    });
+
+    // Si aucun candidat trouvé via index, retourner tous les indices (fallback)
+    if (candidateScores.size === 0) {
+      return this.knowledgeBase.map((_, index) => index);
+    }
+
+    // Trier par score décroissant
+    return Array.from(candidateScores.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([index]) => index);
+  }
+
+  /**
+   * Récupère le texte normalisé avec cache
+   */
+  private getNormalizedText(text: string): string {
+    if (this.normalizedTextCache.has(text)) {
+      return this.normalizedTextCache.get(text)!;
+    }
+
+    const normalized = normalizeText(text);
+    this.normalizedTextCache.set(text, normalized);
+    return normalized;
+  }
+
+  /**
+   * Réinitialise les caches (utile pour tests ou si la base change)
+   */
+  clearCache(): void {
+    this.normalizedTextCache.clear();
+    this.buildInvertedIndex();
   }
 }

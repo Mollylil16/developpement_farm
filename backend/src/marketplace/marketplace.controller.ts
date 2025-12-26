@@ -48,12 +48,31 @@ export class MarketplaceController {
   }
 
   @Get('listings')
-  @ApiOperation({ summary: 'Récupérer toutes les annonces' })
+  @ApiOperation({ summary: 'Récupérer toutes les annonces (avec pagination optionnelle)' })
   @ApiQuery({ name: 'projet_id', required: false, description: 'ID du projet' })
   @ApiQuery({ name: 'user_id', required: false, description: "ID de l'utilisateur (producteur)" })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Nombre maximum de résultats (défaut: 100, max: 500)',
+    type: Number,
+  })
+  @ApiQuery({
+    name: 'offset',
+    required: false,
+    description: 'Nombre d\'éléments à ignorer pour la pagination',
+    type: Number,
+  })
   @ApiResponse({ status: 200, description: 'Liste des annonces.' })
-  async findAllListings(@Query('projet_id') projetId?: string, @Query('user_id') userId?: string) {
-    return this.marketplaceService.findAllListings(projetId, userId);
+  async findAllListings(
+    @Query('projet_id') projetId?: string,
+    @Query('user_id') userId?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string
+  ) {
+    const limitNum = limit ? parseInt(limit, 10) : undefined;
+    const offsetNum = offset ? parseInt(offset, 10) : undefined;
+    return this.marketplaceService.findAllListings(projetId, userId, limitNum, offsetNum);
   }
 
   @Get('listings/:id')

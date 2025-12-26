@@ -8,6 +8,7 @@ import {
   Delete,
   Query,
   UseGuards,
+  Logger,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -66,6 +67,30 @@ export class UsersController {
     return user || null;
   }
 
+  @Public() // Permettre la vérification d'existence sans auth
+  @Get('check/phone/:phone')
+  async checkPhoneExists(@Param('phone') phone: string) {
+    const user = await this.usersService.findByTelephone(phone);
+    if (user) {
+      return { exists: true };
+    }
+    // Retourner 404 si n'existe pas
+    const { NotFoundException } = require('@nestjs/common');
+    throw new NotFoundException('Téléphone non trouvé');
+  }
+
+  @Public() // Permettre la vérification d'existence sans auth
+  @Get('check/email/:email')
+  async checkEmailExists(@Param('email') email: string) {
+    const user = await this.usersService.findByEmail(email);
+    if (user) {
+      return { exists: true };
+    }
+    // Retourner 404 si n'existe pas
+    const { NotFoundException } = require('@nestjs/common');
+    throw new NotFoundException('Email non trouvé');
+  }
+
   @Get('identifier/:identifier')
   findByIdentifier(@Param('identifier') identifier: string) {
     return this.usersService.findByIdentifier(identifier);
@@ -78,13 +103,13 @@ export class UsersController {
 
   @Patch(':id')
   async update(@Param('id') id: string, @Body() updateUserDto: any) {
-    console.log('[UsersController] update: mise à jour utilisateur', id, 'avec', Object.keys(updateUserDto));
+    this.logger.debug(`update: mise à jour utilisateur ${id} avec ${Object.keys(updateUserDto).join(', ')}`);
     try {
       const result = await this.usersService.update(id, updateUserDto);
-      console.log('[UsersController] update: utilisateur mis à jour avec succès', result?.id);
+      this.logger.log(`update: utilisateur mis à jour avec succès, userId=${result?.id}`);
       return result;
     } catch (error: any) {
-      console.error('[UsersController] update: erreur', error.message);
+      this.logger.error(`update: erreur pour userId=${id}`, error);
       throw error;
     }
   }

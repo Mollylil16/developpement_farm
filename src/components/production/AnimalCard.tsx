@@ -3,15 +3,17 @@
  * Affiche les informations d'un animal avec ses actions
  */
 
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import React, { memo } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useTheme } from '../../contexts/ThemeContext';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../../constants/theme';
 import Card from '../Card';
-import { ProductionAnimal, StatutAnimal, STATUT_ANIMAL_LABELS } from '../../types';
+import OptimizedImage from '../OptimizedImage';
+import type { ProductionAnimal, StatutAnimal } from '../../types/production';
+import { STATUT_ANIMAL_LABELS } from '../../types/production';
 import { TYPE_PROPHYLAXIE_LABELS, type Vaccination, type Maladie, type Traitement } from '../../types/sante';
 import { calculerAge, getStatutColor } from '../../utils/animalUtils';
 import type { MarketplaceStatus } from '../../types/marketplace';
@@ -38,7 +40,7 @@ interface AnimalCardProps {
   getParentLabel?: (id?: string | null) => string;
 }
 
-const AnimalCard = React.memo(
+const AnimalCard = memo(
   function AnimalCard({
     animal,
     vaccinations = [],
@@ -89,11 +91,24 @@ const AnimalCard = React.memo(
       <Card elevation="small" padding="medium" style={styles.card}>
         <View style={styles.header}>
           {animal.photo_uri ? (
-            <Image
+            <OptimizedImage
               key={`photo-${animal.id}-${animal.photo_uri}`}
               source={{ uri: animal.photo_uri }}
               style={styles.photo}
               resizeMode="cover"
+              cachePolicy="memory-disk"
+              priority="normal"
+              placeholder={
+                <View
+                  style={[
+                    styles.photo,
+                    styles.photoPlaceholder,
+                    { backgroundColor: colors.primaryLight + '15', borderColor: colors.primary + '30' },
+                  ]}
+                >
+                  <Text style={{ fontSize: 40 }}>🐷</Text>
+                </View>
+              }
             />
           ) : (
             <View

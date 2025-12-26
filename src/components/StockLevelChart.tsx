@@ -16,7 +16,7 @@ interface ChartDataset {
 }
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
-import { StockAliment, StockMouvement } from '../types';
+import type { StockAliment, StockMouvement } from '../types/nutrition';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { format, parseISO, startOfDay, subDays, eachDayOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';

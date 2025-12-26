@@ -5,7 +5,7 @@
 
 import { createSelector } from '@reduxjs/toolkit';
 import { RootState } from '../store';
-import { ChargeFixe, DepensePonctuelle, Revenu } from '../../types';
+import type { ChargeFixe, DepensePonctuelle, Revenu } from '../../types/finance';
 import * as baseSelectors from './financeSelectors';
 
 /**

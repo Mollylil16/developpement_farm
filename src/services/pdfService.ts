@@ -7,6 +7,7 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Alert } from 'react-native';
+import { logger } from '../utils/logger';
 
 /**
  * Options pour la génération de PDF
@@ -39,11 +40,11 @@ export async function generatePDF(options: PDFOptions): Promise<PDFResult> {
     });
 
     // Utiliser fileName pour logger et pour nommer le fichier si possible
-    console.log(`[pdfService] PDF généré: ${fileName} (${uri})`);
+    logger.debug(`[pdfService] PDF généré: ${fileName} (${uri})`);
 
     return { uri, base64 };
   } catch (error) {
-    console.error('Erreur lors de la génération du PDF:', error);
+    logger.error('Erreur lors de la génération du PDF:', error);
     throw new Error('Impossible de générer le PDF');
   }
 }
@@ -69,7 +70,7 @@ export async function sharePDF(uri: string, fileName: string = 'rapport.pdf'): P
       UTI: 'com.adobe.pdf',
     });
   } catch (error) {
-    console.error('Erreur lors du partage du PDF:', error);
+    logger.error('Erreur lors du partage du PDF:', error);
     throw new Error('Impossible de partager le PDF');
   }
 }
@@ -85,7 +86,7 @@ export async function generateAndSharePDF(
     const { uri } = await generatePDF({ html, fileName });
     await sharePDF(uri, fileName);
   } catch (error) {
-    console.error('Erreur lors de la génération et du partage:', error);
+    logger.error('Erreur lors de la génération et du partage:', error);
     throw error;
   }
 }
