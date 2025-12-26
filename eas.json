@@ -5,12 +5,25 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://fermier-pro-backend.onrender.com",
+        "EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID": "1003563003040-onlnflbpuhg715u3ba3n8vcp56d3dr9e.apps.googleusercontent.com"
+      }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://fermier-pro-backend.onrender.com",
+        "EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID": "1003563003040-onlnflbpuhg715u3ba3n8vcp56d3dr9e.apps.googleusercontent.com"
+      }
     },
-    "production": {}
+    "production": {
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://fermier-pro-backend.onrender.com",
+        "EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID": "1003563003040-onlnflbpuhg715u3ba3n8vcp56d3dr9e.apps.googleusercontent.com"
+      }
+    }
   }
 }
 

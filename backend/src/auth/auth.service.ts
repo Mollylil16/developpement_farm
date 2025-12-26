@@ -326,14 +326,28 @@ export class AuthService {
         // Créer un nouvel utilisateur
         console.log('🆕 [AuthService] Création nouvel utilisateur Google:', googleUser.email);
         
-        // Utiliser given_name et family_name de Google (plus fiable que parser name)
-        const prenom = googleUser.given_name || googleUser.name?.split(' ')[0] || 'Utilisateur';
-        const nom = googleUser.family_name || googleUser.name?.split(' ').slice(1).join(' ') || '';
+        // ❌ PAS DE VALEURS PAR DÉFAUT "Utilisateur" ou "Mobile" !
+        // Extraire given_name et family_name de Google (Google les fournit généralement)
+        // Si absents ou trop courts (< 2 caractères), utiliser des valeurs temporaires vides
+        // Le frontend redirigera vers UserInfoScreen pour compléter
+        const prenomFromGoogle = googleUser.given_name?.trim() || googleUser.name?.split(' ')[0]?.trim() || '';
+        const nomFromGoogle = googleUser.family_name?.trim() || googleUser.name?.split(' ').slice(1).join(' ').trim() || '';
+        
+        // Valider : Si trop courts, on les laisse vides (ne pas mettre de valeurs par défaut)
+        const prenom = prenomFromGoogle.length >= 2 ? prenomFromGoogle : '';
+        const nom = nomFromGoogle.length >= 2 ? nomFromGoogle : '';
+        
+        console.log('[Google OAuth] Nom/Prénom extraits:', { prenom, nom });
+        
+        // Si nom ou prénom vide, log un warning (le frontend gérera la redirection)
+        if (!prenom || !nom) {
+          console.warn('⚠️ [Google OAuth] Nom/Prénom incomplets, l\'utilisateur devra les compléter');
+        }
         
         const newUser = {
           email: googleUser.email,
-          nom,
-          prenom,
+          nom, // Peut être vide (sera complété dans UserInfoScreen)
+          prenom, // Peut être vide (sera complété dans UserInfoScreen)
           photo: googleUser.picture || null,
           provider: 'google',
           provider_id: googleUser.sub || null, // 'sub' est l'ID Google unique

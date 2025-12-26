@@ -15,10 +15,11 @@ import type {
 export interface CreateUserInput {
   email?: string;
   password?: string;
-  firstName: string;
-  lastName: string;
+  firstName: string; // OBLIGATOIRE : Min 2 caractères (validé dans createUser)
+  lastName: string; // OBLIGATOIRE : Min 2 caractères (validé dans createUser)
   phone?: string;
-  profileType: 'producer' | 'buyer' | 'veterinarian' | 'technician';
+  provider?: 'phone' | 'google' | 'apple' | 'email'; // Ajout du provider
+  profileType?: 'producer' | 'buyer' | 'veterinarian' | 'technician'; // Optionnel pour la nouvelle logique
 }
 
 export interface CreateBuyerProfileInput {
@@ -152,15 +153,15 @@ class OnboardingService {
       telephone: input.phone,
       nom: input.lastName || '',
       prenom: input.firstName || '',
-      provider: input.phone ? 'telephone' : 'email',
+      provider: input.provider || (input.phone ? 'telephone' : 'email'),
       date_creation: new Date().toISOString(),
       derniere_connexion: new Date().toISOString(),
       isOnboarded: false,
       roles: {},
-      activeRole: input.profileType,
+      activeRole: input.profileType || 'producer',
     };
 
-    // Créer le profil selon le type
+    // Créer le profil selon le type (si profileType fourni)
     if (input.profileType === 'producer') {
       // Le profil producteur sera créé lors de la création du projet
       user.roles = {
@@ -189,11 +190,20 @@ class OnboardingService {
       };
     }
 
-    // Le backend exige nom/prénom (min 2 caractères). Valeurs par défaut si vides ou trop courtes.
+    // ❌ VALIDATION STRICTE : Pas de valeurs par défaut !
     const firstNameTrimmed = (input.firstName || '').trim();
     const lastNameTrimmed = (input.lastName || '').trim();
-    const prenom = firstNameTrimmed.length >= 2 ? firstNameTrimmed : 'Utilisateur';
-    const nom = lastNameTrimmed.length >= 2 ? lastNameTrimmed : 'Mobile';
+
+    // Valider que le prénom et le nom sont valides (min 2 caractères)
+    if (firstNameTrimmed.length < 2) {
+      throw new Error('Le prénom doit contenir au moins 2 caractères');
+    }
+    if (lastNameTrimmed.length < 2) {
+      throw new Error('Le nom doit contenir au moins 2 caractères');
+    }
+
+    const prenom = firstNameTrimmed;
+    const nom = lastNameTrimmed;
 
     // Ne pas envoyer un mot de passe si vide ou trop court (< 6 caractères)
     const password = (input.password || '').trim();

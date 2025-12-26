@@ -27,8 +27,8 @@ const ProfileSelectionScreen: React.FC = () => {
   const { colors } = useTheme();
   const navigation = useNavigation<NavigationProp<any>>();
   const route = useRoute();
-  const { identifier, isEmail } =
-    (route.params as { identifier?: string; isEmail?: boolean }) || {};
+  const { userId } =
+    (route.params as { userId: string }) || {};
 
   const profileOptions: ProfileOption[] = [
     {
@@ -65,34 +65,30 @@ const ProfileSelectionScreen: React.FC = () => {
 
   const handleProfileSelect = (profileType: RoleType) => {
     // Naviguer vers l'écran de complément d'informations selon le profil
-    // Passer l'identifier si disponible (pour créer le compte)
+    // Passer le userId (l'utilisateur existe déjà dans la BD)
     switch (profileType) {
       case 'producer':
         (navigation as any).navigate(SCREENS.CREATE_PROJECT, {
-          identifier,
-          isEmail,
+          userId,
         });
         break;
       case 'buyer':
         (navigation as any).navigate(SCREENS.BUYER_INFO_COMPLETION, {
           profileType,
-          identifier,
-          isEmail,
+          userId,
         });
         break;
       case 'veterinarian':
         (navigation as any).navigate(SCREENS.VETERINARIAN_INFO_COMPLETION, {
           profileType,
-          identifier,
-          isEmail,
+          userId,
         });
         break;
       case 'technician':
         // Le technicien peut avoir un flux simplifié
         (navigation as any).navigate(SCREENS.BUYER_INFO_COMPLETION, {
           profileType: 'technician',
-          identifier,
-          isEmail,
+          userId,
         });
         break;
     }

@@ -9,7 +9,7 @@
  */
 
 // Écrans principaux
-export { default as WelcomeScreen } from '../screens/WelcomeScreen';
+export { default as WelcomeScreen } from '../screens/WelcomeScreen'; // ✅ Déjà présent (ancien écran)
 export { default as AuthScreen } from '../screens/AuthScreen';
 export { default as CreateProjectScreen } from '../screens/CreateProjectScreen';
 
@@ -52,6 +52,10 @@ export { default as ChatAgentScreen } from '../screens/ChatAgentScreen';
 
 // Onboarding
 export { default as OnboardingAuthScreen } from '../screens/OnboardingAuthScreen';
+export { default as SignUpMethodScreen } from '../screens/SignUpMethodScreen'; // 🆕
+export { default as PhoneSignUpScreen } from '../screens/PhoneSignUpScreen'; // 🆕
+export { default as UserInfoScreen } from '../screens/UserInfoScreen'; // 🆕
+export { default as SignInScreen } from '../screens/SignInScreen'; // 🆕
 export { default as ProfileSelectionScreen } from '../screens/ProfileSelectionScreen';
 export { default as OtpVerificationScreen } from '../screens/OtpVerificationScreen';
 export { default as BuyerInfoCompletionScreen } from '../screens/BuyerInfoCompletionScreen';

@@ -321,9 +321,15 @@ export class VoiceService {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const FileSystem = require('expo-file-system');
       const recordingDir = `${FileSystem.documentDirectory}recordings/`;
-      const dirInfo = await FileSystem.getInfoAsync(recordingDir);
-      if (!dirInfo.exists) {
+      
+      try {
+        // Essayer de créer le répertoire (si il n'existe pas, il sera créé; si il existe, rien ne se passe)
         await FileSystem.makeDirectoryAsync(recordingDir, { intermediates: true });
+      } catch (error: any) {
+        // Si le répertoire existe déjà, ignorer l'erreur
+        if (!error.message?.includes('already exists')) {
+          console.warn('[VoiceService] Impossible de créer le répertoire recordings:', error);
+        }
       }
 
       // Note: Sur mobile, la transcription nécessite une API externe

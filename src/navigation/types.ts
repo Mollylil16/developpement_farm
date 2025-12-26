@@ -33,8 +33,13 @@ export const SCREENS = {
   TASKS: 'Tasks',
   RECORDS: 'Records',
   OFFERS: 'Offers',
-  // 🆕 Écrans d'onboarding
-  ONBOARDING_AUTH: 'OnboardingAuth',
+  // 🆕 Écrans d'authentification et onboarding
+  ONBOARDING_AUTH: 'OnboardingAuth', // Ancien (à supprimer progressivement)
+  SIGN_UP_METHOD: 'SignUpMethod', // Nouveau : Choix méthode inscription
+  PHONE_SIGN_UP: 'PhoneSignUp', // Nouveau : Inscription par téléphone
+  USER_INFO: 'UserInfo', // Nouveau : Collecte nom/prénom
+  SIGN_IN: 'SignIn', // Nouveau : Connexion
+  OTP_VERIFICATION: 'OtpVerification', // Vérification OTP (existe déjà)
   PROFILE_SELECTION: 'ProfileSelection',
   BUYER_INFO_COMPLETION: 'BuyerInfoCompletion',
   VETERINARIAN_INFO_COMPLETION: 'VeterinarianInfoCompletion',

@@ -29,6 +29,27 @@ export class UsersController {
     return this.usersService.findAll();
   }
 
+  /**
+   * 🆕 NOUVEAUX ENDPOINTS : Vérification d'existence (ne retournent que { exists: boolean })
+   * Plus sécurisé que de retourner l'utilisateur complet
+   */
+  @Public()
+  @Get('check/email/:email')
+  async checkEmailExists(@Param('email') email: string) {
+    const user = await this.usersService.findByEmail(email);
+    return { exists: !!user };
+  }
+
+  @Public()
+  @Get('check/phone/:phone')
+  async checkPhoneExists(@Param('phone') phone: string) {
+    const user = await this.usersService.findByTelephone(phone);
+    return { exists: !!user };
+  }
+
+  /**
+   * ANCIENS ENDPOINTS : Retournent l'utilisateur complet (pour compatibilité)
+   */
   @Public() // Permettre la vérification d'email sans auth (pour onboarding)
   @Get('email/:email')
   async findByEmail(@Param('email') email: string) {

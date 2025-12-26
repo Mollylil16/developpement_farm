@@ -528,9 +528,21 @@ export default function AppNavigator() {
         <Stack.Screen name={SCREENS.ADMIN} options={{ headerShown: false }}>
           {() => <LazyScreens.AdminScreen />}
         </Stack.Screen>
-        {/* 🆕 Écrans d'onboarding */}
+        {/* 🆕 Écrans d'onboarding - NOUVELLE ARCHITECTURE AUTH */}
         <Stack.Screen name={SCREENS.ONBOARDING_AUTH}>
           {() => <LazyScreens.OnboardingAuthScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.SIGN_UP_METHOD} options={{ headerShown: false }}>
+          {() => <LazyScreens.SignUpMethodScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.PHONE_SIGN_UP} options={{ headerShown: false }}>
+          {() => <LazyScreens.PhoneSignUpScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.USER_INFO} options={{ headerShown: false }}>
+          {() => <LazyScreens.UserInfoScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.SIGN_IN} options={{ headerShown: false }}>
+          {() => <LazyScreens.SignInScreen />}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.PROFILE_SELECTION}>
           {() => <LazyScreens.ProfileSelectionScreen />}
