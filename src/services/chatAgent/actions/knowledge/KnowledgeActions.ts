@@ -1,99 +1,166 @@
 /**
  * Actions pour les questions de formation et connaissances
- * Utilise la base de connaissances TrainingKnowledgeBase
+ * V2.0 - Utilise l'API backend avec fallback sur base statique
  */
 
 import { AgentActionResult, AgentContext } from '../../../../types/chatAgent';
+import { KnowledgeBaseAPI, SearchResult } from '../../knowledge/KnowledgeBaseAPI';
 import { 
   TRAINING_KNOWLEDGE_BASE, 
   searchKnowledge, 
-  getKnowledgeResponse,
   KnowledgeTopic 
 } from '../../knowledge/TrainingKnowledgeBase';
 import { logger } from '../../../../utils/logger';
 
 interface KnowledgeParams {
   topic?: string;
-  question: string;
+  question?: string;
+  userMessage?: string;
 }
 
 export class KnowledgeActions {
   /**
    * Répond à une question sur l'élevage porcin
+   * Utilise l'API backend en priorité, avec fallback sur la base statique
    */
   static async answerKnowledgeQuestion(
     params: KnowledgeParams,
     context: AgentContext
   ): Promise<AgentActionResult> {
+    const question = params.question || params.userMessage || '';
+    const topic = params.topic;
+    
+    logger.info('[KnowledgeActions] Question reçue:', { topic, question });
+    
     try {
-      const { topic, question } = params;
+      // Stratégie 1: Essayer l'API backend
+      const apiResults = await KnowledgeBaseAPI.search(question, {
+        category: topic,
+        projetId: context.projetId,
+        limit: 3,
+      });
       
-      logger.info('[KnowledgeActions] Question reçue:', { topic, question });
-      
-      // Stratégie 1: Si un topic spécifique est fourni, chercher directement
-      if (topic) {
-        const topicData = TRAINING_KNOWLEDGE_BASE.find(t => t.id === topic);
-        if (topicData) {
-          return {
-            success: true,
-            message: this.formatKnowledgeResponse(topicData, question),
-            data: {
-              topic: topicData.id,
-              title: topicData.title,
-              category: topicData.category
-            }
-          };
+      if (apiResults && apiResults.length > 0) {
+        const bestMatch = apiResults[0];
+        const relatedTopics = apiResults.slice(1).map(r => r.title);
+        
+        // Envoyer un feedback positif si pertinent (fire-and-forget)
+        if (bestMatch.relevance_score > 5) {
+          KnowledgeBaseAPI.sendFeedback(
+            bestMatch.id,
+            context.projetId,
+            'helpful',
+            question
+          );
         }
-      }
-      
-      // Stratégie 2: Recherche sémantique dans la base de connaissances
-      const results = searchKnowledge(question);
-      
-      if (results.length === 0) {
-        // Aucun résultat trouvé - proposer les thèmes disponibles
+        
         return {
           success: true,
-          message: this.getNoResultMessage(),
-          data: { searchQuery: question, resultsCount: 0 }
+          message: this.formatAPIResponse(bestMatch, question, relatedTopics),
+          data: {
+            source: 'api',
+            topic: bestMatch.id,
+            title: bestMatch.title,
+            category: bestMatch.category,
+            relevanceScore: bestMatch.relevance_score,
+            relatedTopics,
+          },
         };
       }
       
-      // Retourner la meilleure réponse
-      const bestMatch = results[0];
-      const additionalTopics = results.slice(1).map(t => t.title);
-      
-      return {
-        success: true,
-        message: this.formatKnowledgeResponse(bestMatch, question, additionalTopics),
-        data: {
-          topic: bestMatch.id,
-          title: bestMatch.title,
-          category: bestMatch.category,
-          relatedTopics: additionalTopics
-        }
-      };
+      // Stratégie 2: Fallback sur la base statique locale
+      logger.info('[KnowledgeActions] Fallback sur base statique');
+      return this.searchLocalKnowledge(topic, question);
       
     } catch (error) {
-      logger.error('[KnowledgeActions] Erreur:', error);
-      return {
-        success: false,
-        message: "Désolé, je n'ai pas pu trouver la réponse à ta question. Peux-tu reformuler?",
-        error: error instanceof Error ? error.message : 'Erreur inconnue'
-      };
+      // En cas d'erreur API, utiliser la base statique
+      logger.warn('[KnowledgeActions] Erreur API, fallback sur base statique:', error);
+      return this.searchLocalKnowledge(topic, question);
     }
   }
   
   /**
+   * Recherche dans la base de connaissances locale (statique)
+   */
+  private static searchLocalKnowledge(topic: string | undefined, question: string): AgentActionResult {
+    // Si un topic spécifique est fourni
+    if (topic) {
+      const topicData = TRAINING_KNOWLEDGE_BASE.find(t => t.id === topic);
+      if (topicData) {
+        return {
+          success: true,
+          message: this.formatLocalResponse(topicData, question),
+          data: {
+            source: 'local',
+            topic: topicData.id,
+            title: topicData.title,
+            category: topicData.category,
+          },
+        };
+      }
+    }
+    
+    // Recherche sémantique
+    const results = searchKnowledge(question);
+    
+    if (results.length === 0) {
+      return {
+        success: true,
+        message: this.getNoResultMessage(),
+        data: { searchQuery: question, resultsCount: 0, source: 'local' },
+      };
+    }
+    
+    const bestMatch = results[0];
+    const additionalTopics = results.slice(1).map(t => t.title);
+    
+    return {
+      success: true,
+      message: this.formatLocalResponse(bestMatch, question, additionalTopics),
+      data: {
+        source: 'local',
+        topic: bestMatch.id,
+        title: bestMatch.title,
+        category: bestMatch.category,
+        relatedTopics: additionalTopics,
+      },
+    };
+  }
+  
+  /**
    * Liste tous les thèmes de formation disponibles
+   * Utilise l'API backend en priorité
    */
   static async listKnowledgeTopics(
     params: any,
     context: AgentContext
   ): Promise<AgentActionResult> {
+    try {
+      // Essayer l'API backend
+      const categories = await KnowledgeBaseAPI.getCategories(context.projetId);
+      
+      if (categories && categories.length > 0) {
+        const message = `📚 **Thèmes de formation disponibles:**\n\n` +
+          categories.map((c, i) => 
+            `${i + 1}. **${this.getCategoryLabel(c.category)}** (${c.count} articles)\n   → ${c.titles.slice(0, 2).join(', ')}`
+          ).join('\n\n') +
+          `\n\n💡 Pose-moi une question sur n'importe quel sujet!`;
+        
+        return {
+          success: true,
+          message,
+          data: { source: 'api', categories },
+        };
+      }
+    } catch (error) {
+      logger.warn('[KnowledgeActions] Erreur API pour listTopics, fallback:', error);
+    }
+    
+    // Fallback sur base locale
     const topics = TRAINING_KNOWLEDGE_BASE.map(t => ({
       id: t.id,
       title: t.title,
-      keywords: t.keywords.slice(0, 3)
+      keywords: t.keywords.slice(0, 3),
     }));
     
     const message = `📚 **Thèmes de formation disponibles:**\n\n` +
@@ -103,38 +170,66 @@ export class KnowledgeActions {
     return {
       success: true,
       message,
-      data: { topics }
+      data: { source: 'local', topics },
     };
   }
   
   /**
-   * Formate la réponse de manière conversationnelle
+   * Formate la réponse depuis l'API
    */
-  private static formatKnowledgeResponse(
-    topic: KnowledgeTopic, 
+  private static formatAPIResponse(
+    result: SearchResult, 
     question: string,
     relatedTopics?: string[]
   ): string {
-    // Intro conversationnelle
     const intros = [
       `Ah, bonne question! 📚`,
       `Je vais t'expliquer ça! 🎓`,
       `Voici ce que tu dois savoir: 📖`,
-      `Excellente question! Voici ma réponse: 💡`,
-      `C'est important de comprendre ça! 🐷`
+      `Excellente question! 💡`,
+      `C'est important de comprendre ça! 🐷`,
     ];
     const intro = intros[Math.floor(Math.random() * intros.length)];
     
-    // Construire la réponse
-    let response = `${intro}\n\n**${topic.title}**\n\n${topic.content}`;
+    let response = `${intro}\n\n**${result.title}**\n\n`;
     
-    // Ajouter les sujets connexes si disponibles
+    // Utiliser le résumé si disponible, sinon le contenu complet
+    response += result.summary || result.content;
+    
     if (relatedTopics && relatedTopics.length > 0) {
       response += `\n\n---\n📌 **Sujets connexes:** ${relatedTopics.join(', ')}`;
-      response += `\n_Demande-moi si tu veux en savoir plus sur ces sujets!_`;
+      response += `\n_Demande-moi si tu veux en savoir plus!_`;
     }
     
-    // Ajouter un conseil personnalisé selon la catégorie
+    response += this.getCategoryTip(result.category);
+    
+    return response;
+  }
+  
+  /**
+   * Formate la réponse depuis la base locale
+   */
+  private static formatLocalResponse(
+    topic: KnowledgeTopic, 
+    question: string,
+    relatedTopics?: string[]
+  ): string {
+    const intros = [
+      `Ah, bonne question! 📚`,
+      `Je vais t'expliquer ça! 🎓`,
+      `Voici ce que tu dois savoir: 📖`,
+      `Excellente question! 💡`,
+      `C'est important de comprendre ça! 🐷`,
+    ];
+    const intro = intros[Math.floor(Math.random() * intros.length)];
+    
+    let response = `${intro}\n\n**${topic.title}**\n\n${topic.content}`;
+    
+    if (relatedTopics && relatedTopics.length > 0) {
+      response += `\n\n---\n📌 **Sujets connexes:** ${relatedTopics.join(', ')}`;
+      response += `\n_Demande-moi si tu veux en savoir plus!_`;
+    }
+    
     response += this.getCategoryTip(topic.category);
     
     return response;
@@ -153,6 +248,26 @@ export class KnowledgeActions {
   }
   
   /**
+   * Label lisible pour une catégorie
+   */
+  private static getCategoryLabel(category: string): string {
+    const labels: Record<string, string> = {
+      types_elevage: "Types d'élevage",
+      objectifs: 'Objectifs',
+      races: 'Races porcines',
+      emplacement: 'Emplacement',
+      eau: "Gestion de l'eau",
+      alimentation: 'Alimentation',
+      sante: 'Santé et prophylaxie',
+      finance: 'Gestion financière',
+      commerce: 'Commercialisation',
+      reglementation: 'Réglementation',
+      general: 'Général',
+    };
+    return labels[category] || category;
+  }
+  
+  /**
    * Conseil personnalisé selon la catégorie
    */
   private static getCategoryTip(category: string): string {
@@ -166,7 +281,7 @@ export class KnowledgeActions {
       sante: '\n\n💡 _Programme tes vaccinations dans la section "Santé"!_',
       finance: '\n\n💡 _Suis ta rentabilité dans la section "Finance"!_',
       commerce: '\n\n💡 _Utilise la Marketplace pour vendre tes porcs!_',
-      reglementation: '\n\n💡 _Garde tes documents à jour dans la section "Documents"!_'
+      reglementation: '\n\n💡 _Garde tes documents à jour dans la section "Documents"!_',
     };
     
     return tips[category] || '';
@@ -178,18 +293,17 @@ export class KnowledgeActions {
   static detectTopicFromQuestion(question: string): string | null {
     const questionLower = question.toLowerCase();
     
-    // Mapping des mots-clés vers les topics
     const topicMappings: Record<string, string[]> = {
-      'types_elevage': ['naisseur', 'engraisseur', 'cycle complet', 'charcuterie', 'type élevage', 'production porcelets'],
-      'objectifs': ['objectif', 'démarrer', 'commencer', 'capital', 'budget initial', 'surface nécessaire'],
-      'races': ['race', 'large white', 'landrace', 'duroc', 'piétrain', 'croisement', 'génétique'],
-      'emplacement': ['emplacement', 'terrain', 'localisation', 'construire', 'bâtiment', 'distance'],
-      'eau': ['eau', 'abreuvoir', 'forage', 'puits', 'consommation eau'],
-      'alimentation': ['aliment', 'nourriture', 'provende', 'maïs', 'soja', 'ration', 'nourrir'],
-      'sante': ['vaccin', 'vaccination', 'maladie', 'santé', 'traitement', 'vétérinaire', 'prophylaxie'],
-      'finance': ['coût', 'rentabilité', 'investissement', 'marge', 'bénéfice', 'argent', 'prix'],
-      'commerce': ['vendre', 'vente', 'commercialisation', 'client', 'marché', 'acheteur'],
-      'reglementation': ['règlement', 'loi', 'norme', 'obligation', 'déclaration', 'légal']
+      types_elevage: ['naisseur', 'engraisseur', 'cycle complet', 'charcuterie', 'type élevage', 'production porcelets'],
+      objectifs: ['objectif', 'démarrer', 'commencer', 'capital', 'budget initial', 'surface nécessaire'],
+      races: ['race', 'large white', 'landrace', 'duroc', 'piétrain', 'croisement', 'génétique'],
+      emplacement: ['emplacement', 'terrain', 'localisation', 'construire', 'bâtiment', 'distance'],
+      eau: ['eau', 'abreuvoir', 'forage', 'puits', 'consommation eau'],
+      alimentation: ['aliment', 'nourriture', 'provende', 'maïs', 'soja', 'ration', 'nourrir'],
+      sante: ['vaccin', 'vaccination', 'maladie', 'santé', 'traitement', 'vétérinaire', 'prophylaxie'],
+      finance: ['coût', 'rentabilité', 'investissement', 'marge', 'bénéfice', 'argent', 'prix'],
+      commerce: ['vendre', 'vente', 'commercialisation', 'client', 'marché', 'acheteur'],
+      reglementation: ['règlement', 'loi', 'norme', 'obligation', 'déclaration', 'légal'],
     };
     
     for (const [topic, keywords] of Object.entries(topicMappings)) {
@@ -201,4 +315,3 @@ export class KnowledgeActions {
     return null;
   }
 }
-

@@ -10,3 +10,10 @@ export {
   type KnowledgeTopic
 } from './TrainingKnowledgeBase';
 
+export {
+  KnowledgeBaseAPI,
+  type KnowledgeItem,
+  type SearchResult,
+  type CategoryInfo,
+} from './KnowledgeBaseAPI';
+
