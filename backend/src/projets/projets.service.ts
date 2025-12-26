@@ -13,6 +13,8 @@ import { BatchPigsService } from '../batches/batch-pigs.service';
 
 @Injectable()
 export class ProjetsService {
+  private readonly logger = new Logger(ProjetsService.name);
+
   constructor(
     private databaseService: DatabaseService,
     @Inject(forwardRef(() => BatchPigsService))

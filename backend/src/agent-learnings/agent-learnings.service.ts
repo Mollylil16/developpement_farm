@@ -5,7 +5,7 @@ import { SearchLearningsDto } from './dto/search-learnings.dto';
 import { RecordConversationDto } from './dto/record-conversation.dto';
 import { v4 as uuidv4 } from 'uuid';
 
-interface Learning {
+export interface Learning {
   id: string;
   projet_id: string;
   learning_type: string;
@@ -21,7 +21,7 @@ interface Learning {
   updated_at: string;
 }
 
-interface SearchResult {
+export interface SearchResult {
   learning_id: string;
   user_message: string;
   detected_intent: string | null;

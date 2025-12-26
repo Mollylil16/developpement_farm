@@ -1,5 +1,5 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
-import * as sharp from 'sharp';
+import sharp from 'sharp';
 
 export interface ImageCompressionOptions {
   /** Qualité JPEG/WebP (1-100, défaut: 80) */

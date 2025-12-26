@@ -17,6 +17,8 @@ import { Public } from '../auth/decorators/public.decorator';
 @Controller('users')
 @UseGuards(JwtAuthGuard)
 export class UsersController {
+  private readonly logger = new Logger(UsersController.name);
+
   constructor(private readonly usersService: UsersService) {}
 
   @Public() // Permettre la création d'utilisateur sans auth (via register)
@@ -65,30 +67,6 @@ export class UsersController {
     const user = await this.usersService.findByTelephone(telephone);
     // Retourner un objet vide au lieu de null pour éviter les erreurs de parsing JSON
     return user || null;
-  }
-
-  @Public() // Permettre la vérification d'existence sans auth
-  @Get('check/phone/:phone')
-  async checkPhoneExists(@Param('phone') phone: string) {
-    const user = await this.usersService.findByTelephone(phone);
-    if (user) {
-      return { exists: true };
-    }
-    // Retourner 404 si n'existe pas
-    const { NotFoundException } = require('@nestjs/common');
-    throw new NotFoundException('Téléphone non trouvé');
-  }
-
-  @Public() // Permettre la vérification d'existence sans auth
-  @Get('check/email/:email')
-  async checkEmailExists(@Param('email') email: string) {
-    const user = await this.usersService.findByEmail(email);
-    if (user) {
-      return { exists: true };
-    }
-    // Retourner 404 si n'existe pas
-    const { NotFoundException } = require('@nestjs/common');
-    throw new NotFoundException('Email non trouvé');
   }
 
   @Get('identifier/:identifier')
