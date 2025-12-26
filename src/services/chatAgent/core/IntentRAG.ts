@@ -1152,6 +1152,110 @@ export const INTENT_KNOWLEDGE_BASE: TrainingExample[] = [
   { text: 'j ai detecte une maladie', action: 'create_maladie', params: {}, confidence: 0.9 },
   { text: 'maladie constatee', action: 'create_maladie', params: {}, confidence: 0.85 },
   { text: 'mes porcs sont malades', action: 'create_maladie', params: {}, confidence: 0.9 },
+
+  // ========== QUESTIONS DE FORMATION / CONNAISSANCES (answer_knowledge_question) ==========
+  // Types d'élevage
+  { text: 'c est quoi un naisseur', action: 'answer_knowledge_question', params: { topic: 'types_elevage' }, confidence: 0.95 },
+  { text: 'c est quoi un engraisseur', action: 'answer_knowledge_question', params: { topic: 'types_elevage' }, confidence: 0.95 },
+  { text: 'difference entre naisseur et engraisseur', action: 'answer_knowledge_question', params: { topic: 'types_elevage' }, confidence: 0.95 },
+  { text: 'les types d elevage', action: 'answer_knowledge_question', params: { topic: 'types_elevage' }, confidence: 0.95 },
+  { text: 'quels sont les types d elevage porcin', action: 'answer_knowledge_question', params: { topic: 'types_elevage' }, confidence: 0.95 },
+  { text: 'cycle complet c est quoi', action: 'answer_knowledge_question', params: { topic: 'types_elevage' }, confidence: 0.9 },
+  { text: 'production de porcelets', action: 'answer_knowledge_question', params: { topic: 'types_elevage' }, confidence: 0.9 },
+
+  // Objectifs et démarrage
+  { text: 'comment demarrer un elevage', action: 'answer_knowledge_question', params: { topic: 'objectifs' }, confidence: 0.95 },
+  { text: 'combien pour demarrer un elevage', action: 'answer_knowledge_question', params: { topic: 'objectifs' }, confidence: 0.95 },
+  { text: 'quel capital pour un elevage', action: 'answer_knowledge_question', params: { topic: 'objectifs' }, confidence: 0.95 },
+  { text: 'budget pour elevage porcin', action: 'answer_knowledge_question', params: { topic: 'objectifs' }, confidence: 0.95 },
+  { text: 'quelle surface pour un elevage', action: 'answer_knowledge_question', params: { topic: 'objectifs' }, confidence: 0.9 },
+  { text: 'comment definir son objectif', action: 'answer_knowledge_question', params: { topic: 'objectifs' }, confidence: 0.9 },
+  { text: 'par ou commencer', action: 'answer_knowledge_question', params: { topic: 'objectifs' }, confidence: 0.9 },
+
+  // Races
+  { text: 'quelle race choisir', action: 'answer_knowledge_question', params: { topic: 'races' }, confidence: 0.95 },
+  { text: 'quelle race pour engraissement', action: 'answer_knowledge_question', params: { topic: 'races' }, confidence: 0.95 },
+  { text: 'quelle race pour la reproduction', action: 'answer_knowledge_question', params: { topic: 'races' }, confidence: 0.95 },
+  { text: 'c est quoi large white', action: 'answer_knowledge_question', params: { topic: 'races' }, confidence: 0.95 },
+  { text: 'c est quoi landrace', action: 'answer_knowledge_question', params: { topic: 'races' }, confidence: 0.95 },
+  { text: 'c est quoi duroc', action: 'answer_knowledge_question', params: { topic: 'races' }, confidence: 0.95 },
+  { text: 'c est quoi pietrain', action: 'answer_knowledge_question', params: { topic: 'races' }, confidence: 0.95 },
+  { text: 'les races de porcs', action: 'answer_knowledge_question', params: { topic: 'races' }, confidence: 0.95 },
+  { text: 'croisement de races', action: 'answer_knowledge_question', params: { topic: 'races' }, confidence: 0.9 },
+  { text: 'meilleure race de porc', action: 'answer_knowledge_question', params: { topic: 'races' }, confidence: 0.9 },
+
+  // Emplacement
+  { text: 'ou construire ma ferme', action: 'answer_knowledge_question', params: { topic: 'emplacement' }, confidence: 0.95 },
+  { text: 'criteres pour emplacement', action: 'answer_knowledge_question', params: { topic: 'emplacement' }, confidence: 0.95 },
+  { text: 'comment choisir le terrain', action: 'answer_knowledge_question', params: { topic: 'emplacement' }, confidence: 0.95 },
+  { text: 'distance des habitations', action: 'answer_knowledge_question', params: { topic: 'emplacement' }, confidence: 0.9 },
+  { text: 'quel terrain pour elevage', action: 'answer_knowledge_question', params: { topic: 'emplacement' }, confidence: 0.9 },
+
+  // Eau
+  { text: 'besoin en eau des porcs', action: 'answer_knowledge_question', params: { topic: 'eau' }, confidence: 0.95 },
+  { text: 'combien d eau pour un porc', action: 'answer_knowledge_question', params: { topic: 'eau' }, confidence: 0.95 },
+  { text: 'qualite de l eau', action: 'answer_knowledge_question', params: { topic: 'eau' }, confidence: 0.9 },
+  { text: 'forage ou puits', action: 'answer_knowledge_question', params: { topic: 'eau' }, confidence: 0.9 },
+  { text: 'systeme d eau pour porcherie', action: 'answer_knowledge_question', params: { topic: 'eau' }, confidence: 0.9 },
+
+  // Alimentation
+  { text: 'comment nourrir mes porcs', action: 'answer_knowledge_question', params: { topic: 'alimentation' }, confidence: 0.95 },
+  { text: 'combien coute l alimentation', action: 'answer_knowledge_question', params: { topic: 'alimentation' }, confidence: 0.95 },
+  { text: 'quel aliment pour porcs', action: 'answer_knowledge_question', params: { topic: 'alimentation' }, confidence: 0.95 },
+  { text: 'aliment porcelet', action: 'answer_knowledge_question', params: { topic: 'alimentation' }, confidence: 0.9 },
+  { text: 'aliment croissance', action: 'answer_knowledge_question', params: { topic: 'alimentation' }, confidence: 0.9 },
+  { text: 'aliment finition', action: 'answer_knowledge_question', params: { topic: 'alimentation' }, confidence: 0.9 },
+  { text: 'indice de consommation', action: 'answer_knowledge_question', params: { topic: 'alimentation' }, confidence: 0.9 },
+  { text: 'fabriquer son propre aliment', action: 'answer_knowledge_question', params: { topic: 'alimentation' }, confidence: 0.9 },
+  { text: 'reduire le cout de l alimentation', action: 'answer_knowledge_question', params: { topic: 'alimentation' }, confidence: 0.9 },
+
+  // Santé et prophylaxie
+  { text: 'comment vacciner mes porcs', action: 'answer_knowledge_question', params: { topic: 'sante' }, confidence: 0.95 },
+  { text: 'calendrier de vaccination', action: 'answer_knowledge_question', params: { topic: 'sante' }, confidence: 0.95 },
+  { text: 'quels vaccins pour les porcs', action: 'answer_knowledge_question', params: { topic: 'sante' }, confidence: 0.95 },
+  { text: 'maladies des porcs', action: 'answer_knowledge_question', params: { topic: 'sante' }, confidence: 0.95 },
+  { text: 'peste porcine africaine', action: 'answer_knowledge_question', params: { topic: 'sante' }, confidence: 0.95 },
+  { text: 'prevention des maladies', action: 'answer_knowledge_question', params: { topic: 'sante' }, confidence: 0.9 },
+  { text: 'biosecurite', action: 'answer_knowledge_question', params: { topic: 'sante' }, confidence: 0.9 },
+  { text: 'parasitage des porcs', action: 'answer_knowledge_question', params: { topic: 'sante' }, confidence: 0.9 },
+  { text: 'soins veterinaires', action: 'answer_knowledge_question', params: { topic: 'sante' }, confidence: 0.9 },
+
+  // Finance
+  { text: 'rentabilite elevage porcin', action: 'answer_knowledge_question', params: { topic: 'finance' }, confidence: 0.95 },
+  { text: 'combien peut on gagner', action: 'answer_knowledge_question', params: { topic: 'finance' }, confidence: 0.95 },
+  { text: 'marge par porc', action: 'answer_knowledge_question', params: { topic: 'finance' }, confidence: 0.95 },
+  { text: 'cout d un porc', action: 'answer_knowledge_question', params: { topic: 'finance' }, confidence: 0.95 },
+  { text: 'investissement initial', action: 'answer_knowledge_question', params: { topic: 'finance' }, confidence: 0.95 },
+  { text: 'seuil de rentabilite', action: 'answer_knowledge_question', params: { topic: 'finance' }, confidence: 0.9 },
+  { text: 'retour sur investissement', action: 'answer_knowledge_question', params: { topic: 'finance' }, confidence: 0.9 },
+  { text: 'fonds de roulement', action: 'answer_knowledge_question', params: { topic: 'finance' }, confidence: 0.9 },
+
+  // Commerce
+  { text: 'comment vendre mes porcs', action: 'answer_knowledge_question', params: { topic: 'commerce' }, confidence: 0.95 },
+  { text: 'ou vendre mes porcs', action: 'answer_knowledge_question', params: { topic: 'commerce' }, confidence: 0.95 },
+  { text: 'prix de vente des porcs', action: 'answer_knowledge_question', params: { topic: 'commerce' }, confidence: 0.95 },
+  { text: 'canaux de commercialisation', action: 'answer_knowledge_question', params: { topic: 'commerce' }, confidence: 0.9 },
+  { text: 'trouver des clients', action: 'answer_knowledge_question', params: { topic: 'commerce' }, confidence: 0.9 },
+  { text: 'poids optimal de vente', action: 'answer_knowledge_question', params: { topic: 'commerce' }, confidence: 0.9 },
+  { text: 'meilleure periode pour vendre', action: 'answer_knowledge_question', params: { topic: 'commerce' }, confidence: 0.9 },
+
+  // Réglementation
+  { text: 'reglementation elevage porcin', action: 'answer_knowledge_question', params: { topic: 'reglementation' }, confidence: 0.95 },
+  { text: 'obligations legales', action: 'answer_knowledge_question', params: { topic: 'reglementation' }, confidence: 0.95 },
+  { text: 'declaration d elevage', action: 'answer_knowledge_question', params: { topic: 'reglementation' }, confidence: 0.9 },
+  { text: 'normes sanitaires', action: 'answer_knowledge_question', params: { topic: 'reglementation' }, confidence: 0.9 },
+  { text: 'bien etre animal', action: 'answer_knowledge_question', params: { topic: 'reglementation' }, confidence: 0.9 },
+  { text: 'fiscalite elevage', action: 'answer_knowledge_question', params: { topic: 'reglementation' }, confidence: 0.9 },
+
+  // Questions générales sur la formation
+  { text: 'apprends moi l elevage', action: 'answer_knowledge_question', params: {}, confidence: 0.9 },
+  { text: 'je veux apprendre', action: 'answer_knowledge_question', params: {}, confidence: 0.85 },
+  { text: 'formation elevage porcin', action: 'answer_knowledge_question', params: {}, confidence: 0.9 },
+  { text: 'conseils pour elevage', action: 'answer_knowledge_question', params: {}, confidence: 0.9 },
+  { text: 'explique moi', action: 'answer_knowledge_question', params: {}, confidence: 0.85 },
+  { text: 'aide moi a comprendre', action: 'answer_knowledge_question', params: {}, confidence: 0.85 },
+  { text: 'les themes de formation', action: 'list_knowledge_topics', params: {}, confidence: 0.95 },
+  { text: 'quels sujets tu connais', action: 'list_knowledge_topics', params: {}, confidence: 0.9 },
 ];
 
 /**

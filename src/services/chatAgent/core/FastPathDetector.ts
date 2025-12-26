@@ -159,6 +159,65 @@ export class FastPathDetector {
       };
     }
 
+    // 8. QUESTIONS DE FORMATION - Détection des questions éducatives
+    const knowledgePatterns = [
+      // Questions génériques
+      { pattern: /\b(?:c'est quoi|qu'est[- ]ce que|qu'est ce qu'un|c est quoi)\b/i, topic: null },
+      { pattern: /\b(?:explique|explique[- ]moi|apprends[- ]moi)\b/i, topic: null },
+      { pattern: /\b(?:comment|pourquoi|difference entre)\b/i, topic: null },
+      { pattern: /\b(?:conseils?|recommandations?|avantages?|inconvenients?)\b/i, topic: null },
+      
+      // Types d'élevage
+      { pattern: /\b(?:naisseur|engraisseur|cycle complet|charcuterie|types? d'?elevage)\b/i, topic: 'types_elevage' },
+      
+      // Races
+      { pattern: /\b(?:race|races|large white|landrace|duroc|pietrain|croisement)\b/i, topic: 'races' },
+      { pattern: /\b(?:quelle race|meilleure race|choisir une race)\b/i, topic: 'races' },
+      
+      // Alimentation
+      { pattern: /\b(?:comment nourrir|alimentation|ration|indice de consommation|fabriquer son aliment)\b/i, topic: 'alimentation' },
+      { pattern: /\b(?:combien coute l'?alimentation|cout alimentation)\b/i, topic: 'alimentation' },
+      
+      // Santé
+      { pattern: /\b(?:comment vacciner|calendrier vaccination|maladies? des porcs|prophylaxie|biosecurite)\b/i, topic: 'sante' },
+      { pattern: /\b(?:peste porcine|rouget|parasitage)\b/i, topic: 'sante' },
+      
+      // Finance
+      { pattern: /\b(?:rentabilite|combien gagner|marge par porc|investissement initial|seuil de rentabilite)\b/i, topic: 'finance' },
+      { pattern: /\b(?:combien pour demarrer|capital necessaire|budget elevage)\b/i, topic: 'finance' },
+      
+      // Commerce
+      { pattern: /\b(?:ou vendre|comment vendre|prix de vente|canaux de commercialisation|trouver des clients)\b/i, topic: 'commerce' },
+      
+      // Objectifs / Démarrage
+      { pattern: /\b(?:demarrer un elevage|par ou commencer|definir son objectif)\b/i, topic: 'objectifs' },
+      
+      // Emplacement
+      { pattern: /\b(?:ou construire|emplacement|terrain pour elevage|distance habitations)\b/i, topic: 'emplacement' },
+      
+      // Eau
+      { pattern: /\b(?:besoin en eau|combien d'?eau|qualite de l'?eau|forage ou puits)\b/i, topic: 'eau' },
+      
+      // Réglementation
+      { pattern: /\b(?:reglementation|obligations? legales?|normes? sanitaires?|declaration d'?elevage)\b/i, topic: 'reglementation' },
+    ];
+
+    for (const { pattern, topic } of knowledgePatterns) {
+      if (normalized.match(pattern)) {
+        return {
+          intent: {
+            action: 'answer_knowledge_question' as AgentActionType,
+            confidence: topic ? 0.96 : 0.92,
+            params: {
+              topic: topic || undefined,
+              question: message,
+            },
+          },
+          confidence: topic ? 0.96 : 0.92,
+        };
+      }
+    }
+
     // Aucune détection rapide
     return {
       intent: null,

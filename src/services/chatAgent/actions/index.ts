@@ -13,4 +13,5 @@ export * from './sante/VisiteVetoActions';
 export * from './nutrition/StockAlimentActions';
 export * from './info/StatsActions';
 export * from './info/AnalyseActions';
+export * from './knowledge/KnowledgeActions';
 

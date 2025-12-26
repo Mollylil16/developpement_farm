@@ -171,6 +171,8 @@ export class ChatAgentService {
             'create_maladie',
             'create_ingredient',
             'create_planification',
+            'answer_knowledge_question',
+            'list_knowledge_topics',
             'other',
           ];
 

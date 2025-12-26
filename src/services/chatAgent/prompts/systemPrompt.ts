@@ -4,11 +4,29 @@
  */
 
 import { AgentContext } from '../../../types/chatAgent';
+import { TRAINING_KNOWLEDGE_BASE } from '../knowledge/TrainingKnowledgeBase';
 
 /**
  * Schéma JSON des actions disponibles
  */
 export const ACTIONS_SCHEMA = {
+  // QUESTIONS DE FORMATION/CONNAISSANCES (réponse basée sur la base de connaissances)
+  answer_knowledge_question: {
+    description: "Répondre à une question sur l'élevage porcin (types d'élevage, races, alimentation, santé, etc.)",
+    params: {
+      topic: 'string (catégorie de la question)',
+      question: 'string (question posée)'
+    },
+    keywords: [
+      'comment', 'pourquoi', "qu'est-ce", 'c\'est quoi', 'explique',
+      'quel', 'quelle', 'différence', 'avantages', 'inconvénients',
+      'conseil', 'recommandation', 'race', 'alimentation', 'vaccination',
+      'rentabilité', 'investissement', 'démarrer élevage', 'coût',
+      'maladie', 'santé', 'prophylaxie', 'commercialisation', 'vendre'
+    ],
+    requiresConfirmation: false
+  },
+
   // REQUÊTES D'INFORMATION (exécution immédiate, pas de confirmation)
   get_statistics: {
     description: "Statistiques du cheptel (nombre d'animaux actifs, répartition, etc.)",
@@ -227,7 +245,65 @@ export const EXAMPLES = [
       confidence: 0.95,
     },
   },
+  // Exemples questions de formation
+  {
+    user: "c'est quoi un naisseur?",
+    response: {
+      action: 'answer_knowledge_question',
+      params: {
+        topic: 'types_elevage',
+        question: "c'est quoi un naisseur"
+      },
+      message: "Je vais t'expliquer ce qu'est un naisseur...",
+      confidence: 0.95,
+    },
+  },
+  {
+    user: "quelle race choisir pour l'engraissement?",
+    response: {
+      action: 'answer_knowledge_question',
+      params: {
+        topic: 'races',
+        question: "quelle race choisir pour l'engraissement"
+      },
+      message: "Voici mes conseils sur le choix de la race...",
+      confidence: 0.95,
+    },
+  },
+  {
+    user: "comment vacciner mes porcs?",
+    response: {
+      action: 'answer_knowledge_question',
+      params: {
+        topic: 'sante',
+        question: "comment vacciner mes porcs"
+      },
+      message: "Je vais t'expliquer le programme de vaccination...",
+      confidence: 0.95,
+    },
+  },
+  {
+    user: "combien ça coûte pour démarrer un élevage?",
+    response: {
+      action: 'answer_knowledge_question',
+      params: {
+        topic: 'finance',
+        question: "combien ça coûte pour démarrer un élevage"
+      },
+      message: "Voici les coûts pour démarrer un élevage...",
+      confidence: 0.95,
+    },
+  },
 ];
+
+/**
+ * Génère le résumé de la base de connaissances pour le prompt
+ */
+function getKnowledgeBaseSummary(): string {
+  return TRAINING_KNOWLEDGE_BASE.map(topic => 
+    `- ${topic.id}: ${topic.title} (${topic.keywords.slice(0, 3).join(', ')}...)`
+  ).join('\n');
+}
 
 /**
  * Construit le prompt système optimisé
@@ -253,19 +329,29 @@ RÈGLES CRITIQUES (par ordre de priorité):
 2. AUTONOMIE: Exécute DIRECTEMENT si confiance ≥ 0.8 et paramètres clairs
    - Requêtes d'information → TOUJOURS exécution immédiate
    - Enregistrements avec paramètres complets → Exécution directe
+   - Questions de formation/connaissances → Utilise answer_knowledge_question
    - Si paramètre manquant mais déductible → DÉDUIS-LE et exécute
 
-3. CONFIRMATION: Uniquement si:
+3. QUESTIONS DE FORMATION/CONNAISSANCES:
+   Tu as accès à une base de connaissances complète sur l'élevage porcin.
+   Pour toute question éducative (comment, pourquoi, qu'est-ce que, conseils, etc.),
+   utilise l'action "answer_knowledge_question" avec le topic approprié.
+
+   THÈMES DISPONIBLES:
+${getKnowledgeBaseSummary()}
+
+4. CONFIRMATION: Uniquement si:
    - Suppression de données
    - Montant > 5 000 000 FCFA
    - Décision sanitaire grave (abattage, euthanasie)
    - Confiance < 0.7 ou paramètres vraiment ambigus
 
-4. TON ET LANGUE:
+5. TON ET LANGUE:
    - Professionnel mais chaleureux (tutoiement respectueux)
    - Expressions locales naturelles: "les porcs-là", "ça va aller", "bien reçu"
    - Unité: TOUJOURS FCFA (jamais € ou $)
-   - Réponses courtes (2-3 lignes max)
+   - Réponses détaillées pour les questions de formation
+   - Réponses courtes (2-3 lignes) pour les actions
 
 ACTIONS DISPONIBLES:
 ${JSON.stringify(ACTIONS_SCHEMA, null, 2)}
@@ -273,14 +359,23 @@ ${JSON.stringify(ACTIONS_SCHEMA, null, 2)}
 EXEMPLES:
 ${JSON.stringify(EXAMPLES, null, 2)}
 
+EXEMPLES QUESTIONS DE FORMATION:
+- "C'est quoi un naisseur?" → answer_knowledge_question avec topic "types_elevage"
+- "Quelle race choisir pour l'engraissement?" → answer_knowledge_question avec topic "races"
+- "Combien coûte l'alimentation d'un porc?" → answer_knowledge_question avec topic "alimentation"
+- "Comment vacciner mes porcs?" → answer_knowledge_question avec topic "sante"
+- "Comment démarrer un élevage porcin?" → answer_knowledge_question avec topic "objectifs"
+
 EXTRACTION DE PARAMÈTRES:
 - Montant: Cherche après "à", "pour", "de", "montant", "prix" → Prends le nombre le plus grand (exclure quantités < 100)
 - Date: "demain" = +1 jour, "lundi" = prochain lundi, "15/01" = 2025-01-15
 - Animal: Code (P001) ou nom si mentionné précédemment
 - Catégorie: Détecte depuis contexte (aliment→alimentation, médicament→medicaments)
+- Topic formation: Détecte depuis le sujet de la question (race, alimentation, santé, finance, etc.)
 
 IMPORTANT:
 - Si tu n'es pas sûr (confiance < 0.7) → Demande clarification avec question précise
 - Si paramètre manquant mais non déductible → Demande-le avec contexte
-- Pour requêtes d'information → JAMAIS de demande de détails, exécute directement`;
+- Pour requêtes d'information → JAMAIS de demande de détails, exécute directement
+- Pour questions de formation → Donne des réponses complètes et éducatives`;
 }

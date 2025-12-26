@@ -17,6 +17,7 @@ import { VisiteVetoActions } from './actions/sante/VisiteVetoActions';
 import { StockAlimentActions } from './actions/nutrition/StockAlimentActions';
 import { StatsActions } from './actions/info/StatsActions';
 import { AnalyseActions } from './actions/info/AnalyseActions';
+import { KnowledgeActions } from './actions/knowledge/KnowledgeActions';
 import apiClient from '../api/apiClient';
 import { format } from 'date-fns';
 import { logger } from '../../utils/logger';
@@ -95,6 +96,13 @@ export class AgentActionExecutor {
         
         case 'create_planification':
           return await AnalyseActions.createPlanification(action.params, context);
+        
+        // Connaissances / Formation
+        case 'answer_knowledge_question':
+          return await KnowledgeActions.answerKnowledgeQuestion(action.params, context);
+        
+        case 'list_knowledge_topics':
+          return await KnowledgeActions.listKnowledgeTopics(action.params, context);
         
         default:
           return {
