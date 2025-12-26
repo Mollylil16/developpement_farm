@@ -22,6 +22,7 @@ import { AdminModule } from './admin/admin.module';
 import { BatchesModule } from './batches/batches.module';
 import { MigrationModule } from './migration/migration.module';
 import { CommonModule } from './common/common.module';
+import { AgentLearningsModule } from './agent-learnings/agent-learnings.module';
 import { AppController } from './app.controller';
 import { JwtAuthGlobalGuard } from './common/guards/jwt-auth.global.guard';
 
@@ -64,6 +65,7 @@ import { JwtAuthGlobalGuard } from './common/guards/jwt-auth.global.guard';
     AdminModule,
     BatchesModule,
     MigrationModule,
+    AgentLearningsModule,
   ],
   controllers: [AppController],
   providers: [

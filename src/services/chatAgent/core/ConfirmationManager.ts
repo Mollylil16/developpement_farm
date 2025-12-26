@@ -1,9 +1,10 @@
 /**
  * Gestionnaire de confirmations avec seuils adaptatifs
- * Gère l'exécution automatique ou les demandes de confirmation selon la confiance
+ * V4.0 - Avec messages unifiés et détection mots-clés
  */
 
 import { AgentAction } from '../../../types/chatAgent';
+import { STANDARD_MISUNDERSTANDING_MESSAGE } from './LearningService';
 
 export interface ConfirmationDecision {
   requiresConfirmation: boolean;
@@ -186,6 +187,7 @@ export class ConfirmationManager {
 
   /**
    * Construit un message de clarification pour confiance faible
+   * V4.0 - Utilise le message standardisé avec détection de mots-clés
    */
   private buildClarificationMessage(action: AgentAction, userMessage?: string): string {
     const montant = action.params.montant;
@@ -201,11 +203,41 @@ export class ConfirmationManager {
     }
 
     if (missing.length > 0) {
-      return `Je comprends pas bien. Tu peux me donner ${missing.join(' et ')} ? Par exemple : "Dépense Aliment 100 000" ou "J'ai dépensé 100000 pour la bouffe".`;
+      // V4.0 - Utiliser les mots-clés détectés pour une clarification plus précise
+      const keywords = this.extractKeywords(userMessage || '');
+      const keywordsStr = keywords.length > 0 ? ` J'ai compris "${keywords.slice(0, 3).join(', ')}" mais` : '';
+      
+      return `${keywordsStr} il me manque ${missing.join(' et ')}. Par exemple : "Dépense Aliment 100 000".`;
     }
 
-    // Cas général
-    return `Je veux juste confirmer avant d'enregistrer. Tu peux reformuler pour que je comprenne mieux ?`;
+    // V4.0 - Message standardisé pour cas général
+    return STANDARD_MISUNDERSTANDING_MESSAGE;
+  }
+
+  /**
+   * Extrait les mots-clés d'un message (V4.0)
+   */
+  private extractKeywords(message: string): string[] {
+    const normalized = message
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^\w\s]/g, ' ')
+      .trim();
+
+    const stopWords = new Set([
+      'je', 'tu', 'il', 'elle', 'nous', 'vous', 'ils', 'elles',
+      'le', 'la', 'les', 'un', 'une', 'des', 'du', 'de', 'a', 'au', 'aux',
+      'et', 'ou', 'mais', 'donc', 'car', 'ni', 'que', 'qui', 'quoi',
+      'pour', 'par', 'sur', 'sous', 'dans', 'avec', 'sans', 'chez',
+      'est', 'sont', 'ai', 'as', 'avons', 'avez', 'ont', 'etre', 'avoir',
+      'fait', 'faire', 'fais', 'peux', 'peut', 'veux', 'veut', 'vouloir',
+    ]);
+
+    return normalized
+      .split(/\s+/)
+      .filter(word => word.length >= 3 && !stopWords.has(word))
+      .slice(0, 5);
   }
 
   /**
