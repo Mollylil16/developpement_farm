@@ -13,12 +13,56 @@ import { createLoggerWithPrefix } from '../utils/logger';
 
 const logger = createLoggerWithPrefix('useChatAgent');
 
+/**
+ * Calcule le temps de réflexion (en ms) basé sur la complexité du message
+ * @param message - Le message de l'utilisateur
+ * @returns Délai en millisecondes (1000-3000ms)
+ */
+function calculateThinkingTime(message: string): number {
+  const normalizedMessage = message.toLowerCase().trim();
+  const wordCount = normalizedMessage.split(/\s+/).length;
+  
+  // Base: 1 seconde minimum
+  let thinkingTime = 1000;
+  
+  // Questions de formation/éducatives = plus de réflexion (jusqu'à 3s)
+  const educativePatterns = [
+    /comment|pourquoi|qu'?est[- ]ce que|c'?est quoi|explique|conseils?/i,
+    /difference|avantage|inconvenient|meilleur/i,
+    /race|alimentation|vaccination|maladie|rentabilite/i,
+  ];
+  
+  const isEducativeQuestion = educativePatterns.some(p => p.test(normalizedMessage));
+  if (isEducativeQuestion) {
+    thinkingTime += 1500; // +1.5s pour questions éducatives
+  }
+  
+  // Longueur du message = plus de réflexion
+  if (wordCount > 10) {
+    thinkingTime += 500; // +0.5s pour messages longs
+  }
+  
+  // Questions avec chiffres/calculs = plus de réflexion
+  if (/\d+/.test(normalizedMessage)) {
+    thinkingTime += 300; // +0.3s pour les calculs
+  }
+  
+  // Questions d'analyse = plus de réflexion
+  if (/analyse|diagnostic|situation|performance|evolution/i.test(normalizedMessage)) {
+    thinkingTime += 800; // +0.8s pour les analyses
+  }
+  
+  // Limiter entre 1s et 3s
+  return Math.min(Math.max(thinkingTime, 1000), 3000);
+}
+
 export function useChatAgent() {
   const { projetActif } = useAppSelector((state) => state.projet);
   const { user } = useAppSelector((state) => state.auth);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isThinking, setIsThinking] = useState(false); // Nouvel état pour la phase de réflexion
   const [isInitialized, setIsInitialized] = useState(false);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [voiceEnabled, setVoiceEnabled] = useState(true); // Activé par défaut pour la reconnaissance vocale
@@ -158,15 +202,13 @@ export function useChatAgent() {
   }, [projetActif?.id, user?.id, voiceEnabled]);
 
   /**
-   * Envoie un message à l'agent
+   * Envoie un message à l'agent avec délai de réflexion
    */
   const sendMessage = useCallback(
     async (content: string) => {
-      if (!agentServiceRef.current || isLoading) {
+      if (!agentServiceRef.current || isLoading || isThinking) {
         return;
       }
-
-      setIsLoading(true);
 
       // Créer et ajouter le message de l'utilisateur immédiatement
       const userMessage: ChatMessage = {
@@ -179,15 +221,22 @@ export function useChatAgent() {
       // Ajouter le message utilisateur à l'état immédiatement
       setMessages((prev) => [...prev, userMessage]);
 
-      // Les endpoints de messages ne sont pas encore implémentés dans le backend
-      // Les messages sont gérés localement pour l'instant
+      // Phase 1: Kouakou "réfléchit" (délai variable selon complexité)
+      const thinkingTime = calculateThinkingTime(content);
+      logger.debug(`[useChatAgent] Temps de réflexion calculé: ${thinkingTime}ms pour "${content.substring(0, 50)}..."`);
+      
+      setIsThinking(true);
+      
+      // Attendre le délai de réflexion
+      await new Promise(resolve => setTimeout(resolve, thinkingTime));
+      
+      // Phase 2: Kouakou répond (appel API)
+      setIsThinking(false);
+      setIsLoading(true);
 
       try {
         const response = await agentServiceRef.current.sendMessage(content);
         setMessages((prev) => [...prev, response]);
-
-        // Les endpoints de messages ne sont pas encore implémentés dans le backend
-        // Les messages sont gérés localement pour l'instant
 
         // Si la voix est activée, lire la réponse
         if (voiceServiceRef.current && voiceEnabled) {
@@ -206,7 +255,7 @@ export function useChatAgent() {
         setIsLoading(false);
       }
     },
-    [isLoading, voiceEnabled]
+    [isLoading, isThinking, voiceEnabled]
   );
 
   /**
@@ -266,6 +315,7 @@ export function useChatAgent() {
   return {
     messages,
     isLoading,
+    isThinking, // Nouveau: Kouakou est en train de réfléchir
     isInitialized,
     reminders,
     voiceEnabled,

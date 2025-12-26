@@ -30,6 +30,7 @@ import { VoiceService } from '../../services/chatAgent';
 import { VoiceInputButton } from '../chat/VoiceInputButton';
 import { VoiceServiceV2 } from '../../services/chatAgent/VoiceServiceV2';
 import { logger } from '../../utils/logger';
+import TypingIndicator from './TypingIndicator';
 
 interface ChatAgentScreenProps {
   onClose?: () => void;
@@ -39,6 +40,7 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
   const {
     messages,
     isLoading,
+    isThinking,
     isInitialized,
     reminders,
     voiceEnabled,
@@ -386,11 +388,11 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
           }
         />
 
-        {isLoading && (
-          <View style={styles.typingIndicator}>
-            <ActivityIndicator size="small" color={COLORS.primary} />
-            <Text style={styles.typingText}>L'assistant écrit...</Text>
-          </View>
+        {/* Indicateur animé: Kouakou réfléchit ou écrit */}
+        {(isThinking || isLoading) && (
+          <TypingIndicator 
+            message={isThinking ? 'Kouakou réfléchit' : 'Kouakou écrit'} 
+          />
         )}
 
         <View style={styles.inputContainer}>
@@ -439,13 +441,13 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
               styles.sendButton,
               {
                 backgroundColor:
-                  inputText.trim() && !sending ? COLORS.primary : COLORS.textSecondary,
+                  inputText.trim() && !sending && !isThinking ? COLORS.primary : COLORS.textSecondary,
               },
             ]}
             onPress={handleSend}
-            disabled={!inputText.trim() || sending || !isInitialized}
+            disabled={!inputText.trim() || sending || isThinking || !isInitialized}
           >
-            {sending ? (
+            {sending || isThinking ? (
               <ActivityIndicator size="small" color={COLORS.textOnPrimary} />
             ) : (
               <Ionicons name="send" size={20} color={COLORS.textOnPrimary} />
@@ -655,17 +657,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.textSecondary,
     textAlign: 'center',
-  },
-  typingIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 8,
-  },
-  typingText: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
   },
   inputContainer: {
     flexDirection: 'row',
