@@ -4,14 +4,7 @@
  * NOTE: react-native-gesture-handler est déjà importé dans index.ts (doit être en premier)
  */
 
-// #region agent log
-fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1',message:'[C] App.tsx START - before React import',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-// #endregion
-
 import React, { useEffect, useState, useRef } from 'react';
-
-// #region agent log
-fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:2',message:'[B] React 18.2.0 import OK',data:{reactVersion:React.version},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
 import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import { StatusBar } from 'expo-status-bar';
@@ -28,15 +21,7 @@ import { registerRootComponent } from 'expo';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { deactivateKeepAwake } from 'expo-keep-awake';
 import { store, persistor } from './src/store/store';
-
-// #region agent log
-fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:3',message:'[C] About to import AppNavigator (loads lazyScreens)',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-// #endregion
-
 import AppNavigator from './src/navigation/AppNavigator';
-
-// #region agent log
-fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:4',message:'[C] AppNavigator imported OK',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
 import { databaseService } from './src/services/database';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import { LanguageProvider } from './src/contexts/LanguageContext';

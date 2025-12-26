@@ -10,14 +10,7 @@
  * - Écrans secondaires: chargés à la demande (Admin, Training, etc.)
  */
 
-// #region agent log
-fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lazyScreens.tsx:1',message:'[A] lazyScreens.tsx START',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-// #endregion
-
 import React, { ComponentType, useState, useEffect } from 'react';
-
-// #region agent log
-fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lazyScreens.tsx:2',message:'[B] React import OK in lazyScreens',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
 import { View, ActivityIndicator } from 'react-native';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { logger } from '../utils/logger';
@@ -92,35 +85,17 @@ function createLazyScreen<T extends ComponentType<any>>(
 // ============================================
 // Ces écrans sont utilisés fréquemment et doivent être disponibles rapidement
 
-// #region agent log
-fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lazyScreens.tsx:3',message:'[C] About to export WelcomeScreen',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-// #endregion
-
 export { default as WelcomeScreen } from '../screens/WelcomeScreen';
 export { default as AuthScreen } from '../screens/AuthScreen';
 export { default as CreateProjectScreen } from '../screens/CreateProjectScreen';
 
-// #region agent log
-fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lazyScreens.tsx:4',message:'[C] Auth screens exported OK',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-
 // Dashboards (écrans principaux)
-// #region agent log
-fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lazyScreens.tsx:5',message:'[C] About to export Dashboard screens',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-// #endregion
-
 export { default as DashboardScreen } from '../screens/DashboardScreen';
 export { default as DashboardBuyerScreen } from '../screens/DashboardBuyerScreen';
 export { default as DashboardVetScreen } from '../screens/DashboardVetScreen';
 export { default as DashboardTechScreen } from '../screens/DashboardTechScreen';
 
-// #region agent log
-fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lazyScreens.tsx:6',message:'[C] Dashboard screens exported OK',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-
 // Modules principaux (utilisés quotidiennement)
-// #region agent log
-fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lazyScreens.tsx:7',message:'[C] About to export main modules',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-// #endregion
-
 export { default as ProductionScreen } from '../screens/ProductionScreen';
 export { default as ReproductionScreen } from '../screens/ReproductionScreen';
 export { default as NutritionScreen } from '../screens/NutritionScreen';
@@ -129,9 +104,6 @@ export { default as SanteScreen } from '../screens/SanteScreen';
 export { default as PlanningProductionScreen } from '../screens/PlanningProductionScreen';
 export { default as PlanificationScreen } from '../screens/PlanificationScreen';
 export { default as MortalitesScreen } from '../screens/MortalitesScreen';
-
-// #region agent log
-fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lazyScreens.tsx:8',message:'[C] Main modules exported OK',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
 
 // Profil (accès fréquent)
 export { default as ProfilScreen } from '../screens/ProfilScreen';
@@ -210,10 +182,6 @@ export const MigrationWizardScreen = createLazyScreen(
 export const MigrationHistoryScreen = createLazyScreen(
   () => import('../screens/MigrationHistoryScreen')
 );
-
-// #region agent log
-fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lazyScreens.tsx:END',message:'[C] lazyScreens.tsx FULLY LOADED',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-// #endregion
 
 // Note: Les écrans de détails et d'ajout sont chargés dynamiquement
 // lorsqu'ils sont nécessaires, pas besoin de les exporter ici
