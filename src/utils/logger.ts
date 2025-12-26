@@ -3,7 +3,7 @@
  * Conditionne les logs avec __DEV__ pour éviter les logs en production
  */
 
-type LogLevel = 'log' | 'warn' | 'error' | 'debug' | 'info';
+type LogLevel = 'log' | 'warn' | 'error' | 'debug' | 'info' | 'success';
 
 interface Logger {
   log: (...args: any[]) => void;
@@ -11,6 +11,7 @@ interface Logger {
   error: (...args: any[]) => void;
   debug: (...args: any[]) => void;
   info: (...args: any[]) => void;
+  success: (...args: any[]) => void;
 }
 
 /**
@@ -49,6 +50,11 @@ const createLogger = (prefix?: string): Logger => {
         console.log(...formatMessage('info', ...args));
       }
     },
+    success: (...args: any[]) => {
+      if (__DEV__) {
+        console.log(...formatMessage('success', ...args));
+      }
+    },
   };
 };
 
@@ -56,6 +62,11 @@ const createLogger = (prefix?: string): Logger => {
  * Logger global par défaut
  */
 export const logger = createLogger();
+
+/**
+ * Logger spécifique pour la base de données
+ */
+export const dbLogger = createLogger('DB');
 
 /**
  * Créer un logger avec un préfixe personnalisé

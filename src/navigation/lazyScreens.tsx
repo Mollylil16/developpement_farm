@@ -10,9 +10,17 @@
  * - Écrans secondaires: chargés à la demande (Admin, Training, etc.)
  */
 
+// #region agent log
+fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lazyScreens.tsx:1',message:'[A] lazyScreens.tsx START',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+// #endregion
+
 import React, { ComponentType, useState, useEffect } from 'react';
+
+// #region agent log
+fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lazyScreens.tsx:2',message:'[B] React import OK in lazyScreens',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
 import { View, ActivityIndicator } from 'react-native';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { logger } from '../utils/logger';
 
 // ============================================
 // Helper: Composant wrapper pour lazy loading
@@ -21,60 +29,62 @@ function createLazyScreen<T extends ComponentType<any>>(
   importFn: () => Promise<{ default: T }>,
   fallback?: React.ReactNode
 ): T {
-  const LazyComponent = React.forwardRef<any, any>((props, ref) => {
-    const [ScreenComponent, setScreenComponent] = useState<T | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<Error | null>(null);
+  const LazyScreenComponent = React.forwardRef<any, any>(
+    (props: any, ref: any): React.ReactElement | null => {
+      const [ScreenComponent, setScreenComponent] = useState<T | null>(null);
+      const [loading, setLoading] = useState(true);
+      const [error, setError] = useState<Error | null>(null);
 
-    useEffect(() => {
-      let isMounted = true;
+      useEffect(() => {
+        let isMounted = true;
 
-      importFn()
-        .then((module) => {
-          if (isMounted) {
-            setScreenComponent(() => module.default);
-            setLoading(false);
-          }
-        })
-        .catch((err) => {
-          if (isMounted) {
-            setError(err);
-            setLoading(false);
-            console.error('Erreur lors du chargement de l\'écran:', err);
-          }
-        });
+        importFn()
+          .then((module) => {
+            if (isMounted) {
+              setScreenComponent(() => module.default);
+              setLoading(false);
+            }
+          })
+          .catch((err) => {
+            if (isMounted) {
+              setError(err);
+              setLoading(false);
+              logger.error('Erreur lors du chargement de l\'écran:', err);
+            }
+          });
 
-      return () => {
-        isMounted = false;
-      };
-    }, []);
+        return () => {
+          isMounted = false;
+        };
+      }, []);
 
-    if (loading) {
-      return fallback || (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <LoadingSpinner message="Chargement..." />
-        </View>
-      );
+      if (loading) {
+        return fallback || (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <LoadingSpinner message="Chargement..." />
+          </View>
+        );
+      }
+
+      if (error) {
+        return (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+            <LoadingSpinner message="Erreur de chargement. Veuillez réessayer." />
+          </View>
+        );
+      }
+
+      if (!ScreenComponent) {
+        return null;
+      }
+
+      return <ScreenComponent {...props} ref={ref} />;
     }
+  );
 
-    if (error) {
-      return (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <LoadingSpinner message="Erreur de chargement. Veuillez réessayer." />
-        </View>
-      );
-    }
+  LazyScreenComponent.displayName = `LazyScreen(${importFn.name || 'Unknown'})`;
 
-    if (!ScreenComponent) {
-      return null;
-    }
-
-    return <ScreenComponent {...props} ref={ref} />;
-  }) as T;
-
-  LazyComponent.displayName = `LazyScreen(${importFn.name || 'Unknown'})`;
-
-  return LazyComponent;
+  return LazyScreenComponent as T;
 }
 
 // ============================================
@@ -82,17 +92,35 @@ function createLazyScreen<T extends ComponentType<any>>(
 // ============================================
 // Ces écrans sont utilisés fréquemment et doivent être disponibles rapidement
 
+// #region agent log
+fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lazyScreens.tsx:3',message:'[C] About to export WelcomeScreen',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
+// #endregion
+
 export { default as WelcomeScreen } from '../screens/WelcomeScreen';
 export { default as AuthScreen } from '../screens/AuthScreen';
 export { default as CreateProjectScreen } from '../screens/CreateProjectScreen';
 
+// #region agent log
+fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lazyScreens.tsx:4',message:'[C] Auth screens exported OK',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
+
 // Dashboards (écrans principaux)
+// #region agent log
+fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lazyScreens.tsx:5',message:'[C] About to export Dashboard screens',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
+// #endregion
+
 export { default as DashboardScreen } from '../screens/DashboardScreen';
 export { default as DashboardBuyerScreen } from '../screens/DashboardBuyerScreen';
 export { default as DashboardVetScreen } from '../screens/DashboardVetScreen';
 export { default as DashboardTechScreen } from '../screens/DashboardTechScreen';
 
+// #region agent log
+fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lazyScreens.tsx:6',message:'[C] Dashboard screens exported OK',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
+
 // Modules principaux (utilisés quotidiennement)
+// #region agent log
+fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lazyScreens.tsx:7',message:'[C] About to export main modules',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
+// #endregion
+
 export { default as ProductionScreen } from '../screens/ProductionScreen';
 export { default as ReproductionScreen } from '../screens/ReproductionScreen';
 export { default as NutritionScreen } from '../screens/NutritionScreen';
@@ -101,6 +129,9 @@ export { default as SanteScreen } from '../screens/SanteScreen';
 export { default as PlanningProductionScreen } from '../screens/PlanningProductionScreen';
 export { default as PlanificationScreen } from '../screens/PlanificationScreen';
 export { default as MortalitesScreen } from '../screens/MortalitesScreen';
+
+// #region agent log
+fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lazyScreens.tsx:8',message:'[C] Main modules exported OK',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
 
 // Profil (accès fréquent)
 export { default as ProfilScreen } from '../screens/ProfilScreen';
@@ -179,6 +210,10 @@ export const MigrationWizardScreen = createLazyScreen(
 export const MigrationHistoryScreen = createLazyScreen(
   () => import('../screens/MigrationHistoryScreen')
 );
+
+// #region agent log
+fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lazyScreens.tsx:END',message:'[C] lazyScreens.tsx FULLY LOADED',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
+// #endregion
 
 // Note: Les écrans de détails et d'ajout sont chargés dynamiquement
 // lorsqu'ils sont nécessaires, pas besoin de les exporter ici

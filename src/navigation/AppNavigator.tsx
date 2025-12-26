@@ -25,6 +25,7 @@ import NotificationsManager from '../components/NotificationsManager';
 import * as LazyScreens from './lazyScreens';
 
 import { COLORS } from '../constants/theme';
+import { logger } from '../utils/logger';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -530,9 +531,6 @@ export default function AppNavigator() {
           {() => <LazyScreens.AdminScreen />}
         </Stack.Screen>
         {/* 🆕 Écrans d'onboarding */}
-        <Stack.Screen name={SCREENS.WELCOME}>
-          {() => <LazyScreens.WelcomeScreen />}
-        </Stack.Screen>
         <Stack.Screen name={SCREENS.SIGN_UP_METHOD}>
           {() => <LazyScreens.SignUpMethodScreen />}
         </Stack.Screen>

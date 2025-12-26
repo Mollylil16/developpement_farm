@@ -37,14 +37,7 @@
     "scheme": "fermierpro",
     "plugins": [
       "expo-sqlite",
-      "expo-localization",
-      [
-        "@react-native-voice/voice",
-        {
-          "microphonePermission": "Autorisez l'accès au microphone pour parler à Kouakou",
-          "speechRecognitionPermission": "Autorisez la reconnaissance vocale pour que Kouakou comprenne vos commandes"
-        }
-      ]
+      "expo-localization"
     ],
     "extra": {
       "eas": {

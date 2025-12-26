@@ -19,6 +19,7 @@ import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadDepensesPonctuelles } from '../store/slices/financeSlice';
 import { selectAllDepensesPonctuelles } from '../store/selectors/financeSelectors';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
+import { logger } from '../utils/logger';
 import Card from './Card';
 import {
   calculateAmortissementsParCategorie,

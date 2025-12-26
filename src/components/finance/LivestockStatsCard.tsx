@@ -2,7 +2,7 @@
  * Composant pour afficher les statistiques du cheptel actif
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, memo } from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { 

@@ -3,7 +3,7 @@
  * Affiche les informations d'un animal avec ses actions
  */
 
-import React from 'react';
+import React, { memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { format, parseISO } from 'date-fns';
@@ -40,7 +40,7 @@ interface AnimalCardProps {
   getParentLabel?: (id?: string | null) => string;
 }
 
-const AnimalCard = React.memo(
+const AnimalCard = memo(
   function AnimalCard({
     animal,
     vaccinations = [],

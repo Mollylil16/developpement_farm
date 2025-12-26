@@ -2,7 +2,7 @@
  * Widget Vue d'Ensemble - Grand widget avec stats principales
  */
 
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
