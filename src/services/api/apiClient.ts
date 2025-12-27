@@ -285,8 +285,23 @@ async function executeHttpRequest<T>(
         );
       }
       
+      // Extraire le message d'erreur de manière plus robuste
+      let errorMessage = errorData.message || errorData.error || errorData.message || '';
+      if (!errorMessage && response.statusText) {
+        errorMessage = response.statusText;
+      }
+      if (!errorMessage) {
+        errorMessage = `Erreur HTTP ${response.status}`;
+      }
+      
+      logger.error(`Erreur API [${response.status}]: ${errorMessage}`, {
+        endpoint,
+        status: response.status,
+        errorData,
+      });
+      
       throw new APIError(
-        errorData.message || `Request failed: ${response.statusText}`,
+        errorMessage,
         response.status,
         errorData
       );

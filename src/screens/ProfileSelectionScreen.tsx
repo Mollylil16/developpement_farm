@@ -113,8 +113,49 @@ const ProfileSelectionScreen: React.FC = () => {
       }
     } catch (error: unknown) {
       console.error('Erreur création profil:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
-      Alert.alert('Erreur', `Impossible de créer le profil: ${errorMessage}`);
+      
+      // Extraire le message d'erreur de manière plus détaillée
+      let errorMessage = 'Erreur inconnue';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        // Si c'est une APIError, essayer d'extraire plus d'informations
+        if ('status' in error && typeof (error as any).status === 'number') {
+          const apiError = error as any;
+          const status = apiError.status;
+          const data = apiError.data;
+          
+          if (data && typeof data === 'object' && 'message' in data) {
+            errorMessage = String(data.message);
+          } else if (status === 401) {
+            errorMessage = 'Session expirée. Veuillez vous reconnecter.';
+          } else if (status === 403) {
+            errorMessage = 'Accès refusé. Vous n\'avez pas les permissions nécessaires.';
+          } else if (status === 404) {
+            errorMessage = 'Ressource non trouvée. Veuillez réessayer.';
+          } else if (status === 500) {
+            errorMessage = 'Erreur serveur. Veuillez réessayer plus tard.';
+          } else if (status === 0) {
+            errorMessage = 'Erreur de connexion. Vérifiez votre connexion Internet.';
+          } else {
+            errorMessage = `Erreur ${status}: ${error.message}`;
+          }
+        }
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
+      Alert.alert(
+        'Erreur',
+        `Impossible de créer le profil: ${errorMessage}`,
+        [
+          { text: 'OK', style: 'default' },
+          {
+            text: 'Réessayer',
+            onPress: () => handleProfileSelect(profileType),
+            style: 'default',
+          },
+        ]
+      );
     }
   };
 
