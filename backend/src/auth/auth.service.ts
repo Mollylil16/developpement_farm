@@ -53,17 +53,24 @@ export class AuthService {
       user = await this.validateUser(loginDto.email, loginDto.password);
     } else if (loginDto.telephone) {
       // Valider avec téléphone - inclure password_hash pour la vérification
+      this.logger.debug(`Login téléphone: tentative avec ${loginDto.telephone}`);
       const foundUser = await this.usersService.findByTelephone(loginDto.telephone, true);
-      if (!foundUser || !foundUser.password_hash) {
-        this.logger.debug(`Login téléphone: utilisateur non trouvé ou pas de mot de passe pour ${loginDto.telephone}`);
+      
+      if (!foundUser) {
+        this.logger.warn(`Login téléphone: utilisateur non trouvé pour ${loginDto.telephone}`);
+        user = null;
+      } else if (!foundUser.password_hash) {
+        this.logger.warn(`Login téléphone: pas de mot de passe pour ${loginDto.telephone}, userId=${foundUser.id}`);
         user = null;
       } else {
+        this.logger.debug(`Login téléphone: utilisateur trouvé userId=${foundUser.id}, vérification mot de passe`);
         const isPasswordValid = await bcrypt.compare(loginDto.password, foundUser.password_hash);
         if (isPasswordValid) {
+          this.logger.debug(`Login téléphone: mot de passe valide pour userId=${foundUser.id}`);
           const { password_hash, ...userWithoutPassword } = foundUser;
           user = userWithoutPassword;
         } else {
-          this.logger.debug(`Login téléphone: mot de passe incorrect pour ${loginDto.telephone}`);
+          this.logger.warn(`Login téléphone: mot de passe incorrect pour ${loginDto.telephone}, userId=${foundUser.id}`);
           user = null;
         }
       }

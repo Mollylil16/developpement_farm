@@ -155,8 +155,14 @@ export class UsersService {
   }
 
   async findByTelephone(telephone: string, includePasswordHash = false) {
+    this.logger.debug(`findByTelephone: recherche avec téléphone original="${telephone}"`);
     const normalizedTelephone = this.normalizeTelephone(telephone);
-    if (!normalizedTelephone) return null;
+    if (!normalizedTelephone) {
+      this.logger.debug(`findByTelephone: téléphone normalisé vide pour "${telephone}"`);
+      return null;
+    }
+    
+    this.logger.debug(`findByTelephone: téléphone normalisé="${normalizedTelephone}"`);
 
     // Colonnes nécessaires pour mapRowToUser (optimisation: éviter SELECT *)
     let userColumns = `id, email, telephone, nom, prenom, provider, provider_id, photo, 
@@ -175,13 +181,38 @@ export class UsersService {
       [normalizedTelephone]
     );
     
-    if (!result.rows[0]) return null;
+    this.logger.debug(`findByTelephone: ${result.rows.length} utilisateur(s) trouvé(s) pour "${normalizedTelephone}"`);
+    
+    if (!result.rows[0]) {
+      // Essayer aussi sans le + au début si le numéro commence par +
+      if (normalizedTelephone.startsWith('+')) {
+        const withoutPlus = normalizedTelephone.substring(1);
+        this.logger.debug(`findByTelephone: tentative alternative sans + pour "${withoutPlus}"`);
+        const result2 = await this.databaseService.query(
+          `SELECT ${userColumns} FROM users WHERE telephone = $1 AND is_active = true`,
+          [withoutPlus]
+        );
+        if (result2.rows[0]) {
+          this.logger.debug(`findByTelephone: utilisateur trouvé avec variante sans +`);
+          const user = this.mapRowToUser(result2.rows[0]);
+          if (includePasswordHash && result2.rows[0].password_hash) {
+            (user as any).password_hash = result2.rows[0].password_hash;
+          }
+          return user;
+        }
+      }
+      return null;
+    }
     
     const user = this.mapRowToUser(result.rows[0]);
+    this.logger.debug(`findByTelephone: utilisateur trouvé userId=${user.id}, telephone=${user.telephone}`);
     
     // Inclure password_hash si demandé
     if (includePasswordHash && result.rows[0].password_hash) {
       (user as any).password_hash = result.rows[0].password_hash;
+      this.logger.debug(`findByTelephone: password_hash inclus pour userId=${user.id}`);
+    } else if (includePasswordHash) {
+      this.logger.warn(`findByTelephone: password_hash demandé mais absent pour userId=${user.id}`);
     }
     
     return user;
