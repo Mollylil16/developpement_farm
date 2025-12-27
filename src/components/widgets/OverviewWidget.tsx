@@ -71,8 +71,20 @@ function OverviewWidget({ onPress }: OverviewWidgetProps) {
     return mortalites.filter((m) => m.projet_id === projetActif.id);
   }, [mortalites, projetActif?.id]);
 
-  // Pré-formater les pesées une seule fois
+  // Pré-formater les pesées une seule fois (optimisé pour éviter les recalculs inutiles)
   const peseesFormatted = useMemo(() => {
+    // Si peseesParAnimal est déjà complet, l'utiliser directement
+    if (Object.keys(peseesParAnimal).length > 0 && peseesRecents.length === 0) {
+      const formatted: Record<string, Array<{ date: string; poids_kg: number }>> = {};
+      Object.keys(peseesParAnimal).forEach((animalId) => {
+        formatted[animalId] = peseesParAnimal[animalId].map((pesee) => ({
+          date: pesee.date,
+          poids_kg: pesee.poids_kg,
+        }));
+      });
+      return formatted;
+    }
+
     const formatted: Record<string, Array<{ date: string; poids_kg: number }>> = {};
 
     // D'abord, utiliser peseesParAnimal si disponible

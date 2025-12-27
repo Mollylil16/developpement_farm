@@ -137,16 +137,32 @@ export class ProjetsService {
 
       return projet;
     }).then(async (projet) => {
+      // #region agent log
+      try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:139',message:'Projet créé - vérification mode batch',data:{projetId:projet.id,management_method,shouldCreateBatches:management_method === 'batch',nombre_truies:createProjetDto.nombre_truies,nombre_verrats:createProjetDto.nombre_verrats,nombre_porcelets:createProjetDto.nombre_porcelets,nombre_croissance:createProjetDto.nombre_croissance},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+      // #endregion
       // Si mode batch + effectifs initiaux → Auto-regrouper en loges
       // Fait en dehors de la transaction car c'est une opération complexe qui peut échouer
       // et ne doit pas empêcher la création du projet
       if (management_method === 'batch') {
         try {
+          // #region agent log
+          try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:144',message:'autoGroupIntoBatches: appel',data:{projetId:projet.id,userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+          // #endregion
           await this.autoGroupIntoBatches(projet.id, createProjetDto, userId);
+          // #region agent log
+          try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:147',message:'autoGroupIntoBatches: terminé avec succès',data:{projetId:projet.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+          // #endregion
         } catch (error) {
+          // #region agent log
+          try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:149',message:'autoGroupIntoBatches: erreur',data:{projetId:projet.id,errorMessage:error?.message,errorStack:error?.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+          // #endregion
           this.logger.warn(`Erreur lors de l'auto-groupement en bandes pour projet ${projet.id}:`, error);
           // Ne pas faire échouer la création du projet si l'auto-groupement échoue
         }
+      } else {
+        // #region agent log
+        try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:155',message:'Mode individual - pas de création de loges',data:{projetId:projet.id,management_method},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+        // #endregion
       }
 
       return projet;

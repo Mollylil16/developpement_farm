@@ -47,6 +47,19 @@ export default function ProductionCheptelComponent() {
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const projetActif = useAppSelector(selectProjetActif);
+  
+  // Vérifier la méthode de gestion du projet AVANT les autres hooks
+  // pour éviter "Rendered more hooks than during the previous render"
+  const managementMethod = projetActif?.management_method || 'individual';
+
+  // Si mode "batch", afficher la vue par bande IMMÉDIATEMENT
+  // sans appeler les autres hooks qui ne sont nécessaires que pour le mode individual
+  if (managementMethod === 'batch') {
+    return <BatchCheptelView />;
+  }
+
+  // Les hooks suivants ne sont appelés que si on est en mode "individual"
+  // Cela garantit que le nombre de hooks reste constant entre les rendus
   const loading = useAppSelector(selectProductionLoading);
   const vaccinations = useAppSelector(selectAllVaccinations);
   const maladies = useAppSelector(selectAllMaladies);
@@ -114,11 +127,28 @@ export default function ProductionCheptelComponent() {
 
   // Charger les données uniquement quand l'onglet est visible (éviter les boucles infinies)
   const aChargeRef = useRef<string | null>(null);
+  const dernierChargementRef = useRef<{ projetId: string | null; timestamp: number }>({
+    projetId: null,
+    timestamp: 0,
+  });
 
   useFocusEffect(
     React.useCallback(() => {
       if (!projetActif?.id) {
         aChargeRef.current = null;
+        dernierChargementRef.current = { projetId: null, timestamp: 0 };
+        return;
+      }
+
+      const maintenant = Date.now();
+      const CACHE_DURATION_MS = 30000; // 30 secondes
+      const memeProjet = dernierChargementRef.current.projetId === projetActif.id;
+      const donneesRecentes =
+        memeProjet && maintenant - dernierChargementRef.current.timestamp < CACHE_DURATION_MS;
+
+      // Si les données sont récentes, ne pas recharger
+      if (donneesRecentes && aChargeRef.current === projetActif.id) {
+        logger.debug('[ProductionCheptel] Données en cache, pas de rechargement');
         return;
       }
 
@@ -126,16 +156,27 @@ export default function ProductionCheptelComponent() {
       if (aChargeRef.current !== projetActif.id) {
         logger.info('Rechargement des animaux et données associées...');
         aChargeRef.current = projetActif.id;
-        
-        // Dispatcher toutes les actions en parallèle pour meilleure performance
-        Promise.all([
-          dispatch(loadProductionAnimaux({ projetId: projetActif.id })),
-          dispatch(loadVaccinations(projetActif.id)),
-          dispatch(loadMaladies(projetActif.id)),
-          dispatch(loadTraitements(projetActif.id)),
-        ]).catch((error) => {
-          logger.error('Erreur lors du chargement des données:', error);
+        dernierChargementRef.current = {
+          projetId: projetActif.id,
+          timestamp: maintenant,
+        };
+
+        // Charger les animaux immédiatement (critique pour l'affichage)
+        dispatch(loadProductionAnimaux({ projetId: projetActif.id })).catch((error) => {
+          logger.error('Erreur lors du chargement des animaux:', error);
         });
+
+        // Déferrer les autres chargements (non-critiques) après un court délai
+        // pour améliorer le temps de chargement initial
+        setTimeout(() => {
+          Promise.all([
+            dispatch(loadVaccinations(projetActif.id)),
+            dispatch(loadMaladies(projetActif.id)),
+            dispatch(loadTraitements(projetActif.id)),
+          ]).catch((error) => {
+            logger.error('Erreur lors du chargement des données associées:', error);
+          });
+        }, 500); // Délai de 500ms pour laisser le temps au rendu initial
       }
     }, [dispatch, projetActif?.id])
   );
@@ -171,14 +212,6 @@ export default function ProductionCheptelComponent() {
     },
     [allAnimaux]
   );
-
-  // Vérifier la méthode de gestion du projet
-  const managementMethod = projetActif?.management_method || 'individual';
-
-  // Si mode "batch", afficher la vue par bande
-  if (managementMethod === 'batch') {
-    return <BatchCheptelView />;
-  }
 
   // Sinon, continuer avec la vue individuelle (code existant)
 

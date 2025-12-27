@@ -23,20 +23,33 @@ import { logger } from '../utils/logger';
 export default function BatchCheptelView() {
   const { colors } = useTheme();
   const projetActif = useAppSelector(selectProjetActif);
+  
+  // Tous les hooks doivent être déclarés au début du composant
+  // pour éviter "change in the order of Hooks" errors
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     total: 0,
     by_category: {} as Record<string, number>,
   });
+  const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
+  const [showActionsModal, setShowActionsModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
-  useEffect(() => {
-    if (projetActif) {
-      loadBatches();
-    }
-  }, [projetActif?.id]);
+  const calculateStats = useCallback((batchesData: Batch[]) => {
+    const total = batchesData.reduce((sum, b) => sum + b.total_count, 0);
+    const by_category = batchesData.reduce(
+      (acc, b) => {
+        acc[b.category] = (acc[b.category] || 0) + b.total_count;
+        return acc;
+      },
+      {} as Record<string, number>
+    );
 
-  const loadBatches = async () => {
+    setStats({ total, by_category });
+  }, []);
+
+  const loadBatches = useCallback(async () => {
     if (!projetActif?.id) return;
 
     // #region agent log
@@ -65,24 +78,13 @@ export default function BatchCheptelView() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [projetActif?.id, calculateStats]);
 
-  const calculateStats = (batchesData: Batch[]) => {
-    const total = batchesData.reduce((sum, b) => sum + b.total_count, 0);
-    const by_category = batchesData.reduce(
-      (acc, b) => {
-        acc[b.category] = (acc[b.category] || 0) + b.total_count;
-        return acc;
-      },
-      {} as Record<string, number>
-    );
-
-    setStats({ total, by_category });
-  };
-
-  const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
-  const [showActionsModal, setShowActionsModal] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  useEffect(() => {
+    if (projetActif) {
+      loadBatches();
+    }
+  }, [projetActif?.id, loadBatches]);
 
   const handleBatchPress = (batch: Batch) => {
     setSelectedBatch(batch);
