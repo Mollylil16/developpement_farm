@@ -115,7 +115,7 @@ export class UsersService {
     return result.rows[0] ? this.mapRowToUser(result.rows[0]) : null;
   }
 
-  async findByEmail(email: string) {
+  async findByEmail(email: string, includePasswordHash = false) {
     const normalizedEmail = this.normalizeEmail(email);
     if (!normalizedEmail) {
       this.logger.debug('findByEmail: email vide ou invalide');
@@ -124,9 +124,16 @@ export class UsersService {
 
     this.logger.debug(`findByEmail: recherche de ${normalizedEmail}`);
     // Colonnes nécessaires pour mapRowToUser (optimisation: éviter SELECT *)
-    const userColumns = `id, email, telephone, nom, prenom, provider, provider_id, photo, 
+    let userColumns = `id, email, telephone, nom, prenom, provider, provider_id, photo, 
       saved_farms, date_creation, derniere_connexion, roles, active_role, 
       is_onboarded, onboarding_completed_at, is_active`;
+    
+    // Ajouter password_hash si nécessaire pour l'authentification
+    if (includePasswordHash) {
+      userColumns = `id, email, telephone, nom, prenom, provider, provider_id, photo, 
+        saved_farms, date_creation, derniere_connexion, roles, active_role, 
+        is_onboarded, onboarding_completed_at, is_active, password_hash`;
+    }
     
     const result = await this.databaseService.query(
       `SELECT ${userColumns} FROM users WHERE email = $1 AND is_active = true`,
@@ -134,23 +141,50 @@ export class UsersService {
     );
     
     this.logger.debug(`findByEmail: ${result.rows.length} utilisateur(s) trouvé(s)`);
-    return result.rows[0] ? this.mapRowToUser(result.rows[0]) : null;
+    
+    if (!result.rows[0]) return null;
+    
+    const user = this.mapRowToUser(result.rows[0]);
+    
+    // Inclure password_hash si demandé
+    if (includePasswordHash && result.rows[0].password_hash) {
+      (user as any).password_hash = result.rows[0].password_hash;
+    }
+    
+    return user;
   }
 
-  async findByTelephone(telephone: string) {
+  async findByTelephone(telephone: string, includePasswordHash = false) {
     const normalizedTelephone = this.normalizeTelephone(telephone);
     if (!normalizedTelephone) return null;
 
     // Colonnes nécessaires pour mapRowToUser (optimisation: éviter SELECT *)
-    const userColumns = `id, email, telephone, nom, prenom, provider, provider_id, photo, 
+    let userColumns = `id, email, telephone, nom, prenom, provider, provider_id, photo, 
       saved_farms, date_creation, derniere_connexion, roles, active_role, 
       is_onboarded, onboarding_completed_at, is_active`;
+    
+    // Ajouter password_hash si nécessaire pour l'authentification
+    if (includePasswordHash) {
+      userColumns = `id, email, telephone, nom, prenom, provider, provider_id, photo, 
+        saved_farms, date_creation, derniere_connexion, roles, active_role, 
+        is_onboarded, onboarding_completed_at, is_active, password_hash`;
+    }
 
     const result = await this.databaseService.query(
       `SELECT ${userColumns} FROM users WHERE telephone = $1 AND is_active = true`,
       [normalizedTelephone]
     );
-    return result.rows[0] ? this.mapRowToUser(result.rows[0]) : null;
+    
+    if (!result.rows[0]) return null;
+    
+    const user = this.mapRowToUser(result.rows[0]);
+    
+    // Inclure password_hash si demandé
+    if (includePasswordHash && result.rows[0].password_hash) {
+      (user as any).password_hash = result.rows[0].password_hash;
+    }
+    
+    return user;
   }
 
   async findByProviderId(provider: string, providerId: string) {
