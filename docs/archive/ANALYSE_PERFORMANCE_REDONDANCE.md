@@ -389,12 +389,12 @@ ORDER BY applied_at DESC;
 
 ### Checklist
 
-- [ ] Créer hook `useLoadAnimauxOnMount`
-- [ ] Corriger `useEffect` dans `LivestockStatsCard.tsx`
-- [ ] Renommer migration `044_create_reset_tokens_table.sql`
-- [ ] Vérifier état des migrations dans la base de données
-- [ ] Implémenter vérification de cache avant dispatch Redux
-- [ ] Documenter l'état actuel des migrations
+- [x] Créer hook `useLoadAnimauxOnMount` ✅ **COMPLÉTÉ**
+- [x] Corriger `useEffect` dans `LivestockStatsCard.tsx` ✅ **COMPLÉTÉ**
+- [x] Renommer migration `044_create_reset_tokens_table.sql` ✅ **COMPLÉTÉ**
+- [ ] Vérifier état des migrations dans la base de données ⏳ **EN ATTENTE** (non-critique)
+- [x] Implémenter vérification de cache avant dispatch Redux ✅ **COMPLÉTÉ**
+- [ ] Documenter l'état actuel des migrations ⏳ **EN ATTENTE** (non-critique)
 
 ---
 
@@ -406,5 +406,7 @@ ORDER BY applied_at DESC;
 
 ---
 
-**Prochaine étape :** Implémenter les corrections critiques listées ci-dessus.
+**Prochaine étape :** ✅ **Toutes les corrections critiques ont été implémentées !**
+
+Voir `CORRECTIONS_PERFORMANCE_APPLIQUEES.md` pour le détail des corrections appliquées.
 
