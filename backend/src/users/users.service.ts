@@ -180,7 +180,6 @@ export class UsersService {
       `SELECT ${userColumns} FROM users WHERE telephone = $1 AND is_active = true`,
       [normalizedTelephone]
     );
-    
     this.logger.debug(`findByTelephone: ${result.rows.length} utilisateur(s) trouvé(s) pour "${normalizedTelephone}"`);
     
     if (!result.rows[0]) {
