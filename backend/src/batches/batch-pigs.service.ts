@@ -44,18 +44,31 @@ export class BatchPigsService {
     batchId: string,
     userId: string,
   ): Promise<void> {
-    const result = await this.db.query(
-      `SELECT b.projet_id, p.proprietaire_id 
-       FROM batches b
-       JOIN projets p ON b.projet_id = p.id
-       WHERE b.id = $1`,
-      [batchId],
-    );
-    if (result.rows.length === 0) {
-      throw new NotFoundException('Bande non trouvée');
-    }
-    if (result.rows[0].proprietaire_id !== userId) {
-      throw new ForbiddenException('Cette bande ne vous appartient pas');
+    // #region agent log
+    try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:43',message:'checkBatchOwnership entry',data:{batchId,userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) {}
+    // #endregion
+    try {
+      const result = await this.db.query(
+        `SELECT b.projet_id, p.proprietaire_id 
+         FROM batches b
+         JOIN projets p ON b.projet_id = p.id
+         WHERE b.id = $1`,
+        [batchId],
+      );
+      // #region agent log
+      try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:52',message:'checkBatchOwnership: query result',data:{batchId,rowCount:result.rows.length,proprietaireId:result.rows[0]?.proprietaire_id,userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) {}
+      // #endregion
+      if (result.rows.length === 0) {
+        throw new NotFoundException('Bande non trouvée');
+      }
+      if (result.rows[0].proprietaire_id !== userId) {
+        throw new ForbiddenException('Cette bande ne vous appartient pas');
+      }
+    } catch (error) {
+      // #region agent log
+      try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:59',message:'checkBatchOwnership: error',data:{batchId,userId,errorMessage:error?.message,errorName:error?.constructor?.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) {}
+      // #endregion
+      throw error;
     }
   }
 
@@ -63,28 +76,42 @@ export class BatchPigsService {
    * Mapper une ligne de la base de données vers un objet BatchPig
    */
   private mapRowToPig(row: any): any {
-    return {
-      id: row.id,
-      batch_id: row.batch_id,
-      name: row.name || undefined,
-      sex: row.sex,
-      birth_date: row.birth_date || undefined,
-      age_months: row.age_months ? parseFloat(row.age_months) : undefined,
-      current_weight_kg: parseFloat(row.current_weight_kg),
-      origin: row.origin,
-      origin_details: row.origin_details || undefined,
-      supplier_name: row.supplier_name || undefined,
-      purchase_price: row.purchase_price
-        ? parseFloat(row.purchase_price)
-        : undefined,
-      health_status: row.health_status || 'healthy',
-      last_vaccination_date: row.last_vaccination_date || undefined,
-      notes: row.notes || undefined,
-      photo_url: row.photo_url || undefined,
-      entry_date: row.entry_date,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    };
+    // #region agent log
+    try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:65',message:'mapRowToPig entry',data:{rowId:row.id,current_weight_kg:row.current_weight_kg,current_weight_kgType:typeof row.current_weight_kg,age_months:row.age_months,age_monthsType:typeof row.age_months},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
+    // #endregion
+    try {
+      const weight = row.current_weight_kg != null ? parseFloat(row.current_weight_kg) : 0;
+      // #region agent log
+      try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:68',message:'mapRowToPig: weight parsed',data:{rowId:row.id,originalWeight:row.current_weight_kg,parsedWeight:weight,isNaN:isNaN(weight)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
+      // #endregion
+      return {
+        id: row.id,
+        batch_id: row.batch_id,
+        name: row.name || undefined,
+        sex: row.sex,
+        birth_date: row.birth_date || undefined,
+        age_months: row.age_months != null ? parseFloat(row.age_months) : undefined,
+        current_weight_kg: weight,
+        origin: row.origin,
+        origin_details: row.origin_details || undefined,
+        supplier_name: row.supplier_name || undefined,
+        purchase_price: row.purchase_price
+          ? parseFloat(row.purchase_price)
+          : undefined,
+        health_status: row.health_status || 'healthy',
+        last_vaccination_date: row.last_vaccination_date || undefined,
+        notes: row.notes || undefined,
+        photo_url: row.photo_url || undefined,
+        entry_date: row.entry_date,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      };
+    } catch (error) {
+      // #region agent log
+      try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:88',message:'mapRowToPig: error',data:{rowId:row.id,errorMessage:error?.message,errorStack:error?.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
+      // #endregion
+      throw error;
+    }
   }
 
   /**
@@ -307,15 +334,47 @@ export class BatchPigsService {
    * Obtenir tous les porcs d'une bande
    */
   async getPigsByBatch(batchId: string, userId: string): Promise<any[]> {
-    // Vérifier la propriété
-    await this.checkBatchOwnership(batchId, userId);
+    // #region agent log
+    try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:309',message:'getPigsByBatch entry',data:{batchId,userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) {}
+    // #endregion
+    try {
+      // Vérifier la propriété
+      await this.checkBatchOwnership(batchId, userId);
+      // #region agent log
+      try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:312',message:'getPigsByBatch: checkBatchOwnership OK',data:{batchId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) {}
+      // #endregion
 
-    const result = await this.db.query(
-      'SELECT * FROM batch_pigs WHERE batch_id = $1 ORDER BY entry_date DESC',
-      [batchId],
-    );
+      const result = await this.db.query(
+        'SELECT * FROM batch_pigs WHERE batch_id = $1 ORDER BY entry_date DESC',
+        [batchId],
+      );
+      // #region agent log
+      try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:316',message:'getPigsByBatch: SQL query OK',data:{batchId,rowCount:result.rows.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
+      // #endregion
 
-    return result.rows.map((row) => this.mapRowToPig(row));
+      // #region agent log
+      try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:318',message:'getPigsByBatch: before mapRowToPig',data:{batchId,rowCount:result.rows.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
+      // #endregion
+      const mapped = result.rows.map((row, index) => {
+        try {
+          return this.mapRowToPig(row);
+        } catch (error) {
+          // #region agent log
+          try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:322',message:'getPigsByBatch: mapRowToPig error',data:{batchId,rowIndex:index,error:error?.message,rowData:{id:row.id,current_weight_kg:row.current_weight_kg,age_months:row.age_months}},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
+          // #endregion
+          throw error;
+        }
+      });
+      // #region agent log
+      try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:330',message:'getPigsByBatch: mapping OK',data:{batchId,mappedCount:mapped.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
+      // #endregion
+      return mapped;
+    } catch (error) {
+      // #region agent log
+      try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:333',message:'getPigsByBatch: error caught',data:{batchId,userId,errorMessage:error?.message,errorStack:error?.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) {}
+      // #endregion
+      throw error;
+    }
   }
 
   /**

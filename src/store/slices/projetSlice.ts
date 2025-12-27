@@ -119,6 +119,9 @@ const projetSlice = createSlice({
       })
       .addCase(createProjet.fulfilled, (state, action) => {
         state.loading = false;
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'projetSlice.ts:120',message:'createProjet fulfilled',data:{projetId:action.payload?.id,nombre_truies:action.payload?.nombre_truies,nombre_verrats:action.payload?.nombre_verrats,nombre_porcelets:action.payload?.nombre_porcelets,nombre_croissance:action.payload?.nombre_croissance},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
         state.projetActif = action.payload;
         state.projets.unshift(action.payload);
       })
@@ -146,6 +149,9 @@ const projetSlice = createSlice({
       })
       .addCase(loadProjetActif.fulfilled, (state, action) => {
         state.loading = false;
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'projetSlice.ts:147',message:'loadProjetActif fulfilled',data:{projetId:action.payload?.id,nombre_truies:action.payload?.nombre_truies,nombre_verrats:action.payload?.nombre_verrats,nombre_porcelets:action.payload?.nombre_porcelets,nombre_croissance:action.payload?.nombre_croissance},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
         state.projetActif = action.payload;
       })
       .addCase(loadProjetActif.rejected, (state, action) => {

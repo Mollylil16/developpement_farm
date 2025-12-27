@@ -39,12 +39,20 @@ export default function BatchCheptelView() {
   const loadBatches = async () => {
     if (!projetActif?.id) return;
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BatchCheptelView.tsx:39',message:'loadBatches: projetActif data',data:{projetId:projetActif.id,nombre_truies:projetActif.nombre_truies,nombre_verrats:projetActif.nombre_verrats,nombre_porcelets:projetActif.nombre_porcelets,nombre_croissance:projetActif.nombre_croissance,management_method:projetActif.management_method},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+
     setLoading(true);
     try {
       // Charger les bandes depuis l'API backend
       const batchesData = await apiClient.get<Batch[]>(
         `/batch-pigs/projet/${projetActif.id}`
       );
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BatchCheptelView.tsx:49',message:'loadBatches: batches chargées',data:{projetId:projetActif.id,batchesCount:batchesData.length,batches:batchesData.map(b=>({id:b.id,category:b.category,total_count:b.total_count,pen_name:b.pen_name}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
 
       setBatches(batchesData);
       calculateStats(batchesData);

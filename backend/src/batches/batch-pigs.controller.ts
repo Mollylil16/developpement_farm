@@ -7,6 +7,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -21,6 +22,8 @@ import {
 @Controller('batch-pigs')
 @UseGuards(JwtAuthGuard)
 export class BatchPigsController {
+  private readonly logger = new Logger(BatchPigsController.name);
+
   constructor(private readonly batchPigsService: BatchPigsService) {}
 
   @Post()
@@ -64,7 +67,15 @@ export class BatchPigsController {
     @Param('batchId') batchId: string,
     @CurrentUser() user: any,
   ) {
-    return await this.batchPigsService.getPigsByBatch(batchId, user.id);
+    this.logger.debug(`getPigsByBatch: batchId=${batchId}, userId=${user.id}`);
+    try {
+      const result = await this.batchPigsService.getPigsByBatch(batchId, user.id);
+      this.logger.debug(`getPigsByBatch: success, returned ${result.length} pigs`);
+      return result;
+    } catch (error: any) {
+      this.logger.error(`getPigsByBatch: error for batchId=${batchId}, userId=${user.id}`, error.stack || error.message);
+      throw error;
+    }
   }
 
   @Get(':pigId/movements')

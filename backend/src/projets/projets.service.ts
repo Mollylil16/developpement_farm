@@ -32,16 +32,17 @@ export class ProjetsService {
    * Mapper une ligne de la base de données vers un objet Projet
    */
   private mapRowToProjet(row: any): any {
-    return {
+    // Convertir les nombres explicitement pour éviter les problèmes de type
+    const projet = {
       id: row.id,
       nom: row.nom,
       localisation: row.localisation,
-      nombre_truies: row.nombre_truies,
-      nombre_verrats: row.nombre_verrats,
-      nombre_porcelets: row.nombre_porcelets,
-      nombre_croissance: row.nombre_croissance || 0,
-      poids_moyen_actuel: parseFloat(row.poids_moyen_actuel),
-      age_moyen_actuel: row.age_moyen_actuel,
+      nombre_truies: row.nombre_truies != null ? parseInt(row.nombre_truies, 10) : 0,
+      nombre_verrats: row.nombre_verrats != null ? parseInt(row.nombre_verrats, 10) : 0,
+      nombre_porcelets: row.nombre_porcelets != null ? parseInt(row.nombre_porcelets, 10) : 0,
+      nombre_croissance: row.nombre_croissance != null ? parseInt(row.nombre_croissance, 10) : 0,
+      poids_moyen_actuel: parseFloat(row.poids_moyen_actuel) || 0,
+      age_moyen_actuel: row.age_moyen_actuel != null ? parseInt(row.age_moyen_actuel, 10) : 0,
       prix_kg_vif: row.prix_kg_vif ? parseFloat(row.prix_kg_vif) : undefined,
       prix_kg_carcasse: row.prix_kg_carcasse ? parseFloat(row.prix_kg_carcasse) : undefined,
       notes: row.notes || undefined,
@@ -50,8 +51,12 @@ export class ProjetsService {
       date_creation: row.date_creation,
       derniere_modification: row.derniere_modification || row.date_creation,
       management_method: row.management_method || 'individual', // Méthode d'élevage
-      duree_amortissement_par_defaut_mois: row.duree_amortissement_par_defaut_mois || 36,
+      duree_amortissement_par_defaut_mois: row.duree_amortissement_par_defaut_mois != null ? parseInt(row.duree_amortissement_par_defaut_mois, 10) : 36,
     };
+    // #region agent log
+    try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:34',message:'mapRowToProjet',data:{projetId:projet.id,raw:{nombre_truies:row.nombre_truies,nombre_verrats:row.nombre_verrats,nombre_porcelets:row.nombre_porcelets,nombre_croissance:row.nombre_croissance},mapped:{nombre_truies:projet.nombre_truies,nombre_verrats:projet.nombre_verrats,nombre_porcelets:projet.nombre_porcelets,nombre_croissance:projet.nombre_croissance}},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+    // #endregion
+    return projet;
   }
 
   /**
@@ -125,6 +130,9 @@ export class ProjetsService {
       );
 
       const projet = this.mapRowToProjet(result.rows[0]);
+      // #region agent log
+      try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:127',message:'Projet créé - données mappées',data:{projetId:projet.id,nombre_truies:projet.nombre_truies,nombre_verrats:projet.nombre_verrats,nombre_porcelets:projet.nombre_porcelets,nombre_croissance:projet.nombre_croissance,rawRow:{nombre_truies:result.rows[0].nombre_truies,nombre_verrats:result.rows[0].nombre_verrats,nombre_porcelets:result.rows[0].nombre_porcelets,nombre_croissance:result.rows[0].nombre_croissance}},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+      // #endregion
       this.logger.log(`Projet créé: id=${projet.id}, nom=${projet.nom}, proprietaire_id=${projet.proprietaire_id}`);
 
       return projet;
@@ -187,6 +195,9 @@ export class ProjetsService {
 
     for (const cat of categories) {
       if (cat.count > 0) {
+        // #region agent log
+        try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:188',message:'autoGroupIntoBatches: création loge',data:{projetId,category:cat.category,count:cat.count,defaultAge:cat.defaultAge,defaultWeight:cat.defaultWeight},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+        // #endregion
         // Générer nom de loge : A1, A2, A3, etc. puis B1, B2, etc.
         const letterIndex = Math.floor((logeIndex - 1) / 8);
         const numberIndex = ((logeIndex - 1) % 8) + 1;
@@ -196,19 +207,34 @@ export class ProjetsService {
             : String.fromCharCode(65 + letterIndex); // A, B, C, etc.
         const penName = `Loge ${letter}${numberIndex}`;
 
+        const population = this.distributeByDefaultSex(cat.count, cat.category);
+        // #region agent log
+        try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:197',message:'autoGroupIntoBatches: population distribuée',data:{projetId,category:cat.category,penName,population},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+        // #endregion
+
         // Créer une loge pour cette catégorie
-        await this.batchPigsService.createBatchWithPigs(
-          {
-            projet_id: projetId,
-            pen_name: penName,
-            category: cat.category,
-            population: this.distributeByDefaultSex(cat.count, cat.category),
-            average_age_months: cat.defaultAge,
-            average_weight_kg: cat.defaultWeight,
-            notes: 'Effectif initial - Créé automatiquement lors de la création du projet',
-          },
-          userId,
-        );
+        try {
+          await this.batchPigsService.createBatchWithPigs(
+            {
+              projet_id: projetId,
+              pen_name: penName,
+              category: cat.category,
+              population,
+              average_age_months: cat.defaultAge,
+              average_weight_kg: cat.defaultWeight,
+              notes: 'Effectif initial - Créé automatiquement lors de la création du projet',
+            },
+            userId,
+          );
+          // #region agent log
+          try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:211',message:'autoGroupIntoBatches: loge créée avec succès',data:{projetId,category:cat.category,penName},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+          // #endregion
+        } catch (error) {
+          // #region agent log
+          try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:214',message:'autoGroupIntoBatches: erreur création loge',data:{projetId,category:cat.category,penName,errorMessage:error?.message,errorStack:error?.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+          // #endregion
+          throw error;
+        }
 
         logeIndex++;
       }
@@ -268,7 +294,12 @@ export class ProjetsService {
 
   async findOne(id: string) {
     const result = await this.databaseService.query('SELECT * FROM projets WHERE id = $1', [id]);
-    return result.rows[0] ? this.mapRowToProjet(result.rows[0]) : null;
+    if (!result.rows[0]) return null;
+    const projet = this.mapRowToProjet(result.rows[0]);
+    // #region agent log
+    try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:269',message:'findOne - données récupérées',data:{projetId:projet.id,nombre_truies:projet.nombre_truies,nombre_verrats:projet.nombre_verrats,nombre_porcelets:projet.nombre_porcelets,nombre_croissance:projet.nombre_croissance,rawRow:{nombre_truies:result.rows[0].nombre_truies,nombre_verrats:result.rows[0].nombre_verrats,nombre_porcelets:result.rows[0].nombre_porcelets,nombre_croissance:result.rows[0].nombre_croissance}},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+    // #endregion
+    return projet;
   }
 
   async findActive(userId: string) {

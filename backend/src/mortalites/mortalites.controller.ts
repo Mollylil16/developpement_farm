@@ -57,6 +57,9 @@ export class MortalitesController {
     @Query('limit') limit?: string,
     @Query('offset') offset?: string
   ) {
+    // #region agent log
+    try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'mortalites.controller.ts:54',message:'findAll entry',data:{projetId,userId,projetIdType:typeof projetId,userIdType:typeof userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) {}
+    // #endregion
     const limitNum = limit ? parseInt(limit, 10) : undefined;
     const offsetNum = offset ? parseInt(offset, 10) : undefined;
     return this.mortalitesService.findAll(projetId, userId, limitNum, offsetNum);
@@ -67,6 +70,9 @@ export class MortalitesController {
   @ApiQuery({ name: 'projet_id', required: true, description: 'ID du projet' })
   @ApiResponse({ status: 200, description: 'Statistiques de mortalité.' })
   async getStatistiques(@Query('projet_id') projetId: string, @CurrentUser('id') userId: string) {
+    // #region agent log
+    try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'mortalites.controller.ts:69',message:'getStatistiques entry',data:{projetId,userId,projetIdType:typeof projetId,userIdType:typeof userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) {}
+    // #endregion
     return this.mortalitesService.getStatistiques(projetId, userId);
   }
 

@@ -24,15 +24,28 @@ export class MortalitesService {
    * Vérifie que le projet appartient à l'utilisateur
    */
   private async checkProjetOwnership(projetId: string, userId: string): Promise<void> {
+    // #region agent log
+    try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'mortalites.service.ts:26',message:'checkProjetOwnership entry',data:{projetId,userId,projetIdType:typeof projetId,userIdType:typeof userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+    // #endregion
     const result = await this.databaseService.query(
       'SELECT proprietaire_id FROM projets WHERE id = $1',
       [projetId]
     );
     if (result.rows.length === 0) {
+      // #region agent log
+      try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'mortalites.service.ts:32',message:'checkProjetOwnership: projet introuvable',data:{projetId,userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+      // #endregion
       throw new NotFoundException('Projet introuvable');
     }
-    this.logger.debug(`checkProjetOwnership: projetId=${projetId}, proprietaire_id=${result.rows[0].proprietaire_id}, userId=${userId}`);
-    if (result.rows[0].proprietaire_id !== userId) {
+    const proprietaireId = result.rows[0].proprietaire_id;
+    // #region agent log
+    try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'mortalites.service.ts:35',message:'checkProjetOwnership: comparaison',data:{projetId,userId,proprietaireId,proprietaireIdType:typeof proprietaireId,areEqual:proprietaireId===userId,proprietaireIdLength:proprietaireId?.length,userIdLength:userId?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+    // #endregion
+    this.logger.debug(`checkProjetOwnership: projetId=${projetId}, proprietaire_id=${proprietaireId}, userId=${userId}`);
+    if (proprietaireId !== userId) {
+      // #region agent log
+      try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'mortalites.service.ts:36',message:'checkProjetOwnership: accès refusé',data:{projetId,userId,proprietaireId,reason:'proprietaireId !== userId'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+      // #endregion
       throw new ForbiddenException('Ce projet ne vous appartient pas');
     }
   }
