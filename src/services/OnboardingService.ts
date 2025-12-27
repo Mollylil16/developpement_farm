@@ -94,15 +94,21 @@ class OnboardingService {
   async checkPhoneExists(phone: string): Promise<boolean> {
     try {
       const cleanPhone = phone.trim().replace(/\s+/g, '');
-      await apiClient.get(`/users/check/phone/${encodeURIComponent(cleanPhone)}`, {
-        skipAuth: true,
-      });
-      return true; // Téléphone existe
+      const response = await apiClient.get<{ exists: boolean }>(
+        `/users/check/phone/${encodeURIComponent(cleanPhone)}`,
+        {
+          skipAuth: true,
+        }
+      );
+      return response?.exists ?? false;
     } catch (error: any) {
+      // Si erreur 404, le téléphone n'existe pas
       if (error?.status === 404) {
-        return false; // Téléphone n'existe pas
+        return false;
       }
-      throw error; // Autre erreur
+      // Pour toute autre erreur, logger et retourner false par sécurité
+      logger.warn('[OnboardingService] Erreur lors de la vérification du téléphone:', error);
+      return false;
     }
   }
 
@@ -112,15 +118,21 @@ class OnboardingService {
   async checkEmailExists(email: string): Promise<boolean> {
     try {
       const normalizedEmail = email.trim().toLowerCase();
-      await apiClient.get(`/users/check/email/${encodeURIComponent(normalizedEmail)}`, {
-        skipAuth: true,
-      });
-      return true; // Email existe
+      const response = await apiClient.get<{ exists: boolean }>(
+        `/users/check/email/${encodeURIComponent(normalizedEmail)}`,
+        {
+          skipAuth: true,
+        }
+      );
+      return response?.exists ?? false;
     } catch (error: any) {
+      // Si erreur 404, l'email n'existe pas
       if (error?.status === 404) {
-        return false; // Email n'existe pas
+        return false;
       }
-      throw error; // Autre erreur
+      // Pour toute autre erreur, logger et retourner false par sécurité
+      logger.warn('[OnboardingService] Erreur lors de la vérification de l\'email:', error);
+      return false;
     }
   }
 

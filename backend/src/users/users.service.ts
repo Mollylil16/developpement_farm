@@ -22,10 +22,23 @@ export class UsersService {
   }
 
   /**
-   * Normalise le téléphone (trim + supprime espaces)
+   * Normalise le téléphone (trim + supprime espaces et caractères non numériques sauf +)
+   * Exemples:
+   * - "+225 07 12 34 56 78" → "+2250712345678"
+   * - "07 12 34 56 78" → "0712345678"
+   * - "225 07 12 34 56 78" → "2250712345678"
    */
   private normalizeTelephone(telephone?: string): string | null {
-    return telephone ? telephone.trim().replace(/\s+/g, '') : null;
+    if (!telephone) return null;
+    // Supprimer tous les espaces et caractères non numériques sauf +
+    let normalized = telephone.trim().replace(/\s+/g, '').replace(/[^\d+]/g, '');
+    // Si le numéro commence par +, le garder, sinon supprimer tous les +
+    if (normalized.startsWith('+')) {
+      normalized = '+' + normalized.substring(1).replace(/\+/g, '');
+    } else {
+      normalized = normalized.replace(/\+/g, '');
+    }
+    return normalized || null;
   }
 
   async create(createUserDto: any) {
