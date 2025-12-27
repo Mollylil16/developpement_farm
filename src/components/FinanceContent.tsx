@@ -8,7 +8,7 @@ import FinanceGraphiquesComponent from './FinanceGraphiquesComponent';
 import FinanceChargesFixesComponent from './FinanceChargesFixesComponent';
 import FinanceDepensesComponent from './FinanceDepensesComponent';
 import FinanceRevenusComponent from './FinanceRevenusComponent';
-import FinanceBilanComptableComponent from './FinanceBilanComptableComponent';
+import FinanceBilanCompletComponent from './FinanceBilanCompletComponent';
 import { FinanceOngletType } from './FinanceTabs';
 
 interface FinanceContentProps {
@@ -26,7 +26,7 @@ export default function FinanceContent({ ongletActif }: FinanceContentProps) {
     case 'revenus':
       return <FinanceRevenusComponent />;
     case 'bilan':
-      return <FinanceBilanComptableComponent />;
+      return <FinanceBilanCompletComponent />;
     default:
       return null;
   }

@@ -14,6 +14,7 @@ import { CreateRatingDto } from './dto/create-rating.dto';
 import { CreatePurchaseRequestDto } from './dto/create-purchase-request.dto';
 import { UpdatePurchaseRequestDto } from './dto/update-purchase-request.dto';
 import { CreatePurchaseRequestOfferDto } from './dto/create-purchase-request-offer.dto';
+import { CreateBatchListingDto } from './dto/create-batch-listing.dto';
 
 @Injectable()
 export class MarketplaceService {
@@ -116,6 +117,150 @@ export class MarketplaceService {
     });
   }
 
+  async createBatchListing(createBatchListingDto: CreateBatchListingDto, userId: string) {
+    // Vérifier que l'utilisateur est propriétaire du projet
+    await this.checkProjetOwnership(createBatchListingDto.farmId, userId);
+
+    // Vérifier que la bande existe et appartient au projet
+    const batch = await this.databaseService.query(
+      `SELECT b.id, b.total_count, b.projet_id, b.average_weight_kg, b.category
+       FROM batches b
+       JOIN projets p ON b.projet_id = p.id
+       WHERE b.id = $1 AND p.id = $2 AND p.proprietaire_id = $3`,
+      [createBatchListingDto.batchId, createBatchListingDto.farmId, userId]
+    );
+
+    if (batch.rows.length === 0) {
+      throw new NotFoundException('Bande introuvable ou ne vous appartient pas');
+    }
+
+    const batchData = batch.rows[0];
+    const totalCount = parseInt(batchData.total_count) || 0;
+
+    // Déterminer le nombre de porcs et les IDs
+    let pigCount: number;
+    let pigIds: string[] = [];
+
+    if (createBatchListingDto.pigIds && createBatchListingDto.pigIds.length > 0) {
+      // Si pigIds est fourni, l'utiliser
+      pigIds = createBatchListingDto.pigIds;
+      pigCount = pigIds.length;
+
+      // Vérifier que tous les porcs appartiennent à la bande
+      const pigsCheck = await this.databaseService.query(
+        `SELECT id FROM batch_pigs 
+         WHERE id = ANY($1::varchar[]) AND batch_id = $2`,
+        [pigIds, createBatchListingDto.batchId]
+      );
+
+      if (pigsCheck.rows.length !== pigIds.length) {
+        throw new BadRequestException('Certains porcs ne font pas partie de cette bande');
+      }
+    } else if (createBatchListingDto.pigCount) {
+      // Si pigCount est fourni, sélectionner les N porcs les plus lourds
+      pigCount = createBatchListingDto.pigCount;
+
+      if (pigCount > totalCount) {
+        throw new BadRequestException(
+          `La bande ne contient que ${totalCount} porc(s), impossible de vendre ${pigCount}`
+        );
+      }
+
+      const pigsResult = await this.databaseService.query(
+        `SELECT id FROM batch_pigs 
+         WHERE batch_id = $1 
+         ORDER BY current_weight_kg DESC NULLS LAST
+         LIMIT $2`,
+        [createBatchListingDto.batchId, pigCount]
+      );
+
+      pigIds = pigsResult.rows.map((row) => row.id);
+    } else {
+      // Si ni pigIds ni pigCount, vendre toute la bande
+      pigCount = totalCount;
+
+      const pigsResult = await this.databaseService.query(
+        `SELECT id FROM batch_pigs WHERE batch_id = $1`,
+        [createBatchListingDto.batchId]
+      );
+
+      pigIds = pigsResult.rows.map((row) => row.id);
+    }
+
+    if (pigIds.length === 0) {
+      throw new BadRequestException('Aucun porc disponible dans cette bande');
+    }
+
+    // Vérifier qu'il n'y a pas déjà un listing actif pour cette bande avec les mêmes porcs
+    const existingListing = await this.databaseService.query(
+      `SELECT id FROM marketplace_listings 
+       WHERE batch_id = $1 AND listing_type = 'batch' AND status IN ('available', 'reserved')
+       AND pig_ids @> $2::jsonb`,
+      [createBatchListingDto.batchId, JSON.stringify(pigIds)]
+    );
+
+    if (existingListing.rows.length > 0) {
+      throw new BadRequestException('Ces porcs sont déjà en vente sur le marketplace');
+    }
+
+    // Utiliser une transaction pour garantir la cohérence des données
+    return await this.databaseService.transaction(async (client) => {
+      const id = this.generateId('listing');
+      const now = new Date().toISOString();
+      const calculatedPrice = createBatchListingDto.pricePerKg * createBatchListingDto.averageWeight * pigCount;
+
+      const result = await client.query(
+        `INSERT INTO marketplace_listings (
+          id, listing_type, batch_id, pig_ids, pig_count, producer_id, farm_id, 
+          price_per_kg, calculated_price, weight, status, listed_at, updated_at, last_weight_date,
+          location_latitude, location_longitude, location_address, location_city, location_region,
+          sale_terms, views, inquiries, date_creation, derniere_modification
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+        RETURNING *`,
+        [
+          id,
+          'batch',
+          createBatchListingDto.batchId,
+          JSON.stringify(pigIds),
+          pigCount,
+          userId, // producerId = userId
+          createBatchListingDto.farmId,
+          createBatchListingDto.pricePerKg,
+          calculatedPrice,
+          createBatchListingDto.averageWeight, // Poids moyen stocké
+          'available',
+          now,
+          now,
+          createBatchListingDto.lastWeightDate,
+          createBatchListingDto.location.latitude,
+          createBatchListingDto.location.longitude,
+          createBatchListingDto.location.address,
+          createBatchListingDto.location.city,
+          createBatchListingDto.location.region,
+          JSON.stringify(
+            createBatchListingDto.saleTerms || {
+              transport: 'buyer_responsibility',
+              slaughter: 'buyer_responsibility',
+              paymentTerms: 'on_delivery',
+              warranty: 'Tous les documents sanitaires et certificats seront fournis.',
+              cancellationPolicy: "Annulation possible jusqu'à 48h avant la date de livraison.",
+            }
+          ),
+          0, // views
+          0, // inquiries
+          now,
+          now,
+        ]
+      );
+
+      this.logger.log(
+        `Annonce marketplace créée pour bande ${createBatchListingDto.batchId}: ${pigCount} porc(s)`
+      );
+
+      return this.mapRowToListing(result.rows[0]);
+    });
+  }
+
   async findAllListings(projetId?: string, userId?: string, limit?: number, offset?: number) {
     try {
       const defaultLimit = 100; // Marketplace: limite plus basse car liste publique
@@ -123,7 +268,8 @@ export class MarketplaceService {
       const effectiveOffset = offset || 0;
 
       // Colonnes nécessaires pour mapRowToListing (optimisation: éviter SELECT *)
-      const listingColumns = `id, subject_id, producer_id, farm_id, price_per_kg, calculated_price, 
+      const listingColumns = `id, listing_type, subject_id, batch_id, pig_ids, pig_count, 
+        producer_id, farm_id, price_per_kg, calculated_price, weight,
         status, listed_at, updated_at, last_weight_date, 
         location_latitude, location_longitude, location_address, location_city, location_region,
         sale_terms, views, inquiries, date_creation, derniere_modification`;
@@ -158,7 +304,8 @@ export class MarketplaceService {
 
   async findOneListing(id: string) {
     // Colonnes nécessaires pour mapRowToListing
-    const listingColumns = `id, subject_id, producer_id, farm_id, price_per_kg, calculated_price, 
+    const listingColumns = `id, listing_type, subject_id, batch_id, pig_ids, pig_count, 
+      producer_id, farm_id, price_per_kg, calculated_price, 
       status, listed_at, updated_at, last_weight_date, 
       location_latitude, location_longitude, location_address, location_city, location_region,
       sale_terms, views, inquiries, date_creation, derniere_modification`;
@@ -271,15 +418,19 @@ export class MarketplaceService {
       ['removed', new Date().toISOString(), id]
     );
 
-    // Mettre à jour le statut de l'animal
-    await this.databaseService
-      .query(
-        'UPDATE production_animaux SET marketplace_status = NULL, marketplace_listing_id = NULL WHERE id = $1',
-        [listing.subjectId]
-      )
-      .catch(() => {
-        // Ignorer si les colonnes n'existent pas
-      });
+    // Mettre à jour le statut selon le type de listing
+    if (listing.listingType === 'individual' && listing.subjectId) {
+      // Mettre à jour le statut de l'animal individuel
+      await this.databaseService
+        .query(
+          'UPDATE production_animaux SET marketplace_status = NULL, marketplace_listing_id = NULL WHERE id = $1',
+          [listing.subjectId]
+        )
+        .catch(() => {
+          // Ignorer si les colonnes n'existent pas
+        });
+    }
+    // Pour les listings de bande, on ne modifie pas les batch_pigs car ils restent dans la bande
 
     return { id };
   }
@@ -665,13 +816,14 @@ export class MarketplaceService {
   }
 
   private mapRowToListing(row: any): any {
-    return {
+    const listing: any = {
       id: row.id,
-      subjectId: row.subject_id,
+      listingType: row.listing_type || 'individual',
       producerId: row.producer_id,
       farmId: row.farm_id,
       pricePerKg: parseFloat(row.price_per_kg),
       calculatedPrice: parseFloat(row.calculated_price),
+      weight: row.weight ? parseFloat(row.weight) : undefined, // Poids moyen (batch) ou individuel
       status: row.status,
       listedAt: row.listed_at ? new Date(row.listed_at).toISOString() : undefined,
       updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : undefined,
@@ -689,6 +841,24 @@ export class MarketplaceService {
       views: row.views || 0,
       inquiries: row.inquiries || 0,
     };
+
+    // Pour les listings individuels
+    if (row.listing_type === 'individual' || !row.listing_type) {
+      listing.subjectId = row.subject_id;
+    }
+
+    // Pour les listings de bande
+    if (row.listing_type === 'batch') {
+      listing.batchId = row.batch_id;
+      listing.pigIds = Array.isArray(row.pig_ids)
+        ? row.pig_ids
+        : typeof row.pig_ids === 'string'
+        ? JSON.parse(row.pig_ids)
+        : [];
+      listing.pigCount = row.pig_count ? parseInt(row.pig_count) : listing.pigIds.length;
+    }
+
+    return listing;
   }
 
   private mapRowToOffer(row: any): any {

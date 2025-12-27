@@ -21,6 +21,7 @@ import {
   MinusCircle,
   Edit,
   ChevronRight,
+  ShoppingCart,
 } from 'lucide-react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constants/theme';
@@ -29,6 +30,7 @@ import AddPigModal from './AddPigModal';
 import PigListModal from './PigListModal';
 import TransferPigModal from './TransferPigModal';
 import RemovePigModal from './RemovePigModal';
+import CreateBatchListingModal from './CreateBatchListingModal';
 // import EditBatchModal from './EditBatchModal'; // À créer plus tard
 
 interface BatchActionsModalProps {
@@ -38,7 +40,7 @@ interface BatchActionsModalProps {
   onRefresh: () => void;
 }
 
-type ActionType = 'add' | 'list' | 'transfer' | 'remove' | 'edit' | null;
+type ActionType = 'add' | 'list' | 'transfer' | 'remove' | 'edit' | 'marketplace' | null;
 
 export default function BatchActionsModal({
   visible,
@@ -61,6 +63,12 @@ export default function BatchActionsModal({
       label: 'Voir la liste des sujets',
       icon: List,
       color: colors.primary,
+    },
+    {
+      id: 'marketplace' as ActionType,
+      label: 'Vendre sur le Marketplace',
+      icon: ShoppingCart,
+      color: '#FF8C42',
     },
     {
       id: 'transfer' as ActionType,
@@ -206,6 +214,15 @@ export default function BatchActionsModal({
           visible={true}
           batch={batch}
           onClose={handleActionComplete}
+        />
+      )}
+
+      {selectedAction === 'marketplace' && (
+        <CreateBatchListingModal
+          visible={true}
+          batch={batch}
+          onClose={handleActionComplete}
+          onSuccess={handleActionComplete}
         />
       )}
 

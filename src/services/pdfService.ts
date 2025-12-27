@@ -115,7 +115,7 @@ export const PDF_COMMON_STYLES = `
       font-weight: bold;
       margin-bottom: 10px;
       color: #1a1a1a;
-      border-bottom: 3px solid #4CAF50;
+      border-bottom: 3px solid #1565C0;
       padding-bottom: 10px;
     }
     
@@ -125,7 +125,7 @@ export const PDF_COMMON_STYLES = `
       margin-top: 20px;
       margin-bottom: 10px;
       color: #2c2c2c;
-      border-left: 4px solid #4CAF50;
+      border-left: 4px solid #1565C0;
       padding-left: 10px;
     }
     
@@ -151,7 +151,7 @@ export const PDF_COMMON_STYLES = `
     .header-title {
       font-size: 28px;
       font-weight: bold;
-      color: #4CAF50;
+      color: #1565C0;
       margin-bottom: 5px;
     }
     
@@ -198,7 +198,7 @@ export const PDF_COMMON_STYLES = `
     .stat-value {
       font-size: 24px;
       font-weight: bold;
-      color: #4CAF50;
+      color: #1565C0;
       margin-bottom: 5px;
     }
     
@@ -216,7 +216,7 @@ export const PDF_COMMON_STYLES = `
     }
     
     th {
-      background: #4CAF50;
+      background: #1565C0;
       color: white;
       padding: 10px;
       text-align: left;
@@ -250,8 +250,8 @@ export const PDF_COMMON_STYLES = `
     }
     
     .badge-success {
-      background: #d4edda;
-      color: #155724;
+      background: #e3f2fd;
+      color: #0d47a1;
     }
     
     .badge-warning {
@@ -278,7 +278,7 @@ export const PDF_COMMON_STYLES = `
     }
     
     .text-success {
-      color: #28a745;
+      color: #1976D2;
     }
     
     .text-danger {

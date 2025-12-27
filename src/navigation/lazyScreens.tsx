@@ -175,6 +175,23 @@ export const VaccinationScreen = createLazyScreen(
   () => import('../screens/VaccinationScreen')
 );
 
+// Écrans unifiés (supportent les deux modes : individuel et batch)
+export const WeighingScreen = createLazyScreen(
+  () => import('../screens/WeighingScreen')
+);
+export const SaleScreen = createLazyScreen(
+  () => import('../screens/SaleScreen')
+);
+export const MortalityScreen = createLazyScreen(
+  () => import('../screens/MortalityScreen')
+);
+export const DiseaseScreen = createLazyScreen(
+  () => import('../screens/DiseaseScreen')
+);
+export const GestationScreen = createLazyScreen(
+  () => import('../screens/GestationScreen')
+);
+
 // Migration (fonctionnalité de conversion entre modes)
 export const MigrationWizardScreen = createLazyScreen(
   () => import('../screens/MigrationWizardScreen')

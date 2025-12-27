@@ -415,7 +415,12 @@ export class ChatAgentService {
 
       // Monitoring
       const responseTime = Date.now() - startTime;
-      this.performanceMonitor.recordInteraction(userMsg, assistantMessage, responseTime);
+      // Extraire l'intention réelle pour les métriques de précision
+      const actualIntent = assistantMessage.metadata?.actionExecuted || 
+                          assistantMessage.metadata?.pendingAction?.action || 
+                          undefined;
+      
+      this.performanceMonitor.recordInteraction(userMsg, assistantMessage, responseTime, actualIntent);
       this.performanceMonitor.recordStepTiming({ apiCallTime });
 
       return assistantMessage;

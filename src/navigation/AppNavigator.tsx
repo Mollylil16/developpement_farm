@@ -593,6 +593,25 @@ export default function AppNavigator() {
         <Stack.Screen name={SCREENS.MIGRATION_HISTORY}>
           {() => <LazyScreens.MigrationHistoryScreen />}
         </Stack.Screen>
+        {/* Écrans unifiés (supportent les deux modes : individuel et batch) */}
+        <Stack.Screen name={SCREENS.VACCINATION}>
+          {() => <LazyScreens.VaccinationScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.WEIGHING}>
+          {() => <LazyScreens.WeighingScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.SALE}>
+          {() => <LazyScreens.SaleScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.MORTALITY}>
+          {() => <LazyScreens.MortalityScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.DISEASE}>
+          {() => <LazyScreens.DiseaseScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.GESTATION}>
+          {() => <LazyScreens.GestationScreen />}
+        </Stack.Screen>
         <Stack.Screen name="Main" component={MainTabs} />
       </Stack.Navigator>
     </NavigationContainer>

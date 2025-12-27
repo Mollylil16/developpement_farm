@@ -1,7 +1,15 @@
 /**
- * Écran de gestion des maladies par batch
- * Permet d'enregistrer et suivre les maladies des porcs
- * Design cohérent avec les écrans santé du mode individuel
+ * DiseaseScreen - Écran unifié de gestion des maladies
+ *
+ * Supporte les deux modes d'élevage :
+ * - Mode Individuel : Utilise MaladiesComponentNew (référence principale)
+ * - Mode Bande : Affiche les maladies batch avec statistiques simplifiées
+ *
+ * Architecture:
+ * - Détection automatique du mode via useModeElevage() et paramètres de route
+ * - Mode individuel : Réutilise MaladiesComponentNew (composant complet avec stats/filtres)
+ * - Mode batch : Affichage adapté avec statistiques simplifiées
+ * - Même UI pour les deux modes (cohérence visuelle)
  */
 
 import React, { useState, useEffect } from 'react';
@@ -10,29 +18,33 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
-  Alert,
-  Modal,
-  ActivityIndicator,
   RefreshControl,
+  ActivityIndicator,
+  TouchableOpacity,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
-import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
+import { useModeElevage } from '../hooks/useModeElevage';
+import { useAppSelector } from '../store/hooks';
 import StandardHeader from '../components/StandardHeader';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import FormField from '../components/FormField';
+import MaladiesComponentNew from '../components/MaladiesComponentNew';
 import apiClient from '../services/api/apiClient';
+import { Alert } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
+import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 
-type BatchDiseaseRouteParams = {
-  batch: {
+// Type pour les paramètres de route (mode batch)
+type DiseaseRouteParams = {
+  batch?: {
     id: string;
     pen_name: string;
     total_count: number;
@@ -41,10 +53,10 @@ type BatchDiseaseRouteParams = {
 
 interface DiseaseCardProps {
   disease: any;
-  onUpdate: () => void;
+  isBatchMode: boolean;
 }
 
-const DiseaseCard: React.FC<DiseaseCardProps> = ({ disease, onUpdate }) => {
+const DiseaseCard: React.FC<DiseaseCardProps> = ({ disease, isBatchMode }) => {
   const { colors } = useTheme();
 
   const getStatusColor = (status: string) => {
@@ -69,7 +81,7 @@ const DiseaseCard: React.FC<DiseaseCardProps> = ({ disease, onUpdate }) => {
       case 'recovered':
         return 'Guéri';
       default:
-        return status;
+        return status || 'Non spécifié';
     }
   };
 
@@ -81,8 +93,10 @@ const DiseaseCard: React.FC<DiseaseCardProps> = ({ disease, onUpdate }) => {
             <Ionicons name="medical" size={20} color={getStatusColor(disease.status)} />
           </View>
           <View>
-            <Text style={[styles.pigName, { color: colors.text }]}>
-              {disease.pig_name || 'Porc'}
+            <Text style={[styles.diseaseTitle, { color: colors.text }]}>
+              {isBatchMode
+                ? disease.pig_name || 'Porc'
+                : disease.animal_code || 'Animal'}
             </Text>
             <Text style={[styles.statusText, { color: getStatusColor(disease.status) }]}>
               {getStatusLabel(disease.status)}
@@ -95,28 +109,38 @@ const DiseaseCard: React.FC<DiseaseCardProps> = ({ disease, onUpdate }) => {
         <View style={styles.infoRow}>
           <Ionicons name="bug-outline" size={16} color={colors.textSecondary} />
           <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Maladie :</Text>
-          <Text style={[styles.infoValue, { color: colors.text }]}>{disease.disease_name}</Text>
+          <Text style={[styles.infoValue, { color: colors.text }]}>
+            {disease.disease_name || disease.nom_maladie || 'Non spécifiée'}
+          </Text>
         </View>
 
         <View style={styles.infoRow}>
           <Ionicons name="calendar-outline" size={16} color={colors.textSecondary} />
           <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Date :</Text>
           <Text style={[styles.infoValue, { color: colors.text }]}>
-            {format(new Date(disease.disease_date), 'dd MMM yyyy', { locale: fr })}
+            {format(
+              new Date(disease.diagnosis_date || disease.date_debut || disease.disease_date),
+              'dd MMM yyyy',
+              { locale: fr }
+            )}
           </Text>
         </View>
 
-        {disease.symptoms && (
+        {(disease.symptoms || disease.symptomes) && (
           <View style={styles.symptomsContainer}>
             <Text style={[styles.symptomsLabel, { color: colors.textSecondary }]}>Symptômes :</Text>
-            <Text style={[styles.symptomsText, { color: colors.text }]}>{disease.symptoms}</Text>
+            <Text style={[styles.symptomsText, { color: colors.text }]}>
+              {disease.symptoms || disease.symptomes}
+            </Text>
           </View>
         )}
 
-        {disease.treatment && (
+        {(disease.treatment || disease.traitement_administre) && (
           <View style={styles.treatmentContainer}>
             <Text style={[styles.treatmentLabel, { color: colors.textSecondary }]}>Traitement :</Text>
-            <Text style={[styles.treatmentText, { color: colors.text }]}>{disease.treatment}</Text>
+            <Text style={[styles.treatmentText, { color: colors.text }]}>
+              {disease.treatment || disease.traitement_administre}
+            </Text>
           </View>
         )}
       </View>
@@ -124,14 +148,15 @@ const DiseaseCard: React.FC<DiseaseCardProps> = ({ disease, onUpdate }) => {
   );
 };
 
-interface CreateDiseaseModalProps {
+// Modal pour créer une maladie batch
+interface CreateBatchDiseaseModalProps {
   visible: boolean;
   batch: { id: string; pen_name: string; total_count: number };
   onClose: () => void;
   onSuccess: () => void;
 }
 
-const CreateDiseaseModal: React.FC<CreateDiseaseModalProps> = ({
+const CreateBatchDiseaseModal: React.FC<CreateBatchDiseaseModalProps> = ({
   visible,
   batch,
   onClose,
@@ -182,6 +207,8 @@ const CreateDiseaseModal: React.FC<CreateDiseaseModalProps> = ({
       setLoading(false);
     }
   }
+
+  if (!visible) return null;
 
   return (
     <Modal
@@ -291,31 +318,40 @@ const CreateDiseaseModal: React.FC<CreateDiseaseModalProps> = ({
   );
 };
 
-export default function BatchDiseaseScreen() {
-  const route = useRoute<RouteProp<{ params: BatchDiseaseRouteParams }, 'params'>>();
+export default function DiseaseScreen() {
   const { colors } = useTheme();
-  const { batch } = route.params || {};
-
+  const route = useRoute<RouteProp<{ params: DiseaseRouteParams }, 'params'>>();
+  const mode = useModeElevage();
+  const { projetActif } = useAppSelector((state) => state.projet);
+  
+  // Paramètres batch (si navigation depuis une bande)
+  const batch = route.params?.batch;
+  const isBatchMode = mode === 'bande' || !!batch;
+  
+  // État pour les maladies batch
   const [diseases, setDiseases] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
 
+  // Charger les données batch si nécessaire
   useEffect(() => {
-    if (batch?.id) {
-      loadDiseases();
+    if (isBatchMode && batch?.id) {
+      loadBatchDiseases();
     }
-  }, [batch?.id]);
+  }, [batch?.id, isBatchMode]);
 
-  async function loadDiseases() {
+  async function loadBatchDiseases() {
     if (!batch?.id) return;
 
+    setLoading(true);
     try {
       const data = await apiClient.get(`/batch-diseases/batch/${batch.id}`);
-      setDiseases(data);
+      setDiseases(data || []);
     } catch (error: any) {
-      console.error('Erreur chargement maladies:', error);
+      console.error('Erreur chargement maladies batch:', error);
       Alert.alert('Erreur', 'Impossible de charger les maladies');
+      setDiseases([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -324,31 +360,31 @@ export default function BatchDiseaseScreen() {
 
   async function handleRefresh() {
     setRefreshing(true);
-    await loadDiseases();
+    if (isBatchMode && batch?.id) {
+      await loadBatchDiseases();
+    }
   }
 
-  if (!batch) {
+  if (!projetActif) {
+    return null; // Géré par ProtectedScreen parent
+  }
+
+  // Mode individuel : utiliser MaladiesComponentNew (référence principale)
+  if (!isBatchMode || !batch) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-        <View style={styles.centerContent}>
-          <Text style={[styles.errorText, { color: colors.error }]}>Bande non trouvée</Text>
-        </View>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        edges={['top']}
+      >
+        <MaladiesComponentNew />
+        <ChatAgentFAB />
       </SafeAreaView>
     );
   }
 
-  if (loading && !refreshing) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-        <StandardHeader icon="medical" title={`Maladies - ${batch.pen_name}`} subtitle={`${batch.total_count} porc(s)`} />
-        <View style={styles.centerContent}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Chargement...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
+  // Mode batch : affichage adapté
+  const title = `Maladies - ${batch.pen_name}`;
+  const subtitle = `${batch.total_count} porc(s)`;
   const sickCount = diseases.filter((d) => d.status === 'sick').length;
 
   return (
@@ -358,8 +394,8 @@ export default function BatchDiseaseScreen() {
     >
       <StandardHeader
         icon="medical"
-        title={`Maladies - ${batch.pen_name}`}
-        subtitle={`${batch.total_count} porc(s)`}
+        title={title}
+        subtitle={subtitle}
         badge={sickCount}
         badgeColor={colors.error}
       />
@@ -376,7 +412,14 @@ export default function BatchDiseaseScreen() {
           />
         }
       >
-        {diseases.length === 0 ? (
+        {loading && !refreshing ? (
+          <View style={styles.centerContent}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+              Chargement...
+            </Text>
+          </View>
+        ) : diseases.length === 0 ? (
           <Card elevation="small" padding="medium" style={styles.emptyCard}>
             <Ionicons name="medical-outline" size={48} color={colors.textSecondary} />
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
@@ -384,9 +427,42 @@ export default function BatchDiseaseScreen() {
             </Text>
           </Card>
         ) : (
-          diseases.map((disease) => (
-            <DiseaseCard key={disease.id} disease={disease} onUpdate={loadDiseases} />
-          ))
+          <>
+            {/* Carte de statistiques */}
+            <Card elevation="small" padding="medium" style={styles.statsCard}>
+              <View style={styles.statsRow}>
+                <View style={styles.statItem}>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                    Total maladies
+                  </Text>
+                  <Text style={[styles.statValue, { color: colors.text }]}>
+                    {diseases.length}
+                  </Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                    Malades actifs
+                  </Text>
+                  <Text style={[styles.statValue, { color: colors.error }]}>
+                    {sickCount}
+                  </Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                    Guéris
+                  </Text>
+                  <Text style={[styles.statValue, { color: colors.success }]}>
+                    {diseases.filter((d) => d.status === 'recovered').length}
+                  </Text>
+                </View>
+              </View>
+            </Card>
+
+            {/* Liste des maladies */}
+            {diseases.map((disease) => (
+              <DiseaseCard key={disease.id} disease={disease} isBatchMode={true} />
+            ))}
+          </>
         )}
 
         <Button
@@ -397,12 +473,16 @@ export default function BatchDiseaseScreen() {
         />
       </ScrollView>
 
-      <CreateDiseaseModal
+      <CreateBatchDiseaseModal
         visible={modalVisible}
         batch={batch}
         onClose={() => setModalVisible(false)}
-        onSuccess={loadDiseases}
+        onSuccess={() => {
+          loadBatchDiseases();
+          setModalVisible(false);
+        }}
       />
+
       <ChatAgentFAB />
     </SafeAreaView>
   );
@@ -412,17 +492,47 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  centerContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: SPACING.md,
-  },
   content: {
     flex: 1,
   },
   contentContainer: {
     padding: SPACING.md,
+  },
+  centerContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 48,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: FONT_SIZES.md,
+  },
+  emptyCard: {
+    alignItems: 'center',
+    paddingVertical: SPACING.xl,
+    gap: SPACING.md,
+  },
+  emptyText: {
+    fontSize: FONT_SIZES.md,
+  },
+  statsCard: {
+    marginBottom: SPACING.md,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statLabel: {
+    fontSize: FONT_SIZES.sm,
+    marginBottom: 4,
+  },
+  statValue: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
   },
   diseaseCard: {
     marginBottom: SPACING.md,
@@ -446,13 +556,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  pigName: {
+  diseaseTitle: {
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
   },
   statusText: {
     fontSize: FONT_SIZES.sm,
     fontWeight: '500',
+    marginTop: 2,
   },
   cardContent: {
     gap: SPACING.xs,
@@ -495,14 +606,6 @@ const styles = StyleSheet.create({
   treatmentText: {
     fontSize: FONT_SIZES.sm,
   },
-  emptyCard: {
-    alignItems: 'center',
-    paddingVertical: SPACING.xl,
-    gap: SPACING.md,
-  },
-  emptyText: {
-    fontSize: FONT_SIZES.md,
-  },
   addButton: {
     marginTop: SPACING.md,
   },
@@ -527,10 +630,6 @@ const styles = StyleSheet.create({
   infoCard: {
     marginBottom: SPACING.md,
   },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
   infoText: {
     flex: 1,
     marginLeft: SPACING.sm,
@@ -552,9 +651,6 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
   },
-  dateText: {
-    fontSize: FONT_SIZES.md,
-  },
   modalFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -564,14 +660,6 @@ const styles = StyleSheet.create({
   },
   footerButton: {
     flex: 1,
-  },
-  errorText: {
-    fontSize: FONT_SIZES.md,
-    textAlign: 'center',
-  },
-  loadingText: {
-    marginTop: SPACING.md,
-    fontSize: FONT_SIZES.md,
   },
 });
 

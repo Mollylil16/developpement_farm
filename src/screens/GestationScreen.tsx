@@ -1,7 +1,15 @@
 /**
- * Écran de gestion des gestations par batch
- * Permet d'enregistrer et suivre les gestations des truies
- * Design cohérent avec les écrans santé du mode individuel
+ * GestationScreen - Écran unifié de gestion des gestations
+ *
+ * Supporte les deux modes d'élevage :
+ * - Mode Individuel : Utilise GestationsListComponent (référence principale)
+ * - Mode Bande : Affiche les gestations batch avec statistiques simplifiées
+ *
+ * Architecture:
+ * - Détection automatique du mode via useModeElevage() et paramètres de route
+ * - Mode individuel : Réutilise GestationsListComponent (composant complet avec stats/calendrier)
+ * - Mode batch : Affichage adapté avec statistiques simplifiées
+ * - Même UI pour les deux modes (cohérence visuelle)
  */
 
 import React, { useState, useEffect } from 'react';
@@ -10,29 +18,33 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
-  Alert,
-  Modal,
-  ActivityIndicator,
   RefreshControl,
+  ActivityIndicator,
+  TouchableOpacity,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
+import { useRoute, RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
-import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
+import { useModeElevage } from '../hooks/useModeElevage';
+import { useAppSelector } from '../store/hooks';
 import StandardHeader from '../components/StandardHeader';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import FormField from '../components/FormField';
+import GestationsListComponent from '../components/GestationsListComponent';
 import apiClient from '../services/api/apiClient';
+import { Alert } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
+import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 
-type BatchGestationRouteParams = {
-  batch: {
+// Type pour les paramètres de route (mode batch)
+type GestationRouteParams = {
+  batch?: {
     id: string;
     pen_name: string;
     total_count: number;
@@ -41,20 +53,22 @@ type BatchGestationRouteParams = {
 
 interface GestationCardProps {
   gestation: any;
-  onUpdate: () => void;
+  isBatchMode: boolean;
 }
 
-const GestationCard: React.FC<GestationCardProps> = ({ gestation, onUpdate }) => {
+const GestationCard: React.FC<GestationCardProps> = ({ gestation, isBatchMode }) => {
   const { colors } = useTheme();
-  const navigation = useNavigation();
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pregnant':
+      case 'en_cours':
         return colors.success;
       case 'delivered':
+      case 'terminee':
         return colors.primary;
       case 'aborted':
+      case 'avortee':
         return colors.error;
       default:
         return colors.textSecondary;
@@ -69,8 +83,14 @@ const GestationCard: React.FC<GestationCardProps> = ({ gestation, onUpdate }) =>
         return 'Mise bas effectuée';
       case 'aborted':
         return 'Avortement';
+      case 'en_cours':
+        return 'En cours';
+      case 'terminee':
+        return 'Terminée';
+      case 'avortee':
+        return 'Avortée';
       default:
-        return status;
+        return status || 'Non spécifié';
     }
   };
 
@@ -78,15 +98,17 @@ const GestationCard: React.FC<GestationCardProps> = ({ gestation, onUpdate }) =>
     <Card elevation="small" padding="medium" style={styles.gestationCard}>
       <View style={styles.cardHeader}>
         <View style={styles.cardHeaderLeft}>
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(gestation.status) + '20' }]}>
-            <Ionicons name="heart" size={20} color={getStatusColor(gestation.status)} />
+          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(gestation.status || gestation.statut) + '20' }]}>
+            <Ionicons name="heart" size={20} color={getStatusColor(gestation.status || gestation.statut)} />
           </View>
           <View>
-            <Text style={[styles.pigName, { color: colors.text }]}>
-              {gestation.pig_name || 'Truie'}
+            <Text style={[styles.gestationTitle, { color: colors.text }]}>
+              {isBatchMode
+                ? gestation.pig_name || 'Truie'
+                : gestation.truie_nom || gestation.truie_id || 'Truie'}
             </Text>
-            <Text style={[styles.statusText, { color: getStatusColor(gestation.status) }]}>
-              {getStatusLabel(gestation.status)}
+            <Text style={[styles.statusText, { color: getStatusColor(gestation.status || gestation.statut) }]}>
+              {getStatusLabel(gestation.status || gestation.statut)}
             </Text>
           </View>
         </View>
@@ -97,33 +119,48 @@ const GestationCard: React.FC<GestationCardProps> = ({ gestation, onUpdate }) =>
           <Ionicons name="calendar-outline" size={16} color={colors.textSecondary} />
           <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Sautage :</Text>
           <Text style={[styles.infoValue, { color: colors.text }]}>
-            {format(new Date(gestation.mating_date), 'dd MMM yyyy', { locale: fr })}
+            {format(
+              new Date(gestation.mating_date || gestation.date_sautage),
+              'dd MMM yyyy',
+              { locale: fr }
+            )}
           </Text>
         </View>
 
-        <View style={styles.infoRow}>
-          <Ionicons name="calendar" size={16} color={colors.textSecondary} />
-          <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Mise bas prévue :</Text>
-          <Text style={[styles.infoValue, { color: colors.text }]}>
-            {format(new Date(gestation.expected_delivery_date), 'dd MMM yyyy', { locale: fr })}
-          </Text>
-        </View>
-
-        {gestation.actual_delivery_date && (
+        {(gestation.expected_delivery_date || gestation.date_mise_bas_prevue) && (
           <View style={styles.infoRow}>
-            <Ionicons name="checkmark-circle" size={16} color={colors.success} />
-            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Mise bas réelle :</Text>
-            <Text style={[styles.infoValue, { color: colors.success }]}>
-              {format(new Date(gestation.actual_delivery_date), 'dd MMM yyyy', { locale: fr })}
+            <Ionicons name="calendar" size={16} color={colors.textSecondary} />
+            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Mise bas prévue :</Text>
+            <Text style={[styles.infoValue, { color: colors.text }]}>
+              {format(
+                new Date(gestation.expected_delivery_date || gestation.date_mise_bas_prevue),
+                'dd MMM yyyy',
+                { locale: fr }
+              )}
             </Text>
           </View>
         )}
 
-        {gestation.status === 'delivered' && (
+        {(gestation.actual_delivery_date || gestation.date_mise_bas_reelle) && (
+          <View style={styles.infoRow}>
+            <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Mise bas réelle :</Text>
+            <Text style={[styles.infoValue, { color: colors.success }]}>
+              {format(
+                new Date(gestation.actual_delivery_date || gestation.date_mise_bas_reelle),
+                'dd MMM yyyy',
+                { locale: fr }
+              )}
+            </Text>
+          </View>
+        )}
+
+        {((gestation.status === 'delivered' || gestation.statut === 'terminee') && 
+          (gestation.piglets_alive_count || gestation.piglets_born_count || gestation.nombre_porcelets_vivants || gestation.nombre_porcelets_nes)) && (
           <View style={styles.pigletsInfo}>
             <Text style={[styles.pigletsLabel, { color: colors.textSecondary }]}>Porcelets :</Text>
             <Text style={[styles.pigletsValue, { color: colors.text }]}>
-              {gestation.piglets_alive_count || 0} vivants / {gestation.piglets_born_count || 0} nés
+              {gestation.piglets_alive_count || gestation.nombre_porcelets_vivants || 0} vivants / {gestation.piglets_born_count || gestation.nombre_porcelets_nes || 0} nés
             </Text>
           </View>
         )}
@@ -132,14 +169,15 @@ const GestationCard: React.FC<GestationCardProps> = ({ gestation, onUpdate }) =>
   );
 };
 
-interface CreateGestationModalProps {
+// Modal pour créer une gestation batch
+interface CreateBatchGestationModalProps {
   visible: boolean;
   batch: { id: string; pen_name: string; total_count: number };
   onClose: () => void;
   onSuccess: () => void;
 }
 
-const CreateGestationModal: React.FC<CreateGestationModalProps> = ({
+const CreateBatchGestationModal: React.FC<CreateBatchGestationModalProps> = ({
   visible,
   batch,
   onClose,
@@ -166,13 +204,21 @@ const CreateGestationModal: React.FC<CreateGestationModalProps> = ({
       Alert.alert('Succès', 'Gestation enregistrée avec succès');
       onSuccess();
       onClose();
+      // Reset form
+      setPigletsExpected('10');
+      setNotes('');
     } catch (error: any) {
       console.error('Erreur création gestation:', error);
-      Alert.alert('Erreur', error.response?.data?.message || 'Impossible d\'enregistrer la gestation');
+      Alert.alert(
+        'Erreur',
+        error.response?.data?.message || 'Impossible d\'enregistrer la gestation',
+      );
     } finally {
       setLoading(false);
     }
   }
+
+  if (!visible) return null;
 
   return (
     <Modal
@@ -181,7 +227,7 @@ const CreateGestationModal: React.FC<CreateGestationModalProps> = ({
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <RNSSafeAreaView style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+      <SafeAreaView style={[styles.modalContainer, { backgroundColor: colors.background }]}>
         <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
           <Text style={[styles.modalTitle, { color: colors.text }]}>Nouvelle gestation</Text>
           <TouchableOpacity onPress={onClose}>
@@ -257,36 +303,45 @@ const CreateGestationModal: React.FC<CreateGestationModalProps> = ({
             style={styles.footerButton}
           />
         </View>
-      </RNSSafeAreaView>
+      </SafeAreaView>
     </Modal>
   );
 };
 
-export default function BatchGestationScreen() {
-  const route = useRoute<RouteProp<{ params: BatchGestationRouteParams }, 'params'>>();
+export default function GestationScreen() {
   const { colors } = useTheme();
-  const { batch } = route.params || {};
-
+  const route = useRoute<RouteProp<{ params: GestationRouteParams }, 'params'>>();
+  const mode = useModeElevage();
+  const { projetActif } = useAppSelector((state) => state.projet);
+  
+  // Paramètres batch (si navigation depuis une bande)
+  const batch = route.params?.batch;
+  const isBatchMode = mode === 'bande' || !!batch;
+  
+  // État pour les gestations batch
   const [gestations, setGestations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
 
+  // Charger les données batch si nécessaire
   useEffect(() => {
-    if (batch?.id) {
-      loadGestations();
+    if (isBatchMode && batch?.id) {
+      loadBatchGestations();
     }
-  }, [batch?.id]);
+  }, [batch?.id, isBatchMode]);
 
-  async function loadGestations() {
+  async function loadBatchGestations() {
     if (!batch?.id) return;
 
+    setLoading(true);
     try {
       const data = await apiClient.get(`/batch-gestations/batch/${batch.id}`);
-      setGestations(data);
+      setGestations(data || []);
     } catch (error: any) {
-      console.error('Erreur chargement gestations:', error);
+      console.error('Erreur chargement gestations batch:', error);
       Alert.alert('Erreur', 'Impossible de charger les gestations');
+      setGestations([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -295,31 +350,31 @@ export default function BatchGestationScreen() {
 
   async function handleRefresh() {
     setRefreshing(true);
-    await loadGestations();
+    if (isBatchMode && batch?.id) {
+      await loadBatchGestations();
+    }
   }
 
-  if (!batch) {
+  if (!projetActif) {
+    return null; // Géré par ProtectedScreen parent
+  }
+
+  // Mode individuel : utiliser GestationsListComponent (référence principale)
+  if (!isBatchMode || !batch) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-        <View style={styles.centerContent}>
-          <Text style={[styles.errorText, { color: colors.error }]}>Bande non trouvée</Text>
-        </View>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        edges={['top']}
+      >
+        <GestationsListComponent />
+        <ChatAgentFAB />
       </SafeAreaView>
     );
   }
 
-  if (loading && !refreshing) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-        <StandardHeader icon="heart" title={`Gestations - ${batch.pen_name}`} subtitle={`${batch.total_count} porc(s)`} />
-        <View style={styles.centerContent}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Chargement...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
+  // Mode batch : affichage adapté
+  const title = `Gestations - ${batch.pen_name}`;
+  const subtitle = `${batch.total_count} porc(s)`;
   const pregnantCount = gestations.filter((g) => g.status === 'pregnant').length;
 
   return (
@@ -329,8 +384,8 @@ export default function BatchGestationScreen() {
     >
       <StandardHeader
         icon="heart"
-        title={`Gestations - ${batch.pen_name}`}
-        subtitle={`${batch.total_count} porc(s)`}
+        title={title}
+        subtitle={subtitle}
         badge={pregnantCount}
         badgeColor={colors.success}
       />
@@ -347,7 +402,14 @@ export default function BatchGestationScreen() {
           />
         }
       >
-        {gestations.length === 0 ? (
+        {loading && !refreshing ? (
+          <View style={styles.centerContent}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+              Chargement...
+            </Text>
+          </View>
+        ) : gestations.length === 0 ? (
           <Card elevation="small" padding="medium" style={styles.emptyCard}>
             <Ionicons name="heart-outline" size={48} color={colors.textSecondary} />
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
@@ -355,25 +417,62 @@ export default function BatchGestationScreen() {
             </Text>
           </Card>
         ) : (
-          gestations.map((gestation) => (
-            <GestationCard key={gestation.id} gestation={gestation} onUpdate={loadGestations} />
-          ))
+          <>
+            {/* Carte de statistiques */}
+            <Card elevation="small" padding="medium" style={styles.statsCard}>
+              <View style={styles.statsRow}>
+                <View style={styles.statItem}>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                    Total gestations
+                  </Text>
+                  <Text style={[styles.statValue, { color: colors.text }]}>
+                    {gestations.length}
+                  </Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                    En cours
+                  </Text>
+                  <Text style={[styles.statValue, { color: colors.success }]}>
+                    {pregnantCount}
+                  </Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                    Terminées
+                  </Text>
+                  <Text style={[styles.statValue, { color: colors.primary }]}>
+                    {gestations.filter((g) => g.status === 'delivered').length}
+                  </Text>
+                </View>
+              </View>
+            </Card>
+
+            {/* Liste des gestations */}
+            {gestations.map((gestation) => (
+              <GestationCard key={gestation.id} gestation={gestation} isBatchMode={true} />
+            ))}
+          </>
         )}
 
         <Button
           title="Nouvelle gestation"
           onPress={() => setModalVisible(true)}
-          icon={<Ionicons name="add-circle-outline" size={20} color={colors.primary} />}
+          icon={<Ionicons name="add-circle-outline" size={20} color="#fff" />}
           style={styles.addButton}
         />
       </ScrollView>
 
-      <CreateGestationModal
+      <CreateBatchGestationModal
         visible={modalVisible}
         batch={batch}
         onClose={() => setModalVisible(false)}
-        onSuccess={loadGestations}
+        onSuccess={() => {
+          loadBatchGestations();
+          setModalVisible(false);
+        }}
       />
+
       <ChatAgentFAB />
     </SafeAreaView>
   );
@@ -383,17 +482,47 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  centerContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: SPACING.md,
-  },
   content: {
     flex: 1,
   },
   contentContainer: {
     padding: SPACING.md,
+  },
+  centerContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 48,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: FONT_SIZES.md,
+  },
+  emptyCard: {
+    alignItems: 'center',
+    paddingVertical: SPACING.xl,
+    gap: SPACING.md,
+  },
+  emptyText: {
+    fontSize: FONT_SIZES.md,
+  },
+  statsCard: {
+    marginBottom: SPACING.md,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statLabel: {
+    fontSize: FONT_SIZES.sm,
+    marginBottom: 4,
+  },
+  statValue: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
   },
   gestationCard: {
     marginBottom: SPACING.md,
@@ -417,13 +546,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  pigName: {
+  gestationTitle: {
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
   },
   statusText: {
     fontSize: FONT_SIZES.sm,
     fontWeight: '500',
+    marginTop: 2,
   },
   cardContent: {
     gap: SPACING.xs,
@@ -453,14 +583,6 @@ const styles = StyleSheet.create({
   pigletsValue: {
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
-  },
-  emptyCard: {
-    alignItems: 'center',
-    paddingVertical: SPACING.xl,
-    gap: SPACING.md,
-  },
-  emptyText: {
-    fontSize: FONT_SIZES.md,
   },
   addButton: {
     marginTop: SPACING.md,
@@ -507,9 +629,6 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
   },
-  dateText: {
-    fontSize: FONT_SIZES.md,
-  },
   modalFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -519,14 +638,6 @@ const styles = StyleSheet.create({
   },
   footerButton: {
     flex: 1,
-  },
-  errorText: {
-    fontSize: FONT_SIZES.md,
-    textAlign: 'center',
-  },
-  loadingText: {
-    marginTop: SPACING.md,
-    fontSize: FONT_SIZES.md,
   },
 });
 

@@ -9,6 +9,7 @@ import { useAppSelector } from '../../../store/hooks';
 import { MarketplaceTheme } from '../../../styles/marketplace.theme';
 import FarmCard from '../FarmCard';
 import SubjectCard from '../SubjectCard';
+import BatchListingCard from '../BatchListingCard';
 import LoadingSpinner from '../../LoadingSpinner';
 import EmptyState from '../../EmptyState';
 import type { FarmCard as FarmCardType, MarketplaceListing } from '../../../types/marketplace';
@@ -64,11 +65,23 @@ export default function MarketplaceBuyTab({
 
   const renderListing = useCallback(
     ({ item }: { item: MarketplaceListing }) => {
+      // Si c'est un listing de bande, utiliser BatchListingCard
+      if (item.listingType === 'batch' || item.batchId) {
+        return (
+          <BatchListingCard
+            listing={item}
+            selected={false}
+            onPress={() => onListingPress(item)}
+          />
+        );
+      }
+
+      // Sinon, utiliser SubjectCard pour les listings individuels
       return (
         <SubjectCard
           subject={{
-            id: item.subjectId,
-            code: item.code || `#${item.subjectId.slice(0, 8)}`,
+            id: item.subjectId || item.id,
+            code: item.code || `#${(item.subjectId || item.id).slice(0, 8)}`,
             race: item.race || 'Non spécifiée',
             weight: item.weight || 0,
             weightDate: item.weightDate || item.lastWeightDate,

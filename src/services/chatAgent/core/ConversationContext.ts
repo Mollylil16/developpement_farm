@@ -129,6 +129,20 @@ export class ConversationContextManager {
       this.context.lastAnimal = animalMatch[1];
       this.addEntity('animal', animalMatch[1], text);
     }
+
+    // Extraire date
+    const dateMatch = text.match(/(?:le|au|du)\s+(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
+    if (dateMatch && dateMatch[1]) {
+      this.context.lastDate = dateMatch[1];
+      this.addEntity('date', dateMatch[1], text);
+    }
+
+    // Extraire catégorie
+    const categorieMatch = text.match(/(?:categorie|type)\s+([a-z]+)/i);
+    if (categorieMatch && categorieMatch[1]) {
+      this.context.lastCategorie = categorieMatch[1];
+      this.addEntity('categorie', categorieMatch[1], text);
+    }
   }
 
   /**
@@ -162,20 +176,84 @@ export class ConversationContextManager {
   }
 
   /**
-   * Résout une référence ("le même", "celui-là", etc.)
+   * Résout une référence ("le même", "celui-là", "il", "elle", etc.)
+   * Amélioration pour résolution d'anaphores
    */
   resolveReference(reference: string, type: ConversationEntity['type']): unknown {
-    const normalized = reference.toLowerCase();
+    const normalized = reference.toLowerCase().trim();
 
-    // Références courantes
-    if (normalized.match(/(?:le\s+meme|celui\s+la|le\s+meme\s+acheteur|le\s+meme\s+animal)/i)) {
-      const entities = this.context.entities.get(type);
-      if (entities && entities.length > 0) {
-        return entities[0].value; // La plus récente
+    // Anaphores pronominales (il, elle, le, la, lui, leur, etc.)
+    const pronominalAnaphora = [
+      /^(il|elle|le|la|lui|les|leur|eux|elles)$/,
+      /^(celui| celle| ceux| celles)$/,
+      /^(ce| cet| cette| ces)$/,
+    ];
+
+    for (const pattern of pronominalAnaphora) {
+      if (pattern.test(normalized)) {
+        // Chercher dans l'historique récent (3 derniers messages)
+        const recentHistory = this.context.history.slice(-3).reverse();
+        for (const entry of recentHistory) {
+          if (entry.params) {
+            // Chercher selon le type
+            if (type === 'acheteur' && entry.params.acheteur) {
+              return entry.params.acheteur;
+            }
+            if (type === 'animal' && entry.params.animal_code) {
+              return entry.params.animal_code;
+            }
+            if (type === 'montant' && entry.params.montant) {
+              return entry.params.montant;
+            }
+            if (type === 'date' && entry.params.date) {
+              return entry.params.date;
+            }
+            if (type === 'categorie' && entry.params.categorie) {
+              return entry.params.categorie;
+            }
+          }
+        }
+        // Si pas trouvé dans l'historique, utiliser les dernières valeurs
+        if (type === 'acheteur' && this.context.lastAcheteur) {
+          return this.context.lastAcheteur;
+        }
+        if (type === 'animal' && this.context.lastAnimal) {
+          return this.context.lastAnimal;
+        }
+        if (type === 'montant' && this.context.lastMontant) {
+          return this.context.lastMontant;
+        }
+        if (type === 'date' && this.context.lastDate) {
+          return this.context.lastDate;
+        }
+        if (type === 'categorie' && this.context.lastCategorie) {
+          return this.context.lastCategorie;
+        }
       }
     }
 
-    // Références spécifiques
+    // Références explicites ("le même", "celui-là", etc.)
+    const explicitReferences = [
+      /^(le\s+meme|la\s+meme|les\s+meme|les\s+memes)$/,
+      /^(celui\s+la| celle\s+la| ceux\s+la| celles\s+la)$/,
+      /^(le\s+meme\s+acheteur| la\s+meme\s+acheteur)$/,
+      /^(le\s+meme\s+animal| la\s+meme\s+animal)$/,
+      /^(le\s+meme\s+montant| la\s+meme\s+montant)$/,
+      /^(le\s+meme\s+porc| la\s+meme\s+porc)$/,
+      /^(le\s+dernier| la\s+derniere| les\s+derniers| les\s+dernieres)$/,
+      /^(le\s+precedent| la\s+precedente| les\s+precedents| les\s+precedentes)$/,
+    ];
+
+    for (const pattern of explicitReferences) {
+      if (pattern.test(normalized)) {
+        const entities = this.context.entities.get(type);
+        if (entities && entities.length > 0) {
+          return entities[0].value; // La plus récente
+        }
+      }
+    }
+
+    // Références spécifiques par type
     if (type === 'acheteur' && this.context.lastAcheteur) {
       return this.context.lastAcheteur;
     }
@@ -185,8 +263,62 @@ export class ConversationContextManager {
     if (type === 'montant' && this.context.lastMontant) {
       return this.context.lastMontant;
     }
+    if (type === 'date' && this.context.lastDate) {
+      return this.context.lastDate;
+    }
+    if (type === 'categorie' && this.context.lastCategorie) {
+      return this.context.lastCategorie;
+    }
 
     return undefined;
+  }
+
+  /**
+   * Résout automatiquement les anaphores dans un texte
+   * Extrait et résout "il", "elle", "le", "la", etc.
+   */
+  resolveAnaphoras(text: string): string {
+    let resolved = text;
+
+    // Patterns d'anaphores à résoudre
+    const anaphoraPatterns = [
+      {
+        pattern: /\b(il|elle)\b/gi,
+        resolve: (match: string, offset: number) => {
+          // Chercher le sujet précédent dans l'historique
+          const recentHistory = this.context.history.slice(-2);
+          for (const entry of recentHistory) {
+            if (entry.params?.animal_code) {
+              return entry.params.animal_code as string;
+            }
+            if (entry.params?.acheteur) {
+              return entry.params.acheteur as string;
+            }
+          }
+          return match; // Garder l'original si pas de résolution
+        },
+      },
+      {
+        pattern: /\b(le|la|les)\s+(meme|dernier|precedent)\b/gi,
+        resolve: (match: string) => {
+          // Résoudre selon le contexte
+          if (this.context.lastAnimal) {
+            return this.context.lastAnimal;
+          }
+          if (this.context.lastAcheteur) {
+            return this.context.lastAcheteur;
+          }
+          return match;
+        },
+      },
+    ];
+
+    // Appliquer les résolutions
+    for (const { pattern, resolve } of anaphoraPatterns) {
+      resolved = resolved.replace(pattern, resolve);
+    }
+
+    return resolved;
   }
 
   /**

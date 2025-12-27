@@ -60,7 +60,7 @@ export function generateValidationReportHTML(data: ValidationPDFData): string {
   if (validationReport.successRate >= 95) {
     statusBadge = '<span class="badge badge-success">EXCELLENT</span>';
     statusText = 'Agent opérationnel et performant à 100%';
-    statusColor = '#28a745';
+    statusColor = '#1976D2';
   } else if (validationReport.successRate >= 85) {
     statusBadge = '<span class="badge badge-warning">BON</span>';
     statusText = 'Agent opérationnel avec quelques améliorations possibles';
@@ -115,7 +115,7 @@ export function generateValidationReportHTML(data: ValidationPDFData): string {
     .metric-value {
       font-size: 28px;
       font-weight: bold;
-      color: #4CAF50;
+      color: #1565C0;
     }
     .test-result {
       padding: 10px;
@@ -124,8 +124,8 @@ export function generateValidationReportHTML(data: ValidationPDFData): string {
       border-left: 4px solid;
     }
     .test-result.passed {
-      background: #d4edda;
-      border-color: #28a745;
+      background: #e3f2fd;
+      border-color: #1976D2;
     }
     .test-result.failed {
       background: #f8d7da;
@@ -141,7 +141,7 @@ export function generateValidationReportHTML(data: ValidationPDFData): string {
       margin-top: 5px;
     }
     .chart-bar {
-      background: #4CAF50;
+      background: #1565C0;
       height: 20px;
       border-radius: 10px;
       margin: 5px 0;
@@ -210,7 +210,7 @@ export function generateValidationReportHTML(data: ValidationPDFData): string {
         <div class="stat-label">Tests Totaux</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value" style="color: #28a745;">${validationReport.passedTests}</div>
+        <div class="stat-value" style="color: #1976D2;">${validationReport.passedTests}</div>
         <div class="stat-label">Tests Réussis</div>
       </div>
       <div class="stat-card">
@@ -218,7 +218,7 @@ export function generateValidationReportHTML(data: ValidationPDFData): string {
         <div class="stat-label">Tests Échoués</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value" style="color: #4CAF50;">${validationReport.successRate.toFixed(1)}%</div>
+        <div class="stat-value" style="color: #1565C0;">${validationReport.successRate.toFixed(1)}%</div>
         <div class="stat-label">Taux de Succès</div>
       </div>
       <div class="stat-card">
@@ -245,11 +245,11 @@ export function generateValidationReportHTML(data: ValidationPDFData): string {
         </div>
         <div class="metric-card">
           <div class="metric-label">Détections Réussies</div>
-          <div class="metric-value" style="color: #28a745;">${performanceMetrics.successfulDetections}</div>
+          <div class="metric-value" style="color: #1976D2;">${performanceMetrics.successfulDetections}</div>
         </div>
         <div class="metric-card">
           <div class="metric-label">Confiance Moyenne</div>
-          <div class="metric-value" style="color: #4CAF50;">${(performanceMetrics.averageConfidence * 100).toFixed(1)}%</div>
+          <div class="metric-value" style="color: #1565C0;">${(performanceMetrics.averageConfidence * 100).toFixed(1)}%</div>
         </div>
         <div class="metric-card">
           <div class="metric-label">Temps de Réponse</div>
@@ -261,7 +261,7 @@ export function generateValidationReportHTML(data: ValidationPDFData): string {
         </div>
         <div class="metric-card">
           <div class="metric-label">Actions</div>
-          <div class="metric-value" style="color: #28a745;">${(performanceMetrics.actionSuccessRate * 100).toFixed(1)}%</div>
+          <div class="metric-value" style="color: #1976D2;">${(performanceMetrics.actionSuccessRate * 100).toFixed(1)}%</div>
         </div>
       </div>
     </div>
@@ -364,11 +364,11 @@ export function generateValidationReportHTML(data: ValidationPDFData): string {
       : `
   <div class="section">
     <h2>🎉 AUCUN PROBLÈME DÉTECTÉ</h2>
-    <div class="card" style="background: #d4edda; border-color: #28a745;">
-      <p style="font-size: 16px; color: #155724; text-align: center;">
+    <div class="card" style="background: #e3f2fd; border-color: #1976D2;">
+      <p style="font-size: 16px; color: #0d47a1; text-align: center;">
         <strong>✅ Tous les tests sont passés avec succès !</strong>
       </p>
-      <p style="text-align: center; color: #155724; margin-top: 10px;">
+      <p style="text-align: center; color: #0d47a1; margin-top: 10px;">
         L'agent est opérationnel et performant à 100%
       </p>
     </div>

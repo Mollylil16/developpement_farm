@@ -264,8 +264,8 @@ export function generateFinanceHTML(data: FinanceData): string {
           </tr>
         </table>
         
-        <div style="margin-top: 15px; padding: 10px; background: ${totaux.solde >= 0 ? '#d4edda' : '#f8d7da'}; border-radius: 6px;">
-          <p style="text-align: center; font-size: 12px; color: ${totaux.solde >= 0 ? '#155724' : '#721c24'};">
+        <div style="margin-top: 15px; padding: 10px; background: ${totaux.solde >= 0 ? '#e3f2fd' : '#f8d7da'}; border-radius: 6px;">
+          <p style="text-align: center; font-size: 12px; color: ${totaux.solde >= 0 ? '#0d47a1' : '#721c24'};">
             ${
               totaux.solde >= 0
                 ? '✅ Votre exploitation est bénéficiaire'

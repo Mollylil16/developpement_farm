@@ -866,4 +866,312 @@ export class FinanceService {
       cout_kg_complet: coutKgComplet,
     };
   }
+
+  // ==================== DETTES ====================
+
+  async createDette(createDetteDto: any, userId: string) {
+    await this.checkProjetOwnership(createDetteDto.projet_id, userId);
+
+    const id = `dette_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const now = new Date().toISOString();
+
+    const result = await this.databaseService.query(
+      `INSERT INTO dettes (
+        id, projet_id, libelle, type_dette, montant_initial, montant_restant,
+        taux_interet, date_debut, date_echeance, frequence_remboursement,
+        montant_remboursement, statut, preteur, notes, date_creation, derniere_modification
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+      RETURNING *`,
+      [
+        id,
+        createDetteDto.projet_id,
+        createDetteDto.libelle,
+        createDetteDto.type_dette,
+        createDetteDto.montant_initial,
+        createDetteDto.montant_restant,
+        createDetteDto.taux_interet || 0,
+        createDetteDto.date_debut,
+        createDetteDto.date_echeance || null,
+        createDetteDto.frequence_remboursement || 'mensuel',
+        createDetteDto.montant_remboursement || null,
+        createDetteDto.statut || 'en_cours',
+        createDetteDto.preteur || null,
+        createDetteDto.notes || null,
+        now,
+        now,
+      ]
+    );
+
+    return this.mapRowToDette(result.rows[0]);
+  }
+
+  async findAllDettes(projetId: string, userId: string) {
+    await this.checkProjetOwnership(projetId, userId);
+
+    const result = await this.databaseService.query(
+      `SELECT * FROM dettes WHERE projet_id = $1 ORDER BY date_debut DESC`,
+      [projetId]
+    );
+
+    return result.rows.map((row) => this.mapRowToDette(row));
+  }
+
+  async findOneDette(id: string, userId: string) {
+    const result = await this.databaseService.query(
+      `SELECT d.*, p.proprietaire_id 
+       FROM dettes d
+       JOIN projets p ON d.projet_id = p.id
+       WHERE d.id = $1`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      throw new NotFoundException('Dette introuvable');
+    }
+
+    if (result.rows[0].proprietaire_id !== userId) {
+      throw new ForbiddenException('Cette dette ne vous appartient pas');
+    }
+
+    return this.mapRowToDette(result.rows[0]);
+  }
+
+  async updateDette(id: string, updateDetteDto: any, userId: string) {
+    await this.findOneDette(id, userId); // Vérifie ownership
+
+    const updates: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    const fields = [
+      'libelle',
+      'type_dette',
+      'montant_initial',
+      'montant_restant',
+      'taux_interet',
+      'date_debut',
+      'date_echeance',
+      'frequence_remboursement',
+      'montant_remboursement',
+      'statut',
+      'preteur',
+      'notes',
+    ];
+
+    fields.forEach((field) => {
+      if (updateDetteDto[field] !== undefined) {
+        updates.push(`${field} = $${paramIndex}`);
+        values.push(updateDetteDto[field]);
+        paramIndex++;
+      }
+    });
+
+    if (updates.length === 0) {
+      return this.findOneDette(id, userId);
+    }
+
+    updates.push(`derniere_modification = $${paramIndex}`);
+    values.push(new Date().toISOString());
+    paramIndex++;
+
+    values.push(id);
+
+    const result = await this.databaseService.query(
+      `UPDATE dettes SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+      values
+    );
+
+    return this.mapRowToDette(result.rows[0]);
+  }
+
+  async removeDette(id: string, userId: string) {
+    await this.findOneDette(id, userId); // Vérifie ownership
+
+    await this.databaseService.query('DELETE FROM dettes WHERE id = $1', [id]);
+    return { message: 'Dette supprimée avec succès' };
+  }
+
+  private mapRowToDette(row: any) {
+    return {
+      id: row.id,
+      projet_id: row.projet_id,
+      libelle: row.libelle,
+      type_dette: row.type_dette,
+      montant_initial: parseFloat(row.montant_initial || '0'),
+      montant_restant: parseFloat(row.montant_restant || '0'),
+      taux_interet: parseFloat(row.taux_interet || '0'),
+      date_debut: row.date_debut,
+      date_echeance: row.date_echeance || null,
+      frequence_remboursement: row.frequence_remboursement || 'mensuel',
+      montant_remboursement: row.montant_remboursement
+        ? parseFloat(row.montant_remboursement)
+        : null,
+      statut: row.statut || 'en_cours',
+      preteur: row.preteur || null,
+      notes: row.notes || null,
+      date_creation: row.date_creation,
+      derniere_modification: row.derniere_modification,
+    };
+  }
+
+  // ==================== BILAN COMPLET ====================
+
+  async getBilanComplet(
+    projetId: string,
+    userId: string,
+    dateDebut?: string,
+    dateFin?: string
+  ) {
+    await this.checkProjetOwnership(projetId, userId);
+
+    const maintenant = new Date();
+    const debut = dateDebut
+      ? new Date(dateDebut)
+      : new Date(maintenant.getFullYear(), maintenant.getMonth(), 1);
+    const fin = dateFin ? new Date(dateFin) : maintenant;
+
+    // 1. REVENUS
+    const revenus = await this.findAllRevenus(projetId, userId);
+    const revenusPeriode = revenus.filter((r) => {
+      const dateRevenu = new Date(r.date);
+      return dateRevenu >= debut && dateRevenu <= fin;
+    });
+    const totalRevenus = revenusPeriode.reduce((sum, r) => sum + r.montant, 0);
+    const revenusParCategorie = revenusPeriode.reduce((acc, r) => {
+      const cat = r.categorie || 'autre';
+      acc[cat] = (acc[cat] || 0) + r.montant;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // 2. DEPENSES OPEX
+    const depenses = await this.findAllDepensesPonctuelles(projetId, userId);
+    const depensesPeriode = depenses.filter((d) => {
+      const dateDepense = new Date(d.date);
+      return dateDepense >= debut && dateDepense <= fin;
+    });
+    // Filtrer seulement les OPEX (non CAPEX)
+    const depensesOpex = depensesPeriode.filter(
+      (d) => !d.date_fin_amortissement || new Date(d.date_fin_amortissement) <= fin
+    );
+    const totalDepensesOpex = depensesOpex.reduce((sum, d) => sum + d.montant, 0);
+    const depensesParCategorie = depensesOpex.reduce((acc, d) => {
+      const cat = d.categorie || 'autre';
+      acc[cat] = (acc[cat] || 0) + d.montant;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // 3. CHARGES FIXES
+    const chargesFixes = await this.findAllChargesFixes(projetId, userId);
+    const chargesActives = chargesFixes.filter((c) => c.statut === 'actif');
+    const moisDebut = new Date(debut);
+    const moisFin = new Date(fin);
+    const nombreMois =
+      (moisFin.getFullYear() - moisDebut.getFullYear()) * 12 +
+      (moisFin.getMonth() - moisDebut.getMonth()) +
+      1;
+    const totalChargesFixes = chargesActives.reduce((sum, c) => sum + c.montant, 0) * nombreMois;
+
+    // 4. DETTES
+    const dettes = await this.findAllDettes(projetId, userId);
+    const dettesEnCours = dettes.filter((d) => d.statut === 'en_cours');
+    const totalDettes = dettesEnCours.reduce((sum, d) => sum + d.montant_restant, 0);
+    const totalInteretsMensuels = dettesEnCours.reduce((sum, d) => {
+      const interetMensuel = (d.montant_restant * d.taux_interet) / 100 / 12;
+      return sum + interetMensuel;
+    }, 0);
+
+    // 5. ACTIFS
+    // Valeur du cheptel (estimation basée sur poids moyen * prix/kg)
+    const animauxResult = await this.databaseService.query(
+      `SELECT COUNT(*) as count, AVG(p.poids_kg) as poids_moyen
+       FROM production_animaux a
+       LEFT JOIN (
+         SELECT animal_id, poids_kg, ROW_NUMBER() OVER (PARTITION BY animal_id ORDER BY date DESC) as rn
+         FROM production_pesees
+       ) p ON a.id = p.animal_id AND p.rn = 1
+       WHERE a.projet_id = $1 AND a.statut = 'actif'`,
+      [projetId]
+    );
+    const nombreAnimaux = parseInt(animauxResult.rows[0]?.count || '0');
+    const poidsMoyen = parseFloat(animauxResult.rows[0]?.poids_moyen || '0');
+    const projetResult = await this.databaseService.query(
+      'SELECT prix_kg_vif FROM projets WHERE id = $1',
+      [projetId]
+    );
+    const prixKgVif = parseFloat(projetResult.rows[0]?.prix_kg_vif || '0');
+    const valeurCheptel = nombreAnimaux * poidsMoyen * prixKgVif;
+
+    // Valeur des stocks
+    const stocksResult = await this.databaseService.query(
+      `SELECT COALESCE(SUM(s.quantite_actuelle * COALESCE(i.prix_unitaire, 0)), 0) as valeur_totale
+       FROM stocks_aliments s
+       LEFT JOIN ingredients i ON s.nom = i.nom
+       WHERE s.projet_id = $1`,
+      [projetId]
+    );
+    const valeurStocks = parseFloat(stocksResult.rows[0]?.valeur_totale || '0');
+
+    // 6. CALCULS FINANCIERS
+    const totalDepenses = totalDepensesOpex + totalChargesFixes;
+    const solde = totalRevenus - totalDepenses;
+    const margeBrute = totalRevenus - totalDepensesOpex;
+    const cashFlow = solde - totalInteretsMensuels * nombreMois;
+    const totalActifs = valeurCheptel + valeurStocks;
+    const tauxEndettement = totalActifs > 0 ? (totalDettes / totalActifs) * 100 : 0;
+    const ratioRentabilite = totalRevenus > 0 ? (solde / totalRevenus) * 100 : 0;
+
+    // 7. KG VENDUS (pour coût/kg)
+    const totalKgVendus = revenusPeriode.reduce((sum, r) => sum + (r.poids_kg || 0), 0);
+    const coutKgOpex = totalKgVendus > 0 ? totalDepensesOpex / totalKgVendus : 0;
+
+    return {
+      periode: {
+        date_debut: debut.toISOString(),
+        date_fin: fin.toISOString(),
+        nombre_mois: nombreMois,
+      },
+      revenus: {
+        total: totalRevenus,
+        par_categorie: revenusParCategorie,
+        nombre_transactions: revenusPeriode.length,
+      },
+      depenses: {
+        opex_total: totalDepensesOpex,
+        charges_fixes_total: totalChargesFixes,
+        total: totalDepenses,
+        par_categorie: depensesParCategorie,
+        nombre_transactions: depensesOpex.length,
+      },
+      dettes: {
+        total: totalDettes,
+        nombre: dettesEnCours.length,
+        interets_mensuels: totalInteretsMensuels,
+        liste: dettesEnCours.map((d) => ({
+          id: d.id,
+          libelle: d.libelle,
+          montant_restant: d.montant_restant,
+          date_echeance: d.date_echeance,
+          taux_interet: d.taux_interet,
+        })),
+      },
+      actifs: {
+        valeur_cheptel: valeurCheptel,
+        valeur_stocks: valeurStocks,
+        total: totalActifs,
+        nombre_animaux: nombreAnimaux,
+        poids_moyen_cheptel: poidsMoyen,
+      },
+      resultats: {
+        solde: solde,
+        marge_brute: margeBrute,
+        cash_flow: cashFlow,
+      },
+      indicateurs: {
+        taux_endettement: tauxEndettement,
+        ratio_rentabilite: ratioRentabilite,
+        cout_kg_opex: coutKgOpex,
+        total_kg_vendus: totalKgVendus,
+      },
+    };
+  }
 }

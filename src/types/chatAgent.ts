@@ -52,6 +52,28 @@ export type AgentActionType =
   | 'calculate_costs'
   | 'answer_knowledge_question'
   | 'list_knowledge_topics'
+  // Reproduction
+  | 'get_gestations'
+  | 'get_gestation_by_truie'
+  | 'predict_mise_bas'
+  | 'get_porcelets'
+  | 'get_porcelets_transition'
+  // Mortalités
+  | 'get_mortalites'
+  | 'get_taux_mortalite'
+  | 'analyze_causes_mortalite'
+  // Finances (graphes)
+  | 'generate_graph_finances'
+  | 'describe_graph_trends'
+  // Nutrition (composition)
+  | 'propose_composition_alimentaire'
+  | 'calculate_consommation_moyenne'
+  // Ventes
+  | 'get_ventes'
+  | 'analyze_ventes'
+  // Bilan Financier
+  | 'get_bilan_financier'
+  | 'get_dettes_en_cours'
   | 'other';
 
 export interface AgentAction {

@@ -127,5 +127,152 @@ export class RevenuActions {
 
     throw new Error('Impossible de calculer le montant. Informations manquantes.');
   }
+
+  /**
+   * Récupère les ventes
+   */
+  static async getVentes(params: unknown, context: AgentContext): Promise<AgentActionResult> {
+    const paramsTyped = params as Record<string, unknown>;
+    const joursRecents = (paramsTyped.jours && typeof paramsTyped.jours === 'number' ? paramsTyped.jours : undefined) || 90;
+
+    // Récupérer les revenus avec catégorie "vente_porc"
+    const revenus = await apiClient.get<any[]>(`/finance/revenus`, {
+      params: { projet_id: context.projetId },
+    });
+
+    // Filtrer les ventes
+    const ventes = revenus.filter((r) => r.categorie === 'vente_porc' || r.categorie === 'vente');
+
+    // Filtrer par période
+    const dateLimite = new Date();
+    dateLimite.setDate(dateLimite.getDate() - joursRecents);
+
+    const ventesRecentes = ventes.filter((v) => {
+      if (v.date) {
+        const dateVente = new Date(v.date);
+        return dateVente >= dateLimite;
+      }
+      return true;
+    });
+
+    if (ventesRecentes.length === 0) {
+      return {
+        success: true,
+        message: `Aucune vente enregistrée dans les ${joursRecents} derniers jours.`,
+        data: [],
+      };
+    }
+
+    // Calculer les totaux
+    const totalVentes = ventesRecentes.reduce((sum, v) => sum + (v.montant || 0), 0);
+    const nombrePorcsVendus = ventesRecentes.reduce((sum, v) => {
+      // Extraire le nombre depuis la description ou utiliser 1 par défaut
+      const desc = v.description || '';
+      const match = desc.match(/(\d+)\s*porc/i);
+      return sum + (match ? parseInt(match[1]) : 1);
+    }, 0);
+
+    let message = `Ventes (${joursRecents} derniers jours) :\n`;
+    message += `• Nombre de ventes : ${ventesRecentes.length}\n`;
+    message += `• Porcs vendus : ${nombrePorcsVendus}\n`;
+    message += `• Montant total : ${totalVentes.toLocaleString('fr-FR')} FCFA\n`;
+    message += `• Prix moyen par porc : ${(totalVentes / nombrePorcsVendus).toLocaleString('fr-FR')} FCFA\n\n`;
+
+    message += `Dernières ventes :\n`;
+    ventesRecentes.slice(0, 5).forEach((v) => {
+      message += `• ${format(new Date(v.date), 'dd/MM/yyyy')} : ${v.montant.toLocaleString('fr-FR')} FCFA`;
+      if (v.description) {
+        message += ` (${v.description})`;
+      }
+      message += '\n';
+    });
+
+    return {
+      success: true,
+      message,
+      data: {
+        ventes: ventesRecentes,
+        total_ventes: ventesRecentes.length,
+        nombre_porcs_vendus: nombrePorcsVendus,
+        montant_total: totalVentes,
+        prix_moyen_par_porc: totalVentes / nombrePorcsVendus,
+      },
+    };
+  }
+
+  /**
+   * Analyse les ventes
+   */
+  static async analyzeVentes(params: unknown, context: AgentContext): Promise<AgentActionResult> {
+    // Récupérer les ventes
+    const ventesResult = await this.getVentes(params, context);
+
+    if (!ventesResult.success || !ventesResult.data) {
+      return ventesResult;
+    }
+
+    const data = ventesResult.data as {
+      ventes: any[];
+      total_ventes: number;
+      nombre_porcs_vendus: number;
+      montant_total: number;
+      prix_moyen_par_porc: number;
+    };
+
+    // Analyser les tendances
+    const ventes = data.ventes;
+    if (ventes.length === 0) {
+      return {
+        success: true,
+        message: 'Aucune vente à analyser.',
+        data: null,
+      };
+    }
+
+    // Ventes par mois
+    const ventesParMois: Record<string, { nombre: number; montant: number }> = {};
+    ventes.forEach((v) => {
+      const mois = format(new Date(v.date), 'MMM yyyy');
+      if (!ventesParMois[mois]) {
+        ventesParMois[mois] = { nombre: 0, montant: 0 };
+      }
+      ventesParMois[mois].nombre += 1;
+      ventesParMois[mois].montant += v.montant || 0;
+    });
+
+    // Tendance
+    const mois = Object.keys(ventesParMois).sort();
+    let tendance = 'stable';
+    if (mois.length >= 2) {
+      const premierMois = ventesParMois[mois[0]];
+      const dernierMois = ventesParMois[mois[mois.length - 1]];
+      const evolution = ((dernierMois.montant - premierMois.montant) / premierMois.montant) * 100;
+      if (evolution > 10) {
+        tendance = 'hausse';
+      } else if (evolution < -10) {
+        tendance = 'baisse';
+      }
+    }
+
+    let message = `Analyse des ventes :\n\n`;
+    message += `• Total : ${data.total_ventes} ventes, ${data.nombre_porcs_vendus} porcs, ${data.montant_total.toLocaleString('fr-FR')} FCFA\n`;
+    message += `• Prix moyen par porc : ${data.prix_moyen_par_porc.toLocaleString('fr-FR')} FCFA\n`;
+    message += `• Tendance : ${tendance}\n\n`;
+
+    message += `Ventes par mois :\n`;
+    Object.entries(ventesParMois).forEach(([mois, stats]) => {
+      message += `• ${mois} : ${stats.nombre} vente(s), ${stats.montant.toLocaleString('fr-FR')} FCFA\n`;
+    });
+
+    return {
+      success: true,
+      message,
+      data: {
+        ...data,
+        ventes_par_mois: ventesParMois,
+        tendance,
+      },
+    };
+  }
 }
 

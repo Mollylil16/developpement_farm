@@ -13,6 +13,8 @@ import type { DetectedIntent } from '../IntentDetector';
 export interface FastPathResult {
   intent: DetectedIntent | null;
   confidence: number;
+  // Support multi-intentions
+  intents?: DetectedIntent[];
 }
 
 /**
@@ -219,6 +221,65 @@ export class FastPathDetector {
     }
 
     // Aucune détection rapide
+    return {
+      intent: null,
+      confidence: 0,
+    };
+  }
+
+  /**
+   * Détecte plusieurs intentions dans un même message
+   * Exemple : "j'ai vendu 5 porcs à 800000 et pesé P001 à 45kg" → 2 intentions
+   */
+  static detectMultiIntentions(message: string): FastPathResult {
+    const intents: DetectedIntent[] = [];
+    let maxConfidence = 0;
+
+    // Séparer le message par des connecteurs courants
+    const connectors = [' et ', ' puis ', ' aussi ', ' ensuite ', ' après ', ', '];
+    let parts = [message];
+    
+    for (const connector of connectors) {
+      const newParts: string[] = [];
+      for (const part of parts) {
+        if (part.includes(connector)) {
+          newParts.push(...part.split(connector).map(p => p.trim()).filter(p => p.length > 0));
+        } else {
+          newParts.push(part);
+        }
+      }
+      parts = newParts;
+    }
+
+    // Détecter une intention pour chaque partie
+    for (const part of parts) {
+      if (part.length < 3) continue; // Ignorer les parties trop courtes
+      
+      const result = this.detectFastPath(part);
+      if (result.intent && result.confidence > 0.85) {
+        intents.push(result.intent);
+        maxConfidence = Math.max(maxConfidence, result.confidence);
+      }
+    }
+
+    // Si plusieurs intentions détectées, retourner la première avec la liste complète
+    if (intents.length > 1) {
+      return {
+        intent: intents[0], // Première intention comme principale
+        confidence: maxConfidence,
+        intents, // Liste complète des intentions
+      };
+    }
+
+    // Si une seule intention, retourner le résultat normal
+    if (intents.length === 1) {
+      return {
+        intent: intents[0],
+        confidence: maxConfidence,
+      };
+    }
+
+    // Aucune intention détectée
     return {
       intent: null,
       confidence: 0,

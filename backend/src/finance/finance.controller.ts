@@ -18,6 +18,8 @@ import { UpdateDepensePonctuelleDto } from './dto/update-depense-ponctuelle.dto'
 import { CreateRevenuDto } from './dto/create-revenu.dto';
 import { UpdateRevenuDto } from './dto/update-revenu.dto';
 import { CoutsProductionDto } from './dto/couts-production.dto';
+import { CreateDetteDto } from './dto/create-dette.dto';
+import { UpdateDetteDto } from './dto/update-dette.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
@@ -181,5 +183,58 @@ export class FinanceController {
     @CurrentUser() user: any
   ) {
     return this.financeService.calculerCoutsProduction(projetId, dateDebut, dateFin, user.id);
+  }
+
+  // ==================== DETTES ====================
+
+  @Post('dettes')
+  @ApiOperation({ summary: 'Créer une nouvelle dette' })
+  createDette(@Body() createDetteDto: CreateDetteDto, @CurrentUser() user: any) {
+    return this.financeService.createDette(createDetteDto, user.id);
+  }
+
+  @Get('dettes')
+  @ApiOperation({ summary: "Récupérer toutes les dettes d'un projet" })
+  @ApiQuery({ name: 'projet_id', required: true, description: 'ID du projet' })
+  findAllDettes(@Query('projet_id') projetId: string, @CurrentUser() user: any) {
+    return this.financeService.findAllDettes(projetId, user.id);
+  }
+
+  @Get('dettes/:id')
+  @ApiOperation({ summary: 'Récupérer une dette par ID' })
+  findOneDette(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.financeService.findOneDette(id, user.id);
+  }
+
+  @Patch('dettes/:id')
+  @ApiOperation({ summary: 'Mettre à jour une dette' })
+  updateDette(
+    @Param('id') id: string,
+    @Body() updateDetteDto: UpdateDetteDto,
+    @CurrentUser() user: any
+  ) {
+    return this.financeService.updateDette(id, updateDetteDto, user.id);
+  }
+
+  @Delete('dettes/:id')
+  @ApiOperation({ summary: 'Supprimer une dette' })
+  removeDette(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.financeService.removeDette(id, user.id);
+  }
+
+  // ==================== BILAN COMPLET ====================
+
+  @Get('bilan-complet')
+  @ApiOperation({ summary: 'Récupérer le bilan financier complet' })
+  @ApiQuery({ name: 'projet_id', required: true, description: 'ID du projet' })
+  @ApiQuery({ name: 'date_debut', required: false, description: 'Date de début (ISO)' })
+  @ApiQuery({ name: 'date_fin', required: false, description: 'Date de fin (ISO)' })
+  getBilanComplet(
+    @Query('projet_id') projetId: string,
+    @Query('date_debut') dateDebut: string,
+    @Query('date_fin') dateFin: string,
+    @CurrentUser() user: any
+  ) {
+    return this.financeService.getBilanComplet(projetId, user.id, dateDebut, dateFin);
   }
 }

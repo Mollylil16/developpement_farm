@@ -92,7 +92,7 @@ export function generateRapportsHTML(data: RapportsData): string {
             <td class="text-right">
               <span style="font-size: 16px; font-weight: bold; color: ${
                 indicateurs.gmqMoyen >= 600
-                  ? '#28a745'
+                  ? '#1976D2'
                   : indicateurs.gmqMoyen >= 400
                     ? '#ffc107'
                     : '#dc3545'
@@ -124,7 +124,7 @@ export function generateRapportsHTML(data: RapportsData): string {
             <td class="text-right">
               <span style="font-size: 16px; font-weight: bold; color: ${
                 indicateurs.tauxReproduction >= 80
-                  ? '#28a745'
+                  ? '#1976D2'
                   : indicateurs.tauxReproduction >= 60
                     ? '#ffc107'
                     : '#dc3545'
@@ -138,7 +138,7 @@ export function generateRapportsHTML(data: RapportsData): string {
             <td class="text-right">
               <span style="font-size: 16px; font-weight: bold; color: ${
                 indicateurs.tauxMortalite <= 5
-                  ? '#28a745'
+                  ? '#1976D2'
                   : indicateurs.tauxMortalite <= 10
                     ? '#ffc107'
                     : '#dc3545'
@@ -169,7 +169,7 @@ export function generateRapportsHTML(data: RapportsData): string {
             <td><strong>Rentabilité</strong></td>
             <td class="text-right">
               <span style="font-size: 16px; font-weight: bold; color: ${
-                finance.rentabilite >= 0 ? '#28a745' : '#dc3545'
+                finance.rentabilite >= 0 ? '#1976D2' : '#dc3545'
               }">
                 ${formatNumber(finance.rentabilite, 1)}%
               </span>

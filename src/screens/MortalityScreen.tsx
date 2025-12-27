@@ -1,7 +1,15 @@
 /**
- * Écran de gestion des mortalités par batch
- * Permet d'enregistrer et suivre les mortalités des porcs
- * Design cohérent avec les écrans santé du mode individuel
+ * MortalityScreen - Écran unifié de gestion des mortalités
+ *
+ * Supporte les deux modes d'élevage :
+ * - Mode Individuel : Utilise MortalitesListComponent (référence principale)
+ * - Mode Bande : Affiche les mortalités batch avec statistiques simplifiées
+ *
+ * Architecture:
+ * - Détection automatique du mode via useModeElevage() et paramètres de route
+ * - Mode individuel : Réutilise MortalitesListComponent (composant complet avec stats/graphiques)
+ * - Mode batch : Affichage adapté avec statistiques simplifiées
+ * - Même UI pour les deux modes (cohérence visuelle)
  */
 
 import React, { useState, useEffect } from 'react';
@@ -10,30 +18,35 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
-  Alert,
-  Modal,
-  ActivityIndicator,
   RefreshControl,
+  ActivityIndicator,
+  TouchableOpacity,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
-import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
+import { useModeElevage } from '../hooks/useModeElevage';
+import { useAppSelector, useAppDispatch } from '../store/hooks';
 import StandardHeader from '../components/StandardHeader';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import FormField from '../components/FormField';
+import MortalitesListComponent from '../components/MortalitesListComponent';
+import MortalitesFormModal from '../components/MortalitesFormModal';
 import apiClient from '../services/api/apiClient';
+import { Alert } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
+import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { Picker } from '@react-native-picker/picker';
 
-type BatchMortalityRouteParams = {
-  batch: {
+// Type pour les paramètres de route (mode batch)
+type MortalityRouteParams = {
+  batch?: {
     id: string;
     pen_name: string;
     total_count: number;
@@ -42,19 +55,22 @@ type BatchMortalityRouteParams = {
 
 interface MortalityCardProps {
   mortality: any;
-  onUpdate: () => void;
+  isBatchMode: boolean;
 }
 
-const MortalityCard: React.FC<MortalityCardProps> = ({ mortality, onUpdate }) => {
+const MortalityCard: React.FC<MortalityCardProps> = ({ mortality, isBatchMode }) => {
   const { colors } = useTheme();
 
   const getCauseColor = (cause: string) => {
     switch (cause) {
       case 'disease':
+      case 'Maladie':
         return colors.error;
       case 'accident':
+      case 'Accident':
         return colors.warning;
       case 'unknown':
+      case 'Cause inconnue':
         return colors.textSecondary;
       default:
         return colors.textSecondary;
@@ -62,6 +78,7 @@ const MortalityCard: React.FC<MortalityCardProps> = ({ mortality, onUpdate }) =>
   };
 
   const getCauseLabel = (cause: string) => {
+    if (!cause) return 'Non spécifiée';
     switch (cause) {
       case 'disease':
         return 'Maladie';
@@ -82,39 +99,53 @@ const MortalityCard: React.FC<MortalityCardProps> = ({ mortality, onUpdate }) =>
             <Ionicons name="close-circle" size={20} color={colors.error} />
           </View>
           <View>
-            <Text style={[styles.pigName, { color: colors.text }]}>
-              {mortality.pig_name || 'Porc'}
+            <Text style={[styles.mortalityTitle, { color: colors.text }]}>
+              {isBatchMode
+                ? mortality.pig_name || 'Porc'
+                : mortality.animal_code || `${mortality.nombre_porcs} porc(s)`}
             </Text>
-            <Text style={[styles.causeText, { color: getCauseColor(mortality.cause_of_death) }]}>
-              {getCauseLabel(mortality.cause_of_death)}
+            <Text style={[styles.causeText, { color: getCauseColor(mortality.cause_of_death || mortality.cause) }]}>
+              {getCauseLabel(mortality.cause_of_death || mortality.cause)}
             </Text>
+            {!isBatchMode && mortality.categorie && (
+              <Text style={[styles.categorieText, { color: colors.textSecondary }]}>
+                {mortality.categorie}
+              </Text>
+            )}
           </View>
         </View>
         <View style={styles.dateContainer}>
           <Text style={[styles.dateText, { color: colors.textSecondary }]}>
-            {format(new Date(mortality.death_date), 'dd MMM yyyy', { locale: fr })}
+            {format(
+              new Date(mortality.death_date || mortality.date),
+              'dd MMM yyyy',
+              { locale: fr }
+            )}
           </Text>
         </View>
       </View>
 
-      {mortality.notes && (
+      {(mortality.notes || mortality.veterinary_report) && (
         <View style={styles.notesContainer}>
           <Text style={[styles.notesLabel, { color: colors.textSecondary }]}>Notes :</Text>
-          <Text style={[styles.notesText, { color: colors.text }]}>{mortality.notes}</Text>
+          <Text style={[styles.notesText, { color: colors.text }]}>
+            {mortality.notes || mortality.veterinary_report}
+          </Text>
         </View>
       )}
     </Card>
   );
 };
 
-interface CreateMortalityModalProps {
+// Modal pour créer une mortalité batch
+interface CreateBatchMortalityModalProps {
   visible: boolean;
   batch: { id: string; pen_name: string; total_count: number };
   onClose: () => void;
   onSuccess: () => void;
 }
 
-const CreateMortalityModal: React.FC<CreateMortalityModalProps> = ({
+const CreateBatchMortalityModal: React.FC<CreateBatchMortalityModalProps> = ({
   visible,
   batch,
   onClose,
@@ -123,7 +154,9 @@ const CreateMortalityModal: React.FC<CreateMortalityModalProps> = ({
   const { colors } = useTheme();
   const [deathDate, setDeathDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [count, setCount] = useState('1');
   const [cause, setCause] = useState('disease');
+  const [veterinaryReport, setVeterinaryReport] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -134,21 +167,34 @@ const CreateMortalityModal: React.FC<CreateMortalityModalProps> = ({
   };
 
   async function handleSubmit() {
+    const countNum = parseInt(count);
+    if (isNaN(countNum) || countNum < 1 || countNum > batch.total_count) {
+      Alert.alert(
+        'Erreur',
+        `Le nombre doit être entre 1 et ${batch.total_count}`,
+      );
+      return;
+    }
+
     setLoading(true);
 
     try {
       await apiClient.post('/batch-mortalities', {
         batch_id: batch.id,
-        cause_of_death: cause,
+        count: countNum,
         death_date: deathDate.toISOString(),
+        death_cause: cause,
+        veterinary_report: veterinaryReport.trim() || undefined,
         notes: notes.trim() || undefined,
       });
 
-      Alert.alert('Succès', 'Mortalité enregistrée avec succès');
+      Alert.alert('Succès', `${countNum} mortalité(s) enregistrée(s) avec succès`);
       onSuccess();
       onClose();
       // Reset form
+      setCount('1');
       setCause('disease');
+      setVeterinaryReport('');
       setNotes('');
     } catch (error: any) {
       console.error('Erreur création mortalité:', error);
@@ -160,6 +206,8 @@ const CreateMortalityModal: React.FC<CreateMortalityModalProps> = ({
       setLoading(false);
     }
   }
+
+  if (!visible) return null;
 
   return (
     <Modal
@@ -185,6 +233,15 @@ const CreateMortalityModal: React.FC<CreateMortalityModalProps> = ({
               </Text>
             </View>
           </Card>
+
+          <FormField
+            label="Nombre de porcs morts *"
+            value={count}
+            onChangeText={setCount}
+            keyboardType="number-pad"
+            placeholder={`Max: ${batch.total_count}`}
+            style={styles.field}
+          />
 
           <View style={styles.field}>
             <Text style={[styles.label, { color: colors.text }]}>Date de décès</Text>
@@ -236,6 +293,16 @@ const CreateMortalityModal: React.FC<CreateMortalityModalProps> = ({
           </View>
 
           <FormField
+            label="Rapport vétérinaire"
+            value={veterinaryReport}
+            onChangeText={setVeterinaryReport}
+            placeholder="Rapport vétérinaire optionnel"
+            multiline
+            numberOfLines={3}
+            style={styles.field}
+          />
+
+          <FormField
             label="Notes"
             value={notes}
             onChangeText={setNotes}
@@ -260,31 +327,40 @@ const CreateMortalityModal: React.FC<CreateMortalityModalProps> = ({
   );
 };
 
-export default function BatchMortalityScreen() {
-  const route = useRoute<RouteProp<{ params: BatchMortalityRouteParams }, 'params'>>();
+export default function MortalityScreen() {
   const { colors } = useTheme();
-  const { batch } = route.params || {};
-
+  const route = useRoute<RouteProp<{ params: MortalityRouteParams }, 'params'>>();
+  const mode = useModeElevage();
+  const { projetActif } = useAppSelector((state) => state.projet);
+  
+  // Paramètres batch (si navigation depuis une bande)
+  const batch = route.params?.batch;
+  const isBatchMode = mode === 'bande' || !!batch;
+  
+  // État pour les mortalités batch
   const [mortalities, setMortalities] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
 
+  // Charger les données batch si nécessaire
   useEffect(() => {
-    if (batch?.id) {
-      loadMortalities();
+    if (isBatchMode && batch?.id) {
+      loadBatchMortalities();
     }
-  }, [batch?.id]);
+  }, [batch?.id, isBatchMode]);
 
-  async function loadMortalities() {
+  async function loadBatchMortalities() {
     if (!batch?.id) return;
 
+    setLoading(true);
     try {
       const data = await apiClient.get(`/batch-mortalities/batch/${batch.id}`);
-      setMortalities(data);
+      setMortalities(data || []);
     } catch (error: any) {
-      console.error('Erreur chargement mortalités:', error);
+      console.error('Erreur chargement mortalités batch:', error);
       Alert.alert('Erreur', 'Impossible de charger les mortalités');
+      setMortalities([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -293,30 +369,31 @@ export default function BatchMortalityScreen() {
 
   async function handleRefresh() {
     setRefreshing(true);
-    await loadMortalities();
+    if (isBatchMode && batch?.id) {
+      await loadBatchMortalities();
+    }
   }
 
-  if (!batch) {
+  if (!projetActif) {
+    return null; // Géré par ProtectedScreen parent
+  }
+
+  // Mode individuel : utiliser MortalitesListComponent (référence principale)
+  if (!isBatchMode || !batch) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-        <View style={styles.centerContent}>
-          <Text style={[styles.errorText, { color: colors.error }]}>Bande non trouvée</Text>
-        </View>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        edges={['top']}
+      >
+        <MortalitesListComponent />
+        <ChatAgentFAB />
       </SafeAreaView>
     );
   }
 
-  if (loading && !refreshing) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-        <StandardHeader icon="close-circle" title={`Mortalités - ${batch.pen_name}`} subtitle={`${batch.total_count} porc(s)`} />
-        <View style={styles.centerContent}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Chargement...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  // Mode batch : affichage adapté
+  const title = `Mortalités - ${batch.pen_name}`;
+  const subtitle = `${batch.total_count} porc(s)`;
 
   return (
     <SafeAreaView
@@ -325,8 +402,8 @@ export default function BatchMortalityScreen() {
     >
       <StandardHeader
         icon="close-circle"
-        title={`Mortalités - ${batch.pen_name}`}
-        subtitle={`${batch.total_count} porc(s)`}
+        title={title}
+        subtitle={subtitle}
         badge={mortalities.length}
         badgeColor={colors.error}
       />
@@ -343,7 +420,14 @@ export default function BatchMortalityScreen() {
           />
         }
       >
-        {mortalities.length === 0 ? (
+        {loading && !refreshing ? (
+          <View style={styles.centerContent}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+              Chargement...
+            </Text>
+          </View>
+        ) : mortalities.length === 0 ? (
           <Card elevation="small" padding="medium" style={styles.emptyCard}>
             <Ionicons name="close-circle-outline" size={48} color={colors.textSecondary} />
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
@@ -351,9 +435,36 @@ export default function BatchMortalityScreen() {
             </Text>
           </Card>
         ) : (
-          mortalities.map((mortality) => (
-            <MortalityCard key={mortality.id} mortality={mortality} onUpdate={loadMortalities} />
-          ))
+          <>
+            {/* Carte de statistiques */}
+            <Card elevation="small" padding="medium" style={styles.statsCard}>
+              <View style={styles.statsRow}>
+                <View style={styles.statItem}>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                    Total mortalités
+                  </Text>
+                  <Text style={[styles.statValue, { color: colors.error }]}>
+                    {mortalities.length}
+                  </Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                    Taux de mortalité
+                  </Text>
+                  <Text style={[styles.statValue, { color: colors.error }]}>
+                    {batch.total_count > 0
+                      ? ((mortalities.length / batch.total_count) * 100).toFixed(1)
+                      : 0}%
+                  </Text>
+                </View>
+              </View>
+            </Card>
+
+            {/* Liste des mortalités */}
+            {mortalities.map((mortality) => (
+              <MortalityCard key={mortality.id} mortality={mortality} isBatchMode={true} />
+            ))}
+          </>
         )}
 
         <Button
@@ -364,12 +475,16 @@ export default function BatchMortalityScreen() {
         />
       </ScrollView>
 
-      <CreateMortalityModal
+      <CreateBatchMortalityModal
         visible={modalVisible}
         batch={batch}
         onClose={() => setModalVisible(false)}
-        onSuccess={loadMortalities}
+        onSuccess={() => {
+          loadBatchMortalities();
+          setModalVisible(false);
+        }}
       />
+
       <ChatAgentFAB />
     </SafeAreaView>
   );
@@ -379,17 +494,47 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  centerContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: SPACING.md,
-  },
   content: {
     flex: 1,
   },
   contentContainer: {
     padding: SPACING.md,
+  },
+  centerContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 48,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: FONT_SIZES.md,
+  },
+  emptyCard: {
+    alignItems: 'center',
+    paddingVertical: SPACING.xl,
+    gap: SPACING.md,
+  },
+  emptyText: {
+    fontSize: FONT_SIZES.md,
+  },
+  statsCard: {
+    marginBottom: SPACING.md,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statLabel: {
+    fontSize: FONT_SIZES.sm,
+    marginBottom: 4,
+  },
+  statValue: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
   },
   mortalityCard: {
     marginBottom: SPACING.md,
@@ -413,13 +558,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  pigName: {
+  mortalityTitle: {
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
   },
   causeText: {
     fontSize: FONT_SIZES.sm,
     fontWeight: '500',
+    marginTop: 2,
+  },
+  categorieText: {
+    fontSize: FONT_SIZES.xs,
+    marginTop: 2,
   },
   dateContainer: {
     alignItems: 'flex-end',
@@ -439,14 +589,6 @@ const styles = StyleSheet.create({
   },
   notesText: {
     fontSize: FONT_SIZES.sm,
-  },
-  emptyCard: {
-    alignItems: 'center',
-    paddingVertical: SPACING.xl,
-    gap: SPACING.md,
-  },
-  emptyText: {
-    fontSize: FONT_SIZES.md,
   },
   addButton: {
     marginTop: SPACING.md,
@@ -497,9 +639,6 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
   },
-  dateText: {
-    fontSize: FONT_SIZES.md,
-  },
   pickerContainer: {
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
@@ -518,12 +657,5 @@ const styles = StyleSheet.create({
   footerButton: {
     flex: 1,
   },
-  errorText: {
-    fontSize: FONT_SIZES.md,
-    textAlign: 'center',
-  },
-  loadingText: {
-    marginTop: SPACING.md,
-    fontSize: FONT_SIZES.md,
-  },
 });
+

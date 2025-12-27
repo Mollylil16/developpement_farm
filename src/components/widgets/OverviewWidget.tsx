@@ -6,7 +6,8 @@
 import React, { useMemo, useEffect, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
-import { loadProductionAnimaux, loadPeseesRecents } from '../../store/slices/productionSlice';
+import { loadPeseesRecents } from '../../store/slices/productionSlice';
+import { useLoadAnimauxOnMount } from '../../hooks/useLoadAnimauxOnMount';
 import { 
   selectAllAnimaux, 
   selectPeseesRecents, 
@@ -34,28 +35,24 @@ function OverviewWidget({ onPress }: OverviewWidgetProps) {
   const peseesRecents = useAppSelector(selectPeseesRecents);
   const updateCounter = useAppSelector(selectProductionUpdateCounter);
 
-  // Utiliser useRef pour éviter les chargements multiples (boucle infinie)
-  const dataChargeesRef = React.useRef<string | null>(null);
+  // Charger les animaux au montage (hook centralisé)
+  useLoadAnimauxOnMount();
 
-  // Charger les animaux du cheptel (une seule fois par projet)
+  // Charger les pesées récentes (une seule fois par projet)
+  const peseesChargeesRef = React.useRef<string | null>(null);
   useEffect(() => {
     if (!projetActif?.id) {
-      dataChargeesRef.current = null;
+      peseesChargeesRef.current = null;
       return;
     }
 
-    if (dataChargeesRef.current === projetActif.id) {
+    if (peseesChargeesRef.current === projetActif.id) {
       return; // Déjà chargé !
     }
 
-    dataChargeesRef.current = projetActif.id;
-    
-    // Dispatcher en parallèle pour meilleure performance
-    Promise.all([
-      dispatch(loadProductionAnimaux({ projetId: projetActif.id })),
-      dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 })), // Limité à 20 pesées récentes (suffisant pour stats)
-    ]).catch((error) => {
-      logger.error('[OverviewWidget] Erreur lors du chargement des données:', error);
+    peseesChargeesRef.current = projetActif.id;
+    dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 })).catch((error) => {
+      logger.error('[OverviewWidget] Erreur lors du chargement des pesées:', error);
     });
   }, [dispatch, projetActif?.id]);
 

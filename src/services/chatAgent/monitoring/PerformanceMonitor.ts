@@ -23,6 +23,13 @@ export interface PerformanceMetrics {
   averageActionExecutionTime?: number;
   fastPathUsageCount?: number;
   ragUsageCount?: number;
+  // Métriques de précision (precision, recall, F1-score)
+  precision?: number;
+  recall?: number;
+  f1Score?: number;
+  truePositives?: number;
+  falsePositives?: number;
+  falseNegatives?: number;
 }
 
 export class PerformanceMonitor {
@@ -50,10 +57,23 @@ export class PerformanceMonitor {
   private apiCallTimeHistory: number[] = [];
   private actionExecutionTimeHistory: number[] = [];
 
+  // Métriques de précision - historique des prédictions vs résultats réels
+  private intentPredictions: Array<{
+    predictedIntent: string | null;
+    actualIntent: string | null;
+    confidence: number;
+    timestamp: string;
+  }> = [];
+
   /**
    * Enregistre une interaction avec l'agent
    */
-  recordInteraction(message: ChatMessage, response: ChatMessage, responseTime: number): void {
+  recordInteraction(
+    message: ChatMessage,
+    response: ChatMessage,
+    responseTime: number,
+    actualIntent?: string
+  ): void {
     this.metrics.totalMessages++;
 
     // Détection d'intention
@@ -62,6 +82,22 @@ export class PerformanceMonitor {
       this.metrics.successfulDetections++;
     } else {
       this.metrics.failedDetections++;
+    }
+
+    // Enregistrer la prédiction pour calcul de précision
+    const predictedIntent = response.metadata?.actionExecuted || response.metadata?.pendingAction?.action || null;
+    if (predictedIntent || actualIntent) {
+      this.intentPredictions.push({
+        predictedIntent,
+        actualIntent: actualIntent || null,
+        confidence: response.metadata?.confidence || 0.5,
+        timestamp: new Date().toISOString(),
+      });
+      // Garder seulement les 1000 dernières prédictions
+      if (this.intentPredictions.length > 1000) {
+        this.intentPredictions.shift();
+      }
+      this.updatePrecisionMetrics();
     }
 
     // Confiance
@@ -226,6 +262,18 @@ export class PerformanceMonitor {
     );
     lines.push('');
     
+    // Métriques de précision
+    if (this.metrics.precision !== undefined) {
+      lines.push('MÉTRIQUES DE PRÉCISION:');
+      lines.push(`  🎯 Précision: ${(this.metrics.precision * 100).toFixed(2)}%`);
+      lines.push(`  📈 Rappel (Recall): ${(this.metrics.recall! * 100).toFixed(2)}%`);
+      lines.push(`  ⚖️  Score F1: ${(this.metrics.f1Score! * 100).toFixed(2)}%`);
+      lines.push(`  ✅ Vrais Positifs: ${this.metrics.truePositives || 0}`);
+      lines.push(`  ❌ Faux Positifs: ${this.metrics.falsePositives || 0}`);
+      lines.push(`  ⚠️  Faux Négatifs: ${this.metrics.falseNegatives || 0}`);
+      lines.push('');
+    }
+    
     // V3.0 - Métriques détaillées par étape
     if (this.metrics.averageFastPathTime !== undefined) {
       lines.push('TEMPS PAR ÉTAPE (V3.0):');
@@ -292,6 +340,8 @@ export class PerformanceMonitor {
     this.extractionTimeHistory = [];
     this.apiCallTimeHistory = [];
     this.actionExecutionTimeHistory = [];
+    // Réinitialiser prédictions pour précision
+    this.intentPredictions = [];
   }
 
   private updateAverageConfidence(): void {
@@ -348,5 +398,84 @@ export class PerformanceMonitor {
     this.metrics.averageActionExecutionTime =
       this.actionExecutionTimeHistory.reduce((sum, t) => sum + t, 0) /
       this.actionExecutionTimeHistory.length;
+  }
+
+  /**
+   * Calcule les métriques de précision (precision, recall, F1-score)
+   * Basé sur les prédictions vs résultats réels
+   */
+  private updatePrecisionMetrics(): void {
+    if (this.intentPredictions.length === 0) return;
+
+    // Compter les vrais positifs, faux positifs, faux négatifs
+    let truePositives = 0;
+    let falsePositives = 0;
+    let falseNegatives = 0;
+
+    for (const prediction of this.intentPredictions) {
+      const predicted = prediction.predictedIntent;
+      const actual = prediction.actualIntent;
+
+      if (predicted && actual) {
+        // Les deux sont présents
+        if (predicted === actual) {
+          truePositives++;
+        } else {
+          // Prédiction incorrecte
+          falsePositives++;
+          falseNegatives++;
+        }
+      } else if (predicted && !actual) {
+        // Prédiction mais pas d'intention réelle (faux positif)
+        falsePositives++;
+      } else if (!predicted && actual) {
+        // Intention réelle mais pas de prédiction (faux négatif)
+        falseNegatives++;
+      }
+      // Si les deux sont null, on ignore (pas de cas à évaluer)
+    }
+
+    // Calculer precision, recall, F1-score
+    const precision = truePositives + falsePositives > 0
+      ? truePositives / (truePositives + falsePositives)
+      : 0;
+
+    const recall = truePositives + falseNegatives > 0
+      ? truePositives / (truePositives + falseNegatives)
+      : 0;
+
+    const f1Score = precision + recall > 0
+      ? (2 * precision * recall) / (precision + recall)
+      : 0;
+
+    // Mettre à jour les métriques
+    this.metrics.truePositives = truePositives;
+    this.metrics.falsePositives = falsePositives;
+    this.metrics.falseNegatives = falseNegatives;
+    this.metrics.precision = precision;
+    this.metrics.recall = recall;
+    this.metrics.f1Score = f1Score;
+  }
+
+  /**
+   * Récupère les métriques de précision
+   */
+  getPrecisionMetrics(): {
+    precision: number;
+    recall: number;
+    f1Score: number;
+    truePositives: number;
+    falsePositives: number;
+    falseNegatives: number;
+  } | null {
+    if (this.metrics.precision === undefined) return null;
+    return {
+      precision: this.metrics.precision,
+      recall: this.metrics.recall!,
+      f1Score: this.metrics.f1Score!,
+      truePositives: this.metrics.truePositives || 0,
+      falsePositives: this.metrics.falsePositives || 0,
+      falseNegatives: this.metrics.falseNegatives || 0,
+    };
   }
 }

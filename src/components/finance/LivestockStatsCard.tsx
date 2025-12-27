@@ -2,47 +2,31 @@
  * Composant pour afficher les statistiques du cheptel actif
  */
 
-import React, { useEffect, useRef, memo } from 'react';
+import React, { memo } from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
-import { useAppSelector, useAppDispatch } from '../../store/hooks';
+import { useAppSelector } from '../../store/hooks';
 import { 
   selectPeseesParAnimal, 
-  selectAllAnimaux,
   selectProductionUpdateCounter 
 } from '../../store/selectors/productionSelectors';
-import { loadProductionAnimaux } from '../../store/slices/productionSlice';
 import { SPACING, FONT_SIZES } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
 import { calculatePoidsTotalAnimauxActifs } from '../../utils/animalUtils';
 import { useAnimauxActifs } from '../../hooks/useAnimauxActifs';
+import { useLoadAnimauxOnMount } from '../../hooks/useLoadAnimauxOnMount';
 
 const TAUX_CARCASSE = 0.75; // 75% du poids vif
 
 function LivestockStatsCard() {
   const { colors } = useTheme();
-  const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   const peseesParAnimal = useAppSelector(selectPeseesParAnimal);
-  const animaux = useAppSelector(selectAllAnimaux);
   const updateCounter = useAppSelector(selectProductionUpdateCounter);
   const { animauxActifs } = useAnimauxActifs({ projetId: projetActif?.id });
 
-  // Charger les animaux uniquement si nécessaire (une seule fois par projet)
-  const animauxChargesRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!projetActif?.id) {
-      animauxChargesRef.current = null;
-      return;
-    }
-
-    // Vérifier si les animaux du projet sont déjà chargés
-    const animauxDuProjet = animaux.filter((a) => a.projet_id === projetActif.id);
-    if (animauxDuProjet.length === 0 && animauxChargesRef.current !== projetActif.id) {
-      animauxChargesRef.current = projetActif.id;
-      dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
-    }
-  }, [dispatch, projetActif?.id, animaux]);
+  // Charger les animaux au montage (hook centralisé)
+  useLoadAnimauxOnMount();
 
   const statsCheptel = React.useMemo(() => {
     if (!projetActif) {

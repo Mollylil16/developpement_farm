@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Platform, ActivityIndicator, TextInput } from 'react-native';
 import { Camera } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,6 +11,8 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { createPesee, updatePesee } from '../store/slices/productionSlice';
 import type { ProductionAnimal, ProductionPesee, CreatePeseeInput } from '../types/production';
+import { useModeElevage } from '../hooks/useModeElevage';
+import apiClient from '../services/api/apiClient';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
@@ -39,9 +41,11 @@ interface ProductionPeseeFormModalProps {
   onClose: () => void;
   onSuccess: () => void;
   projetId: string;
-  animal: ProductionAnimal;
+  animal: ProductionAnimal | null; // Null en mode batch
   pesee?: ProductionPesee | null;
   isEditing?: boolean;
+  batchId?: string; // ID de la bande (mode batch)
+  batchTotalCount?: number; // Nombre total de porcs dans la bande
 }
 
 export default function ProductionPeseeFormModal({
@@ -52,25 +56,35 @@ export default function ProductionPeseeFormModal({
   animal,
   pesee,
   isEditing = false,
+  batchId,
+  batchTotalCount,
 }: ProductionPeseeFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate } = useActionPermissions();
   const { projetActif } = useAppSelector((state) => state.projet);
   const currentUser = useAppSelector((state) => state.auth.user);
+  const mode = useModeElevage();
+  const isBatchMode = mode === 'bande' || !!batchId;
   const [loading, setLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [isAiEstimated, setIsAiEstimated] = useState(false); // Indique si le poids vient de l'IA
   const [aiConfidence, setAiConfidence] = useState<number | null>(null); // Confiance de l'estimation IA
   const [formData, setFormData] = useState<CreatePeseeInput>({
     projet_id: projetId,
-    animal_id: animal.id,
+    animal_id: animal?.id || '',
     date: formatDateToLocal(new Date()),
     poids_kg: 0,
     commentaire: '',
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  
+  // État pour le mode batch
+  const [batchCount, setBatchCount] = useState('1');
+  const [batchAverageWeight, setBatchAverageWeight] = useState('');
+  const [batchMinWeight, setBatchMinWeight] = useState('');
+  const [batchMaxWeight, setBatchMaxWeight] = useState('');
 
   useEffect(() => {
     if (visible) {
@@ -87,17 +101,24 @@ export default function ProductionPeseeFormModal({
         // Mode création : données vides
         setFormData({
           projet_id: projetId,
-          animal_id: animal.id,
+          animal_id: animal?.id || '',
           date: formatDateToLocal(new Date()),
           poids_kg: 0,
           commentaire: '',
         });
       }
+      // Réinitialiser les champs batch
+      if (isBatchMode) {
+        setBatchCount('1');
+        setBatchAverageWeight('');
+        setBatchMinWeight('');
+        setBatchMaxWeight('');
+      }
       setShowDatePicker(false);
       setIsAiEstimated(false); // Réinitialiser l'indicateur IA
       setAiConfidence(null);
     }
-  }, [visible, projetId, animal, pesee, isEditing]);
+  }, [visible, projetId, animal, pesee, isEditing, isBatchMode]);
 
   // Demander les permissions caméra
   useEffect(() => {
@@ -181,7 +202,7 @@ export default function ProductionPeseeFormModal({
 
       const result = await aiWeightService.predictWeight({
         image: imageData,
-        pig_id: animal.id,
+        pig_id: animal?.id || '',
         projet_id: projetId,
         user_id: currentUser?.id || '',
         auto_register: true,
@@ -229,7 +250,9 @@ export default function ProductionPeseeFormModal({
 
       if (result.success && result.pigs && result.pigs.length > 0) {
         // Trouver le porc correspondant à l'animal actuel
-        const pigResult = result.pigs.find((p) => p.pig_id === animal.id) || result.pigs[0];
+        const pigResult = animal
+          ? result.pigs.find((p) => p.pig_id === animal.id) || result.pigs[0]
+          : result.pigs[0];
         
         if (pigResult) {
           const weight = pigResult.weight_kg;
@@ -244,7 +267,7 @@ export default function ProductionPeseeFormModal({
         } else {
           Alert.alert(
             'Information',
-            `${result.total_tracks} porc(s) détecté(s) dans la vidéo, mais ${animal.code} n'a pas été identifié.\n\nVeuillez saisir le poids manuellement.`
+            `${result.total_tracks} porc(s) détecté(s) dans la vidéo, mais ${animal?.code || 'l\'animal'} n'a pas été identifié.\n\nVeuillez saisir le poids manuellement.`
           );
         }
       } else {
@@ -272,6 +295,57 @@ export default function ProductionPeseeFormModal({
       return;
     }
 
+    // Validation selon le mode
+    if (isBatchMode && batchId) {
+      // Mode batch : validation spécifique
+      const countNum = parseInt(batchCount);
+      if (isNaN(countNum) || countNum < 1 || (batchTotalCount && countNum > batchTotalCount)) {
+        Alert.alert(
+          'Erreur',
+          `Le nombre doit être entre 1 et ${batchTotalCount || 'la taille de la bande'}`,
+        );
+        return;
+      }
+
+      const avgWeight = parseFloat(batchAverageWeight);
+      if (isNaN(avgWeight) || avgWeight <= 0) {
+        Alert.alert('Erreur', 'Le poids moyen doit être supérieur à 0.');
+        return;
+      }
+
+      setLoading(true);
+      try {
+        await apiClient.post('/batch-weighings', {
+          batch_id: batchId,
+          count: countNum,
+          average_weight_kg: avgWeight,
+          weighing_date: new Date(formData.date).toISOString(),
+          min_weight_kg: batchMinWeight ? parseFloat(batchMinWeight) : undefined,
+          max_weight_kg: batchMaxWeight ? parseFloat(batchMaxWeight) : undefined,
+          notes: formData.commentaire || undefined,
+        });
+
+        Alert.alert('Succès', `${countNum} pesée(s) enregistrée(s) avec succès`);
+        onSuccess();
+        onClose();
+      } catch (error: any) {
+        console.error('Erreur création pesée batch:', error);
+        Alert.alert(
+          'Erreur',
+          error.response?.data?.message || "Impossible d'enregistrer la pesée",
+        );
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Mode individuel : validation classique
+    if (!animal?.id) {
+      Alert.alert('Erreur', 'Aucun animal sélectionné.');
+      return;
+    }
+
     if (formData.poids_kg <= 0) {
       Alert.alert('Erreur', 'Le poids doit être supérieur à 0.');
       return;
@@ -285,6 +359,7 @@ export default function ProductionPeseeFormModal({
         await dispatch(createPesee(formData)).unwrap();
       }
       onSuccess();
+      onClose();
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error) || `Erreur lors de ${isEditing ? 'la modification' : "l'enregistrement"} de la pesée.`;
       Alert.alert('Erreur', errorMessage);
@@ -297,7 +372,11 @@ export default function ProductionPeseeFormModal({
     <CustomModal
       visible={visible}
       onClose={onClose}
-      title={`${isEditing ? 'Modifier' : 'Nouvelle'} pesée - ${animal.code}${animal.nom ? ` (${animal.nom})` : ''}`}
+      title={
+        isBatchMode
+          ? `${isEditing ? 'Modifier' : 'Nouvelle'} pesée - Bande`
+          : `${isEditing ? 'Modifier' : 'Nouvelle'} pesée - ${animal?.code || ''}${animal?.nom ? ` (${animal.nom})` : ''}`
+      }
       confirmText={isEditing ? 'Modifier' : 'Enregistrer'}
       onConfirm={handleSubmit}
       showButtons={true}
@@ -305,13 +384,100 @@ export default function ProductionPeseeFormModal({
       scrollEnabled={true}
     >
       <>
-        <View style={[styles.infoBox, { backgroundColor: colors.surfaceVariant }]}>
-          <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Animal:</Text>
-          <Text style={[styles.infoValue, { color: colors.primary }]}>
-            {animal.code}
-            {animal.nom && ` - ${animal.nom}`}
-          </Text>
-        </View>
+        {/* Info box selon le mode */}
+        {!isBatchMode && animal && (
+          <View style={[styles.infoBox, { backgroundColor: colors.surfaceVariant }]}>
+            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Animal:</Text>
+            <Text style={[styles.infoValue, { color: colors.primary }]}>
+              {animal.code}
+              {animal.nom && ` - ${animal.nom}`}
+            </Text>
+          </View>
+        )}
+
+        {isBatchMode && batchId && (
+          <View style={[styles.infoBox, { backgroundColor: colors.surfaceVariant }]}>
+            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+              Mode Bande:
+            </Text>
+            <Text style={[styles.infoValue, { color: colors.primary }]}>
+              Le système sélectionnera automatiquement les porcs à peser
+            </Text>
+          </View>
+        )}
+
+        {/* Champs spécifiques au mode batch */}
+        {isBatchMode && batchId && (
+          <>
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                Nombre de porcs à peser *
+              </Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  { backgroundColor: colors.background, color: colors.text, borderColor: colors.border },
+                ]}
+                value={batchCount}
+                onChangeText={setBatchCount}
+                keyboardType="number-pad"
+                placeholder={`Max: ${batchTotalCount || ''}`}
+                placeholderTextColor={colors.textSecondary}
+              />
+            </View>
+
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                Poids moyen (kg) *
+              </Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  { backgroundColor: colors.background, color: colors.text, borderColor: colors.border },
+                ]}
+                value={batchAverageWeight}
+                onChangeText={setBatchAverageWeight}
+                keyboardType="decimal-pad"
+                placeholder="Ex: 45.5"
+                placeholderTextColor={colors.textSecondary}
+              />
+            </View>
+
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                Poids minimum (kg) - Optionnel
+              </Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  { backgroundColor: colors.background, color: colors.text, borderColor: colors.border },
+                ]}
+                value={batchMinWeight}
+                onChangeText={setBatchMinWeight}
+                keyboardType="decimal-pad"
+                placeholder="Ex: 40"
+                placeholderTextColor={colors.textSecondary}
+              />
+            </View>
+
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                Poids maximum (kg) - Optionnel
+              </Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  { backgroundColor: colors.background, color: colors.text, borderColor: colors.border },
+                ]}
+                value={batchMaxWeight}
+                onChangeText={setBatchMaxWeight}
+                keyboardType="decimal-pad"
+                placeholder="Ex: 50"
+                placeholderTextColor={colors.textSecondary}
+              />
+            </View>
+          </>
+        )}
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Date de la pesée *</Text>
@@ -351,74 +517,77 @@ export default function ProductionPeseeFormModal({
           )}
         </View>
 
-        <View style={styles.section}>
-          <View style={styles.weightHeader}>
-            <View style={styles.weightTitleContainer}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Poids (kg) *</Text>
-              {isAiEstimated && (
-                <View style={[styles.aiBadge, { backgroundColor: colors.primary + '20' }]}>
-                  <Ionicons name="sparkles" size={12} color={colors.primary} />
-                  <Text style={[styles.aiBadgeText, { color: colors.primary }]}>
-                    Estimé par IA
-                  </Text>
-                </View>
-              )}
+        {/* Champs poids pour mode individuel */}
+        {!isBatchMode && (
+          <View style={styles.section}>
+            <View style={styles.weightHeader}>
+              <View style={styles.weightTitleContainer}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Poids (kg) *</Text>
+                {isAiEstimated && (
+                  <View style={[styles.aiBadge, { backgroundColor: colors.primary + '20' }]}>
+                    <Ionicons name="sparkles" size={12} color={colors.primary} />
+                    <Text style={[styles.aiBadgeText, { color: colors.primary }]}>
+                      Estimé par IA
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <TouchableOpacity
+                style={[styles.aiButton, { backgroundColor: colors.primary }]}
+                onPress={handleCapturePhoto}
+                disabled={aiLoading || loading || !animal}
+              >
+                {aiLoading ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Ionicons name="camera" size={18} color="#FFFFFF" />
+                    <Text style={styles.aiButtonText}>IA</Text>
+                  </>
+                )}
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={[styles.aiButton, { backgroundColor: colors.primary }]}
-              onPress={handleCapturePhoto}
-              disabled={aiLoading || loading}
-            >
-              {aiLoading ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <>
-                  <Ionicons name="camera" size={18} color="#FFFFFF" />
-                  <Text style={styles.aiButtonText}>IA</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-          <FormField
-            label=""
-            value={formData.poids_kg.toString()}
-            onChangeText={(text) => {
-              setFormData({ ...formData, poids_kg: parseFloat(text) || 0 });
-              // Si l'utilisateur modifie manuellement, on retire l'indicateur IA
-              if (isAiEstimated && parseFloat(text) !== formData.poids_kg) {
-                setIsAiEstimated(false);
-                setAiConfidence(null);
-              }
-            }}
-            keyboardType="numeric"
-            placeholder="Saisir ou utiliser l'IA"
-            required
-          />
-          {aiLoading && (
-            <Text style={[styles.aiStatus, { color: colors.textSecondary }]}>
-              Analyse en cours...
-            </Text>
-          )}
-          {isAiEstimated && aiConfidence !== null && !aiLoading && (
-            <View style={styles.aiInfoContainer}>
-              <Text style={[styles.aiInfoText, { color: colors.textSecondary }]}>
-                <Ionicons name="information-circle" size={14} color={colors.textSecondary} />{' '}
-                Estimation IA (confiance: {(aiConfidence * 100).toFixed(0)}%) - Modifiable manuellement
+            <FormField
+              label=""
+              value={formData.poids_kg.toString()}
+              onChangeText={(text) => {
+                setFormData({ ...formData, poids_kg: parseFloat(text) || 0 });
+                // Si l'utilisateur modifie manuellement, on retire l'indicateur IA
+                if (isAiEstimated && parseFloat(text) !== formData.poids_kg) {
+                  setIsAiEstimated(false);
+                  setAiConfidence(null);
+                }
+              }}
+              keyboardType="numeric"
+              placeholder="Saisir ou utiliser l'IA"
+              required
+            />
+            {aiLoading && (
+              <Text style={[styles.aiStatus, { color: colors.textSecondary }]}>
+                Analyse en cours...
               </Text>
-            </View>
-          )}
-          {!isAiEstimated && formData.poids_kg === 0 && (
-            <Text style={[styles.aiHint, { color: colors.textSecondary }]}>
-              💡 Astuce: Utilisez le bouton "IA" pour estimer automatiquement le poids, ou saisissez-le manuellement
-            </Text>
-          )}
-        </View>
+            )}
+            {isAiEstimated && aiConfidence !== null && !aiLoading && (
+              <View style={styles.aiInfoContainer}>
+                <Text style={[styles.aiInfoText, { color: colors.textSecondary }]}>
+                  <Ionicons name="information-circle" size={14} color={colors.textSecondary} />{' '}
+                  Estimation IA (confiance: {(aiConfidence * 100).toFixed(0)}%) - Modifiable manuellement
+                </Text>
+              </View>
+            )}
+            {!isAiEstimated && formData.poids_kg === 0 && (
+              <Text style={[styles.aiHint, { color: colors.textSecondary }]}>
+                💡 Astuce: Utilisez le bouton "IA" pour estimer automatiquement le poids, ou saisissez-le manuellement
+              </Text>
+            )}
+          </View>
+        )}
 
         <FormField
-          label="Commentaire"
+          label={isBatchMode ? 'Notes' : 'Commentaire'}
           value={formData.commentaire || ''}
           onChangeText={(text) => setFormData({ ...formData, commentaire: text })}
-          placeholder="Notes sur cette pesée..."
+          placeholder={isBatchMode ? 'Notes optionnelles' : 'Notes sur cette pesée...'}
           multiline
           numberOfLines={3}
         />

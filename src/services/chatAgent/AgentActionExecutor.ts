@@ -18,6 +18,10 @@ import { StockAlimentActions } from './actions/nutrition/StockAlimentActions';
 import { StatsActions } from './actions/info/StatsActions';
 import { AnalyseActions } from './actions/info/AnalyseActions';
 import { KnowledgeActions } from './actions/knowledge/KnowledgeActions';
+import { ReproductionActions } from './actions/reproduction/ReproductionActions';
+import { MortaliteActions } from './actions/mortalite/MortaliteActions';
+import { FinanceGraphActions } from './actions/finance/FinanceGraphActions';
+import { BilanActions } from './actions/finance/BilanActions';
 import apiClient from '../api/apiClient';
 import { format } from 'date-fns';
 import { logger } from '../../utils/logger';
@@ -42,11 +46,29 @@ export class AgentActionExecutor {
         case 'create_revenu':
           return await RevenuActions.createRevenu(action.params, context);
         
+        case 'get_ventes':
+          return await RevenuActions.getVentes(action.params, context);
+        
+        case 'analyze_ventes':
+          return await RevenuActions.analyzeVentes(action.params, context);
+        
         case 'create_depense':
           return await DepenseActions.createDepense(action.params, context);
         
         case 'create_charge_fixe':
           return await ChargeFixeActions.createChargeFixe(action.params, context);
+        
+        case 'generate_graph_finances':
+          return await FinanceGraphActions.generateGraphFinances(action.params, context);
+        
+        case 'describe_graph_trends':
+          return await FinanceGraphActions.describeGraphTrends(action.params, context);
+        
+        case 'get_bilan_financier':
+          return await BilanActions.getBilanFinancier(action.params, context);
+        
+        case 'get_dettes_en_cours':
+          return await BilanActions.getDettesEnCours(action.params, context);
         
         // Production
         case 'create_pesee':
@@ -84,6 +106,12 @@ export class AgentActionExecutor {
         case 'get_stock_status':
           return await StockAlimentActions.getStockStatus(action.params, context);
         
+        case 'propose_composition_alimentaire':
+          return await StockAlimentActions.proposeCompositionAlimentaire(action.params, context);
+        
+        case 'calculate_consommation_moyenne':
+          return await StockAlimentActions.calculateConsommationMoyenne(action.params, context);
+        
         // Info
         case 'get_statistics':
           return await StatsActions.getStatistics(action.params, context);
@@ -103,6 +131,32 @@ export class AgentActionExecutor {
         
         case 'list_knowledge_topics':
           return await KnowledgeActions.listKnowledgeTopics(action.params, context);
+        
+        // Reproduction
+        case 'get_gestations':
+          return await ReproductionActions.getGestations(action.params, context);
+        
+        case 'get_gestation_by_truie':
+          return await ReproductionActions.getGestationByTruie(action.params, context);
+        
+        case 'predict_mise_bas':
+          return await ReproductionActions.predictMiseBas(action.params, context);
+        
+        case 'get_porcelets':
+          return await ReproductionActions.getPorcelets(action.params, context);
+        
+        case 'get_porcelets_transition':
+          return await ReproductionActions.getPorceletsTransition(action.params, context);
+        
+        // Mortalités
+        case 'get_mortalites':
+          return await MortaliteActions.getMortalites(action.params, context);
+        
+        case 'get_taux_mortalite':
+          return await MortaliteActions.getTauxMortalite(action.params, context);
+        
+        case 'analyze_causes_mortalite':
+          return await MortaliteActions.analyzeCausesMortalite(action.params, context);
         
         default:
           return {
