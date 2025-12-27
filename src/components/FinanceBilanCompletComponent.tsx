@@ -28,8 +28,6 @@ import { PieChart } from 'react-native-chart-kit';
 import { Dimensions } from 'react-native';
 import { exportBilanCompletPDF } from '../services/pdf/bilanCompletPDF';
 import { exportBilanCompletExcel } from '../services/excel/bilanCompletExcel';
-import { useAppSelector } from '../store/hooks';
-import { selectProjetActif } from '../store/selectors/projetSelectors';
 
 const screenWidth = Dimensions.get('window').width;
 
