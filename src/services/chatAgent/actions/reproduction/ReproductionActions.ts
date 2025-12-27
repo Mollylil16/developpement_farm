@@ -146,18 +146,6 @@ export class ReproductionActions {
       };
     }
 
-    const dateSaillie = gestation.date_saillie ? new Date(gestation.date_saillie) : null;
-    const dateMiseBasPrevue = gestation.date_mise_bas_prevue
-      ? new Date(gestation.date_mise_bas_prevue)
-      : dateSaillie
-        ? addDays(dateSaillie, 114)
-        : null;
-
-    let joursRestants = null;
-    if (dateMiseBasPrevue) {
-      joursRestants = differenceInDays(dateMiseBasPrevue, new Date());
-    }
-
     // Le backend utilise date_sautage (pas date_saillie) et nombre_porcelets_prevu (pas porcelets_prevus)
     const dateSautage = gestation.date_sautage ? new Date(gestation.date_sautage) : null;
     const dateMiseBasPrevue = gestation.date_mise_bas_prevue

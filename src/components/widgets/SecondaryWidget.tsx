@@ -206,10 +206,14 @@ function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
         };
 
       case 'production':
+        // Filtrer les animaux actifs par projet actif
+        const animauxActifsProjet = animauxActifs.filter(
+          (animal) => animal.projet_id === projetActif.id
+        );
         return {
           emoji: '🐷',
           title: 'Production',
-          primary: animauxActifs.length,
+          primary: animauxActifsProjet.length,
           secondary: peseesRecentsLength,
           labelPrimary: 'Animaux',
           labelSecondary: 'Pesées',
@@ -248,6 +252,7 @@ function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
     collaborateurs,
     mortalites,
     animaux,
+    animauxActifs,
     peseesRecents,
     marketplaceStats,
   ]);

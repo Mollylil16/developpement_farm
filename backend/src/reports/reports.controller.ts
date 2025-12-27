@@ -127,6 +127,9 @@ export class ReportsController {
     @Query('projet_id') projetId: string,
     @CurrentUser('id') userId: string
   ) {
+    // #region agent log
+    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'reports.controller.ts:126',message:'calculerPerformanceGlobale entry',data:{projetId,userId,projetIdType:typeof projetId,userIdType:typeof userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
+    // #endregion
     return this.reportsService.calculerPerformanceGlobale(projetId, userId);
   }
 }

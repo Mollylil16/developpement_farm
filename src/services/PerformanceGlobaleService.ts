@@ -42,6 +42,9 @@ class PerformanceGlobaleService {
     projet?: Projet
   ): Promise<PerformanceGlobale | null> {
     try {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PerformanceGlobaleService.ts:45',message:'loadPerformanceGlobale entry',data:{projetId,projetIdType:typeof projetId,projetIdLength:projetId?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       const result = await apiClient.get<PerformanceGlobale>('/reports/performance-globale', {
         params: { projet_id: projetId },
       });

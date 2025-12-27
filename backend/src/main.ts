@@ -6,6 +6,9 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
+  // #region agent log
+  try { const fs = require('fs'); const path = require('path'); const cwd = process.cwd(); const logPath = cwd.includes('backend') ? path.join(cwd, '..', '.cursor', 'debug.log') : path.join(cwd, '.cursor', 'debug.log'); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'main.ts:9',message:'Backend starting',data:{cwd:process.cwd(),logPath,nodeVersion:process.version},timestamp:Date.now(),sessionId:'debug-session',runId:'run3',hypothesisId:'A'})+'\n'); } catch(e) { console.error('Debug log error in main.ts:', e); }
+  // #endregion
   const app = await NestFactory.create(AppModule);
 
   // Headers de sécurité HTTP (Phase 5 - Priorité Haute)

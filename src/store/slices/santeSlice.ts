@@ -203,6 +203,9 @@ export const initProtocolesVaccinationStandard = createAsyncThunk(
 export const loadVaccinations = createAsyncThunk(
   'sante/loadVaccinations',
   async (projetId: string) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'santeSlice.ts:203',message:'loadVaccinations entry',data:{projetId,projetIdType:typeof projetId,projetIdLength:projetId?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
     const vaccinations = await apiClient.get<Vaccination[]>('/sante/vaccinations', {
       params: { projet_id: projetId },
     });
@@ -259,6 +262,9 @@ export const loadVaccinationsAVenir = createAsyncThunk(
 // ============================================
 
 export const loadMaladies = createAsyncThunk('sante/loadMaladies', async (projetId: string) => {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'santeSlice.ts:264',message:'loadMaladies entry',data:{projetId,projetIdType:typeof projetId,projetIdLength:projetId?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+  // #endregion
   const maladies = await apiClient.get<Maladie[]>('/sante/maladies', {
     params: { projet_id: projetId },
   });

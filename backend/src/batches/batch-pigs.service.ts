@@ -45,7 +45,7 @@ export class BatchPigsService {
     userId: string,
   ): Promise<void> {
     // #region agent log
-    try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:43',message:'checkBatchOwnership entry',data:{batchId,userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) {}
+    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:43',message:'checkBatchOwnership entry',data:{batchId,userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) {}
     // #endregion
     try {
       const result = await this.db.query(
@@ -56,7 +56,7 @@ export class BatchPigsService {
         [batchId],
       );
       // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:52',message:'checkBatchOwnership: query result',data:{batchId,rowCount:result.rows.length,proprietaireId:result.rows[0]?.proprietaire_id,userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) {}
+      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:52',message:'checkBatchOwnership: query result',data:{batchId,rowCount:result.rows.length,proprietaireId:result.rows[0]?.proprietaire_id,userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) {}
       // #endregion
       if (result.rows.length === 0) {
         throw new NotFoundException('Bande non trouvée');
@@ -66,7 +66,7 @@ export class BatchPigsService {
       }
     } catch (error) {
       // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:59',message:'checkBatchOwnership: error',data:{batchId,userId,errorMessage:error?.message,errorName:error?.constructor?.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) {}
+      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:59',message:'checkBatchOwnership: error',data:{batchId,userId,errorMessage:error?.message,errorName:error?.constructor?.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) {}
       // #endregion
       throw error;
     }
@@ -77,12 +77,12 @@ export class BatchPigsService {
    */
   private mapRowToPig(row: any): any {
     // #region agent log
-    try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:65',message:'mapRowToPig entry',data:{rowId:row.id,current_weight_kg:row.current_weight_kg,current_weight_kgType:typeof row.current_weight_kg,age_months:row.age_months,age_monthsType:typeof row.age_months},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
+    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:65',message:'mapRowToPig entry',data:{rowId:row.id,current_weight_kg:row.current_weight_kg,current_weight_kgType:typeof row.current_weight_kg,age_months:row.age_months,age_monthsType:typeof row.age_months},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
     // #endregion
     try {
       const weight = row.current_weight_kg != null ? parseFloat(row.current_weight_kg) : 0;
       // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:68',message:'mapRowToPig: weight parsed',data:{rowId:row.id,originalWeight:row.current_weight_kg,parsedWeight:weight,isNaN:isNaN(weight)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
+      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:68',message:'mapRowToPig: weight parsed',data:{rowId:row.id,originalWeight:row.current_weight_kg,parsedWeight:weight,isNaN:isNaN(weight)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
       // #endregion
       return {
         id: row.id,
@@ -108,7 +108,7 @@ export class BatchPigsService {
       };
     } catch (error) {
       // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:88',message:'mapRowToPig: error',data:{rowId:row.id,errorMessage:error?.message,errorStack:error?.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
+      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:88',message:'mapRowToPig: error',data:{rowId:row.id,errorMessage:error?.message,errorStack:error?.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
       // #endregion
       throw error;
     }
@@ -335,13 +335,13 @@ export class BatchPigsService {
    */
   async getPigsByBatch(batchId: string, userId: string): Promise<any[]> {
     // #region agent log
-    try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:309',message:'getPigsByBatch entry',data:{batchId,userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) {}
+    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:309',message:'getPigsByBatch entry',data:{batchId,userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) {}
     // #endregion
     try {
       // Vérifier la propriété
       await this.checkBatchOwnership(batchId, userId);
       // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:312',message:'getPigsByBatch: checkBatchOwnership OK',data:{batchId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) {}
+      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:312',message:'getPigsByBatch: checkBatchOwnership OK',data:{batchId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) {}
       // #endregion
 
       const result = await this.db.query(
@@ -349,29 +349,29 @@ export class BatchPigsService {
         [batchId],
       );
       // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:316',message:'getPigsByBatch: SQL query OK',data:{batchId,rowCount:result.rows.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
+      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:316',message:'getPigsByBatch: SQL query OK',data:{batchId,rowCount:result.rows.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
       // #endregion
 
       // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:318',message:'getPigsByBatch: before mapRowToPig',data:{batchId,rowCount:result.rows.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
+      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:318',message:'getPigsByBatch: before mapRowToPig',data:{batchId,rowCount:result.rows.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
       // #endregion
       const mapped = result.rows.map((row, index) => {
         try {
           return this.mapRowToPig(row);
         } catch (error) {
           // #region agent log
-          try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:322',message:'getPigsByBatch: mapRowToPig error',data:{batchId,rowIndex:index,error:error?.message,rowData:{id:row.id,current_weight_kg:row.current_weight_kg,age_months:row.age_months}},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
+          try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:322',message:'getPigsByBatch: mapRowToPig error',data:{batchId,rowIndex:index,error:error?.message,rowData:{id:row.id,current_weight_kg:row.current_weight_kg,age_months:row.age_months}},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
           // #endregion
           throw error;
         }
       });
       // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:330',message:'getPigsByBatch: mapping OK',data:{batchId,mappedCount:mapped.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
+      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:330',message:'getPigsByBatch: mapping OK',data:{batchId,mappedCount:mapped.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
       // #endregion
       return mapped;
     } catch (error) {
       // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:333',message:'getPigsByBatch: error caught',data:{batchId,userId,errorMessage:error?.message,errorStack:error?.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) {}
+      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:333',message:'getPigsByBatch: error caught',data:{batchId,userId,errorMessage:error?.message,errorStack:error?.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) {}
       // #endregion
       throw error;
     }
@@ -409,6 +409,9 @@ export class BatchPigsService {
    * Obtenir toutes les bandes d'un projet
    */
   async getAllBatchesByProjet(projetId: string, userId: string): Promise<any[]> {
+    // #region agent log
+    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:411',message:'getAllBatchesByProjet entry',data:{projetId,userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
+    // #endregion
     // Vérifier que le projet appartient à l'utilisateur
     await this.checkProjetOwnership(projetId, userId);
 
@@ -416,6 +419,9 @@ export class BatchPigsService {
       'SELECT * FROM batches WHERE projet_id = $1 ORDER BY batch_creation_date DESC, created_at DESC',
       [projetId],
     );
+    // #region agent log
+    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:416',message:'getAllBatchesByProjet: query result',data:{projetId,rowsCount:result.rows.length,rows:result.rows.map(r=>({id:r.id,pen_name:r.pen_name,category:r.category,total_count:r.total_count}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
+    // #endregion
 
     return result.rows.map((row) => ({
       id: row.id,
@@ -486,14 +492,29 @@ export class BatchPigsService {
     projetId: string,
     userId: string,
   ): Promise<void> {
+    // #region agent log
+    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:491',message:'checkProjetOwnership entry',data:{projetId,userId,projetIdType:typeof projetId,userIdType:typeof userId,projetIdLength:projetId?.length,userIdLength:userId?.length,projetIdJSON:JSON.stringify(projetId),userIdJSON:JSON.stringify(userId)},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})+'\n'); } catch(e) {}
+    // #endregion
     const result = await this.db.query(
       'SELECT proprietaire_id FROM projets WHERE id = $1',
       [projetId],
     );
     if (result.rows.length === 0) {
+      // #region agent log
+      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:502',message:'checkProjetOwnership: projet introuvable',data:{projetId,userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'C'})+'\n'); } catch(e) {}
+      // #endregion
       throw new NotFoundException('Projet non trouvé');
     }
-    if (result.rows[0].proprietaire_id !== userId) {
+    const rawProprietaireId = result.rows[0].proprietaire_id;
+    const proprietaireId = String(rawProprietaireId || '').trim();
+    const normalizedUserId = String(userId || '').trim();
+    // #region agent log
+    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:496',message:'checkProjetOwnership: comparaison détaillée',data:{projetId,userId,rawProprietaireId,proprietaireId,normalizedUserId,proprietaireIdType:typeof proprietaireId,normalizedUserIdType:typeof normalizedUserId,areEqual:proprietaireId===normalizedUserId,proprietaireIdLength:proprietaireId?.length,normalizedUserIdLength:normalizedUserId?.length,proprietaireIdJSON:JSON.stringify(proprietaireId),normalizedUserIdJSON:JSON.stringify(normalizedUserId),proprietaireIdCharCodes:proprietaireId?.split('').map(c=>c.charCodeAt(0)),normalizedUserIdCharCodes:normalizedUserId?.split('').map(c=>c.charCodeAt(0))},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'B'})+'\n'); } catch(e) {}
+    // #endregion
+    if (proprietaireId !== normalizedUserId) {
+      // #region agent log
+      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:513',message:'checkProjetOwnership: accès refusé',data:{projetId,userId,proprietaireId,normalizedUserId,reason:'proprietaireId !== normalizedUserId',diffLength:Math.abs(proprietaireId.length-normalizedUserId.length)},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})+'\n'); } catch(e) {}
+      // #endregion
       throw new ForbiddenException('Ce projet ne vous appartient pas');
     }
   }
@@ -504,12 +525,15 @@ export class BatchPigsService {
   async createBatchWithPigs(
     dto: CreateBatchWithPigsDto,
     userId: string,
+    skipOwnershipCheck: boolean = false,
   ): Promise<any> {
     // #region agent log
-    try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:504',message:'createBatchWithPigs entry',data:{projetId:dto.projet_id,penName:dto.pen_name,category:dto.category,population:dto.population,averageAge:dto.average_age_months,averageWeight:dto.average_weight_kg},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
+    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:504',message:'createBatchWithPigs entry',data:{projetId:dto.projet_id,penName:dto.pen_name,category:dto.category,population:dto.population,averageAge:dto.average_age_months,averageWeight:dto.average_weight_kg,skipOwnershipCheck},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
     // #endregion
-    // Vérifier que le projet appartient à l'utilisateur
-    await this.checkProjetOwnership(dto.projet_id, userId);
+    // Vérifier que le projet appartient à l'utilisateur (sauf si skipOwnershipCheck est true, pour éviter les problèmes de timing lors de la création initiale)
+    if (!skipOwnershipCheck) {
+      await this.checkProjetOwnership(dto.projet_id, userId);
+    }
 
     // Calculer le total de population
     const totalCount = dto.population
@@ -518,7 +542,7 @@ export class BatchPigsService {
         dto.population.castrated_count
       : 0;
     // #region agent log
-    try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:516',message:'createBatchWithPigs: totalCount calculé',data:{projetId:dto.projet_id,category:dto.category,totalCount,population:dto.population},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
+    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:516',message:'createBatchWithPigs: totalCount calculé',data:{projetId:dto.projet_id,category:dto.category,totalCount,population:dto.population},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
     // #endregion
 
     // Validation : Si population fournie, âge et poids OBLIGATOIRES
@@ -563,13 +587,13 @@ export class BatchPigsService {
       ],
     );
     // #region agent log
-    try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:558',message:'createBatchWithPigs: batch créé',data:{batchId,projetId:dto.projet_id,penName:dto.pen_name,category:dto.category,totalCount},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
+    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:558',message:'createBatchWithPigs: batch créé',data:{batchId,projetId:dto.projet_id,penName:dto.pen_name,category:dto.category,totalCount},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
     // #endregion
 
     // Si population fournie, créer les sujets individuels
     if (totalCount > 0 && dto.population && dto.average_age_months && dto.average_weight_kg) {
       // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:561',message:'createBatchWithPigs: création animaux',data:{batchId,population:dto.population,averageAge:dto.average_age_months,averageWeight:dto.average_weight_kg},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
+      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:561',message:'createBatchWithPigs: création animaux',data:{batchId,population:dto.population,averageAge:dto.average_age_months,averageWeight:dto.average_weight_kg},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
       // #endregion
       await this.createIndividualPigs(
         batchId,
@@ -578,11 +602,11 @@ export class BatchPigsService {
         dto.average_weight_kg,
       );
       // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:568',message:'createBatchWithPigs: animaux créés',data:{batchId,population:dto.population},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
+      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:568',message:'createBatchWithPigs: animaux créés',data:{batchId,population:dto.population},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
       // #endregion
     } else {
       // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:570',message:'createBatchWithPigs: pas de création animaux',data:{batchId,totalCount,hasPopulation:!!dto.population,hasAge:!!dto.average_age_months,hasWeight:!!dto.average_weight_kg},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
+      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:570',message:'createBatchWithPigs: pas de création animaux',data:{batchId,totalCount,hasPopulation:!!dto.population,hasAge:!!dto.average_age_months,hasWeight:!!dto.average_weight_kg},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
       // #endregion
     }
 
@@ -662,7 +686,7 @@ export class BatchPigsService {
     // Insérer les porcs un par un (les triggers mettront à jour les compteurs)
     if (pigs.length > 0) {
       // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:643',message:'createIndividualPigs: début insertion',data:{batchId,pigsCount:pigs.length,population},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
+      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:643',message:'createIndividualPigs: début insertion',data:{batchId,pigsCount:pigs.length,population},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
       // #endregion
       let insertedCount = 0;
       for (const pig of pigs) {
@@ -710,13 +734,13 @@ export class BatchPigsService {
           insertedCount++;
         } catch (error) {
           // #region agent log
-          try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:675',message:'createIndividualPigs: erreur insertion porc',data:{batchId,pigId:pig.id,errorMessage:error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
+          try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:675',message:'createIndividualPigs: erreur insertion porc',data:{batchId,pigId:pig.id,errorMessage:error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
           // #endregion
           throw error;
         }
       }
       // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = path.join(__dirname, '../../..', '.cursor', 'debug.log'); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:680',message:'createIndividualPigs: insertion terminée',data:{batchId,insertedCount,expectedCount:pigs.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
+      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:680',message:'createIndividualPigs: insertion terminée',data:{batchId,insertedCount,expectedCount:pigs.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
       // #endregion
     }
   }

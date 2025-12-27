@@ -5,7 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
-import { CreateGestationDto, UpdateGestationDto } from './dto/create-gestation.dto';
+import { CreateBatchGestationDto, UpdateBatchGestationDto } from './dto/create-gestation.dto';
 
 @Injectable()
 export class BatchGestationService {
@@ -65,7 +65,7 @@ export class BatchGestationService {
   /**
    * Crée une gestation pour une truie dans une bande
    */
-  async createGestation(dto: CreateGestationDto, userId: string): Promise<any> {
+  async createGestation(dto: CreateBatchGestationDto, userId: string): Promise<any> {
     await this.checkBatchOwnership(dto.batch_id, userId);
 
     // Vérifier que la bande contient des truies
@@ -137,7 +137,7 @@ export class BatchGestationService {
    */
   async updateGestation(
     gestationId: string,
-    dto: UpdateGestationDto,
+    dto: UpdateBatchGestationDto,
     userId: string,
   ): Promise<any> {
     // Vérifier la propriété

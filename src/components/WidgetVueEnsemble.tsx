@@ -17,7 +17,6 @@ interface WidgetVueEnsembleProps {
 
 function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
   const { colors } = useTheme();
-  const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   const { gestations } = useAppSelector((state) => state.reproduction);
   const { chargesFixes, depensesPonctuelles } = useAppSelector((state) => state.finance);
