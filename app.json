@@ -37,7 +37,8 @@
     "scheme": "fermierpro",
     "plugins": [
       "expo-sqlite",
-      "expo-localization"
+      "expo-localization",
+      "./app.plugin.js"
     ],
     "extra": {
       "eas": {
