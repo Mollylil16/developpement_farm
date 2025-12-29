@@ -33,24 +33,14 @@ export const SCREENS = {
   TASKS: 'Tasks',
   RECORDS: 'Records',
   OFFERS: 'Offers',
-<<<<<<< HEAD
   // 🆕 Écrans d'authentification et onboarding
   ONBOARDING_AUTH: 'OnboardingAuth', // Ancien (à supprimer progressivement)
   SIGN_UP_METHOD: 'SignUpMethod', // Nouveau : Choix méthode inscription
   PHONE_SIGN_UP: 'PhoneSignUp', // Nouveau : Inscription par téléphone
   USER_INFO: 'UserInfo', // Nouveau : Collecte nom/prénom
   SIGN_IN: 'SignIn', // Nouveau : Connexion
-  OTP_VERIFICATION: 'OtpVerification', // Vérification OTP (existe déjà)
-=======
-  // 🆕 Écrans d'onboarding
-  ONBOARDING_AUTH: 'OnboardingAuth',
-  WELCOME: 'Welcome',
-  SIGN_UP_METHOD: 'SignUpMethod',
-  PHONE_SIGN_UP: 'PhoneSignUp',
-  USER_INFO: 'UserInfo',
->>>>>>> ededb9939a0805937d2a5966c760f1bc1becef5f
+  OTP_VERIFICATION: 'OtpVerification', // Vérification OTP
   PROFILE_SELECTION: 'ProfileSelection',
-  SIGN_IN: 'SignIn',
   FORGOT_PASSWORD: 'ForgotPassword',
   RESET_PASSWORD: 'ResetPassword',
   BUYER_INFO_COMPLETION: 'BuyerInfoCompletion',
