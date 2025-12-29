@@ -24,13 +24,13 @@ import StandardHeader from '../components/StandardHeader';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import FormField from '../components/FormField';
-import { Picker } from '@react-native-picker/picker';
+// Picker non utilisé - supprimé pour éviter l'erreur de dépendance manquante
 import apiClient from '../services/api/apiClient';
 import { migrationService } from '../services/migration/migrationService';
 import type {
   BatchToIndividualOptions,
   IndividualToBatchOptions,
-  MigrationPreview,
+  MigrationPreview as MigrationPreviewType,
   MigrationResult,
 } from '../services/migration/migrationService';
 import MigrationPreview from '../components/migration/MigrationPreview';
@@ -52,7 +52,7 @@ export default function MigrationWizardScreen() {
   const { colors } = useTheme();
   const navigation = useNavigation();
   const route = useRoute();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const projetActif = useAppSelector((state) => state.projet?.projetActif ?? null);
 
   const [step, setStep] = useState<WizardStep>('select_type');
   const [migrationType, setMigrationType] = useState<MigrationType | null>(null);
@@ -62,7 +62,7 @@ export default function MigrationWizardScreen() {
   const [pigs, setPigs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [preview, setPreview] = useState<MigrationPreview | null>(null);
+  const [preview, setPreview] = useState<MigrationPreviewType | null>(null);
   const [migrationResult, setMigrationResult] = useState<MigrationResult | null>(null);
   const [progress, setProgress] = useState(0);
   const [currentStepText, setCurrentStepText] = useState('');

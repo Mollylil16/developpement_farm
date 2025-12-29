@@ -24,7 +24,6 @@ import VaccinationTypeCard from '../components/VaccinationTypeCard';
 import VaccinationFormModal from '../components/VaccinationFormModal';
 import CalendrierVaccinalModal from '../components/CalendrierVaccinalModal';
 import { getIconeType, getCouleurType } from '../utils/vaccinationHelpers';
-import { useModeElevage } from '../hooks/useModeElevage';
 import StandardHeader from '../components/StandardHeader';
 import apiClient from '../services/api/apiClient';
 import { Alert } from 'react-native';
@@ -159,11 +158,13 @@ export default function VaccinationScreen() {
           batchId={batch.id}
         />
 
-        <CalendrierVaccinalModal
-          visible={logic.modalCalendrierVisible}
-          onClose={() => logic.setModalCalendrierVisible(false)}
-          typeFiltre={logic.typeSelectionne}
-        />
+        {logic.typeSelectionne && (
+          <CalendrierVaccinalModal
+            visible={logic.modalCalendrierVisible}
+            onClose={() => logic.setModalCalendrierVisible(false)}
+            typeProphylaxie={logic.typeSelectionne}
+          />
+        )}
         
         <ChatAgentFAB />
       </SafeAreaView>
@@ -192,10 +193,10 @@ export default function VaccinationScreen() {
         {/* Cartes par type de prophylaxie */}
         {logic.statParType.map((stat) => (
           <VaccinationTypeCard
-            key={stat.type}
+            key={stat.type_prophylaxie}
             stat={stat}
-            icone={getIconeType(stat.type)}
-            couleur={getCouleurType(stat.type)}
+            icone={getIconeType(stat.type_prophylaxie)}
+            couleur={getCouleurType(stat.type_prophylaxie)}
             onAjouter={logic.handleOuvrirModalAjout}
             onVoirCalendrier={logic.handleOuvrirCalendrier}
           />
@@ -208,15 +209,17 @@ export default function VaccinationScreen() {
       <VaccinationFormModal
         visible={logic.modalAddVisible}
         onClose={() => logic.setModalAddVisible(false)}
-        typeInitial={logic.typeSelectionne}
+        typeInitial={logic.typeSelectionne || undefined}
       />
 
       {/* Modale du calendrier vaccinal */}
-      <CalendrierVaccinalModal
-        visible={logic.modalCalendrierVisible}
-        onClose={() => logic.setModalCalendrierVisible(false)}
-        typeFiltre={logic.typeSelectionne}
-      />
+      {logic.typeSelectionne && (
+        <CalendrierVaccinalModal
+          visible={logic.modalCalendrierVisible}
+          onClose={() => logic.setModalCalendrierVisible(false)}
+          typeProphylaxie={logic.typeSelectionne}
+        />
+      )}
       <ChatAgentFAB />
     </SafeAreaView>
   );

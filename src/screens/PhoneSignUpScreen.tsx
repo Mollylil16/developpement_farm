@@ -4,7 +4,17 @@
  */
 
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
@@ -63,7 +73,10 @@ const PhoneSignUpScreen: React.FC = () => {
 
     const phoneRegex = /^[0-9]{8,15}$/;
     if (!phoneRegex.test(cleanPhone)) {
-      Alert.alert('Erreur', 'Format de téléphone invalide. Utilisez uniquement des chiffres (8-15 chiffres)');
+      Alert.alert(
+        'Erreur',
+        'Format de téléphone invalide. Utilisez uniquement des chiffres (8-15 chiffres)'
+      );
       return;
     }
 
@@ -103,7 +116,7 @@ const PhoneSignUpScreen: React.FC = () => {
             { text: 'Annuler', style: 'cancel' },
             {
               text: 'Se connecter',
-              onPress: () => navigation.navigate(SCREENS.SIGN_IN as never, { phone: cleanPhone }),
+              onPress: () => navigation.navigate(SCREENS.SIGN_IN as any, { phone: cleanPhone }),
             },
           ]
         );
@@ -119,7 +132,7 @@ const PhoneSignUpScreen: React.FC = () => {
       });
 
       // Navigation vers sélection de profil
-      navigation.navigate(SCREENS.PROFILE_SELECTION as never, { userId: user.id });
+      navigation.navigate(SCREENS.PROFILE_SELECTION as any, { userId: user.id });
     } catch (error: unknown) {
       console.error('Erreur création compte:', error);
       const errorMessage = error instanceof Error ? error.message : 'Impossible de créer le compte';
@@ -137,7 +150,10 @@ const PhoneSignUpScreen: React.FC = () => {
     password === confirmPassword;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top', 'bottom']}
+    >
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -343,7 +359,7 @@ const PhoneSignUpScreen: React.FC = () => {
 
             {/* Lien connexion */}
             <TouchableOpacity
-              onPress={() => navigation.navigate(SCREENS.SIGN_IN as never)}
+              onPress={() => navigation.navigate(SCREENS.SIGN_IN as any)}
               style={styles.linkContainer}
             >
               <Text style={[styles.linkText, { color: colors.textSecondary }]}>
