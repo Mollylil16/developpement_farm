@@ -104,7 +104,12 @@ const MortalityCard: React.FC<MortalityCardProps> = ({ mortality, isBatchMode })
                 ? mortality.pig_name || 'Porc'
                 : mortality.animal_code || `${mortality.nombre_porcs} porc(s)`}
             </Text>
-            <Text style={[styles.causeText, { color: getCauseColor(mortality.cause_of_death || mortality.cause) }]}>
+            <Text
+              style={[
+                styles.causeText,
+                { color: getCauseColor(mortality.cause_of_death || mortality.cause) },
+              ]}
+            >
               {getCauseLabel(mortality.cause_of_death || mortality.cause)}
             </Text>
             {!isBatchMode && mortality.categorie && (
@@ -116,11 +121,9 @@ const MortalityCard: React.FC<MortalityCardProps> = ({ mortality, isBatchMode })
         </View>
         <View style={styles.dateContainer}>
           <Text style={[styles.dateText, { color: colors.textSecondary }]}>
-            {format(
-              new Date(mortality.death_date || mortality.date),
-              'dd MMM yyyy',
-              { locale: fr }
-            )}
+            {format(new Date(mortality.death_date || mortality.date), 'dd MMM yyyy', {
+              locale: fr,
+            })}
           </Text>
         </View>
       </View>
@@ -169,10 +172,7 @@ const CreateBatchMortalityModal: React.FC<CreateBatchMortalityModalProps> = ({
   async function handleSubmit() {
     const countNum = parseInt(count);
     if (isNaN(countNum) || countNum < 1 || countNum > batch.total_count) {
-      Alert.alert(
-        'Erreur',
-        `Le nombre doit être entre 1 et ${batch.total_count}`,
-      );
+      Alert.alert('Erreur', `Le nombre doit être entre 1 et ${batch.total_count}`);
       return;
     }
 
@@ -200,7 +200,7 @@ const CreateBatchMortalityModal: React.FC<CreateBatchMortalityModalProps> = ({
       console.error('Erreur création mortalité:', error);
       Alert.alert(
         'Erreur',
-        error.response?.data?.message || 'Impossible d\'enregistrer la mortalité',
+        error.response?.data?.message || "Impossible d'enregistrer la mortalité"
       );
     } finally {
       setLoading(false);
@@ -229,7 +229,8 @@ const CreateBatchMortalityModal: React.FC<CreateBatchMortalityModalProps> = ({
             <View style={styles.infoRow}>
               <Ionicons name="information-circle" size={20} color={colors.error} />
               <Text style={[styles.infoText, { color: colors.text }]}>
-                Le système sélectionnera automatiquement un porc malade pour enregistrer la mortalité
+                Le système sélectionnera automatiquement un porc malade pour enregistrer la
+                mortalité
               </Text>
             </View>
           </Card>
@@ -331,12 +332,12 @@ export default function MortalityScreen() {
   const { colors } = useTheme();
   const route = useRoute<RouteProp<{ params: MortalityRouteParams }, 'params'>>();
   const mode = useModeElevage();
-  const { projetActif } = useAppSelector((state) => state.projet);
-  
+  const projetActif = useAppSelector((state) => state.projet?.projetActif ?? null);
+
   // Paramètres batch (si navigation depuis une bande)
   const batch = route.params?.batch;
   const isBatchMode = mode === 'bande' || !!batch;
-  
+
   // État pour les mortalités batch
   const [mortalities, setMortalities] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -356,7 +357,7 @@ export default function MortalityScreen() {
     setLoading(true);
     try {
       const data = await apiClient.get(`/batch-mortalities/batch/${batch.id}`);
-      setMortalities(data || []);
+      setMortalities(Array.isArray(data) ? data : []);
     } catch (error: any) {
       console.error('Erreur chargement mortalités batch:', error);
       Alert.alert('Erreur', 'Impossible de charger les mortalités');
@@ -423,9 +424,7 @@ export default function MortalityScreen() {
         {loading && !refreshing ? (
           <View style={styles.centerContent}>
             <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-              Chargement...
-            </Text>
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Chargement...</Text>
           </View>
         ) : mortalities.length === 0 ? (
           <Card elevation="small" padding="medium" style={styles.emptyCard}>
@@ -454,7 +453,8 @@ export default function MortalityScreen() {
                   <Text style={[styles.statValue, { color: colors.error }]}>
                     {batch.total_count > 0
                       ? ((mortalities.length / batch.total_count) * 100).toFixed(1)
-                      : 0}%
+                      : 0}
+                    %
                   </Text>
                 </View>
               </View>
@@ -658,4 +658,3 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
-
