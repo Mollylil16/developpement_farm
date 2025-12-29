@@ -83,6 +83,9 @@ export const loadMortalitesParProjet = createAsyncThunk(
   'mortalites/loadMortalitesParProjet',
   async (projetId: string, { rejectWithValue }) => {
     try {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mortalitesSlice.ts:86',message:'loadMortalitesParProjet: projetId envoyé',data:{projetId,projetIdType:typeof projetId,projetIdLength:projetId?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       const mortalites = await apiClient.get<Mortalite[]>('/mortalites', {
         params: { projet_id: projetId },
       });
@@ -97,6 +100,9 @@ export const loadStatistiquesMortalite = createAsyncThunk(
   'mortalites/loadStatistiquesMortalite',
   async (projetId: string, { rejectWithValue }) => {
     try {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mortalitesSlice.ts:100',message:'loadStatistiquesMortalite: projetId envoyé',data:{projetId,projetIdType:typeof projetId,projetIdLength:projetId?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       logger.debug('[loadStatistiquesMortalite] Début du chargement pour projet:', projetId);
       const stats = await apiClient.get<StatistiquesMortalite>('/mortalites/statistiques', {
         params: { projet_id: projetId },

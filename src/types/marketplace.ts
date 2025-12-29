@@ -66,7 +66,11 @@ export const DEFAULT_SALE_TERMS: SaleTerms = {
  */
 export interface MarketplaceListing {
   id: string;
-  subjectId: string; // ID du sujet (animal)
+  listingType?: 'individual' | 'batch'; // Type de listing
+  subjectId?: string; // ID du sujet (animal) - pour listings individuels
+  batchId?: string; // ID de la bande - pour listings de bande
+  pigIds?: string[]; // IDs des porcs - pour listings de bande
+  pigCount?: number; // Nombre de porcs - pour listings de bande
   producerId: string; // ID du producteur
   farmId: string; // ID de la ferme (projet)
   pricePerKg: number; // Prix au kg

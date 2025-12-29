@@ -94,15 +94,21 @@ class OnboardingService {
   async checkPhoneExists(phone: string): Promise<boolean> {
     try {
       const cleanPhone = phone.trim().replace(/\s+/g, '');
-      await apiClient.get(`/users/check/phone/${encodeURIComponent(cleanPhone)}`, {
-        skipAuth: true,
-      });
-      return true; // Téléphone existe
+      const response = await apiClient.get<{ exists: boolean }>(
+        `/users/check/phone/${encodeURIComponent(cleanPhone)}`,
+        {
+          skipAuth: true,
+        }
+      );
+      return response?.exists ?? false;
     } catch (error: any) {
+      // Si erreur 404, le téléphone n'existe pas
       if (error?.status === 404) {
-        return false; // Téléphone n'existe pas
+        return false;
       }
-      throw error; // Autre erreur
+      // Pour toute autre erreur, logger et retourner false par sécurité
+      logger.warn('[OnboardingService] Erreur lors de la vérification du téléphone:', error);
+      return false;
     }
   }
 
@@ -112,15 +118,21 @@ class OnboardingService {
   async checkEmailExists(email: string): Promise<boolean> {
     try {
       const normalizedEmail = email.trim().toLowerCase();
-      await apiClient.get(`/users/check/email/${encodeURIComponent(normalizedEmail)}`, {
-        skipAuth: true,
-      });
-      return true; // Email existe
+      const response = await apiClient.get<{ exists: boolean }>(
+        `/users/check/email/${encodeURIComponent(normalizedEmail)}`,
+        {
+          skipAuth: true,
+        }
+      );
+      return response?.exists ?? false;
     } catch (error: any) {
+      // Si erreur 404, l'email n'existe pas
       if (error?.status === 404) {
-        return false; // Email n'existe pas
+        return false;
       }
-      throw error; // Autre erreur
+      // Pour toute autre erreur, logger et retourner false par sécurité
+      logger.warn('[OnboardingService] Erreur lors de la vérification de l\'email:', error);
+      return false;
     }
   }
 
@@ -215,71 +227,94 @@ class OnboardingService {
     profileType: ProfileType,
     additionalData?: any
   ): Promise<User> {
-    switch (profileType) {
-      case 'producer':
-        // Le profil producer sera créé lors de la création du premier projet
-        // Pour l'instant, on crée juste la structure de base
-        const user = await apiClient.get<any>(`/users/${userId}`);
-        const producerProfile = {
-          isActive: true,
-          activatedAt: new Date().toISOString(),
-          farmName: '',
-          farmType: 'individual',
-          capacity: {
-            totalCapacity: 0,
-            currentOccupancy: 0,
-          },
-          stats: {
-            totalSales: 0,
-            totalRevenue: 0,
-            averageRating: 0,
-            totalReviews: 0,
-          },
-          marketplaceSettings: {
-            defaultPricePerKg: 450,
-            autoAcceptOffers: false,
-            minimumOfferPercentage: 80,
-            notificationsEnabled: true,
-          },
-        };
+    try {
+      logger.debug(`[OnboardingService] Création profil ${profileType} pour userId=${userId}`);
+      
+      switch (profileType) {
+        case 'producer':
+          // Le profil producer sera créé lors de la création du premier projet
+          // Pour l'instant, on crée juste la structure de base
+          logger.debug(`[OnboardingService] Récupération utilisateur ${userId}`);
+          const user = await apiClient.get<any>(`/users/${userId}`);
+          if (!user) {
+            throw new Error(`Utilisateur ${userId} non trouvé`);
+          }
+          
+          const producerProfile = {
+            isActive: true,
+            activatedAt: new Date().toISOString(),
+            farmName: '',
+            farmType: 'individual',
+            capacity: {
+              totalCapacity: 0,
+              currentOccupancy: 0,
+            },
+            stats: {
+              totalSales: 0,
+              totalRevenue: 0,
+              averageRating: 0,
+              totalReviews: 0,
+            },
+            marketplaceSettings: {
+              defaultPricePerKg: 450,
+              autoAcceptOffers: false,
+              minimumOfferPercentage: 80,
+              notificationsEnabled: true,
+            },
+          };
 
-        await apiClient.patch(`/users/${userId}`, {
-          roles: {
-            ...user.roles,
-            producer: producerProfile,
-          },
-          activeRole: 'producer',
-        });
-        break;
+          logger.debug(`[OnboardingService] Mise à jour utilisateur avec profil producer`);
+          await apiClient.patch(`/users/${userId}`, {
+            roles: {
+              ...user.roles,
+              producer: producerProfile,
+            },
+            activeRole: 'producer',
+          });
+          break;
 
-      case 'buyer':
-        // Créer le profil buyer avec données par défaut
-        await this.createBuyerProfile(userId, {
-          buyerType: additionalData?.buyerType || 'individual',
-          businessInfo: additionalData?.businessInfo,
-        });
-        break;
+        case 'buyer':
+          // Créer le profil buyer avec données par défaut
+          logger.debug(`[OnboardingService] Création profil buyer`);
+          await this.createBuyerProfile(userId, {
+            buyerType: additionalData?.buyerType || 'individual',
+            businessInfo: additionalData?.businessInfo,
+          });
+          break;
 
-      case 'veterinarian':
-        // Nécessite des données supplémentaires (qualifications, documents, etc.)
-        if (!additionalData) {
-          throw new Error('Les données vétérinaire sont requises');
-        }
-        await this.createVeterinarianProfile(userId, additionalData);
-        break;
+        case 'veterinarian':
+          // Nécessite des données supplémentaires (qualifications, documents, etc.)
+          if (!additionalData) {
+            throw new Error('Les données vétérinaire sont requises');
+          }
+          logger.debug(`[OnboardingService] Création profil veterinarian`);
+          await this.createVeterinarianProfile(userId, additionalData);
+          break;
 
-      case 'technician':
-        // Créer le profil technician avec données par défaut
-        await this.createTechnicianProfile(userId, {
-          qualifications: additionalData?.qualifications || { level: 'beginner' },
-          skills: additionalData?.skills || [],
-        });
-        break;
+        case 'technician':
+          // Créer le profil technician avec données par défaut
+          logger.debug(`[OnboardingService] Création profil technician`);
+          await this.createTechnicianProfile(userId, {
+            qualifications: additionalData?.qualifications || { level: 'beginner' },
+            skills: additionalData?.skills || [],
+          });
+          break;
+      }
+
+      // Récupérer l'utilisateur mis à jour
+      logger.debug(`[OnboardingService] Récupération utilisateur mis à jour`);
+      const updatedUser = await apiClient.get<any>(`/users/${userId}`);
+      if (!updatedUser) {
+        throw new Error('Impossible de récupérer l\'utilisateur mis à jour');
+      }
+      return updatedUser;
+    } catch (error: unknown) {
+      logger.error(`[OnboardingService] Erreur lors de la création du profil ${profileType}:`, error);
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error(`Erreur inconnue lors de la création du profil: ${String(error)}`);
     }
-
-    // Récupérer l'utilisateur mis à jour
-    const updatedUser = await apiClient.get<any>(`/users/${userId}`);
-    return updatedUser;
   }
 
   /**

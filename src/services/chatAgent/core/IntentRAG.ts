@@ -1265,12 +1265,19 @@ export const INTENT_KNOWLEDGE_BASE: TrainingExample[] = [
 import { INTENT_KNOWLEDGE_BASE_GENERATED } from './INTENT_KNOWLEDGE_BASE_GENERATED';
 
 /**
+ * Base de connaissances locale (500 exemples spécifiques ivoirien/élevage porcin)
+ * Ajoutée pour améliorer la détection d'intentions dans le contexte local
+ */
+import { INTENT_KNOWLEDGE_BASE_LOCAL } from './INTENT_KNOWLEDGE_BASE_LOCAL';
+
+/**
  * Base de connaissances complète fusionnée
- * Combine les exemples manuels (440+) et générés (5000+) pour un total de ~5500+ exemples
+ * Combine les exemples manuels (440+), générés (5000+) et locaux (500) pour un total de ~6000+ exemples
  */
 export const INTENT_KNOWLEDGE_BASE_COMPLETE: TrainingExample[] = [
   ...INTENT_KNOWLEDGE_BASE,
   ...INTENT_KNOWLEDGE_BASE_GENERATED,
+  ...INTENT_KNOWLEDGE_BASE_LOCAL,
 ];
 
 /**

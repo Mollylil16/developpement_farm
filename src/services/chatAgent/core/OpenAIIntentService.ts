@@ -5,6 +5,7 @@
 
 import { AgentActionType } from '../../../types/chatAgent';
 import { logger } from '../../../utils/logger';
+import { generateFewShotPromptForIntents } from './FewShotExamples';
 
 export interface OpenAIEmbedding {
   embedding: number[];
@@ -192,6 +193,19 @@ export class OpenAIIntentService {
     }
 
     try {
+      // Générer les exemples few-shot pour les intents clés
+      const keyIntents: AgentActionType[] = [
+        'create_revenu',
+        'create_depense',
+        'create_pesee',
+        'get_statistics',
+        'get_stock_status',
+        'calculate_costs',
+        'create_vaccination',
+      ].filter((intent) => availableActions.includes(intent)) as AgentActionType[];
+
+      const fewShotExamples = generateFewShotPromptForIntents(keyIntents);
+
       const systemPrompt = `Tu es un expert en classification d'intentions pour une application d'élevage de porcs en Côte d'Ivoire.
 
 ACTIONS DISPONIBLES:
@@ -219,12 +233,7 @@ RÈGLES DE CLASSIFICATION (par ordre de priorité):
    - Si le message contient "dépense" + montant → create_depense (enregistrement)
    - Si vraiment ambigu → confidence 0.6-0.7 et demande clarification
 
-EXEMPLES:
-- "combien de porcs j'ai" → {"action": "get_statistics", "confidence": 0.95}
-- "j'ai vendu 5 porcs à 800000" → {"action": "create_revenu", "confidence": 0.98}
-- "mes dépenses ce mois" → {"action": "calculate_costs", "confidence": 0.95}
-- "j'ai dépensé 50000" → {"action": "create_depense", "confidence": 0.98}
-- "peser p001 il fait 45 kg" → {"action": "create_pesee", "confidence": 0.98}
+${fewShotExamples}
 
 Réponds UNIQUEMENT avec un JSON valide:
 {"action": "nom_action", "confidence": 0.0-1.0}

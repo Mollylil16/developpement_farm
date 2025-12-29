@@ -207,7 +207,31 @@ export default function MarketplaceScreen() {
       const enrichedListings = await Promise.all(
         activeListings.map(async (listing) => {
           try {
-            // Récupérer l'animal depuis l'API backend
+            // Si c'est un listing de bande, enrichir avec les données de la bande si nécessaire
+            if (listing.listingType === 'batch' || listing.batchId) {
+              // Pour les listings batch, on peut récupérer le poids moyen depuis la bande
+              // si listing.weight n'est pas défini
+              if (!listing.weight && listing.batchId && projetActif) {
+                try {
+                  // Récupérer toutes les bandes du projet et trouver celle correspondante
+                  const batches = await apiClient.get<any[]>(`/batch-pigs/projet/${projetActif.id}`);
+                  const batch = batches.find((b: any) => b.id === listing.batchId);
+                  if (batch) {
+                    return {
+                      ...listing,
+                      weight: listing.weight || batch.average_weight_kg || 0,
+                    };
+                  }
+                } catch (error) {
+                  console.error(`Erreur enrichissement batch listing ${listing.id}:`, error);
+                }
+              }
+              return listing;
+            }
+
+            // Pour les listings individuels, récupérer l'animal
+            if (!listing.subjectId) return listing;
+            
             const animal = await apiClient.get<any>(`/production/animaux/${listing.subjectId}`);
             if (!animal) return null;
 

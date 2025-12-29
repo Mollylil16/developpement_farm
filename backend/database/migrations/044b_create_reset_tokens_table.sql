@@ -1,4 +1,4 @@
--- Migration 044: Création de la table reset_tokens pour la réinitialisation de mot de passe
+-- Migration 044b: Création de la table reset_tokens pour la réinitialisation de mot de passe
 -- Stocke les codes OTP pour la réinitialisation de mot de passe
 
 CREATE TABLE IF NOT EXISTS reset_tokens (

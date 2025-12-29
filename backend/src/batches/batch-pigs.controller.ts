@@ -7,6 +7,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -21,6 +22,8 @@ import {
 @Controller('batch-pigs')
 @UseGuards(JwtAuthGuard)
 export class BatchPigsController {
+  private readonly logger = new Logger(BatchPigsController.name);
+
   constructor(private readonly batchPigsService: BatchPigsService) {}
 
   @Post()
@@ -56,7 +59,22 @@ export class BatchPigsController {
     @Param('projetId') projetId: string,
     @CurrentUser() user: any,
   ) {
-    return await this.batchPigsService.getAllBatchesByProjet(projetId, user.id);
+    // #region agent log
+    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.controller.ts:57',message:'getAllBatchesByProjet entry',data:{projetId,userId:user.id,projetIdType:typeof projetId,userIdType:typeof user.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
+    // #endregion
+    try {
+      const result = await this.batchPigsService.getAllBatchesByProjet(projetId, user.id);
+      // #region agent log
+      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.controller.ts:62',message:'getAllBatchesByProjet success',data:{projetId,batchesCount:result.length,batches:result.map(b=>({id:b.id,pen_name:b.pen_name,category:b.category,total_count:b.total_count}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
+      // #endregion
+      return result;
+    } catch (error: any) {
+      // #region agent log
+      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.controller.ts:65',message:'getAllBatchesByProjet error',data:{projetId,userId:user.id,errorMessage:error?.message,errorStack:error?.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
+      // #endregion
+      this.logger.error(`getAllBatchesByProjet: error for projetId=${projetId}, userId=${user.id}`, error.stack || error.message);
+      throw error;
+    }
   }
 
   @Get('batch/:batchId')
@@ -64,7 +82,15 @@ export class BatchPigsController {
     @Param('batchId') batchId: string,
     @CurrentUser() user: any,
   ) {
-    return await this.batchPigsService.getPigsByBatch(batchId, user.id);
+    this.logger.debug(`getPigsByBatch: batchId=${batchId}, userId=${user.id}`);
+    try {
+      const result = await this.batchPigsService.getPigsByBatch(batchId, user.id);
+      this.logger.debug(`getPigsByBatch: success, returned ${result.length} pigs`);
+      return result;
+    } catch (error: any) {
+      this.logger.error(`getPigsByBatch: error for batchId=${batchId}, userId=${user.id}`, error.stack || error.message);
+      throw error;
+    }
   }
 
   @Get(':pigId/movements')

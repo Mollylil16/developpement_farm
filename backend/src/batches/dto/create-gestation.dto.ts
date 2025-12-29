@@ -1,7 +1,8 @@
 import { IsString, IsDateString, IsOptional, IsNumber, Min } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, ApiExtraModels } from '@nestjs/swagger';
 
-export class CreateGestationDto {
+@ApiExtraModels()
+export class CreateBatchGestationDto {
   @ApiProperty({ description: 'ID de la bande' })
   @IsString()
   batch_id: string;
@@ -32,7 +33,8 @@ export class CreateGestationDto {
   notes?: string;
 }
 
-export class UpdateGestationDto {
+@ApiExtraModels()
+export class UpdateBatchGestationDto {
   @ApiPropertyOptional({ description: 'Date de mise bas réelle (ISO string)' })
   @IsOptional()
   @IsDateString()

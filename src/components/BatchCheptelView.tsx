@@ -23,21 +23,38 @@ import { logger } from '../utils/logger';
 export default function BatchCheptelView() {
   const { colors } = useTheme();
   const projetActif = useAppSelector(selectProjetActif);
+  
+  // Tous les hooks doivent être déclarés au début du composant
+  // pour éviter "change in the order of Hooks" errors
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     total: 0,
     by_category: {} as Record<string, number>,
   });
+  const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
+  const [showActionsModal, setShowActionsModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
-  useEffect(() => {
-    if (projetActif) {
-      loadBatches();
-    }
-  }, [projetActif?.id]);
+  const calculateStats = useCallback((batchesData: Batch[]) => {
+    const total = batchesData.reduce((sum, b) => sum + b.total_count, 0);
+    const by_category = batchesData.reduce(
+      (acc, b) => {
+        acc[b.category] = (acc[b.category] || 0) + b.total_count;
+        return acc;
+      },
+      {} as Record<string, number>
+    );
 
-  const loadBatches = async () => {
+    setStats({ total, by_category });
+  }, []);
+
+  const loadBatches = useCallback(async () => {
     if (!projetActif?.id) return;
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BatchCheptelView.tsx:39',message:'loadBatches: projetActif data',data:{projetId:projetActif.id,nombre_truies:projetActif.nombre_truies,nombre_verrats:projetActif.nombre_verrats,nombre_porcelets:projetActif.nombre_porcelets,nombre_croissance:projetActif.nombre_croissance,management_method:projetActif.management_method},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
 
     setLoading(true);
     try {
@@ -45,6 +62,10 @@ export default function BatchCheptelView() {
       const batchesData = await apiClient.get<Batch[]>(
         `/batch-pigs/projet/${projetActif.id}`
       );
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BatchCheptelView.tsx:49',message:'loadBatches: batches chargées',data:{projetId:projetActif.id,batchesCount:batchesData.length,batches:batchesData.map(b=>({id:b.id,category:b.category,total_count:b.total_count,pen_name:b.pen_name}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
 
       setBatches(batchesData);
       calculateStats(batchesData);
@@ -57,24 +78,13 @@ export default function BatchCheptelView() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [projetActif?.id, calculateStats]);
 
-  const calculateStats = (batchesData: Batch[]) => {
-    const total = batchesData.reduce((sum, b) => sum + b.total_count, 0);
-    const by_category = batchesData.reduce(
-      (acc, b) => {
-        acc[b.category] = (acc[b.category] || 0) + b.total_count;
-        return acc;
-      },
-      {} as Record<string, number>
-    );
-
-    setStats({ total, by_category });
-  };
-
-  const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
-  const [showActionsModal, setShowActionsModal] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  useEffect(() => {
+    if (projetActif) {
+      loadBatches();
+    }
+  }, [projetActif?.id, loadBatches]);
 
   const handleBatchPress = (batch: Batch) => {
     setSelectedBatch(batch);

@@ -55,6 +55,9 @@ export class PlanificationsController {
   @ApiQuery({ name: 'projet_id', required: true, description: 'ID du projet' })
   @ApiResponse({ status: 200, description: 'Liste des planifications.' })
   async findAll(@Query('projet_id') projetId: string, @CurrentUser('id') userId: string) {
+    // #region agent log
+    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'planifications.controller.ts:57',message:'findAll entry',data:{projetId,userId,projetIdType:typeof projetId,userIdType:typeof userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
+    // #endregion
     return this.planificationsService.findAll(projetId, userId);
   }
 
@@ -73,6 +76,9 @@ export class PlanificationsController {
     @Query('jours') jours: string,
     @CurrentUser('id') userId: string
   ) {
+    // #region agent log
+    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'planifications.controller.ts:71',message:'findAVenir entry',data:{projetId,userId,projetIdType:typeof projetId,userIdType:typeof userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
+    // #endregion
     const joursNum = jours ? parseInt(jours, 10) : 7;
     return this.planificationsService.findAVenir(projetId, userId, joursNum);
   }

@@ -6,7 +6,7 @@
 
 import { parse, addDays, startOfDay, format, nextDay, addWeeks } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { logger } from '../../../utils/logger';
+import { logger } from '../../../../utils/logger';
 
 /**
  * Options d'extraction de date

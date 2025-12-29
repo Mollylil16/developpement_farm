@@ -20,7 +20,7 @@ import { logger } from '../utils/logger';
 // ============================================
 function createLazyScreen<T extends ComponentType<any>>(
   importFn: () => Promise<{ default: T }>,
-  fallback?: React.ReactNode
+  fallback?: React.ReactElement
 ): T {
   const LazyScreenComponent = React.forwardRef<any, any>(
     (props: any, ref: any): React.ReactElement | null => {
@@ -56,7 +56,7 @@ function createLazyScreen<T extends ComponentType<any>>(
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
             <LoadingSpinner message="Chargement..." />
           </View>
-        );
+        ) as React.ReactElement;
       }
 
       if (error) {
@@ -64,7 +64,7 @@ function createLazyScreen<T extends ComponentType<any>>(
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
             <LoadingSpinner message="Erreur de chargement. Veuillez réessayer." />
           </View>
-        );
+        ) as React.ReactElement;
       }
 
       if (!ScreenComponent) {
@@ -77,7 +77,7 @@ function createLazyScreen<T extends ComponentType<any>>(
 
   LazyScreenComponent.displayName = `LazyScreen(${importFn.name || 'Unknown'})`;
 
-  return LazyScreenComponent as T;
+  return LazyScreenComponent as unknown as T;
 }
 
 // ============================================
@@ -173,6 +173,23 @@ export const TrainingScreen = createLazyScreen(
 // Vaccination (écran dédié, peut être chargé à la demande si SanteScreen est principal)
 export const VaccinationScreen = createLazyScreen(
   () => import('../screens/VaccinationScreen')
+);
+
+// Écrans unifiés (supportent les deux modes : individuel et batch)
+export const WeighingScreen = createLazyScreen(
+  () => import('../screens/WeighingScreen')
+);
+export const SaleScreen = createLazyScreen(
+  () => import('../screens/SaleScreen')
+);
+export const MortalityScreen = createLazyScreen(
+  () => import('../screens/MortalityScreen')
+);
+export const DiseaseScreen = createLazyScreen(
+  () => import('../screens/DiseaseScreen')
+);
+export const GestationScreen = createLazyScreen(
+  () => import('../screens/GestationScreen')
 );
 
 // Migration (fonctionnalité de conversion entre modes)

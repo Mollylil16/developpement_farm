@@ -42,11 +42,21 @@ import { createLoggerWithPrefix } from '../utils/logger';
 const logger = createLoggerWithPrefix('ProductionCheptel');
 
 export default function ProductionCheptelComponent() {
+  // IMPORTANT: Tous les hooks doivent être appelés AVANT tout return conditionnel
+  // pour respecter les règles des hooks React
+  
   const { colors } = useTheme();
   const navigation = useNavigation<NavigationProp<any>>();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const projetActif = useAppSelector(selectProjetActif);
+  
+  // Vérifier la méthode de gestion du projet
+  const managementMethod = projetActif?.management_method || 'individual';
+
+  // Si mode "batch", afficher la vue par bande
+  // MAIS on doit quand même appeler tous les hooks suivants pour maintenir l'ordre constant
+  // On les appelle mais on ne les utilise pas si on est en mode batch
   const loading = useAppSelector(selectProductionLoading);
   const vaccinations = useAppSelector(selectAllVaccinations);
   const maladies = useAppSelector(selectAllMaladies);
@@ -54,7 +64,7 @@ export default function ProductionCheptelComponent() {
   const allAnimaux = useAppSelector(selectAllAnimaux);
   const peseesRecents = useAppSelector(selectPeseesRecents);
 
-  // Hooks personnalisés
+  // Hooks personnalisés - doivent être appelés inconditionnellement
   const {
     filterCategorie,
     setFilterCategorie,
@@ -79,7 +89,7 @@ export default function ProductionCheptelComponent() {
 
   const { handleChangeStatut } = useProductionCheptelStatut();
 
-  // State local
+  // State local - doivent être appelés inconditionnellement
   const [showAnimalModal, setShowAnimalModal] = useState(false);
   const [selectedAnimal, setSelectedAnimal] = useState<ProductionAnimal | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -88,8 +98,8 @@ export default function ProductionCheptelComponent() {
   const [showRevenuModal, setShowRevenuModal] = useState(false);
   const [animalVendu, setAnimalVendu] = useState<ProductionAnimal | null>(null);
   
-  // Pagination frontend: afficher seulement un nombre limité d'animaux à la fois
-  const ITEMS_PER_PAGE = 50; // Nombre d'animaux à afficher par page
+  // Pagination frontend
+  const ITEMS_PER_PAGE = 50;
   const [displayedCount, setDisplayedCount] = useState(ITEMS_PER_PAGE);
   
   // Réinitialiser la pagination quand les filtres changent
@@ -114,28 +124,59 @@ export default function ProductionCheptelComponent() {
 
   // Charger les données uniquement quand l'onglet est visible (éviter les boucles infinies)
   const aChargeRef = useRef<string | null>(null);
+  const dernierChargementRef = useRef<{ projetId: string | null; timestamp: number }>({
+    projetId: null,
+    timestamp: 0,
+  });
 
   useFocusEffect(
     React.useCallback(() => {
       if (!projetActif?.id) {
         aChargeRef.current = null;
+        dernierChargementRef.current = { projetId: null, timestamp: 0 };
+        return;
+      }
+
+      const maintenant = Date.now();
+      const CACHE_DURATION_MS = 30000; // 30 secondes
+      const memeProjet = dernierChargementRef.current.projetId === projetActif.id;
+      const donneesRecentes =
+        memeProjet && maintenant - dernierChargementRef.current.timestamp < CACHE_DURATION_MS;
+
+      // Si les données sont récentes, ne pas recharger
+      if (donneesRecentes && aChargeRef.current === projetActif.id) {
+        logger.debug('[ProductionCheptel] Données en cache, pas de rechargement');
         return;
       }
 
       // Charger uniquement une fois par projet (quand le projet change)
       if (aChargeRef.current !== projetActif.id) {
         logger.info('Rechargement des animaux et données associées...');
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProductionCheptelComponent.tsx:155',message:'ProductionCheptel: chargement données',data:{projetActifId:projetActif.id,projetActifIdType:typeof projetActif.id,projetActifIdLength:projetActif.id?.length,projetActifProprietaireId:projetActif.proprietaire_id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
         aChargeRef.current = projetActif.id;
-        
-        // Dispatcher toutes les actions en parallèle pour meilleure performance
-        Promise.all([
-          dispatch(loadProductionAnimaux({ projetId: projetActif.id })),
-          dispatch(loadVaccinations(projetActif.id)),
-          dispatch(loadMaladies(projetActif.id)),
-          dispatch(loadTraitements(projetActif.id)),
-        ]).catch((error) => {
-          logger.error('Erreur lors du chargement des données:', error);
+        dernierChargementRef.current = {
+          projetId: projetActif.id,
+          timestamp: maintenant,
+        };
+
+        // Charger les animaux immédiatement (critique pour l'affichage)
+        dispatch(loadProductionAnimaux({ projetId: projetActif.id })).catch((error) => {
+          logger.error('Erreur lors du chargement des animaux:', error);
         });
+
+        // Déferrer les autres chargements (non-critiques) après un court délai
+        // pour améliorer le temps de chargement initial
+        setTimeout(() => {
+          Promise.all([
+            dispatch(loadVaccinations(projetActif.id)),
+            dispatch(loadMaladies(projetActif.id)),
+            dispatch(loadTraitements(projetActif.id)),
+          ]).catch((error) => {
+            logger.error('Erreur lors du chargement des données associées:', error);
+          });
+        }, 500); // Délai de 500ms pour laisser le temps au rendu initial
       }
     }, [dispatch, projetActif?.id])
   );
@@ -154,6 +195,7 @@ export default function ProductionCheptelComponent() {
     }
   }, [projetActif?.id, dispatch]);
 
+  // Tous les hooks doivent être appelés AVANT le return conditionnel
   // getParentLabel helper
   const getParentLabel = useCallback(
     (id?: string | null) => {
@@ -171,16 +213,6 @@ export default function ProductionCheptelComponent() {
     },
     [allAnimaux]
   );
-
-  // Vérifier la méthode de gestion du projet
-  const managementMethod = projetActif?.management_method || 'individual';
-
-  // Si mode "batch", afficher la vue par bande
-  if (managementMethod === 'batch') {
-    return <BatchCheptelView />;
-  }
-
-  // Sinon, continuer avec la vue individuelle (code existant)
 
   // Compter les animaux dans l'historique
   const animauxHistorique = allAnimaux.filter((a) =>
@@ -208,7 +240,7 @@ export default function ProductionCheptelComponent() {
     [handleChangeStatut]
   );
 
-  // Render animal using AnimalCard component
+  // Render animal using AnimalCard component - doit être appelé avant le return conditionnel
   const renderAnimal = useCallback(
     ({ item }: { item: ProductionAnimal }) => {
       return (
@@ -250,7 +282,7 @@ export default function ProductionCheptelComponent() {
   // Constante pour la hauteur estimée d'un AnimalCard (ajuster selon votre design)
   const ESTIMATED_ITEM_HEIGHT = 200;
 
-  // Optimisation FlatList : getItemLayout pour items de taille fixe
+  // Optimisation FlatList : getItemLayout pour items de taille fixe - doit être appelé avant le return conditionnel
   const getItemLayout = useCallback(
     (_: any, index: number) => ({
       length: ESTIMATED_ITEM_HEIGHT,
@@ -259,6 +291,13 @@ export default function ProductionCheptelComponent() {
     }),
     []
   );
+
+  // MAINTENANT on peut faire le return conditionnel APRÈS tous les hooks
+  if (managementMethod === 'batch') {
+    return <BatchCheptelView />;
+  }
+
+  // Sinon, continuer avec la vue individuelle (code existant)
 
   // Afficher le spinner uniquement lors du premier chargement (pas à chaque re-render)
   if (loading && (!Array.isArray(allAnimaux) || allAnimaux.length === 0)) {

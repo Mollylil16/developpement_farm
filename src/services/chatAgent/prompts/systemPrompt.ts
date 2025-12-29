@@ -194,6 +194,136 @@ export const ACTIONS_SCHEMA = {
     keywords: ['rappelle-moi', 'rappel', 'souviens-toi', "n'oublie pas"],
     requiresConfirmation: false,
   },
+
+  // REPRODUCTION
+  get_gestations: {
+    description: 'Récupérer les gestations en cours',
+    params: { en_cours: 'boolean (optionnel, défaut: true)' },
+    keywords: ['gestation', 'gestations', 'truies saillies', 'truies gestantes', 'mise bas'],
+    requiresConfirmation: false,
+  },
+  get_gestation_by_truie: {
+    description: "Récupérer le statut de gestation d'une truie spécifique",
+    params: { truie_id: 'string (code, nom ou ID de la truie)' },
+    keywords: ['gestation truie', 'statut gestation', 'truie P012', 'mise bas truie'],
+    requiresConfirmation: false,
+  },
+  predict_mise_bas: {
+    description: 'Prédire la date de mise bas pour une truie (date_sautage + 114 jours)',
+    params: { truie_id: 'string (code, nom ou ID de la truie)' },
+    keywords: ['date mise bas', 'quand mise bas', 'mise bas prévue', 'date prévue'],
+    requiresConfirmation: false,
+  },
+  get_porcelets: {
+    description: 'Récupérer les porcelets (naissances récentes)',
+    params: { jours: 'number (optionnel, défaut: 30)' },
+    keywords: ['porcelets', 'naissances', 'nouveaux porcelets', 'porcelets récents'],
+    requiresConfirmation: false,
+  },
+  get_porcelets_transition: {
+    description: 'Récupérer les porcelets en transition (sevrage → croissance, 18-28 jours)',
+    params: {},
+    keywords: ['porcelets transition', 'sevrage', 'porcelets sevrés', 'transition'],
+    requiresConfirmation: false,
+  },
+
+  // MORTALITÉS
+  get_mortalites: {
+    description: 'Récupérer les mortalités',
+    params: { jours: 'number (optionnel, défaut: 90)' },
+    keywords: ['mortalité', 'mortalités', 'décès', 'morts', 'porcs morts'],
+    requiresConfirmation: false,
+  },
+  get_taux_mortalite: {
+    description: 'Calculer le taux de mortalité',
+    params: { periode: 'string (7j|30j|90j|1an, défaut: 30j)' },
+    keywords: ['taux mortalité', 'taux de mortalité', 'mortalité taux'],
+    requiresConfirmation: false,
+  },
+  analyze_causes_mortalite: {
+    description: 'Analyser les causes de mortalité',
+    params: {},
+    keywords: ['causes mortalité', 'analyse mortalité', 'pourquoi morts'],
+    requiresConfirmation: false,
+  },
+
+  // FINANCES - GRAPHES
+  generate_graph_finances: {
+    description: 'Générer les données de graphique financier (revenus/dépenses sur N mois)',
+    params: { mois: 'number (optionnel, défaut: 6)' },
+    keywords: ['graphique finances', 'évolution dépenses', 'graphique revenus', 'courbe finances'],
+    requiresConfirmation: false,
+  },
+  describe_graph_trends: {
+    description: 'Décrire les tendances des graphiques financiers',
+    params: { mois: 'number (optionnel, défaut: 6)' },
+    keywords: ['tendances finances', 'évolution financière', 'tendance dépenses'],
+    requiresConfirmation: false,
+  },
+
+  // NUTRITION - COMPOSITION
+  propose_composition_alimentaire: {
+    description: 'Proposer une composition alimentaire personnalisée (basée sur stade, race, ingrédients locaux)',
+    params: {
+      type_porc: 'string (porcelet|truie_gestante|truie_allaitante|verrat|porc_croissance)',
+      stade: 'string (optionnel, synonyme de type_porc)',
+    },
+    keywords: ['composition alimentaire', 'ration', 'aliment personnalisé', 'ration truie', 'aliment porcelet'],
+    requiresConfirmation: false,
+  },
+  calculate_consommation_moyenne: {
+    description: 'Calculer la consommation moyenne d\'aliments par animal/bande',
+    params: { jours: 'number (optionnel, défaut: 30)' },
+    keywords: ['consommation', 'consommation moyenne', 'aliment consommé', 'consommation par porc'],
+    requiresConfirmation: false,
+  },
+
+  // VENTES
+  get_ventes: {
+    description: 'Récupérer les ventes de porcs',
+    params: { jours: 'number (optionnel, défaut: 90)' },
+    keywords: ['ventes', 'porcs vendus', 'ventes récentes'],
+    requiresConfirmation: false,
+  },
+  analyze_ventes: {
+    description: 'Analyser les ventes (tendances, prix moyen, etc.)',
+    params: { periode: 'string (optionnel)' },
+    keywords: ['analyse ventes', 'tendances ventes', 'statistiques ventes'],
+    requiresConfirmation: false,
+  },
+  get_bilan_financier: {
+    description: 'Récupérer le bilan financier complet (revenus, dépenses, dettes, actifs, indicateurs)',
+    params: {
+      periode: 'string (optionnel: mois_actuel|mois_precedent|trimestre|annee, défaut: mois_actuel)',
+    },
+    keywords: [
+      'bilan financier',
+      'bilan complet',
+      'situation financière',
+      'état financier',
+      'résultat financier',
+      'solde',
+      'marge',
+      'cash flow',
+      'actifs',
+      'dettes',
+    ],
+    requiresConfirmation: false,
+  },
+  get_dettes_en_cours: {
+    description: 'Récupérer la liste des dettes en cours avec échéances',
+    params: {},
+    keywords: [
+      'dettes',
+      'prêts',
+      'dettes en cours',
+      'emprunts',
+      'échéances',
+      'remboursements',
+      'intérêts',
+    ],
+    requiresConfirmation: false,
+  },
 };
 
 /**

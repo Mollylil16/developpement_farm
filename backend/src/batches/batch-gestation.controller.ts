@@ -13,7 +13,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { BatchGestationService } from './batch-gestation.service';
-import { CreateGestationDto, UpdateGestationDto } from './dto/create-gestation.dto';
+import { CreateBatchGestationDto, UpdateBatchGestationDto } from './dto/create-gestation.dto';
 
 @ApiTags('batch-gestations')
 @Controller('batch-gestations')
@@ -26,7 +26,7 @@ export class BatchGestationController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Créer une gestation pour une truie dans une bande' })
   async createGestation(
-    @Body() dto: CreateGestationDto,
+    @Body() dto: CreateBatchGestationDto,
     @CurrentUser() user: any,
   ) {
     return await this.gestationService.createGestation(dto, user.id);
@@ -36,7 +36,7 @@ export class BatchGestationController {
   @ApiOperation({ summary: 'Mettre à jour une gestation' })
   async updateGestation(
     @Param('id') id: string,
-    @Body() dto: UpdateGestationDto,
+    @Body() dto: UpdateBatchGestationDto,
     @CurrentUser() user: any,
   ) {
     return await this.gestationService.updateGestation(id, dto, user.id);

@@ -21,6 +21,7 @@ import { CreateRatingDto } from './dto/create-rating.dto';
 import { CreatePurchaseRequestDto } from './dto/create-purchase-request.dto';
 import { UpdatePurchaseRequestDto } from './dto/update-purchase-request.dto';
 import { CreatePurchaseRequestOfferDto } from './dto/create-purchase-request-offer.dto';
+import { CreateBatchListingDto } from './dto/create-batch-listing.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
@@ -37,7 +38,7 @@ export class MarketplaceController {
 
   @Post('listings')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Créer une nouvelle annonce' })
+  @ApiOperation({ summary: 'Créer une nouvelle annonce (animal individuel)' })
   @ApiResponse({ status: 201, description: 'Annonce créée avec succès.' })
   @ApiResponse({ status: 400, description: 'Données invalides.' })
   async createListing(
@@ -45,6 +46,18 @@ export class MarketplaceController {
     @CurrentUser('id') userId: string
   ) {
     return this.marketplaceService.createListing(createListingDto, userId);
+  }
+
+  @Post('listings/batch')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Créer une nouvelle annonce pour une bande (batch)' })
+  @ApiResponse({ status: 201, description: 'Annonce de bande créée avec succès.' })
+  @ApiResponse({ status: 400, description: 'Données invalides.' })
+  async createBatchListing(
+    @Body() createBatchListingDto: CreateBatchListingDto,
+    @CurrentUser('id') userId: string
+  ) {
+    return this.marketplaceService.createBatchListing(createBatchListingDto, userId);
   }
 
   @Get('listings')

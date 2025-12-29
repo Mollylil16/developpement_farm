@@ -22,19 +22,23 @@ export class AuthService {
   ) {}
 
   async validateUser(email: string, password: string): Promise<any> {
-    const user = await this.usersService.findByEmail(email);
+    // Inclure password_hash pour la vérification
+    const user = await this.usersService.findByEmail(email, true);
 
     if (!user) {
+      this.logger.debug(`validateUser: utilisateur non trouvé pour email ${email}`);
       return null;
     }
 
     if (!user.password_hash) {
+      this.logger.debug(`validateUser: pas de mot de passe pour email ${email}`);
       return null;
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
 
     if (!isPasswordValid) {
+      this.logger.debug(`validateUser: mot de passe incorrect pour email ${email}`);
       return null;
     }
 
@@ -48,16 +52,25 @@ export class AuthService {
     if (loginDto.email) {
       user = await this.validateUser(loginDto.email, loginDto.password);
     } else if (loginDto.telephone) {
-      // Valider avec téléphone
-      const foundUser = await this.usersService.findByTelephone(loginDto.telephone);
-      if (!foundUser || !foundUser.password_hash) {
+      // Valider avec téléphone - inclure password_hash pour la vérification
+      this.logger.debug(`Login téléphone: tentative avec ${loginDto.telephone}`);
+      const foundUser = await this.usersService.findByTelephone(loginDto.telephone, true);
+      
+      if (!foundUser) {
+        this.logger.warn(`Login téléphone: utilisateur non trouvé pour ${loginDto.telephone}`);
+        user = null;
+      } else if (!foundUser.password_hash) {
+        this.logger.warn(`Login téléphone: pas de mot de passe pour ${loginDto.telephone}, userId=${foundUser.id}`);
         user = null;
       } else {
+        this.logger.debug(`Login téléphone: utilisateur trouvé userId=${foundUser.id}, vérification mot de passe`);
         const isPasswordValid = await bcrypt.compare(loginDto.password, foundUser.password_hash);
         if (isPasswordValid) {
+          this.logger.debug(`Login téléphone: mot de passe valide pour userId=${foundUser.id}`);
           const { password_hash, ...userWithoutPassword } = foundUser;
           user = userWithoutPassword;
         } else {
+          this.logger.warn(`Login téléphone: mot de passe incorrect pour ${loginDto.telephone}, userId=${foundUser.id}`);
           user = null;
         }
       }

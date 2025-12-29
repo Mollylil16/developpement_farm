@@ -20,6 +20,11 @@ const API_TIMEOUT = API_CONFIG.timeout;
 const ACCESS_TOKEN_KEY = '@fermier_pro:access_token';
 const REFRESH_TOKEN_KEY = '@fermier_pro:refresh_token';
 
+// Verrouillage pour éviter plusieurs refresh simultanés
+let refreshPromise: Promise<string | null> | null = null;
+let lastRefreshAttempt = 0;
+const REFRESH_COOLDOWN = 5000; // 5 secondes entre les tentatives de refresh
+
 /**
  * Interface pour les options de requête
  */
@@ -90,35 +95,103 @@ async function clearTokens(): Promise<void> {
 
 /**
  * Rafraîchit le token d'accès en utilisant le refresh token
+ * Utilise un verrouillage pour éviter plusieurs refresh simultanés
  */
 async function refreshAccessToken(): Promise<string | null> {
-  try {
-    const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
-    if (!refreshToken) {
-      throw new Error('No refresh token available');
-    }
+  // Si un refresh est déjà en cours, attendre son résultat
+  if (refreshPromise) {
+    logger.debug('Refresh déjà en cours, attente du résultat...');
+    return refreshPromise;
+  }
 
-    const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Refresh failed: ${response.status}`);
-    }
-
-    const data = await response.json();
-    await setTokens(data.access_token, data.refresh_token);
-
-    return data.access_token;
-  } catch (error) {
-    logger.error('Erreur lors du rafraîchissement du token:', error);
-    await clearTokens();
+  // Vérifier le cooldown pour éviter trop de tentatives
+  const now = Date.now();
+  if (now - lastRefreshAttempt < REFRESH_COOLDOWN) {
+    const waitTime = REFRESH_COOLDOWN - (now - lastRefreshAttempt);
+    logger.debug(`Cooldown actif, attente de ${waitTime}ms avant nouvelle tentative`);
     return null;
   }
+
+  lastRefreshAttempt = now;
+
+  // Créer la promesse de refresh
+  refreshPromise = (async (): Promise<string | null> => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'apiClient.ts:118',message:'refreshAccessToken: début',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    try {
+      const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
+      if (!refreshToken) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'apiClient.ts:121',message:'refreshAccessToken: pas de refresh token',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        logger.warn('No refresh token available');
+        throw new Error('No refresh token available');
+      }
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'apiClient.ts:126',message:'refreshAccessToken: appel API',data:{apiBaseUrl:API_BASE_URL,hasRefreshToken:!!refreshToken},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      logger.debug('Tentative de rafraîchissement du token...');
+      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'apiClient.ts:135',message:'refreshAccessToken: réponse reçue',data:{status:response.status,ok:response.ok},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'apiClient.ts:138',message:'refreshAccessToken: refresh failed',data:{status:response.status,errorText:errorText.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        logger.error(`Refresh failed: ${response.status} - ${errorText}`);
+        throw new Error(`Refresh failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      await setTokens(data.access_token, data.refresh_token);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'apiClient.ts:142',message:'refreshAccessToken: succès',data:{hasAccessToken:!!data.access_token,hasRefreshToken:!!data.refresh_token},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      logger.debug('Token rafraîchi avec succès');
+
+      return data.access_token;
+    } catch (error) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'apiClient.ts:146',message:'refreshAccessToken: erreur catch',data:{errorMessage:error?.message,errorName:error?.constructor?.name,isTypeError:error instanceof TypeError,isNetworkError:error instanceof TypeError && error.message.includes('fetch')},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      // Distinguer les erreurs réseau des autres erreurs
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        logger.error('Erreur réseau lors du rafraîchissement - Backend inaccessible:', error);
+        // Ne pas nettoyer les tokens en cas d'erreur réseau, juste retourner null
+        // pour permettre une nouvelle tentative plus tard
+        return null;
+      }
+
+      logger.error('Erreur lors du rafraîchissement du token:', error);
+      // Nettoyer les tokens seulement si c'est une erreur d'authentification (401, 403)
+      // Ne pas nettoyer pour les erreurs réseau ou autres erreurs temporaires
+      if (error instanceof Error && error.message.includes('Refresh failed: 401')) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'apiClient.ts:157',message:'refreshAccessToken: nettoyage tokens (401)',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        await clearTokens();
+      }
+      return null;
+    } finally {
+      // Libérer le verrou immédiatement après le refresh (pas de délai)
+      // Le délai était trop long et bloquait les requêtes suivantes
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
 }
 
 /**
@@ -235,7 +308,13 @@ async function executeHttpRequest<T>(
 
     // Si 401 (Unauthorized), essayer de rafraîchir le token
     if (response.status === 401 && !skipAuth) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'apiClient.ts:285',message:'executeHttpRequest: 401 détecté, refresh token',data:{endpoint,hasRefreshPromise:!!refreshPromise},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       const newToken = await refreshAccessToken();
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'apiClient.ts:287',message:'executeHttpRequest: refresh token résultat',data:{endpoint,hasNewToken:!!newToken},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       if (newToken) {
         // Réessayer la requête avec le nouveau token
         headers['Authorization'] = `Bearer ${newToken}`;
@@ -246,16 +325,27 @@ async function executeHttpRequest<T>(
         });
 
         if (!retryResponse.ok) {
+          const errorData = await retryResponse.json().catch(() => ({}));
           throw new APIError(
-            `Request failed: ${retryResponse.statusText}`,
+            errorData.message || `Request failed: ${retryResponse.statusText}`,
             retryResponse.status,
-            await retryResponse.json().catch(() => null)
+            errorData
           );
         }
 
         return await retryResponse.json();
       } else {
-        // Refresh échoué, déconnecter l'utilisateur
+        // Refresh échoué - vérifier si c'est à cause d'une erreur réseau
+        // Si oui, laisser l'erreur réseau originale passer plutôt que "Session expirée"
+        const networkState = await checkNetworkConnectivity();
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'apiClient.ts:306',message:'executeHttpRequest: refresh échoué',data:{endpoint,isConnected:networkState.isConnected},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+        if (!networkState.isConnected) {
+          // Pas de connexion réseau - propager l'erreur réseau originale
+          throw new APIError('Pas de connexion réseau. Vérifiez votre connexion Internet.', 0);
+        }
+        // Refresh échoué pour une autre raison (token invalide, etc.), déconnecter l'utilisateur
         throw new APIError('Session expirée. Veuillez vous reconnecter.', 401);
       }
     }
@@ -285,8 +375,23 @@ async function executeHttpRequest<T>(
         );
       }
       
+      // Extraire le message d'erreur de manière plus robuste
+      let errorMessage = errorData.message || errorData.error || errorData.message || '';
+      if (!errorMessage && response.statusText) {
+        errorMessage = response.statusText;
+      }
+      if (!errorMessage) {
+        errorMessage = `Erreur HTTP ${response.status}`;
+      }
+      
+      logger.error(`Erreur API [${response.status}]: ${errorMessage}`, {
+        endpoint,
+        status: response.status,
+        errorData,
+      });
+      
       throw new APIError(
-        errorData.message || `Request failed: ${response.statusText}`,
+        errorMessage,
         response.status,
         errorData
       );

@@ -52,6 +52,13 @@ export const SCREENS = {
   // Migration
   MIGRATION_WIZARD: 'MigrationWizard',
   MIGRATION_HISTORY: 'MigrationHistory',
+  // Écrans unifiés (supportent les deux modes : individuel et batch)
+  VACCINATION: 'Vaccination',
+  WEIGHING: 'Weighing',
+  SALE: 'Sale',
+  MORTALITY: 'Mortality',
+  DISEASE: 'Disease',
+  GESTATION: 'Gestation',
 } as const;
 
 export type ScreenName = (typeof SCREENS)[keyof typeof SCREENS];

@@ -22,10 +22,23 @@ export class UsersService {
   }
 
   /**
-   * Normalise le téléphone (trim + supprime espaces)
+   * Normalise le téléphone (trim + supprime espaces et caractères non numériques sauf +)
+   * Exemples:
+   * - "+225 07 12 34 56 78" → "+2250712345678"
+   * - "07 12 34 56 78" → "0712345678"
+   * - "225 07 12 34 56 78" → "2250712345678"
    */
   private normalizeTelephone(telephone?: string): string | null {
-    return telephone ? telephone.trim().replace(/\s+/g, '') : null;
+    if (!telephone) return null;
+    // Supprimer tous les espaces et caractères non numériques sauf +
+    let normalized = telephone.trim().replace(/\s+/g, '').replace(/[^\d+]/g, '');
+    // Si le numéro commence par +, le garder, sinon supprimer tous les +
+    if (normalized.startsWith('+')) {
+      normalized = '+' + normalized.substring(1).replace(/\+/g, '');
+    } else {
+      normalized = normalized.replace(/\+/g, '');
+    }
+    return normalized || null;
   }
 
   async create(createUserDto: any) {
@@ -102,7 +115,7 @@ export class UsersService {
     return result.rows[0] ? this.mapRowToUser(result.rows[0]) : null;
   }
 
-  async findByEmail(email: string) {
+  async findByEmail(email: string, includePasswordHash = false) {
     const normalizedEmail = this.normalizeEmail(email);
     if (!normalizedEmail) {
       this.logger.debug('findByEmail: email vide ou invalide');
@@ -111,9 +124,16 @@ export class UsersService {
 
     this.logger.debug(`findByEmail: recherche de ${normalizedEmail}`);
     // Colonnes nécessaires pour mapRowToUser (optimisation: éviter SELECT *)
-    const userColumns = `id, email, telephone, nom, prenom, provider, provider_id, photo, 
+    let userColumns = `id, email, telephone, nom, prenom, provider, provider_id, photo, 
       saved_farms, date_creation, derniere_connexion, roles, active_role, 
       is_onboarded, onboarding_completed_at, is_active`;
+    
+    // Ajouter password_hash si nécessaire pour l'authentification
+    if (includePasswordHash) {
+      userColumns = `id, email, telephone, nom, prenom, provider, provider_id, photo, 
+        saved_farms, date_creation, derniere_connexion, roles, active_role, 
+        is_onboarded, onboarding_completed_at, is_active, password_hash`;
+    }
     
     const result = await this.databaseService.query(
       `SELECT ${userColumns} FROM users WHERE email = $1 AND is_active = true`,
@@ -121,23 +141,80 @@ export class UsersService {
     );
     
     this.logger.debug(`findByEmail: ${result.rows.length} utilisateur(s) trouvé(s)`);
-    return result.rows[0] ? this.mapRowToUser(result.rows[0]) : null;
+    
+    if (!result.rows[0]) return null;
+    
+    const user = this.mapRowToUser(result.rows[0]);
+    
+    // Inclure password_hash si demandé
+    if (includePasswordHash && result.rows[0].password_hash) {
+      (user as any).password_hash = result.rows[0].password_hash;
+    }
+    
+    return user;
   }
 
-  async findByTelephone(telephone: string) {
+  async findByTelephone(telephone: string, includePasswordHash = false) {
+    this.logger.debug(`findByTelephone: recherche avec téléphone original="${telephone}"`);
     const normalizedTelephone = this.normalizeTelephone(telephone);
-    if (!normalizedTelephone) return null;
+    if (!normalizedTelephone) {
+      this.logger.debug(`findByTelephone: téléphone normalisé vide pour "${telephone}"`);
+      return null;
+    }
+    
+    this.logger.debug(`findByTelephone: téléphone normalisé="${normalizedTelephone}"`);
 
     // Colonnes nécessaires pour mapRowToUser (optimisation: éviter SELECT *)
-    const userColumns = `id, email, telephone, nom, prenom, provider, provider_id, photo, 
+    let userColumns = `id, email, telephone, nom, prenom, provider, provider_id, photo, 
       saved_farms, date_creation, derniere_connexion, roles, active_role, 
       is_onboarded, onboarding_completed_at, is_active`;
+    
+    // Ajouter password_hash si nécessaire pour l'authentification
+    if (includePasswordHash) {
+      userColumns = `id, email, telephone, nom, prenom, provider, provider_id, photo, 
+        saved_farms, date_creation, derniere_connexion, roles, active_role, 
+        is_onboarded, onboarding_completed_at, is_active, password_hash`;
+    }
 
     const result = await this.databaseService.query(
       `SELECT ${userColumns} FROM users WHERE telephone = $1 AND is_active = true`,
       [normalizedTelephone]
     );
-    return result.rows[0] ? this.mapRowToUser(result.rows[0]) : null;
+    this.logger.debug(`findByTelephone: ${result.rows.length} utilisateur(s) trouvé(s) pour "${normalizedTelephone}"`);
+    
+    if (!result.rows[0]) {
+      // Essayer aussi sans le + au début si le numéro commence par +
+      if (normalizedTelephone.startsWith('+')) {
+        const withoutPlus = normalizedTelephone.substring(1);
+        this.logger.debug(`findByTelephone: tentative alternative sans + pour "${withoutPlus}"`);
+        const result2 = await this.databaseService.query(
+          `SELECT ${userColumns} FROM users WHERE telephone = $1 AND is_active = true`,
+          [withoutPlus]
+        );
+        if (result2.rows[0]) {
+          this.logger.debug(`findByTelephone: utilisateur trouvé avec variante sans +`);
+          const user = this.mapRowToUser(result2.rows[0]);
+          if (includePasswordHash && result2.rows[0].password_hash) {
+            (user as any).password_hash = result2.rows[0].password_hash;
+          }
+          return user;
+        }
+      }
+      return null;
+    }
+    
+    const user = this.mapRowToUser(result.rows[0]);
+    this.logger.debug(`findByTelephone: utilisateur trouvé userId=${user.id}, telephone=${user.telephone}`);
+    
+    // Inclure password_hash si demandé
+    if (includePasswordHash && result.rows[0].password_hash) {
+      (user as any).password_hash = result.rows[0].password_hash;
+      this.logger.debug(`findByTelephone: password_hash inclus pour userId=${user.id}`);
+    } else if (includePasswordHash) {
+      this.logger.warn(`findByTelephone: password_hash demandé mais absent pour userId=${user.id}`);
+    }
+    
+    return user;
   }
 
   async findByProviderId(provider: string, providerId: string) {

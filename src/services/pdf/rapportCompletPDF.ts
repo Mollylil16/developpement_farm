@@ -434,7 +434,7 @@ export function generateRapportCompletHTML(data: RapportCompletData): string {
             <td class="text-right">
               <span style="font-size: 16px; font-weight: bold; color: ${
                 indicateurs.gmqMoyen >= 600
-                  ? '#28a745'
+                  ? '#1976D2'
                   : indicateurs.gmqMoyen >= 400
                     ? '#ffc107'
                     : '#dc3545'
@@ -466,7 +466,7 @@ export function generateRapportCompletHTML(data: RapportCompletData): string {
             <td class="text-right">
               <span style="font-size: 16px; font-weight: bold; color: ${
                 indicateurs.tauxReproduction >= 80
-                  ? '#28a745'
+                  ? '#1976D2'
                   : indicateurs.tauxReproduction >= 60
                     ? '#ffc107'
                     : '#dc3545'
@@ -480,7 +480,7 @@ export function generateRapportCompletHTML(data: RapportCompletData): string {
             <td class="text-right">
               <span style="font-size: 16px; font-weight: bold; color: ${
                 indicateurs.tauxMortalite <= 5
-                  ? '#28a745'
+                  ? '#1976D2'
                   : indicateurs.tauxMortalite <= 10
                     ? '#ffc107'
                     : '#dc3545'
@@ -507,7 +507,7 @@ export function generateRapportCompletHTML(data: RapportCompletData): string {
             <td><strong>Rentabilité</strong></td>
             <td class="text-right">
               <span style="font-size: 16px; font-weight: bold; color: ${
-                financeIndicateurs.rentabilite >= 0 ? '#28a745' : '#dc3545'
+                financeIndicateurs.rentabilite >= 0 ? '#1976D2' : '#dc3545'
               }">
                 ${formatNumber(financeIndicateurs.rentabilite, 1)}%
               </span>
@@ -593,8 +593,8 @@ export function generateRapportCompletHTML(data: RapportCompletData): string {
           </tr>
         </table>
         
-        <div style="margin-top: 15px; padding: 10px; background: ${totauxFinance.solde >= 0 ? '#d4edda' : '#f8d7da'}; border-radius: 6px;">
-          <p style="text-align: center; font-size: 12px; color: ${totauxFinance.solde >= 0 ? '#155724' : '#721c24'};">
+        <div style="margin-top: 15px; padding: 10px; background: ${totauxFinance.solde >= 0 ? '#e3f2fd' : '#f8d7da'}; border-radius: 6px;">
+          <p style="text-align: center; font-size: 12px; color: ${totauxFinance.solde >= 0 ? '#0d47a1' : '#721c24'};">
             ${
               totauxFinance.solde >= 0
                 ? '✅ Votre exploitation est bénéficiaire'

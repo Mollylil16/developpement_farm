@@ -71,7 +71,10 @@ export default function MarketplaceMyListingsTab({
   };
 
   const renderItem = ({ item }: { item: MarketplaceListing }) => {
-    const animal = allAnimaux.find((a: ProductionAnimal) => a.id === item.subjectId);
+    const isBatchListing = item.listingType === 'batch' || item.batchId;
+    const animal = !isBatchListing && item.subjectId 
+      ? allAnimaux.find((a: ProductionAnimal) => a.id === item.subjectId)
+      : null;
 
     return (
       <View
@@ -81,10 +84,24 @@ export default function MarketplaceMyListingsTab({
         ]}
       >
         <View style={styles.header}>
-          <Text style={[styles.code, { color: marketplaceColors.text }]}>
-            {animal?.code || item.code || `#${item.subjectId.slice(0, 8)}`}
-            {animal?.nom ? ` (${animal.nom})` : null}
-          </Text>
+          {isBatchListing ? (
+            <View style={styles.batchHeader}>
+              <View style={styles.batchBadge}>
+                <Ionicons name="people" size={14} color={marketplaceColors.primary} />
+                <Text style={[styles.batchLabel, { color: marketplaceColors.primary }]}>
+                  Bande
+                </Text>
+              </View>
+              <Text style={[styles.code, { color: marketplaceColors.text }]}>
+                {item.pigCount || item.pigIds?.length || 0} porc{(item.pigCount || item.pigIds?.length || 0) > 1 ? 's' : ''}
+              </Text>
+            </View>
+          ) : (
+            <Text style={[styles.code, { color: marketplaceColors.text }]}>
+              {animal?.code || item.code || `#${(item.subjectId || item.id).slice(0, 8)}`}
+              {animal?.nom ? ` (${animal.nom})` : null}
+            </Text>
+          )}
           <View style={styles.actions}>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: marketplaceColors.primary + '15' }]}
@@ -106,13 +123,23 @@ export default function MarketplaceMyListingsTab({
           <View style={styles.stat}>
             <Ionicons name="scale-outline" size={16} color={marketplaceColors.textSecondary} />
             <Text style={[styles.statText, { color: marketplaceColors.text }]}>
-              {item.weight || 0} kg
+              {isBatchListing 
+                ? `${item.weight || 0} kg (moyen)`
+                : `${item.weight || 0} kg`}
             </Text>
           </View>
+          {isBatchListing && item.pigCount && (
+            <View style={styles.stat}>
+              <Ionicons name="cube-outline" size={16} color={marketplaceColors.textSecondary} />
+              <Text style={[styles.statText, { color: marketplaceColors.text }]}>
+                {(item.weight || 0) * item.pigCount} kg (total)
+              </Text>
+            </View>
+          )}
           <View style={styles.stat}>
             <Ionicons name="cash-outline" size={16} color={marketplaceColors.textSecondary} />
             <Text style={[styles.statText, { color: marketplaceColors.text }]}>
-              {item.pricePerKg} FCFA/kg
+              {item.pricePerKg.toLocaleString('fr-FR')} FCFA/kg
             </Text>
           </View>
         </View>
@@ -241,5 +268,18 @@ const styles = StyleSheet.create({
   date: {
     fontSize: 12,
     marginLeft: 'auto',
+  },
+  batchHeader: {
+    flex: 1,
+  },
+  batchBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
+  },
+  batchLabel: {
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

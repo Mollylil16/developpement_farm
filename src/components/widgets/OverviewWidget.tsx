@@ -6,7 +6,8 @@
 import React, { useMemo, useEffect, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
-import { loadProductionAnimaux, loadPeseesRecents } from '../../store/slices/productionSlice';
+import { loadPeseesRecents } from '../../store/slices/productionSlice';
+import { useLoadAnimauxOnMount } from '../../hooks/useLoadAnimauxOnMount';
 import { 
   selectAllAnimaux, 
   selectPeseesRecents, 
@@ -34,28 +35,24 @@ function OverviewWidget({ onPress }: OverviewWidgetProps) {
   const peseesRecents = useAppSelector(selectPeseesRecents);
   const updateCounter = useAppSelector(selectProductionUpdateCounter);
 
-  // Utiliser useRef pour éviter les chargements multiples (boucle infinie)
-  const dataChargeesRef = React.useRef<string | null>(null);
+  // Charger les animaux au montage (hook centralisé)
+  useLoadAnimauxOnMount();
 
-  // Charger les animaux du cheptel (une seule fois par projet)
+  // Charger les pesées récentes (une seule fois par projet)
+  const peseesChargeesRef = React.useRef<string | null>(null);
   useEffect(() => {
     if (!projetActif?.id) {
-      dataChargeesRef.current = null;
+      peseesChargeesRef.current = null;
       return;
     }
 
-    if (dataChargeesRef.current === projetActif.id) {
+    if (peseesChargeesRef.current === projetActif.id) {
       return; // Déjà chargé !
     }
 
-    dataChargeesRef.current = projetActif.id;
-    
-    // Dispatcher en parallèle pour meilleure performance
-    Promise.all([
-      dispatch(loadProductionAnimaux({ projetId: projetActif.id })),
-      dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 })), // Limité à 20 pesées récentes (suffisant pour stats)
-    ]).catch((error) => {
-      logger.error('[OverviewWidget] Erreur lors du chargement des données:', error);
+    peseesChargeesRef.current = projetActif.id;
+    dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 })).catch((error) => {
+      logger.error('[OverviewWidget] Erreur lors du chargement des pesées:', error);
     });
   }, [dispatch, projetActif?.id]);
 
@@ -74,8 +71,20 @@ function OverviewWidget({ onPress }: OverviewWidgetProps) {
     return mortalites.filter((m) => m.projet_id === projetActif.id);
   }, [mortalites, projetActif?.id]);
 
-  // Pré-formater les pesées une seule fois
+  // Pré-formater les pesées une seule fois (optimisé pour éviter les recalculs inutiles)
   const peseesFormatted = useMemo(() => {
+    // Si peseesParAnimal est déjà complet, l'utiliser directement
+    if (Object.keys(peseesParAnimal).length > 0 && peseesRecents.length === 0) {
+      const formatted: Record<string, Array<{ date: string; poids_kg: number }>> = {};
+      Object.keys(peseesParAnimal).forEach((animalId) => {
+        formatted[animalId] = peseesParAnimal[animalId].map((pesee) => ({
+          date: pesee.date,
+          poids_kg: pesee.poids_kg,
+        }));
+      });
+      return formatted;
+    }
+
     const formatted: Record<string, Array<{ date: string; poids_kg: number }>> = {};
 
     // D'abord, utiliser peseesParAnimal si disponible
@@ -110,6 +119,10 @@ function OverviewWidget({ onPress }: OverviewWidgetProps) {
     if (!projetActif) {
       return null;
     }
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OverviewWidget.tsx:106',message:'stats calculation - projetActif data',data:{projetId:projetActif.id,nombre_truies:projetActif.nombre_truies,nombre_verrats:projetActif.nombre_verrats,nombre_porcelets:projetActif.nombre_porcelets,nombre_croissance:projetActif.nombre_croissance,animauxActifsCount:animauxActifsProjet.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+    // #endregion
 
     const hasAnimauxActifs = animauxActifsProjet.length > 0;
 

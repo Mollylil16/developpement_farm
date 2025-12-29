@@ -27,13 +27,8 @@ const ProfileSelectionScreen: React.FC = () => {
   const { colors } = useTheme();
   const navigation = useNavigation<NavigationProp<any>>();
   const route = useRoute();
-<<<<<<< HEAD
-  const { userId } =
-    (route.params as { userId: string }) || {};
-=======
   const { userId, identifier, isEmail } =
     (route.params as { userId?: string; identifier?: string; isEmail?: boolean }) || {};
->>>>>>> ededb9939a0805937d2a5966c760f1bc1becef5f
 
   const profileOptions: ProfileOption[] = [
     {
@@ -68,36 +63,6 @@ const ProfileSelectionScreen: React.FC = () => {
     },
   ];
 
-<<<<<<< HEAD
-  const handleProfileSelect = (profileType: RoleType) => {
-    // Naviguer vers l'écran de complément d'informations selon le profil
-    // Passer le userId (l'utilisateur existe déjà dans la BD)
-    switch (profileType) {
-      case 'producer':
-        (navigation as any).navigate(SCREENS.CREATE_PROJECT, {
-          userId,
-        });
-        break;
-      case 'buyer':
-        (navigation as any).navigate(SCREENS.BUYER_INFO_COMPLETION, {
-          profileType,
-          userId,
-        });
-        break;
-      case 'veterinarian':
-        (navigation as any).navigate(SCREENS.VETERINARIAN_INFO_COMPLETION, {
-          profileType,
-          userId,
-        });
-        break;
-      case 'technician':
-        // Le technicien peut avoir un flux simplifié
-        (navigation as any).navigate(SCREENS.BUYER_INFO_COMPLETION, {
-          profileType: 'technician',
-          userId,
-        });
-        break;
-=======
   const handleProfileSelect = async (profileType: RoleType) => {
     if (!userId) {
       Alert.alert('Erreur', 'Identifiant utilisateur manquant. Veuillez recommencer.');
@@ -120,32 +85,77 @@ const ProfileSelectionScreen: React.FC = () => {
       switch (profileType) {
         case 'producer':
           // Naviguer vers création de projet
-          (navigation as any).navigate(SCREENS.CREATE_PROJECT);
+          (navigation as any).navigate(SCREENS.CREATE_PROJECT, {
+            userId,
+          });
           break;
         case 'buyer':
           // Naviguer vers complément d'informations acheteur
           (navigation as any).navigate(SCREENS.BUYER_INFO_COMPLETION, {
             profileType,
+            userId,
           });
           break;
         case 'veterinarian':
           // Naviguer vers complément d'informations vétérinaire
           (navigation as any).navigate(SCREENS.VETERINARIAN_INFO_COMPLETION, {
             profileType,
+            userId,
           });
           break;
         case 'technician':
           // Naviguer vers complément d'informations technicien
           (navigation as any).navigate(SCREENS.BUYER_INFO_COMPLETION, {
             profileType: 'technician',
+            userId,
           });
           break;
       }
     } catch (error: unknown) {
       console.error('Erreur création profil:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
-      Alert.alert('Erreur', `Impossible de créer le profil: ${errorMessage}`);
->>>>>>> ededb9939a0805937d2a5966c760f1bc1becef5f
+      
+      // Extraire le message d'erreur de manière plus détaillée
+      let errorMessage = 'Erreur inconnue';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        // Si c'est une APIError, essayer d'extraire plus d'informations
+        if ('status' in error && typeof (error as any).status === 'number') {
+          const apiError = error as any;
+          const status = apiError.status;
+          const data = apiError.data;
+          
+          if (data && typeof data === 'object' && 'message' in data) {
+            errorMessage = String(data.message);
+          } else if (status === 401) {
+            errorMessage = 'Session expirée. Veuillez vous reconnecter.';
+          } else if (status === 403) {
+            errorMessage = 'Accès refusé. Vous n\'avez pas les permissions nécessaires.';
+          } else if (status === 404) {
+            errorMessage = 'Ressource non trouvée. Veuillez réessayer.';
+          } else if (status === 500) {
+            errorMessage = 'Erreur serveur. Veuillez réessayer plus tard.';
+          } else if (status === 0) {
+            errorMessage = 'Erreur de connexion. Vérifiez votre connexion Internet.';
+          } else {
+            errorMessage = `Erreur ${status}: ${error.message}`;
+          }
+        }
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
+      Alert.alert(
+        'Erreur',
+        `Impossible de créer le profil: ${errorMessage}`,
+        [
+          { text: 'OK', style: 'default' },
+          {
+            text: 'Réessayer',
+            onPress: () => handleProfileSelect(profileType),
+            style: 'default',
+          },
+        ]
+      );
     }
   };
 

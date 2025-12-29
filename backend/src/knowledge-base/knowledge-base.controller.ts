@@ -107,7 +107,10 @@ export class KnowledgeBaseController {
   @Post('feedback')
   @ApiOperation({ summary: 'Enregistrer un feedback utilisateur' })
   async createFeedback(@Body() dto: CreateFeedbackDto, @Request() req) {
-    await this.knowledgeService.createFeedback(dto, req.user?.id);
+    if (!req.user?.id) {
+      throw new Error('User ID is required for feedback');
+    }
+    await this.knowledgeService.createFeedback(dto, req.user.id);
     return { success: true };
   }
 

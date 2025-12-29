@@ -2,10 +2,10 @@
  * Widget Vue d'Ensemble - Grand widget avec stats principales
  */
 
-import React, { useMemo, useEffect, memo } from 'react';
+import React, { useMemo, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { loadProductionAnimaux } from '../store/slices/productionSlice';
+import { useAppSelector } from '../store/hooks';
+import { useLoadAnimauxOnMount } from '../hooks/useLoadAnimauxOnMount';
 import { selectAllAnimaux, selectProductionUpdateCounter } from '../store/selectors/productionSelectors';
 import { countAnimalsByCategory } from '../utils/animalUtils';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
@@ -17,7 +17,6 @@ interface WidgetVueEnsembleProps {
 
 function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
   const { colors } = useTheme();
-  const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   const { gestations } = useAppSelector((state) => state.reproduction);
   const { chargesFixes, depensesPonctuelles } = useAppSelector((state) => state.finance);
@@ -25,21 +24,8 @@ function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
   const animaux = useAppSelector(selectAllAnimaux);
   const updateCounter = useAppSelector(selectProductionUpdateCounter);
 
-  // Charger les animaux du cheptel
-  const dataChargeesRef = React.useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!projetActif) {
-      dataChargeesRef.current = null;
-      return;
-    }
-
-    // Charger uniquement une fois par projet
-    if (dataChargeesRef.current !== projetActif.id) {
-      dataChargeesRef.current = projetActif.id;
-      dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
-    }
-  }, [dispatch, projetActif?.id]);
+  // Charger les animaux au montage (hook centralisé)
+  useLoadAnimauxOnMount();
 
   // Calculer le comptage depuis le cheptel (animaux actifs)
   const comptageAnimaux = useMemo(() => {

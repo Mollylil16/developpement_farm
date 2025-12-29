@@ -18,6 +18,9 @@ export class ProjetsController {
   @Post()
   @ApiOperation({ summary: 'Créer un nouveau projet' })
   create(@Body() createProjetDto: CreateProjetDto, @CurrentUser() user: any) {
+    // #region agent log
+    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'projets.controller.ts:20',message:'create projet entry',data:{userId:user?.id,userIdType:typeof user?.id,userIdLength:user?.id?.length,userIdJSON:JSON.stringify(user?.id),userIdCharCodes:user?.id?.split('').map(c=>c.charCodeAt(0)),userKeys:user?Object.keys(user):[],nom:createProjetDto.nom},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'E'})+'\n'); } catch(e) {}
+    // #endregion
     this.logger.debug(`Création projet: userId=${user.id}, nom=${createProjetDto.nom}`);
     return this.projetsService.create(createProjetDto, user.id);
   }

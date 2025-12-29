@@ -10,6 +10,7 @@ import { DatabaseService } from '../database/database.service';
 import { CreateProjetDto } from './dto/create-projet.dto';
 import { UpdateProjetDto } from './dto/update-projet.dto';
 import { BatchPigsService } from '../batches/batch-pigs.service';
+import { ProductionService } from '../production/production.service';
 
 @Injectable()
 export class ProjetsService {
@@ -32,16 +33,17 @@ export class ProjetsService {
    * Mapper une ligne de la base de données vers un objet Projet
    */
   private mapRowToProjet(row: any): any {
-    return {
+    // Convertir les nombres explicitement pour éviter les problèmes de type
+    const projet = {
       id: row.id,
       nom: row.nom,
       localisation: row.localisation,
-      nombre_truies: row.nombre_truies,
-      nombre_verrats: row.nombre_verrats,
-      nombre_porcelets: row.nombre_porcelets,
-      nombre_croissance: row.nombre_croissance || 0,
-      poids_moyen_actuel: parseFloat(row.poids_moyen_actuel),
-      age_moyen_actuel: row.age_moyen_actuel,
+      nombre_truies: row.nombre_truies != null ? parseInt(row.nombre_truies, 10) : 0,
+      nombre_verrats: row.nombre_verrats != null ? parseInt(row.nombre_verrats, 10) : 0,
+      nombre_porcelets: row.nombre_porcelets != null ? parseInt(row.nombre_porcelets, 10) : 0,
+      nombre_croissance: row.nombre_croissance != null ? parseInt(row.nombre_croissance, 10) : 0,
+      poids_moyen_actuel: parseFloat(row.poids_moyen_actuel) || 0,
+      age_moyen_actuel: row.age_moyen_actuel != null ? parseInt(row.age_moyen_actuel, 10) : 0,
       prix_kg_vif: row.prix_kg_vif ? parseFloat(row.prix_kg_vif) : undefined,
       prix_kg_carcasse: row.prix_kg_carcasse ? parseFloat(row.prix_kg_carcasse) : undefined,
       notes: row.notes || undefined,
@@ -50,8 +52,12 @@ export class ProjetsService {
       date_creation: row.date_creation,
       derniere_modification: row.derniere_modification || row.date_creation,
       management_method: row.management_method || 'individual', // Méthode d'élevage
-      duree_amortissement_par_defaut_mois: row.duree_amortissement_par_defaut_mois || 36,
+      duree_amortissement_par_defaut_mois: row.duree_amortissement_par_defaut_mois != null ? parseInt(row.duree_amortissement_par_defaut_mois, 10) : 36,
     };
+    // #region agent log
+    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:34',message:'mapRowToProjet',data:{projetId:projet.id,rawProprietaireId:row.proprietaire_id,rawProprietaireIdType:typeof row.proprietaire_id,rawProprietaireIdLength:row.proprietaire_id?.length,rawProprietaireIdJSON:JSON.stringify(row.proprietaire_id),rawProprietaireIdCharCodes:row.proprietaire_id?.split('').map(c=>c.charCodeAt(0)),mappedProprietaireId:projet.proprietaire_id,mappedProprietaireIdType:typeof projet.proprietaire_id,mappedProprietaireIdLength:projet.proprietaire_id?.length,mappedProprietaireIdJSON:JSON.stringify(projet.proprietaire_id),mappedProprietaireIdCharCodes:projet.proprietaire_id?.split('').map(c=>c.charCodeAt(0)),raw:{nombre_truies:row.nombre_truies,nombre_verrats:row.nombre_verrats,nombre_porcelets:row.nombre_porcelets,nombre_croissance:row.nombre_croissance},mapped:{nombre_truies:projet.nombre_truies,nombre_verrats:projet.nombre_verrats,nombre_porcelets:projet.nombre_porcelets,nombre_croissance:projet.nombre_croissance}},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'E'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+    // #endregion
+    return projet;
   }
 
   /**
@@ -93,6 +99,9 @@ export class ProjetsService {
         [now, userId]
       );
 
+      // #region agent log
+      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:101',message:'Projet creation: avant INSERT',data:{userId,userIdType:typeof userId,userIdLength:userId?.length,userIdJSON:JSON.stringify(userId),userIdCharCodes:userId?.split('').map(c=>c.charCodeAt(0))},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'E'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+      // #endregion
       // 2. Créer le nouveau projet actif
       const result = await client.query(
         `INSERT INTO projets (
@@ -123,21 +132,63 @@ export class ProjetsService {
           now,
         ]
       );
+      // #region agent log
+      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:130',message:'Projet creation: après INSERT',data:{projetId:result.rows[0].id,rawProprietaireId:result.rows[0].proprietaire_id,rawProprietaireIdType:typeof result.rows[0].proprietaire_id,rawProprietaireIdLength:result.rows[0].proprietaire_id?.length,rawProprietaireIdJSON:JSON.stringify(result.rows[0].proprietaire_id),rawProprietaireIdCharCodes:result.rows[0].proprietaire_id?.split('').map(c=>c.charCodeAt(0)),userId,userIdType:typeof userId,userIdLength:userId?.length,userIdJSON:JSON.stringify(userId),userIdCharCodes:userId?.split('').map(c=>c.charCodeAt(0)),areEqual:result.rows[0].proprietaire_id === userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'E'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+      // #endregion
 
       const projet = this.mapRowToProjet(result.rows[0]);
+      // #region agent log
+      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:127',message:'Projet créé - données mappées',data:{projetId:projet.id,nombre_truies:projet.nombre_truies,nombre_verrats:projet.nombre_verrats,nombre_porcelets:projet.nombre_porcelets,nombre_croissance:projet.nombre_croissance,rawRow:{nombre_truies:result.rows[0].nombre_truies,nombre_verrats:result.rows[0].nombre_verrats,nombre_porcelets:result.rows[0].nombre_porcelets,nombre_croissance:result.rows[0].nombre_croissance}},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+      // #endregion
       this.logger.log(`Projet créé: id=${projet.id}, nom=${projet.nom}, proprietaire_id=${projet.proprietaire_id}`);
 
       return projet;
     }).then(async (projet) => {
+      // #region agent log
+      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:139',message:'Projet créé - vérification mode batch',data:{projetId:projet.id,management_method,shouldCreateBatches:management_method === 'batch',nombre_truies:createProjetDto.nombre_truies,nombre_verrats:createProjetDto.nombre_verrats,nombre_porcelets:createProjetDto.nombre_porcelets,nombre_croissance:createProjetDto.nombre_croissance},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+      // #endregion
       // Si mode batch + effectifs initiaux → Auto-regrouper en loges
       // Fait en dehors de la transaction car c'est une opération complexe qui peut échouer
       // et ne doit pas empêcher la création du projet
       if (management_method === 'batch') {
         try {
+          // #region agent log
+          try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:144',message:'autoGroupIntoBatches: appel',data:{projetId:projet.id,userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+          // #endregion
+          // Attendre un court délai pour s'assurer que la transaction est bien commitée
+          // et que le projet est visible dans la base de données
+          await new Promise(resolve => setTimeout(resolve, 100));
           await this.autoGroupIntoBatches(projet.id, createProjetDto, userId);
+          // #region agent log
+          try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:147',message:'autoGroupIntoBatches: terminé avec succès',data:{projetId:projet.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+          // #endregion
         } catch (error) {
-          this.logger.warn(`Erreur lors de l'auto-groupement en bandes pour projet ${projet.id}:`, error);
+          // #region agent log
+          try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:149',message:'autoGroupIntoBatches: erreur',data:{projetId:projet.id,errorMessage:error?.message,errorStack:error?.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+          // #endregion
+          this.logger.error(`Erreur lors de l'auto-groupement en bandes pour projet ${projet.id}:`, error);
           // Ne pas faire échouer la création du projet si l'auto-groupement échoue
+          // mais logger l'erreur pour debugging
+        }
+      } else {
+        // Mode individuel : créer les animaux individuels dans production_animaux
+        try {
+          // #region agent log
+          try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:155',message:'autoCreateIndividualAnimals: appel',data:{projetId:projet.id,userId,nombre_truies:createProjetDto.nombre_truies,nombre_verrats:createProjetDto.nombre_verrats,nombre_porcelets:createProjetDto.nombre_porcelets,nombre_croissance:createProjetDto.nombre_croissance},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+          // #endregion
+          // Attendre un court délai pour s'assurer que la transaction est bien commitée
+          await new Promise(resolve => setTimeout(resolve, 100));
+          await this.autoCreateIndividualAnimals(projet.id, createProjetDto, userId);
+          // #region agent log
+          try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:160',message:'autoCreateIndividualAnimals: terminé avec succès',data:{projetId:projet.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+          // #endregion
+        } catch (error) {
+          // #region agent log
+          try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:163',message:'autoCreateIndividualAnimals: erreur',data:{projetId:projet.id,errorMessage:error?.message,errorStack:error?.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+          // #endregion
+          this.logger.error(`Erreur lors de la création automatique des animaux individuels pour projet ${projet.id}:`, error);
+          // Ne pas faire échouer la création du projet si la création d'animaux échoue
+          // mais logger l'erreur pour debugging
         }
       }
 
@@ -187,6 +238,9 @@ export class ProjetsService {
 
     for (const cat of categories) {
       if (cat.count > 0) {
+        // #region agent log
+        try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:188',message:'autoGroupIntoBatches: création loge',data:{projetId,category:cat.category,count:cat.count,defaultAge:cat.defaultAge,defaultWeight:cat.defaultWeight},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+        // #endregion
         // Générer nom de loge : A1, A2, A3, etc. puis B1, B2, etc.
         const letterIndex = Math.floor((logeIndex - 1) / 8);
         const numberIndex = ((logeIndex - 1) % 8) + 1;
@@ -196,23 +250,226 @@ export class ProjetsService {
             : String.fromCharCode(65 + letterIndex); // A, B, C, etc.
         const penName = `Loge ${letter}${numberIndex}`;
 
+        const population = this.distributeByDefaultSex(cat.count, cat.category);
+        // #region agent log
+        try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:197',message:'autoGroupIntoBatches: population distribuée',data:{projetId,category:cat.category,penName,population},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+        // #endregion
+
         // Créer une loge pour cette catégorie
-        await this.batchPigsService.createBatchWithPigs(
-          {
-            projet_id: projetId,
-            pen_name: penName,
-            category: cat.category,
-            population: this.distributeByDefaultSex(cat.count, cat.category),
-            average_age_months: cat.defaultAge,
-            average_weight_kg: cat.defaultWeight,
-            notes: 'Effectif initial - Créé automatiquement lors de la création du projet',
-          },
-          userId,
-        );
+        try {
+          // Passer skipOwnershipCheck=true car le projet vient d'être créé et on connaît déjà le proprietaire_id
+          await this.batchPigsService.createBatchWithPigs(
+            {
+              projet_id: projetId,
+              pen_name: penName,
+              category: cat.category,
+              population,
+              average_age_months: cat.defaultAge,
+              average_weight_kg: cat.defaultWeight,
+              notes: 'Effectif initial - Créé automatiquement lors de la création du projet',
+            },
+            userId,
+            true, // skipOwnershipCheck: true car le projet vient d'être créé dans la même transaction
+          );
+          // #region agent log
+          try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:211',message:'autoGroupIntoBatches: loge créée avec succès',data:{projetId,category:cat.category,penName},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+          // #endregion
+        } catch (error) {
+          // #region agent log
+          try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:214',message:'autoGroupIntoBatches: erreur création loge',data:{projetId,category:cat.category,penName,errorMessage:error?.message,errorStack:error?.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+          // #endregion
+          throw error;
+        }
 
         logeIndex++;
       }
     }
+  }
+
+  /**
+   * Auto-créer les animaux individuels en mode suivi individuel
+   */
+  private async autoCreateIndividualAnimals(
+    projetId: string,
+    dto: CreateProjetDto,
+    userId: string,
+  ): Promise<void> {
+    // Mapping catégorie → effectifs avec paramètres par défaut
+    const categories = [
+      {
+        category: 'truie_reproductrice',
+        count: dto.nombre_truies || 0,
+        defaultAge: 18, // mois
+        defaultWeight: dto.poids_moyen_actuel || 180, // kg
+        sexe: 'female' as const,
+        reproducteur: true,
+      },
+      {
+        category: 'verrat_reproducteur',
+        count: dto.nombre_verrats || 0,
+        defaultAge: 18,
+        defaultWeight: dto.poids_moyen_actuel || 200,
+        sexe: 'male' as const,
+        reproducteur: true,
+      },
+      {
+        category: 'porcelets',
+        count: dto.nombre_porcelets || 0,
+        defaultAge: 2,
+        defaultWeight: dto.poids_moyen_actuel || 15,
+        sexe: null as 'male' | 'female' | null, // Répartition 50/50
+        reproducteur: false,
+      },
+      {
+        category: 'porcs_croissance',
+        count: dto.nombre_croissance || 0,
+        defaultAge: 4,
+        defaultWeight: dto.poids_moyen_actuel || 40,
+        sexe: null as 'male' | 'female' | null, // Répartition variable
+        reproducteur: false,
+      },
+    ];
+
+    let animalIndex = 1;
+
+    for (const cat of categories) {
+      if (cat.count > 0) {
+        // #region agent log
+        try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:285',message:'autoCreateIndividualAnimals: création animaux',data:{projetId,category:cat.category,count:cat.count,defaultAge:cat.defaultAge,defaultWeight:cat.defaultWeight},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+        // #endregion
+
+        // Calculer la répartition par sexe
+        let maleCount = 0;
+        let femaleCount = 0;
+        let castratedCount = 0;
+
+        if (cat.sexe === 'male') {
+          maleCount = cat.count;
+        } else if (cat.sexe === 'female') {
+          femaleCount = cat.count;
+        } else {
+          // Répartition 50/50 pour porcelets, 30/40/30 pour croissance
+          if (cat.category === 'porcelets') {
+            maleCount = Math.floor(cat.count / 2);
+            femaleCount = cat.count - maleCount;
+          } else {
+            // porcs_croissance
+            maleCount = Math.floor(cat.count * 0.3);
+            femaleCount = Math.floor(cat.count * 0.4);
+            castratedCount = cat.count - maleCount - femaleCount;
+          }
+        }
+
+        // Créer les animaux
+        const now = new Date();
+        const dateEntree = now.toISOString();
+        // Calculer la date de naissance estimée (âge moyen en jours)
+        const ageJours = cat.defaultAge * 30; // Approximation : 1 mois = 30 jours
+        const dateNaissance = new Date(now.getTime() - ageJours * 24 * 60 * 60 * 1000);
+
+        // Créer les mâles
+        for (let i = 0; i < maleCount; i++) {
+          const code = `${cat.category.substring(0, 3).toUpperCase()}-${String(animalIndex).padStart(3, '0')}`;
+          await this.createIndividualAnimal(
+            projetId,
+            code,
+            cat.defaultWeight,
+            dateNaissance.toISOString(),
+            dateEntree,
+            'male',
+            cat.reproducteur,
+            userId,
+          );
+          animalIndex++;
+        }
+
+        // Créer les femelles
+        for (let i = 0; i < femaleCount; i++) {
+          const code = `${cat.category.substring(0, 3).toUpperCase()}-${String(animalIndex).padStart(3, '0')}`;
+          await this.createIndividualAnimal(
+            projetId,
+            code,
+            cat.defaultWeight,
+            dateNaissance.toISOString(),
+            dateEntree,
+            'female',
+            cat.reproducteur,
+            userId,
+          );
+          animalIndex++;
+        }
+
+        // Créer les castrés
+        for (let i = 0; i < castratedCount; i++) {
+          const code = `${cat.category.substring(0, 3).toUpperCase()}-${String(animalIndex).padStart(3, '0')}`;
+          await this.createIndividualAnimal(
+            projetId,
+            code,
+            cat.defaultWeight,
+            dateNaissance.toISOString(),
+            dateEntree,
+            'castrated',
+            false,
+            userId,
+          );
+          animalIndex++;
+        }
+
+        // #region agent log
+        try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:340',message:'autoCreateIndividualAnimals: animaux créés',data:{projetId,category:cat.category,maleCount,femaleCount,castratedCount,total:cat.count},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+        // #endregion
+      }
+    }
+  }
+
+  /**
+   * Créer un animal individuel dans production_animaux
+   */
+  private async createIndividualAnimal(
+    projetId: string,
+    code: string,
+    poidsInitial: number,
+    dateNaissance: string,
+    dateEntree: string,
+    sexe: 'male' | 'female' | 'castrated',
+    reproducteur: boolean,
+    userId: string,
+  ): Promise<void> {
+    const id = `animal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const now = new Date().toISOString();
+
+    // Mapper le sexe pour production_animaux
+    const sexeMapped = sexe === 'castrated' ? 'castre' : sexe === 'male' ? 'male' : 'female';
+
+    await this.databaseService.query(
+      `INSERT INTO production_animaux (
+        id, projet_id, code, nom, origine, sexe, date_naissance, poids_initial,
+        date_entree, actif, statut, race, reproducteur, categorie_poids,
+        pere_id, mere_id, notes, photo_uri, date_creation, derniere_modification
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
+      [
+        id,
+        projetId,
+        code,
+        null, // nom
+        'Effectif initial', // origine
+        sexeMapped,
+        dateNaissance,
+        poidsInitial,
+        dateEntree,
+        true, // actif
+        'actif', // statut
+        null, // race
+        reproducteur,
+        null, // categorie_poids
+        null, // pere_id
+        null, // mere_id
+        'Créé automatiquement lors de la création du projet', // notes
+        null, // photo_uri
+        now,
+        now,
+      ]
+    );
   }
 
   /**
@@ -268,7 +525,12 @@ export class ProjetsService {
 
   async findOne(id: string) {
     const result = await this.databaseService.query('SELECT * FROM projets WHERE id = $1', [id]);
-    return result.rows[0] ? this.mapRowToProjet(result.rows[0]) : null;
+    if (!result.rows[0]) return null;
+    const projet = this.mapRowToProjet(result.rows[0]);
+    // #region agent log
+    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'projets.service.ts:269',message:'findOne - données récupérées',data:{projetId:projet.id,nombre_truies:projet.nombre_truies,nombre_verrats:projet.nombre_verrats,nombre_porcelets:projet.nombre_porcelets,nombre_croissance:projet.nombre_croissance,rawRow:{nombre_truies:result.rows[0].nombre_truies,nombre_verrats:result.rows[0].nombre_verrats,nombre_porcelets:result.rows[0].nombre_porcelets,nombre_croissance:result.rows[0].nombre_croissance}},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) { this.logger.error('Debug log error:', e); }
+    // #endregion
+    return projet;
   }
 
   async findActive(userId: string) {
