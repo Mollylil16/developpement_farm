@@ -6,6 +6,7 @@
  * - Chargement des données sanitaires
  * - Rafraîchissement
  * - Gestion des alertes
+ * - Détection du mode d'élevage (batch vs individuel)
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -20,6 +21,7 @@ import {
 import { useVaccinationsLogic } from './sante/useVaccinationsLogic';
 import { useMaladiesLogic } from './sante/useMaladiesLogic';
 import { useTraitementsLogic } from './sante/useTraitementsLogic';
+import { useModeElevage, ModeElevage } from './useModeElevage';
 
 export type OngletType = 'vaccinations' | 'maladies' | 'traitements' | 'veterinaire' | 'mortalites';
 
@@ -29,6 +31,10 @@ export interface SanteLogicReturn {
   refreshing: boolean;
   showAlertes: boolean;
   loading: boolean;
+
+  // Mode d'élevage
+  modeElevage: ModeElevage;
+  isModeBatch: boolean;
 
   // Données
   alertes: Array<{
@@ -64,6 +70,10 @@ export function useSanteLogic(): SanteLogicReturn {
   const alertes = useAppSelector(selectSanteAlertes);
   const nombreAlertesCritiques = useAppSelector(selectNombreAlertesCritiques);
   const nombreAlertesElevees = useAppSelector(selectNombreAlertesElevees);
+
+  // Mode d'élevage (batch vs individuel)
+  const modeElevage = useModeElevage();
+  const isModeBatch = modeElevage === 'bande';
 
   // Hooks spécialisés
   const { chargerDonnees: chargerVaccinations } = useVaccinationsLogic();
@@ -144,6 +154,10 @@ export function useSanteLogic(): SanteLogicReturn {
     refreshing,
     showAlertes,
     loading,
+
+    // Mode d'élevage
+    modeElevage,
+    isModeBatch,
 
     // Données
     alertes,

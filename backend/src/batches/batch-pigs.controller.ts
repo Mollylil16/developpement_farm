@@ -5,6 +5,7 @@ import {
   Patch,
   Body,
   Param,
+  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -144,11 +145,13 @@ this.logger.error(`getAllBatchesByProjet: error for projetId=${projetId}, userId
   @Get('projet/:projetId/next-pen-name')
   async getNextPenName(
     @Param('projetId') projetId: string,
+    @Query('position') position: 'gauche' | 'droite' = 'droite',
     @CurrentUser() user: any,
   ) {
     const nextPenName = await this.batchPigsService.getNextPenName(
       projetId,
       user.id,
+      position,
     );
     return { pen_name: nextPenName };
   }

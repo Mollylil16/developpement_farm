@@ -274,5 +274,64 @@ export class RevenuActions {
       },
     };
   }
+
+  /**
+   * Met à jour un revenu (vente)
+   */
+  static async updateRevenu(params: unknown, context: AgentContext): Promise<AgentActionResult> {
+    const paramsTyped = params as Record<string, unknown>;
+
+    // ID du revenu à modifier (requis)
+    const revenuId = paramsTyped.id || paramsTyped.revenu_id;
+    if (!revenuId || typeof revenuId !== 'string') {
+      throw new Error('L\'ID du revenu à modifier est requis. Veuillez préciser quel revenu modifier.');
+    }
+
+    // Construire l'objet de mise à jour avec seulement les champs fournis
+    const updateData: Record<string, unknown> = {};
+
+    if (paramsTyped.montant !== undefined) {
+      const montant = typeof paramsTyped.montant === 'string'
+        ? parseMontant(paramsTyped.montant)
+        : (paramsTyped.montant as number);
+      if (!isNaN(montant) && montant > 0) {
+        updateData.montant = montant;
+      }
+    }
+
+    if (paramsTyped.date && typeof paramsTyped.date === 'string') {
+      updateData.date = paramsTyped.date;
+    }
+
+    if (paramsTyped.acheteur || paramsTyped.client) {
+      const acheteur = paramsTyped.acheteur || paramsTyped.client;
+      if (typeof acheteur === 'string') {
+        updateData.description = `Vente à ${acheteur}`;
+      }
+    }
+
+    if (paramsTyped.description && typeof paramsTyped.description === 'string') {
+      updateData.description = paramsTyped.description;
+    }
+
+    if (paramsTyped.commentaire && typeof paramsTyped.commentaire === 'string') {
+      updateData.commentaire = paramsTyped.commentaire;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      throw new Error('Aucune modification à apporter. Veuillez préciser ce que tu veux modifier (montant, date, etc.).');
+    }
+
+    // Appeler l'API backend pour mettre à jour
+    const revenu = await apiClient.patch<any>(`/finance/revenus/${revenuId}`, updateData);
+
+    const message = `✅ Revenu modifié avec succès ! ${updateData.montant ? `Nouveau montant : ${(updateData.montant as number).toLocaleString('fr-FR')} FCFA.` : ''}`;
+
+    return {
+      success: true,
+      data: revenu,
+      message,
+    };
+  }
 }
 

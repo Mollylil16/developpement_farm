@@ -30,6 +30,7 @@ import {
   createVaccination,
   updateVaccination,
   deleteVaccination,
+  genererRappelsAutomatiques,
 } from '../store/slices/santeSlice';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
 import {
@@ -48,6 +49,10 @@ import { formatLocalDate, getCurrentLocalDate } from '../utils/dateUtils';
 import { parseAnimalIds, animalIncludedInVaccination } from '../utils/vaccinationUtils';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { useModeElevage } from '../hooks/useModeElevage';
+import BatchSelector from './sante/BatchSelector';
+import { Batch } from '../types/batch';
+import apiClient from '../services/api/apiClient';
 
 // Activer LayoutAnimation sur Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -63,6 +68,8 @@ type SectionOuverte = TypeProphylaxie | `${TypeProphylaxie}_calendrier` | null;
 export default function VaccinationsComponentAccordion({ refreshControl }: Props) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
+  const modeElevage = useModeElevage();
+  const isModeBatch = modeElevage === 'bande';
 
   const projetActif = useAppSelector((state) => state.projet.projetActif);
   const vaccinations = useAppSelector(selectAllVaccinations);
@@ -81,6 +88,41 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
   const [raisonTraitement, setRaisonTraitement] = useState<RaisonTraitement>('suivi_normal');
   const [animauxSelectionnes, setAnimauxSelectionnes] = useState<string[]>([]);
   const [rechercheAnimal, setRechercheAnimal] = useState('');
+  // Mode batch : sélection de la bande
+  const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [nombreSujetsVaccines, setNombreSujetsVaccines] = useState('');
+  
+  // État pour génération des rappels
+  const [generatingRappels, setGeneratingRappels] = useState(false);
+
+  // Générer les rappels automatiques selon les standards porcins
+  const handleGenererRappels = useCallback(async () => {
+    if (!projetActif?.id) return;
+    
+    setGeneratingRappels(true);
+    try {
+      const result = await dispatch(genererRappelsAutomatiques(projetActif.id)).unwrap();
+      Alert.alert(
+        '✅ Rappels configurés',
+        `${result.rappels_crees} rappel(s) créé(s) selon les standards de l'élevage porcin.\n\n` +
+        `Standards appliqués:\n` +
+        `• Mycoplasme: 14 jours\n` +
+        `• Rouget: 6 mois\n` +
+        `• Parvovirose: 21 jours\n` +
+        `• Leptospirose: 6 mois\n` +
+        `• PRRS: 4 mois\n` +
+        `• Vermifuge: 2 mois`,
+        [{ text: 'OK' }]
+      );
+      // Recharger les vaccinations pour voir les dates de rappel mises à jour
+      dispatch(loadVaccinations(projetActif.id));
+    } catch (error: any) {
+      Alert.alert('Erreur', error.message || 'Erreur lors de la génération des rappels');
+    } finally {
+      setGeneratingRappels(false);
+    }
+  }, [dispatch, projetActif?.id]);
 
   // Charger les données au montage
   useEffect(() => {
@@ -90,6 +132,26 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
       dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: true }));
     }
   }, [projetActif?.id, dispatch]);
+
+  // Charger les bandes en mode batch
+  useEffect(() => {
+    if (!isModeBatch || !projetActif?.id) {
+      setBatches([]);
+      return;
+    }
+
+    const loadBatches = async () => {
+      try {
+        const data = await apiClient.get<Batch[]>(`/batch-pigs/projet/${projetActif.id}`);
+        setBatches(data || []);
+      } catch (error) {
+        console.error('[VaccinationsComponentAccordion] Erreur chargement bandes:', error);
+        setBatches([]);
+      }
+    };
+
+    loadBatches();
+  }, [isModeBatch, projetActif?.id]);
 
   // Debug removed to prevent "Text must be rendered" errors
 
@@ -120,40 +182,69 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
 
   // Calculer les statistiques globales
   const statsGlobales = useMemo(() => {
-    const totalAnimaux = (animaux || []).filter((a) => a.statut === 'actif').length;
+    // En mode batch, calculer le total à partir des bandes
+    const totalAnimaux = isModeBatch
+      ? batches.reduce((sum, batch) => sum + (batch.total_count || 0), 0)
+      : (animaux || []).filter((a) => a.statut === 'actif').length;
     const totalVaccinations = (vaccinations || []).length;
 
-    // Compter les sujets uniques en retard
-    const porcsEnRetardSet = new Set<string>();
+    let porcsEnRetard = 0;
+    let tauxCouverture = 0;
 
-    (animaux || []).forEach((animal) => {
-      if (animal.statut !== 'actif' || !animal.date_naissance) return;
+    if (isModeBatch) {
+      // Mode batch : calculer la couverture basée sur les vaccinations par bande
+      // Une bande est "couverte" si elle a au moins une vaccination effectuée
+      const bandesVaccineesSet = new Set<string>();
+      let totalSujetsVaccines = 0;
 
-      const ageJours = calculerAgeJours(animal.date_naissance);
-      const traitementsObligatoires = CALENDRIER_VACCINAL_TYPE.filter(
-        (cal) => cal.obligatoire && cal.age_jours <= ageJours
-      );
-
-      // Si l'animal a au moins un traitement obligatoire manquant, il est en retard
-      const aAuMoinsUnTraitementManquant = traitementsObligatoires.some((traitement) => {
-        const aRecuTraitement = (vaccinations || []).some(
-          (v) =>
-            animalIncludedInVaccination(v.animal_ids, animal.id) &&
-            v.type_prophylaxie === traitement.type_prophylaxie &&
-            v.statut === 'effectue'
-        );
-        return !aRecuTraitement;
+      (vaccinations || []).forEach((v) => {
+        if (v.statut === 'effectue' && v.batch_id) {
+          bandesVaccineesSet.add(v.batch_id);
+          // Utiliser nombre_sujets_vaccines si défini, sinon le total de la bande
+          if (v.nombre_sujets_vaccines) {
+            totalSujetsVaccines += v.nombre_sujets_vaccines;
+          } else {
+            const batch = batches.find((b) => b.id === v.batch_id);
+            totalSujetsVaccines += batch?.total_count || 0;
+          }
+        }
       });
 
-      if (aAuMoinsUnTraitementManquant) {
-        porcsEnRetardSet.add(animal.id);
-      }
-    });
+      // Éviter les doublons : prendre le minimum entre sujets vaccinés et total
+      const sujetsVaccinesUniques = Math.min(totalSujetsVaccines, totalAnimaux);
+      porcsEnRetard = Math.max(0, totalAnimaux - sujetsVaccinesUniques);
+      tauxCouverture = totalAnimaux > 0 ? Math.round((sujetsVaccinesUniques / totalAnimaux) * 100) : 0;
+    } else {
+      // Mode individuel : compter les sujets uniques en retard
+      const porcsEnRetardSet = new Set<string>();
 
-    const porcsEnRetard = porcsEnRetardSet.size;
+      (animaux || []).forEach((animal) => {
+        if (animal.statut !== 'actif' || !animal.date_naissance) return;
 
-    const tauxCouverture =
-      totalAnimaux > 0 ? Math.round(((totalAnimaux - porcsEnRetard) / totalAnimaux) * 100) : 0;
+        const ageJours = calculerAgeJours(animal.date_naissance);
+        const traitementsObligatoires = CALENDRIER_VACCINAL_TYPE.filter(
+          (cal) => cal.obligatoire && cal.age_jours <= ageJours
+        );
+
+        // Si l'animal a au moins un traitement obligatoire manquant, il est en retard
+        const aAuMoinsUnTraitementManquant = traitementsObligatoires.some((traitement) => {
+          const aRecuTraitement = (vaccinations || []).some(
+            (v) =>
+              animalIncludedInVaccination(v.animal_ids, animal.id) &&
+              v.type_prophylaxie === traitement.type_prophylaxie &&
+              v.statut === 'effectue'
+          );
+          return !aRecuTraitement;
+        });
+
+        if (aAuMoinsUnTraitementManquant) {
+          porcsEnRetardSet.add(animal.id);
+        }
+      });
+
+      porcsEnRetard = porcsEnRetardSet.size;
+      tauxCouverture = totalAnimaux > 0 ? Math.round(((totalAnimaux - porcsEnRetard) / totalAnimaux) * 100) : 0;
+    }
 
     return {
       totalAnimaux,
@@ -161,7 +252,7 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
       porcsEnRetard,
       tauxCouverture,
     };
-  }, [animaux, vaccinations]);
+  }, [animaux, vaccinations, isModeBatch, batches]);
 
   // Statistiques par type
   const statParType = useMemo((): StatistiquesProphylaxieParType[] => {
@@ -177,15 +268,32 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
     return types.map((type) => {
       const vaccinationsType = (vaccinations || []).filter((v) => v.type_prophylaxie === type);
 
-      const porcsVaccinesSet = new Set<string>();
-      vaccinationsType.forEach((v) => {
-        const animalIds = parseAnimalIds(v.animal_ids);
-        animalIds.forEach((id) => porcsVaccinesSet.add(id));
-      });
-
-      const porcsVaccines = porcsVaccinesSet.size;
+      // En mode batch, calculer le total des sujets vaccinés à partir des vaccinations
+      let porcsVaccines = 0;
+      if (isModeBatch) {
+        // Comptabiliser les sujets vaccinés par batch
+        vaccinationsType.forEach((v) => {
+          if (v.nombre_sujets_vaccines) {
+            porcsVaccines += v.nombre_sujets_vaccines;
+          } else if (v.batch_id) {
+            // Si pas de nombre spécifié, utiliser le total de la bande
+            const batch = batches.find((b) => b.id === v.batch_id);
+            porcsVaccines += batch?.total_count || 0;
+          }
+        });
+      } else {
+        // Mode individuel : compter les animaux uniques
+        const porcsVaccinesSet = new Set<string>();
+        vaccinationsType.forEach((v) => {
+          const animalIds = parseAnimalIds(v.animal_ids);
+          animalIds.forEach((id) => porcsVaccinesSet.add(id));
+        });
+        porcsVaccines = porcsVaccinesSet.size;
+      }
       const totalPorcs = statsGlobales.totalAnimaux;
-      const tauxCouverture = totalPorcs > 0 ? Math.round((porcsVaccines / totalPorcs) * 100) : 0;
+      // Limiter porcsVaccines au total pour éviter des taux > 100%
+      const porcsVaccinesLimites = Math.min(porcsVaccines, totalPorcs);
+      const tauxCouverture = totalPorcs > 0 ? Math.round((porcsVaccinesLimites / totalPorcs) * 100) : 0;
 
       const dernierTraitement = vaccinationsType.sort(
         (a, b) => new Date(b.date_vaccination).getTime() - new Date(a.date_vaccination).getTime()
@@ -193,39 +301,45 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
 
       const coutTotal = vaccinationsType.reduce((sum, v) => sum + (v.cout || 0), 0);
 
-      // Compter les sujets uniques en retard (pas le nombre de traitements manquants)
-      const porcsEnRetardSet = new Set<string>();
-      (animaux || []).forEach((animal) => {
-        if (animal.statut !== 'actif' || !animal.date_naissance) return;
+      // Compter les sujets en retard
+      let enRetard = 0;
+      if (isModeBatch) {
+        // En mode batch : sujets non vaccinés pour ce type = total - vaccinés (limité à 0 minimum)
+        enRetard = Math.max(0, totalPorcs - porcsVaccinesLimites);
+      } else {
+        // Mode individuel : compter les sujets uniques en retard
+        const porcsEnRetardSet = new Set<string>();
+        (animaux || []).forEach((animal) => {
+          if (animal.statut !== 'actif' || !animal.date_naissance) return;
 
-        const ageJours = calculerAgeJours(animal.date_naissance);
-        const traitementsObligatoiresType = CALENDRIER_VACCINAL_TYPE.filter(
-          (cal) => cal.obligatoire && cal.type_prophylaxie === type && cal.age_jours <= ageJours
-        );
-
-        // Si l'animal a au moins un traitement obligatoire manquant, il est en retard
-        const aAuMoinsUnTraitementManquant = traitementsObligatoiresType.some((traitement) => {
-          const aRecuTraitement = (vaccinations || []).some(
-            (v) =>
-              animalIncludedInVaccination(v.animal_ids, animal.id) &&
-              v.type_prophylaxie === type &&
-              v.statut === 'effectue'
+          const ageJours = calculerAgeJours(animal.date_naissance);
+          const traitementsObligatoiresType = CALENDRIER_VACCINAL_TYPE.filter(
+            (cal) => cal.obligatoire && cal.type_prophylaxie === type && cal.age_jours <= ageJours
           );
-          return !aRecuTraitement;
+
+          // Si l'animal a au moins un traitement obligatoire manquant, il est en retard
+          const aAuMoinsUnTraitementManquant = traitementsObligatoiresType.some((traitement) => {
+            const aRecuTraitement = (vaccinations || []).some(
+              (v) =>
+                animalIncludedInVaccination(v.animal_ids, animal.id) &&
+                v.type_prophylaxie === type &&
+                v.statut === 'effectue'
+            );
+            return !aRecuTraitement;
+          });
+
+          if (aAuMoinsUnTraitementManquant) {
+            porcsEnRetardSet.add(animal.id);
+          }
         });
-
-        if (aAuMoinsUnTraitementManquant) {
-          porcsEnRetardSet.add(animal.id);
-        }
-      });
-
-      const enRetard = porcsEnRetardSet.size;
+        enRetard = porcsEnRetardSet.size;
+      }
 
       return {
         type_prophylaxie: type,
         nom_type: TYPE_PROPHYLAXIE_LABELS[type],
         total_vaccinations: vaccinationsType.length,
-        porcs_vaccines: porcsVaccines,
+        porcs_vaccines: porcsVaccinesLimites,
         total_porcs: totalPorcs,
         taux_couverture: tauxCouverture,
         dernier_traitement: dernierTraitement,
@@ -233,7 +347,7 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
         en_retard: enRetard,
       };
     });
-  }, [vaccinations, animaux, statsGlobales.totalAnimaux]);
+  }, [vaccinations, animaux, statsGlobales.totalAnimaux, isModeBatch, batches]);
 
   const getIconeType = (type: TypeProphylaxie): keyof typeof Ionicons.glyphMap => {
     switch (type) {
@@ -307,6 +421,15 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
     setRaisonTraitement(vaccination.raison_traitement || 'suivi_normal');
     setAnimauxSelectionnes(animalIds);
     setSectionOuverte(vaccination.type_prophylaxie);
+    // Restaurer la bande sélectionnée en mode batch
+    if (vaccination.batch_id && batches.length > 0) {
+      const batch = batches.find((b) => b.id === vaccination.batch_id);
+      setSelectedBatch(batch || null);
+    } else {
+      setSelectedBatch(null);
+    }
+    // Restaurer le nombre de sujets vaccinés
+    setNombreSujetsVaccines(vaccination.nombre_sujets_vaccines ? vaccination.nombre_sujets_vaccines.toString() : '');
     // Ouvrir l'historique pour voir la vaccination modifiée
     setHistoriqueOuvert((prev) => {
       const nouveau = new Set(prev);
@@ -325,6 +448,8 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
     setRaisonTraitement('suivi_normal');
     setAnimauxSelectionnes([]);
     setRechercheAnimal('');
+    setSelectedBatch(null);
+    setNombreSujetsVaccines('');
   };
 
   const handleSupprimerVaccination = (vaccinationId: string, typeProphylaxie: TypeProphylaxie) => {
@@ -371,9 +496,17 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
       return;
     }
 
-    if (animauxSelectionnes.length === 0) {
-      Alert.alert('Erreur', 'Veuillez sélectionner au moins un animal');
-      return;
+    // Validation selon le mode
+    if (isModeBatch) {
+      if (!selectedBatch) {
+        Alert.alert('Erreur', 'Veuillez sélectionner une loge');
+        return;
+      }
+    } else {
+      if (animauxSelectionnes.length === 0) {
+        Alert.alert('Erreur', 'Veuillez sélectionner au moins un animal');
+        return;
+      }
     }
 
     try {
@@ -393,7 +526,9 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
       if (vaccinationEnEdition) {
         // Mise à jour d'une vaccination existante
         const updates: Partial<Vaccination> = {
-          animal_ids: animauxSelectionnes,
+          animal_ids: isModeBatch ? [] : animauxSelectionnes,
+          batch_id: isModeBatch && selectedBatch ? selectedBatch.id : undefined,
+          nombre_sujets_vaccines: isModeBatch && nombreSujetsVaccines ? parseInt(nombreSujetsVaccines) : undefined,
           produit_administre: produitAdministre.trim(),
           dosage: dosage.trim(),
           unite_dosage: uniteDosage,
@@ -424,7 +559,9 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
 
         const input: CreateVaccinationInput = {
           projet_id: projetActif.id,
-          animal_ids: animauxSelectionnes,
+          animal_ids: isModeBatch ? [] : animauxSelectionnes,
+          batch_id: isModeBatch && selectedBatch ? selectedBatch.id : undefined,
+          nombre_sujets_vaccines: isModeBatch && nombreSujetsVaccines ? parseInt(nombreSujetsVaccines) : undefined,
           type_prophylaxie: typeProphylaxie,
           produit_administre: produitAdministre.trim(),
           date_vaccination: dateVaccination,
@@ -437,10 +574,13 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
 
         await dispatch(createVaccination(input)).unwrap();
 
+        const nombreSujets = isModeBatch && nombreSujetsVaccines 
+          ? parseInt(nombreSujetsVaccines) 
+          : (isModeBatch && selectedBatch ? selectedBatch.total_count : animauxSelectionnes.length);
         const messageSucces =
           coutFinal && !cout
-            ? `Vaccination enregistrée pour ${animauxSelectionnes.length} animal(aux)\n💡 Coût calculé automatiquement: ${coutFinal} FCFA`
-            : `Vaccination enregistrée pour ${animauxSelectionnes.length} animal(aux)`;
+            ? `Vaccination enregistrée pour ${nombreSujets} sujet(s)\n💡 Coût calculé automatiquement: ${coutFinal} FCFA`
+            : `Vaccination enregistrée pour ${nombreSujets} sujet(s)`;
 
         Alert.alert('Succès', messageSucces);
 
@@ -478,8 +618,30 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
         ]}
       >
         <View style={styles.headerRecap}>
-          <Ionicons name="stats-chart" size={24} color={colors.primary} />
-          <Text style={[styles.titreRecap, { color: colors.text }]}>Aperçu Prophylaxie</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+            <Ionicons name="stats-chart" size={24} color={colors.primary} />
+            <Text style={[styles.titreRecap, { color: colors.text }]}>Aperçu Prophylaxie</Text>
+          </View>
+          <TouchableOpacity
+            onPress={handleGenererRappels}
+            disabled={generatingRappels}
+            style={[
+              styles.btnConfigRappels,
+              { 
+                backgroundColor: colors.primary,
+                opacity: generatingRappels ? 0.6 : 1,
+              },
+            ]}
+          >
+            <Ionicons 
+              name={generatingRappels ? "hourglass" : "calendar-outline"} 
+              size={16} 
+              color="#fff" 
+            />
+            <Text style={styles.btnConfigRappelsText}>
+              {generatingRappels ? 'Config...' : 'Rappels auto'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.statsGrid}>
@@ -645,22 +807,66 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
           </Text>
         </View>
 
-        {/* Animaux */}
-        <View style={styles.formSection}>
-          <Text style={[styles.formLabel, { color: colors.text }]}>
-            Sélectionner les animaux <Text style={{ color: colors.error }}>*</Text>
-          </Text>
-          <Text style={[styles.compteur, { color: colors.primary }]}>
-            {animauxSelectionnes.length} sélectionné(s)
-          </Text>
-
-          {/* Info si pas de noms */}
-          {animauxActifs.length > 0 && !animauxActifs[0].nom && (
-            <Text style={[styles.formHint, { color: colors.warning, marginBottom: 8 }]}>
-              💡 Astuce : Ajoutez des noms à vos animaux dans Production pour les identifier
-              facilement
+        {/* Sélection : Bande (mode batch) ou Animaux (mode individuel) */}
+        {isModeBatch ? (
+          /* Mode Batch : Sélection de bande */
+          <View style={styles.formSection}>
+            <BatchSelector
+              selectedBatchId={selectedBatch?.id || null}
+              onBatchSelect={(batch) => setSelectedBatch(batch)}
+              label="Sélectionner une loge *"
+            />
+            {selectedBatch && (
+              <>
+                <View style={[styles.batchSelectedInfo, { backgroundColor: colors.primary + '15', borderColor: colors.primary }]}>
+                  <Ionicons name="home" size={20} color={colors.primary} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.batchSelectedName, { color: colors.primary }]}>
+                      {selectedBatch.pen_name}
+                    </Text>
+                    <Text style={[styles.batchSelectedMeta, { color: colors.textSecondary }]}>
+                      {selectedBatch.total_count} sujet(s) • {(selectedBatch.average_weight_kg || 0).toFixed(1)} kg moy.
+                    </Text>
+                  </View>
+                </View>
+                {/* Nombre de sujets vaccinés */}
+                <Text style={[styles.formLabel, { color: colors.text, marginTop: SPACING.sm }]}>
+                  Nombre de sujets vaccinés
+                </Text>
+                <TextInput
+                  style={[
+                    styles.formInput,
+                    { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+                  ]}
+                  value={nombreSujetsVaccines}
+                  onChangeText={setNombreSujetsVaccines}
+                  placeholder={`Tous les ${selectedBatch.total_count} sujet(s) par défaut`}
+                  placeholderTextColor={colors.textSecondary}
+                  keyboardType="numeric"
+                />
+                <Text style={[styles.formHint, { color: colors.textSecondary }]}>
+                  💡 Laissez vide pour vacciner tous les sujets de la loge
+                </Text>
+              </>
+            )}
+          </View>
+        ) : (
+          /* Mode Individuel : Sélection d'animaux */
+          <View style={styles.formSection}>
+            <Text style={[styles.formLabel, { color: colors.text }]}>
+              Sélectionner les animaux <Text style={{ color: colors.error }}>*</Text>
             </Text>
-          )}
+            <Text style={[styles.compteur, { color: colors.primary }]}>
+              {animauxSelectionnes.length} sélectionné(s)
+            </Text>
+
+            {/* Info si pas de noms */}
+            {animauxActifs.length > 0 && !animauxActifs[0].nom && (
+              <Text style={[styles.formHint, { color: colors.warning, marginBottom: 8 }]}>
+                💡 Astuce : Ajoutez des noms à vos animaux dans Production pour les identifier
+                facilement
+              </Text>
+            )}
 
           {/* Barre de recherche */}
           <View
@@ -784,7 +990,8 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
               })()
             )}
           </ScrollView>
-        </View>
+          </View>
+        )}
 
         {/* Boutons */}
         <View style={styles.boutonsContainer}>
@@ -1297,12 +1504,26 @@ const styles = StyleSheet.create({
   headerRecap: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: SPACING.md,
   },
   titreRecap: {
     fontSize: FONT_SIZES.lg,
     fontWeight: '600',
     marginLeft: SPACING.sm,
+  },
+  btnConfigRappels: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.md,
+    gap: 4,
+  },
+  btnConfigRappelsText: {
+    color: '#fff',
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '600',
   },
   statsGrid: {
     flexDirection: 'row',
@@ -1765,5 +1986,23 @@ const styles = StyleSheet.create({
   historiqueActionText: {
     fontSize: FONT_SIZES.xs,
     fontWeight: '600',
+  },
+  // Mode batch - Informations de la bande sélectionnée
+  batchSelectedInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    marginTop: SPACING.sm,
+    gap: SPACING.sm,
+  },
+  batchSelectedName: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+  },
+  batchSelectedMeta: {
+    fontSize: FONT_SIZES.xs,
+    marginTop: 2,
   },
 });

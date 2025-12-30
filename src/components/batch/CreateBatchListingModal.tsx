@@ -145,6 +145,11 @@ export default function CreateBatchListingModal({
       // Récupérer la date de dernière pesée (utiliser la date actuelle si pas de pesée)
       const lastWeightDate = new Date().toISOString().split('T')[0];
 
+      // S'assurer que les champs de localisation ne sont pas vides
+      const address = userLocation.address || projetActif.localisation || 'Localisation non spécifiée';
+      const city = userLocation.city || 'Non spécifié';
+      const region = userLocation.region || 'Non spécifié';
+
       await apiClient.post('/marketplace/listings/batch', {
         batchId: batch.id,
         farmId: projetActif.id,
@@ -156,9 +161,9 @@ export default function CreateBatchListingModal({
         location: {
           latitude: userLocation.latitude,
           longitude: userLocation.longitude,
-          address: userLocation.address || projetActif.localisation || '',
-          city: userLocation.city || '',
-          region: userLocation.region || '',
+          address: address,
+          city: city,
+          region: region,
         },
       });
 

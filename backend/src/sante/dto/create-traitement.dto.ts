@@ -21,6 +21,11 @@ export class CreateTraitementDto {
   @IsString()
   lot_id?: string;
 
+  @ApiPropertyOptional({ description: 'ID de la bande (mode batch)' })
+  @IsOptional()
+  @IsString()
+  batch_id?: string;
+
   @ApiProperty({
     description: 'Type de traitement',
     enum: ['antibiotique', 'antiparasitaire', 'anti_inflammatoire', 'vitamine', 'vaccin', 'autre'],

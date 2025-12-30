@@ -17,6 +17,7 @@ import {
   Switch,
 } from 'react-native';
 import { X } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constants/theme';
 import { BatchCategory, BATCH_CATEGORY_LABELS } from '../../types/batch';
@@ -41,6 +42,7 @@ export default function CreateBatchModal({
 
   // États de base
   const [penName, setPenName] = useState('');
+  const [position, setPosition] = useState<'gauche' | 'droite'>('droite');
   const [category, setCategory] = useState<BatchCategory>('porcelets');
   const [notes, setNotes] = useState('');
 
@@ -59,19 +61,20 @@ export default function CreateBatchModal({
   const [loading, setLoading] = useState(false);
   const [loadingNextName, setLoadingNextName] = useState(false);
 
-  // Charger le prochain nom de loge disponible quand le modal s'ouvre
+  // Charger le prochain nom de loge disponible quand le modal s'ouvre ou quand la position change
   useEffect(() => {
     if (visible && projetActif?.id) {
       loadNextPenName();
     }
-  }, [visible, projetActif?.id]);
+  }, [visible, projetActif?.id, position]);
 
   async function loadNextPenName() {
     if (!projetActif?.id) return;
     setLoadingNextName(true);
     try {
       const response = await apiClient.get<{ pen_name: string }>(
-        `/batch-pigs/projet/${projetActif.id}/next-pen-name`
+        `/batch-pigs/projet/${projetActif.id}/next-pen-name`,
+        { params: { position } }
       );
       setPenName(response.pen_name);
     } catch (error: any) {
@@ -92,6 +95,7 @@ export default function CreateBatchModal({
 
   function resetForm() {
     setPenName('');
+    setPosition('droite');
     setCategory('porcelets');
     setIsEmpty(false);
     setMaleCount('0');
@@ -146,6 +150,7 @@ export default function CreateBatchModal({
       const payload: any = {
         projet_id: projetActif.id,
         pen_name: penName.trim(),
+        position: position,
         category,
         notes: notes || null,
       };
@@ -258,6 +263,78 @@ export default function CreateBatchModal({
               💡 Nom généré automatiquement. Vous pouvez le modifier si besoin.
             </Text>
           )}
+
+          {/* Position */}
+          <Text style={[styles.label, { color: colors.text, marginTop: SPACING.md }]}>
+            Position de la loge *
+          </Text>
+          <View style={styles.positionContainer}>
+            <TouchableOpacity
+              style={[
+                styles.positionButton,
+                {
+                  borderColor: colors.border,
+                  backgroundColor: colors.surface,
+                },
+                position === 'droite' && {
+                  borderColor: colors.primary,
+                  backgroundColor: `${colors.primary}20`,
+                },
+              ]}
+              onPress={() => {
+                setPosition('droite');
+              }}
+            >
+              <Ionicons
+                name="arrow-forward"
+                size={20}
+                color={position === 'droite' ? colors.primary : colors.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.positionButtonText,
+                  { color: colors.text },
+                  position === 'droite' && { color: colors.primary, fontWeight: '600' },
+                ]}
+              >
+                Droite (A)
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.positionButton,
+                {
+                  borderColor: colors.border,
+                  backgroundColor: colors.surface,
+                },
+                position === 'gauche' && {
+                  borderColor: colors.primary,
+                  backgroundColor: `${colors.primary}20`,
+                },
+              ]}
+              onPress={() => {
+                setPosition('gauche');
+              }}
+            >
+              <Ionicons
+                name="arrow-back"
+                size={20}
+                color={position === 'gauche' ? colors.primary : colors.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.positionButtonText,
+                  { color: colors.text },
+                  position === 'gauche' && { color: colors.primary, fontWeight: '600' },
+                ]}
+              >
+                Gauche (B)
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={[styles.hint, { color: colors.textSecondary }]}>
+            💡 Les loges à droite seront nommées A1, A2, A3... Les loges à gauche seront nommées B1, B2, B3...
+          </Text>
 
           {/* Catégorie */}
           <Text style={[styles.label, { color: colors.text }]}>Catégorie *</Text>
@@ -582,6 +659,25 @@ const styles = StyleSheet.create({
   categoryButtonText: {
     fontSize: FONT_SIZES.sm,
     fontWeight: FONT_WEIGHTS.semiBold,
+  },
+  positionContainer: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+    marginBottom: SPACING.xs,
+  },
+  positionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    gap: SPACING.xs,
+  },
+  positionButtonText: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: FONT_WEIGHTS.medium,
   },
   toggleContainer: {
     flexDirection: 'row',

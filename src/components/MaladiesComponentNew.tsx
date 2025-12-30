@@ -37,6 +37,10 @@ import { createMaladie, loadMaladies, createVaccination } from '../store/slices/
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
 import { getCurrentLocalDate } from '../utils/dateUtils';
 import { getCategorieAnimal } from '../utils/animalUtils';
+import { useModeElevage } from '../hooks/useModeElevage';
+import BatchSelector from './sante/BatchSelector';
+import { Batch } from '../types/batch';
+import apiClient from '../services/api/apiClient';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -49,6 +53,8 @@ interface Props {
 export default function MaladiesComponentNew({ refreshControl }: Props) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
+  const modeElevage = useModeElevage();
+  const isModeBatch = modeElevage === 'bande';
 
   const projetActif = useAppSelector((state) => state.projet.projetActif);
   const maladies = useAppSelector((state) => selectAllMaladies(state));
@@ -63,6 +69,10 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
   const [produitUtilise, setProduitUtilise] = useState('');
   const [dosage, setDosage] = useState('');
   const [rechercheAnimal, setRechercheAnimal] = useState('');
+  // Mode batch : sélection de la bande et nombre d'animaux affectés
+  const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
+  const [nombreAnimauxAffectes, setNombreAnimauxAffectes] = useState('');
+  const [batches, setBatches] = useState<Batch[]>([]);
 
   // Charger les données
   useEffect(() => {
@@ -72,6 +82,26 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
       dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: true }));
     }
   }, [projetActif?.id, dispatch]);
+
+  // Charger les bandes en mode batch
+  useEffect(() => {
+    if (!isModeBatch || !projetActif?.id) {
+      setBatches([]);
+      return;
+    }
+
+    const loadBatches = async () => {
+      try {
+        const data = await apiClient.get<Batch[]>(`/batch-pigs/projet/${projetActif.id}`);
+        setBatches(data || []);
+      } catch (error) {
+        console.error('[MaladiesComponentNew] Erreur chargement bandes:', error);
+        setBatches([]);
+      }
+    };
+
+    loadBatches();
+  }, [isModeBatch, projetActif?.id]);
 
   // Calculer les stats
   const stats = useMemo(() => {
@@ -273,6 +303,8 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
       setProduitUtilise('');
       setDosage('');
       setRechercheAnimal('');
+      setSelectedBatch(null);
+      setNombreAnimauxAffectes('');
     }
   };
 
@@ -291,10 +323,17 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
 
   // Enregistrer le cas de maladie
   const handleEnregistrer = async () => {
-    // Validation
-    if (!animalSelectionne) {
-      Alert.alert('Erreur', 'Veuillez sélectionner un animal');
-      return;
+    // Validation selon le mode
+    if (isModeBatch) {
+      if (!selectedBatch) {
+        Alert.alert('Erreur', 'Veuillez sélectionner une loge');
+        return;
+      }
+    } else {
+      if (!animalSelectionne) {
+        Alert.alert('Erreur', 'Veuillez sélectionner un animal');
+        return;
+      }
     }
     if (!symptomes.trim()) {
       Alert.alert('Erreur', 'Veuillez décrire les symptômes');
@@ -307,13 +346,15 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
       // Créer le cas de maladie
       const inputMaladie: CreateMaladieInput = {
         projet_id: projetActif.id,
-        animal_id: animalSelectionne,
+        animal_id: isModeBatch ? undefined : animalSelectionne,
+        batch_id: isModeBatch && selectedBatch ? selectedBatch.id : undefined,
         type: typeMaladie,
         nom_maladie: TYPE_MALADIE_LABELS[typeMaladie],
         gravite: 'moderee',
         date_debut: getCurrentLocalDate(),
         symptomes: symptomes.trim(),
-        contagieux: false,
+        contagieux: isModeBatch, // En mode batch, considéré comme potentiellement contagieux
+        nombre_animaux_affectes: isModeBatch && nombreAnimauxAffectes ? parseInt(nombreAnimauxAffectes) : undefined,
         gueri: false,
         notes: traitementAdministre.trim() || undefined,
       };
@@ -329,7 +370,8 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
           try {
             const inputVaccination: CreateVaccinationInput = {
               projet_id: projetActif.id,
-              animal_ids: [animalSelectionne],
+              animal_ids: isModeBatch ? [] : [animalSelectionne],
+              batch_id: isModeBatch && selectedBatch ? selectedBatch.id : undefined,
               type_prophylaxie: typeProphylaxie,
               produit_administre: produitUtilise.trim(),
               date_vaccination: getCurrentLocalDate(),
@@ -530,53 +572,83 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
 
         {formulaireOuvert && (
           <View style={styles.formulaireContent}>
-            {/* Sélection du sujet */}
-            <View style={styles.formSection}>
-              <Text style={[styles.formLabel, { color: colors.text }]}>
-                Sujet malade <Text style={{ color: colors.error }}>*</Text>
-              </Text>
-
-              {/* Barre de recherche */}
-              <View
-                style={[
-                  styles.rechercheContainer,
-                  { backgroundColor: colors.background, borderColor: colors.border },
-                ]}
-              >
-                <Ionicons name="search" size={20} color={colors.textSecondary} />
-                <TextInput
-                  style={[styles.rechercheInput, { color: colors.text }]}
-                  placeholder="Rechercher un animal..."
-                  placeholderTextColor={colors.textSecondary}
-                  value={rechercheAnimal}
-                  onChangeText={setRechercheAnimal}
+            {/* Sélection : Bande (mode batch) ou Animal (mode individuel) */}
+            {isModeBatch ? (
+              /* Mode Batch : Sélection de bande */
+              <View style={styles.formSection}>
+                <BatchSelector
+                  selectedBatchId={selectedBatch?.id || null}
+                  onBatchSelect={(batch) => setSelectedBatch(batch)}
+                  label="Loge concernée *"
                 />
-              </View>
-
-              {/* Liste des animaux */}
-              <ScrollView
-                style={[
-                  styles.listeAnimaux,
-                  { backgroundColor: colors.surface, borderColor: colors.border },
-                ]}
-                nestedScrollEnabled
-              >
-                {animauxFiltres.length === 0 ? (
-                  <View style={styles.emptyState}>
-                    <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                      Aucun animal trouvé
+                {selectedBatch && (
+                  <>
+                    {/* Nombre d'animaux affectés */}
+                    <Text style={[styles.formLabel, { color: colors.text, marginTop: SPACING.sm }]}>
+                      Nombre d'animaux affectés
                     </Text>
-                  </View>
-                ) : (
-                  animauxFiltres.map((animal) => {
-                    const isSelected = animalSelectionne === animal.id;
-                    const nom = animal.nom || animal.code || `Porc #${animal.id.slice(0, 8)}`;
-                    const categorie = getCategorieAnimal(animal);
+                    <TextInput
+                      style={[
+                        styles.formInput,
+                        { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+                      ]}
+                      value={nombreAnimauxAffectes}
+                      onChangeText={setNombreAnimauxAffectes}
+                      placeholder={`Max: ${selectedBatch.total_count} sujet(s)`}
+                      placeholderTextColor={colors.textSecondary}
+                      keyboardType="numeric"
+                    />
+                  </>
+                )}
+              </View>
+            ) : (
+              /* Mode Individuel : Sélection d'un animal */
+              <View style={styles.formSection}>
+                <Text style={[styles.formLabel, { color: colors.text }]}>
+                  Sujet malade <Text style={{ color: colors.error }}>*</Text>
+                </Text>
 
-                    return (
-                      <TouchableOpacity
-                        key={animal.id}
-                        style={[
+                {/* Barre de recherche */}
+                <View
+                  style={[
+                    styles.rechercheContainer,
+                    { backgroundColor: colors.background, borderColor: colors.border },
+                  ]}
+                >
+                  <Ionicons name="search" size={20} color={colors.textSecondary} />
+                  <TextInput
+                    style={[styles.rechercheInput, { color: colors.text }]}
+                    placeholder="Rechercher un animal..."
+                    placeholderTextColor={colors.textSecondary}
+                    value={rechercheAnimal}
+                    onChangeText={setRechercheAnimal}
+                  />
+                </View>
+
+                {/* Liste des animaux */}
+                <ScrollView
+                  style={[
+                    styles.listeAnimaux,
+                    { backgroundColor: colors.surface, borderColor: colors.border },
+                  ]}
+                  nestedScrollEnabled
+                >
+                  {animauxFiltres.length === 0 ? (
+                    <View style={styles.emptyState}>
+                      <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                        Aucun animal trouvé
+                      </Text>
+                    </View>
+                  ) : (
+                    animauxFiltres.map((animal) => {
+                      const isSelected = animalSelectionne === animal.id;
+                      const nom = animal.nom || animal.code || `Porc #${animal.id.slice(0, 8)}`;
+                      const categorie = getCategorieAnimal(animal);
+
+                      return (
+                        <TouchableOpacity
+                          key={animal.id}
+                          style={[
                           styles.animalItem,
                           {
                             backgroundColor: isSelected ? `${colors.primary}15` : 'transparent',
@@ -616,7 +688,8 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
                   })
                 )}
               </ScrollView>
-            </View>
+              </View>
+            )}
 
             {/* Type de maladie */}
             <View style={styles.formSection}>

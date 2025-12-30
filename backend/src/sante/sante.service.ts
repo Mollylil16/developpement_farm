@@ -270,6 +270,7 @@ export class SanteService {
       animal_id: row.animal_id || undefined,
       animal_ids: this.parseJsonArray(row.animal_ids),
       lot_id: row.lot_id || undefined,
+      batch_id: row.batch_id || undefined,
       vaccin: row.vaccin || undefined,
       nom_vaccin: row.nom_vaccin || undefined,
       type_prophylaxie: row.type_prophylaxie || 'vitamine',
@@ -314,11 +315,11 @@ export class SanteService {
 
     const result = await this.databaseService.query(
       `INSERT INTO vaccinations (
-        id, projet_id, calendrier_id, animal_id, animal_ids, lot_id, vaccin, nom_vaccin,
+        id, projet_id, calendrier_id, animal_id, animal_ids, lot_id, batch_id, vaccin, nom_vaccin,
         type_prophylaxie, produit_administre, photo_flacon, date_vaccination, date_rappel,
         numero_lot_vaccin, dosage, unite_dosage, raison_traitement, raison_autre,
         veterinaire, cout, statut, effets_secondaires, notes, date_creation, derniere_modification
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
       RETURNING *`,
       [
         id,
@@ -327,6 +328,7 @@ export class SanteService {
         animalId,
         this.stringifyArray(createVaccinationDto.animal_ids),
         createVaccinationDto.lot_id || null,
+        createVaccinationDto.batch_id || null,
         createVaccinationDto.vaccin || null,
         createVaccinationDto.nom_vaccin || null,
         createVaccinationDto.type_prophylaxie,
@@ -356,7 +358,7 @@ export class SanteService {
     await this.checkProjetOwnership(projetId, userId);
 
     // Colonnes nécessaires pour mapRowToVaccination (optimisation: éviter SELECT *)
-    const vaccinationColumns = `id, projet_id, calendrier_id, animal_id, animal_ids, lot_id, 
+    const vaccinationColumns = `id, projet_id, calendrier_id, animal_id, animal_ids, lot_id, batch_id, 
       vaccin, nom_vaccin, type_prophylaxie, produit_administre, photo_flacon, 
       date_vaccination, date_rappel, numero_lot_vaccin, dosage, unite_dosage, 
       raison_traitement, raison_autre, veterinaire, effets_secondaires, notes, 
@@ -509,6 +511,11 @@ export class SanteService {
       values.push(updateVaccinationDto.notes || null);
       paramIndex++;
     }
+    if (updateVaccinationDto.batch_id !== undefined) {
+      fields.push(`batch_id = $${paramIndex}`);
+      values.push(updateVaccinationDto.batch_id || null);
+      paramIndex++;
+    }
 
     if (fields.length === 0) {
       return existing;
@@ -542,6 +549,7 @@ export class SanteService {
       projet_id: row.projet_id,
       animal_id: row.animal_id || undefined,
       lot_id: row.lot_id || undefined,
+      batch_id: row.batch_id || undefined,
       type: row.type,
       nom_maladie: row.nom_maladie,
       gravite: row.gravite,
@@ -569,17 +577,18 @@ export class SanteService {
 
     const result = await this.databaseService.query(
       `INSERT INTO maladies (
-        id, projet_id, animal_id, lot_id, type, nom_maladie, gravite,
+        id, projet_id, animal_id, lot_id, batch_id, type, nom_maladie, gravite,
         date_debut, date_fin, symptomes, diagnostic, contagieux,
         nombre_animaux_affectes, nombre_deces, veterinaire, cout_traitement,
         gueri, notes, date_creation, derniere_modification
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
       RETURNING *`,
       [
         id,
         createMaladieDto.projet_id,
         createMaladieDto.animal_id || null,
         createMaladieDto.lot_id || null,
+        createMaladieDto.batch_id || null,
         createMaladieDto.type,
         createMaladieDto.nom_maladie,
         createMaladieDto.gravite,
@@ -606,7 +615,7 @@ export class SanteService {
     await this.checkProjetOwnership(projetId, userId);
 
     // Colonnes nécessaires pour mapRowToMaladie (optimisation: éviter SELECT *)
-    const maladieColumns = `id, projet_id, animal_id, lot_id, type, nom_maladie, gravite, 
+    const maladieColumns = `id, projet_id, animal_id, lot_id, batch_id, type, nom_maladie, gravite, 
       date_debut, date_fin, symptomes, diagnostic, contagieux, nombre_animaux_affectes, 
       nombre_deces, veterinaire, cout_traitement, gueri, notes, date_creation, derniere_modification`;
 
@@ -719,6 +728,11 @@ export class SanteService {
       values.push(updateMaladieDto.notes || null);
       paramIndex++;
     }
+    if (updateMaladieDto.batch_id !== undefined) {
+      fields.push(`batch_id = $${paramIndex}`);
+      values.push(updateMaladieDto.batch_id || null);
+      paramIndex++;
+    }
 
     if (fields.length === 0) {
       return existing;
@@ -766,6 +780,7 @@ export class SanteService {
       maladie_id: row.maladie_id || undefined,
       animal_id: row.animal_id || undefined,
       lot_id: row.lot_id || undefined,
+      batch_id: row.batch_id || undefined,
       type: row.type || undefined,
       nom_medicament: row.nom_medicament || undefined,
       voie_administration: row.voie_administration || undefined,
@@ -795,18 +810,18 @@ export class SanteService {
     const termine = createTraitementDto.termine || false;
 
     // Colonnes nécessaires pour mapRowToTraitement (éviter RETURNING * pour éviter colonnes inexistantes)
-    const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, type, nom_medicament, 
+    const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, batch_id, type, nom_medicament, 
       voie_administration, dosage, frequence, date_debut, date_fin, duree_jours, 
       temps_attente_jours, veterinaire, cout, termine, efficace, effets_secondaires, 
       notes, date_creation, derniere_modification`;
     
     const result = await this.databaseService.query(
       `INSERT INTO traitements (
-        id, projet_id, maladie_id, animal_id, lot_id, type, nom_medicament,
+        id, projet_id, maladie_id, animal_id, lot_id, batch_id, type, nom_medicament,
         voie_administration, dosage, frequence, date_debut, date_fin,
         duree_jours, temps_attente_jours, veterinaire, cout, termine,
         efficace, effets_secondaires, notes, date_creation, derniere_modification
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
       RETURNING ${traitementColumns}`,
       [
         id,
@@ -814,6 +829,7 @@ export class SanteService {
         createTraitementDto.maladie_id || null,
         createTraitementDto.animal_id || null,
         createTraitementDto.lot_id || null,
+        createTraitementDto.batch_id || null,
         createTraitementDto.type,
         createTraitementDto.nom_medicament,
         createTraitementDto.voie_administration,
@@ -843,7 +859,7 @@ export class SanteService {
     try {
       // Colonnes nécessaires pour mapRowToTraitement (optimisation: éviter SELECT *)
       // Note: temps_attente_abattage_jours n'existe pas encore dans la table, sera ajouté via migration
-      const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, type, nom_medicament,
+      const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, batch_id, type, nom_medicament,
         voie_administration, dosage, frequence, date_debut, date_fin, duree_jours,
         temps_attente_jours, veterinaire, cout, termine, efficace, effets_secondaires,
         notes, date_creation, derniere_modification`;
@@ -877,7 +893,7 @@ export class SanteService {
     await this.checkProjetOwnership(projetId, userId);
 
     // Colonnes nécessaires pour mapRowToTraitement (éviter SELECT * pour éviter colonnes inexistantes)
-    const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, type, nom_medicament, 
+    const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, batch_id, type, nom_medicament, 
       voie_administration, dosage, frequence, date_debut, date_fin, duree_jours, 
       temps_attente_jours, veterinaire, cout, termine, efficace, effets_secondaires, 
       notes, date_creation, derniere_modification`;
@@ -892,11 +908,11 @@ export class SanteService {
   }
 
   async findOneTraitement(id: string, userId: string) {
-    // Colonnes nécessaires pour mapRowToTraitement (éviter SELECT * pour éviter colonnes inexistantes)
-    const traitementColumns = `t.id, t.projet_id, t.maladie_id, t.animal_id, t.lot_id, t.type, t.nom_medicament, 
-      t.voie_administration, t.dosage, t.frequence, t.date_debut, t.date_fin, t.duree_jours, 
-      t.temps_attente_jours, t.veterinaire, t.cout, t.termine, t.efficace, t.effets_secondaires, 
-      t.notes, t.date_creation, t.derniere_modification`;
+      // Colonnes nécessaires pour mapRowToTraitement (éviter SELECT * pour éviter colonnes inexistantes)
+      const traitementColumns = `t.id, t.projet_id, t.maladie_id, t.animal_id, t.lot_id, t.batch_id, t.type, t.nom_medicament, 
+        t.voie_administration, t.dosage, t.frequence, t.date_debut, t.date_fin, t.duree_jours, 
+        t.temps_attente_jours, t.veterinaire, t.cout, t.termine, t.efficace, t.effets_secondaires, 
+        t.notes, t.date_creation, t.derniere_modification`;
     
     const result = await this.databaseService.query(
       `SELECT ${traitementColumns} FROM traitements t
@@ -992,6 +1008,11 @@ export class SanteService {
       values.push(updateTraitementDto.notes || null);
       paramIndex++;
     }
+    if (updateTraitementDto.batch_id !== undefined) {
+      fields.push(`batch_id = $${paramIndex}`);
+      values.push(updateTraitementDto.batch_id || null);
+      paramIndex++;
+    }
 
     if (fields.length === 0) {
       return existing;
@@ -1004,7 +1025,7 @@ export class SanteService {
     values.push(id);
     
     // Colonnes nécessaires pour mapRowToTraitement (éviter RETURNING * pour éviter colonnes inexistantes)
-    const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, type, nom_medicament, 
+    const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, batch_id, type, nom_medicament, 
       voie_administration, dosage, frequence, date_debut, date_fin, duree_jours, 
       temps_attente_jours, veterinaire, cout, termine, efficace, effets_secondaires, 
       notes, date_creation, derniere_modification`;
@@ -1366,7 +1387,7 @@ export class SanteService {
     await this.checkProjetOwnership(projetId, userId);
 
     // Colonnes nécessaires pour mapRowToTraitement (éviter SELECT * pour éviter colonnes inexistantes)
-    const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, type, nom_medicament, 
+    const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, batch_id, type, nom_medicament, 
       voie_administration, dosage, frequence, date_debut, date_fin, duree_jours, 
       temps_attente_jours, veterinaire, cout, termine, efficace, effets_secondaires, 
       notes, date_creation, derniere_modification`;
@@ -1393,36 +1414,152 @@ export class SanteService {
 
   // ==================== INITIALISATION PROTOCOLES STANDARD ====================
 
+  /**
+   * Protocoles de vaccination standard selon les bonnes pratiques en élevage porcin
+   * Basé sur les recommandations vétérinaires françaises et européennes
+   */
+  private getProtocolesVaccinationStandard() {
+    return [
+      // === PORCELETS (Naissance - Sevrage) ===
+      {
+        nom: 'Fer dextran - J3',
+        type_porc: 'porcelet',
+        age_jours: 3,
+        vaccin: 'Fer dextran',
+        rappel_jours: null,
+        notes: "Injection IM pour prévenir l'anémie ferriprive. Dose: 200mg (2ml)",
+        obligatoire: true,
+      },
+      {
+        nom: 'Vaccin Mycoplasme - 1ère dose',
+        type_porc: 'porcelet',
+        age_jours: 14,
+        vaccin: 'Mycoplasma hyopneumoniae',
+        rappel_jours: 14, // Rappel à J28
+        notes: 'Protection contre la pneumonie enzootique. Dose: 2ml IM',
+        obligatoire: true,
+      },
+      {
+        nom: 'Vermifuge - J21',
+        type_porc: 'porcelet',
+        age_jours: 21,
+        vaccin: 'Ivermectine / Fenbendazole',
+        rappel_jours: 63, // Rappel à J84 (12 semaines)
+        notes: 'Déparasitage interne. Dose: 1ml/10kg',
+        obligatoire: true,
+      },
+      {
+        nom: 'Vaccin Circovirus PCV2 - Sevrage',
+        type_porc: 'porcelet',
+        age_jours: 28,
+        vaccin: 'PCV2 (Circovirus)',
+        rappel_jours: null, // Pas de rappel nécessaire
+        notes: 'Protection contre le circovirus porcin type 2. Moment du sevrage. Dose: 2ml IM',
+        obligatoire: true,
+      },
+      {
+        nom: 'Vaccin Mycoplasme - Rappel',
+        type_porc: 'porcelet',
+        age_jours: 28,
+        vaccin: 'Mycoplasma hyopneumoniae (Rappel)',
+        rappel_jours: null,
+        notes: 'Rappel vaccin Mycoplasme. Dose: 2ml IM',
+        obligatoire: true,
+      },
+
+      // === PORCS EN CROISSANCE ===
+      {
+        nom: 'Vaccin Rouget - 1ère dose',
+        type_porc: 'croissance',
+        age_jours: 56,
+        vaccin: 'Erysipelothrix rhusiopathiae',
+        rappel_jours: 124, // Rappel à 6 mois (180 jours)
+        notes: 'Protection contre le rouget du porc. Dose: 2ml IM. Maladie grave.',
+        obligatoire: true,
+      },
+      {
+        nom: 'Déparasitage - 10 semaines',
+        type_porc: 'croissance',
+        age_jours: 70,
+        vaccin: 'Traitement anti-parasitaire externe',
+        rappel_jours: 50, // Rappel à J120
+        notes: 'Traitement contre gale et poux. Pulvérisation ou pour-on.',
+        obligatoire: false,
+      },
+      {
+        nom: 'Vermifuge complet - 4 mois',
+        type_porc: 'croissance',
+        age_jours: 120,
+        vaccin: 'Vermifuge large spectre',
+        rappel_jours: 60, // Rappel à J180
+        notes: 'Déparasitage interne avant finition. Dose: 1ml/10kg',
+        obligatoire: true,
+      },
+
+      // === REPRODUCTEURS ===
+      {
+        nom: 'Vaccin Parvovirose - Cochettes',
+        type_porc: 'reproducteur',
+        age_jours: 180,
+        vaccin: 'Parvovirus porcin',
+        rappel_jours: 21, // Rappel 3 semaines après
+        notes: 'Première injection cochettes/verrats. Rappel 3 semaines plus tard.',
+        obligatoire: true,
+      },
+      {
+        nom: 'Vaccin Rouget - Reproducteurs',
+        type_porc: 'reproducteur',
+        age_jours: 180,
+        vaccin: 'Erysipelothrix (Reproducteurs)',
+        rappel_jours: 180, // Rappel tous les 6 mois
+        notes: 'Rappel vaccin rouget pour reproducteurs. Tous les 6 mois.',
+        obligatoire: true,
+      },
+      {
+        nom: 'Vaccin Leptospirose - Truies',
+        type_porc: 'truie',
+        age_jours: null,
+        vaccin: 'Leptospira',
+        rappel_jours: 180, // Rappel semestriel
+        notes: 'Protection truies gestantes. Rappel tous les 6 mois.',
+        obligatoire: true,
+      },
+      {
+        nom: 'Vaccin E. coli / Clostridium - Truies gestantes',
+        type_porc: 'truie',
+        age_jours: null,
+        vaccin: 'E. coli + Clostridium',
+        rappel_jours: null, // Par gestation
+        notes: '6 et 2 semaines avant mise bas. Protège les porcelets.',
+        obligatoire: true,
+      },
+      {
+        nom: 'Vaccin PRRS',
+        type_porc: 'reproducteur',
+        age_jours: null,
+        vaccin: 'PRRS (Syndrome dysgénésique)',
+        rappel_jours: 120, // Rappel tous les 4 mois
+        notes: 'Vaccination selon statut sanitaire de l\'élevage. Dose: 2ml IM',
+        obligatoire: false,
+      },
+
+      // === VERRATS ===
+      {
+        nom: 'Vaccin complet Verrats',
+        type_porc: 'verrat',
+        age_jours: null,
+        vaccin: 'PRRS + Parvovirus + Rouget',
+        rappel_jours: 180, // Rappel semestriel
+        notes: 'Programme annuel verrats reproducteurs. 2 injections/an.',
+        obligatoire: true,
+      },
+    ];
+  }
+
   async initProtocolesVaccinationStandard(projetId: string, userId: string) {
     await this.checkProjetOwnership(projetId, userId);
 
-    // Protocoles standards de vaccination pour porcs
-    const protocoles = [
-      {
-        nom: 'Vaccination Porcelets - 1ère dose',
-        type_porc: 'porcelet',
-        age_jours: 21,
-        vaccin: 'PRRS + Mycoplasma',
-        rappel_jours: 14,
-        notes: 'Première vaccination standard pour porcelets',
-      },
-      {
-        nom: 'Vaccination Porcelets - Rappel',
-        type_porc: 'porcelet',
-        age_jours: 35,
-        vaccin: 'PRRS + Mycoplasma',
-        rappel_jours: null,
-        notes: 'Rappel de la première vaccination',
-      },
-      {
-        nom: 'Vaccination Reproducteurs',
-        type_porc: 'reproducteur',
-        age_jours: null,
-        vaccin: 'PRRS + Parvovirus + Erysipèle',
-        rappel_jours: 180,
-        notes: 'Vaccination annuelle pour reproducteurs',
-      },
-    ];
+    const protocoles = this.getProtocolesVaccinationStandard();
 
     const calendriers = [];
     const now = new Date().toISOString();
@@ -1450,6 +1587,141 @@ export class SanteService {
     }
 
     return calendriers;
+  }
+
+  /**
+   * Délais de rappel standard par type de vaccin/traitement (en jours)
+   */
+  private getRappelDelaiParVaccin(): Record<string, number> {
+    return {
+      // Vaccins avec rappel
+      'mycoplasma': 14,           // Rappel 2 semaines
+      'mycoplasme': 14,
+      'circovirus': 0,            // Pas de rappel
+      'pcv2': 0,
+      'rouget': 180,              // Rappel 6 mois
+      'erysipelothrix': 180,
+      'parvovirose': 21,          // Rappel 3 semaines
+      'parvovirus': 21,
+      'leptospirose': 180,        // Rappel 6 mois
+      'leptospira': 180,
+      'prrs': 120,                // Rappel 4 mois
+      'e. coli': 0,               // Par gestation
+      'clostridium': 0,
+      
+      // Traitements avec rappel
+      'vermifuge': 60,            // Rappel 2 mois
+      'ivermectine': 60,
+      'fenbendazole': 60,
+      'deparasitant': 60,
+      'antiparasitaire': 60,
+      
+      // Fer - pas de rappel
+      'fer': 0,
+      'fer dextran': 0,
+      
+      // Vitamines - optionnel
+      'vitamine': 30,
+      'vitamines': 30,
+    };
+  }
+
+  /**
+   * Génère automatiquement les rappels pour toutes les vaccinations existantes d'un projet
+   * selon les standards de l'élevage porcin
+   */
+  async genererRappelsAutomatiques(projetId: string, userId: string) {
+    await this.checkProjetOwnership(projetId, userId);
+
+    const delaisRappel = this.getRappelDelaiParVaccin();
+    const now = new Date();
+    const rappelsCrees: any[] = [];
+    const vaccinationsMisesAJour: any[] = [];
+
+    // 1. Récupérer toutes les vaccinations du projet
+    const vaccinationsResult = await this.databaseService.query(
+      `SELECT * FROM vaccinations WHERE projet_id = $1`,
+      [projetId]
+    );
+
+    for (const vaccination of vaccinationsResult.rows) {
+      // Déterminer le délai de rappel basé sur le nom du vaccin
+      const nomVaccin = (vaccination.vaccin || vaccination.nom_vaccin || vaccination.produit_administre || '').toLowerCase();
+      
+      let delaiRappel = 0;
+      for (const [vaccin, delai] of Object.entries(delaisRappel)) {
+        if (nomVaccin.includes(vaccin)) {
+          delaiRappel = delai;
+          break;
+        }
+      }
+
+      // Si pas de délai trouvé, utiliser un délai par défaut basé sur le type
+      if (delaiRappel === 0) {
+        const typeProphylaxie = vaccination.type_prophylaxie || '';
+        if (typeProphylaxie.includes('vaccin')) {
+          delaiRappel = 180; // Rappel par défaut 6 mois pour vaccins
+        } else if (typeProphylaxie.includes('deparasitant') || typeProphylaxie.includes('vermifuge')) {
+          delaiRappel = 60; // Rappel 2 mois pour antiparasitaires
+        }
+      }
+
+      // Créer le rappel si délai > 0 et pas déjà de rappel configuré
+      if (delaiRappel > 0) {
+        const dateVaccination = new Date(vaccination.date_vaccination);
+        const dateRappel = new Date(dateVaccination);
+        dateRappel.setDate(dateRappel.getDate() + delaiRappel);
+
+        // Vérifier si un rappel existe déjà pour cette vaccination
+        const rappelExistant = await this.databaseService.query(
+          `SELECT id FROM rappels_vaccinations WHERE vaccination_id = $1`,
+          [vaccination.id]
+        );
+
+        if (rappelExistant.rows.length === 0) {
+          // Créer le rappel
+          const rappelId = `rappel_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          await this.databaseService.query(
+            `INSERT INTO rappels_vaccinations (id, vaccination_id, date_rappel, envoi, date_creation)
+             VALUES ($1, $2, $3, FALSE, $4)`,
+            [rappelId, vaccination.id, dateRappel.toISOString(), now.toISOString()]
+          );
+
+          rappelsCrees.push({
+            vaccination_id: vaccination.id,
+            vaccin: vaccination.vaccin || vaccination.nom_vaccin || vaccination.produit_administre,
+            date_vaccination: vaccination.date_vaccination,
+            date_rappel: dateRappel.toISOString(),
+            delai_jours: delaiRappel,
+          });
+        }
+
+        // Mettre à jour le champ date_rappel de la vaccination si non défini
+        if (!vaccination.date_rappel) {
+          await this.databaseService.query(
+            `UPDATE vaccinations SET date_rappel = $1 WHERE id = $2`,
+            [dateRappel.toISOString(), vaccination.id]
+          );
+          vaccinationsMisesAJour.push(vaccination.id);
+        }
+      }
+    }
+
+    return {
+      message: `Rappels configurés selon les standards de l'élevage porcin`,
+      rappels_crees: rappelsCrees.length,
+      vaccinations_mises_a_jour: vaccinationsMisesAJour.length,
+      details: rappelsCrees,
+      standards_appliques: [
+        'Mycoplasme: rappel à 14 jours',
+        'Rouget/Erysipelothrix: rappel à 6 mois',
+        'Parvovirose: rappel à 21 jours',
+        'Leptospirose: rappel à 6 mois',
+        'PRRS: rappel à 4 mois',
+        'Vermifuge/Déparasitant: rappel à 2 mois',
+        'Vaccins non spécifiés: rappel à 6 mois par défaut',
+      ],
+    };
   }
 
   // ==================== RECOMMANDATIONS SANITAIRES ====================
@@ -1530,7 +1802,7 @@ export class SanteService {
 
     // 4. Vérifier les traitements en cours
     // Colonnes nécessaires pour mapRowToTraitement (éviter SELECT * pour éviter colonnes inexistantes)
-    const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, type, nom_medicament, 
+    const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, batch_id, type, nom_medicament, 
       voie_administration, dosage, frequence, date_debut, date_fin, duree_jours, 
       temps_attente_jours, veterinaire, cout, termine, efficace, effets_secondaires, 
       notes, date_creation, derniere_modification`;
@@ -1634,7 +1906,7 @@ export class SanteService {
     }
 
     // Colonnes nécessaires pour mapRowToTraitement (éviter SELECT * pour éviter colonnes inexistantes)
-    const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, type, nom_medicament, 
+    const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, batch_id, type, nom_medicament, 
       voie_administration, dosage, frequence, date_debut, date_fin, duree_jours, 
       temps_attente_jours, veterinaire, cout, termine, efficace, effets_secondaires, 
       notes, date_creation, derniere_modification`;
@@ -1684,7 +1956,7 @@ export class SanteService {
     // Note: temps_attente_abattage_jours n'existe pas encore dans la table
     // Cette méthode retourne un tableau vide jusqu'à ce que la colonne soit ajoutée via migration
     // Colonnes nécessaires pour mapRowToTraitement (éviter SELECT * pour éviter colonnes inexistantes)
-    const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, type, nom_medicament, 
+    const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, batch_id, type, nom_medicament, 
       voie_administration, dosage, frequence, date_debut, date_fin, duree_jours, 
       temps_attente_jours, veterinaire, cout, termine, efficace, effets_secondaires, 
       notes, date_creation, derniere_modification`;
@@ -1806,7 +2078,7 @@ export class SanteService {
     );
 
     // Colonnes nécessaires pour mapRowToTraitement (éviter SELECT * pour éviter colonnes inexistantes)
-    const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, type, nom_medicament, 
+    const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, batch_id, type, nom_medicament, 
       voie_administration, dosage, frequence, date_debut, date_fin, duree_jours, 
       temps_attente_jours, veterinaire, cout, termine, efficace, effets_secondaires, 
       notes, date_creation, derniere_modification`;

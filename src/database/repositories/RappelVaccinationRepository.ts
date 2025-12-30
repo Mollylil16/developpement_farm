@@ -70,11 +70,19 @@ export class RappelVaccinationRepository extends BaseRepository<RappelVaccinatio
       dateMax.setDate(dateMax.getDate() + joursAvance);
       const now = new Date().toISOString();
 
-      const rows = await this.query<unknown>('/sante/rappels-vaccinations', {});
-      return rows
-        .map(this.mapRow)
+      // Récupérer les rappels pour chaque vaccination
+      const allRappels: RappelVaccination[] = [];
+      for (const vaccinationId of vaccinationIds) {
+        try {
+          const rows = await this.query<unknown>('/sante/rappels-vaccinations', { vaccination_id: vaccinationId });
+          allRappels.push(...rows.map(this.mapRow));
+        } catch {
+          // Ignorer les erreurs individuelles (vaccination peut ne pas avoir de rappels)
+        }
+      }
+
+      return allRappels
         .filter(r => 
-          vaccinationIds.includes(r.vaccination_id) &&
           r.date_rappel >= now &&
           r.date_rappel <= dateMax.toISOString() &&
           !r.envoi
@@ -91,12 +99,20 @@ export class RappelVaccinationRepository extends BaseRepository<RappelVaccinatio
       if (vaccinationIds.length === 0) return [];
 
       const now = new Date().toISOString();
-      const rows = await this.query<unknown>('/sante/rappels-vaccinations', {});
+
+      // Récupérer les rappels pour chaque vaccination
+      const allRappels: RappelVaccination[] = [];
+      for (const vaccinationId of vaccinationIds) {
+        try {
+          const rows = await this.query<unknown>('/sante/rappels-vaccinations', { vaccination_id: vaccinationId });
+          allRappels.push(...rows.map(this.mapRow));
+        } catch {
+          // Ignorer les erreurs individuelles (vaccination peut ne pas avoir de rappels)
+        }
+      }
       
-      return rows
-        .map(this.mapRow)
+      return allRappels
         .filter(r => 
-          vaccinationIds.includes(r.vaccination_id) &&
           r.date_rappel < now &&
           !r.envoi
         )

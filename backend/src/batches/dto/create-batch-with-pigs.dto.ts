@@ -31,6 +31,10 @@ export class CreateBatchWithPigsDto {
   @IsString()
   pen_name: string;
 
+  @IsEnum(['gauche', 'droite'])
+  @IsOptional()
+  position?: 'gauche' | 'droite';
+
   @IsEnum([
     'truie_reproductrice',
     'verrat_reproducteur',

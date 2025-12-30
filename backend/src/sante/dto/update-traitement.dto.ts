@@ -79,4 +79,9 @@ export class UpdateTraitementDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({ description: 'ID de la bande (mode batch)' })
+  @IsOptional()
+  @IsString()
+  batch_id?: string;
 }

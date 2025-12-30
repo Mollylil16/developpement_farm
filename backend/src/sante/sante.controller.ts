@@ -432,6 +432,28 @@ export class SanteController {
     return this.santeService.initProtocolesVaccinationStandard(projetId, userId);
   }
 
+  @Post('rappels/generer-automatique')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ 
+    summary: 'Générer automatiquement les rappels de vaccination selon les standards porcins',
+    description: `Configure les rappels pour toutes les vaccinations existantes selon les délais standard:
+    - Mycoplasme: rappel à 14 jours
+    - Rouget/Erysipelothrix: rappel à 6 mois
+    - Parvovirose: rappel à 21 jours
+    - Leptospirose: rappel à 6 mois
+    - PRRS: rappel à 4 mois
+    - Vermifuge/Déparasitant: rappel à 2 mois
+    - Vaccins non spécifiés: rappel à 6 mois par défaut`
+  })
+  @ApiQuery({ name: 'projet_id', required: true, description: 'ID du projet' })
+  @ApiResponse({ status: 201, description: 'Rappels générés avec succès.' })
+  async genererRappelsAutomatiques(
+    @Query('projet_id') projetId: string,
+    @CurrentUser('id') userId: string
+  ) {
+    return this.santeService.genererRappelsAutomatiques(projetId, userId);
+  }
+
   // ==================== RECOMMANDATIONS SANITAIRES ====================
 
   @Get('recommandations')

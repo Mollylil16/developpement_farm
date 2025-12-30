@@ -47,12 +47,12 @@ export class FastPathDetector {
 
     // 1. DÉPENSE - Mots-clés forts : "dépense", "dep", "j'ai dépensé", "j'ai acheté", "claqué", "bouffe", etc.
     // IMPORTANT: Exclure les REQUÊTES d'information (mots-clés de requête)
-    const isQueryRequest = normalized.match(/\b(?:du mois|en cours|ce mois|total|combien|quel est|mes depenses|bilan|cout|recap)\b/i);
+    const isQueryRequest = normalized.match(/\b(?:du mois|en cours|ce mois|total|combien|quel est|mes depenses|bilan|cout|recap|montre|affiche|liste)\b/i);
     
     if (
       !isQueryRequest && // Ne PAS traiter comme create_depense si c'est une requête
       normalized.match(
-        /\b(?:depense|dep|depenses|j'ai depense|j'ai achete|achete|paye|claque|bouffe|aliment|provende|medicament|medoc|veto|veterinaire)\b/i
+        /\b(?:depense|dep|depenses|j'ai depense|j'ai achete|achete|paye|payé|claque|bouffe|aliment|provende|medicament|medoc|veto|veterinaire|enregistrer depense|nouvelle depense)\b/i
       )
     ) {
       const montant = MontantExtractor.extract(message);
@@ -76,7 +76,7 @@ export class FastPathDetector {
     }
 
     // 2. VENTE - Mots-clés forts : "vendu", "vente", "j'ai vendu"
-    if (normalized.match(/\b(?:vendu|vente|j'ai vendu|vendre)\b/i)) {
+    if (normalized.match(/\b(?:vendu|vente|j'ai vendu|vendre|enregistrer vente|nouvelle vente)\b/i)) {
       const montant = MontantExtractor.extract(message);
       // Chercher nombre de porcs
       const nombreMatch = message.match(/(\d+)\s*(?:porc|porcs|tete|tetes)/i);
@@ -122,7 +122,7 @@ export class FastPathDetector {
     }
 
     // 4. VACCINATION - Mots-clés forts : "vaccin", "vacciner", "j'ai vacciné"
-    if (normalized.match(/\b(?:vaccin|vacciner|j'ai vaccine|vaccination)\b/i)) {
+    if (normalized.match(/\b(?:vaccin|vacciner|j'ai vaccine|vaccination|j'ai fait vacciner)\b/i)) {
       const codeMatch = message.match(/\b(p\d+)\b/i);
       const animal_code = codeMatch ? codeMatch[1].toUpperCase() : undefined;
 
@@ -138,15 +138,159 @@ export class FastPathDetector {
       };
     }
 
+    // 4b. RENDEZ-VOUS VÉTÉRINAIRE - Mots-clés forts : "rdv veto", "prendre rdv", "rendez-vous"
+    if (
+      normalized.match(/\b(?:rdv|rendez[- ]vous|rendez vous|prendre rdv|fixer rdv|planifier rdv)\b/i) &&
+      normalized.match(/\b(?:veterinaire|veto|vet|docteur|toubib)\b/i)
+    ) {
+      return {
+        intent: {
+          action: 'create_visite_veterinaire' as AgentActionType,
+          confidence: 0.95,
+          params: {},
+        },
+        confidence: 0.95,
+      };
+    }
+
+    // 4d. MODIFICATIONS - Mots-clés forts : "modifier", "changer", "corriger", "mettre à jour", "edit"
+    // Détecter les intentions de modification pour les différentes entités
+    // IMPORTANT: Placer APRÈS les patterns de création pour éviter les conflits
+    const modificationKeywords = /\b(?:modifier|changer|corriger|mettre a jour|mettre à jour|edit|update|rectifier|ajuster|amender)\b/i;
+    if (normalized.match(modificationKeywords)) {
+      // Dépense
+      if (normalized.match(/\b(?:depense|dep)\b/i)) {
+        // Extraire l'ID si présent (nombre, code, ou référence)
+        const idMatch = message.match(/\b(id|#|numéro|numero)\s*[:\s]*(\d+|\w+)/i) || message.match(/\b(\d{8,})\b/);
+        const id = idMatch ? (idMatch[2] || idMatch[1]) : undefined;
+        
+        return {
+          intent: {
+            action: 'update_depense' as AgentActionType,
+            confidence: id ? 0.95 : 0.85,
+            params: id ? { id } : {},
+          },
+          confidence: id ? 0.95 : 0.85,
+        };
+      }
+      
+      // Revenu/Vente
+      if (normalized.match(/\b(?:revenu|vente|ventes)\b/i)) {
+        const idMatch = message.match(/\b(id|#|numéro|numero)\s*[:\s]*(\d+|\w+)/i) || message.match(/\b(\d{8,})\b/);
+        const id = idMatch ? (idMatch[2] || idMatch[1]) : undefined;
+        
+        return {
+          intent: {
+            action: 'update_revenu' as AgentActionType,
+            confidence: id ? 0.95 : 0.85,
+            params: id ? { id } : {},
+          },
+          confidence: id ? 0.95 : 0.85,
+        };
+      }
+      
+      // Pesée
+      if (normalized.match(/\b(?:pesee|pese)\b/i)) {
+        const idMatch = message.match(/\b(id|#|numéro|numero)\s*[:\s]*(\d+|\w+)/i) || message.match(/\b(\d{8,})\b/);
+        const id = idMatch ? (idMatch[2] || idMatch[1]) : undefined;
+        
+        return {
+          intent: {
+            action: 'update_pesee' as AgentActionType,
+            confidence: id ? 0.95 : 0.85,
+            params: id ? { id } : {},
+          },
+          confidence: id ? 0.95 : 0.85,
+        };
+      }
+      
+      // Vaccination
+      if (normalized.match(/\b(?:vaccination|vaccin)\b/i)) {
+        const idMatch = message.match(/\b(id|#|numéro|numero)\s*[:\s]*(\d+|\w+)/i) || message.match(/\b(\d{8,})\b/);
+        const id = idMatch ? (idMatch[2] || idMatch[1]) : undefined;
+        
+        return {
+          intent: {
+            action: 'update_vaccination' as AgentActionType,
+            confidence: id ? 0.95 : 0.85,
+            params: id ? { id } : {},
+          },
+          confidence: id ? 0.95 : 0.85,
+        };
+      }
+      
+      // Visite vétérinaire
+      if (normalized.match(/\b(?:visite veterinaire|visite|rdv)\b/i)) {
+        const idMatch = message.match(/\b(id|#|numéro|numero)\s*[:\s]*(\d+|\w+)/i) || message.match(/\b(\d{8,})\b/);
+        const id = idMatch ? (idMatch[2] || idMatch[1]) : undefined;
+        
+        return {
+          intent: {
+            action: 'update_visite_veterinaire' as AgentActionType,
+            confidence: id ? 0.95 : 0.85,
+            params: id ? { id } : {},
+          },
+          confidence: id ? 0.95 : 0.85,
+        };
+      }
+    }
+    
+    // 4c. VISITE VÉTÉRINAIRE (sans "rdv" explicite) - "visite veto", "vétérinaire est venu"
+    if (
+      normalized.match(/\b(?:visite|consultation|passage)\b/i) &&
+      normalized.match(/\b(?:veterinaire|veto|vet|docteur|toubib)\b/i)
+    ) {
+      return {
+        intent: {
+          action: 'create_visite_veterinaire' as AgentActionType,
+          confidence: 0.93,
+          params: {},
+        },
+        confidence: 0.93,
+      };
+    }
+
     // 5. STATISTIQUES - Mots-clés forts : "statistique", "combien de porc", "nombre"
     if (
       normalized.match(
-        /\b(?:statistique|statistiques|bilan|combien de porc|nombre de porc|nombre porcs|cheptel)\b/i
+        /\b(?:statistique|statistiques|bilan|combien de porc|nombre de porc|nombre porcs)\b/i
       )
     ) {
       return {
         intent: {
           action: 'get_statistics' as AgentActionType,
+          confidence: 0.96,
+          params: {},
+        },
+        confidence: 0.96,
+      };
+    }
+
+    // 5b. CHEPTEL DÉTAILLÉ - "mon cheptel", "detail cheptel", "liste des porcs"
+    if (
+      normalized.match(
+        /\b(?:mon cheptel|cheptel actuel|detail cheptel|details? du cheptel|liste des porcs|mes porcs|mes animaux|mes loges|mes bandes)\b/i
+      )
+    ) {
+      return {
+        intent: {
+          action: 'get_cheptel_details' as AgentActionType,
+          confidence: 0.96,
+          params: {},
+        },
+        confidence: 0.96,
+      };
+    }
+
+    // 5c. PESÉES DÉTAILLÉES - "suivi pesee", "mes pesees", "poids des porcs"
+    if (
+      normalized.match(
+        /\b(?:suivi des? pesees?|mes pesees?|pesees? des porcs|poids des porcs|evolution du poids|historique pesees?|dernières? pesees?)\b/i
+      )
+    ) {
+      return {
+        intent: {
+          action: 'get_weighing_details' as AgentActionType,
           confidence: 0.96,
           params: {},
         },
@@ -202,46 +346,62 @@ export class FastPathDetector {
 
     // 9. QUESTIONS DE FORMATION - Détection des questions éducatives
     const knowledgePatterns = [
-      // Questions génériques (améliorées pour capturer "est quoi", "c'est quoi", etc.)
-      { pattern: /\b(?:c'est quoi|qu'est[- ]ce que|qu'est ce qu'un|c est quoi|est quoi|qu'?est[- ]ce qu'?un)\b/i, topic: null },
-      { pattern: /\b(?:explique|explique[- ]moi|apprends[- ]moi)\b/i, topic: null },
-      { pattern: /\b(?:comment|pourquoi|difference entre)\b/i, topic: null },
-      { pattern: /\b(?:conseils?|recommandations?|avantages?|inconvenients?)\b/i, topic: null },
+      // Questions génériques (améliorées pour capturer toutes les formulations)
+      { pattern: /\b(?:c'est quoi|qu'est[- ]ce que|qu'est ce qu'un|c est quoi|est quoi|qu'?est[- ]ce qu'?un|c'?est quoi)\b/i, topic: null },
+      { pattern: /\b(?:explique|explique[- ]moi|apprends[- ]moi|dis[- ]moi|parle[- ]moi de)\b/i, topic: null },
+      { pattern: /\b(?:comment|pourquoi|difference entre|definis?|definition)\b/i, topic: null },
+      { pattern: /\b(?:conseils?|recommandations?|avantages?|inconvenients?|astuces?)\b/i, topic: null },
+      { pattern: /\b(?:que signifie|que veut dire|ca veut dire quoi|c'est quoi ca)\b/i, topic: null },
       
       // Types d'élevage (amélioré pour capturer "naisseur" seul)
       { pattern: /\b(?:naisseur|engraisseur|cycle complet|charcuterie|types? d'?elevage)\b/i, topic: 'types_elevage' },
+      { pattern: /\b(?:sevrage|post[- ]sevrage|engraissement)\b/i, topic: 'types_elevage' },
       
       // Races
-      { pattern: /\b(?:race|races|large white|landrace|duroc|pietrain|croisement)\b/i, topic: 'races' },
-      { pattern: /\b(?:quelle race|meilleure race|choisir une race)\b/i, topic: 'races' },
+      { pattern: /\b(?:race|races|large white|landrace|duroc|pietrain|croisement|hampshire|berkshire)\b/i, topic: 'races' },
+      { pattern: /\b(?:quelle race|meilleure race|choisir une race|race locale|race amelioree)\b/i, topic: 'races' },
       
       // Alimentation
       { pattern: /\b(?:comment nourrir|alimentation|ration|indice de consommation|fabriquer son aliment)\b/i, topic: 'alimentation' },
-      { pattern: /\b(?:combien coute l'?alimentation|cout alimentation)\b/i, topic: 'alimentation' },
+      { pattern: /\b(?:combien coute l'?alimentation|cout alimentation|provende|granule)\b/i, topic: 'alimentation' },
+      { pattern: /\b(?:nourrir|manger|farine|mais|soja|tourteau|son de ble)\b/i, topic: 'alimentation' },
+      { pattern: /\b(?:quantite aliment|ration journaliere|frequence repas)\b/i, topic: 'alimentation' },
       
       // Santé (amélioré pour capturer "gestation", "temps de gestation", etc.)
       { pattern: /\b(?:comment vacciner|calendrier vaccination|maladies? des porcs|prophylaxie|biosecurite)\b/i, topic: 'sante' },
-      { pattern: /\b(?:peste porcine|rouget|parasitage)\b/i, topic: 'sante' },
+      { pattern: /\b(?:peste porcine|rouget|parasitage|ppa|gastro|diarrhee|toux)\b/i, topic: 'sante' },
       { pattern: /\b(?:gestation|temps de gestation|duree de gestation|duree gestation|combien de temps gestation|combien de jours gestation)\b/i, topic: 'sante' },
+      { pattern: /\b(?:vermifuge|deparasitage|fer|anemie|castration|sevrer)\b/i, topic: 'sante' },
+      { pattern: /\b(?:signes? maladie|symptome|fievre|temperature)\b/i, topic: 'sante' },
       
       // Finance
       { pattern: /\b(?:rentabilite|combien gagner|marge par porc|investissement initial|seuil de rentabilite)\b/i, topic: 'finance' },
-      { pattern: /\b(?:combien pour demarrer|capital necessaire|budget elevage)\b/i, topic: 'finance' },
+      { pattern: /\b(?:combien pour demarrer|capital necessaire|budget elevage|cout production)\b/i, topic: 'finance' },
+      { pattern: /\b(?:benefice|profit|retour sur investissement|roi|cash flow)\b/i, topic: 'finance' },
       
       // Commerce
       { pattern: /\b(?:ou vendre|comment vendre|prix de vente|canaux de commercialisation|trouver des clients)\b/i, topic: 'commerce' },
+      { pattern: /\b(?:marche|client|negocier|prix du porc|poids de vente|abattoir)\b/i, topic: 'commerce' },
       
       // Objectifs / Démarrage
-      { pattern: /\b(?:demarrer un elevage|par ou commencer|definir son objectif)\b/i, topic: 'objectifs' },
+      { pattern: /\b(?:demarrer un elevage|par ou commencer|definir son objectif|debuter|lancer)\b/i, topic: 'objectifs' },
+      { pattern: /\b(?:commencer elevage|premier pas|etapes|nouveau eleveur)\b/i, topic: 'objectifs' },
       
-      // Emplacement
+      // Emplacement / Infrastructure
       { pattern: /\b(?:ou construire|emplacement|terrain pour elevage|distance habitations)\b/i, topic: 'emplacement' },
+      { pattern: /\b(?:batiment|porcherie|loge|enclos|box|abri|ventilation|eclairage)\b/i, topic: 'emplacement' },
       
       // Eau
       { pattern: /\b(?:besoin en eau|combien d'?eau|qualite de l'?eau|forage ou puits)\b/i, topic: 'eau' },
+      { pattern: /\b(?:abreuvoir|abreuvement|boire|deshydratation)\b/i, topic: 'eau' },
       
       // Réglementation
       { pattern: /\b(?:reglementation|obligations? legales?|normes? sanitaires?|declaration d'?elevage)\b/i, topic: 'reglementation' },
+      { pattern: /\b(?:autorisation|permis|licence|inspection|veterinaire officiel)\b/i, topic: 'reglementation' },
+      
+      // Reproduction
+      { pattern: /\b(?:reproduction|saillie|insemination|truie|verrat|chaleur)\b/i, topic: 'sante' },
+      { pattern: /\b(?:mise[- ]bas|portee|porcelet|naissance|allaitement)\b/i, topic: 'sante' },
     ];
 
     for (const { pattern, topic } of knowledgePatterns) {

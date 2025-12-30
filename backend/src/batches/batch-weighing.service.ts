@@ -351,6 +351,37 @@ export class BatchWeighingService {
   }
 
   /**
+   * Récupère toutes les pesées de batch pour un projet
+   */
+  async getWeighingsByProjet(projetId: string, userId: string): Promise<any[]> {
+    // Vérifier que le projet appartient à l'utilisateur
+    const projetResult = await this.db.query(
+      `SELECT id, proprietaire_id FROM projets WHERE id = $1`,
+      [projetId],
+    );
+    
+    if (projetResult.rows.length === 0) {
+      throw new NotFoundException('Projet non trouvé');
+    }
+    
+    if (projetResult.rows[0].proprietaire_id !== userId) {
+      throw new ForbiddenException('Ce projet ne vous appartient pas');
+    }
+
+    // Récupérer toutes les pesées des batches du projet
+    const result = await this.db.query(
+      `SELECT w.*, b.pen_name, b.category
+       FROM batch_weighings w
+       JOIN batches b ON w.batch_id = b.id
+       WHERE b.projet_id = $1
+       ORDER BY w.weighing_date DESC`,
+      [projetId],
+    );
+
+    return result.rows;
+  }
+
+  /**
    * Détail d'une pesée et répartition par porc
    */
   async getWeighingDetails(weighingId: string, userId: string): Promise<any> {

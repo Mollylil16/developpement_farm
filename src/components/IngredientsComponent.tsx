@@ -49,8 +49,17 @@ export default function IngredientsComponent() {
   }, [dispatch, projetActif?.id]);
 
   // Enrichir automatiquement la liste avec les ingrédients des formulations industrielles
+  // Cet effet s'exécute après le chargement initial pour ajouter les ingrédients par défaut
+  const [enrichmentDone, setEnrichmentDone] = useState(false);
+  
   useEffect(() => {
-    if (!projetActif || !canCreate('nutrition') || ingredients.length === 0) {
+    // Reset enrichment flag when project changes
+    setEnrichmentDone(false);
+  }, [projetActif?.id]);
+
+  useEffect(() => {
+    // Attendre que le chargement initial soit terminé
+    if (loading || !projetActif || !canCreate('nutrition') || enrichmentDone) {
       return;
     }
 
@@ -63,7 +72,7 @@ export default function IngredientsComponent() {
         });
       });
 
-      // Vérifier quels ingrédients manquent
+      // Vérifier quels ingrédients manquent (même si la liste actuelle est vide)
       const ingredientsExistants = new Set(ingredients.map((ing) => ing.nom.toLowerCase().trim()));
       const ingredientsManquants = Array.from(ingredientsFormulations).filter(
         (nom) => !ingredientsExistants.has(nom.toLowerCase().trim())
@@ -71,15 +80,10 @@ export default function IngredientsComponent() {
 
       // Créer les ingrédients manquants
       if (ingredientsManquants.length > 0) {
+        console.log(`[Nutrition] Création de ${ingredientsManquants.length} ingrédients par défaut...`);
         let successCount = 0;
         for (const nomIngredient of ingredientsManquants) {
           try {
-            // Vérifier à nouveau si l'ingrédient n'existe pas (éviter les doublons)
-            const existeDeja = ingredients.some(
-              (ing) => ing.nom.toLowerCase().trim() === nomIngredient.toLowerCase().trim()
-            );
-            if (existeDeja) continue;
-
             // Obtenir les valeurs nutritionnelles si disponibles
             const valeursNutri = getValeursNutritionnelles(nomIngredient);
 
@@ -94,25 +98,29 @@ export default function IngredientsComponent() {
             ).unwrap();
             successCount++;
           } catch (error) {
-            // Ignorer les erreurs silencieusement
+            // Ignorer les erreurs silencieusement (peut être un doublon)
             console.warn(`Erreur lors de la création de ${nomIngredient}:`, error);
           }
         }
 
         // Recharger la liste si des ingrédients ont été créés
         if (successCount > 0) {
+          console.log(`[Nutrition] ${successCount} ingrédients créés avec succès`);
           dispatch(loadIngredients(projetActif.id));
         }
       }
+      
+      // Marquer l'enrichissement comme terminé
+      setEnrichmentDone(true);
     };
 
     // Attendre un peu pour éviter les conflits avec le chargement initial
     const timer = setTimeout(() => {
       enrichirIngredients();
-    }, 1000);
+    }, 500);
 
     return () => clearTimeout(timer);
-  }, [projetActif?.id, ingredients.length, canCreate, dispatch]);
+  }, [projetActif?.id, loading, ingredients, canCreate, dispatch, enrichmentDone]);
 
   const onRefresh = useCallback(async () => {
     if (!projetActif?.id) return;

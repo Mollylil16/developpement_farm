@@ -19,3 +19,5 @@ export { OpenAIParameterExtractor } from './OpenAIParameterExtractor';
 export { FastPathDetector, type FastPathResult } from './FastPathDetector';
 export { ConfirmationManager, type ConfirmationDecision, type UserPreferences } from './ConfirmationManager';
 export { LearningService, type LearningFailure, type EducationalSuggestion } from './LearningService';
+export { NaturalLanguageProcessor, type ProcessedMessage, type IntentHint } from './NaturalLanguageProcessor';
+export { ClarificationService, type ClarificationRequest, type ClarificationResult } from './ClarificationService';

@@ -97,4 +97,15 @@ export class UpdateVaccinationDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({ description: 'ID de la bande (mode batch)' })
+  @IsOptional()
+  @IsString()
+  batch_id?: string;
+
+  @ApiPropertyOptional({ description: 'Nombre de sujets vaccinés (mode batch)' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  nombre_sujets_vaccines?: number;
 }

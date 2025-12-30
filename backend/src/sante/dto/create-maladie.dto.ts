@@ -16,6 +16,11 @@ export class CreateMaladieDto {
   @IsString()
   lot_id?: string;
 
+  @ApiPropertyOptional({ description: 'ID de la bande (mode batch)' })
+  @IsOptional()
+  @IsString()
+  batch_id?: string;
+
   @ApiProperty({
     description: 'Type de maladie',
     enum: [

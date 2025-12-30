@@ -265,5 +265,73 @@ export class DepenseActions {
     };
     return labels[categorie] || categorie;
   }
+
+  /**
+   * Met à jour une dépense
+   */
+  static async updateDepense(params: unknown, context: AgentContext): Promise<AgentActionResult> {
+    const paramsTyped = params as Record<string, unknown>;
+
+    // ID de la dépense à modifier (requis)
+    const depenseId = paramsTyped.id || paramsTyped.depense_id;
+    if (!depenseId || typeof depenseId !== 'string') {
+      throw new Error('L\'ID de la dépense à modifier est requis. Veuillez préciser quelle dépense modifier.');
+    }
+
+    // Construire l'objet de mise à jour avec seulement les champs fournis
+    const updateData: Record<string, unknown> = {};
+
+    if (paramsTyped.montant !== undefined) {
+      const montant = this.parseMontant(
+        typeof paramsTyped.montant === 'string' || typeof paramsTyped.montant === 'number'
+          ? paramsTyped.montant
+          : String(paramsTyped.montant)
+      );
+      if (!isNaN(montant) && montant > 0) {
+        updateData.montant = montant;
+      }
+    }
+
+    if (paramsTyped.date && typeof paramsTyped.date === 'string') {
+      updateData.date = paramsTyped.date;
+    }
+
+    // Normaliser la catégorie si fournie
+    if (paramsTyped.categorie || paramsTyped.type) {
+      const categoryNormalizer = new CategoryNormalizer();
+      const normalizedCategory = categoryNormalizer.normalize(
+        (paramsTyped.categorie && typeof paramsTyped.categorie === 'string' ? paramsTyped.categorie : undefined) ||
+        (paramsTyped.type && typeof paramsTyped.type === 'string' ? paramsTyped.type : undefined) || '',
+        false
+      );
+      
+      if (normalizedCategory && this.BACKEND_CATEGORIES.has(normalizedCategory)) {
+        updateData.categorie = normalizedCategory;
+      } else if (normalizedCategory) {
+        updateData.categorie = 'autre';
+        updateData.libelle_categorie = normalizedCategory;
+      }
+    }
+
+    if (paramsTyped.commentaire && typeof paramsTyped.commentaire === 'string') {
+      updateData.commentaire = paramsTyped.commentaire;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      throw new Error('Aucune modification à apporter. Veuillez préciser ce que tu veux modifier (montant, date, catégorie, etc.).');
+    }
+
+    // Appeler l'API backend pour mettre à jour
+    const depense = await apiClient.patch<any>(`/finance/depenses-ponctuelles/${depenseId}`, updateData);
+
+    const categoryLabel = updateData.categorie ? this.getCategorieLabel(updateData.categorie as string) : '';
+    const message = `✅ Dépense modifiée avec succès ! ${updateData.montant ? `Nouveau montant : ${(updateData.montant as number).toLocaleString('fr-FR')} FCFA.` : ''} ${categoryLabel ? `Catégorie : ${categoryLabel}.` : ''}`;
+
+    return {
+      success: true,
+      data: depense,
+      message,
+    };
+  }
 }
 

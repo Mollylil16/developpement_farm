@@ -22,20 +22,20 @@ class LocationDto {
   @IsNumber()
   longitude: number;
 
-  @ApiProperty({ description: 'Adresse complète', example: '123 Rue de la Ferme' })
+  @ApiProperty({ description: 'Adresse complète', example: '123 Rue de la Ferme', required: false })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  address: string;
+  address?: string;
 
-  @ApiProperty({ description: 'Ville', example: 'Paris' })
+  @ApiProperty({ description: 'Ville', example: 'Paris', required: false })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  city: string;
+  city?: string;
 
-  @ApiProperty({ description: 'Région', example: 'Île-de-France' })
+  @ApiProperty({ description: 'Région', example: 'Île-de-France', required: false })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  region: string;
+  region?: string;
 }
 
 class SaleTermsDto {

@@ -1,13 +1,14 @@
 /**
  * SanteHeader - En-tête de l'écran Santé
  *
- * Affiche le titre et les badges d'alertes
+ * Affiche le titre, le mode d'élevage et les badges d'alertes
  */
 
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { useModeElevage } from '../hooks/useModeElevage';
 
 interface SanteHeaderProps {
   nombreAlertesCritiques: number;
@@ -19,13 +20,27 @@ export default function SanteHeader({
   nombreAlertesElevees,
 }: SanteHeaderProps) {
   const { colors } = useTheme();
+  const modeElevage = useModeElevage();
+  const isModeBatch = modeElevage === 'bande';
 
   return (
     <View style={[styles.header, { backgroundColor: colors.surface }]}>
       <View style={styles.headerContent}>
         <View style={styles.headerTitleContainer}>
           <Ionicons name="medical" size={28} color={colors.primary} />
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Santé</Text>
+          <View>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>Santé</Text>
+            <View style={styles.modeContainer}>
+              <Ionicons
+                name={isModeBatch ? 'grid-outline' : 'paw-outline'}
+                size={12}
+                color={colors.textSecondary}
+              />
+              <Text style={[styles.modeText, { color: colors.textSecondary }]}>
+                {isModeBatch ? 'Mode Bande' : 'Mode Individuel'}
+              </Text>
+            </View>
+          </View>
         </View>
         {(nombreAlertesCritiques > 0 || nombreAlertesElevees > 0) && (
           <View style={styles.headerBadges}>
@@ -71,6 +86,15 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 24,
     fontWeight: '700',
+  },
+  modeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  modeText: {
+    fontSize: 12,
   },
   headerBadges: {
     flexDirection: 'row',

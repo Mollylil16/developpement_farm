@@ -31,6 +31,15 @@ export class BatchWeighingController {
     return await this.weighingService.createWeighing(dto, user.id);
   }
 
+  @Get('projet/:projetId')
+  @ApiOperation({ summary: 'Récupérer toutes les pesées de batch pour un projet' })
+  async getWeighingsByProjet(
+    @Param('projetId') projetId: string,
+    @CurrentUser() user: any,
+  ) {
+    return await this.weighingService.getWeighingsByProjet(projetId, user.id);
+  }
+
   @Get('batch/:batchId/history')
   @ApiOperation({ summary: 'Récupérer l\'historique des pesées pour une bande' })
   async getWeighingHistory(

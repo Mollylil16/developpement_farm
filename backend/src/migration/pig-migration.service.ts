@@ -903,16 +903,20 @@ export class PigMigrationService {
           // Créer la bande
           // IMPORTANT: les triggers sur batch_pigs maintiennent les compteurs dans batches.
           // On initialise donc à 0 pour éviter un double comptage lors de l'insertion des batch_pigs.
+          // Déterminer la position selon le nom de la loge (A = droite, B = gauche)
+          const position = batch.pen_name && batch.pen_name.toUpperCase().startsWith('B') ? 'gauche' : 'droite';
+          
           await client.query(
           `INSERT INTO batches (
-            id, projet_id, pen_name, category, total_count, male_count, female_count,
+            id, projet_id, pen_name, position, category, total_count, male_count, female_count,
             castrated_count, average_age_months, average_weight_kg, batch_creation_date,
             migrated_from_individual, original_animal_ids, notes
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
           [
             batchId,
             projetId,
             batchNumber,
+            position,
             stats.category,
             0,
             0,

@@ -99,49 +99,112 @@ export class ConversationContextManager {
 
   /**
    * Extrait les entités d'un message
+   * Amélioré pour capturer plus de patterns et contextes
    */
   private extractEntities(text: string): void {
-    // Extraire acheteur
-    const acheteurMatch = text.match(
-      /(?:a|pour|chez|vendu a)\s+([A-Za-zÀ-ÿ\s]+?)(?:\s+(?:pour|a|\d)|$)/i
-    );
-    if (acheteurMatch && acheteurMatch[1]) {
-      const acheteur = acheteurMatch[1].trim();
-      if (acheteur.length > 1) {
-        this.context.lastAcheteur = acheteur;
-        this.addEntity('acheteur', acheteur, text);
+    const normalized = text.toLowerCase();
+    
+    // Extraire acheteur (patterns améliorés)
+    const acheteurPatterns = [
+      /(?:vendu|vente|vendre)\s+(?:à|pour|chez)\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s]+?)(?:\s+(?:pour|à|\d)|$)/i,
+      /(?:a|pour|chez|avec|client|acheteur)\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s]+?)(?:\s+(?:pour|à|\d|fcfa|francs)|$)/i,
+      /([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ]+)\s+(?:a\s+achete|a\s+pris|vient\s+d'acheter)/i,
+    ];
+    
+    for (const pattern of acheteurPatterns) {
+      const match = text.match(pattern);
+      if (match && match[1]) {
+        const acheteur = match[1].trim();
+        // Exclure les mots communs qui ne sont pas des noms
+        if (acheteur.length > 1 && !/^(le|la|les|un|une|des|du|de|pour|avec|à)$/i.test(acheteur)) {
+          this.context.lastAcheteur = acheteur;
+          this.addEntity('acheteur', acheteur, text);
+          break;
+        }
       }
     }
 
-    // Extraire montant
-    const montantMatch = text.match(/(\d[\d\s,]{3,})\s*(?:fcfa|francs?|f\s*)/i);
-    if (montantMatch && montantMatch[1]) {
-      const montant = parseInt(montantMatch[1].replace(/[\s,]/g, ''));
-      if (montant > 100) {
-        this.context.lastMontant = montant;
-        this.addEntity('montant', montant, text);
+    // Extraire montant (patterns améliorés)
+    const montantPatterns = [
+      /(\d[\d\s,.]{3,})\s*(?:fcfa|francs?|f\s*)/i,
+      /(?:montant|prix|cout|coût|somme)\s*[:\s]*(\d[\d\s,.]{3,})/i,
+      /(\d{4,})/i, // Montants >= 1000 sans unité (probablement FCFA)
+    ];
+    
+    for (const pattern of montantPatterns) {
+      const montantMatch = text.match(pattern);
+      if (montantMatch && montantMatch[1]) {
+        const montant = parseInt(montantMatch[1].replace(/[\s,.]/g, ''));
+        if (montant > 100 && montant < 100000000) { // Plage raisonnable
+          this.context.lastMontant = montant;
+          this.addEntity('montant', montant, text);
+          break;
+        }
       }
     }
 
-    // Extraire animal
-    const animalMatch = text.match(/(?:porc|animal)\s+([A-Z0-9]+)/i);
-    if (animalMatch && animalMatch[1]) {
-      this.context.lastAnimal = animalMatch[1];
-      this.addEntity('animal', animalMatch[1], text);
+    // Extraire animal (patterns améliorés)
+    const animalPatterns = [
+      /(?:porc|animal|sujet)\s+(?:code|numero|numéro)?\s*[:\s]?([A-Z0-9]{2,})/i,
+      /(?:code|numero|numéro)\s*[:\s]?([A-Z0-9]{2,})/i, // Code seul si contexte animal
+      /\b([P][0-9]{2,})\b/i, // Format P001, P123, etc.
+    ];
+    
+    for (const pattern of animalPatterns) {
+      const animalMatch = text.match(pattern);
+      if (animalMatch && animalMatch[1]) {
+        const animalCode = animalMatch[1].toUpperCase();
+        this.context.lastAnimal = animalCode;
+        this.addEntity('animal', animalCode, text);
+        break;
+      }
     }
 
-    // Extraire date
-    const dateMatch = text.match(/(?:le|au|du)\s+(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
-    if (dateMatch && dateMatch[1]) {
-      this.context.lastDate = dateMatch[1];
-      this.addEntity('date', dateMatch[1], text);
+    // Extraire date (patterns améliorés)
+    const datePatterns = [
+      /(?:le|au|du|date|jour)\s+(\d{1,2}[\/\-]\d{1,2}(?:\/\d{2,4})?)/i,
+      /(\d{1,2}[\/\-]\d{1,2}(?:\/\d{2,4})?)/i,
+    ];
+    
+    for (const pattern of datePatterns) {
+      const dateMatch = text.match(pattern);
+      if (dateMatch && dateMatch[1]) {
+        this.context.lastDate = dateMatch[1];
+        this.addEntity('date', dateMatch[1], text);
+        break;
+      }
+    }
+    
+    // Dates spéciales
+    if (normalized.includes('aujourd') || normalized.includes('maintenant')) {
+      const today = new Date().toISOString().split('T')[0];
+      this.context.lastDate = today;
+      this.addEntity('date', today, text);
+    } else if (normalized.includes('demain')) {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      this.context.lastDate = tomorrow.toISOString().split('T')[0];
+      this.addEntity('date', this.context.lastDate, text);
+    } else if (normalized.includes('hier')) {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      this.context.lastDate = yesterday.toISOString().split('T')[0];
+      this.addEntity('date', this.context.lastDate, text);
     }
 
-    // Extraire catégorie
-    const categorieMatch = text.match(/(?:categorie|type)\s+([a-z]+)/i);
-    if (categorieMatch && categorieMatch[1]) {
-      this.context.lastCategorie = categorieMatch[1];
-      this.addEntity('categorie', categorieMatch[1], text);
+    // Extraire catégorie (patterns améliorés)
+    const categoriePatterns = [
+      /(?:categorie|type|catégorie)\s+[:\s]*([a-z_]+)/i,
+      /(?:en|pour|de\s+type)\s+(alimentation|medicaments|vaccins|veterinaire|equipements|entretien|autre)/i,
+    ];
+    
+    for (const pattern of categoriePatterns) {
+      const categorieMatch = text.match(pattern);
+      if (categorieMatch && categorieMatch[1]) {
+        this.context.lastCategorie = categorieMatch[1];
+        this.addEntity('categorie', categorieMatch[1], text);
+        break;
+      }
     }
   }
 
@@ -176,17 +239,18 @@ export class ConversationContextManager {
   }
 
   /**
-   * Résout une référence ("le même", "celui-là", "il", "elle", etc.)
-   * Amélioration pour résolution d'anaphores
+   * Résout une référence ("le même", "celui-là", "il", "elle", "ça", "cela", etc.)
+   * Amélioration pour résolution d'anaphores avec plus de patterns
    */
   resolveReference(reference: string, type: ConversationEntity['type']): unknown {
     const normalized = reference.toLowerCase().trim();
 
-    // Anaphores pronominales (il, elle, le, la, lui, leur, etc.)
+    // Anaphores pronominales (il, elle, le, la, lui, leur, ça, cela, etc.)
     const pronominalAnaphora = [
       /^(il|elle|le|la|lui|les|leur|eux|elles)$/,
       /^(celui| celle| ceux| celles)$/,
-      /^(ce| cet| cette| ces)$/,
+      /^(ce| cet| cette| ces|ça|cela)$/,
+      /^(c'?est|ce\s+sont)$/,
     ];
 
     for (const pattern of pronominalAnaphora) {
@@ -232,16 +296,18 @@ export class ConversationContextManager {
       }
     }
 
-    // Références explicites ("le même", "celui-là", etc.)
+    // Références explicites ("le même", "celui-là", "ça", etc.)
     const explicitReferences = [
-      /^(le\s+meme|la\s+meme|les\s+meme|les\s+memes)$/,
-      /^(celui\s+la| celle\s+la| ceux\s+la| celles\s+la)$/,
-      /^(le\s+meme\s+acheteur| la\s+meme\s+acheteur)$/,
-      /^(le\s+meme\s+animal| la\s+meme\s+animal)$/,
-      /^(le\s+meme\s+montant| la\s+meme\s+montant)$/,
-      /^(le\s+meme\s+porc| la\s+meme\s+porc)$/,
-      /^(le\s+dernier| la\s+derniere| les\s+derniers| les\s+dernieres)$/,
-      /^(le\s+precedent| la\s+precedente| les\s+precedents| les\s+precedentes)$/,
+      /^(le\s+meme|la\s+meme|les\s+meme|les\s+memes|l'?meme)$/i,
+      /^(celui\s+la| celle\s+la| ceux\s+la| celles\s+la)$/i,
+      /^(le\s+meme\s+acheteur| la\s+meme\s+acheteur)$/i,
+      /^(le\s+meme\s+animal| la\s+meme\s+animal)$/i,
+      /^(le\s+meme\s+montant| la\s+meme\s+montant)$/i,
+      /^(le\s+meme\s+porc| la\s+meme\s+porc)$/i,
+      /^(le\s+dernier| la\s+derniere| les\s+derniers| les\s+dernieres)$/i,
+      /^(le\s+precedent| la\s+precedente| les\s+precedents| les\s+precedentes)$/i,
+      /^(pour\s+ca|pour\s+cela|pour\s+le\s+meme|pour\s+la\s+meme)$/i,
+      /^(avec\s+ca|avec\s+cela|avec\s+le\s+meme)$/i,
     ];
 
     for (const pattern of explicitReferences) {
@@ -323,14 +389,54 @@ export class ConversationContextManager {
 
   /**
    * Récupère le contexte pour l'extraction de paramètres
+   * Amélioré pour inclure plus de contexte conversationnel
    */
   getExtractionContext(): {
     conversationHistory: Array<{ role: string; content: string }>;
     lastAcheteur?: string;
     lastAnimal?: string;
     lastMontant?: number;
-    recentTransactions?: Array<{ acheteur?: string; montant?: number }>;
+    lastDate?: string;
+    lastCategorie?: string;
+    recentTransactions?: Array<{ 
+      acheteur?: string; 
+      montant?: number;
+      date?: string;
+      categorie?: string;
+    }>;
+    recentEntities?: {
+      acheteurs: string[];
+      animaux: string[];
+      montants: number[];
+      dates: string[];
+      categories: string[];
+    };
   } {
+    // Extraire les entités récentes de l'historique
+    const recentEntities = {
+      acheteurs: [] as string[],
+      animaux: [] as string[],
+      montants: [] as number[],
+      dates: [] as string[],
+      categories: [] as string[],
+    };
+
+    // Récupérer les entités récentes depuis la Map
+    const acheteurs = this.context.entities.get('acheteur') || [];
+    recentEntities.acheteurs = acheteurs.slice(0, 5).map(e => String(e.value));
+    
+    const animaux = this.context.entities.get('animal') || [];
+    recentEntities.animaux = animaux.slice(0, 5).map(e => String(e.value));
+    
+    const montants = this.context.entities.get('montant') || [];
+    recentEntities.montants = montants.slice(0, 5).map(e => Number(e.value)).filter(m => !isNaN(m));
+    
+    const dates = this.context.entities.get('date') || [];
+    recentEntities.dates = dates.slice(0, 5).map(e => String(e.value));
+    
+    const categories = this.context.entities.get('categorie') || [];
+    recentEntities.categories = categories.slice(0, 5).map(e => String(e.value));
+
     return {
       conversationHistory: this.context.history
         .slice(-10)
@@ -338,8 +444,12 @@ export class ConversationContextManager {
       lastAcheteur: this.context.lastAcheteur,
       lastAnimal: this.context.lastAnimal,
       lastMontant: this.context.lastMontant,
+      lastDate: this.context.lastDate,
+      lastCategorie: this.context.lastCategorie,
       recentTransactions: this.context.history
-        .filter((h) => h.action === 'create_revenu' && h.params)
+        .filter((h) => 
+          (h.action === 'create_revenu' || h.action === 'create_depense') && h.params
+        )
         .slice(0, 5)
         .map((h) => ({
           acheteur:
@@ -350,7 +460,16 @@ export class ConversationContextManager {
             h.params?.montant && typeof h.params.montant === 'number'
               ? h.params.montant
               : undefined,
+          date:
+            h.params?.date && typeof h.params.date === 'string'
+              ? h.params.date
+              : undefined,
+          categorie:
+            h.params?.categorie && typeof h.params.categorie === 'string'
+              ? h.params.categorie
+              : undefined,
         })),
+      recentEntities,
     };
   }
 

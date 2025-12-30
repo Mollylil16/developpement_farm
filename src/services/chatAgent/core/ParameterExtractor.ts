@@ -30,8 +30,8 @@ export interface ExtractionContext {
 }
 
 export class ParameterExtractor {
-  private context: ExtractionContext;
-  private categoryNormalizer: CategoryNormalizer;
+  protected context: ExtractionContext;
+  protected categoryNormalizer: CategoryNormalizer;
 
   constructor(context: ExtractionContext = {}) {
     this.context = {

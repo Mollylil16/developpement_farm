@@ -34,6 +34,9 @@ import {
   Maladie,
 } from '../types/sante';
 import type { ProductionAnimal } from '../types/production';
+import { useModeElevage } from '../hooks/useModeElevage';
+import type { Batch } from '../types/batch';
+import apiClient from '../services/api/apiClient';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -48,6 +51,8 @@ interface TraitementsComponentProps {
 export default function TraitementsComponentNew({ refreshControl }: TraitementsComponentProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
+  const modeElevage = useModeElevage();
+  const isModeBatch = modeElevage === 'bande';
 
   const projetActif = useAppSelector((state) => state.projet.projetActif);
   const vaccinations = useAppSelector((state) => selectAllVaccinations(state));
@@ -57,6 +62,27 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
   const [rechercheFiltre, setRechercheFiltre] = useState('');
   const [filtreRaison, setFiltreRaison] = useState<string>('tous');
   const [sectionActive, setSectionActive] = useState<'produits' | 'malades'>('produits');
+  const [batches, setBatches] = useState<Batch[]>([]);
+
+  // Charger les bandes en mode batch
+  useEffect(() => {
+    if (!isModeBatch || !projetActif?.id) {
+      setBatches([]);
+      return;
+    }
+
+    const loadBatches = async () => {
+      try {
+        const data = await apiClient.get<Batch[]>(`/batch-pigs/projet/${projetActif.id}`);
+        setBatches(data || []);
+      } catch (error) {
+        console.error('[TraitementsComponentNew] Erreur chargement bandes:', error);
+        setBatches([]);
+      }
+    };
+
+    loadBatches();
+  }, [isModeBatch, projetActif?.id]);
 
   // Charger les données au montage
   useEffect(() => {
@@ -146,14 +172,28 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
   const sujetsMalades = useMemo(() => {
     const maladiesActives = (maladies || []).filter((m) => !m.gueri);
 
+    if (isModeBatch) {
+      // En mode batch, grouper par batch_id ou afficher les maladies avec batch_id
+      return maladiesActives.map((maladie) => {
+        const batch = batches.find((b) => b.id === maladie.batch_id);
+        const animal = maladie.animal_id ? (animaux || []).find((a) => a.id === maladie.animal_id) : undefined;
+        return {
+          maladie,
+          animal,
+          batch,
+        };
+      });
+    }
+
     return maladiesActives.map((maladie) => {
       const animal = (animaux || []).find((a) => a.id === maladie.animal_id);
       return {
         maladie,
         animal,
+        batch: undefined as Batch | undefined,
       };
     });
-  }, [maladies, animaux]);
+  }, [maladies, animaux, isModeBatch, batches]);
 
   // Gestion changement de statut
   const handleChangementStatut = useCallback(
@@ -440,7 +480,7 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
             </Text>
           </View>
         ) : (
-          sujetsMalades.map(({ maladie, animal }) => (
+          sujetsMalades.map(({ maladie, animal, batch }) => (
             <View
               key={maladie.id}
               style={[
@@ -454,12 +494,25 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
             >
               <View style={styles.maladeHeader}>
                 <View style={styles.maladeHeaderLeft}>
-                  <Text style={[styles.maladeNom, { color: colors.text }]}>
-                    {animal?.nom || animal?.code || `Porc #${maladie.animal_id?.slice(0, 8)}`}
-                  </Text>
-                  <Text style={[styles.maladeId, { color: colors.textSecondary }]}>
-                    ID: {animal?.code || maladie.animal_id?.slice(0, 12)}
-                  </Text>
+                  {batch ? (
+                    <>
+                      <Text style={[styles.maladeNom, { color: colors.text }]}>
+                        🏠 {batch.pen_name}
+                      </Text>
+                      <Text style={[styles.maladeId, { color: colors.textSecondary }]}>
+                        {maladie.nombre_animaux_affectes || 1} sujet(s) affecté(s)
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={[styles.maladeNom, { color: colors.text }]}>
+                        {animal?.nom || animal?.code || `Porc #${maladie.animal_id?.slice(0, 8)}`}
+                      </Text>
+                      <Text style={[styles.maladeId, { color: colors.textSecondary }]}>
+                        ID: {animal?.code || maladie.animal_id?.slice(0, 12)}
+                      </Text>
+                    </>
+                  )}
                   <View
                     style={[
                       styles.graviteBadge,

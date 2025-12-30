@@ -438,6 +438,37 @@ export const marquerRappelEnvoye = createAsyncThunk(
   }
 );
 
+/**
+ * Génère automatiquement les rappels pour toutes les vaccinations selon les standards porcins
+ * - Mycoplasme: rappel à 14 jours
+ * - Rouget/Erysipelothrix: rappel à 6 mois
+ * - Parvovirose: rappel à 21 jours
+ * - Leptospirose: rappel à 6 mois
+ * - PRRS: rappel à 4 mois
+ * - Vermifuge/Déparasitant: rappel à 2 mois
+ */
+export const genererRappelsAutomatiques = createAsyncThunk(
+  'sante/genererRappelsAutomatiques',
+  async (projetId: string) => {
+    const result = await apiClient.post<{
+      message: string;
+      rappels_crees: number;
+      vaccinations_mises_a_jour: number;
+      details: Array<{
+        vaccination_id: string;
+        vaccin: string;
+        date_vaccination: string;
+        date_rappel: string;
+        delai_jours: number;
+      }>;
+      standards_appliques: string[];
+    }>('/sante/rappels/generer-automatique', null, {
+      params: { projet_id: projetId },
+    });
+    return result;
+  }
+);
+
 // ============================================
 // ACTIONS ASYNCHRONES - STATISTIQUES
 // ============================================

@@ -65,5 +65,77 @@ export class VisiteVetoActions {
       message,
     };
   }
+
+  /**
+   * Met à jour une visite vétérinaire
+   */
+  static async updateVisiteVeterinaire(params: unknown, context: AgentContext): Promise<AgentActionResult> {
+    const paramsTyped = params as Record<string, unknown>;
+
+    // ID de la visite à modifier (requis)
+    const visiteId = paramsTyped.id || paramsTyped.visite_id;
+    if (!visiteId || typeof visiteId !== 'string') {
+      throw new Error('L\'ID de la visite vétérinaire à modifier est requis. Veuillez préciser quelle visite modifier.');
+    }
+
+    // Construire l'objet de mise à jour avec seulement les champs fournis
+    const updateData: Record<string, unknown> = {};
+
+    if (paramsTyped.date_visite || paramsTyped.date) {
+      const date = paramsTyped.date_visite || paramsTyped.date;
+      if (typeof date === 'string') {
+        updateData.date_visite = date;
+      }
+    }
+
+    if (paramsTyped.veterinaire || paramsTyped.nom_veterinaire) {
+      const veterinaire = paramsTyped.veterinaire || paramsTyped.nom_veterinaire;
+      if (typeof veterinaire === 'string') {
+        updateData.veterinaire = veterinaire;
+      }
+    }
+
+    if (paramsTyped.motif || paramsTyped.raison) {
+      const motif = paramsTyped.motif || paramsTyped.raison;
+      if (typeof motif === 'string') {
+        updateData.motif = motif;
+      }
+    }
+
+    if (paramsTyped.diagnostic && typeof paramsTyped.diagnostic === 'string') {
+      updateData.diagnostic = paramsTyped.diagnostic;
+    }
+
+    if (paramsTyped.prescriptions && typeof paramsTyped.prescriptions === 'string') {
+      updateData.prescriptions = paramsTyped.prescriptions;
+    }
+
+    if (paramsTyped.notes && typeof paramsTyped.notes === 'string') {
+      updateData.notes = paramsTyped.notes;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      throw new Error('Aucune modification à apporter. Veuillez préciser ce que tu veux modifier (date, vétérinaire, motif, etc.).');
+    }
+
+    // Appeler l'API backend pour mettre à jour
+    try {
+      const visite = await apiClient.patch<any>(`/sante/visites-veterinaires/${visiteId}`, updateData);
+      
+      const message = `✅ Visite vétérinaire modifiée avec succès ! ${updateData.date_visite ? `Nouvelle date : ${format(new Date(updateData.date_visite as string), 'dd/MM/yyyy')}.` : ''}`;
+
+      return {
+        success: true,
+        data: visite,
+        message,
+      };
+    } catch (error: any) {
+      // Si l'endpoint n'existe pas, on informe l'utilisateur
+      if (error?.status === 404 || error?.message?.includes('404')) {
+        throw new Error('La modification des visites vétérinaires n\'est pas encore disponible. Veuillez créer une nouvelle visite.');
+      }
+      throw error;
+    }
+  }
 }
 

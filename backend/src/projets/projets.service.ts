@@ -312,28 +312,29 @@ this.logger.error(`Erreur lors de la création automatique des animaux individue
       // Note: porcs_engraissement pas encore dans le DTO, à ajouter si nécessaire
     ];
 
-    let logeIndex = 1;
-    const letterLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    // Compteurs séparés pour les loges à droite (A) et à gauche (B)
+    let logeIndexDroite = 1; // Pour les loges A (droite)
+    let logeIndexGauche = 1; // Pour les loges B (gauche)
 
     for (const cat of categories) {
       if (cat.count > 0) {
-// Générer nom de loge générique : A1, A2, A3, etc. puis B1, B2, etc.
-        const letterIndex = Math.floor((logeIndex - 1) / 8);
-        const numberIndex = ((logeIndex - 1) % 8) + 1;
-        const letter =
-          letterIndex < letterLabels.length
-            ? letterLabels[letterIndex]
-            : String.fromCharCode(65 + letterIndex); // A, B, C, etc.
-        const penName = `${letter}${numberIndex}`; // Nom générique sans préfixe "Loge "
+        // Alterner entre droite et gauche pour les loges initiales
+        // Les premières loges vont à droite (A), les suivantes à gauche (B)
+        const isDroite = (logeIndexDroite + logeIndexGauche - 1) % 2 === 1;
+        const position: 'gauche' | 'droite' = isDroite ? 'droite' : 'gauche';
+        const letter = isDroite ? 'A' : 'B';
+        const numberIndex = isDroite ? logeIndexDroite : logeIndexGauche;
+        const penName = `${letter}${numberIndex}`;
 
         const population = this.distributeByDefaultSex(cat.count, cat.category);
-// Créer une loge pour cette catégorie
+        // Créer une loge pour cette catégorie
         try {
           // Passer skipOwnershipCheck=true car le projet vient d'être créé et on connaît déjà le proprietaire_id
           await this.batchPigsService.createBatchWithPigs(
             {
               projet_id: projetId,
               pen_name: penName,
+              position: position,
               category: cat.category,
               population,
               average_age_months: cat.defaultAge,
@@ -343,11 +344,16 @@ this.logger.error(`Erreur lors de la création automatique des animaux individue
             userId,
             true, // skipOwnershipCheck: true car le projet vient d'être créé dans la même transaction
           );
-} catch (error) {
-throw error;
+        } catch (error) {
+          throw error;
         }
 
-        logeIndex++;
+        // Incrémenter le compteur approprié
+        if (isDroite) {
+          logeIndexDroite++;
+        } else {
+          logeIndexGauche++;
+        }
       }
     }
   }

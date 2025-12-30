@@ -86,6 +86,8 @@ export interface Vaccination {
   calendrier_id?: string; // Lien avec le calendrier
   animal_ids?: string[]; // IDs des animaux vaccinés (multi-select)
   lot_id?: string; // Si vaccination par lot
+  batch_id?: string; // ID de la bande (mode batch)
+  nombre_sujets_vaccines?: number; // Nombre de sujets vaccinés (mode batch)
   type_prophylaxie: TypeProphylaxie; // Nouveau : type de prophylaxie
   vaccin?: TypeVaccin; // Pour compatibilité
   nom_vaccin?: string;
@@ -112,6 +114,8 @@ export interface CreateVaccinationInput {
   calendrier_id?: string;
   animal_ids?: string[]; // Multi-select
   lot_id?: string;
+  batch_id?: string; // ID de la bande (mode batch)
+  nombre_sujets_vaccines?: number; // Nombre de sujets vaccinés (mode batch)
   type_prophylaxie: TypeProphylaxie;
   vaccin?: TypeVaccin;
   nom_vaccin?: string;
@@ -133,6 +137,8 @@ export interface CreateVaccinationInput {
 
 export interface UpdateVaccinationInput {
   animal_ids?: string[];
+  batch_id?: string; // ID de la bande (mode batch)
+  nombre_sujets_vaccines?: number; // Nombre de sujets vaccinés (mode batch)
   type_prophylaxie?: TypeProphylaxie;
   produit_administre?: string;
   photo_flacon?: string;
@@ -158,6 +164,7 @@ export interface Maladie {
   projet_id: string;
   animal_id?: string; // Si maladie individuelle
   lot_id?: string; // Si épidémie
+  batch_id?: string; // ID de la bande (mode batch)
   type: TypeMaladie;
   nom_maladie: string;
   gravite: GraviteMaladie;
@@ -180,6 +187,7 @@ export interface CreateMaladieInput {
   projet_id: string;
   animal_id?: string;
   lot_id?: string;
+  batch_id?: string; // ID de la bande (mode batch)
   type: TypeMaladie;
   nom_maladie: string;
   gravite: GraviteMaladie;
@@ -211,6 +219,7 @@ export interface UpdateMaladieInput {
   cout_traitement?: number;
   gueri?: boolean;
   notes?: string;
+  batch_id?: string; // ID de la bande (mode batch)
 }
 
 /**
@@ -222,6 +231,7 @@ export interface Traitement {
   maladie_id?: string; // Lien avec une maladie
   animal_id?: string;
   lot_id?: string;
+  batch_id?: string; // ID de la bande (mode batch)
   type: TypeTraitement;
   nom_medicament: string;
   voie_administration: VoieAdministration;
@@ -246,6 +256,7 @@ export interface CreateTraitementInput {
   maladie_id?: string;
   animal_id?: string;
   lot_id?: string;
+  batch_id?: string; // ID de la bande (mode batch)
   type: TypeTraitement;
   nom_medicament: string;
   voie_administration: VoieAdministration;
@@ -279,6 +290,7 @@ export interface UpdateTraitementInput {
   efficace?: boolean;
   effets_secondaires?: string;
   notes?: string;
+  batch_id?: string; // ID de la bande (mode batch)
 }
 
 /**

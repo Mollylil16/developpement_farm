@@ -47,6 +47,9 @@ export class AgentActionExecutor {
         case 'create_revenu':
           return await RevenuActions.createRevenu(action.params, context);
         
+        case 'update_revenu':
+          return await RevenuActions.updateRevenu(action.params, context);
+        
         case 'get_ventes':
           return await RevenuActions.getVentes(action.params, context);
         
@@ -55,6 +58,9 @@ export class AgentActionExecutor {
         
         case 'create_depense':
           return await DepenseActions.createDepense(action.params, context);
+        
+        case 'update_depense':
+          return await DepenseActions.updateDepense(action.params, context);
         
         case 'create_charge_fixe':
           return await ChargeFixeActions.createChargeFixe(action.params, context);
@@ -85,6 +91,9 @@ export class AgentActionExecutor {
         case 'create_pesee':
           return await PeseeActions.createPesee(action.params, context);
         
+        case 'update_pesee':
+          return await PeseeActions.updatePesee(action.params, context);
+        
         case 'search_animal':
           return await AnimalActions.searchAnimal(action.params, context);
         
@@ -95,8 +104,14 @@ export class AgentActionExecutor {
         case 'create_visite_veterinaire':
           return await VisiteVetoActions.createVisiteVeterinaire(action.params, context);
         
+        case 'update_visite_veterinaire':
+          return await VisiteVetoActions.updateVisiteVeterinaire(action.params, context);
+        
         case 'create_vaccination':
           return await VaccinationActions.createVaccination(action.params, context);
+        
+        case 'update_vaccination':
+          return await VaccinationActions.updateVaccination(action.params, context);
         
         case 'create_traitement':
           return await TraitementActions.createTraitement(action.params, context);
@@ -129,6 +144,12 @@ export class AgentActionExecutor {
         
         case 'calculate_costs':
           return await StatsActions.calculateCosts(action.params, context);
+        
+        case 'get_weighing_details':
+          return await StatsActions.getWeighingDetails(action.params, context);
+        
+        case 'get_cheptel_details':
+          return await StatsActions.getCheptelDetails(action.params, context);
         
         case 'analyze_data':
           return await AnalyseActions.analyzeData(action.params, context);

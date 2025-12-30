@@ -17,6 +17,7 @@ export class BatchActions {
       const payload: any = {
         projet_id: context.projetId,
         pen_name: params.pen_name || undefined, // Si non fourni, le backend générera automatiquement
+        position: params.position || 'droite', // Par défaut: droite (A)
         category: params.category as string,
         notes: params.notes as string || null,
       };

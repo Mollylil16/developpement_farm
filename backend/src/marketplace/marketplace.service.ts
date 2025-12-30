@@ -234,9 +234,9 @@ export class MarketplaceService {
           createBatchListingDto.lastWeightDate,
           createBatchListingDto.location.latitude,
           createBatchListingDto.location.longitude,
-          createBatchListingDto.location.address,
-          createBatchListingDto.location.city,
-          createBatchListingDto.location.region,
+          createBatchListingDto.location.address || null,
+          createBatchListingDto.location.city || null,
+          createBatchListingDto.location.region || null,
           JSON.stringify(
             createBatchListingDto.saleTerms || {
               transport: 'buyer_responsibility',

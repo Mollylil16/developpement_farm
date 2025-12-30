@@ -14,6 +14,7 @@ export interface Batch {
   id: string;
   projet_id: string;
   pen_name: string; // Nom de la loge/enclos
+  position?: 'gauche' | 'droite'; // Position de la loge : gauche (B) ou droite (A)
 
   // Catégorie
   category: BatchCategory;
@@ -42,6 +43,7 @@ export interface Batch {
 export interface CreateBatchInput {
   projet_id: string;
   pen_name: string;
+  position?: 'gauche' | 'droite'; // Position de la loge : gauche (B) ou droite (A)
   category: BatchCategory;
   total_count: number;
   male_count?: number;
@@ -56,6 +58,7 @@ export interface CreateBatchInput {
 
 export interface UpdateBatchInput {
   pen_name?: string;
+  position?: 'gauche' | 'droite'; // Position de la loge : gauche (B) ou droite (A)
   category?: BatchCategory;
   total_count?: number;
   male_count?: number;

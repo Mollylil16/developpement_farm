@@ -22,12 +22,15 @@ import {
   DataValidator,
   OpenAIIntentService,
   OpenAIParameterExtractor,
+  ClarificationService,
 } from './core';
+import { EnhancedParameterExtractor } from './core/EnhancedParameterExtractor';
 import { FastPathDetector } from './core/FastPathDetector';
 import { ConfirmationManager } from './core/ConfirmationManager';
 import { LearningService, STANDARD_MISUNDERSTANDING_MESSAGE } from './core/LearningService';
 import { ActionParser } from './core/ActionParser';
 import { PerformanceMonitor } from './monitoring/PerformanceMonitor';
+import { NaturalLanguageProcessor } from './core/NaturalLanguageProcessor';
 import type { DetectedIntent } from './IntentDetector';
 import { createLoggerWithPrefix } from '../../utils/logger';
 import { KnowledgeBaseAPI } from './knowledge/KnowledgeBaseAPI';
@@ -49,6 +52,7 @@ export class ChatAgentService {
   private confirmationManager: ConfirmationManager;
   private learningService: LearningService;
   private performanceMonitor: PerformanceMonitor;
+  private clarificationService: ClarificationService;
 
   constructor(config: AgentConfig) {
     this.config = {
@@ -75,6 +79,7 @@ export class ChatAgentService {
     this.confirmationManager = new ConfirmationManager();
     this.learningService = new LearningService();
     this.performanceMonitor = new PerformanceMonitor();
+    this.clarificationService = new ClarificationService(this.conversationContext);
   }
 
   /**
@@ -128,8 +133,13 @@ export class ChatAgentService {
       // Mettre à jour le contexte conversationnel
       this.conversationContext.updateFromMessage(userMsg);
 
+      // V4.1 - Prétraitement NLP pour améliorer la compréhension
+      const nlpResult = NaturalLanguageProcessor.process(userMessage);
+      const processedMessage = nlpResult.processed; // Message nettoyé et corrigé
+      logger.debug(`NLP: "${userMessage}" → "${processedMessage}", hints: ${nlpResult.intentHints.map(h => h.intent).join(', ')}`);
+
       // V4.0 - Chercher un apprentissage similaire d'abord
-      const similarLearning = await this.learningService.findSimilarLearning(userMessage);
+      const similarLearning = await this.learningService.findSimilarLearning(processedMessage);
       let detectedIntent: DetectedIntent | null = null;
       let action: AgentAction | null = null;
       let ragTime: number | undefined;
@@ -144,9 +154,20 @@ export class ChatAgentService {
         };
         logger.debug(`Apprentissage réutilisé: ${detectedIntent.action}, score: ${similarLearning.total_score}`);
       } else {
-        // FAST PATH : Détection rapide pour les cas courants
+        // V4.1 - Utiliser les indices NLP si haute confiance
+        if (nlpResult.intentHints.length > 0 && nlpResult.intentHints[0].confidence >= 0.85) {
+          const topHint = nlpResult.intentHints[0];
+          detectedIntent = {
+            action: topHint.intent as AgentActionType,
+            confidence: topHint.confidence,
+            params: {},
+          };
+          logger.debug(`NLP hint utilisé: ${topHint.intent}, confiance: ${topHint.confidence}`);
+        }
+        
+        // FAST PATH : Détection rapide pour les cas courants (sur message traité)
         const fastPathStartTime = Date.now();
-        const fastPathResult = FastPathDetector.detectFastPath(userMessage);
+        const fastPathResult = FastPathDetector.detectFastPath(processedMessage);
         fastPathTime = Date.now() - fastPathStartTime;
 
         if (fastPathResult.intent && fastPathResult.confidence >= 0.95) {
@@ -154,9 +175,9 @@ export class ChatAgentService {
           logger.debug(`Fast path activé: ${detectedIntent.action}, confiance: ${fastPathResult.confidence}`);
           this.performanceMonitor.recordStepTiming({ fastPathTime });
         } else {
-          // DÉTECTION D'INTENTION : Utiliser RAG (intent)
+          // DÉTECTION D'INTENTION : Utiliser RAG (intent) sur le message traité
           const ragStartTime = Date.now();
-          detectedIntent = await this.intentRAG.detectIntent(userMessage);
+          detectedIntent = await this.intentRAG.detectIntent(processedMessage);
           ragTime = Date.now() - ragStartTime;
 
           // Si RAG ne trouve rien, essayer OpenAI classification
@@ -184,7 +205,7 @@ export class ChatAgentService {
             ];
 
             const openAIClassification = await this.openAIService.classifyIntent(
-              userMessage,
+              processedMessage, // Utiliser le message traité
               availableActions
             );
             if (openAIClassification && openAIClassification.confidence >= 0.85) {
@@ -199,7 +220,7 @@ export class ChatAgentService {
 
           // Fallback sur IntentDetector
           if (!detectedIntent || detectedIntent.confidence < 0.85) {
-            const fallbackIntent = IntentDetector.detectIntent(userMessage);
+            const fallbackIntent = IntentDetector.detectIntent(processedMessage);
             if (fallbackIntent && fallbackIntent.confidence >= 0.75) {
               detectedIntent = fallbackIntent;
               logger.debug('IntentDetector fallback:', detectedIntent.action);
@@ -214,15 +235,15 @@ export class ChatAgentService {
 
       // Si intention détectée avec bonne confiance
       if (detectedIntent && detectedIntent.confidence >= 0.85) {
-        // EXTRACTION DE PARAMÈTRES
+        // EXTRACTION DE PARAMÈTRES (avec extracteur amélioré)
         const extractionContext = this.conversationContext.getExtractionContext();
-        const parameterExtractor = new ParameterExtractor({
+        const parameterExtractor = new EnhancedParameterExtractor({
           ...extractionContext,
           currentDate: this.context.currentDate,
           availableAnimals: this.context.availableAnimals,
         });
 
-        let extractedParams = parameterExtractor.extractAll(userMessage);
+        let extractedParams = parameterExtractor.extractAllEnhanced(processedMessage, detectedIntent.action);
 
         // Extraction OpenAI si paramètres manquants
         if (this.openAIService && this.config.apiKey) {
@@ -246,14 +267,86 @@ export class ChatAgentService {
           }
         }
 
-        const mergedParams = {
+        let mergedParams = {
           ...detectedIntent.params,
           ...extractedParams,
           userMessage: userMessage,
         };
 
-        // Résoudre les références
+        // Résoudre les références avant validation
         this.resolveReferences(mergedParams);
+        
+        // Améliorer le contexte: utiliser l'historique pour enrichir les paramètres manquants
+        mergedParams = this.enrichParamsFromHistory(mergedParams, detectedIntent.action);
+
+        // ANALYSE DE CLARIFICATION INTELLIGENTE
+        const clarificationResult = this.clarificationService.analyzeAction(
+          { type: detectedIntent.action, params: mergedParams },
+          extractionContext
+        );
+
+        // Si clarification nécessaire et qu'on peut utiliser le contexte, l'utiliser
+        if (clarificationResult.needsClarification && clarificationResult.canUseContext && clarificationResult.contextSuggestions) {
+          const resolvedAction = this.clarificationService.resolveWithContext(
+            { type: detectedIntent.action, params: mergedParams },
+            clarificationResult.contextSuggestions
+          );
+          mergedParams = resolvedAction.params;
+          
+          // Enregistrer la clarification résolue
+          if (clarificationResult.clarification) {
+            this.clarificationService.recordClarification(
+              detectedIntent.action,
+              clarificationResult.clarification.missingParams,
+              true
+            );
+          }
+        }
+
+        // Si clarification nécessaire sans contexte utilisable, demander
+        if (clarificationResult.needsClarification && !clarificationResult.canUseContext && clarificationResult.clarification) {
+          this.clarificationService.recordClarification(
+            detectedIntent.action,
+            clarificationResult.clarification.missingParams,
+            false
+          );
+
+          // Construire le message de clarification
+          let clarificationMessage = clarificationResult.clarification.question;
+          
+          if (clarificationResult.clarification.suggestions && clarificationResult.clarification.suggestions.length > 0) {
+            clarificationMessage += '\n\n💡 Suggestions :';
+            clarificationResult.clarification.suggestions.forEach(sugg => {
+              clarificationMessage += `\n• ${sugg.label}: ${sugg.value}`;
+            });
+          }
+          
+          if (clarificationResult.clarification.examples && clarificationResult.clarification.examples.length > 0) {
+            clarificationMessage += '\n\n📝 Exemples :';
+            clarificationResult.clarification.examples.forEach(example => {
+              clarificationMessage += `\n• ${example}`;
+            });
+          }
+
+          // Enregistrer dans le contexte
+          this.conversationContext.setClarificationNeeded(
+            clarificationMessage,
+            clarificationResult.clarification.missingParams
+          );
+
+          return {
+            id: this.generateId(),
+            role: 'assistant',
+            content: clarificationMessage,
+            timestamp: new Date().toISOString(),
+            metadata: {
+              requiresClarification: true,
+              missingParams: clarificationResult.clarification.missingParams,
+              clarification: clarificationResult.clarification,
+              pendingAction: { action: detectedIntent.action, params: mergedParams },
+            },
+          };
+        }
 
         // VALIDATION
         const validationResult = await this.dataValidator.validateAction({
@@ -262,7 +355,17 @@ export class ChatAgentService {
         });
 
         if (!validationResult.valid) {
-          const errorMessage = validationResult.errors.join(', ');
+          // Utiliser le service de clarification pour améliorer le message d'erreur
+          const clarificationAnalysis = this.clarificationService.analyzeAction(
+            { type: detectedIntent.action, params: mergedParams },
+            extractionContext
+          );
+          
+          let errorMessage = validationResult.errors.join(', ');
+          if (clarificationAnalysis.clarification) {
+            errorMessage = clarificationAnalysis.clarification.question;
+          }
+
           return {
             id: this.generateId(),
             role: 'assistant',
@@ -271,6 +374,7 @@ export class ChatAgentService {
             metadata: {
               validationErrors: validationResult.errors,
               suggestions: validationResult.suggestions,
+              clarification: clarificationAnalysis.clarification,
             },
           };
         }
@@ -338,8 +442,8 @@ export class ChatAgentService {
             },
           };
         } else {
-          // RAG-GATE (obligatoire avant exécution): récupérer une preuve/procédure depuis la base de connaissances
-          // pour éviter d'exécuter des actions sans référence aux règles/procédures officielles.
+          // RAG enrichissement (optionnel, non bloquant) : récupérer contexte depuis la base de connaissances
+          // pour enrichir la réponse mais NE PAS bloquer l'exécution si rien n'est trouvé
           const isMutatingAction =
             action.type.startsWith('create_') ||
             action.type.startsWith('update_') ||
@@ -348,35 +452,25 @@ export class ChatAgentService {
             action.type === 'deplacer_animaux';
 
           if (isMutatingAction) {
-            const ragQuery = `${action.type} ${userMessage}`;
-            const ragResults = await KnowledgeBaseAPI.search(ragQuery, {
-              projetId: this.context.projetId,
-              limit: 3,
-            });
+            try {
+              const ragQuery = `${action.type} ${userMessage}`;
+              const ragResults = await KnowledgeBaseAPI.search(ragQuery, {
+                projetId: this.context.projetId,
+                limit: 3,
+              });
 
-            // Si aucune info RAG, on bloque l'exécution et on demande clarification/confirmation
-            if (!ragResults || ragResults.length === 0) {
-              assistantMessage = {
-                id: this.generateId(),
-                role: 'assistant',
-                content:
-                  "Avant d'enregistrer, je dois vérifier la procédure dans ma base de connaissances. Je n'ai pas trouvé la procédure correspondante. Peux-tu préciser (catégorie / date / détails) ou reformuler ?",
-                timestamp: new Date().toISOString(),
-                metadata: {
-                  requiresConfirmation: true,
-                  pendingAction: { action: action.type, params: action.params },
-                  rag: { query: ragQuery, hits: 0 },
-                },
-              };
-              this.conversationHistory.push(assistantMessage);
-              return assistantMessage;
+              // Ajouter les preuves RAG à l'action pour audit/UX (si trouvé)
+              if (ragResults && ragResults.length > 0) {
+                (action.params as any).__ragEvidence = {
+                  query: ragQuery,
+                  top: ragResults[0],
+                };
+              }
+              // NE PLUS BLOQUER si pas de résultat RAG - exécuter directement l'action
+            } catch (ragError) {
+              // Ignorer les erreurs RAG - ne pas bloquer l'action principale
+              logger.warn('Erreur RAG (ignorée):', ragError);
             }
-
-            // Ajouter les preuves RAG à l'action pour audit/UX (optionnel)
-            (action.params as any).__ragEvidence = {
-              query: ragQuery,
-              top: ragResults[0],
-            };
           }
 
           // Exécuter l'action
@@ -412,28 +506,56 @@ export class ChatAgentService {
           };
         }
       } else {
-        // V4.0 - RÉPONSE UNIFIÉE POUR NON-COMPRÉHENSION
-        // Utiliser le message standardisé avec mots-clés détectés
-        const suggestion = this.learningService.generateEducationalSuggestion(
-          userMessage,
-          detectedIntent?.action
-        );
-
-        // Enregistrer l'échec pour apprentissage
-        this.learningService.recordFailure(
-          userMessage,
-          detectedIntent?.action,
-          'Aucune intention claire détectée'
-        );
-
-        // Message unifié avec clarification basée sur mots-clés
-        let responseContent: string;
+        // V4.1 - AMÉLIORATION: Chercher dans la base de connaissances avant de déclarer incompréhension
+        let responseContent: string | null = null;
+        let knowledgeResult = null;
         
-        if (suggestion) {
-          responseContent = suggestion.explanation;
-        } else {
-          // Message par défaut standardisé
-          responseContent = STANDARD_MISUNDERSTANDING_MESSAGE;
+        // Essayer de répondre via la base de connaissances
+        try {
+          const knowledgeResults = await KnowledgeBaseAPI.search(userMessage, {
+            projetId: this.context.projetId,
+            limit: 1,
+          });
+          
+          if (knowledgeResults && knowledgeResults.length > 0) {
+            const bestMatch = knowledgeResults[0];
+            // Si pertinence suffisante, utiliser la base de connaissances
+            if (bestMatch.relevance_score >= 3) {
+              const intros = [
+                "📚 Voici ce que je sais sur ce sujet:",
+                "💡 Bonne question! Voici ma réponse:",
+                "🎓 Je peux t'expliquer ça:",
+              ];
+              const intro = intros[Math.floor(Math.random() * intros.length)];
+              responseContent = `${intro}\n\n**${bestMatch.title}**\n\n${bestMatch.summary || bestMatch.content}`;
+              knowledgeResult = bestMatch;
+            }
+          }
+        } catch {
+          // Ignorer les erreurs de recherche
+        }
+        
+        // Si pas de résultat de la base de connaissances, utiliser le fallback
+        if (!responseContent) {
+          const suggestion = this.learningService.generateEducationalSuggestion(
+            userMessage,
+            detectedIntent?.action
+          );
+
+          // Enregistrer l'échec pour apprentissage
+          this.learningService.recordFailure(
+            userMessage,
+            detectedIntent?.action,
+            'Aucune intention claire détectée'
+          );
+
+          // Message unifié avec clarification basée sur mots-clés
+          if (suggestion) {
+            responseContent = suggestion.explanation;
+          } else {
+            // Message par défaut amélioré avec suggestions
+            responseContent = `${STANDARD_MISUNDERSTANDING_MESSAGE}\n\n💡 Tu peux me demander:\n• Des statistiques sur ton élevage\n• D'enregistrer une vente ou dépense\n• Des conseils sur l'élevage porcin\n• D'expliquer un terme (ex: "c'est quoi un naisseur?")`;
+          }
         }
 
         assistantMessage = {
@@ -442,8 +564,8 @@ export class ChatAgentService {
           content: responseContent,
           timestamp: new Date().toISOString(),
           metadata: {
-            educationalSuggestion: suggestion,
-            misunderstanding: true,
+            knowledgeResult: knowledgeResult,
+            misunderstanding: !knowledgeResult,
           },
         };
       }
@@ -544,6 +666,7 @@ export class ChatAgentService {
 
   /**
    * Résout les références dans les paramètres
+   * Amélioré pour résoudre plus de types de références
    */
   private resolveReferences(params: Record<string, unknown>): void {
     if (params.acheteur && typeof params.acheteur === 'string') {
@@ -559,6 +682,98 @@ export class ChatAgentService {
         params.animal_code = resolved;
       }
     }
+
+    if (params.montant && typeof params.montant === 'string') {
+      const resolved = this.conversationContext.resolveReference(params.montant, 'montant');
+      if (resolved) {
+        params.montant = resolved;
+      }
+    }
+
+    if (params.date && typeof params.date === 'string') {
+      const resolved = this.conversationContext.resolveReference(params.date, 'date');
+      if (resolved) {
+        params.date = resolved;
+      }
+    }
+
+    if (params.categorie && typeof params.categorie === 'string') {
+      const resolved = this.conversationContext.resolveReference(params.categorie, 'categorie');
+      if (resolved) {
+        params.categorie = resolved;
+      }
+    }
+  }
+
+  /**
+   * Enrichit les paramètres depuis l'historique conversationnel
+   * Utilise les dernières valeurs mentionnées pour compléter les paramètres manquants
+   */
+  private enrichParamsFromHistory(
+    params: Record<string, unknown>,
+    actionType: AgentActionType
+  ): Record<string, unknown> {
+    const enriched = { ...params };
+    const normalizedMessage = (params.userMessage as string || '').toLowerCase();
+
+    // Utiliser le contexte pour enrichir seulement si des références implicites sont détectées
+    const hasImplicitReference = normalizedMessage.match(
+      /\b(?:pour\s+ca|pour\s+cela|meme|le\s+meme|la\s+meme|au\s+meme|avec\s+ca|avec\s+cela)\b/i
+    );
+
+    if (!hasImplicitReference) {
+      return enriched; // Pas de référence implicite, ne pas enrichir
+    }
+
+    const context = this.conversationContext.getExtractionContext();
+
+    // Actions de création de revenu/vente
+    if (actionType === 'create_revenu') {
+      if (!enriched.acheteur && context.lastAcheteur) {
+        enriched.acheteur = context.lastAcheteur;
+      }
+      if (!enriched.montant && context.lastMontant) {
+        enriched.montant = context.lastMontant;
+      }
+      if (!enriched.date && context.lastDate) {
+        enriched.date = context.lastDate;
+      }
+    }
+
+    // Actions de création de dépense
+    if (actionType === 'create_depense') {
+      if (!enriched.montant && context.lastMontant) {
+        enriched.montant = context.lastMontant;
+      }
+      if (!enriched.categorie && context.lastCategorie) {
+        enriched.categorie = context.lastCategorie;
+      }
+      if (!enriched.date && context.lastDate) {
+        enriched.date = context.lastDate;
+      }
+    }
+
+    // Actions de création de pesée
+    if (actionType === 'create_pesee') {
+      if (!enriched.animal_code && context.lastAnimal) {
+        enriched.animal_code = context.lastAnimal;
+      }
+      if (!enriched.date && context.lastDate) {
+        enriched.date = context.lastDate;
+      }
+    }
+
+    // Actions de création de vaccination
+    if (actionType === 'create_vaccination') {
+      if (!enriched.animal_code && context.lastAnimal) {
+        enriched.animal_code = context.lastAnimal;
+      }
+      if (!enriched.date && context.lastDate) {
+        enriched.date = context.lastDate;
+      }
+    }
+
+    return enriched;
   }
 
   /**

@@ -5,6 +5,7 @@
 
 import {
   RappelVaccinationRepository,
+  VaccinationRepository,
   MaladieRepository,
   MortaliteRepository,
 } from '../../database/repositories';
@@ -23,13 +24,16 @@ export class SanteAlertesService {
    */
   static async getAlertesSanitaires(projetId: string): Promise<AlerteSanitaire[]> {
     const rappelRepo = new RappelVaccinationRepository();
+    const vaccinationRepo = new VaccinationRepository();
     const maladieRepo = new MaladieRepository();
     const mortaliteRepo = new MortaliteRepository();
 
     const alertes: AlerteSanitaire[] = [];
 
-    // Rappels en retard
-    const rappelsEnRetard = await rappelRepo.findEnRetard(projetId);
+    // Rappels en retard - d'abord récupérer les IDs des vaccinations du projet
+    const vaccinations = await vaccinationRepo.findByProjet(projetId);
+    const vaccinationIds = vaccinations.map(v => v.id);
+    const rappelsEnRetard = await rappelRepo.findEnRetard(vaccinationIds);
     if (rappelsEnRetard.length > 0) {
       alertes.push({
         type: 'rappel_retard',

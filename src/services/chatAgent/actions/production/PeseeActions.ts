@@ -59,5 +59,52 @@ export class PeseeActions {
       message,
     };
   }
+
+  /**
+   * Met à jour une pesée
+   */
+  static async updatePesee(params: unknown, context: AgentContext): Promise<AgentActionResult> {
+    const paramsTyped = params as Record<string, unknown>;
+
+    // ID de la pesée à modifier (requis)
+    const peseeId = paramsTyped.id || paramsTyped.pesee_id;
+    if (!peseeId || typeof peseeId !== 'string') {
+      throw new Error('L\'ID de la pesée à modifier est requis. Veuillez préciser quelle pesée modifier.');
+    }
+
+    // Construire l'objet de mise à jour avec seulement les champs fournis
+    const updateData: Record<string, unknown> = {};
+
+    if (paramsTyped.poids_kg !== undefined || paramsTyped.poids !== undefined) {
+      const poids = paramsTyped.poids_kg || paramsTyped.poids;
+      const poidsNum = typeof poids === 'string' ? parseFloat(poids.replace(',', '.')) : (poids as number);
+      if (!isNaN(poidsNum) && poidsNum > 0) {
+        updateData.poids_kg = poidsNum;
+      }
+    }
+
+    if (paramsTyped.date && typeof paramsTyped.date === 'string') {
+      updateData.date = paramsTyped.date;
+    }
+
+    if (paramsTyped.commentaire && typeof paramsTyped.commentaire === 'string') {
+      updateData.commentaire = paramsTyped.commentaire;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      throw new Error('Aucune modification à apporter. Veuillez préciser ce que tu veux modifier (poids, date, commentaire).');
+    }
+
+    // Appeler l'API backend pour mettre à jour
+    const pesee = await apiClient.patch<any>(`/production/pesees/${peseeId}`, updateData);
+
+    const message = `✅ Pesée modifiée avec succès ! ${updateData.poids_kg ? `Nouveau poids : ${(updateData.poids_kg as number).toFixed(1)} kg.` : ''}`;
+
+    return {
+      success: true,
+      data: pesee,
+      message,
+    };
+  }
 }
 

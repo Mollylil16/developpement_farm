@@ -9,6 +9,7 @@ import { isLoggingEnabled } from '../../config/env';
 import { withRetry, RetryOptions } from './retryHandler';
 import { checkNetworkConnectivity } from '../network/networkService';
 import { createLoggerWithPrefix } from '../../utils/logger';
+import { requestQueue } from './requestQueue';
 
 const logger = createLoggerWithPrefix('apiClient');
 
@@ -68,6 +69,7 @@ interface RequestOptions extends RequestInit {
   retry?: RetryOptions | boolean; // Options de retry (true = par défaut, false = désactivé)
   offlineFallback?: boolean; // Activer le fallback SQLite en mode hors ligne
   params?: Record<string, unknown>; // Paramètres de requête (query string)
+  skipQueue?: boolean; // Pour les requêtes prioritaires (auth, refresh token)
 }
 
 /**
@@ -318,6 +320,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     skipAuth = false,
     retry = true,
     offlineFallback = false,
+    skipQueue = false,
     ...fetchOptions
   } = options;
 
@@ -337,13 +340,24 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     });
   };
 
-  // Appliquer le retry si activé
-  if (retry) {
-    const retryOptions = typeof retry === 'object' ? retry : undefined;
-    return withRetry(executeRequest, retryOptions);
+  // Fonction avec retry si activé
+  const executeWithRetry = async (): Promise<T> => {
+    if (retry) {
+      const retryOptions = typeof retry === 'object' ? retry : undefined;
+      return withRetry(executeRequest, retryOptions);
+    }
+    return executeRequest();
+  };
+
+  // Les requêtes auth sont prioritaires et contournent la queue
+  const isAuthRequest = endpoint.includes('/auth/') || skipQueue;
+  
+  if (isAuthRequest) {
+    return executeWithRetry();
   }
 
-  return executeRequest();
+  // Les autres requêtes passent par la queue pour éviter le thundering herd
+  return requestQueue.enqueue(executeWithRetry);
 }
 
 /**
@@ -532,11 +546,15 @@ async function executeHttpRequest<T>(
         errorMessage = `Erreur HTTP ${response.status}`;
       }
       
-      logger.error(`Erreur API [${response.status}]: ${errorMessage}`, {
-        endpoint,
-        status: response.status,
-        errorData,
-      });
+      // Ne pas loguer les erreurs 404 attendues (rappels qui n'existent pas encore)
+      const isExpected404 = response.status === 404 && endpoint.includes('rappels-vaccinations');
+      if (!isExpected404) {
+        logger.error(`Erreur API [${response.status}]: ${errorMessage}`, {
+          endpoint,
+          status: response.status,
+          errorData,
+        });
+      }
       
       throw new APIError(
         errorMessage,

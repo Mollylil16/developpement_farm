@@ -394,51 +394,42 @@ throw error;
 
   /**
    * Génère le prochain nom de loge disponible pour un projet
-   * Format: A1, A2, ..., A8, B1, B2, ..., B8, etc.
+   * Format selon position:
+   * - droite: A1, A2, A3, ..., A8, A9, etc.
+   * - gauche: B1, B2, B3, ..., B8, B9, etc.
    */
-  async getNextPenName(projetId: string, userId: string): Promise<string> {
+  async getNextPenName(
+    projetId: string,
+    userId: string,
+    position: 'gauche' | 'droite' = 'droite',
+  ): Promise<string> {
     // Vérifier que le projet appartient à l'utilisateur
     await this.checkProjetOwnership(projetId, userId);
 
-    // Récupérer tous les noms de loges existants pour ce projet
+    // Récupérer tous les noms de loges existants pour ce projet et cette position
     const result = await this.db.query(
-      'SELECT pen_name FROM batches WHERE projet_id = $1',
-      [projetId],
+      'SELECT pen_name FROM batches WHERE projet_id = $1 AND position = $2',
+      [projetId, position],
     );
 
     const existingPenNames = new Set(
       result.rows.map((row) => row.pen_name.trim().toUpperCase()),
     );
 
-    const letterLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-    const maxNumbersPerLetter = 8;
+    // Déterminer la lettre selon la position
+    const letter = position === 'droite' ? 'A' : 'B';
+    const maxNumbersPerLetter = 999; // Pas de limite pratique
 
-    // Chercher le prochain nom disponible
-    for (let letterIndex = 0; letterIndex < letterLabels.length; letterIndex++) {
-      const letter = letterLabels[letterIndex];
-      for (let number = 1; number <= maxNumbersPerLetter; number++) {
-        const penName = `${letter}${number}`;
-        if (!existingPenNames.has(penName)) {
-          return penName;
-        }
-      }
-    }
-
-    // Si toutes les combinaisons A1-H8 sont prises, continuer avec I, J, etc.
-    let letterIndex = letterLabels.length;
-    let number = 1;
-    while (true) {
-      const letter = String.fromCharCode(65 + letterIndex); // A=65, B=66, etc.
+    // Chercher le prochain numéro disponible pour cette lettre
+    for (let number = 1; number <= maxNumbersPerLetter; number++) {
       const penName = `${letter}${number}`;
       if (!existingPenNames.has(penName)) {
         return penName;
       }
-      number++;
-      if (number > maxNumbersPerLetter) {
-        number = 1;
-        letterIndex++;
-      }
     }
+
+    // Si on arrive ici (très improbable), retourner un nom avec timestamp
+    return `${letter}${Date.now()}`;
   }
 
   /**
@@ -473,7 +464,7 @@ throw error;
          GROUP BY batch_id
        ) p ON p.batch_id = b.id
        WHERE b.projet_id = $1
-       ORDER BY b.batch_creation_date DESC, b.created_at DESC`,
+       ORDER BY b.position, b.pen_name`,
       [projetId],
     );
 
@@ -481,6 +472,7 @@ throw error;
       id: row.id,
       projet_id: row.projet_id,
       pen_name: row.pen_name,
+      position: row.position || 'droite',
       category: row.category,
       total_count: parseInt(row.total_count_calc),
       male_count: parseInt(row.male_count_calc),
@@ -653,6 +645,9 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
     const batchId = this.generateBatchId();
     const now = new Date().toISOString();
 
+    // Déterminer la position si non fournie (par défaut: droite)
+    const position = dto.position || 'droite';
+
     // Créer la bande
     // IMPORTANT:
     // - Les tables batch_pigs ont des triggers qui maintiennent automatiquement
@@ -661,14 +656,15 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
     //   (sinon: insertion des porcs => triggers incrémentent une seconde fois).
     await this.db.query(
       `INSERT INTO batches (
-        id, projet_id, pen_name, category, total_count, male_count, female_count,
+        id, projet_id, pen_name, position, category, total_count, male_count, female_count,
         castrated_count, average_age_months, average_weight_kg, batch_creation_date,
         notes, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
       [
         batchId,
         dto.projet_id,
         dto.pen_name,
+        position,
         dto.category,
         0,
         0,
@@ -702,6 +698,7 @@ await this.createIndividualPigs(
       id: result.rows[0].id,
       projet_id: result.rows[0].projet_id,
       pen_name: result.rows[0].pen_name,
+      position: result.rows[0].position || 'droite',
       category: result.rows[0].category,
       total_count: parseInt(result.rows[0].total_count),
       male_count: parseInt(result.rows[0].male_count),
