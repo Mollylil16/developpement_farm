@@ -135,6 +135,61 @@ export class PigMigrationService {
   }
 
   /**
+   * Détermine la catégorie batch à partir d'un animal individuel.
+   * IMPORTANT: pour les reproducteurs, on doit respecter sexe + reproducteur (truie/verrat).
+   * Pour les non-reproducteurs, on se base sur categorie_poids si dispo, sinon sur le poids.
+   */
+  private determineBatchCategoryFromIndividual(pig: any): string {
+    const sexe = String(pig.sexe || '').toLowerCase();
+    const isReproducteur = pig.reproducteur === true || pig.reproducteur === 1;
+
+    if (isReproducteur) {
+      if (sexe === 'male' || sexe === 'mâle') return 'verrat_reproducteur';
+      if (sexe === 'femelle') return 'truie_reproductrice';
+      // Si sexe inconnu, fallback reproducteur femelle (plus fréquent en élevage)
+      return 'truie_reproductrice';
+    }
+
+    const categoriePoids = String(pig.categorie_poids || '').toLowerCase();
+    if (categoriePoids === 'porcelet') return 'porcelets';
+    if (categoriePoids === 'croissance') return 'porcs_croissance';
+    if (categoriePoids === 'finition') return 'porcs_engraissement';
+
+    const poids = Number(pig.poids_initial || 0);
+    if (poids > 0) {
+      if (poids < 25) return 'porcelets';
+      if (poids <= 60) return 'porcs_croissance';
+      return 'porcs_engraissement';
+    }
+
+    // Fallback
+    return 'porcelets';
+  }
+
+  /**
+   * Mappe un sexe individuel (male/femelle/indetermine) vers le sexe batch (male/female/castrated).
+   * LOGIQUE MÉTIER CRITIQUE :
+   * - Truie = femelle reproductrice
+   * - Verrrat = mâle reproducteur
+   * - Porcelet = tous les autres animaux (indépendamment du sexe)
+   */
+  private mapIndividualSexToBatchSex(pig: any): 'male' | 'female' | 'castrated' {
+    const sexe = String(pig.sexe || '').toLowerCase();
+    const isReproducteur = Boolean(pig.reproducteur);
+
+    // Logique métier : les reproducteurs vont dans leurs catégories dédiées
+    if (sexe === 'femelle' && isReproducteur) return 'female'; // → truie_reproductrice
+    if ((sexe === 'male' || sexe === 'mâle') && isReproducteur) return 'male'; // → verrat_reproducteur
+
+    // Tous les autres animaux sont des porcelets, on garde leur sexe pour cohérence
+    if (sexe === 'femelle') return 'female';
+    if (sexe === 'male' || sexe === 'mâle') return 'male';
+
+    // Pour indetermine : utiliser 'castrated' car ces animaux vont dans les bandes porcelets
+    return 'castrated';
+  }
+
+  /**
    * Prévisualise la conversion batch → individualisé
    */
   async previewBatchToIndividual(
@@ -211,8 +266,7 @@ export class PigMigrationService {
   ): Promise<MigrationResult> {
     const migrationId = this.generateId('mig');
 
-    // Bug fix: Valider et récupérer les données nécessaires AVANT la transaction
-    // pour éviter de créer des enregistrements si les validations échouent
+    // Phase 1: Validation complète AVANT toute modification
     const batchResult = await this.db.query(
       `SELECT b.*, p.proprietaire_id, p.id as projet_id
        FROM batches b
@@ -232,9 +286,45 @@ export class PigMigrationService {
     const batch = batchResult.rows[0];
     const projetId = batch.projet_id;
 
-    // Bug fix: Créer l'enregistrement de migration AVANT la transaction pour garantir un audit trail
-    // même si la transaction échoue et que la mise à jour du record 'failed' échoue aussi
-    // Entourer l'INSERT dans un try-catch pour gérer les erreurs proprement
+    // Validation supplémentaire : vérifier que la bande a des porcs
+    const pigsCount = await this.db.query(
+      'SELECT COUNT(*) as count FROM batch_pigs WHERE batch_id = $1',
+      [dto.batchId],
+    );
+
+    if (parseInt(pigsCount.rows[0].count) === 0) {
+      throw new BadRequestException('Cette bande ne contient aucun porc');
+    }
+
+    // Validation des références : s'assurer que les données liées sont cohérentes
+    const [vaccinationsCount, diseasesCount, weighingsCount] = await Promise.all([
+      this.db.query('SELECT COUNT(*) as count FROM batch_vaccinations WHERE batch_id = $1', [dto.batchId]),
+      this.db.query('SELECT COUNT(*) as count FROM batch_diseases WHERE batch_id = $1', [dto.batchId]),
+      this.db.query('SELECT COUNT(*) as count FROM batch_weighings WHERE batch_id = $1', [dto.batchId]),
+    ]);
+
+    const totalRecords = parseInt(vaccinationsCount.rows[0].count) +
+                        parseInt(diseasesCount.rows[0].count) +
+                        parseInt(weighingsCount.rows[0].count);
+
+    if (totalRecords > 0) {
+      this.logger.debug(`Bande ${dto.batchId} contient ${totalRecords} enregistrements liés à migrer`);
+    }
+
+    // Phase 2: Préparer les données de rollback
+    const rollbackData = {
+      migrationId,
+      projetId,
+      originalManagementMethod: 'batch', // On suppose qu'on migre depuis batch
+      createdPigIds: [] as string[],
+      createdVaccinationIds: [] as string[],
+      createdDiseaseIds: [] as string[],
+      createdWeighingIds: [] as string[],
+      createdGestationIds: [] as string[],
+      createdBatchIds: [] as string[], // Pour compatibilité avec l'interface
+    };
+
+    // Phase 3: Créer l'enregistrement de migration
     let migrationRecordCreated = false;
     try {
       await this.db.query(
@@ -254,7 +344,6 @@ export class PigMigrationService {
       );
       migrationRecordCreated = true;
     } catch (insertError) {
-      // Si l'INSERT échoue, logger l'erreur et retourner une erreur contrôlée
       this.logger.error('Erreur lors de la création de l\'enregistrement migration_history:', insertError);
       throw new Error(
         `Impossible de créer l'enregistrement de migration: ${insertError instanceof Error ? insertError.message : String(insertError)}`
@@ -310,36 +399,33 @@ export class PigMigrationService {
       const createdPigIds: string[] = [];
       const entryDate = batch.batch_creation_date || new Date().toISOString();
 
+      // Préparer les données pour insertion en batch
+      const animalsToInsert = [];
       for (let i = 0; i < batch.total_count; i++) {
         const pigId = this.generateId('pig');
         const code = identifiers[i] || `${batch.pen_name}-${i + 1}`;
         const weight = weights[i];
         const sex = sexes[i] || 'indetermine';
 
-        await client.query(
-          `INSERT INTO production_animaux (
-            id, projet_id, code, nom, sexe, date_naissance, poids_initial,
-            date_entree, actif, statut, categorie_poids, original_batch_id, notes
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-          [
-            pigId,
-            projetId,
-            code,
-            code,
-            sex,
-            estimatedBirthDate.toISOString(),
-            weight,
-            entryDate,
-            true,
-            'actif',
-            this.determineProductionStage(weight),
-            dto.options.preserveBatchReference ? dto.batchId : null,
-            `Migré depuis la bande ${batch.pen_name}`,
-          ],
-        );
+        animalsToInsert.push({
+          id: pigId,
+          projet_id: projetId,
+          code: code,
+          sexe: sex,
+          date_naissance: estimatedBirthDate.toISOString(),
+          poids_initial: weight,
+          date_entree: entryDate,
+          categorie_poids: this.determineProductionStage(weight),
+          original_batch_id: dto.options.preserveBatchReference ? dto.batchId : undefined,
+          notes: `Migré depuis la bande ${batch.pen_name}`,
+        });
 
         createdPigIds.push(pigId);
+        rollbackData.createdPigIds.push(pigId);
       }
+
+      // Utiliser l'insertion en batch pour de meilleures performances
+      await this.batchInsertAnimals(animalsToInsert, client);
 
       // Migrer les enregistrements de santé
       let recordsMigrated = 0;
@@ -373,6 +459,7 @@ export class PigMigrationService {
                 vacc.dosage,
               ],
             );
+            rollbackData.createdVaccinationIds.push(vaccId);
             recordsMigrated++;
           }
         }
@@ -413,6 +500,7 @@ export class PigMigrationService {
                   disease.notes || '',
                 ],
               );
+              rollbackData.createdDiseaseIds.push(maladieId);
               recordsMigrated++;
             }
           } else {
@@ -457,6 +545,51 @@ export class PigMigrationService {
                 weighing.notes || '',
               ],
             );
+            rollbackData.createdWeighingIds.push(peseeId);
+            recordsMigrated++;
+          }
+        }
+      }
+
+      // Migrer les gestations (batch_gestations → gestations individuelles)
+      if (dto.options.handleHealthRecords !== HealthRecordsHandling.SKIP) {
+        const gestations = await client.query(
+          `SELECT * FROM batch_gestations WHERE batch_id = $1`,
+          [dto.batchId],
+        );
+
+        for (const gestation of gestations.rows) {
+          // Distribuer les gestations aux animaux femelles créés (truies)
+          const femalePigIds = createdPigIds.filter((_, index) => {
+            // Trouver l'animal correspondant et vérifier si c'est une femelle
+            // On doit récupérer le sexe depuis les données générées plus tôt
+            // Pour simplifier, on distribue aux premiers animaux femelles
+            return sexes[index] === 'femelle';
+          });
+
+          if (femalePigIds.length > 0) {
+            // Distribution round-robin des gestations aux femelles
+            const targetPigId = femalePigIds[recordsMigrated % femalePigIds.length];
+
+            const gestationId = this.generateId('gest');
+            await client.query(
+              `INSERT INTO gestations (
+                projet_id, animal_id, batch_id, date_debut, date_fin_prevue,
+                nombre_porcs_attendus, numero_ordre, statut, notes
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+              [
+                projetId,
+                targetPigId,
+                dto.batchId,
+                gestation.start_date,
+                gestation.expected_end_date,
+                gestation.expected_litter_size,
+                gestation.gestation_number,
+                gestation.status,
+                gestation.notes || '',
+              ],
+            );
+            rollbackData.createdGestationIds.push(gestationId);
             recordsMigrated++;
           }
         }
@@ -464,7 +597,7 @@ export class PigMigrationService {
 
       // Mettre à jour l'enregistrement de migration
       await client.query(
-        `UPDATE migration_history 
+        `UPDATE migration_history
          SET target_ids = $1, statistics = $2, status = $3, completed_at = CURRENT_TIMESTAMP
          WHERE id = $4`,
         [
@@ -478,6 +611,12 @@ export class PigMigrationService {
         ],
       );
 
+      // Mettre à jour le mode de gestion du projet
+      await client.query(
+        `UPDATE projets SET management_method = 'individual', derniere_modification = NOW() WHERE id = $1`,
+        [projetId],
+      );
+
       return {
           success: true,
           migrationId,
@@ -486,39 +625,40 @@ export class PigMigrationService {
         };
       });
     } catch (error) {
-      // Bug fix: Mettre à jour le statut à 'failed' dans une nouvelle transaction seulement si le record existe
-      if (migrationRecordCreated) {
+      this.logger.error(`Erreur lors de la migration batch→individual ${migrationId}:`, error);
+
+      // Rollback automatique si des données ont été créées
+      if (migrationRecordCreated && (
+        rollbackData.createdPigIds.length > 0 ||
+        rollbackData.createdVaccinationIds.length > 0 ||
+        rollbackData.createdDiseaseIds.length > 0 ||
+        rollbackData.createdWeighingIds.length > 0 ||
+        rollbackData.createdGestationIds.length > 0
+      )) {
+        this.logger.warn(`Déclenchement du rollback automatique pour la migration ${migrationId}`);
+
         try {
           await this.db.transaction(async (client) => {
-            // Vérifier que le record existe avant de le mettre à jour
-            const checkResult = await client.query(
-              `SELECT id FROM migration_history WHERE id = $1`,
-              [migrationId],
-            );
-            
-            if (checkResult.rows.length > 0) {
-              await client.query(
-                `UPDATE migration_history 
-                 SET status = $1, error_message = $2, completed_at = CURRENT_TIMESTAMP
-                 WHERE id = $3`,
-                ['failed', error instanceof Error ? error.message : String(error), migrationId],
-              );
-            } else {
-              this.logger.warn(
-                `Enregistrement migration_history (id: ${migrationId}) n'existe pas, impossible de mettre à jour le statut`
-              );
-            }
+            await this.rollbackMigration(rollbackData, client);
           });
-        } catch (updateError) {
-          // Si l'update échoue, on log mais on ne bloque pas l'erreur principale
-          // L'enregistrement reste avec status='in_progress', ce qui est préférable à aucun audit trail
-          this.logger.error('Erreur lors de la mise à jour du statut de migration (failed):', updateError);
+        } catch (rollbackError) {
+          this.logger.error(`Échec du rollback automatique:`, rollbackError);
+          // L'erreur originale est plus importante, on la relance
         }
       } else {
-        // Si le record n'a jamais été créé, on log un avertissement
-        this.logger.warn(
-          `Impossible de mettre à jour le statut de migration (id: ${migrationId}) car l'enregistrement n'a jamais été créé`
-        );
+        // Pas de rollback nécessaire, juste marquer comme failed
+        if (migrationRecordCreated) {
+          try {
+            await this.db.query(
+              `UPDATE migration_history
+               SET status = $1, error_message = $2, completed_at = CURRENT_TIMESTAMP
+               WHERE id = $3`,
+              ['failed', error instanceof Error ? error.message : String(error), migrationId],
+            );
+          } catch (updateError) {
+            this.logger.error('Erreur lors de la mise à jour du statut de migration (failed):', updateError);
+          }
+        }
       }
 
       throw error;
@@ -603,6 +743,7 @@ export class PigMigrationService {
 
   /**
    * Génère une clé de groupe pour un porc
+   * LOGIQUE MÉTIER : Toujours classifier par reproducteur d'abord, puis affiner selon critères
    */
   private getGroupKey(
     pig: any,
@@ -610,23 +751,24 @@ export class PigMigrationService {
   ): string {
     const parts: string[] = [];
 
-    if (criteria.byStage) {
-      const stage = this.determineProductionStage(
-        pig.poids_initial || 0,
-        pig.date_naissance
-          ? (new Date().getTime() - new Date(pig.date_naissance).getTime()) /
-            (1000 * 60 * 60 * 24 * 30)
-          : undefined,
-      );
-      parts.push(`stage:${stage}`);
-    }
+    // LOGIQUE CRITIQUE : Classification de base par reproducteur (toujours appliquée)
+    const category = this.determineBatchCategoryFromIndividual(pig);
+    parts.push(`category:${category}`);
 
-    if (criteria.bySex) {
+    // Affinements optionnels selon critères utilisateur
+    if (criteria.bySex && category === 'porcelets') {
+      // Pour les porcelets, on peut subdiviser par sexe si demandé
       parts.push(`sex:${pig.sexe || 'unknown'}`);
     }
 
     if (criteria.byBreed && pig.race) {
       parts.push(`breed:${pig.race}`);
+    }
+
+    // Critères de localisation (non implémenté pour le moment)
+    if (criteria.byLocation) {
+      // TODO: Implémenter logique de localisation
+      parts.push('location:default');
     }
 
     return parts.join('|') || 'default';
@@ -660,11 +802,43 @@ export class PigMigrationService {
       throw new ForbiddenException('Certains animaux ne vous appartiennent pas');
     }
 
+    // Validation supplémentaire : vérifier l'état des animaux
+    const invalidAnimals = validationResult.rows.filter((p: any) =>
+      p.actif !== true || p.statut !== 'actif'
+    );
+
+    if (invalidAnimals.length > 0) {
+      throw new BadRequestException(
+        `${invalidAnimals.length} animal(aux) ne sont pas actifs ou sont dans un état invalide pour la migration`
+      );
+    }
+
+    // Vérifier que les animaux ne sont pas déjà dans des bandes (migration précédente)
+    const animalsInBatches = validationResult.rows.filter((p: any) => p.original_batch_id);
+    if (animalsInBatches.length > 0) {
+      this.logger.warn(
+        `${animalsInBatches.length} animaux ont déjà une référence batch (migration précédente). Cela peut créer des conflits.`
+      );
+    }
+
     const projetId = validationResult.rows[0].projet_id;
     // Bug fix: Réutiliser les données déjà validées au lieu de re-requêter dans la transaction
     const pigs = validationResult.rows;
 
-    // Bug fix: Créer l'enregistrement de migration AVANT la transaction pour garantir un audit trail
+    // Phase 2: Préparer les données de rollback
+    const rollbackData = {
+      migrationId,
+      projetId,
+      originalManagementMethod: 'individual',
+      createdPigIds: [] as string[],
+      createdVaccinationIds: [] as string[],
+      createdDiseaseIds: [] as string[],
+      createdWeighingIds: [] as string[],
+      createdGestationIds: [] as string[],
+      createdBatchIds: [] as string[], // Pour les bandes créées
+    };
+
+    // Phase 3: Créer l'enregistrement de migration
     // même si la transaction échoue et que la création du record 'failed' échoue aussi
     // Entourer l'INSERT dans un try-catch pour gérer les erreurs proprement
     let migrationRecordCreated = false;
@@ -727,6 +901,8 @@ export class PigMigrationService {
               .replace('{seq}', (i + 1).toString()) || `B${year}${i + 1}`;
 
           // Créer la bande
+          // IMPORTANT: les triggers sur batch_pigs maintiennent les compteurs dans batches.
+          // On initialise donc à 0 pour éviter un double comptage lors de l'insertion des batch_pigs.
           await client.query(
           `INSERT INTO batches (
             id, projet_id, pen_name, category, total_count, male_count, female_count,
@@ -738,10 +914,10 @@ export class PigMigrationService {
             projetId,
             batchNumber,
             stats.category,
-            groupPigs.length,
-            stats.maleCount,
-            stats.femaleCount,
-            stats.castratedCount,
+            0,
+            0,
+            0,
+            0,
             stats.averageAgeMonths,
             stats.averageWeight,
             stats.entryDate,
@@ -752,32 +928,13 @@ export class PigMigrationService {
         );
 
         createdBatchIds.push(batchId);
+        rollbackData.createdBatchIds.push(batchId);
 
           // Créer les batch_pigs
           for (const pig of groupPigs) {
             const batchPigId = this.generateId('bpig');
             
-            // Mapper le sexe : 'femelle' → 'female', 'male'/'mâle' → 'male', 'indetermine' → 'castrated'
-            // Note: Le système utilise 'male' (sans accent) selon le schéma DB, mais on gère aussi 'mâle' pour robustesse
-            // Pour 'indetermine', on utilise 'castrated' pour être cohérent avec calculateBatchStatistics qui compte
-            // les indéterminés comme castrés, et pour que les triggers DB mettent à jour correctement les compteurs
-            let mappedSex: string;
-            if (pig.sexe === 'femelle') {
-              mappedSex = 'female';
-            } else if (pig.sexe === 'male' || pig.sexe === 'mâle') {
-              // Gérer à la fois 'male' (valeur standard) et 'mâle' (variante française) pour robustesse
-              mappedSex = 'male';
-            } else if (pig.sexe === 'indetermine') {
-              // Mapper 'indetermine' vers 'castrated' pour cohérence avec calculateBatchStatistics
-              // et pour que les triggers DB mettent à jour correctement castrated_count
-              mappedSex = 'castrated';
-            } else {
-              // Pour toute autre valeur inattendue, logger un avertissement et utiliser 'castrated' par défaut
-              this.logger.warn(
-                `Valeur de sexe inattendue lors de la migration: "${pig.sexe}" (pig_id: ${pig.id}). Utilisation de 'castrated' par défaut.`
-              );
-              mappedSex = 'castrated';
-            }
+            const mappedSex = this.mapIndividualSexToBatchSex(pig);
             
             await client.query(
             `INSERT INTO batch_pigs (
@@ -802,9 +959,21 @@ export class PigMigrationService {
             );
           }
 
+          // Si on ne conserve pas les enregistrements individuels, retirer ces animaux du cheptel individuel
+          if (dto.options.keepIndividualRecords === false) {
+            await client.query(
+              `UPDATE production_animaux
+               SET statut = 'autre', actif = false, derniere_modification = NOW()
+               WHERE id = ANY($1::text[])`,
+              [groupPigs.map((p: any) => p.id)],
+            );
+          }
+
           // Migrer les enregistrements
           if (dto.options.aggregateHealthRecords) {
             await this.migrateHealthRecordsToBatch(groupPigs, batchId, projetId, client);
+            await this.migrateDiseasesToBatch(groupPigs, batchId, projetId, client);
+            await this.migrateWeighingsToBatch(groupPigs, batchId, projetId, client);
           }
 
           if (dto.options.aggregateFeedRecords) {
@@ -827,6 +996,12 @@ export class PigMigrationService {
             'completed',
             migrationId,
           ],
+        );
+
+        // Mettre à jour la méthode de gestion du projet
+        await client.query(
+          `UPDATE projets SET management_method = 'batch', derniere_modification = NOW() WHERE id = $1`,
+          [projetId],
         );
 
         return {
@@ -928,6 +1103,115 @@ export class PigMigrationService {
   }
 
   /**
+   * Migre les maladies des animaux individuels vers une bande
+   */
+  private async migrateDiseasesToBatch(
+    pigs: any[],
+    batchId: string,
+    projetId: string,
+    client: any,
+  ): Promise<void> {
+    // Récupérer toutes les maladies des porcs du groupe
+    const diseases = await client.query(
+      `SELECT * FROM maladies
+       WHERE animal_id = ANY($1::text[])
+       ORDER BY date_debut`,
+      [pigs.map((p: any) => p.id)],
+    );
+
+    // Grouper les maladies par type et date pour agréger
+    const diseasesByType = new Map<string, any[]>();
+
+    for (const disease of diseases.rows) {
+      const key = `${disease.type || 'autre'}_${disease.nom_maladie || 'unknown'}`;
+      if (!diseasesByType.has(key)) {
+        diseasesByType.set(key, []);
+      }
+      diseasesByType.get(key)!.push(disease);
+    }
+
+    // Créer des enregistrements batch_diseases pour les maladies fréquentes (>30% des animaux)
+    for (const [typeKey, diseaseGroup] of diseasesByType.entries()) {
+      if (diseaseGroup.length >= pigs.length * 0.3) {
+        // Si >30% des animaux ont cette maladie
+        const disease = diseaseGroup[0]; // Prendre la première comme référence
+
+        const batchDiseaseId = this.generateId('bdisease');
+        await client.query(
+          `INSERT INTO batch_diseases (
+            id, batch_id, disease_name, diagnosis_date, symptoms, treatment_description,
+            status, affected_pigs, count, notes
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          [
+            batchDiseaseId,
+            batchId,
+            disease.nom_maladie || 'Maladie non spécifiée',
+            disease.date_debut,
+            disease.symptomes || '',
+            disease.diagnostic || '',
+            disease.gueri ? 'recovered' : 'active',
+            JSON.stringify(pigs.map((p: any) => p.id)),
+            diseaseGroup.length,
+            disease.notes || '',
+          ],
+        );
+      }
+    }
+  }
+
+  /**
+   * Migre les pesées des animaux individuels vers une bande
+   */
+  private async migrateWeighingsToBatch(
+    pigs: any[],
+    batchId: string,
+    projetId: string,
+    client: any,
+  ): Promise<void> {
+    // Récupérer toutes les pesées des porcs du groupe
+    const weighings = await client.query(
+      `SELECT * FROM production_pesees
+       WHERE animal_id = ANY($1::text[])
+       ORDER BY date`,
+      [pigs.map((p: any) => p.id)],
+    );
+
+    // Grouper les pesées par date pour agréger
+    const weighingsByDate = new Map<string, any[]>();
+
+    for (const weighing of weighings.rows) {
+      const dateKey = new Date(weighing.date).toISOString().split('T')[0];
+      if (!weighingsByDate.has(dateKey)) {
+        weighingsByDate.set(dateKey, []);
+      }
+      weighingsByDate.get(dateKey)!.push(weighing);
+    }
+
+    // Créer des enregistrements batch_weighings pour les pesées fréquentes (>50% des animaux pesés ce jour)
+    for (const [date, weighingGroup] of weighingsByDate.entries()) {
+      if (weighingGroup.length >= pigs.length * 0.5) {
+        // Calculer le poids moyen pour cette date
+        const totalWeight = weighingGroup.reduce((sum: number, w: any) => sum + (w.poids_kg || 0), 0);
+        const averageWeight = totalWeight / weighingGroup.length;
+
+        const batchWeighingId = this.generateId('bweigh');
+        await client.query(
+          `INSERT INTO batch_weighings (
+            id, batch_id, weighing_date, average_weight_kg, notes
+          ) VALUES ($1, $2, $3, $4, $5)`,
+          [
+            batchWeighingId,
+            batchId,
+            date,
+            averageWeight,
+            `Pesée migrée depuis ${weighingGroup.length} animaux individuels`,
+          ],
+        );
+      }
+    }
+  }
+
+  /**
    * Calcule les statistiques d'une bande à partir des porcs
    */
   private calculateBatchStatistics(pigs: any[]): {
@@ -961,17 +1245,31 @@ export class PigMigrationService {
         ? ages.reduce((sum: number, a: number) => sum + a, 0) / ages.length
         : 0;
 
-    // Compter les mâles (gérer à la fois 'male' et 'mâle' pour robustesse et cohérence avec le mapping)
-    const maleCount = pigs.filter((p: any) => p.sexe === 'male' || p.sexe === 'mâle').length;
-    const femaleCount = pigs.filter((p: any) => p.sexe === 'femelle').length;
-    // Compter explicitement les animaux indéterminés et les inclure dans castratedCount
-    // pour être cohérent avec le mapping qui mappe 'indetermine' → 'castrated' dans batch_pigs
-    const indeterminateCount = pigs.filter((p: any) => p.sexe === 'indetermine').length;
-    // Les animaux qui ne sont ni mâles, ni femelles, ni indéterminés sont considérés comme castrés
-    const castratedOnlyCount = pigs.length - maleCount - femaleCount - indeterminateCount;
-    const castratedCount = castratedOnlyCount + indeterminateCount;
+    let maleCount = 0;
+    let femaleCount = 0;
+    let castratedCount = 0;
+    for (const pig of pigs) {
+      const mappedSex = this.mapIndividualSexToBatchSex(pig);
+      switch (mappedSex) {
+        case 'male':
+          maleCount++;
+          break;
+        case 'female':
+          femaleCount++;
+          break;
+        case 'castrated':
+        default:
+          castratedCount++;
+          break;
+      }
+    }
 
-    const category = this.determineProductionStage(averageWeight, averageAgeMonths);
+    // Catégorie de la bande: si tous les porcs partagent la même catégorie, l'utiliser; sinon fallback via poids
+    const categories = new Set(pigs.map((p) => this.determineBatchCategoryFromIndividual(p)));
+    const category =
+      categories.size === 1
+        ? Array.from(categories)[0]
+        : this.determineProductionStage(averageWeight, averageAgeMonths);
 
     const entryDates = pigs
       .map((p: any) => p.date_entree)
@@ -988,6 +1286,175 @@ export class PigMigrationService {
       averageWeight,
       entryDate,
     };
+  }
+
+  /**
+   * Effectue un rollback automatique d'une migration en cas d'échec
+   */
+  private async rollbackMigration(
+    rollbackData: {
+      migrationId: string;
+      projetId: string;
+      originalManagementMethod: string;
+      createdPigIds: string[];
+      createdVaccinationIds: string[];
+      createdDiseaseIds: string[];
+      createdWeighingIds: string[];
+      createdGestationIds: string[];
+      createdBatchIds?: string[];
+    },
+    client: any,
+  ): Promise<void> {
+    this.logger.warn(`Rollback automatique de la migration ${rollbackData.migrationId}`);
+
+    try {
+      // Supprimer les bandes créées (cascading delete supprimera automatiquement batch_pigs)
+      if (rollbackData.createdBatchIds.length > 0) {
+        await client.query(
+          'DELETE FROM batches WHERE id = ANY($1::text[])',
+          [rollbackData.createdBatchIds],
+        );
+        this.logger.debug(`Rollback: supprimé ${rollbackData.createdBatchIds.length} bandes`);
+      }
+
+      // Supprimer les gestations créées
+      if (rollbackData.createdGestationIds.length > 0) {
+        await client.query(
+          'DELETE FROM gestations WHERE id = ANY($1::text[])',
+          [rollbackData.createdGestationIds],
+        );
+        this.logger.debug(`Rollback: supprimé ${rollbackData.createdGestationIds.length} gestations`);
+      }
+
+      // Supprimer les pesées créées
+      if (rollbackData.createdWeighingIds.length > 0) {
+        await client.query(
+          'DELETE FROM production_pesees WHERE id = ANY($1::text[])',
+          [rollbackData.createdWeighingIds],
+        );
+        this.logger.debug(`Rollback: supprimé ${rollbackData.createdWeighingIds.length} pesées`);
+      }
+
+      // Supprimer les maladies créées
+      if (rollbackData.createdDiseaseIds.length > 0) {
+        await client.query(
+          'DELETE FROM maladies WHERE id = ANY($1::text[])',
+          [rollbackData.createdDiseaseIds],
+        );
+        this.logger.debug(`Rollback: supprimé ${rollbackData.createdDiseaseIds.length} maladies`);
+      }
+
+      // Supprimer les vaccinations créées
+      if (rollbackData.createdVaccinationIds.length > 0) {
+        await client.query(
+          'DELETE FROM vaccinations WHERE id = ANY($1::text[])',
+          [rollbackData.createdVaccinationIds],
+        );
+        this.logger.debug(`Rollback: supprimé ${rollbackData.createdVaccinationIds.length} vaccinations`);
+      }
+
+      // Supprimer les animaux créés
+      if (rollbackData.createdPigIds.length > 0) {
+        await client.query(
+          'DELETE FROM production_animaux WHERE id = ANY($1::text[])',
+          [rollbackData.createdPigIds],
+        );
+        this.logger.debug(`Rollback: supprimé ${rollbackData.createdPigIds.length} animaux`);
+      }
+
+      // Restaurer le mode de gestion original
+      await client.query(
+        'UPDATE projets SET management_method = $1, derniere_modification = NOW() WHERE id = $2',
+        [rollbackData.originalManagementMethod, rollbackData.projetId],
+      );
+      this.logger.debug(`Rollback: restauré management_method = ${rollbackData.originalManagementMethod}`);
+
+      // Marquer la migration comme rollbackée
+      await client.query(
+        `UPDATE migration_history
+         SET status = $1, error_message = $2, completed_at = CURRENT_TIMESTAMP
+         WHERE id = $3`,
+        ['rolled_back', 'Migration annulée automatiquement suite à une erreur', rollbackData.migrationId],
+      );
+
+      this.logger.warn(`Rollback terminé pour la migration ${rollbackData.migrationId}`);
+    } catch (rollbackError) {
+      this.logger.error(`Erreur lors du rollback de la migration ${rollbackData.migrationId}:`, rollbackError);
+      // En cas d'échec du rollback, on marque quand même la migration comme failed
+      try {
+        await client.query(
+          `UPDATE migration_history
+           SET status = $1, error_message = $2, completed_at = CURRENT_TIMESTAMP
+           WHERE id = $3`,
+          ['failed', `Échec du rollback: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`, rollbackData.migrationId],
+        );
+      } catch (updateError) {
+        this.logger.error(`Impossible de mettre à jour le statut de migration après échec de rollback:`, updateError);
+      }
+    }
+  }
+
+  /**
+   * Insertion en batch optimisée pour de gros volumes
+   */
+  private async batchInsertAnimals(
+    animals: Array<{
+      id: string;
+      projet_id: string;
+      code: string;
+      sexe: string;
+      date_naissance: string;
+      poids_initial: number;
+      date_entree: string;
+      categorie_poids: string;
+      original_batch_id?: string;
+      notes: string;
+    }>,
+    client: any,
+  ): Promise<void> {
+    if (animals.length === 0) return;
+
+    // Pour les très gros volumes, utiliser des insertions par chunks
+    const CHUNK_SIZE = 100;
+
+    const COLUMNS_PER_ROW = 13;
+
+    for (let i = 0; i < animals.length; i += CHUNK_SIZE) {
+      const chunk = animals.slice(i, i + CHUNK_SIZE);
+      const params: any[] = [];
+      const values = chunk
+        .map((animal, idx) => {
+          const base = idx * COLUMNS_PER_ROW;
+          params.push(
+            animal.id,
+            animal.projet_id,
+            animal.code,
+            animal.code, // nom = code
+            animal.sexe,
+            animal.date_naissance,
+            animal.poids_initial,
+            animal.date_entree,
+            true,
+            'actif',
+            animal.categorie_poids,
+            animal.original_batch_id || null,
+            animal.notes || null,
+          );
+          const placeholders = Array.from({ length: COLUMNS_PER_ROW }, (_, offset) => `$${base + offset + 1}`);
+          return `(${placeholders.join(', ')})`;
+        })
+        .join(', ');
+
+      await client.query(
+        `INSERT INTO production_animaux (
+          id, projet_id, code, nom, sexe, date_naissance, poids_initial,
+          date_entree, actif, statut, categorie_poids, original_batch_id, notes
+        ) VALUES ${values}`,
+        params,
+      );
+    }
+
+    this.logger.debug(`Batch insert: ${animals.length} animaux insérés en ${Math.ceil(animals.length / CHUNK_SIZE)} chunks`);
   }
 
   /**

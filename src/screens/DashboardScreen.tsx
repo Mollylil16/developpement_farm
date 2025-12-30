@@ -7,7 +7,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl, Dimensions, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppSelector } from '../store/hooks';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -51,6 +51,7 @@ type RootStackParamList = {
 export default function DashboardScreen() {
   const { colors } = useTheme();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  const isFocused = useIsFocused();
 
   // Redux State
   const { projetActif, loading } = useAppSelector((state) => state.projet);
@@ -152,7 +153,7 @@ export default function DashboardScreen() {
     unreadCount: marketplaceUnreadCount,
     markAsRead,
     deleteNotification,
-  } = useMarketplaceNotifications();
+  } = useMarketplaceNotifications({ enabled: isFocused });
 
   // Date formatting - mémorisé pour éviter les recalculs
   const currentDate = useMemo(() => {

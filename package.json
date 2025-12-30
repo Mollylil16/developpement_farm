@@ -43,14 +43,13 @@
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/datetimepicker": "8.4.4",
-    "@react-native-picker/picker": "^2.11.1",
+    "@react-native-picker/picker": "^2.11.4",
     "@react-native-voice/voice": "^3.1.5",
     "@react-navigation/bottom-tabs": "^7.8.1",
     "@react-navigation/material-top-tabs": "^7.4.2",
     "@react-navigation/native": "^7.1.19",
     "@react-navigation/stack": "^7.6.2",
     "@reduxjs/toolkit": "^2.10.1",
-    "babel-preset-expo": "~54.0.9",
     "bignumber.js": "^9.3.1",
     "buffer": "^6.0.3",
     "date-fns": "^4.1.0",
@@ -73,12 +72,11 @@
     "expo-print": "~15.0.7",
     "expo-sensors": "~15.0.7",
     "expo-sharing": "~14.0.7",
-    "expo-speech": "~14.0.7",
+    "expo-speech": "~14.0.8",
     "expo-sqlite": "~16.0.9",
     "expo-status-bar": "~3.0.8",
     "expo-web-browser": "~15.0.10",
     "i18n-js": "^4.5.1",
-    "jest-expo": "~54.0.16",
     "lodash": "^4.17.21",
     "lucide-react-native": "^0.562.0",
     "make-plural": "^6.2.2",
@@ -147,28 +145,7 @@
     "react-native-safe-area-context": "~5.6.0",
     "expo-application": "7.0.7",
     "expo-constants": "18.0.10",
-    "expo-linking": "8.0.9",
-    "glob": "^10.4.2"
+    "expo-linking": "8.0.9"
   },
-  "private": true,
-  "expo": {
-    "install": {
-      "exclude": [
-        "expo",
-        "expo-document-picker",
-        "expo-file-system",
-        "expo-font",
-        "expo-image-picker",
-        "expo-keep-awake",
-        "expo-notifications",
-        "expo-sharing",
-        "expo-sqlite",
-        "expo-status-bar",
-        "react-native-worklets",
-        "babel-preset-expo",
-        "jest-expo",
-        "@react-native-picker/picker"
-      ]
-    }
-  }
+  "private": true
 }

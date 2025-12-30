@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, ConflictException, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
@@ -13,8 +13,6 @@ import { JWTPayload } from './interfaces/jwt-payload.interface';
 
 @Injectable()
 export class AuthService {
-  private readonly logger = new Logger(AuthService.name);
-
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
@@ -26,19 +24,16 @@ export class AuthService {
     const user = await this.usersService.findByEmail(email, true);
 
     if (!user) {
-      this.logger.debug(`validateUser: utilisateur non trouvé pour email ${email}`);
       return null;
     }
 
     if (!user.password_hash) {
-      this.logger.debug(`validateUser: pas de mot de passe pour email ${email}`);
       return null;
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
 
     if (!isPasswordValid) {
-      this.logger.debug(`validateUser: mot de passe incorrect pour email ${email}`);
       return null;
     }
 
@@ -53,24 +48,18 @@ export class AuthService {
       user = await this.validateUser(loginDto.email, loginDto.password);
     } else if (loginDto.telephone) {
       // Valider avec téléphone - inclure password_hash pour la vérification
-      this.logger.debug(`Login téléphone: tentative avec ${loginDto.telephone}`);
       const foundUser = await this.usersService.findByTelephone(loginDto.telephone, true);
-      
+
       if (!foundUser) {
-        this.logger.warn(`Login téléphone: utilisateur non trouvé pour ${loginDto.telephone}`);
         user = null;
       } else if (!foundUser.password_hash) {
-        this.logger.warn(`Login téléphone: pas de mot de passe pour ${loginDto.telephone}, userId=${foundUser.id}`);
         user = null;
       } else {
-        this.logger.debug(`Login téléphone: utilisateur trouvé userId=${foundUser.id}, vérification mot de passe`);
         const isPasswordValid = await bcrypt.compare(loginDto.password, foundUser.password_hash);
         if (isPasswordValid) {
-          this.logger.debug(`Login téléphone: mot de passe valide pour userId=${foundUser.id}`);
           const { password_hash, ...userWithoutPassword } = foundUser;
           user = userWithoutPassword;
         } else {
-          this.logger.warn(`Login téléphone: mot de passe incorrect pour ${loginDto.telephone}, userId=${foundUser.id}`);
           user = null;
         }
       }
@@ -152,10 +141,8 @@ export class AuthService {
 
     // Vérifier si l'email existe déjà (si fourni)
     if (registerDto.email) {
-      this.logger.debug(`register: vérification email ${registerDto.email}`);
       const existingUser = await this.usersService.findByEmail(registerDto.email);
       if (existingUser) {
-        this.logger.warn(`register: email déjà utilisé, userId=${existingUser.id}`);
         throw new ConflictException('Un compte existe déjà avec cet email');
       }
     }
@@ -322,8 +309,6 @@ export class AuthService {
    * Authentification Google OAuth
    */
   async loginWithGoogle(oauthDto: OAuthGoogleDto, ipAddress?: string, userAgent?: string) {
-    this.logger.debug('loginWithGoogle: début');
-    
     try {
       // Vérifier le token Google avec l'API Google (id_token)
       const response = await fetch(
@@ -331,12 +316,10 @@ export class AuthService {
       );
 
       if (!response.ok) {
-        this.logger.error(`Google API error: ${response.status} ${response.statusText}`);
         throw new UnauthorizedException('Token Google invalide');
       }
 
       const googleUser = await response.json();
-      this.logger.debug(`Google API response: email=${googleUser.email}, aud=${googleUser.aud}`);
 
       // SÉCURITÉ CRITIQUE : Vérifier l'audience du token
       // L'audience doit correspondre aux Client IDs de votre application
@@ -347,7 +330,6 @@ export class AuthService {
       ].filter(Boolean); // Enlever les undefined
 
       if (!validAudiences.includes(googleUser.aud)) {
-        this.logger.warn(`Google API: Audience invalide ${googleUser.aud}, audiences acceptées: ${validAudiences.join(', ')}`);
         throw new UnauthorizedException('Token Google généré pour une autre application');
       }
 
@@ -361,25 +343,16 @@ export class AuthService {
 
       if (!user) {
         // Créer un nouvel utilisateur
-        this.logger.log(`Création nouvel utilisateur Google: ${googleUser.email}`);
-        
         // ❌ PAS DE VALEURS PAR DÉFAUT "Utilisateur" ou "Mobile" !
         // Extraire given_name et family_name de Google (Google les fournit généralement)
         // Si absents ou trop courts (< 2 caractères), utiliser des valeurs temporaires vides
         // Le frontend redirigera vers UserInfoScreen pour compléter
         const prenomFromGoogle = googleUser.given_name?.trim() || googleUser.name?.split(' ')[0]?.trim() || '';
         const nomFromGoogle = googleUser.family_name?.trim() || googleUser.name?.split(' ').slice(1).join(' ').trim() || '';
-        
+
         // Valider : Si trop courts, on les laisse vides (ne pas mettre de valeurs par défaut)
         const prenom = prenomFromGoogle.length >= 2 ? prenomFromGoogle : '';
         const nom = nomFromGoogle.length >= 2 ? nomFromGoogle : '';
-        
-        console.log('[Google OAuth] Nom/Prénom extraits:', { prenom, nom });
-        
-        // Si nom ou prénom vide, log un warning (le frontend gérera la redirection)
-        if (!prenom || !nom) {
-          console.warn('⚠️ [Google OAuth] Nom/Prénom incomplets, l\'utilisateur devra les compléter');
-        }
         
         const newUser = {
           email: googleUser.email,
@@ -394,8 +367,6 @@ export class AuthService {
         // Utiliser la méthode create de UsersService
         user = await this.usersService.create(newUser);
       } else {
-        this.logger.debug(`Utilisateur existant trouvé: userId=${user.id}`);
-        
         // Mettre à jour last_login
         await this.updateLastLogin(user.id);
       }
@@ -411,8 +382,6 @@ export class AuthService {
 
       const access_token = this.jwtService.sign(payload);
       const refreshTokenData = await this.createRefreshToken(user.id, ipAddress, userAgent);
-
-      this.logger.log(`Google login réussi pour: ${user.email}`);
 
       return {
         access_token,
@@ -434,8 +403,6 @@ export class AuthService {
         },
       };
     } catch (error) {
-      this.logger.error('Erreur Google login', error);
-      
       if (error instanceof UnauthorizedException) {
         throw error;
       }
@@ -477,8 +444,6 @@ export class AuthService {
     // ⚠️ Sécurité : Ne pas révéler si compte existe
     // Toujours retourner succès
     if (!user) {
-      // Logger l'tentative pour détection de fraude
-      this.logger.warn(`Tentative réinitialisation sur numéro inexistant: ${telephone}`);
       return;
     }
 
@@ -504,7 +469,6 @@ export class AuthService {
 
     // TODO: Envoyer SMS via service SMS
     // await this.smsService.sendOTP(telephone, otp, 'réinitialisation de mot de passe');
-    this.logger.debug(`OTP généré pour ${telephone}: ${otp} (expire dans 10 min)`);
   }
 
   /**
@@ -592,23 +556,36 @@ export class AuthService {
    * Supprime définitivement le compte utilisateur et toutes ses données
    */
   async deleteAccount(userId: string): Promise<void> {
-    this.logger.warn(`Suppression du compte utilisateur: userId=${userId}`);
-
     // Utiliser une transaction pour garantir la cohérence
     await this.db.transaction(async (client) => {
-      // Les contraintes ON DELETE CASCADE s'occuperont automatiquement de supprimer :
-      // - Tous les projets (et leurs données via CASCADE sur projets)
-      // - Tous les refresh tokens
-      // - Tous les reset tokens
-      // - Toutes les collaborations (via foreign keys avec ON DELETE CASCADE)
-      
-      // Supprimer l'utilisateur (cela déclenchera les CASCADE)
-      await client.query(
-        `DELETE FROM users WHERE id = $1`,
-        [userId]
-      );
+      // Nettoyage explicite (sécurité) : certaines anciennes contraintes FK utilisaient ON DELETE SET NULL
+      // sur des colonnes NOT NULL, ce qui pouvait faire échouer la suppression.
+      // Même avec les migrations correctives, ce cleanup garantit la suppression des données liées.
+      await client.query(`DELETE FROM transactions WHERE user_id = $1`, [userId]);
+      await client.query(`DELETE FROM migration_history WHERE user_id = $1`, [userId]);
+      await client.query(`DELETE FROM collaborations WHERE user_id = $1`, [userId]);
+      await client.query(`DELETE FROM veterinarians WHERE user_id = $1`, [userId]);
 
-      this.logger.log(`Compte utilisateur supprimé avec succès: userId=${userId}`);
+      // Supprimer l'utilisateur (les contraintes ON DELETE CASCADE s'occuperont du reste :
+      // - projets + données liées
+      // - refresh_tokens, reset_tokens, chat agent, marketplace, subscriptions, etc.)
+      await client.query(`DELETE FROM users WHERE id = $1`, [userId]);
     });
+  }
+
+  /**
+   * Retourne le journal de connexion (auth logs) pour l'utilisateur
+   */
+  async getLoginLogs(userId: string, limit: number = 100) {
+    const safeLimit = Math.max(1, Math.min(500, Number(limit) || 100));
+    const result = await this.db.query(
+      `SELECT id, endpoint, method, ip, user_agent, success, error, created_at
+       FROM auth_logs
+       WHERE user_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [userId, safeLimit]
+    );
+    return result.rows;
   }
 }

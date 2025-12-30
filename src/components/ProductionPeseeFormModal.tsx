@@ -46,6 +46,7 @@ interface ProductionPeseeFormModalProps {
   isEditing?: boolean;
   batchId?: string; // ID de la bande (mode batch)
   batchTotalCount?: number; // Nombre total de porcs dans la bande
+  batchAvgDailyGain?: number; // GMQ moyen (kg/jour)
 }
 
 export default function ProductionPeseeFormModal({
@@ -58,6 +59,7 @@ export default function ProductionPeseeFormModal({
   isEditing = false,
   batchId,
   batchTotalCount,
+  batchAvgDailyGain,
 }: ProductionPeseeFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
@@ -81,10 +83,52 @@ export default function ProductionPeseeFormModal({
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   
   // État pour le mode batch
-  const [batchCount, setBatchCount] = useState('1');
-  const [batchAverageWeight, setBatchAverageWeight] = useState('');
-  const [batchMinWeight, setBatchMinWeight] = useState('');
-  const [batchMaxWeight, setBatchMaxWeight] = useState('');
+  const [weightsInputs, setWeightsInputs] = useState<string[]>(['']);
+
+  const handleChangeWeightInput = (index: number, value: string) => {
+    setWeightsInputs((prev) => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
+  };
+
+  const handleAddWeightInput = () => {
+    setWeightsInputs((prev) => [...prev, '']);
+  };
+
+  const handleRemoveWeightInput = (index: number) => {
+    setWeightsInputs((prev) => {
+      if (prev.length === 1) {
+        return prev;
+      }
+      const next = [...prev];
+      next.splice(index, 1);
+      return next;
+    });
+  };
+
+  const resetWeightsToCount = (count: number) => {
+    const safeCount = Math.max(1, Math.min(count, 100));
+    setWeightsInputs(Array(safeCount).fill(''));
+  };
+
+  const parsedBatchWeights = React.useMemo(() => {
+    const numericValues = weightsInputs
+      .map((value) => parseFloat(value.replace(',', '.')))
+      .filter((weight) => !Number.isNaN(weight) && weight > 0);
+
+    const sum = numericValues.reduce((acc, weight) => acc + weight, 0);
+
+    return {
+      totalFields: weightsInputs.length,
+      values: numericValues,
+      validCount: numericValues.length,
+      average: numericValues.length > 0 ? sum / numericValues.length : null,
+      min: numericValues.length > 0 ? Math.min(...numericValues) : null,
+      max: numericValues.length > 0 ? Math.max(...numericValues) : null,
+    };
+  }, [weightsInputs]);
 
   useEffect(() => {
     if (visible) {
@@ -109,10 +153,13 @@ export default function ProductionPeseeFormModal({
       }
       // Réinitialiser les champs batch
       if (isBatchMode) {
-        setBatchCount('1');
-        setBatchAverageWeight('');
-        setBatchMinWeight('');
-        setBatchMaxWeight('');
+        const defaultCount = Math.min(
+          Math.max(batchTotalCount || 5, 1),
+          50,
+        );
+        setWeightsInputs(Array(defaultCount).fill(''));
+      } else {
+        setWeightsInputs(['']);
       }
       setShowDatePicker(false);
       setIsAiEstimated(false); // Réinitialiser l'indicateur IA
@@ -297,35 +344,36 @@ export default function ProductionPeseeFormModal({
 
     // Validation selon le mode
     if (isBatchMode && batchId) {
-      // Mode batch : validation spécifique
-      const countNum = parseInt(batchCount);
-      if (isNaN(countNum) || countNum < 1 || (batchTotalCount && countNum > batchTotalCount)) {
+      if (parsedBatchWeights.validCount === 0) {
         Alert.alert(
-          'Erreur',
-          `Le nombre doit être entre 1 et ${batchTotalCount || 'la taille de la bande'}`,
+          'Poids manquants',
+          'Veuillez saisir au moins un poids valide (en kilogrammes).',
         );
-        return;
-      }
-
-      const avgWeight = parseFloat(batchAverageWeight);
-      if (isNaN(avgWeight) || avgWeight <= 0) {
-        Alert.alert('Erreur', 'Le poids moyen doit être supérieur à 0.');
         return;
       }
 
       setLoading(true);
       try {
-        await apiClient.post('/batch-weighings', {
+        const numericWeights = parsedBatchWeights.values;
+        const payload = {
           batch_id: batchId,
-          count: countNum,
-          average_weight_kg: avgWeight,
+          weights_kg: numericWeights,
+          count: numericWeights.length,
+          average_weight_kg:
+            parsedBatchWeights.average ??
+            numericWeights.reduce((sum, value) => sum + value, 0) / numericWeights.length,
+          min_weight_kg: parsedBatchWeights.min ?? undefined,
+          max_weight_kg: parsedBatchWeights.max ?? undefined,
           weighing_date: new Date(formData.date).toISOString(),
-          min_weight_kg: batchMinWeight ? parseFloat(batchMinWeight) : undefined,
-          max_weight_kg: batchMaxWeight ? parseFloat(batchMaxWeight) : undefined,
           notes: formData.commentaire || undefined,
-        });
+        };
 
-        Alert.alert('Succès', `${countNum} pesée(s) enregistrée(s) avec succès`);
+        await apiClient.post('/batch-weighings', payload);
+
+        Alert.alert(
+          'Succès',
+          `${numericWeights.length} poids enregistrés et répartis sur la bande`,
+        );
         onSuccess();
         onClose();
       } catch (error: any) {
@@ -396,85 +444,98 @@ export default function ProductionPeseeFormModal({
         )}
 
         {isBatchMode && batchId && (
-          <View style={[styles.infoBox, { backgroundColor: colors.surfaceVariant }]}>
-            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
-              Mode Bande:
-            </Text>
-            <Text style={[styles.infoValue, { color: colors.primary }]}>
-              Le système sélectionnera automatiquement les porcs à peser
-            </Text>
-          </View>
-        )}
-
-        {/* Champs spécifiques au mode batch */}
-        {isBatchMode && batchId && (
           <>
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                Nombre de porcs à peser *
+            <View style={[styles.infoBox, { backgroundColor: colors.surfaceVariant }]}>
+              <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                Loge sélectionnée:
               </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  { backgroundColor: colors.background, color: colors.text, borderColor: colors.border },
-                ]}
-                value={batchCount}
-                onChangeText={setBatchCount}
-                keyboardType="number-pad"
-                placeholder={`Max: ${batchTotalCount || ''}`}
-                placeholderTextColor={colors.textSecondary}
-              />
+              <Text style={[styles.infoValue, { color: colors.primary }]}>
+                {batchTotalCount || 0} sujet(s){' '}
+                • GMQ moyen {( ((batchAvgDailyGain ?? 0.4) * 1000).toFixed(0) )} g/jour
+              </Text>
             </View>
 
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                Poids moyen (kg) *
+                Poids mesurés (kg)
               </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  { backgroundColor: colors.background, color: colors.text, borderColor: colors.border },
-                ]}
-                value={batchAverageWeight}
-                onChangeText={setBatchAverageWeight}
-                keyboardType="decimal-pad"
-                placeholder="Ex: 45.5"
-                placeholderTextColor={colors.textSecondary}
-              />
-            </View>
+              <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
+                Ajoutez un poids par sujet pesé. Les poids seront attribués automatiquement aux animaux
+                selon leur historique pour conserver la cohérence du suivi.
+              </Text>
 
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                Poids minimum (kg) - Optionnel
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  { backgroundColor: colors.background, color: colors.text, borderColor: colors.border },
-                ]}
-                value={batchMinWeight}
-                onChangeText={setBatchMinWeight}
-                keyboardType="decimal-pad"
-                placeholder="Ex: 40"
-                placeholderTextColor={colors.textSecondary}
-              />
-            </View>
+              {weightsInputs.map((value, index) => (
+                <View key={`weight-input-${index}`} style={styles.weightRow}>
+                  <Text style={[styles.weightLabel, { color: colors.textSecondary }]}>
+                    Poids #{index + 1}
+                  </Text>
+                  <View style={styles.weightInputRow}>
+                    <TextInput
+                      style={[
+                        styles.weightInput,
+                        {
+                          backgroundColor: colors.background,
+                          color: colors.text,
+                          borderColor: colors.border,
+                        },
+                      ]}
+                      value={value}
+                      onChangeText={(text) => handleChangeWeightInput(index, text)}
+                      keyboardType="decimal-pad"
+                      placeholder="0,0"
+                      placeholderTextColor={colors.textSecondary}
+                    />
+                    {weightsInputs.length > 1 && (
+                      <TouchableOpacity
+                        style={styles.removeWeightButton}
+                        onPress={() => handleRemoveWeightInput(index)}
+                      >
+                        <Ionicons name="trash-outline" size={16} color="#e74c3c" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              ))}
 
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                Poids maximum (kg) - Optionnel
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  { backgroundColor: colors.background, color: colors.text, borderColor: colors.border },
-                ]}
-                value={batchMaxWeight}
-                onChangeText={setBatchMaxWeight}
-                keyboardType="decimal-pad"
-                placeholder="Ex: 50"
-                placeholderTextColor={colors.textSecondary}
-              />
+              <View style={styles.weightActionsRow}>
+                <TouchableOpacity
+                  style={[styles.chipButton, { borderColor: colors.primary }]}
+                  onPress={handleAddWeightInput}
+                >
+                  <Ionicons name="add" size={16} color={colors.primary} />
+                  <Text style={[styles.chipButtonText, { color: colors.primary }]}>
+                    Ajouter un poids
+                  </Text>
+                </TouchableOpacity>
+                {batchTotalCount && batchTotalCount !== weightsInputs.length && (
+                  <TouchableOpacity
+                    style={[styles.chipButton, { borderColor: colors.primary }]}
+                    onPress={() => resetWeightsToCount(batchTotalCount)}
+                  >
+                    <Ionicons name="refresh" size={16} color={colors.primary} />
+                    <Text style={[styles.chipButtonText, { color: colors.primary }]}>
+                      Pré-remplir ({batchTotalCount})
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <View style={[styles.weightStats, { borderColor: colors.border }]}>
+                <Text style={[styles.statsLabel, { color: colors.textSecondary }]}>
+                  Poids valides : {parsedBatchWeights.validCount}/{parsedBatchWeights.totalFields}
+                </Text>
+                {parsedBatchWeights.validCount > 0 && (
+                  <>
+                    <Text style={[styles.statsValue, { color: colors.text }]}>
+                      Moyenne : {parsedBatchWeights.average?.toFixed(1)} kg
+                    </Text>
+                    <Text style={[styles.statsValue, { color: colors.textSecondary }]}>
+                      Min : {parsedBatchWeights.min?.toFixed(1)} kg • Max :{' '}
+                      {parsedBatchWeights.max?.toFixed(1)} kg
+                    </Text>
+                  </>
+                )}
+              </View>
             </View>
           </>
         )}
@@ -621,6 +682,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: SPACING.sm,
   },
+  sectionSubtitle: {
+    fontSize: FONT_SIZES.sm,
+    marginBottom: SPACING.sm,
+  },
   dateButton: {
     borderWidth: 1,
     borderRadius: BORDER_RADIUS.md,
@@ -684,5 +749,60 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.xs,
     marginTop: SPACING.xs,
     fontStyle: 'italic',
+  },
+  weightRow: {
+    marginBottom: SPACING.sm,
+  },
+  weightLabel: {
+    fontSize: FONT_SIZES.sm,
+    marginBottom: SPACING.xs,
+  },
+  weightInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  weightInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: BORDER_RADIUS.sm,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    fontSize: FONT_SIZES.md,
+    marginRight: SPACING.xs,
+  },
+  removeWeightButton: {
+    padding: SPACING.sm,
+  },
+  weightActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginTop: SPACING.sm,
+  },
+  chipButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    borderWidth: 1,
+    borderRadius: BORDER_RADIUS.round,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+  },
+  chipButtonText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+  },
+  weightStats: {
+    borderWidth: 1,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.sm,
+    marginTop: SPACING.sm,
+  },
+  statsLabel: {
+    fontSize: FONT_SIZES.sm,
+    marginBottom: SPACING.xs,
+  },
+  statsValue: {
+    fontSize: FONT_SIZES.sm,
   },
 });

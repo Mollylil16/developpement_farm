@@ -74,6 +74,10 @@ export type AgentActionType =
   // Bilan Financier
   | 'get_bilan_financier'
   | 'get_dettes_en_cours'
+  // Gestion des loges (mode bande)
+  | 'creer_loge'
+  | 'deplacer_animaux'
+  | 'get_animaux_par_loge'
   | 'other';
 
 export interface AgentAction {

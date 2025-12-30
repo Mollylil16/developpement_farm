@@ -68,10 +68,7 @@ export const loadCollaborateurs = createAsyncThunk(
 export const loadCollaborateursParProjet = createAsyncThunk(
   'collaboration/loadCollaborateursParProjet',
   async (projetId: string, { rejectWithValue }) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'collaborationSlice.ts:68',message:'loadCollaborateursParProjet entry',data:{projetId,projetIdType:typeof projetId,projetIdLength:projetId?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-    try {
+try {
       const collaborateurs = await apiClient.get<Collaborateur[]>('/collaborations', {
         params: { projet_id: projetId },
       });

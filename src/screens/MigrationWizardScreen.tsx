@@ -109,9 +109,8 @@ export default function MigrationWizardScreen() {
     setRefreshing(true);
     try {
       // Charger les bandes
-      const batchesData = await apiClient.get<any[]>(`/batches`, {
-        params: { projet_id: projetActif.id },
-      });
+      // Backend: les bandes/loges sont exposées via /batch-pigs/projet/:projetId
+      const batchesData = await apiClient.get<any[]>(`/batch-pigs/projet/${projetActif.id}`);
       setBatches(batchesData || []);
 
       // Charger les animaux individuels

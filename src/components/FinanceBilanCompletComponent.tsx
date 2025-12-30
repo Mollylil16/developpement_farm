@@ -183,44 +183,40 @@ export default function FinanceBilanCompletComponent() {
     return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
   };
 
-  // Graphique des revenus par catégorie
+  // Graphique des revenus par catégorie (format PieChart: tableau d'objets)
   const revenusChartData = useMemo(() => {
     if (!bilanData || Object.keys(bilanData.revenus.par_categorie).length === 0) {
       return null;
     }
 
     const categories = Object.entries(bilanData.revenus.par_categorie);
-    const colors = ['#1565C0', '#1976D2', '#42A5F5', '#64B5F6', '#90CAF9', '#BBDEFB'];
+    const chartColors = ['#1565C0', '#1976D2', '#42A5F5', '#64B5F6', '#90CAF9', '#BBDEFB'];
     
-    return {
-      labels: categories.map(([cat]) => cat.substring(0, 10)),
-      datasets: [
-        {
-          data: categories.map(([, montant]) => montant),
-        },
-      ],
-      colors: categories.map((_, i) => colors[i % colors.length]),
-    };
+    return categories.map(([cat, montant], index) => ({
+      name: cat.length > 10 ? cat.substring(0, 10) + '...' : cat,
+      data: montant,
+      color: chartColors[index % chartColors.length],
+      legendFontColor: '#333',
+      legendFontSize: 11,
+    }));
   }, [bilanData]);
 
-  // Graphique des dépenses par catégorie
+  // Graphique des dépenses par catégorie (format PieChart: tableau d'objets)
   const depensesChartData = useMemo(() => {
     if (!bilanData || Object.keys(bilanData.depenses.par_categorie).length === 0) {
       return null;
     }
 
     const categories = Object.entries(bilanData.depenses.par_categorie);
-    const colors = ['#D32F2F', '#F44336', '#E57373', '#EF5350', '#E91E63', '#F06292'];
+    const chartColors = ['#D32F2F', '#F44336', '#E57373', '#EF5350', '#E91E63', '#F06292'];
     
-    return {
-      labels: categories.map(([cat]) => cat.substring(0, 10)),
-      datasets: [
-        {
-          data: categories.map(([, montant]) => montant),
-        },
-      ],
-      colors: categories.map((_, i) => colors[i % colors.length]),
-    };
+    return categories.map(([cat, montant], index) => ({
+      name: cat.length > 10 ? cat.substring(0, 10) + '...' : cat,
+      data: montant,
+      color: chartColors[index % chartColors.length],
+      legendFontColor: '#333',
+      legendFontSize: 11,
+    }));
   }, [bilanData]);
 
   if (loading && !bilanData) {

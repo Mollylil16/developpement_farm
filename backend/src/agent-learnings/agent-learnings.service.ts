@@ -45,25 +45,35 @@ export class AgentLearningsService {
     const id = `learn_${uuidv4()}`;
     const keywords = dto.keywords || this.extractKeywords(dto.user_message);
 
-    const result = await this.databaseService.query(
-      `INSERT INTO agent_learnings (
-        id, projet_id, learning_type, user_message, keywords,
-        detected_intent, correct_intent, params, memorized_response, confidence
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-      RETURNING *`,
-      [
-        id,
-        dto.projet_id,
-        dto.learning_type,
-        dto.user_message,
-        keywords,
-        dto.detected_intent || null,
-        dto.correct_intent || null,
-        dto.params ? JSON.stringify(dto.params) : null,
-        dto.memorized_response || null,
-        dto.confidence || 0.5,
-      ]
-    );
+    // Colonnes nécessaires pour mapRowToLearning (éviter RETURNING * pour éviter colonnes inexistantes)
+    const learningColumns = `id, projet_id, learning_type, user_message, keywords,
+      detected_intent, correct_intent, params, memorized_response, confidence,
+      usage_count, created_at, updated_at`;
+
+    let result;
+    try {
+      result = await this.databaseService.query(
+        `INSERT INTO agent_learnings (
+          id, projet_id, learning_type, user_message, keywords,
+          detected_intent, correct_intent, params, memorized_response, confidence
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        RETURNING ${learningColumns}`,
+        [
+          id,
+          dto.projet_id,
+          dto.learning_type,
+          dto.user_message,
+          keywords, // PostgreSQL accepte directement les tableaux JavaScript
+          dto.detected_intent || null,
+          dto.correct_intent || null,
+          dto.params ? JSON.stringify(dto.params) : null,
+          dto.memorized_response || null,
+          dto.confidence || 0.5,
+        ]
+      );
+    } catch (error) {
+      throw error;
+    }
 
     // Indexer les mots-clés
     if (keywords.length > 0 && (dto.detected_intent || dto.correct_intent)) {
@@ -90,7 +100,7 @@ export class AgentLearningsService {
       [dto.projet_id, keywords]
     );
 
-    return result.rows.map(row => ({
+    return result.rows.map((row: any) => ({
       learning_id: row.learning_id,
       user_message: row.user_message,
       detected_intent: row.detected_intent,
@@ -183,23 +193,29 @@ export class AgentLearningsService {
     params?: Record<string, any>,
     confidence?: number
   ): Promise<void> {
-    // Vérifier si un apprentissage similaire existe déjà
-    const existing = await this.findSimilarLearning(projetId, userMessage);
-    
-    if (existing && existing.correct_intent === intent) {
-      // Incrémenter le compteur d'utilisation
-      await this.incrementUsageCount(existing.learning_id);
-    } else {
-      // Créer un nouvel apprentissage
-      await this.createLearning({
-        projet_id: projetId,
-        learning_type: 'successful_intent',
-        user_message: userMessage,
-        detected_intent: intent,
-        correct_intent: intent,
-        params,
-        confidence: confidence || 0.8,
-      }, userId);
+    try {
+      // Vérifier si un apprentissage similaire existe déjà
+      // Note: findSimilarLearning nécessite un projetId et userMessage, mais peut retourner null
+      const existing = await this.findSimilarLearning(projetId, userMessage);
+      
+      if (existing && existing.correct_intent === intent) {
+        // Incrémenter le compteur d'utilisation
+        await this.incrementUsageCount(existing.learning_id);
+      } else {
+        // Créer un nouvel apprentissage
+        await this.createLearning({
+          projet_id: projetId,
+          learning_type: 'successful_intent',
+          user_message: userMessage,
+          detected_intent: intent,
+          correct_intent: intent,
+          params,
+          confidence: confidence || 0.8,
+        }, userId);
+      }
+    } catch (error) {
+      this.logger.warn('[AgentLearningsService] Erreur recordSuccessfulIntent:', error);
+      // Ne pas propager l'erreur car c'est une opération non-critique
     }
   }
 
@@ -225,47 +241,98 @@ export class AgentLearningsService {
    * Enregistre une conversation
    */
   async recordConversation(dto: RecordConversationDto, userId: string): Promise<void> {
-    const id = `msg_${uuidv4()}`;
+    try {
+      const id = `msg_${uuidv4()}`;
 
-    await this.databaseService.query(
-      `INSERT INTO agent_conversation_memory (
-        id, projet_id, user_id, conversation_id, message_role, 
-        message_content, intent, action_executed, action_success
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [
-        id,
-        dto.projet_id,
-        userId,
-        dto.conversation_id,
-        dto.message_role,
-        dto.message_content,
-        dto.intent || null,
-        dto.action_executed || null,
-        dto.action_success !== undefined ? dto.action_success : null,
-      ]
-    );
+      await this.databaseService.query(
+        `INSERT INTO agent_conversation_memory (
+          id, projet_id, user_id, conversation_id, message_role, 
+          message_content, intent, action_executed, action_success
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          id,
+          dto.projet_id,
+          userId,
+          dto.conversation_id,
+          dto.message_role,
+          dto.message_content,
+          dto.intent || null,
+          dto.action_executed || null,
+          dto.action_success !== undefined ? dto.action_success : null,
+        ]
+      );
+    } catch (error) {
+      // Si l'erreur indique que la table n'existe pas (code PostgreSQL 42P01), logger en warning
+      // mais ne pas lancer d'exception car c'est une opération non-critique (fire-and-forget)
+      if ((error as any)?.code === '42P01') {
+        this.logger.warn('[AgentLearningsService] Table agent_conversation_memory n\'existe pas encore - migration 050 peut-être non exécutée. Ignoré.');
+        return;
+      }
+      // Pour toute autre erreur, logger mais ne pas lancer d'exception
+      this.logger.error('[AgentLearningsService] Erreur recordConversation:', error);
+      // Ne pas lancer l'exception car c'est une opération non-critique
+    }
   }
 
   /**
    * Récupère les messages récents d'une conversation
+   * Retourne les messages dans le format ChatMessage pour le frontend
    */
-  async getConversationHistory(projetId: string, conversationId: string, limit: number = 10): Promise<any[]> {
-    const result = await this.databaseService.query(
-      `SELECT * FROM agent_conversation_memory 
-       WHERE projet_id = $1 AND conversation_id = $2 
-       ORDER BY created_at DESC LIMIT $3`,
-      [projetId, conversationId, limit]
-    );
-
-    return result.rows.reverse(); // Ordre chronologique
+  async getConversationHistory(projetId: string, conversationId: string, limit: number = 100): Promise<any[]> {
+    // Validation des paramètres
+    if (!projetId || !conversationId) {
+      this.logger.warn('[AgentLearningsService] getConversationHistory: paramètres manquants');
+      return [];
+    }
+    
+    // Colonnes nécessaires (éviter SELECT * pour éviter colonnes inexistantes)
+    const columns = `id, projet_id, user_id, conversation_id, message_role, 
+      message_content, intent, action_executed, action_success, created_at`;
+    
+    try {
+      const result = await this.databaseService.query(
+        `SELECT ${columns} FROM agent_conversation_memory 
+         WHERE projet_id = $1 AND conversation_id = $2 
+         ORDER BY created_at ASC LIMIT $3`,
+        [projetId, conversationId, limit]
+      );
+      // Mapper les résultats au format ChatMessage
+      const mapped = result.rows.map((row: any) => ({
+        id: row.id || `msg_${row.created_at}_${Math.random().toString(36).substr(2, 9)}`,
+        role: row.message_role === 'user' ? 'user' : 'assistant',
+        content: row.message_content || '',
+        timestamp: row.created_at || new Date().toISOString(),
+        metadata: {
+          intent: row.intent || undefined,
+          actionExecuted: row.action_executed || undefined,
+          actionSuccess: row.action_success !== null && row.action_success !== undefined ? row.action_success : undefined,
+        },
+      }));
+      return mapped;
+    } catch (error) {
+      // Si l'erreur indique que la table n'existe pas (code PostgreSQL 42P01), retourner un tableau vide
+      if ((error as any)?.code === '42P01') {
+        this.logger.warn('[AgentLearningsService] Table agent_conversation_memory n\'existe pas encore - migration 050 peut-être non exécutée. Retour d\'un tableau vide.');
+        return [];
+      }
+      
+      // Pour toute autre erreur, logger et retourner un tableau vide pour ne pas bloquer l'application
+      this.logger.error('[AgentLearningsService] Erreur getConversationHistory:', error);
+      return [];
+    }
   }
 
   /**
    * Récupère un apprentissage par ID
    */
   async getLearningById(id: string): Promise<Learning | null> {
+    // Colonnes nécessaires pour mapRowToLearning (éviter SELECT * pour éviter colonnes inexistantes)
+    const learningColumns = `id, projet_id, learning_type, user_message, keywords,
+      detected_intent, correct_intent, params, memorized_response, confidence,
+      usage_count, created_at, updated_at`;
+    
     const result = await this.databaseService.query(
-      `SELECT * FROM agent_learnings WHERE id = $1`,
+      `SELECT ${learningColumns} FROM agent_learnings WHERE id = $1`,
       [id]
     );
 
@@ -280,8 +347,13 @@ export class AgentLearningsService {
    * Récupère les apprentissages par projet
    */
   async getLearningsByProjet(projetId: string, limit: number = 100): Promise<Learning[]> {
+    // Colonnes nécessaires pour mapRowToLearning (éviter SELECT * pour éviter colonnes inexistantes)
+    const learningColumns = `id, projet_id, learning_type, user_message, keywords,
+      detected_intent, correct_intent, params, memorized_response, confidence,
+      usage_count, created_at, updated_at`;
+    
     const result = await this.databaseService.query(
-      `SELECT * FROM agent_learnings 
+      `SELECT ${learningColumns} FROM agent_learnings 
        WHERE projet_id = $1 
        ORDER BY usage_count DESC, updated_at DESC 
        LIMIT $2`,

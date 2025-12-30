@@ -19,9 +19,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JWTPayload) {
-    // #region agent log
-    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'jwt.strategy.ts:21',message:'JWT validate entry',data:{payloadSub:payload.sub,payloadSubType:typeof payload.sub,payloadSubLength:payload.sub?.length,payloadSubJSON:JSON.stringify(payload.sub)},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'D'})+'\n'); } catch(e) {}
-    // #endregion
     const user = await this.usersService.findOne(payload.sub);
 
     if (!user) {
@@ -37,9 +34,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       email: user.email,
       roles: user.roles || [],
     };
-    // #region agent log
-    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'jwt.strategy.ts:36',message:'JWT validate return',data:{userId:result.id,userIdType:typeof result.id,userIdLength:result.id?.length,userIdJSON:JSON.stringify(result.id),userDbId:user.id,userDbIdType:typeof user.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'D'})+'\n'); } catch(e) {}
-    // #endregion
     return result;
   }
 }

@@ -10,6 +10,7 @@ import {
   TransferPigDto,
   RemovePigDto,
   CreateBatchWithPigsDto,
+  UpdateBatchSettingsDto,
 } from './dto';
 
 @Injectable()
@@ -44,10 +45,7 @@ export class BatchPigsService {
     batchId: string,
     userId: string,
   ): Promise<void> {
-    // #region agent log
-    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:43',message:'checkBatchOwnership entry',data:{batchId,userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) {}
-    // #endregion
-    try {
+try {
       const result = await this.db.query(
         `SELECT b.projet_id, p.proprietaire_id 
          FROM batches b
@@ -55,20 +53,18 @@ export class BatchPigsService {
          WHERE b.id = $1`,
         [batchId],
       );
-      // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:52',message:'checkBatchOwnership: query result',data:{batchId,rowCount:result.rows.length,proprietaireId:result.rows[0]?.proprietaire_id,userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) {}
-      // #endregion
-      if (result.rows.length === 0) {
+if (result.rows.length === 0) {
         throw new NotFoundException('Bande non trouvée');
       }
-      if (result.rows[0].proprietaire_id !== userId) {
+      // Normaliser les IDs pour la comparaison (comme dans checkProjetOwnership)
+      const rawProprietaireId = result.rows[0].proprietaire_id;
+      const proprietaireId = String(rawProprietaireId || '').trim();
+      const normalizedUserId = String(userId || '').trim();
+      if (proprietaireId !== normalizedUserId) {
         throw new ForbiddenException('Cette bande ne vous appartient pas');
       }
     } catch (error) {
-      // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:59',message:'checkBatchOwnership: error',data:{batchId,userId,errorMessage:error?.message,errorName:error?.constructor?.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) {}
-      // #endregion
-      throw error;
+throw error;
     }
   }
 
@@ -76,28 +72,45 @@ export class BatchPigsService {
    * Mapper une ligne de la base de données vers un objet BatchPig
    */
   private mapRowToPig(row: any): any {
-    // #region agent log
-    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:65',message:'mapRowToPig entry',data:{rowId:row.id,current_weight_kg:row.current_weight_kg,current_weight_kgType:typeof row.current_weight_kg,age_months:row.age_months,age_monthsType:typeof row.age_months},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
-    // #endregion
-    try {
-      const weight = row.current_weight_kg != null ? parseFloat(row.current_weight_kg) : 0;
-      // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:68',message:'mapRowToPig: weight parsed',data:{rowId:row.id,originalWeight:row.current_weight_kg,parsedWeight:weight,isNaN:isNaN(weight)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
-      // #endregion
-      return {
+    // Validation de base
+    if (!row || !row.id) {
+      throw new Error('Ligne invalide: id manquant');
+    }
+    
+try {
+      // Parser le poids avec gestion des NaN
+      let weight = 0;
+      if (row.current_weight_kg != null) {
+        const parsed = parseFloat(String(row.current_weight_kg));
+        weight = isNaN(parsed) ? 0 : parsed;
+      }
+      
+      // Parser l'âge avec gestion des NaN
+      let ageMonths: number | undefined = undefined;
+      if (row.age_months != null) {
+        const parsed = parseFloat(String(row.age_months));
+        ageMonths = isNaN(parsed) ? undefined : parsed;
+      }
+      
+      // Parser le prix d'achat avec gestion des NaN
+      let purchasePrice: number | undefined = undefined;
+      if (row.purchase_price != null) {
+        const parsed = parseFloat(String(row.purchase_price));
+        purchasePrice = isNaN(parsed) ? undefined : parsed;
+      }
+      
+return {
         id: row.id,
         batch_id: row.batch_id,
         name: row.name || undefined,
         sex: row.sex,
         birth_date: row.birth_date || undefined,
-        age_months: row.age_months != null ? parseFloat(row.age_months) : undefined,
+        age_months: ageMonths,
         current_weight_kg: weight,
         origin: row.origin,
         origin_details: row.origin_details || undefined,
         supplier_name: row.supplier_name || undefined,
-        purchase_price: row.purchase_price
-          ? parseFloat(row.purchase_price)
-          : undefined,
+        purchase_price: purchasePrice,
         health_status: row.health_status || 'healthy',
         last_vaccination_date: row.last_vaccination_date || undefined,
         notes: row.notes || undefined,
@@ -107,10 +120,7 @@ export class BatchPigsService {
         updated_at: row.updated_at,
       };
     } catch (error) {
-      // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:88',message:'mapRowToPig: error',data:{rowId:row.id,errorMessage:error?.message,errorStack:error?.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
-      // #endregion
-      throw error;
+throw error;
     }
   }
 
@@ -334,46 +344,23 @@ export class BatchPigsService {
    * Obtenir tous les porcs d'une bande
    */
   async getPigsByBatch(batchId: string, userId: string): Promise<any[]> {
-    // #region agent log
-    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:309',message:'getPigsByBatch entry',data:{batchId,userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) {}
-    // #endregion
-    try {
+try {
       // Vérifier la propriété
       await this.checkBatchOwnership(batchId, userId);
-      // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:312',message:'getPigsByBatch: checkBatchOwnership OK',data:{batchId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) {}
-      // #endregion
-
-      const result = await this.db.query(
+const result = await this.db.query(
         'SELECT * FROM batch_pigs WHERE batch_id = $1 ORDER BY entry_date DESC',
         [batchId],
       );
-      // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:316',message:'getPigsByBatch: SQL query OK',data:{batchId,rowCount:result.rows.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
-      // #endregion
-
-      // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:318',message:'getPigsByBatch: before mapRowToPig',data:{batchId,rowCount:result.rows.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
-      // #endregion
-      const mapped = result.rows.map((row, index) => {
+const mapped = result.rows.map((row, index) => {
         try {
           return this.mapRowToPig(row);
         } catch (error) {
-          // #region agent log
-          try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:322',message:'getPigsByBatch: mapRowToPig error',data:{batchId,rowIndex:index,error:error?.message,rowData:{id:row.id,current_weight_kg:row.current_weight_kg,age_months:row.age_months}},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
-          // #endregion
-          throw error;
+throw error;
         }
       });
-      // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:330',message:'getPigsByBatch: mapping OK',data:{batchId,mappedCount:mapped.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
-      // #endregion
-      return mapped;
+return mapped;
     } catch (error) {
-      // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:333',message:'getPigsByBatch: error caught',data:{batchId,userId,errorMessage:error?.message,errorStack:error?.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})+'\n'); } catch(e) {}
-      // #endregion
-      throw error;
+throw error;
     }
   }
 
@@ -406,34 +393,105 @@ export class BatchPigsService {
   }
 
   /**
-   * Obtenir toutes les bandes d'un projet
+   * Génère le prochain nom de loge disponible pour un projet
+   * Format: A1, A2, ..., A8, B1, B2, ..., B8, etc.
    */
-  async getAllBatchesByProjet(projetId: string, userId: string): Promise<any[]> {
-    // #region agent log
-    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:411',message:'getAllBatchesByProjet entry',data:{projetId,userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
-    // #endregion
+  async getNextPenName(projetId: string, userId: string): Promise<string> {
     // Vérifier que le projet appartient à l'utilisateur
     await this.checkProjetOwnership(projetId, userId);
 
+    // Récupérer tous les noms de loges existants pour ce projet
     const result = await this.db.query(
-      'SELECT * FROM batches WHERE projet_id = $1 ORDER BY batch_creation_date DESC, created_at DESC',
+      'SELECT pen_name FROM batches WHERE projet_id = $1',
       [projetId],
     );
-    // #region agent log
-    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:416',message:'getAllBatchesByProjet: query result',data:{projetId,rowsCount:result.rows.length,rows:result.rows.map(r=>({id:r.id,pen_name:r.pen_name,category:r.category,total_count:r.total_count}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
-    // #endregion
+
+    const existingPenNames = new Set(
+      result.rows.map((row) => row.pen_name.trim().toUpperCase()),
+    );
+
+    const letterLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    const maxNumbersPerLetter = 8;
+
+    // Chercher le prochain nom disponible
+    for (let letterIndex = 0; letterIndex < letterLabels.length; letterIndex++) {
+      const letter = letterLabels[letterIndex];
+      for (let number = 1; number <= maxNumbersPerLetter; number++) {
+        const penName = `${letter}${number}`;
+        if (!existingPenNames.has(penName)) {
+          return penName;
+        }
+      }
+    }
+
+    // Si toutes les combinaisons A1-H8 sont prises, continuer avec I, J, etc.
+    let letterIndex = letterLabels.length;
+    let number = 1;
+    while (true) {
+      const letter = String.fromCharCode(65 + letterIndex); // A=65, B=66, etc.
+      const penName = `${letter}${number}`;
+      if (!existingPenNames.has(penName)) {
+        return penName;
+      }
+      number++;
+      if (number > maxNumbersPerLetter) {
+        number = 1;
+        letterIndex++;
+      }
+    }
+  }
+
+  /**
+   * Obtenir toutes les bandes d'un projet
+   */
+  async getAllBatchesByProjet(projetId: string, userId: string): Promise<any[]> {
+    // Vérifier que le projet appartient à l'utilisateur
+    await this.checkProjetOwnership(projetId, userId);
+
+    // IMPORTANT: on calcule les effectifs depuis batch_pigs pour éviter toute incohérence
+    // (ex: anciens projets affectés par un double comptage).
+    const result = await this.db.query(
+      `SELECT
+         b.*,
+         COALESCE(p.total_count, 0) AS total_count_calc,
+         COALESCE(p.male_count, 0) AS male_count_calc,
+         COALESCE(p.female_count, 0) AS female_count_calc,
+         COALESCE(p.castrated_count, 0) AS castrated_count_calc,
+         COALESCE(p.avg_weight_kg, b.average_weight_kg) AS average_weight_kg_calc,
+         COALESCE(p.avg_age_months, b.average_age_months) AS average_age_months_calc
+       FROM batches b
+       LEFT JOIN (
+         SELECT
+           batch_id,
+           COUNT(*)::int AS total_count,
+           COUNT(*) FILTER (WHERE sex = 'male')::int AS male_count,
+           COUNT(*) FILTER (WHERE sex = 'female')::int AS female_count,
+           COUNT(*) FILTER (WHERE sex = 'castrated')::int AS castrated_count,
+           COALESCE(AVG(current_weight_kg), 0) AS avg_weight_kg,
+           COALESCE(AVG(age_months), 0) AS avg_age_months
+         FROM batch_pigs
+         GROUP BY batch_id
+       ) p ON p.batch_id = b.id
+       WHERE b.projet_id = $1
+       ORDER BY b.batch_creation_date DESC, b.created_at DESC`,
+      [projetId],
+    );
 
     return result.rows.map((row) => ({
       id: row.id,
       projet_id: row.projet_id,
       pen_name: row.pen_name,
       category: row.category,
-      total_count: parseInt(row.total_count),
-      male_count: parseInt(row.male_count),
-      female_count: parseInt(row.female_count),
-      castrated_count: parseInt(row.castrated_count),
-      average_age_months: parseFloat(row.average_age_months),
-      average_weight_kg: parseFloat(row.average_weight_kg),
+      total_count: parseInt(row.total_count_calc),
+      male_count: parseInt(row.male_count_calc),
+      female_count: parseInt(row.female_count_calc),
+      castrated_count: parseInt(row.castrated_count_calc),
+      average_age_months: parseFloat(row.average_age_months_calc),
+      average_weight_kg: parseFloat(row.average_weight_kg_calc),
+      avg_daily_gain:
+        row.avg_daily_gain !== null && row.avg_daily_gain !== undefined
+          ? parseFloat(row.avg_daily_gain)
+          : 0.4,
       batch_creation_date: row.batch_creation_date,
       expected_sale_date: row.expected_sale_date || undefined,
       notes: row.notes || undefined,
@@ -486,36 +544,76 @@ export class BatchPigsService {
   }
 
   /**
+   * Met à jour les paramètres d'une bande (ex: GMQ)
+   */
+  async updateBatchSettings(
+    batchId: string,
+    dto: UpdateBatchSettingsDto,
+    userId: string,
+  ): Promise<any> {
+    await this.checkBatchOwnership(batchId, userId);
+
+    if (!dto || typeof dto.avg_daily_gain === 'undefined') {
+      throw new BadRequestException('Aucun paramètre à mettre à jour');
+    }
+
+    const normalizedGmq =
+      dto.avg_daily_gain !== undefined
+        ? Math.round(dto.avg_daily_gain * 1000) / 1000
+        : undefined;
+
+    if (normalizedGmq !== undefined && normalizedGmq < 0.01) {
+      throw new BadRequestException(
+        'Le GMQ doit être supérieur ou égal à 0.01 kg/jour',
+      );
+    }
+
+    const result = await this.db.query(
+      `UPDATE batches
+       SET avg_daily_gain = $1,
+           updated_at = NOW()
+       WHERE id = $2
+       RETURNING id, projet_id, pen_name, avg_daily_gain, updated_at`,
+      [normalizedGmq, batchId],
+    );
+
+    if (result.rows.length === 0) {
+      throw new NotFoundException('Bande non trouvée');
+    }
+
+    const row = result.rows[0];
+
+    return {
+      id: row.id,
+      projet_id: row.projet_id,
+      pen_name: row.pen_name,
+      avg_daily_gain:
+        row.avg_daily_gain !== null && row.avg_daily_gain !== undefined
+          ? parseFloat(row.avg_daily_gain)
+          : null,
+      updated_at: row.updated_at,
+    };
+  }
+
+  /**
    * Vérifie que le projet appartient à l'utilisateur
    */
   private async checkProjetOwnership(
     projetId: string,
     userId: string,
   ): Promise<void> {
-    // #region agent log
-    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:491',message:'checkProjetOwnership entry',data:{projetId,userId,projetIdType:typeof projetId,userIdType:typeof userId,projetIdLength:projetId?.length,userIdLength:userId?.length,projetIdJSON:JSON.stringify(projetId),userIdJSON:JSON.stringify(userId)},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})+'\n'); } catch(e) {}
-    // #endregion
-    const result = await this.db.query(
+const result = await this.db.query(
       'SELECT proprietaire_id FROM projets WHERE id = $1',
       [projetId],
     );
     if (result.rows.length === 0) {
-      // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:502',message:'checkProjetOwnership: projet introuvable',data:{projetId,userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'C'})+'\n'); } catch(e) {}
-      // #endregion
-      throw new NotFoundException('Projet non trouvé');
+throw new NotFoundException('Projet non trouvé');
     }
     const rawProprietaireId = result.rows[0].proprietaire_id;
     const proprietaireId = String(rawProprietaireId || '').trim();
     const normalizedUserId = String(userId || '').trim();
-    // #region agent log
-    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:496',message:'checkProjetOwnership: comparaison détaillée',data:{projetId,userId,rawProprietaireId,proprietaireId,normalizedUserId,proprietaireIdType:typeof proprietaireId,normalizedUserIdType:typeof normalizedUserId,areEqual:proprietaireId===normalizedUserId,proprietaireIdLength:proprietaireId?.length,normalizedUserIdLength:normalizedUserId?.length,proprietaireIdJSON:JSON.stringify(proprietaireId),normalizedUserIdJSON:JSON.stringify(normalizedUserId),proprietaireIdCharCodes:proprietaireId?.split('').map(c=>c.charCodeAt(0)),normalizedUserIdCharCodes:normalizedUserId?.split('').map(c=>c.charCodeAt(0))},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'B'})+'\n'); } catch(e) {}
-    // #endregion
-    if (proprietaireId !== normalizedUserId) {
-      // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:513',message:'checkProjetOwnership: accès refusé',data:{projetId,userId,proprietaireId,normalizedUserId,reason:'proprietaireId !== normalizedUserId',diffLength:Math.abs(proprietaireId.length-normalizedUserId.length)},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})+'\n'); } catch(e) {}
-      // #endregion
-      throw new ForbiddenException('Ce projet ne vous appartient pas');
+if (proprietaireId !== normalizedUserId) {
+throw new ForbiddenException('Ce projet ne vous appartient pas');
     }
   }
 
@@ -527,10 +625,7 @@ export class BatchPigsService {
     userId: string,
     skipOwnershipCheck: boolean = false,
   ): Promise<any> {
-    // #region agent log
-    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:504',message:'createBatchWithPigs entry',data:{projetId:dto.projet_id,penName:dto.pen_name,category:dto.category,population:dto.population,averageAge:dto.average_age_months,averageWeight:dto.average_weight_kg,skipOwnershipCheck},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
-    // #endregion
-    // Vérifier que le projet appartient à l'utilisateur (sauf si skipOwnershipCheck est true, pour éviter les problèmes de timing lors de la création initiale)
+// Vérifier que le projet appartient à l'utilisateur (sauf si skipOwnershipCheck est true, pour éviter les problèmes de timing lors de la création initiale)
     if (!skipOwnershipCheck) {
       await this.checkProjetOwnership(dto.projet_id, userId);
     }
@@ -541,11 +636,7 @@ export class BatchPigsService {
         dto.population.female_count +
         dto.population.castrated_count
       : 0;
-    // #region agent log
-    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:516',message:'createBatchWithPigs: totalCount calculé',data:{projetId:dto.projet_id,category:dto.category,totalCount,population:dto.population},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
-    // #endregion
-
-    // Validation : Si population fournie, âge et poids OBLIGATOIRES
+// Validation : Si population fournie, âge et poids OBLIGATOIRES
     if (totalCount > 0) {
       if (!dto.average_age_months || dto.average_age_months <= 0) {
         throw new BadRequestException(
@@ -563,6 +654,11 @@ export class BatchPigsService {
     const now = new Date().toISOString();
 
     // Créer la bande
+    // IMPORTANT:
+    // - Les tables batch_pigs ont des triggers qui maintiennent automatiquement
+    //   total_count/male_count/female_count/castrated_count et average_weight_kg.
+    // - Donc on initialise les compteurs à 0 pour éviter le double comptage
+    //   (sinon: insertion des porcs => triggers incrémentent une seconde fois).
     await this.db.query(
       `INSERT INTO batches (
         id, projet_id, pen_name, category, total_count, male_count, female_count,
@@ -574,10 +670,10 @@ export class BatchPigsService {
         dto.projet_id,
         dto.pen_name,
         dto.category,
-        totalCount,
-        dto.population?.male_count || 0,
-        dto.population?.female_count || 0,
-        dto.population?.castrated_count || 0,
+        0,
+        0,
+        0,
+        0,
         dto.average_age_months || 0,
         dto.average_weight_kg || 0,
         now.split('T')[0],
@@ -586,29 +682,16 @@ export class BatchPigsService {
         now,
       ],
     );
-    // #region agent log
-    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:558',message:'createBatchWithPigs: batch créé',data:{batchId,projetId:dto.projet_id,penName:dto.pen_name,category:dto.category,totalCount},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
-    // #endregion
-
-    // Si population fournie, créer les sujets individuels
+// Si population fournie, créer les sujets individuels
     if (totalCount > 0 && dto.population && dto.average_age_months && dto.average_weight_kg) {
-      // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:561',message:'createBatchWithPigs: création animaux',data:{batchId,population:dto.population,averageAge:dto.average_age_months,averageWeight:dto.average_weight_kg},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
-      // #endregion
-      await this.createIndividualPigs(
+await this.createIndividualPigs(
         batchId,
         dto.population,
         dto.average_age_months,
         dto.average_weight_kg,
       );
-      // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:568',message:'createBatchWithPigs: animaux créés',data:{batchId,population:dto.population},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
-      // #endregion
-    } else {
-      // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:570',message:'createBatchWithPigs: pas de création animaux',data:{batchId,totalCount,hasPopulation:!!dto.population,hasAge:!!dto.average_age_months,hasWeight:!!dto.average_weight_kg},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
-      // #endregion
-    }
+} else {
+}
 
     // Retourner la bande créée
     const result = await this.db.query('SELECT * FROM batches WHERE id = $1', [
@@ -685,10 +768,7 @@ export class BatchPigsService {
 
     // Insérer les porcs un par un (les triggers mettront à jour les compteurs)
     if (pigs.length > 0) {
-      // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:643',message:'createIndividualPigs: début insertion',data:{batchId,pigsCount:pigs.length,population},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
-      // #endregion
-      let insertedCount = 0;
+let insertedCount = 0;
       for (const pig of pigs) {
         try {
           await this.db.query(
@@ -733,16 +813,10 @@ export class BatchPigsService {
           );
           insertedCount++;
         } catch (error) {
-          // #region agent log
-          try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:675',message:'createIndividualPigs: erreur insertion porc',data:{batchId,pigId:pig.id,errorMessage:error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
-          // #endregion
-          throw error;
+throw error;
         }
       }
-      // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'batch-pigs.service.ts:680',message:'createIndividualPigs: insertion terminée',data:{batchId,insertedCount,expectedCount:pigs.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})+'\n'); } catch(e) {}
-      // #endregion
-    }
+}
   }
 
   /**

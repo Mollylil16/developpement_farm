@@ -168,15 +168,18 @@ export default function HomeView({
           <TouchableOpacity
             style={[styles.menuItem, { borderBottomColor: colors.border }]}
             onPress={() => {
-              navigation.navigate(SCREENS.REPORTS);
+              // Journal de connexion (historique auth) - demandé.
+              navigation.navigate(SCREENS.LOGIN_LOGS);
               onClose();
             }}
           >
             <Ionicons name="stats-chart-outline" size={24} color={colors.primary} />
             <View style={styles.menuItemContent}>
-              <Text style={[styles.menuItemTitle, { color: colors.text }]}>Mes statistiques</Text>
+              <Text style={[styles.menuItemTitle, { color: colors.text }]}>
+                Journal de connexion
+              </Text>
               <Text style={[styles.menuItemSubtitle, { color: colors.textSecondary }]}>
-                Voir mes rapports
+                Historique des connexions
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />

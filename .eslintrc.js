@@ -88,6 +88,7 @@ module.exports = {
   ignorePatterns: [
     'node_modules/',
     'admin-web/',
+    'developpement_farm/',
     '.expo/',
     'dist/',
     'coverage/',

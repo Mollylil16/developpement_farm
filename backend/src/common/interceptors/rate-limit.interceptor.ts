@@ -11,13 +11,10 @@ import {
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { Observable } from 'rxjs';
 import { Reflector } from '@nestjs/core';
-
-interface RateLimitConfig {
-  maxRequests: number;
-  windowMs: number; // Fenêtre de temps en millisecondes
-}
+import { RATE_LIMIT_KEY, RateLimitConfig } from '../decorators/rate-limit.decorator';
 
 interface RequestRecord {
   count: number;
@@ -37,35 +34,71 @@ export class RateLimitInterceptor implements NestInterceptor {
   constructor(private reflector: Reflector) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    const request = context.switchToHttp().getRequest();
-    const ip = request.ip || request.connection.remoteAddress || 'unknown';
+    if (process.env.DISABLE_RATE_LIMIT === 'true') {
+      return next.handle();
+    }
 
-    // Config personnalisée (peut être définie via un decorator)
-    const config = this.defaultConfig;
+    const request = context.switchToHttp().getRequest();
+    const response: Response | undefined = context.switchToHttp().getResponse();
+    const ip = request.ip || request.connection.remoteAddress || 'unknown';
+    const handler = context.getHandler();
+    const controller = context.getClass();
+
+    const handlerConfig = this.reflector.get<Partial<RateLimitConfig>>(RATE_LIMIT_KEY, handler);
+    const controllerConfig = this.reflector.get<Partial<RateLimitConfig>>(RATE_LIMIT_KEY, controller);
+
+    const mergedConfig: RateLimitConfig = {
+      maxRequests:
+        handlerConfig?.maxRequests ??
+        controllerConfig?.maxRequests ??
+        this.defaultConfig.maxRequests,
+      windowMs:
+        handlerConfig?.windowMs ??
+        controllerConfig?.windowMs ??
+        this.defaultConfig.windowMs,
+    };
+
+    // Clef unique par IP + handler pour ne pas partager les budgets entre endpoints
+    const key = `${ip}:${controller?.name || 'global'}:${handler?.name || 'handler'}:${mergedConfig.maxRequests}:${mergedConfig.windowMs}`;
 
     const now = Date.now();
-    const record = requestStore.get(ip);
+    let record = requestStore.get(key);
 
     if (!record || now > record.resetTime) {
       // Nouvelle fenêtre
-      requestStore.set(ip, {
+      record = {
         count: 1,
-        resetTime: now + config.windowMs,
-      });
+        resetTime: now + mergedConfig.windowMs,
+      };
+      requestStore.set(key, record);
     } else {
       // Incrémenter le compteur
       record.count++;
+      requestStore.set(key, record);
 
-      if (record.count > config.maxRequests) {
+      if (record.count > mergedConfig.maxRequests) {
+        const retryAfterSeconds = Math.ceil((record.resetTime - now) / 1000);
+        if (response) {
+          response.setHeader('Retry-After', retryAfterSeconds.toString());
+        }
         throw new HttpException(
           {
             message: 'Trop de requêtes. Veuillez réessayer plus tard.',
             statusCode: HttpStatus.TOO_MANY_REQUESTS,
-            retryAfter: Math.ceil((record.resetTime - now) / 1000), // secondes
+            retryAfter: retryAfterSeconds, // secondes
           },
           HttpStatus.TOO_MANY_REQUESTS
         );
       }
+    }
+
+    if (response) {
+      response.setHeader('X-RateLimit-Limit', mergedConfig.maxRequests.toString());
+      response.setHeader(
+        'X-RateLimit-Remaining',
+        Math.max(mergedConfig.maxRequests - record.count, 0).toString()
+      );
+      response.setHeader('X-RateLimit-Reset', record.resetTime.toString());
     }
 
     // Nettoyer les anciennes entrées (garbage collection simple)

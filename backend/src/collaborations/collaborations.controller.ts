@@ -43,10 +43,7 @@ export class CollaborationsController {
   @ApiQuery({ name: 'projet_id', required: true, description: 'ID du projet' })
   @ApiResponse({ status: 200, description: 'Liste des collaborateurs.' })
   async findAll(@Query('projet_id') projetId: string, @CurrentUser('id') userId: string) {
-    // #region agent log
-    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'collaborations.controller.ts:45',message:'findAll entry',data:{projetId,userId,projetIdType:typeof projetId,userIdType:typeof userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
-    // #endregion
-    return this.collaborationsService.findAll(projetId, userId);
+return this.collaborationsService.findAll(projetId, userId);
   }
 
   @Get('actuel')

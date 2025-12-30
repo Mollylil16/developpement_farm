@@ -3,7 +3,19 @@
  * Supporte plusieurs APIs : AssemblyAI, Google Speech-to-Text, OpenAI Whisper
  */
 
-// Note: Utilisation de require pour éviter les erreurs TypeScript avec expo-file-system
+// Lazy import pour éviter les erreurs si le module n'est pas disponible dans Expo Go
+let FileSystem: typeof import('expo-file-system') | null = null;
+
+async function loadFileSystem() {
+  if (!FileSystem) {
+    try {
+      FileSystem = await import('expo-file-system');
+    } catch (error) {
+      // Module non disponible, FileSystem restera null
+      console.warn('[SpeechTranscriptionService] expo-file-system non disponible:', error);
+    }
+  }
+}
 
 export type TranscriptionProvider = 'assemblyai' | 'google' | 'openai' | 'none';
 
@@ -255,8 +267,10 @@ export class SpeechTranscriptionService {
     try {
       // Si c'est une URI locale (file://)
       if (uri.startsWith('file://') || uri.startsWith('content://')) {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const FileSystem = require('expo-file-system');
+        await loadFileSystem();
+        if (!FileSystem) {
+          throw new Error('expo-file-system n\'est pas disponible. Veuillez créer un build de développement.');
+        }
         const base64 = await FileSystem.readAsStringAsync(uri, {
           encoding: FileSystem.EncodingType.Base64,
         });

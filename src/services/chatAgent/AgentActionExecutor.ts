@@ -22,6 +22,7 @@ import { ReproductionActions } from './actions/reproduction/ReproductionActions'
 import { MortaliteActions } from './actions/mortalite/MortaliteActions';
 import { FinanceGraphActions } from './actions/finance/FinanceGraphActions';
 import { BilanActions } from './actions/finance/BilanActions';
+import { BatchActions } from './actions/batch/BatchActions';
 import apiClient from '../api/apiClient';
 import { format } from 'date-fns';
 import { logger } from '../../utils/logger';
@@ -69,6 +70,16 @@ export class AgentActionExecutor {
         
         case 'get_dettes_en_cours':
           return await BilanActions.getDettesEnCours(action.params, context);
+        
+        // Gestion des loges (mode bande)
+        case 'creer_loge':
+          return await BatchActions.creerLoge(action.params, context);
+        
+        case 'deplacer_animaux':
+          return await BatchActions.deplacerAnimaux(action.params, context);
+        
+        case 'get_animaux_par_loge':
+          return await BatchActions.getAnimauxParLoge(action.params, context);
         
         // Production
         case 'create_pesee':
@@ -157,6 +168,37 @@ export class AgentActionExecutor {
         
         case 'analyze_causes_mortalite':
           return await MortaliteActions.analyzeCausesMortalite(action.params, context);
+        
+        // Action générique (questions d'identité, salutations, etc.)
+        case 'other':
+          const paramsTyped = action.params as Record<string, unknown>;
+          
+          // Gestion des salutations
+          if (paramsTyped.isGreeting) {
+            const userName = context.userName || 'ami';
+            const greetings = [
+              `Bonjour ${userName} ! 👋 Je suis Kouakou, ton assistant pour la gestion de ton élevage. Comment puis-je t'aider aujourd'hui ?`,
+              `Salut ${userName} ! 🐷 Je suis là pour t'aider. Que veux-tu faire ?`,
+              `Bonjour ! Je suis Kouakou, ton assistant élevage. Dis-moi ce dont tu as besoin !`,
+            ];
+            return {
+              success: true,
+              message: greetings[Math.floor(Math.random() * greetings.length)],
+            };
+          }
+          
+          // Si un message est fourni dans les params, l'utiliser
+          if (paramsTyped.message && typeof paramsTyped.message === 'string') {
+            return {
+              success: true,
+              message: paramsTyped.message,
+            };
+          }
+          // Sinon, message par défaut (questions d'identité)
+          return {
+            success: true,
+            message: 'Je suis Kouakou, ton assistant pour la gestion de ton élevage porcin ! Je suis là pour t\'aider avec tes porcs, tes finances, et répondre à tes questions sur l\'élevage.',
+          };
         
         default:
           return {

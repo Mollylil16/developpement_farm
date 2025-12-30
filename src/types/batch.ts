@@ -27,6 +27,7 @@ export interface Batch {
   // Caractéristiques moyennes
   average_age_months: number;
   average_weight_kg: number;
+  avg_daily_gain?: number;
 
   // Dates
   batch_creation_date: string;
@@ -87,4 +88,28 @@ export const BATCH_CATEGORY_ICONS: Record<BatchCategory, string> = {
   porcs_croissance: '🐽',
   porcs_engraissement: '🐖',
 };
+
+export interface BatchWeighingSummary {
+  id: string;
+  batch_id: string;
+  pen_name?: string;
+  weighing_date: string;
+  average_weight_kg: number;
+  min_weight_kg?: number | null;
+  max_weight_kg?: number | null;
+  count: number;
+  notes?: string | null;
+}
+
+export interface BatchWeighingDetail {
+  id: string;
+  pig_id: string;
+  weight_kg: number;
+  created_at: string;
+  pig_name?: string | null;
+  sex?: 'male' | 'female' | 'castrated' | string | null;
+  current_weight_kg?: number | null;
+  entry_date?: string | null;
+  batch_id?: string | null;
+}
 

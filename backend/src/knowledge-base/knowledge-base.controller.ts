@@ -39,9 +39,9 @@ export class KnowledgeBaseController {
     } catch (error) {
       // Fallback sur recherche simple si la fonction n'existe pas
       return await this.knowledgeService.searchSimple(
-        dto.query, 
-        dto.projet_id, 
-        dto.limit || 5
+        (dto as any).query,
+        (dto as any).projet_id,
+        (dto as any).limit || 5
       );
     }
   }

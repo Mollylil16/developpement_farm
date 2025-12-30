@@ -17,7 +17,6 @@ try {
   dotenv.config({ path: path.join(__dirname, '../.env') });
 } catch (e) {
   // dotenv n'est pas installé, utiliser les variables d'environnement du système
-  console.log('ℹ️  Utilisation des variables d\'environnement du système');
 }
 
 interface MarkdownFile {
@@ -42,15 +41,13 @@ function parseMarkdownFile(filePath: string): MarkdownFile | null {
     // Extraire le titre (première ligne #)
     const titleMatch = content.match(/^#\s+(.+)$/m);
     if (!titleMatch) {
-      console.warn(`⚠️  Pas de titre trouvé dans ${fileName}`);
       return null;
     }
     const title = titleMatch[1].trim();
-    
+
     // Extraire la catégorie (ligne **Catégorie:**)
     const categoryMatch = content.match(/\*\*Catégorie:\*\*\s*`?([^`\n]+)`?/);
     if (!categoryMatch) {
-      console.warn(`⚠️  Pas de catégorie trouvée dans ${fileName}`);
       return null;
     }
     const category = categoryMatch[1].trim();
@@ -91,7 +88,6 @@ function parseMarkdownFile(filePath: string): MarkdownFile | null {
       priority: Math.max(1, Math.min(10, priority)),
     };
   } catch (error) {
-    console.error(`❌ Erreur lors du parsing de ${filePath}:`, error);
     return null;
   }
 }
@@ -204,13 +200,10 @@ async function upsertKnowledge(
  * Fonction principale
  */
 async function main() {
-  console.log('🚀 Démarrage de l\'importation de la base de connaissances...\n');
-  
   // Chemin vers les fichiers Markdown
   const markdownDir = path.join(__dirname, '../../src/services/chatAgent/knowledge/markdown');
-  
+
   if (!fs.existsSync(markdownDir)) {
-    console.error(`❌ Le dossier ${markdownDir} n'existe pas !`);
     process.exit(1);
   }
   
@@ -221,66 +214,78 @@ async function main() {
     .map(file => path.join(markdownDir, file));
   
   if (files.length === 0) {
-    console.error(`❌ Aucun fichier Markdown trouvé dans ${markdownDir} !`);
     process.exit(1);
   }
-  
-  console.log(`📁 ${files.length} fichier(s) Markdown trouvé(s)\n`);
-  
+
   // Parser les fichiers
   const knowledgeItems: MarkdownFile[] = [];
   for (const file of files) {
     const parsed = parseMarkdownFile(file);
     if (parsed) {
       knowledgeItems.push(parsed);
-      console.log(`✅ Parsé: ${parsed.title} (${parsed.category})`);
     }
   }
-  
+
   if (knowledgeItems.length === 0) {
-    console.error('❌ Aucun fichier valide à importer !');
     process.exit(1);
   }
-  
-  console.log(`\n📊 ${knowledgeItems.length} fichier(s) valide(s) à importer\n`);
   
   // Se connecter à la base de données (avec retry SSL si nécessaire)
   let pool = createDatabasePool();
   let sslRetried = false;
-  
-  try {
-    // Tester la connexion
-    await pool.query('SELECT NOW()');
-    console.log('✅ Connexion à la base de données établie\n');
-  } catch (connError: any) {
-    // Si erreur SSL/TLS required et qu'on n'a pas encore essayé avec SSL, réessayer
-    if (connError.code === '28000' && connError.message?.includes('SSL/TLS required') && !sslRetried) {
-      console.log('⚠️  SSL requis détecté, nouvelle tentative avec SSL...\n');
-      await pool.end();
-      
-      // Forcer SSL
-      if (process.env.DATABASE_URL) {
-        // Ajouter sslmode=require à l'URL si pas déjà présent
-        const url = process.env.DATABASE_URL;
-        const newUrl = url.includes('sslmode=') ? url : url + (url.includes('?') ? '&' : '?') + 'sslmode=require';
-        process.env.DATABASE_URL = newUrl;
-      } else {
-        process.env.DB_SSL = 'true';
-      }
-      
-      pool = createDatabasePool();
-      sslRetried = true;
-      
+
+  const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  const isTransientDbError = (err: any): boolean => {
+    const code = err?.code || err?.errno;
+    return (
+      code === 'ECONNRESET' ||
+      code === 'ETIMEDOUT' ||
+      code === 'EPIPE' ||
+      code === 'ENOTFOUND' ||
+      code === 'ECONNREFUSED'
+    );
+  };
+
+  async function ensureConnected(maxAttempts: number = 5): Promise<void> {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         await pool.query('SELECT NOW()');
-        console.log('✅ Connexion à la base de données établie (avec SSL)\n');
-      } catch (retryError) {
-        throw retryError;
+        return;
+      } catch (connError: any) {
+        // SSL required case (retry once with ssl enforced)
+        if (
+          connError?.code === '28000' &&
+          connError?.message?.includes('SSL/TLS required') &&
+          !sslRetried
+        ) {
+          try { await pool.end(); } catch {}
+
+          if (process.env.DATABASE_URL) {
+            const url = process.env.DATABASE_URL;
+            const newUrl = url.includes('sslmode=') ? url : url + (url.includes('?') ? '&' : '?') + 'sslmode=require';
+            process.env.DATABASE_URL = newUrl;
+          } else {
+            process.env.DB_SSL = 'true';
+          }
+
+          pool = createDatabasePool();
+          sslRetried = true;
+          continue;
+        }
+
+        if (isTransientDbError(connError) && attempt < maxAttempts) {
+          try { await pool.end(); } catch {}
+          pool = createDatabasePool();
+          await sleep(attempt * 1000);
+          continue;
+        }
+
+        throw connError;
       }
-    } else {
-      throw connError;
     }
   }
+  
+  await ensureConnected();
   
   try {
     
@@ -291,34 +296,45 @@ async function main() {
     
     for (const knowledge of knowledgeItems) {
       try {
-        const result = await upsertKnowledge(pool, knowledge);
+        let result = await upsertKnowledge(pool, knowledge);
+        // Si la connexion se coupe en cours d'import, refaire une tentative rapide
+        // (utile avec DB distante qui ferme les connexions inactives)
+        if (!result) {
+          result = await upsertKnowledge(pool, knowledge);
+        }
         if (result.action === 'created') {
           created++;
-          console.log(`✅ Créé: ${knowledge.title}`);
         } else {
           updated++;
-          console.log(`🔄 Mis à jour: ${knowledge.title}`);
         }
-      } catch (error) {
+      } catch (error: any) {
+        if (isTransientDbError(error)) {
+          try {
+            try { await pool.end(); } catch {}
+            pool = createDatabasePool();
+            await ensureConnected(3);
+            const retryResult = await upsertKnowledge(pool, knowledge);
+            if (retryResult.action === 'created') {
+              created++;
+            } else {
+              updated++;
+            }
+            continue;
+          } catch (retryError) {
+            errors++;
+            continue;
+          }
+        }
         errors++;
-        console.error(`❌ Erreur lors de l'importation de ${knowledge.title}:`, error);
       }
     }
     
-    console.log('\n📈 Résumé de l\'importation:');
-    console.log(`   ✅ Créés: ${created}`);
-    console.log(`   🔄 Mis à jour: ${updated}`);
-    console.log(`   ❌ Erreurs: ${errors}`);
-    console.log(`   📊 Total: ${knowledgeItems.length}\n`);
-    
     if (errors === 0) {
-      console.log('🎉 Importation terminée avec succès !\n');
+      // Succès
     } else {
-      console.log('⚠️  Importation terminée avec des erreurs\n');
       process.exit(1);
     }
   } catch (error) {
-    console.error('❌ Erreur de connexion à la base de données:', error);
     process.exit(1);
   } finally {
     await pool.end();
@@ -328,7 +344,6 @@ async function main() {
 // Exécuter le script
 if (require.main === module) {
   main().catch((error) => {
-    console.error('❌ Erreur fatale:', error);
     process.exit(1);
   });
 }

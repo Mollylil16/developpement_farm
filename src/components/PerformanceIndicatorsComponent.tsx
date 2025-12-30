@@ -470,7 +470,7 @@ export default function PerformanceIndicatorsComponent() {
     if (!indicateursAffiches) return recs;
 
     // Recommandation sur le taux de mortalité
-    if (indicateursAffiches.taux_mortalite > 5) {
+    if (typeof indicateursAffiches.taux_mortalite === 'number' && indicateursAffiches.taux_mortalite > 5) {
       recs.push({
         id: 'rec_mortalite',
         type: 'avertissement',
@@ -483,18 +483,18 @@ export default function PerformanceIndicatorsComponent() {
     // Recommandation sur l'efficacité alimentaire
     // Note: L'efficacité alimentaire est maintenant en ratio (gain_poids / alimentation_consommee)
     // Une valeur < 0.25 indique une efficacité faible (IC > 4.0)
-    if (indicateursAffiches.efficacite_alimentaire < 0.25) {
+    if (typeof indicateursAffiches.efficacite_alimentaire === 'number' && indicateursAffiches.efficacite_alimentaire < 0.25) {
       recs.push({
         id: 'rec_efficacite',
         type: 'avertissement',
         titre: 'Efficacité alimentaire faible',
-        message: `L'efficacité alimentaire est de ${indicateursAffiches.efficacite_alimentaire.toFixed(2)} (IC: ${indicateursAffiches.indice_consommation?.toFixed(2) || 'N/A'}). Pensez à ajuster les rations.`,
+        message: `L'efficacité alimentaire est de ${indicateursAffiches.efficacite_alimentaire.toFixed(2)} (IC: ${typeof indicateursAffiches.indice_consommation === 'number' ? indicateursAffiches.indice_consommation.toFixed(2) : 'N/A'}). Pensez à ajuster les rations.`,
         action: 'Optimiser les rations dans le module Nutrition',
       });
     }
 
     // Recommandation sur le coût de production (si disponible)
-    if (indicateursAffiches.cout_production_kg && indicateursAffiches.cout_production_kg > 2000) {
+    if (typeof indicateursAffiches.cout_production_kg === 'number' && indicateursAffiches.cout_production_kg > 2000) {
       recs.push({
         id: 'rec_cout',
         type: 'information',
@@ -506,9 +506,9 @@ export default function PerformanceIndicatorsComponent() {
 
     // Recommandation positive si tout va bien
     if (
-      indicateursAffiches.taux_mortalite < 3 &&
-      indicateursAffiches.efficacite_alimentaire > 0.3 &&
-      (!indicateursAffiches.cout_production_kg || indicateursAffiches.cout_production_kg < 1500)
+      typeof indicateursAffiches.taux_mortalite === 'number' && indicateursAffiches.taux_mortalite < 3 &&
+      typeof indicateursAffiches.efficacite_alimentaire === 'number' && indicateursAffiches.efficacite_alimentaire > 0.3 &&
+      (!indicateursAffiches.cout_production_kg || typeof indicateursAffiches.cout_production_kg === 'number' && indicateursAffiches.cout_production_kg < 1500)
     ) {
       recs.push({
         id: 'rec_succes',
@@ -779,30 +779,32 @@ export default function PerformanceIndicatorsComponent() {
             {/* Indicateurs principaux */}
             <View style={styles.statsContainer}>
               <StatCard
-                value={indicateursAffiches.taux_mortalite.toFixed(1)}
+                value={typeof indicateursAffiches.taux_mortalite === 'number' ? indicateursAffiches.taux_mortalite.toFixed(1) : 'N/A'}
                 label="Taux de mortalité"
                 unit="%"
-                valueColor={indicateursAffiches.taux_mortalite > 5 ? colors.error : colors.success}
+                valueColor={typeof indicateursAffiches.taux_mortalite === 'number' && indicateursAffiches.taux_mortalite > 5 ? colors.error : colors.success}
               />
               <StatCard
-                value={indicateursAffiches.taux_croissance.toFixed(1)}
+                value={typeof indicateursAffiches.taux_croissance === 'number' ? indicateursAffiches.taux_croissance.toFixed(1) : 'N/A'}
                 label="Taux de croissance"
                 unit="%"
                 valueColor={colors.primary}
               />
               <StatCard
-                value={indicateursAffiches.efficacite_alimentaire.toFixed(3)}
+                value={typeof indicateursAffiches.efficacite_alimentaire === 'number' ? indicateursAffiches.efficacite_alimentaire.toFixed(3) : 'N/A'}
                 label={
-                  indicateursAffiches.indice_consommation
+                  typeof indicateursAffiches.indice_consommation === 'number'
                     ? `Efficacité (IC: ${indicateursAffiches.indice_consommation.toFixed(2)})`
                     : 'Efficacité alimentaire'
                 }
                 valueColor={
-                  indicateursAffiches.efficacite_alimentaire > 0.3
-                    ? colors.success
-                    : indicateursAffiches.efficacite_alimentaire > 0.25
-                      ? colors.warning
-                      : colors.error
+                  typeof indicateursAffiches.efficacite_alimentaire === 'number'
+                    ? indicateursAffiches.efficacite_alimentaire > 0.3
+                      ? colors.success
+                      : indicateursAffiches.efficacite_alimentaire > 0.25
+                        ? colors.warning
+                        : colors.error
+                    : colors.textSecondary
                 }
               />
             </View>
@@ -888,8 +890,8 @@ export default function PerformanceIndicatorsComponent() {
                         },
                       ]}
                     >
-                      ({performanceGlobale.ecart_pourcentage >= 0 ? '+' : null}
-                      {performanceGlobale.ecart_pourcentage.toFixed(1)}%)
+                      ({typeof performanceGlobale.ecart_pourcentage === 'number' && performanceGlobale.ecart_pourcentage >= 0 ? '+' : null}
+                      {typeof performanceGlobale.ecart_pourcentage === 'number' ? performanceGlobale.ecart_pourcentage.toFixed(1) : 'N/A'}%)
                     </Text>
                   </View>
                   <View
@@ -949,7 +951,7 @@ export default function PerformanceIndicatorsComponent() {
                   Poids total:
                 </Text>
                 <Text style={[styles.detailValue, { color: colors.text }]}>
-                  {indicateursAffiches.poids_total.toFixed(1)} kg
+                  {typeof indicateursAffiches.poids_total === 'number' ? indicateursAffiches.poids_total.toFixed(1) : 'N/A'} kg
                 </Text>
               </View>
             </View>

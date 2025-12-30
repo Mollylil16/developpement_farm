@@ -2,7 +2,7 @@
  * Widget Vue d'Ensemble - Grand widget avec stats principales
  */
 
-import React, { useMemo, memo } from 'react';
+import React, { useMemo, memo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppSelector } from '../store/hooks';
 import { useLoadAnimauxOnMount } from '../hooks/useLoadAnimauxOnMount';
@@ -10,6 +10,9 @@ import { selectAllAnimaux, selectProductionUpdateCounter } from '../store/select
 import { countAnimalsByCategory } from '../utils/animalUtils';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import apiClient from '../services/api/apiClient';
+import { Batch } from '../types/batch';
+import { logger } from '../utils/logger';
 
 interface WidgetVueEnsembleProps {
   onPress?: () => void;
@@ -23,17 +26,76 @@ function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
   const { indicateursPerformance } = useAppSelector((state) => state.reports);
   const animaux = useAppSelector(selectAllAnimaux);
   const updateCounter = useAppSelector(selectProductionUpdateCounter);
+  const [batchOverview, setBatchOverview] = useState<{
+    total: number;
+    byCategory: Record<string, number>;
+  } | null>(null);
 
   // Charger les animaux au montage (hook centralisé)
   useLoadAnimauxOnMount();
 
-  // Calculer le comptage depuis le cheptel (animaux actifs)
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchBatchStats = async () => {
+      if (!projetActif?.id || projetActif.management_method !== 'batch') {
+        setBatchOverview(null);
+        return;
+      }
+
+      try {
+        const data = await apiClient.get<Batch[]>(`/batch-pigs/projet/${projetActif.id}`);
+        if (cancelled) return;
+
+        const stats = data.reduce(
+          (acc, batch) => {
+            acc.total += batch.total_count;
+            acc.byCategory[batch.category] =
+              (acc.byCategory[batch.category] || 0) + batch.total_count;
+            return acc;
+          },
+          { total: 0, byCategory: {} as Record<string, number> },
+        );
+
+        setBatchOverview(stats);
+      } catch (error) {
+        if (!cancelled) {
+          setBatchOverview(null);
+          logger.warn('[WidgetVueEnsemble] impossible de charger les stats batch', error);
+        }
+      }
+    };
+
+    fetchBatchStats();
+    return () => {
+      cancelled = true;
+    };
+  }, [projetActif?.id, projetActif?.management_method]);
+
+  // Calculer le comptage depuis le cheptel (animaux actifs ou loges batch)
   const comptageAnimaux = useMemo(() => {
+    if (projetActif?.management_method === 'batch') {
+      return {
+        truies: batchOverview?.byCategory?.truie_reproductrice || 0,
+        verrats: batchOverview?.byCategory?.verrat_reproducteur || 0,
+        porcelets:
+          (batchOverview?.byCategory?.porcelets || 0) +
+          (batchOverview?.byCategory?.porcs_croissance || 0) +
+          (batchOverview?.byCategory?.porcs_engraissement || 0),
+      };
+    }
+
     const animauxActifs = animaux.filter(
-      (a) => a.projet_id === projetActif?.id && a.statut?.toLowerCase() === 'actif'
+      (a) => a.projet_id === projetActif?.id && a.statut?.toLowerCase() === 'actif',
     );
     return countAnimalsByCategory(animauxActifs);
-  }, [animaux, projetActif?.id, updateCounter]); // Forcer la mise à jour quand les animaux changent
+  }, [
+    animaux,
+    projetActif?.id,
+    projetActif?.management_method,
+    updateCounter,
+    batchOverview,
+  ]); // Forcer la mise à jour quand les animaux ou les loges changent
 
   // Calculer les alertes (mises bas prévues dans les 7 prochains jours)
   const alertesMisesBas = useMemo(() => {

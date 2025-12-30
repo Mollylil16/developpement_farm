@@ -32,8 +32,25 @@ export class FastPathDetector {
       .replace(/[\u0300-\u036f]/g, '')
       .trim();
 
+    // 0. SALUTATIONS - "bonjour", "salut", "bonsoir", "hello", "coucou"
+    // Répondre poliment aux salutations (action "other" avec réponse conversationnelle)
+    if (normalized.match(/^(?:bonjour|salut|bonsoir|hello|coucou|hey|hi|yo)\b/i)) {
+      return {
+        intent: {
+          action: 'other' as AgentActionType,
+          confidence: 1.0,
+          params: { isGreeting: true },
+        },
+        confidence: 1.0,
+      };
+    }
+
     // 1. DÉPENSE - Mots-clés forts : "dépense", "dep", "j'ai dépensé", "j'ai acheté", "claqué", "bouffe", etc.
+    // IMPORTANT: Exclure les REQUÊTES d'information (mots-clés de requête)
+    const isQueryRequest = normalized.match(/\b(?:du mois|en cours|ce mois|total|combien|quel est|mes depenses|bilan|cout|recap)\b/i);
+    
     if (
+      !isQueryRequest && // Ne PAS traiter comme create_depense si c'est une requête
       normalized.match(
         /\b(?:depense|dep|depenses|j'ai depense|j'ai achete|achete|paye|claque|bouffe|aliment|provende|medicament|medoc|veto|veterinaire)\b/i
       )
@@ -149,8 +166,13 @@ export class FastPathDetector {
       };
     }
 
-    // 7. COÛTS - Mots-clés forts : "coût", "dépense totale", "mes dépenses"
-    if (normalized.match(/\b(?:cout|couts|depense totale|mes depenses|combien j'ai depense)\b/i)) {
+    // 7. COÛTS / REQUÊTES D'INFORMATION SUR LES DÉPENSES
+    // Amélioré pour capturer: "dépenses du mois", "total des dépenses", "mes dépenses", "en cours"
+    if (
+      normalized.match(/\b(?:cout|couts|depense totale|mes depenses|combien j'ai depense)\b/i) ||
+      normalized.match(/\b(?:depenses?)\b.*\b(?:du mois|en cours|ce mois|total|combien|quel est)\b/i) ||
+      normalized.match(/\b(?:total|quel est|combien)\b.*\b(?:depenses?)\b/i)
+    ) {
       return {
         intent: {
           action: 'calculate_costs' as AgentActionType,
@@ -161,15 +183,32 @@ export class FastPathDetector {
       };
     }
 
-    // 8. QUESTIONS DE FORMATION - Détection des questions éducatives
+    // 8. QUESTIONS D'IDENTITÉ - Détection des questions sur Kouakou
+    // Note: keep this broad because "other" is the safe response path.
+    if (
+      normalized.match(
+        /\b(?:qui es[- ]tu|qui es tu|tu es qui|c'?est quoi ton nom|quel est ton nom|ton nom|comment tu t'appelles|tu t'appelles comment|comment tu te nommes|tu te nommes comment|quel est ton prenom|ton prenom|c'?est quoi ton prenom|t'?appelles comment)\b/i
+      )
+    ) {
+      return {
+        intent: {
+          action: 'other' as AgentActionType,
+          confidence: 1.0,
+          params: {},
+        },
+        confidence: 1.0,
+      };
+    }
+
+    // 9. QUESTIONS DE FORMATION - Détection des questions éducatives
     const knowledgePatterns = [
-      // Questions génériques
-      { pattern: /\b(?:c'est quoi|qu'est[- ]ce que|qu'est ce qu'un|c est quoi)\b/i, topic: null },
+      // Questions génériques (améliorées pour capturer "est quoi", "c'est quoi", etc.)
+      { pattern: /\b(?:c'est quoi|qu'est[- ]ce que|qu'est ce qu'un|c est quoi|est quoi|qu'?est[- ]ce qu'?un)\b/i, topic: null },
       { pattern: /\b(?:explique|explique[- ]moi|apprends[- ]moi)\b/i, topic: null },
       { pattern: /\b(?:comment|pourquoi|difference entre)\b/i, topic: null },
       { pattern: /\b(?:conseils?|recommandations?|avantages?|inconvenients?)\b/i, topic: null },
       
-      // Types d'élevage
+      // Types d'élevage (amélioré pour capturer "naisseur" seul)
       { pattern: /\b(?:naisseur|engraisseur|cycle complet|charcuterie|types? d'?elevage)\b/i, topic: 'types_elevage' },
       
       // Races
@@ -180,9 +219,10 @@ export class FastPathDetector {
       { pattern: /\b(?:comment nourrir|alimentation|ration|indice de consommation|fabriquer son aliment)\b/i, topic: 'alimentation' },
       { pattern: /\b(?:combien coute l'?alimentation|cout alimentation)\b/i, topic: 'alimentation' },
       
-      // Santé
+      // Santé (amélioré pour capturer "gestation", "temps de gestation", etc.)
       { pattern: /\b(?:comment vacciner|calendrier vaccination|maladies? des porcs|prophylaxie|biosecurite)\b/i, topic: 'sante' },
       { pattern: /\b(?:peste porcine|rouget|parasitage)\b/i, topic: 'sante' },
+      { pattern: /\b(?:gestation|temps de gestation|duree de gestation|duree gestation|combien de temps gestation|combien de jours gestation)\b/i, topic: 'sante' },
       
       // Finance
       { pattern: /\b(?:rentabilite|combien gagner|marge par porc|investissement initial|seuil de rentabilite)\b/i, topic: 'finance' },

@@ -39,5 +39,14 @@ export class BatchWeighingController {
   ) {
     return await this.weighingService.getWeighingHistory(batchId, user.id);
   }
+
+  @Get(':weighingId/details')
+  @ApiOperation({ summary: 'Détails complets d\'une pesée collective' })
+  async getWeighingDetails(
+    @Param('weighingId') weighingId: string,
+    @CurrentUser() user: any,
+  ) {
+    return await this.weighingService.getWeighingDetails(weighingId, user.id);
+  }
 }
 

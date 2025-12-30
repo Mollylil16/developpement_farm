@@ -10,6 +10,19 @@ import { CategoryNormalizer } from '../../core/extractors/CategoryNormalizer';
 import apiClient from '../../../api/apiClient';
 
 export class DepenseActions {
+  private static readonly BACKEND_CATEGORIES = new Set([
+    'vaccins',
+    'medicaments',
+    'alimentation',
+    'veterinaire',
+    'entretien',
+    'equipements',
+    'amenagement_batiment',
+    'equipement_lourd',
+    'achat_sujet',
+    'autre',
+  ]);
+
   /**
    * Crée une dépense
    */
@@ -56,7 +69,7 @@ export class DepenseActions {
 
     // Mapper les catégories depuis le langage naturel
     const categoryNormalizer = new CategoryNormalizer();
-    const categorie = categoryNormalizer.normalize(
+    const normalizedCategory = categoryNormalizer.normalize(
       (paramsTyped.categorie && typeof paramsTyped.categorie === 'string'
         ? paramsTyped.categorie
         : undefined) ||
@@ -65,40 +78,67 @@ export class DepenseActions {
       false
     );
 
+    // Adapter au backend (enum strict). Si la catégorie n'est pas supportée côté backend,
+    // on bascule en "autre" et on conserve l'étiquette utilisateur.
+    const categorie =
+      normalizedCategory && this.BACKEND_CATEGORIES.has(normalizedCategory)
+        ? normalizedCategory
+        : 'autre';
+
+    const libelleCategorieFromUser =
+      (paramsTyped.libelle && typeof paramsTyped.libelle === 'string'
+        ? paramsTyped.libelle
+        : undefined) ||
+      (paramsTyped.description && typeof paramsTyped.description === 'string'
+        ? paramsTyped.description
+        : undefined) ||
+      // Si on a normalisé vers une catégorie non supportée backend (ex: "salaires"),
+      // on garde cette info en libellé.
+      (normalizedCategory && !this.BACKEND_CATEGORIES.has(normalizedCategory)
+        ? String(normalizedCategory)
+        : undefined);
+
     // Créer la dépense via l'API backend
-    const depense = await apiClient.post<any>('/finance/depenses-ponctuelles', {
-      projet_id: context.projetId,
-      montant,
-      type_depense: categorie || 'autre',
-      libelle_categorie:
-        (paramsTyped.libelle && typeof paramsTyped.libelle === 'string'
-          ? paramsTyped.libelle
-          : undefined) ||
-        (paramsTyped.description && typeof paramsTyped.description === 'string'
-          ? paramsTyped.description
-          : undefined),
-      date:
-        (paramsTyped.date && typeof paramsTyped.date === 'string'
-          ? paramsTyped.date
-          : new Date().toISOString().split('T')[0]) || new Date().toISOString().split('T')[0],
-      commentaire:
-        paramsTyped.commentaire && typeof paramsTyped.commentaire === 'string'
-          ? paramsTyped.commentaire
-          : undefined,
-    });
+    try {
+      const depense = await apiClient.post<any>('/finance/depenses-ponctuelles', {
+        projet_id: context.projetId,
+        montant,
+        categorie,
+        libelle_categorie: categorie === 'autre' ? libelleCategorieFromUser : undefined,
+        date:
+          (paramsTyped.date && typeof paramsTyped.date === 'string'
+            ? paramsTyped.date
+            : new Date().toISOString().split('T')[0]) || new Date().toISOString().split('T')[0],
+        commentaire:
+          paramsTyped.commentaire && typeof paramsTyped.commentaire === 'string'
+            ? paramsTyped.commentaire
+            : undefined,
+      });
 
-    const categoryLabel = this.getCategorieLabel(categorie || 'autre');
-    const message = `Enregistré ! Dépense de ${montant.toLocaleString('fr-FR')} FCFA en ${categoryLabel} le ${format(new Date(depense.date), 'dd/MM/yyyy')}.`;
+      // Vérifier que la dépense a bien été créée
+      if (!depense || !depense.id) {
+        throw new Error('La dépense n\'a pas été créée correctement. Veuillez réessayer.');
+      }
 
-    return {
-      success: true,
-      data: depense,
-      message,
-    };
+      const categoryLabel = this.getCategorieLabel(categorie || 'autre');
+      const message = `C'est enregistré, mon frère ! Dépense de ${montant.toLocaleString('fr-FR')} FCFA en ${categoryLabel}.`;
+
+      return {
+        success: true,
+        data: depense,
+        message: `${message} Tu peux la voir dans le menu Dépenses.`,
+      };
+    } catch (error: any) {
+      // Extraire le message d'erreur
+      const errorMessage = error?.message || error?.errorData?.message || 'Erreur lors de la création de la dépense';
+      
+      throw new Error(`Impossible de créer la dépense : ${errorMessage}`);
+    }
   }
 
   /**
    * Parse un montant depuis différents formats
+   * Supporte : "500000", "500 000", "500,000", "500.000" (format milliers)
    */
   private static parseMontant(value: string | number): number {
     if (typeof value === 'number') {
@@ -109,14 +149,43 @@ export class DepenseActions {
       return NaN;
     }
 
-    // Retirer tous les caractères non numériques sauf les chiffres, espaces, virgules et points
-    const cleaned = value
+    let cleaned = value
       .replace(/[^\d\s,.]/g, '') // Retirer tout sauf chiffres, espaces, virgules, points
-      .replace(/\s/g, '') // Retirer les espaces
-      .replace(/,/g, '.'); // Remplacer virgule par point
+      .replace(/\s/g, ''); // Retirer les espaces
 
-    const parsed = parseFloat(cleaned);
-    return isNaN(parsed) ? NaN : parsed;
+    // Détecter si c'est un format décimal ou un séparateur de milliers
+    const hasDecimalSeparator = /[.,]/.test(cleaned);
+    
+    if (hasDecimalSeparator) {
+      const parts = cleaned.split(/[.,]/);
+      
+      if (parts.length === 2) {
+        const beforeSeparator = parts[0];
+        const afterSeparator = parts[1];
+        
+        // Si après le séparateur il y a exactement 3 chiffres, c'est un séparateur de milliers
+        // Ex: "500.000" → 500000
+        if (afterSeparator.length === 3 && /^\d{3}$/.test(afterSeparator)) {
+          cleaned = beforeSeparator + afterSeparator;
+          const parsed = parseInt(cleaned, 10);
+          return isNaN(parsed) ? NaN : parsed;
+        } else {
+          // Format décimal : remplacer virgule par point
+          cleaned = cleaned.replace(',', '.');
+          const parsed = parseFloat(cleaned);
+          return isNaN(parsed) ? NaN : parsed;
+        }
+      } else {
+        // Plusieurs séparateurs : séparateurs de milliers
+        cleaned = cleaned.replace(/[.,]/g, '');
+        const parsed = parseInt(cleaned, 10);
+        return isNaN(parsed) ? NaN : parsed;
+      }
+    } else {
+      // Pas de séparateur : nombre entier
+      const parsed = parseInt(cleaned, 10);
+      return isNaN(parsed) ? NaN : parsed;
+    }
   }
 
   /**

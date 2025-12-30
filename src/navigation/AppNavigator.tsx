@@ -22,7 +22,7 @@ import { useRolePermissions } from '../hooks/useRolePermissions';
 import LoadingSpinner from '../components/LoadingSpinner';
 import NotificationsManager from '../components/NotificationsManager';
 // Import direct des écrans (React.lazy() n'est pas supporté par React Native)
-import * as LazyScreens from './lazyScreens';
+import * as LazyScreens from './LazyScreens';
 
 import { COLORS } from '../constants/theme';
 import { logger } from '../utils/logger';
@@ -528,6 +528,9 @@ export default function AppNavigator() {
         <Stack.Screen name={SCREENS.PROFIL}>{() => <LazyScreens.ProfilScreen />}</Stack.Screen>
         <Stack.Screen name={SCREENS.DOCUMENTS}>
           {() => <LazyScreens.DocumentsScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.LOGIN_LOGS}>
+          {() => <LazyScreens.LoginLogsScreen />}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.ADMIN} options={{ headerShown: false }}>
           {() => <LazyScreens.AdminScreen />}

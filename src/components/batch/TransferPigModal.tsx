@@ -57,9 +57,13 @@ export default function TransferPigModal({
       const pigsData = await apiClient.get(`/batch-pigs/batch/${batch.id}`);
       setPigs(pigsData);
 
-      // TODO: Charger toutes les bandes (besoin d'un endpoint GET /batches)
-      // Pour l'instant, on utilise une liste vide
-      setBatches([]);
+      // Charger toutes les bandes du projet (exclure la bande actuelle)
+      const allBatches = await apiClient.get<Batch[]>(
+        `/batch-pigs/projet/${batch.projet_id}`
+      );
+      // Filtrer pour exclure la bande actuelle
+      const otherBatches = allBatches.filter((b) => b.id !== batch.id);
+      setBatches(otherBatches);
     } catch (error: any) {
       Alert.alert('Erreur', "Impossible de charger les données");
     } finally {

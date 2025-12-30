@@ -10,6 +10,7 @@ import {
   HttpCode,
   HttpStatus,
   Query,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { ReportsService } from './reports.service';
@@ -104,7 +105,16 @@ export class ReportsController {
     @Query('periode_jours') periodeJours?: string,
     @CurrentUser('id') userId?: string
   ) {
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+    if (!projetId) {
+      throw new BadRequestException('Project ID is required');
+    }
     const periode = periodeJours ? parseInt(periodeJours, 10) : 30;
+    if (isNaN(periode) || periode <= 0) {
+      throw new BadRequestException('periode_jours must be a positive number');
+    }
     return this.reportsService.calculerIndicateursPerformance(projetId, userId, periode);
   }
 
@@ -127,9 +137,18 @@ export class ReportsController {
     @Query('projet_id') projetId: string,
     @CurrentUser('id') userId: string
   ) {
-    // #region agent log
-    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'reports.controller.ts:126',message:'calculerPerformanceGlobale entry',data:{projetId,userId,projetIdType:typeof projetId,userIdType:typeof userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
-    // #endregion
-    return this.reportsService.calculerPerformanceGlobale(projetId, userId);
+    const result = await this.reportsService.calculerPerformanceGlobale(projetId, userId);
+
+    // IMPORTANT: Toujours renvoyer un JSON objet (évite réponses vides / parse errors côté mobile)
+    if (result === null) {
+      return {
+        available: false,
+        reason: 'not_enough_data',
+        message: "Pas assez de données pour calculer la performance globale (aucune vente 'vente_porc').",
+        data: null,
+      };
+    }
+
+    return { available: true, data: result };
   }
 }

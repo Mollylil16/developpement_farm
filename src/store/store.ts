@@ -19,6 +19,7 @@ import stocksReducer from './slices/stocksSlice';
 import productionReducer from './slices/productionSlice';
 import santeReducer from './slices/santeSlice';
 import marketplaceReducer from './slices/marketplaceSlice';
+import { authMiddleware } from './middleware/authMiddleware';
 
 // Transform pour auth: exclure isLoading et error (données temporaires) - Phase 3
 const authTransform = createTransform(
@@ -103,7 +104,7 @@ export const store = configureStore({
       serializableCheck: {
         ignoredActions: ['persist/PERSIST', 'persist/REHYDRATE'],
       },
-    }),
+    }).concat(authMiddleware),
 });
 
 export const persistor = persistStore(store);

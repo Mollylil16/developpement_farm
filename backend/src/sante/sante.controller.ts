@@ -111,9 +111,6 @@ export class SanteController {
     @Query('projet_id') projetId: string,
     @CurrentUser('id') userId: string
   ) {
-    // #region agent log
-    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'sante.controller.ts:110',message:'findAllVaccinations entry',data:{projetId,userId,projetIdType:typeof projetId,userIdType:typeof userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
-    // #endregion
     return this.santeService.findAllVaccinations(projetId, userId);
   }
 
@@ -186,9 +183,6 @@ export class SanteController {
   @ApiQuery({ name: 'projet_id', required: true, description: 'ID du projet' })
   @ApiResponse({ status: 200, description: 'Liste des maladies.' })
   async findAllMaladies(@Query('projet_id') projetId: string, @CurrentUser('id') userId: string) {
-    // #region agent log
-    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'sante.controller.ts:185',message:'findAllMaladies entry',data:{projetId,userId,projetIdType:typeof projetId,userIdType:typeof userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})+'\n'); } catch(e) {}
-    // #endregion
     return this.santeService.findAllMaladies(projetId, userId);
   }
 
@@ -253,7 +247,7 @@ export class SanteController {
     @Query('projet_id') projetId: string,
     @CurrentUser('id') userId: string
   ) {
-    return this.santeService.findAllTraitements(projetId, userId);
+    return await this.santeService.findAllTraitements(projetId, userId);
   }
 
   @Get('traitements/en-cours')

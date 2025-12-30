@@ -3,14 +3,30 @@
  * Avec support temps réel (polling ou WebSocket)
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import { useAppSelector } from '../store/hooks';
-import apiClient from '../services/api/apiClient';
+import apiClient, { isRefreshInProgress, waitForActiveRefresh } from '../services/api/apiClient';
 import type { Notification } from '../types/marketplace';
 import { logger } from '../utils/logger';
 
-export function useMarketplaceNotifications() {
-  const { projetActif } = useAppSelector((state) => state.projet);
+const DEFAULT_POLLING_INTERVAL_MS = 60_000; // 1 minute
+
+interface UseMarketplaceNotificationsOptions {
+  enabled?: boolean;
+  pollIntervalMs?: number;
+  respectAppState?: boolean;
+}
+
+export function useMarketplaceNotifications(
+  options: UseMarketplaceNotificationsOptions = {}
+) {
+  const {
+    enabled = true,
+    pollIntervalMs = DEFAULT_POLLING_INTERVAL_MS,
+    respectAppState = true,
+  } = options;
+  const projetActifId = useAppSelector((state) => state.projet.projetActif?.id);
   const currentUserId = useAppSelector((state) => state.auth.user?.id);
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -18,40 +34,69 @@ export function useMarketplaceNotifications() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const isFetchingRef = useRef(false);
+  const [isAppActive, setIsAppActive] = useState(AppState.currentState === 'active');
+  const effectiveEnabled = enabled && (!respectAppState || isAppActive);
+
   /**
    * Charger les notifications
    */
-  const loadNotifications = useCallback(async () => {
-    if (!currentUserId) {
-      setLoading(false);
-      return;
-    }
+  const loadNotifications = useCallback(
+    async (options: { silent?: boolean } = {}) => {
+      const { silent = false } = options;
 
-    try {
-      setLoading(true);
-      setError(null);
+      if (!effectiveEnabled || !currentUserId || !projetActifId) {
+        if (!silent) {
+          setLoading(false);
+        }
+        return;
+      }
 
-      // Charger les notifications de l'utilisateur depuis l'API backend
-      const allNotifications = await apiClient.get<any[]>('/marketplace/notifications');
+      if (isFetchingRef.current && silent) {
+        return;
+      }
 
-      // Trier par date (plus récent en premier)
-      const sortedNotifications = allNotifications.sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
+      isFetchingRef.current = true;
 
-      setNotifications(sortedNotifications);
+      try {
+        if (!silent) {
+          setLoading(true);
+          setError(null);
+        }
 
-      // Compter les non lues
-      const unread = sortedNotifications.filter((n) => !n.read).length;
-      setUnreadCount(unread);
-    } catch (err: unknown) {
-      logger.error('Erreur chargement notifications:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Impossible de charger les notifications';
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentUserId]);
+        if (isRefreshInProgress()) {
+          await waitForActiveRefresh(7000);
+        }
+
+        // Charger les notifications de l'utilisateur depuis l'API backend
+        const allNotifications = await apiClient.get<any[]>('/marketplace/notifications');
+
+        // Trier par date (plus récent en premier)
+        const sortedNotifications = allNotifications.sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+
+        setNotifications(sortedNotifications);
+
+        // Compter les non lues
+        const unread = sortedNotifications.filter((n) => !n.read).length;
+        setUnreadCount(unread);
+      } catch (err: unknown) {
+        logger.error('Erreur chargement notifications:', err);
+        if (!silent) {
+          const errorMessage =
+            err instanceof Error ? err.message : 'Impossible de charger les notifications';
+          setError(errorMessage);
+        }
+      } finally {
+        if (!silent) {
+          setLoading(false);
+        }
+        isFetchingRef.current = false;
+      }
+    },
+    [currentUserId, projetActifId, effectiveEnabled]
+  );
 
   /**
    * Marquer une notification comme lue
@@ -127,19 +172,37 @@ export function useMarketplaceNotifications() {
 
   // Charger au montage
   useEffect(() => {
+    if (!effectiveEnabled) {
+      isFetchingRef.current = false;
+      setLoading(false);
+      return;
+    }
     loadNotifications();
-  }, [loadNotifications]);
+  }, [effectiveEnabled, loadNotifications]);
 
-  // Polling toutes les 30 secondes (à remplacer par WebSocket en production)
+  // Polling périodique uniquement quand activé et utilisateur présent
   useEffect(() => {
-    if (!currentUserId) return;
+    if (!effectiveEnabled || !currentUserId || !projetActifId) return;
 
     const interval = setInterval(() => {
-      loadNotifications();
-    }, 30000); // 30 secondes
+      loadNotifications({ silent: true });
+    }, pollIntervalMs);
 
     return () => clearInterval(interval);
-  }, [currentUserId, loadNotifications]);
+  }, [effectiveEnabled, currentUserId, projetActifId, loadNotifications, pollIntervalMs]);
+
+  useEffect(() => {
+    if (!respectAppState) return;
+
+    const handleAppStateChange = (nextState: AppStateStatus) => {
+      setIsAppActive(nextState === 'active');
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => {
+      subscription.remove();
+    };
+  }, [respectAppState]);
 
   return {
     notifications,

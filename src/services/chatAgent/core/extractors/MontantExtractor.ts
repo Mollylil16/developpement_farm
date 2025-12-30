@@ -69,8 +69,8 @@ export class MontantExtractor {
   private static extractFromPreposition(text: string): number | null {
     // Patterns prioritaires (après prépositions ou mots-clés)
     const patterns = [
-      // Pattern 1: Après préposition de montant
-      /(?:a|pour|de|montant|prix|cout|vendu\s+a|vendu\s+pour|achete\s+a|achete\s+pour|depense\s+de|depense\s+a|paye|paye\s+pour|claque|claque\s+pour)[:\s]+(\d[\d\s,]+(?:\s*k|\s*million|\s*balles)?)(?:\s*(?:f\s*c\s*f\s*a|fcfa|francs?|f\s*))?/i,
+      // Pattern 1: Après préposition de montant (supporte points, virgules, espaces comme séparateurs de milliers)
+      /(?:a|pour|de|montant|prix|cout|vendu\s+a|vendu\s+pour|achete\s+a|achete\s+pour|depense\s+de|depense\s+a|paye|paye\s+pour|claque|claque\s+pour)[:\s]+(\d[\d\s,\.]+(?:\s*k|\s*million|\s*balles)?)(?:\s*(?:f\s*c\s*f\s*a|fcfa|francs?|f\s*))?/i,
     ];
 
     for (const pattern of patterns) {
@@ -90,7 +90,8 @@ export class MontantExtractor {
    * Extrait un montant avec devise explicite (FCFA, francs, etc.)
    */
   private static extractFromDevise(text: string): number | null {
-    const devisePattern = /(\d[\d\s,]+(?:\s*k|\s*million)?)\s*(?:f\s*c\s*f\s*a|fcfa|francs?|f\s*)/i;
+    // Supporte points, virgules, espaces comme séparateurs de milliers
+    const devisePattern = /(\d[\d\s,\.]+(?:\s*k|\s*million)?)\s*(?:f\s*c\s*f\s*a|fcfa|francs?|f\s*)/i;
     const match = text.match(devisePattern);
     
     if (match && match[1]) {
@@ -147,7 +148,8 @@ export class MontantExtractor {
     original: string,
     options: MontantExtractionOptions
   ): number | null {
-    const allNumbers = normalized.match(/\b(\d[\d\s,]{3,})\b/g);
+    // Supporte points, virgules, espaces comme séparateurs de milliers
+    const allNumbers = normalized.match(/\b(\d[\d\s,\.]{3,})\b/g);
     if (!allNumbers || allNumbers.length === 0) {
       return null;
     }
@@ -221,12 +223,55 @@ export class MontantExtractor {
   }
 
   /**
-   * Parse un nombre simple (retire espaces et virgules)
+   * Parse un nombre simple (retire espaces, virgules et points comme séparateurs de milliers)
+   * Supporte les formats : "500000", "500 000", "500,000", "500.000"
    */
   private static parseNumber(value: string): number | null {
-    const cleaned = value.replace(/[\s,]/g, '');
-    const num = parseInt(cleaned, 10);
-    return isNaN(num) ? null : num;
+    let cleaned = value.trim();
+    
+    // Retirer les espaces
+    cleaned = cleaned.replace(/\s/g, '');
+    
+    // Détecter si c'est un format décimal (ex: "1.5", "2.3", "1,5")
+    // Un décimal a UNE seule virgule ou point, et des chiffres après
+    // Ex: "1.5" = décimal, "500.000" = entier avec séparateur de milliers (3 chiffres après le point)
+    const hasDecimalSeparator = /[.,]/.test(cleaned);
+    
+    if (hasDecimalSeparator) {
+      // Vérifier si c'est un séparateur de milliers (point/virgule suivi de 3 chiffres) ou un décimal
+      const parts = cleaned.split(/[.,]/);
+      
+      if (parts.length === 2) {
+        const beforeSeparator = parts[0];
+        const afterSeparator = parts[1];
+        
+        // Si après le séparateur il y a exactement 3 chiffres, c'est probablement un séparateur de milliers
+        // Ex: "500.000" → ["500", "000"] → 500000
+        // Si après le séparateur il y a moins de 3 chiffres, c'est un décimal
+        // Ex: "1.5" → ["1", "5"] → 1.5
+        if (afterSeparator.length === 3 && /^\d{3}$/.test(afterSeparator)) {
+          // Séparateur de milliers : retirer le point/virgule
+          cleaned = beforeSeparator + afterSeparator;
+          const num = parseInt(cleaned, 10);
+          return isNaN(num) ? null : num;
+        } else {
+          // Format décimal : remplacer virgule par point
+          cleaned = cleaned.replace(',', '.');
+          const num = parseFloat(cleaned);
+          return isNaN(num) ? null : num;
+        }
+      } else {
+        // Plusieurs séparateurs : probablement séparateurs de milliers
+        // Ex: "1.500.000" → retirer tous les points/virgules
+        cleaned = cleaned.replace(/[.,]/g, '');
+        const num = parseInt(cleaned, 10);
+        return isNaN(num) ? null : num;
+      }
+    } else {
+      // Pas de séparateur : nombre entier simple
+      const num = parseInt(cleaned, 10);
+      return isNaN(num) ? null : num;
+    }
   }
 
   /**

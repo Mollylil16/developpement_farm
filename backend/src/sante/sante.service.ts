@@ -66,29 +66,17 @@ export class SanteService {
    * Vérifie que le projet appartient à l'utilisateur
    */
   private async checkProjetOwnership(projetId: string, userId: string): Promise<void> {
-    // #region agent log
-    try { const fs = require('fs'); const path = require('path'); const cwd = process.cwd(); const logPath = cwd.includes('backend') ? path.join(cwd, '..', '.cursor', 'debug.log') : path.join(cwd, '.cursor', 'debug.log'); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'sante.service.ts:68',message:'checkProjetOwnership entry',data:{projetId,userId,projetIdType:typeof projetId,userIdType:typeof userId,projetIdLength:projetId?.length,userIdLength:userId?.length,projetIdJSON:JSON.stringify(projetId),userIdJSON:JSON.stringify(userId)},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})+'\n'); } catch(e) {}
-    // #endregion
     const result = await this.databaseService.query(
       'SELECT proprietaire_id FROM projets WHERE id = $1',
       [projetId]
     );
     if (result.rows.length === 0) {
-      // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'sante.service.ts:73',message:'checkProjetOwnership: projet introuvable',data:{projetId,userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'C'})+'\n'); } catch(e) {}
-      // #endregion
       throw new NotFoundException('Projet introuvable');
     }
     const rawProprietaireId = result.rows[0].proprietaire_id;
     const proprietaireId = String(rawProprietaireId || '').trim();
     const normalizedUserId = String(userId || '').trim();
-    // #region agent log
-    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'sante.service.ts:76',message:'checkProjetOwnership: comparaison détaillée',data:{projetId,userId,rawProprietaireId,proprietaireId,normalizedUserId,proprietaireIdType:typeof proprietaireId,normalizedUserIdType:typeof normalizedUserId,areEqual:proprietaireId===normalizedUserId,proprietaireIdLength:proprietaireId?.length,normalizedUserIdLength:normalizedUserId?.length,proprietaireIdJSON:JSON.stringify(proprietaireId),normalizedUserIdJSON:JSON.stringify(normalizedUserId),proprietaireIdCharCodes:proprietaireId?.split('').map(c=>c.charCodeAt(0)),normalizedUserIdCharCodes:normalizedUserId?.split('').map(c=>c.charCodeAt(0))},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'B'})+'\n'); } catch(e) {}
-    // #endregion
     if (proprietaireId !== normalizedUserId) {
-      // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'sante.service.ts:87',message:'checkProjetOwnership: accès refusé',data:{projetId,userId,proprietaireId,normalizedUserId,reason:'proprietaireId !== normalizedUserId',diffLength:Math.abs(proprietaireId.length-normalizedUserId.length)},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})+'\n'); } catch(e) {}
-      // #endregion
       throw new ForbiddenException('Ce projet ne vous appartient pas');
     }
   }
@@ -759,29 +747,43 @@ export class SanteService {
   // ==================== TRAITEMENTS ====================
 
   private mapRowToTraitement(row: any): any {
+    if (!row) {
+      throw new Error('mapRowToTraitement: row is null or undefined');
+    }
+    
+    // Gérer parseFloat de manière sécurisée
+    let cout: number | undefined = undefined;
+    if (row.cout !== null && row.cout !== undefined && row.cout !== '') {
+      const parsed = parseFloat(String(row.cout));
+      if (!isNaN(parsed)) {
+        cout = parsed;
+      }
+    }
+    
     return {
       id: row.id,
       projet_id: row.projet_id,
       maladie_id: row.maladie_id || undefined,
       animal_id: row.animal_id || undefined,
       lot_id: row.lot_id || undefined,
-      type: row.type,
-      nom_medicament: row.nom_medicament,
-      voie_administration: row.voie_administration,
-      dosage: row.dosage,
-      frequence: row.frequence,
-      date_debut: row.date_debut,
+      type: row.type || undefined,
+      nom_medicament: row.nom_medicament || undefined,
+      voie_administration: row.voie_administration || undefined,
+      dosage: row.dosage || undefined,
+      frequence: row.frequence || undefined,
+      date_debut: row.date_debut || undefined,
       date_fin: row.date_fin || undefined,
-      duree_jours: row.duree_jours || undefined,
-      temps_attente_jours: row.temps_attente_jours || undefined,
+      duree_jours: row.duree_jours !== null && row.duree_jours !== undefined ? Number(row.duree_jours) : undefined,
+      temps_attente_jours: row.temps_attente_jours !== null && row.temps_attente_jours !== undefined ? Number(row.temps_attente_jours) : undefined,
+      temps_attente_abattage_jours: row.temps_attente_abattage_jours !== null && row.temps_attente_abattage_jours !== undefined ? Number(row.temps_attente_abattage_jours) : undefined,
       veterinaire: row.veterinaire || undefined,
-      cout: row.cout ? parseFloat(row.cout) : undefined,
-      termine: row.termine || false,
-      efficace: row.efficace || undefined,
+      cout,
+      termine: row.termine === true || row.termine === 'true' || row.termine === 1,
+      efficace: row.efficace !== null && row.efficace !== undefined ? (row.efficace === true || row.efficace === 'true' || row.efficace === 1) : undefined,
       effets_secondaires: row.effets_secondaires || undefined,
       notes: row.notes || undefined,
-      date_creation: row.date_creation,
-      derniere_modification: row.derniere_modification || row.date_creation,
+      date_creation: row.date_creation || undefined,
+      derniere_modification: row.derniere_modification || row.date_creation || undefined,
     };
   }
 
@@ -792,6 +794,12 @@ export class SanteService {
     const now = new Date().toISOString();
     const termine = createTraitementDto.termine || false;
 
+    // Colonnes nécessaires pour mapRowToTraitement (éviter RETURNING * pour éviter colonnes inexistantes)
+    const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, type, nom_medicament, 
+      voie_administration, dosage, frequence, date_debut, date_fin, duree_jours, 
+      temps_attente_jours, veterinaire, cout, termine, efficace, effets_secondaires, 
+      notes, date_creation, derniere_modification`;
+    
     const result = await this.databaseService.query(
       `INSERT INTO traitements (
         id, projet_id, maladie_id, animal_id, lot_id, type, nom_medicament,
@@ -799,7 +807,7 @@ export class SanteService {
         duree_jours, temps_attente_jours, veterinaire, cout, termine,
         efficace, effets_secondaires, notes, date_creation, derniere_modification
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
-      RETURNING *`,
+      RETURNING ${traitementColumns}`,
       [
         id,
         createTraitementDto.projet_id,
@@ -832,34 +840,66 @@ export class SanteService {
   async findAllTraitements(projetId: string, userId: string) {
     await this.checkProjetOwnership(projetId, userId);
 
-    // Colonnes nécessaires pour mapRowToTraitement (optimisation: éviter SELECT *)
-    const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, type, nom_medicament, 
-      voie_administration, dosage, frequence, date_debut, date_fin, duree_jours, 
-      temps_attente_jours, veterinaire, cout, termine, efficace, effets_secondaires, 
-      notes, temps_attente_abattage_jours, date_creation, derniere_modification`;
+    try {
+      // Colonnes nécessaires pour mapRowToTraitement (optimisation: éviter SELECT *)
+      // Note: temps_attente_abattage_jours n'existe pas encore dans la table, sera ajouté via migration
+      const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, type, nom_medicament,
+        voie_administration, dosage, frequence, date_debut, date_fin, duree_jours,
+        temps_attente_jours, veterinaire, cout, termine, efficace, effets_secondaires,
+        notes, date_creation, derniere_modification`;
 
-    const result = await this.databaseService.query(
-      `SELECT ${traitementColumns} FROM traitements WHERE projet_id = $1 ORDER BY date_debut DESC`,
-      [projetId]
-    );
-    return result.rows.map((row) => this.mapRowToTraitement(row));
+      const result = await this.databaseService.query(
+        `SELECT ${traitementColumns} FROM traitements WHERE projet_id = $1 ORDER BY date_debut DESC NULLS LAST`,
+        [projetId]
+      );
+
+      const mapped = result.rows.map((row) => {
+        try {
+          return this.mapRowToTraitement(row);
+        } catch (error) {
+          // Retourner un objet minimal plutôt que de faire planter toute la requête
+          return {
+            id: row?.id || 'unknown',
+            projet_id: row?.projet_id,
+            error: 'Erreur lors du mapping des données',
+          };
+        }
+      });
+
+      return mapped;
+    } catch (error) {
+      console.error('[SanteService] Erreur findAllTraitements:', error);
+      throw error;
+    }
   }
 
   async findTraitementsEnCours(projetId: string, userId: string) {
     await this.checkProjetOwnership(projetId, userId);
 
+    // Colonnes nécessaires pour mapRowToTraitement (éviter SELECT * pour éviter colonnes inexistantes)
+    const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, type, nom_medicament, 
+      voie_administration, dosage, frequence, date_debut, date_fin, duree_jours, 
+      temps_attente_jours, veterinaire, cout, termine, efficace, effets_secondaires, 
+      notes, date_creation, derniere_modification`;
+
     const result = await this.databaseService.query(
-      `SELECT * FROM traitements 
+      `SELECT ${traitementColumns} FROM traitements 
        WHERE projet_id = $1 AND termine = FALSE
-       ORDER BY date_debut DESC`,
+       ORDER BY date_debut DESC NULLS LAST`,
       [projetId]
     );
     return result.rows.map((row) => this.mapRowToTraitement(row));
   }
 
   async findOneTraitement(id: string, userId: string) {
+    // Colonnes nécessaires pour mapRowToTraitement (éviter SELECT * pour éviter colonnes inexistantes)
+    const traitementColumns = `t.id, t.projet_id, t.maladie_id, t.animal_id, t.lot_id, t.type, t.nom_medicament, 
+      t.voie_administration, t.dosage, t.frequence, t.date_debut, t.date_fin, t.duree_jours, 
+      t.temps_attente_jours, t.veterinaire, t.cout, t.termine, t.efficace, t.effets_secondaires, 
+      t.notes, t.date_creation, t.derniere_modification`;
+    
     const result = await this.databaseService.query(
-      `SELECT t.* FROM traitements t
+      `SELECT ${traitementColumns} FROM traitements t
        JOIN projets p ON t.projet_id = p.id
        WHERE t.id = $1 AND p.proprietaire_id = $2`,
       [id, userId]
@@ -962,7 +1002,14 @@ export class SanteService {
     paramIndex++;
 
     values.push(id);
-    const query = `UPDATE traitements SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
+    
+    // Colonnes nécessaires pour mapRowToTraitement (éviter RETURNING * pour éviter colonnes inexistantes)
+    const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, type, nom_medicament, 
+      voie_administration, dosage, frequence, date_debut, date_fin, duree_jours, 
+      temps_attente_jours, veterinaire, cout, termine, efficace, effets_secondaires, 
+      notes, date_creation, derniere_modification`;
+    
+    const query = `UPDATE traitements SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING ${traitementColumns}`;
     const result = await this.databaseService.query(query, values);
     return this.mapRowToTraitement(result.rows[0]);
   }
@@ -1318,8 +1365,14 @@ export class SanteService {
   async getStatistiquesTraitements(projetId: string, userId: string) {
     await this.checkProjetOwnership(projetId, userId);
 
+    // Colonnes nécessaires pour mapRowToTraitement (éviter SELECT * pour éviter colonnes inexistantes)
+    const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, type, nom_medicament, 
+      voie_administration, dosage, frequence, date_debut, date_fin, duree_jours, 
+      temps_attente_jours, veterinaire, cout, termine, efficace, effets_secondaires, 
+      notes, date_creation, derniere_modification`;
+
     const result = await this.databaseService.query(
-      `SELECT * FROM traitements WHERE projet_id = $1`,
+      `SELECT ${traitementColumns} FROM traitements WHERE projet_id = $1`,
       [projetId]
     );
 
@@ -1476,11 +1529,17 @@ export class SanteService {
     }
 
     // 4. Vérifier les traitements en cours
+    // Colonnes nécessaires pour mapRowToTraitement (éviter SELECT * pour éviter colonnes inexistantes)
+    const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, type, nom_medicament, 
+      voie_administration, dosage, frequence, date_debut, date_fin, duree_jours, 
+      temps_attente_jours, veterinaire, cout, termine, efficace, effets_secondaires, 
+      notes, date_creation, derniere_modification`;
+    
     const traitementsResult = await this.databaseService.query(
-      `SELECT * FROM traitements 
+      `SELECT ${traitementColumns} FROM traitements 
        WHERE projet_id = $1 
        AND date_fin IS NULL
-       ORDER BY date_debut DESC`,
+       ORDER BY date_debut DESC NULLS LAST`,
       [projetId]
     );
 
@@ -1574,6 +1633,12 @@ export class SanteService {
       throw new ForbiddenException("Cet animal ne vous appartient pas");
     }
 
+    // Colonnes nécessaires pour mapRowToTraitement (éviter SELECT * pour éviter colonnes inexistantes)
+    const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, type, nom_medicament, 
+      voie_administration, dosage, frequence, date_debut, date_fin, duree_jours, 
+      temps_attente_jours, veterinaire, cout, termine, efficace, effets_secondaires, 
+      notes, date_creation, derniere_modification`;
+
     // Récupérer toutes les données médicales de l'animal
     const [vaccinationsResult, maladiesResult, traitementsResult, visitesResult] = await Promise.all([
       this.databaseService.query(
@@ -1589,9 +1654,9 @@ export class SanteService {
         [animalId]
       ),
       this.databaseService.query(
-        `SELECT * FROM traitements 
+        `SELECT ${traitementColumns} FROM traitements 
          WHERE animal_id = $1
-         ORDER BY date_debut DESC`,
+         ORDER BY date_debut DESC NULLS LAST`,
         [animalId]
       ),
       this.databaseService.query(
@@ -1616,10 +1681,20 @@ export class SanteService {
   async getAnimauxEnAttente(projetId: string, userId: string) {
     await this.checkProjetOwnership(projetId, userId);
 
+    // Note: temps_attente_abattage_jours n'existe pas encore dans la table
+    // Cette méthode retourne un tableau vide jusqu'à ce que la colonne soit ajoutée via migration
+    // Colonnes nécessaires pour mapRowToTraitement (éviter SELECT * pour éviter colonnes inexistantes)
+    const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, type, nom_medicament, 
+      voie_administration, dosage, frequence, date_debut, date_fin, duree_jours, 
+      temps_attente_jours, veterinaire, cout, termine, efficace, effets_secondaires, 
+      notes, date_creation, derniere_modification`;
+
+    // Pour l'instant, on utilise temps_attente_jours comme alternative
+    // TODO: Ajouter la colonne temps_attente_abattage_jours via migration
     const result = await this.databaseService.query(
-      `SELECT * FROM traitements 
+      `SELECT ${traitementColumns} FROM traitements 
        WHERE projet_id = $1 
-       AND temps_attente_abattage_jours IS NOT NULL 
+       AND temps_attente_jours IS NOT NULL 
        AND animal_id IS NOT NULL
        AND date_fin IS NULL
        ORDER BY date_debut DESC`,
@@ -1632,16 +1707,17 @@ export class SanteService {
     for (const row of result.rows) {
       const traitement = this.mapRowToTraitement(row);
       
+      // Utiliser temps_attente_jours comme alternative jusqu'à ce que temps_attente_abattage_jours soit ajouté
       if (
         !traitement.date_debut ||
-        !traitement.temps_attente_abattage_jours ||
+        !traitement.temps_attente_jours ||
         !traitement.animal_id
       ) {
         continue;
       }
 
       const dateDebut = new Date(traitement.date_debut);
-      const tempsAttente = traitement.temps_attente_abattage_jours;
+      const tempsAttente = traitement.temps_attente_jours;
       const dateFinAttente = new Date(
         dateDebut.getTime() + tempsAttente * 24 * 60 * 60 * 1000
       );
@@ -1729,14 +1805,20 @@ export class SanteService {
       [projetId, dateDebut, dateFin]
     );
 
+    // Colonnes nécessaires pour mapRowToTraitement (éviter SELECT * pour éviter colonnes inexistantes)
+    const traitementColumns = `id, projet_id, maladie_id, animal_id, lot_id, type, nom_medicament, 
+      voie_administration, dosage, frequence, date_debut, date_fin, duree_jours, 
+      temps_attente_jours, veterinaire, cout, termine, efficace, effets_secondaires, 
+      notes, date_creation, derniere_modification`;
+
     // Traitements dans la période
     const traitementsResult = await this.databaseService.query(
-      `SELECT * FROM traitements 
+      `SELECT ${traitementColumns} FROM traitements 
        WHERE projet_id = $1 
        AND date_debut >= $2 
        AND date_debut <= $3 
        AND cout IS NOT NULL
-       ORDER BY date_debut DESC`,
+       ORDER BY date_debut DESC NULLS LAST`,
       [projetId, dateDebut, dateFin]
     );
 

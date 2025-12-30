@@ -4,6 +4,7 @@
  */
 
 import apiClient from '../../api/apiClient';
+import { logger } from '../../../utils/logger';
 
 export interface LearningFailure {
   userMessage: string;
@@ -312,6 +313,7 @@ export class LearningService {
   ): void {
     if (!this.projetId || !this.conversationId) return;
 
+    // Fire-and-forget : ne pas bloquer si l'enregistrement échoue
     apiClient.post('/agent-learnings/conversation', {
       projet_id: this.projetId,
       conversation_id: this.conversationId,
@@ -321,7 +323,12 @@ export class LearningService {
       action_executed: actionExecuted,
       action_success: actionSuccess,
     }).catch((error) => {
-      console.warn('[LearningService] Erreur enregistrement conversation:', error);
+      // Ne pas logger comme erreur car c'est une opération non-critique (fire-and-forget)
+      // La table agent_conversation_memory peut ne pas exister ou l'endpoint peut être indisponible
+      // C'est normal et ne doit pas bloquer le fonctionnement de Kouakou
+      if (error && typeof error === 'object' && 'status' in error && error.status === 500) {
+        logger.debug('[LearningService] Table agent_conversation_memory peut-être non créée - ignoré');
+      }
     });
   }
 

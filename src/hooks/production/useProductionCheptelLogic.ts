@@ -22,12 +22,12 @@ import { createListing } from '../../store/slices/marketplaceSlice';
 import { selectAllAnimaux } from '../../store/selectors/productionSelectors';
 import { selectAllMortalites } from '../../store/selectors/mortalitesSelectors';
 import { useActionPermissions } from '../useActionPermissions';
-import { useGeolocation } from '../useGeolocation';
 import apiClient from '../../services/api/apiClient';
 import type { ProductionAnimal, StatutAnimal } from '../../types/production';
 import { getCategorieAnimal } from '../../utils/animalUtils';
 import type { UpdateProductionAnimalInput } from '../../types/production';
 import { getErrorMessage } from '../../types/errors';
+import type { Location } from '../../types/marketplace';
 
 export function useProductionCheptelLogic() {
   const dispatch = useAppDispatch();
@@ -36,7 +36,6 @@ export function useProductionCheptelLogic() {
   const allAnimaux = useAppSelector(selectAllAnimaux);
   const mortalites = useAppSelector(selectAllMortalites);
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
-  const { getCurrentLocation } = useGeolocation();
 
   const [togglingMarketplace, setTogglingMarketplace] = useState<string | null>(null);
   const [showPriceModal, setShowPriceModal] = useState(false);
@@ -136,7 +135,7 @@ export function useProductionCheptelLogic() {
     [projetActif, user, dispatch, togglingMarketplace]
   );
 
-  const handleConfirmMarketplaceAdd = useCallback(async () => {
+  const handleConfirmMarketplaceAdd = useCallback(async (location: Location) => {
     if (!animalForMarketplace || !projetActif || !user?.id) {
       Alert.alert('Erreur', 'Données manquantes');
       return;
@@ -165,16 +164,6 @@ export function useProductionCheptelLogic() {
         return;
       }
 
-      const userLocation = await getCurrentLocation();
-      if (!userLocation) {
-        Alert.alert(
-          'Erreur',
-          "Impossible d'obtenir votre localisation. Veuillez activer la géolocalisation."
-        );
-        setTogglingMarketplace(null);
-        return;
-      }
-
       await dispatch(
         createListing({
           subjectId: animalForMarketplace.id,
@@ -183,13 +172,7 @@ export function useProductionCheptelLogic() {
           pricePerKg: price,
           weight: poidsActuel,
           lastWeightDate: lastWeightDate,
-          location: {
-            latitude: userLocation.latitude,
-            longitude: userLocation.longitude,
-            address: undefined,
-            city: userLocation.city,
-            region: userLocation.region,
-          },
+          location,
         })
       ).unwrap();
 
@@ -210,7 +193,7 @@ export function useProductionCheptelLogic() {
     } finally {
       setTogglingMarketplace(null);
     }
-  }, [animalForMarketplace, priceInput, projetActif, user, dispatch, getCurrentLocation]);
+  }, [animalForMarketplace, priceInput, projetActif, user, dispatch]);
 
   return {
     // State

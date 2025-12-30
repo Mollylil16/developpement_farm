@@ -51,7 +51,8 @@ export default function StandardHeader({
 const styles = StyleSheet.create({
   header: {
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+    paddingTop: SPACING.xs,
+    paddingBottom: SPACING.md,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },

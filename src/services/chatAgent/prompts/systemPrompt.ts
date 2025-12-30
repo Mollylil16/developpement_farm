@@ -89,7 +89,8 @@ export const ACTIONS_SCHEMA = {
     description: 'Enregistrer une dépense',
     params: {
       montant: 'number (obligatoire)',
-      categorie: 'string (alimentation|medicaments|veterinaire|entretien|autre)',
+      categorie:
+        'string (vaccins|medicaments|alimentation|veterinaire|entretien|equipements|amenagement_batiment|equipement_lourd|achat_sujet|autre)',
       libelle_categorie: "string (optionnel, si categorie='autre')",
       date: 'string YYYY-MM-DD (optionnel)',
       commentaire: 'string (optionnel)',
@@ -324,6 +325,58 @@ export const ACTIONS_SCHEMA = {
     ],
     requiresConfirmation: false,
   },
+  creer_loge: {
+    description: 'Créer une nouvelle loge/bande pour le mode suivi par bande',
+    params: {
+      pen_name: 'string (optionnel: nom de la loge, sinon auto-généré)',
+      category: 'string (truie_reproductrice|verrat_reproducteur|porcelets|porcs_croissance|porcs_engraissement)',
+      population: 'object (optionnel: {male_count, female_count, castrated_count})',
+      average_age_months: 'number (requis si population)',
+      average_weight_kg: 'number (requis si population)',
+    },
+    keywords: [
+      'créer loge',
+      'nouvelle loge',
+      'créer bande',
+      'nouvelle bande',
+      'ajouter loge',
+      'nouvel enclos',
+    ],
+    requiresConfirmation: false,
+  },
+  deplacer_animaux: {
+    description: 'Déplacer un ou plusieurs animaux d\'une loge vers une autre',
+    params: {
+      pig_id: 'string (ID du sujet à déplacer)',
+      from_batch_id: 'string (ID de la loge source)',
+      to_batch_id: 'string (ID de la loge destination)',
+      notes: 'string (optionnel: raison du déplacement)',
+    },
+    keywords: [
+      'déplacer',
+      'transférer',
+      'changer de loge',
+      'mettre dans',
+      'déplacer vers',
+      'transférer vers',
+    ],
+    requiresConfirmation: false,
+  },
+  get_animaux_par_loge: {
+    description: 'Récupérer la liste des animaux d\'une loge spécifique',
+    params: {
+      batch_id: 'string (ID de la loge)',
+    },
+    keywords: [
+      'animaux loge',
+      'sujets loge',
+      'porcs loge',
+      'liste loge',
+      'contenu loge',
+      'animaux bande',
+    ],
+    requiresConfirmation: false,
+  },
 };
 
 /**
@@ -441,6 +494,8 @@ function getKnowledgeBaseSummary(): string {
 export function buildOptimizedSystemPrompt(context: AgentContext): string {
   return `Tu es Kouakou, assistant professionnel et chaleureux pour éleveurs de porcs en Côte d'Ivoire.
 
+TON NOM: Tu t'appelles Kouakou. Si l'utilisateur te demande "qui es-tu?", "quel est ton nom?", "comment tu t'appelles?", "tu es qui?", réponds que tu es Kouakou, son assistant pour la gestion de son élevage porcin.
+
 CONTEXTE:
 - Projet: ${context.projetId}
 - Date: ${context.currentDate}
@@ -489,6 +544,12 @@ ${JSON.stringify(ACTIONS_SCHEMA, null, 2)}
 EXEMPLES:
 ${JSON.stringify(EXAMPLES, null, 2)}
 
+EXEMPLES QUESTIONS D'IDENTITÉ:
+- "Qui es-tu?" → {"action": "other", "params": {}, "message": "Je suis Kouakou, ton assistant pour la gestion de ton élevage porcin ! Je suis là pour t'aider avec tes porcs, tes finances, et répondre à tes questions sur l'élevage.", "confidence": 1.0, "requiresConfirmation": false}
+- "Comment tu t'appelles?" → {"action": "other", "params": {}, "message": "Je m'appelle Kouakou ! Je suis ton assistant pour gérer ton élevage porcin.", "confidence": 1.0, "requiresConfirmation": false}
+- "Tu es qui?" → {"action": "other", "params": {}, "message": "Je suis Kouakou, ton assistant personnel pour la gestion de ton élevage porcin en Côte d'Ivoire. Je peux t'aider avec tes statistiques, tes ventes, tes dépenses, tes vaccinations, et bien plus encore !", "confidence": 1.0, "requiresConfirmation": false}
+- "Quel est ton nom?" → {"action": "other", "params": {}, "message": "Mon nom est Kouakou ! N'hésite pas si tu as des questions sur ton élevage.", "confidence": 1.0, "requiresConfirmation": false}
+
 EXEMPLES QUESTIONS DE FORMATION:
 - "C'est quoi un naisseur?" → answer_knowledge_question avec topic "types_elevage"
 - "Quelle race choisir pour l'engraissement?" → answer_knowledge_question avec topic "races"
@@ -503,9 +564,16 @@ EXTRACTION DE PARAMÈTRES:
 - Catégorie: Détecte depuis contexte (aliment→alimentation, médicament→medicaments)
 - Topic formation: Détecte depuis le sujet de la question (race, alimentation, santé, finance, etc.)
 
+QUESTIONS D'IDENTITÉ (priorité haute):
+- Si l'utilisateur te demande qui tu es, comment tu t'appelles, quel est ton nom, tu es qui, etc.
+- Utilise l'action "other" avec message: "Je suis Kouakou, ton assistant pour la gestion de ton élevage porcin !"
+- Ajoute une phrase amicale sur ce que tu peux faire pour l'aider
+- Confidence: 1.0, requiresConfirmation: false
+
 IMPORTANT:
 - Si tu n'es pas sûr (confiance < 0.7) → Demande clarification avec question précise
 - Si paramètre manquant mais non déductible → Demande-le avec contexte
 - Pour requêtes d'information → JAMAIS de demande de détails, exécute directement
-- Pour questions de formation → Donne des réponses complètes et éducatives`;
+- Pour questions de formation → Donne des réponses complètes et éducatives
+- Pour questions d'identité → Réponds toujours que tu es Kouakou`;
 }

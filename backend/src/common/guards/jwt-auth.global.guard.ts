@@ -32,4 +32,9 @@ export class JwtAuthGlobalGuard extends AuthGuard('jwt') {
 
     return super.canActivate(context);
   }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  handleRequest(err: any, user: any, info: any, context: ExecutionContext) {
+    return super.handleRequest(err, user, info, context);
+  }
 }

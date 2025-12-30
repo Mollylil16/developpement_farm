@@ -9,6 +9,7 @@
     "migrate": "tsx scripts/run-migrations.ts",
     "test:auth": "tsx scripts/test-auth-endpoints.ts",
     "import:knowledge-base": "tsx scripts/import-knowledge-base.ts",
+    "import:knowledge-procedures": "tsx scripts/import-procedures-knowledge-base.ts",
     "test:knowledge-api": "tsx scripts/test-knowledge-base-api.ts",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\"",
     "lint:fix": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",

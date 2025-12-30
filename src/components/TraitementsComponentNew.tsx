@@ -63,7 +63,8 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
     if (projetActif?.id) {
       dispatch(loadVaccinations(projetActif.id));
       dispatch(loadMaladies(projetActif.id));
-      dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: false }));
+      // Inclure les inactifs pour avoir tous les animaux (actif et autre statuts)
+      dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: true }));
     }
   }, [projetActif?.id, dispatch]);
 

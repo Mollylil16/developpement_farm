@@ -10,7 +10,10 @@ import type { ProductionAnimal, StatutAnimal } from '../../types/production';
 import { getCategorieAnimal } from '../../utils/animalUtils';
 import { useDebounce } from '../useDebounce';
 
-const STATUTS_CHEPTEL: StatutAnimal[] = ['actif', 'autre'];
+// Le cheptel correspond aux animaux présents sur la ferme (statut "actif").
+// Le statut "autre" signifie "retiré du cheptel mais dans historique" (voir `types/production.ts`),
+// donc il ne doit pas être inclus dans la liste principale du cheptel.
+const STATUTS_CHEPTEL: StatutAnimal[] = ['actif'];
 
 export function useProductionCheptelFilters(projetId?: string) {
   const [filterCategorie, setFilterCategorie] = useState<'tous' | 'truie' | 'verrat' | 'porcelet'>(
@@ -24,11 +27,20 @@ export function useProductionCheptelFilters(projetId?: string) {
   // Filtrer les animaux du cheptel (actif et autre) avec les filtres appliqués
   const animauxFiltres = useMemo(() => {
     if (!Array.isArray(allAnimaux)) return [];
+    if (!projetId) return [];
 
-    // D'abord filtrer par statut (cheptel uniquement)
-    let result = allAnimaux.filter(
-      (a) => a.projet_id === projetId && STATUTS_CHEPTEL.includes(a.statut)
-    );
+    // D'abord filtrer par projet_id et statut (cheptel uniquement)
+    // Utiliser toLowerCase() pour garantir une comparaison robuste (comme dans OverviewWidget)
+    // Note: Le statut 'actif' correspond aux animaux dans le cheptel actif (sur ferme)
+    let result = allAnimaux.filter((a) => {
+      const projetIdMatch = a.projet_id === projetId;
+      if (!projetIdMatch) return false;
+      const statutLower = (a.statut || '').toLowerCase();
+      // Cheptel = uniquement les animaux "actif"
+      // (exclure 'vendu', 'mort', 'offert', 'autre')
+      const isCheptel = statutLower === 'actif';
+      return isCheptel;
+    });
 
     // Filtrer par catégorie si spécifié
     if (filterCategorie !== 'tous') {
@@ -50,11 +62,13 @@ export function useProductionCheptelFilters(projetId?: string) {
 
   // Compter par catégorie pour les animaux du cheptel
   const countByCategory = useMemo(() => {
-    if (!Array.isArray(allAnimaux)) return { truies: 0, verrats: 0, porcelets: 0 };
+    if (!Array.isArray(allAnimaux) || !projetId) return { truies: 0, verrats: 0, porcelets: 0 };
 
-    const animauxCheptel = allAnimaux.filter(
-      (a) => a.projet_id === projetId && STATUTS_CHEPTEL.includes(a.statut)
-    );
+    const animauxCheptel = allAnimaux.filter((a) => {
+      if (a.projet_id !== projetId) return false;
+      const statutLower = a.statut?.toLowerCase();
+      return statutLower === 'actif';
+    });
 
     return {
       truies: animauxCheptel.filter((a) => getCategorieAnimal(a) === 'truie').length,

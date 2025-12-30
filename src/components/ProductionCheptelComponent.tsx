@@ -4,7 +4,19 @@
  */
 
 import React, { useState, useRef, useCallback } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  FlatList,
+  RefreshControl,
+  Alert,
+  Modal,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
@@ -38,6 +50,17 @@ import AnimalCard from './production/AnimalCard';
 import CheptelHeader from './production/CheptelHeader';
 import BatchCheptelView from './BatchCheptelView';
 import { createLoggerWithPrefix } from '../utils/logger';
+import apiClient from '../services/api/apiClient';
+import { getErrorMessage } from '../types/common';
+import MapLocationPickerModal from './MapLocationPickerModal';
+import { useGeolocation } from '../hooks/useGeolocation';
+import {
+  getFarmLocation,
+  setFarmLocation,
+  type StoredFarmLocation,
+} from '../services/location/farmLocationStorage';
+import { geocodePlaceToLocation } from '../services/location/geocoding';
+import { resolveLocationFromCoords } from '../services/location/locationResolver';
 
 const logger = createLoggerWithPrefix('ProductionCheptel');
 
@@ -97,6 +120,14 @@ export default function ProductionCheptelComponent() {
   const [expandedHistorique, setExpandedHistorique] = useState<string | null>(null);
   const [showRevenuModal, setShowRevenuModal] = useState(false);
   const [animalVendu, setAnimalVendu] = useState<ProductionAnimal | null>(null);
+  const [initializingCheptel, setInitializingCheptel] = useState(false);
+
+  // Localisation annonce (privacy-first)
+  const { getCurrentLocation } = useGeolocation();
+  const [farmLocation, setFarmLocationState] = useState<StoredFarmLocation | null>(null);
+  const [locationMode, setLocationMode] = useState<'farm' | 'place' | 'gps'>('farm');
+  const [placeText, setPlaceText] = useState('');
+  const [mapModalVisible, setMapModalVisible] = useState(false);
   
   // Pagination frontend
   const ITEMS_PER_PAGE = 50;
@@ -106,6 +137,24 @@ export default function ProductionCheptelComponent() {
   React.useEffect(() => {
     setDisplayedCount(ITEMS_PER_PAGE);
   }, [filterCategorie, searchQuery, projetActif?.id]);
+
+  // Charger la localisation de ferme sauvegardée (par projet)
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!projetActif?.id) {
+        setFarmLocationState(null);
+        return;
+      }
+      const stored = await getFarmLocation(projetActif.id);
+      if (!cancelled) {
+        setFarmLocationState(stored);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projetActif?.id]);
   
   // Paginer les animaux filtrés
   const animauxPagines = React.useMemo(() => {
@@ -129,6 +178,15 @@ export default function ProductionCheptelComponent() {
     timestamp: 0,
   });
 
+  // Réinitialiser le cache si le projet actif change
+  React.useEffect(() => {
+    if (projetActif?.id && aChargeRef.current !== projetActif.id) {
+      // Le projet a changé, réinitialiser le cache pour forcer un rechargement
+      aChargeRef.current = null;
+      dernierChargementRef.current = { projetId: null, timestamp: 0 };
+    }
+  }, [projetActif?.id]);
+
   useFocusEffect(
     React.useCallback(() => {
       if (!projetActif?.id) {
@@ -138,46 +196,42 @@ export default function ProductionCheptelComponent() {
       }
 
       const maintenant = Date.now();
-      const CACHE_DURATION_MS = 30000; // 30 secondes
+      const CACHE_DURATION_MS = 5000; // 5 secondes (réduit pour permettre le rechargement après création)
       const memeProjet = dernierChargementRef.current.projetId === projetActif.id;
       const donneesRecentes =
         memeProjet && maintenant - dernierChargementRef.current.timestamp < CACHE_DURATION_MS;
 
-      // Si les données sont récentes, ne pas recharger
+      // Si les données sont récentes et qu'on a déjà chargé ce projet, ne pas recharger
       if (donneesRecentes && aChargeRef.current === projetActif.id) {
         logger.debug('[ProductionCheptel] Données en cache, pas de rechargement');
         return;
       }
 
-      // Charger uniquement une fois par projet (quand le projet change)
-      if (aChargeRef.current !== projetActif.id) {
-        logger.info('Rechargement des animaux et données associées...');
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProductionCheptelComponent.tsx:155',message:'ProductionCheptel: chargement données',data:{projetActifId:projetActif.id,projetActifIdType:typeof projetActif.id,projetActifIdLength:projetActif.id?.length,projetActifProprietaireId:projetActif.proprietaire_id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
-        aChargeRef.current = projetActif.id;
-        dernierChargementRef.current = {
-          projetId: projetActif.id,
-          timestamp: maintenant,
-        };
+      // Charger quand le projet change ou si les données sont anciennes
+      logger.info('Rechargement des animaux et données associées...', { projetId: projetActif.id });
+      aChargeRef.current = projetActif.id;
+      dernierChargementRef.current = {
+        projetId: projetActif.id,
+        timestamp: maintenant,
+      };
 
-        // Charger les animaux immédiatement (critique pour l'affichage)
-        dispatch(loadProductionAnimaux({ projetId: projetActif.id })).catch((error) => {
-          logger.error('Erreur lors du chargement des animaux:', error);
+      // Charger les animaux immédiatement (critique pour l'affichage)
+      // Inclure les inactifs pour avoir tous les animaux du cheptel (actif et autre)
+      dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: true })).catch((error) => {
+        logger.error('Erreur lors du chargement des animaux:', error);
+      });
+
+      // Déferrer les autres chargements (non-critiques) après un court délai
+      // pour améliorer le temps de chargement initial
+      setTimeout(() => {
+        Promise.all([
+          dispatch(loadVaccinations(projetActif.id)),
+          dispatch(loadMaladies(projetActif.id)),
+          dispatch(loadTraitements(projetActif.id)),
+        ]).catch((error) => {
+          logger.error('Erreur lors du chargement des données associées:', error);
         });
-
-        // Déferrer les autres chargements (non-critiques) après un court délai
-        // pour améliorer le temps de chargement initial
-        setTimeout(() => {
-          Promise.all([
-            dispatch(loadVaccinations(projetActif.id)),
-            dispatch(loadMaladies(projetActif.id)),
-            dispatch(loadTraitements(projetActif.id)),
-          ]).catch((error) => {
-            logger.error('Erreur lors du chargement des données associées:', error);
-          });
-        }, 500); // Délai de 500ms pour laisser le temps au rendu initial
-      }
+      }, 500); // Délai de 500ms pour laisser le temps au rendu initial
     }, [dispatch, projetActif?.id])
   );
 
@@ -187,7 +241,8 @@ export default function ProductionCheptelComponent() {
 
     setRefreshing(true);
     try {
-      await dispatch(loadProductionAnimaux({ projetId: projetActif.id })).unwrap();
+      // Inclure les inactifs pour avoir tous les animaux du cheptel (actif et autre)
+      await dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: true })).unwrap();
     } catch (error) {
       logger.error('Erreur lors du rafraîchissement:', error);
     } finally {
@@ -216,7 +271,8 @@ export default function ProductionCheptelComponent() {
 
   // Compter les animaux dans l'historique
   const animauxHistorique = allAnimaux.filter((a) =>
-    ['vendu', 'offert', 'mort'].includes(a.statut)
+    // "autre" = retiré du cheptel (historique), en plus de vendu/offert/mort
+    ['vendu', 'offert', 'mort', 'autre'].includes(a.statut)
   );
 
   // Mémoriser les handlers séparément pour éviter les re-renders
@@ -229,6 +285,48 @@ export default function ProductionCheptelComponent() {
     setIsEditing(true);
     setShowAnimalModal(true);
   }, []);
+
+  const initialEffectifTotal =
+    (projetActif?.nombre_truies || 0) +
+    (projetActif?.nombre_verrats || 0) +
+    (projetActif?.nombre_porcelets || 0) +
+    (projetActif?.nombre_croissance || 0);
+
+  const animauxDuProjetCount = React.useMemo(() => {
+    if (!projetActif?.id) return 0;
+    return allAnimaux.filter((a) => a.projet_id === projetActif.id).length;
+  }, [allAnimaux, projetActif?.id]);
+
+  const canInitializeCheptel =
+    projetActif?.management_method === 'individual' &&
+    initialEffectifTotal > 0 &&
+    animauxDuProjetCount === 0;
+
+  const handleInitializeCheptel = useCallback(async () => {
+    if (!projetActif?.id || initializingCheptel) return;
+
+    setInitializingCheptel(true);
+    try {
+      const result = await apiClient.post<{ created: number; skipped: boolean; reason?: string }>(
+        `/projets/${projetActif.id}/initialize-individual-animals`,
+        {}
+      );
+
+      // Recharger les animaux pour afficher le cheptel
+      await dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: true })).unwrap();
+
+      if (result?.skipped) {
+        logger.info('[ProductionCheptel] Initialisation cheptel ignorée', result);
+      } else {
+        Alert.alert('Cheptel initialisé', `${result?.created ?? 0} animal(aux) ont été créés.`);
+      }
+    } catch (error) {
+      logger.error('[ProductionCheptel] Erreur initialisation cheptel:', error);
+      Alert.alert('Erreur', getErrorMessage(error) || "Impossible d'initialiser le cheptel");
+    } finally {
+      setInitializingCheptel(false);
+    }
+  }, [projetActif?.id, initializingCheptel, dispatch, logger]);
 
   const handleChangeStatutWithCallback = useCallback(
     (animal: ProductionAnimal, statut: string) => {
@@ -363,16 +461,26 @@ export default function ProductionCheptelComponent() {
               title="Aucun animal dans le cheptel"
               message="Ajoutez des animaux pour commencer à gérer votre cheptel"
               action={
-                canCreate('reproduction') ? (
-                  <Button
-                    title="Ajouter un animal"
-                    onPress={() => {
-                      setSelectedAnimal(null);
-                      setIsEditing(false);
-                      setShowAnimalModal(true);
-                    }}
-                  />
-                ) : null
+                <View style={{ gap: SPACING.sm }}>
+                  {canInitializeCheptel && (
+                    <Button
+                      title={initializingCheptel ? 'Initialisation...' : 'Initialiser le cheptel'}
+                      onPress={handleInitializeCheptel}
+                      loading={initializingCheptel}
+                    />
+                  )}
+                  {canCreate('reproduction') ? (
+                    <Button
+                      title="Ajouter un animal"
+                      variant={canInitializeCheptel ? 'secondary' : 'primary'}
+                      onPress={() => {
+                        setSelectedAnimal(null);
+                        setIsEditing(false);
+                        setShowAnimalModal(true);
+                      }}
+                    />
+                  ) : null}
+                </View>
               }
             />
           )
@@ -431,6 +539,239 @@ export default function ProductionCheptelComponent() {
           }
         />
       )}
+
+      {/* Modal de mise en vente (prix/kg) */}
+      <Modal
+        visible={showPriceModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setShowPriceModal(false);
+          setAnimalForMarketplace(null);
+          setPriceInput('');
+        }}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
+          <View style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              Mettre en vente
+            </Text>
+            <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+              {animalForMarketplace
+                ? `${animalForMarketplace.code}${animalForMarketplace.nom ? ` (${animalForMarketplace.nom})` : ''}`
+                : 'Sujet'}
+            </Text>
+
+            <Text style={[styles.modalLabel, { color: colors.textSecondary }]}>
+              Prix par kg (FCFA)
+            </Text>
+            <TextInput
+              value={priceInput}
+              onChangeText={setPriceInput}
+              placeholder="0"
+              placeholderTextColor={colors.textSecondary}
+              keyboardType="decimal-pad"
+              style={[
+                styles.modalInput,
+                { backgroundColor: colors.background, color: colors.text, borderColor: colors.border },
+              ]}
+            />
+
+            <Text style={[styles.modalLabel, { color: colors.textSecondary }]}>
+              Localisation de l’annonce (sans suivi en continu)
+            </Text>
+            <View style={styles.locationModeRow}>
+              {(['farm', 'place', 'gps'] as const).map((mode) => {
+                const label =
+                  mode === 'farm' ? 'Ferme' : mode === 'place' ? 'Autre lieu' : 'GPS (1 fois)';
+                const selected = locationMode === mode;
+                return (
+                  <TouchableOpacity
+                    key={mode}
+                    onPress={() => setLocationMode(mode)}
+                    style={[
+                      styles.locationModeChip,
+                      {
+                        backgroundColor: selected ? colors.primary : colors.background,
+                        borderColor: selected ? colors.primary : colors.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.locationModeChipText,
+                        { color: selected ? colors.textOnPrimary : colors.text },
+                      ]}
+                    >
+                      {label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {locationMode === 'farm' && (
+              <View style={styles.locationSummary}>
+                <Text style={[styles.locationSummaryText, { color: colors.textSecondary }]}>
+                  {farmLocation
+                    ? `Ferme: ${farmLocation.address || projetActif?.localisation || 'Localisation enregistrée'}`
+                    : `Aucune localisation de ferme enregistrée. (${projetActif?.localisation || 'Projet sans localisation'})`}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setMapModalVisible(true)}
+                  style={[styles.locationLink, { borderColor: colors.border }]}
+                >
+                  <Text style={[styles.locationLinkText, { color: colors.primary }]}>
+                    {farmLocation ? 'Modifier la localisation de la ferme' : 'Définir la localisation de la ferme'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {locationMode === 'place' && (
+              <View style={styles.locationSummary}>
+                <Text style={[styles.modalLabel, { color: colors.textSecondary }]}>
+                  Ville / commune / département / sous-préfecture
+                </Text>
+                <TextInput
+                  value={placeText}
+                  onChangeText={setPlaceText}
+                  placeholder="Ex: Yopougon, Abidjan, Côte d’Ivoire"
+                  placeholderTextColor={colors.textSecondary}
+                  style={[
+                    styles.modalInput,
+                    {
+                      backgroundColor: colors.background,
+                      color: colors.text,
+                      borderColor: colors.border,
+                      marginBottom: SPACING.md,
+                    },
+                  ]}
+                />
+                <Text style={[styles.locationSummaryText, { color: colors.textSecondary }]}>
+                  Astuce: plus c’est précis, plus le résultat est fiable.
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowPriceModal(false);
+                  setAnimalForMarketplace(null);
+                  setPriceInput('');
+                }}
+                style={[styles.modalButton, { backgroundColor: colors.background, borderColor: colors.border }]}
+              >
+                <Text style={[styles.modalButtonText, { color: colors.text }]}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={async () => {
+                  if (!projetActif?.id) return;
+
+                  try {
+                    // Résoudre une location complète (lat/lon + address/city/region) sans GPS par défaut
+                    let location = null;
+
+                    if (locationMode === 'farm') {
+                      if (farmLocation) {
+                        location = await resolveLocationFromCoords({
+                          latitude: farmLocation.lat,
+                          longitude: farmLocation.lng,
+                          fallbackText: farmLocation.address || projetActif.localisation,
+                        });
+                      } else if (projetActif.localisation?.trim()) {
+                        location = await geocodePlaceToLocation(projetActif.localisation.trim());
+                      }
+
+                      if (!location) {
+                        Alert.alert(
+                          'Localisation requise',
+                          'Veuillez définir la localisation de la ferme (coordonnées) ou choisissez "Autre lieu".'
+                        );
+                        return;
+                      }
+                    } else if (locationMode === 'place') {
+                      const q = placeText.trim();
+                      if (!q) {
+                        Alert.alert('Localisation requise', 'Veuillez saisir un lieu (ville/commune...).');
+                        return;
+                      }
+                      location = await geocodePlaceToLocation(q);
+                      if (!location) {
+                        Alert.alert(
+                          'Localisation introuvable',
+                          "Impossible de trouver ce lieu. Essayez d'ajouter le pays (ex: Côte d’Ivoire)."
+                        );
+                        return;
+                      }
+                    } else {
+                      // GPS (1 fois)
+                      const userLoc = await getCurrentLocation();
+                      if (!userLoc) {
+                        Alert.alert('Erreur', "Impossible d'obtenir votre position.");
+                        return;
+                      }
+                      location = await resolveLocationFromCoords({
+                        latitude: userLoc.latitude,
+                        longitude: userLoc.longitude,
+                        fallbackText:
+                          userLoc.city
+                            ? `${userLoc.city}${userLoc.region ? `, ${userLoc.region}` : ''}`
+                            : projetActif.localisation,
+                      });
+                    }
+
+                    await handleConfirmMarketplaceAdd(location);
+                  } catch (e) {
+                    Alert.alert('Erreur', getErrorMessage(e) || "Impossible de préparer la localisation.");
+                  }
+                }}
+                disabled={togglingMarketplace === animalForMarketplace?.id}
+                style={[
+                  styles.modalButton,
+                  {
+                    backgroundColor: colors.primary,
+                    borderColor: colors.primary,
+                    opacity: togglingMarketplace === animalForMarketplace?.id ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <Text style={[styles.modalButtonText, { color: colors.textOnPrimary }]}>
+                  {togglingMarketplace === animalForMarketplace?.id ? '...' : 'Confirmer'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <MapLocationPickerModal
+        visible={mapModalVisible}
+        onClose={() => setMapModalVisible(false)}
+        initialLocation={farmLocation ? { lat: farmLocation.lat, lng: farmLocation.lng } : null}
+        onConfirm={async (loc) => {
+          if (!projetActif?.id) return;
+          const resolved = await resolveLocationFromCoords({
+            latitude: loc.lat,
+            longitude: loc.lng,
+            fallbackText: loc.address || projetActif.localisation,
+          });
+          const toStore: Omit<StoredFarmLocation, 'updatedAt'> = {
+            lat: resolved.latitude,
+            lng: resolved.longitude,
+            address: resolved.address,
+            city: resolved.city,
+            region: resolved.region,
+          };
+          await setFarmLocation(projetActif.id, toStore);
+          setFarmLocationState({ ...toStore, updatedAt: new Date().toISOString() });
+          setMapModalVisible(false);
+        }}
+      />
     </View>
   );
 }
@@ -763,5 +1104,87 @@ export default function ProductionCheptelComponent() {
     fontStyle: 'italic',
     textAlign: 'center',
     marginTop: SPACING.xs,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: SPACING.lg,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  modalCard: {
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    borderWidth: 1,
+  },
+  modalTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
+    marginBottom: SPACING.xs,
+  },
+  modalSubtitle: {
+    fontSize: FONT_SIZES.sm,
+    marginBottom: SPACING.md,
+  },
+  modalLabel: {
+    fontSize: FONT_SIZES.sm,
+    marginBottom: SPACING.xs,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    fontSize: FONT_SIZES.md,
+    marginBottom: SPACING.lg,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  locationModeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.xs,
+    marginBottom: SPACING.md,
+  },
+  locationModeChip: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+  },
+  locationModeChipText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '700',
+  },
+  locationSummary: {
+    marginBottom: SPACING.lg,
+    gap: SPACING.xs,
+  },
+  locationSummaryText: {
+    fontSize: FONT_SIZES.sm,
+    lineHeight: 18,
+  },
+  locationLink: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+  },
+  locationLinkText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '700',
+  },
+  modalButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: BORDER_RADIUS.md,
+    paddingVertical: SPACING.sm,
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '700',
   },
 });

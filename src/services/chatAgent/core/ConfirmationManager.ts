@@ -153,6 +153,19 @@ export class ConfirmationManager {
         return 'Pesée enregistrée, bien reçu !';
       case 'create_vaccination':
         return 'Vaccination enregistrée, bien noté !';
+      // Actions qui ne nécessitent PAS de message de confirmation
+      // (laisser actionResult.message prendre le relais)
+      case 'other':
+      case 'get_statistics':
+      case 'get_stock_status':
+      case 'calculate_costs':
+      case 'get_reminders':
+      case 'analyze_data':
+      case 'search_animal':
+      case 'search_lot':
+      case 'answer_knowledge_question':
+      case 'list_knowledge_topics':
+        return ''; // Retourner vide pour que actionResult.message soit utilisé
       default:
         return "C'est enregistré, bien reçu !";
     }

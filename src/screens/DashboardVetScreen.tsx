@@ -15,7 +15,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -43,6 +43,7 @@ const DashboardVetScreen: React.FC = () => {
   const { colors, isDark } = useTheme();
   const navigation = useNavigation();
   const route = useRoute();
+  const isFocused = useIsFocused();
   const [refreshing, setRefreshing] = useState(false);
   const [profileMenuVisible, setProfileMenuVisible] = useState(false);
   const [notificationPanelVisible, setNotificationPanelVisible] = useState(false);
@@ -65,7 +66,7 @@ const DashboardVetScreen: React.FC = () => {
     unreadCount: marketplaceUnreadCount,
     markAsRead,
     deleteNotification,
-  } = useMarketplaceNotifications();
+  } = useMarketplaceNotifications({ enabled: isFocused });
 
   const vetProfile = currentUser?.roles?.veterinarian;
   const showPendingBanner =

@@ -20,6 +20,7 @@ Cette base de connaissances est organisée en 10 fichiers Markdown segmentés pa
 8. **08-gestion-economique.md** - Coûts, rentabilité, indicateurs clés, calculs
 9. **09-astuces-conseils.md** - Recettes locales, remèdes traditionnels, saison des pluies, signes mise bas
 10. **10-ressources-contacts.md** - Directions régionales, fournisseurs, associations, numéros d'urgence
+11+. **11-...-procedure-*.md** - Procédures “actions Kouakou” (1 fichier = 1 intention/action, optimisé RAG-GATE)
 
 ---
 
@@ -64,6 +65,7 @@ Contenu détaillé...
 - `finance` - Gestion économique
 - `commerce` - Commercialisation
 - `reglementation` - Réglementation
+- `procedures` - Procédures d’utilisation et actions de Kouakou (intent/tools, champs requis, enums, exemples, UI target)
 
 ---
 

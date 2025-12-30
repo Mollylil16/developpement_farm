@@ -1,9 +1,8 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
-  private readonly logger = new Logger(DatabaseService.name);
   private pool: Pool;
 
   constructor() {
@@ -39,14 +38,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         keepAlive: true,
         keepAliveInitialDelayMillis: 10000, // 10s
         
-        // Log des connexions pour debug
-        log: process.env.NODE_ENV === 'development' ? console.log : undefined,
       };
-      
-      console.log(`🔌 Configuration PostgreSQL pour ${isRenderOrCloud ? 'CLOUD (Render/Railway)' : 'DATABASE_URL'}`);
-      console.log(`   Max connexions: ${poolConfig.max}`);
-      console.log(`   Timeout: ${poolConfig.connectionTimeoutMillis}ms`);
-      console.log(`   SSL: ${poolConfig.ssl ? 'Activé' : 'Désactivé'}`);
     } else {
       // Variables individuelles (développement local)
       poolConfig = {
@@ -62,35 +54,15 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         keepAlive: true,
         keepAliveInitialDelayMillis: 10000,
       };
-      
-      console.log('🔌 Configuration PostgreSQL LOCALE');
     }
 
     this.pool = new Pool(poolConfig);
 
     // Gestion des erreurs du pool
     this.pool.on('error', (err, client) => {
-      console.error('❌ Erreur inattendue dans le pool PostgreSQL:', err);
-      console.error('   Client concerné:', client ? 'Oui' : 'Non');
-      this.logger.error('Erreur inattendue dans le pool PostgreSQL', err);
+      // Gestion silencieuse des erreurs du pool
     });
     
-    // Log du nombre de connexions actives (pour debug)
-    this.pool.on('connect', (client) => {
-      const totalCount = this.pool.totalCount;
-      const idleCount = this.pool.idleCount;
-      const waitingCount = this.pool.waitingCount;
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`🔗 Nouvelle connexion PostgreSQL (Total: ${totalCount}, Idle: ${idleCount}, Waiting: ${waitingCount})`);
-      }
-    });
-    
-    // Log des connexions libérées
-    this.pool.on('remove', (client) => {
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`🔓 Connexion PostgreSQL libérée (Total restant: ${this.pool.totalCount})`);
-      }
-    });
   }
 
   async onModuleInit() {
@@ -99,43 +71,25 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        console.log(`🔌 Tentative de connexion PostgreSQL (${attempt}/${maxAttempts})...`);
-        
         const client = await this.pool.connect();
         const result = await client.query('SELECT NOW()');
-        
-        console.log('✅ Connexion PostgreSQL établie avec succès');
-        console.log(`📅 Heure serveur: ${result.rows[0].now}`);
-        console.log(`📊 Pool status: ${this.pool.totalCount} total, ${this.pool.idleCount} idle`);
-        
-        this.logger.log('Connexion PostgreSQL établie avec succès');
-        this.logger.debug(`Heure serveur: ${result.rows[0].now}`);
-        
+
         client.release();
         return; // Succès, on sort de la fonction
       } catch (error: any) {
         lastError = error;
-        console.error(`❌ Tentative ${attempt}/${maxAttempts} échouée:`, error.message);
-        this.logger.error(`Tentative ${attempt}/${maxAttempts} échouée`, error);
-        
+
         if (attempt < maxAttempts) {
           const delayMs = attempt * 2000; // Délai progressif: 2s, 4s, 6s, 8s
-          console.log(`⏳ Nouvelle tentative dans ${delayMs}ms...`);
           await new Promise(resolve => setTimeout(resolve, delayMs));
         }
       }
     }
-    
-    // Si on arrive ici, toutes les tentatives ont échoué
-    console.error('❌ Impossible de se connecter à PostgreSQL après', maxAttempts, 'tentatives');
-    console.error('   DATABASE_URL:', process.env.DATABASE_URL ? 'Défini' : 'Non défini');
-    this.logger.error('Impossible de se connecter à PostgreSQL après toutes les tentatives');
     throw lastError;
   }
 
   async onModuleDestroy() {
     await this.pool.end();
-    this.logger.log('Pool PostgreSQL fermé');
   }
 
   async getClient() {
@@ -159,23 +113,6 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         const result = await this.pool.query(text, params);
         const duration = Date.now() - start;
         
-        // Monitoring des requêtes lentes
-        if (duration > slowQueryThreshold) {
-          const queryPreview = text.length > 100 ? `${text.substring(0, 100)}...` : text;
-          const paramsPreview = params && params.length > 0 
-            ? `[${params.slice(0, 3).map(p => typeof p === 'string' ? `"${p.substring(0, 20)}"` : p).join(', ')}${params.length > 3 ? '...' : ''}]`
-            : '[]';
-          
-          console.log(`⚠️ Query lente (${duration}ms): ${queryPreview}`);
-          this.logger.warn(
-            `⚠️ SLOW QUERY (${duration}ms > ${slowQueryThreshold}ms): ${queryPreview} | Params: ${paramsPreview}`
-          );
-        }
-        
-        // Si on réussit après un retry, le signaler
-        if (attempt > 1) {
-          console.log(`✅ Query réussie après ${attempt} tentative(s)`);
-        }
         
         return result;
       } catch (error: any) {
@@ -194,28 +131,19 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           error.code === '57P01'; // PostgreSQL "terminating connection due to administrator command"
         
         if (isConnectionError && attempt < maxRetries) {
-          console.warn(`⚠️ Erreur de connexion PostgreSQL (tentative ${attempt}/${maxRetries}), retry dans ${retryDelay}ms...`);
-          console.warn(`   Erreur: ${errorMessage.substring(0, 100)}`);
-          
           // Attendre avant de réessayer
           await new Promise(resolve => setTimeout(resolve, retryDelay));
-          
+
           // Augmenter progressivement le délai (exponential backoff)
           retryDelay *= 1.5;
         } else {
           // Ce n'est pas une erreur de connexion OU on a épuisé les retries
-          this.logger.error(
-            `❌ QUERY ERROR (${duration}ms): ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}`,
-            error
-          );
           break;
         }
       }
     }
     
     // Si on arrive ici, toutes les tentatives ont échoué
-    console.error("❌ Erreur lors de l'exécution de la requête:", lastError);
-    console.error('Query:', text);
     throw lastError;
   }
 

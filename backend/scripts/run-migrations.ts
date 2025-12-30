@@ -53,41 +53,30 @@ async function runMigrations() {
         return numA - numB;
       });
 
-    console.log('🚀 Début de l\'exécution des migrations...');
-    console.log(`📊 ${migrations.length} migrations trouvées\n`);
-
     for (const migrationFile of migrations) {
       const migrationPath = path.join(migrationsDir, migrationFile);
-      
+
       if (!fs.existsSync(migrationPath)) {
-        console.error(`❌ Fichier de migration introuvable: ${migrationFile}`);
         continue;
       }
 
-      console.log(`📄 Exécution de: ${migrationFile}`);
-      
       const sql = fs.readFileSync(migrationPath, 'utf8');
-      
+
       try {
         await client.query(sql);
-        console.log(`✅ Migration ${migrationFile} exécutée avec succès\n`);
       } catch (error: any) {
         // Si la table/trigger/index existe déjà, on continue (IF NOT EXISTS)
-        if (error.message.includes('already exists') || 
+        if (error.message.includes('already exists') ||
             error.message.includes('duplicate') ||
             error.message.includes('existe déjà') ||
             error.code === '42710') { // Code PostgreSQL pour "objet existe déjà"
-          console.log(`⚠️  Migration ${migrationFile} déjà appliquée (ignorée)\n`);
+          // Ignorer silencieusement
         } else {
-          console.error(`❌ Erreur lors de l'exécution de ${migrationFile}:`, error.message);
           throw error;
         }
       }
     }
-
-    console.log('✅ Toutes les migrations ont été exécutées avec succès !');
   } catch (error) {
-    console.error('❌ Erreur lors de l\'exécution des migrations:', error);
     throw error;
   } finally {
     client.release();
@@ -99,11 +88,9 @@ async function runMigrations() {
 // Exécuter le script
 runMigrations()
   .then(() => {
-    console.log('\n✅ Script terminé avec succès');
     process.exit(0);
   })
   .catch((error) => {
-    console.error('\n❌ Erreur:', error);
     process.exit(1);
   });
 

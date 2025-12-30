@@ -152,11 +152,6 @@ export function useGeolocation() {
     [location, getDistanceFrom]
   );
 
-  // Demander la permission au montage
-  useEffect(() => {
-    requestPermission();
-  }, [requestPermission]);
-
   return {
     location,
     loading,

@@ -174,12 +174,15 @@ export class KnowledgeBaseService {
       paramIndex++;
     }
 
-    // Paramètre pour projet_id (peut être NULL)
-    const projetIdParamIndex = paramIndex;
-    params.push(projetId || null as any);
-    paramIndex++;
+    // Filtre projet: éviter "$n IS NOT NULL" (type unknown) => construire la clause selon présence projetId
+    let projetFilterSql = `visibility = 'global'`;
+    if (projetId) {
+      projetFilterSql = `(visibility = 'global' OR (visibility = 'projet' AND projet_id = $${paramIndex}::text))`;
+      params.push(projetId);
+      paramIndex++;
+    }
 
-    // Paramètre pour limit
+    // Paramètre pour limit (caster pour éviter ambiguïtés)
     const limitParamIndex = paramIndex;
     params.push(limit);
 
@@ -187,10 +190,10 @@ export class KnowledgeBaseService {
       `SELECT id, category, title, content, summary, keywords
        FROM knowledge_base
        WHERE is_active = true
-         AND (visibility = 'global' OR ($${projetIdParamIndex} IS NOT NULL AND projet_id = $${projetIdParamIndex}))
+         AND ${projetFilterSql}
          AND (${conditions.join(' OR ')})
        ORDER BY priority DESC, view_count DESC
-       LIMIT $${limitParamIndex}`,
+       LIMIT $${limitParamIndex}::int`,
       params
     );
 

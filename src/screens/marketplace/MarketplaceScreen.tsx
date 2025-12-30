@@ -18,7 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { selectAllAnimaux } from '../../store/selectors/productionSelectors';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
 import { useRole } from '../../contexts/RoleContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -89,6 +89,7 @@ export default function MarketplaceScreen() {
   const { colors } = useTheme();
   const marketplaceColors = MarketplaceTheme.colors;
   const navigation = useNavigation();
+  const isFocused = useIsFocused();
   const dispatch = useAppDispatch();
   const { isProducer, isBuyer } = useRole();
 
@@ -115,7 +116,7 @@ export default function MarketplaceScreen() {
     markAsRead,
     markAllAsRead,
     deleteNotification,
-  } = useMarketplaceNotifications();
+  } = useMarketplaceNotifications({ enabled: isFocused });
 
   // Local State
   const [activeTab, setActiveTab] = useState<

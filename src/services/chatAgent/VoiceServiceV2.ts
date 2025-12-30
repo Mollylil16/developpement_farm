@@ -4,11 +4,54 @@
  * Supporte les accents ivoiriens et optimisé pour l'usage en zone rurale
  */
 
-import Voice from '@react-native-voice/voice';
-import * as Speech from 'expo-speech';
-import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
 import { logger } from '../../utils/logger';
+
+// Lazy imports pour éviter les erreurs si les modules ne sont pas disponibles dans Expo Go
+let Voice: typeof import('@react-native-voice/voice').default | null = null;
+let Speech: typeof import('expo-speech') | null = null;
+let Haptics: typeof import('expo-haptics') | null = null;
+
+async function isExpoGo(): Promise<boolean> {
+  try {
+    const Constants = await import('expo-constants');
+    // appOwnership === 'expo' dans Expo Go, 'standalone' ou 'guest' en dev build / standalone.
+    return (Constants as any)?.default?.appOwnership === 'expo';
+  } catch {
+    return false;
+  }
+}
+
+async function loadVoiceModules() {
+  const expoGo = await isExpoGo();
+
+  if (!Voice) {
+    if (expoGo) {
+      // IMPORTANT: ne pas tenter d'importer @react-native-voice/voice dans Expo Go (redbox Invariant Violation)
+      logger.warn('[VoiceServiceV2] Expo Go détecté: @react-native-voice/voice désactivé (dev build requis)');
+    } else {
+      try {
+        Voice = (await import('@react-native-voice/voice')).default;
+      } catch (error) {
+        logger.warn('[VoiceServiceV2] @react-native-voice/voice non disponible:', error);
+      }
+    }
+  }
+  if (!Speech) {
+    try {
+      Speech = await import('expo-speech');
+    } catch (error) {
+      logger.warn('[VoiceServiceV2] expo-speech non disponible:', error);
+    }
+  }
+  if (!Haptics) {
+    try {
+      Haptics = await import('expo-haptics');
+    } catch (error) {
+      logger.warn('[VoiceServiceV2] expo-haptics non disponible:', error);
+    }
+  }
+}
 
 export interface VoiceServiceCallbacks {
   onResult?: (text: string) => void;
@@ -20,15 +63,26 @@ export interface VoiceServiceCallbacks {
 export class VoiceServiceV2 {
   private isListening = false;
   private callbacks: VoiceServiceCallbacks = {};
+  private listenersSetup = false;
 
   constructor() {
-    this.setupListeners();
+    // Ne pas initialiser les listeners ici - ils seront initialisés lors de la première utilisation
   }
 
-  private setupListeners(): void {
+  private async setupListeners(): Promise<void> {
+    if (this.listenersSetup) return;
+    
+    await loadVoiceModules();
+    if (!Voice) {
+      logger.warn('[VoiceServiceV2] Voice module non disponible, listeners non configurés');
+      return;
+    }
+
     Voice.onSpeechStart = () => {
       logger.debug('[VoiceServiceV2] Speech start');
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      if (Haptics) {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
       this.callbacks.onStart?.();
     };
 
@@ -78,6 +132,8 @@ export class VoiceServiceV2 {
       this.isListening = false;
       this.callbacks.onError?.(message);
     };
+    
+    this.listenersSetup = true;
   }
 
   /**
@@ -90,6 +146,13 @@ export class VoiceServiceV2 {
     }
 
     this.callbacks = callbacks;
+
+    // Configurer les listeners lors de la première utilisation
+    await this.setupListeners();
+
+    if (!Voice) {
+throw new Error("Reconnaissance vocale indisponible dans Expo Go. Crée un build de développement (dev build) pour activer le micro.");
+    }
 
     try {
       // Vérifier si la reconnaissance vocale est disponible
@@ -132,6 +195,13 @@ export class VoiceServiceV2 {
       return;
     }
 
+    await loadVoiceModules();
+    if (!Voice) {
+      logger.warn('[VoiceServiceV2] Voice module non disponible');
+      this.isListening = false;
+      return;
+    }
+
     try {
       await Voice.stop();
       this.isListening = false;
@@ -147,6 +217,13 @@ export class VoiceServiceV2 {
    */
   async cancelListening(): Promise<void> {
     if (!this.isListening) {
+      return;
+    }
+
+    await loadVoiceModules();
+    if (!Voice) {
+      logger.warn('[VoiceServiceV2] Voice module non disponible');
+      this.isListening = false;
       return;
     }
 
@@ -173,6 +250,12 @@ export class VoiceServiceV2 {
       // Nettoyer le texte (enlever les émojis, formatage spécial, etc.)
       const cleanText = this.cleanTextForSpeech(text);
 
+      await loadVoiceModules();
+      if (!Speech) {
+        logger.warn('[VoiceServiceV2] Speech module non disponible');
+        return;
+      }
+
       Speech.speak(cleanText, {
         language: 'fr-FR',
         pitch: 1.0,
@@ -196,7 +279,13 @@ export class VoiceServiceV2 {
   /**
    * Arrête la synthèse vocale
    */
-  stopSpeaking(): void {
+  async stopSpeaking(): Promise<void> {
+    await loadVoiceModules();
+    if (!Speech) {
+      logger.warn('[VoiceServiceV2] Speech module non disponible');
+      return;
+    }
+
     try {
       Speech.stop();
       logger.debug('[VoiceServiceV2] Speech stopped');
@@ -209,6 +298,11 @@ export class VoiceServiceV2 {
    * Vérifie si la reconnaissance vocale est disponible
    */
   async isAvailable(): Promise<boolean> {
+    await loadVoiceModules();
+    if (!Voice) {
+      return false;
+    }
+
     try {
       return await Voice.isAvailable();
     } catch {
@@ -255,7 +349,10 @@ export class VoiceServiceV2 {
       if (this.isListening) {
         await this.cancelListening();
       }
-      await Voice.destroy();
+      await loadVoiceModules();
+      if (Voice) {
+        await Voice.destroy();
+      }
       this.callbacks = {};
       logger.debug('[VoiceServiceV2] Destroyed');
     } catch (error) {

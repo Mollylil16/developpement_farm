@@ -35,6 +35,22 @@ CREATE TABLE IF NOT EXISTS batch_pigs (
   FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE CASCADE
 );
 
+-- Colonnes complémentaires utilisées par les opérations batch (créées ici pour éviter la dépendance d'ordre avec 044)
+ALTER TABLE batch_pigs
+ADD COLUMN IF NOT EXISTS gestation_status VARCHAR(50) DEFAULT 'not_pregnant' CHECK (gestation_status IN (
+  'not_pregnant', 'pregnant', 'delivered', 'aborted'
+));
+
+ALTER TABLE batch_pigs
+ADD COLUMN IF NOT EXISTS last_weighing_date TIMESTAMP;
+
+ALTER TABLE batch_pigs
+ADD COLUMN IF NOT EXISTS last_vaccination_type VARCHAR(50);
+
+-- Index additionnels (si non déjà créés)
+CREATE INDEX IF NOT EXISTS idx_batch_pigs_gestation_status ON batch_pigs(gestation_status);
+CREATE INDEX IF NOT EXISTS idx_batch_pigs_last_weighing ON batch_pigs(last_weighing_date);
+
 -- Index pour améliorer les performances
 CREATE INDEX IF NOT EXISTS idx_batch_pigs_batch ON batch_pigs(batch_id);
 CREATE INDEX IF NOT EXISTS idx_batch_pigs_sex ON batch_pigs(sex);
@@ -78,6 +94,30 @@ CREATE TABLE IF NOT EXISTS batch_pig_movements (
 CREATE INDEX IF NOT EXISTS idx_movements_pig ON batch_pig_movements(pig_id);
 CREATE INDEX IF NOT EXISTS idx_movements_type ON batch_pig_movements(movement_type);
 CREATE INDEX IF NOT EXISTS idx_movements_date ON batch_pig_movements(movement_date);
+
+-- Ajouter les FK vers batch_pigs sur les tables batch_* (créées en 044) une fois batch_pigs disponible
+DO $$
+BEGIN
+  -- batch_gestations.pig_id -> batch_pigs.id
+  IF to_regclass('public.batch_gestations') IS NOT NULL THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'fk_batch_gestations_pig_id'
+    ) THEN
+      ALTER TABLE batch_gestations
+      ADD CONSTRAINT fk_batch_gestations_pig_id FOREIGN KEY (pig_id) REFERENCES batch_pigs(id) ON DELETE CASCADE;
+    END IF;
+  END IF;
+
+  -- batch_diseases.pig_id -> batch_pigs.id
+  IF to_regclass('public.batch_diseases') IS NOT NULL THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'fk_batch_diseases_pig_id'
+    ) THEN
+      ALTER TABLE batch_diseases
+      ADD CONSTRAINT fk_batch_diseases_pig_id FOREIGN KEY (pig_id) REFERENCES batch_pigs(id) ON DELETE CASCADE;
+    END IF;
+  END IF;
+END $$;
 
 -- Trigger pour mettre à jour les effectifs de la bande
 CREATE OR REPLACE FUNCTION update_batch_counts()

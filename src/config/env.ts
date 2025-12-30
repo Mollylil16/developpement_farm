@@ -5,6 +5,27 @@
 
 import { Platform } from 'react-native';
 
+function getExpoDevHost(): string | null {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const Constants = require('expo-constants')?.default;
+    const hostUri: string | undefined =
+      Constants?.expoConfig?.hostUri ||
+      Constants?.manifest?.hostUri ||
+      Constants?.manifest?.debuggerHost ||
+      Constants?.manifest2?.extra?.expoGo?.developer?.hostUri ||
+      Constants?.manifest2?.extra?.expoClient?.hostUri;
+
+    if (!hostUri || typeof hostUri !== 'string') return null;
+    // hostUri / debuggerHost look like "192.168.x.x:19000"
+    const host = hostUri.split(':')[0]?.trim();
+    if (!host) return null;
+    return host;
+  } catch {
+    return null;
+  }
+}
+
 export type Environment = 'development' | 'staging' | 'production';
 
 /**
@@ -52,7 +73,17 @@ const ENV_CONFIG = {
       Platform.select({
         // Pour Android/iOS physique, utiliser l'IP locale de votre machine
         // Remplacer par votre IP locale (ex: ipconfig sur Windows, ifconfig sur Mac/Linux)
-        default: 'https://fermier-pro-backend.onrender.com', // ⚠️ IP Wi‑Fi locale (mise à jour depuis ipconfig)
+        default:
+          process.env.EXPO_PUBLIC_API_URL ||
+          (() => {
+            // Auto-détection en dev: utiliser l'hôte du bundler Expo -> backend sur :3000
+            const host = getExpoDevHost();
+            if (host) return `http://${host}:3000`;
+            // Fallback émulateur Android
+            if (Platform.OS === 'android') return 'http://10.0.2.2:3000';
+            // Fallback simulateur iOS / desktop
+            return 'http://localhost:3000';
+          })(),
         web: 'http://localhost:3000',
       }) || 'http://localhost:3000',
     timeout: 30000, // 30 secondes en dev (plus long pour les opérations lourdes comme la création de projet)

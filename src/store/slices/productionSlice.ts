@@ -244,9 +244,18 @@ const productionSlice = createSlice({
       })
       .addCase(loadProductionAnimaux.fulfilled, (state, action) => {
         state.loading = false;
-        const normalized = normalizeAnimaux(action.payload);
+        const animaux = action.payload;
+        const normalized = normalizeAnimaux(animaux);
+        
+        // Mettre à jour les entités (fusionner avec les animaux existants)
         state.entities.animaux = { ...state.entities.animaux, ...normalized.entities.animaux };
+        
+        // Remplacer tous les IDs (car on charge généralement les animaux du projet actif uniquement)
+        // Les entités sont fusionnées donc les animaux d'autres projets restent dans entities
         state.ids.animaux = normalized.result;
+        
+        // Incrémenter le compteur pour forcer la synchronisation des widgets
+        state.updateCounter = (state.updateCounter || 0) + 1;
       })
       .addCase(loadProductionAnimaux.rejected, (state, action) => {
         state.loading = false;

@@ -38,30 +38,18 @@ export class ReproductionService {
    * Vérifie que le projet appartient à l'utilisateur
    */
   private async checkProjetOwnership(projetId: string, userId: string): Promise<void> {
-    // #region agent log
-    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); const logDir = path.dirname(logPath); if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true }); fs.appendFileSync(logPath, JSON.stringify({location:'reproduction.service.ts:40',message:'checkProjetOwnership entry',data:{projetId,userId,projetIdType:typeof projetId,userIdType:typeof userId,projetIdLength:projetId?.length,userIdLength:userId?.length,projetIdJSON:JSON.stringify(projetId),userIdJSON:JSON.stringify(userId)},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})+'\n'); } catch(e) {}
-    // #endregion
-    const result = await this.databaseService.query(
+const result = await this.databaseService.query(
       'SELECT proprietaire_id FROM projets WHERE id = $1',
       [projetId]
     );
     if (result.rows.length === 0) {
-      // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'reproduction.service.ts:45',message:'checkProjetOwnership: projet introuvable',data:{projetId,userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'C'})+'\n'); } catch(e) {}
-      // #endregion
-      throw new NotFoundException('Projet introuvable');
+throw new NotFoundException('Projet introuvable');
     }
     const rawProprietaireId = result.rows[0].proprietaire_id;
     const proprietaireId = String(rawProprietaireId || '').trim();
     const normalizedUserId = String(userId || '').trim();
-    // #region agent log
-    try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'reproduction.service.ts:48',message:'checkProjetOwnership: comparaison détaillée',data:{projetId,userId,rawProprietaireId,proprietaireId,normalizedUserId,proprietaireIdType:typeof proprietaireId,normalizedUserIdType:typeof normalizedUserId,areEqual:proprietaireId===normalizedUserId,proprietaireIdLength:proprietaireId?.length,normalizedUserIdLength:normalizedUserId?.length,proprietaireIdJSON:JSON.stringify(proprietaireId),normalizedUserIdJSON:JSON.stringify(normalizedUserId),proprietaireIdCharCodes:proprietaireId?.split('').map(c=>c.charCodeAt(0)),normalizedUserIdCharCodes:normalizedUserId?.split('').map(c=>c.charCodeAt(0))},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'B'})+'\n'); } catch(e) {}
-    // #endregion
-    if (proprietaireId !== normalizedUserId) {
-      // #region agent log
-      try { const fs = require('fs'); const path = require('path'); const logPath = (process.cwd().includes('backend') ? path.join(process.cwd(), '..', '.cursor', 'debug.log') : path.join(process.cwd(), '.cursor', 'debug.log')); fs.appendFileSync(logPath, JSON.stringify({location:'reproduction.service.ts:49',message:'checkProjetOwnership: accès refusé',data:{projetId,userId,proprietaireId,normalizedUserId,reason:'proprietaireId !== normalizedUserId',diffLength:Math.abs(proprietaireId.length-normalizedUserId.length)},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})+'\n'); } catch(e) {}
-      // #endregion
-      throw new ForbiddenException('Ce projet ne vous appartient pas');
+if (proprietaireId !== normalizedUserId) {
+throw new ForbiddenException('Ce projet ne vous appartient pas');
     }
   }
 

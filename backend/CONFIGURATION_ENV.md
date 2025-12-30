@@ -41,6 +41,7 @@ JWT_REFRESH_EXPIRES_IN=7d
 # Server Configuration
 PORT=3000
 NODE_ENV=development          # development | production | test
+DISABLE_RATE_LIMIT=false      # true pour désactiver le rate limit (tests uniquement)
 ```
 
 **Nécessaire pour** : Configuration du serveur
@@ -139,6 +140,7 @@ DB_SSL=false
 # ============================================
 PORT=3000
 NODE_ENV=development
+DISABLE_RATE_LIMIT=false
 
 # ============================================
 # CORS CONFIGURATION

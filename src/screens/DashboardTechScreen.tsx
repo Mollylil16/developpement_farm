@@ -6,7 +6,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, ScrollView, Text, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
@@ -33,6 +33,7 @@ const DashboardTechScreen: React.FC = () => {
   const { currentUser } = useRole();
   const { colors, isDark } = useTheme();
   const navigation = useNavigation();
+  const isFocused = useIsFocused();
   const [refreshing, setRefreshing] = useState(false);
   const [profileMenuVisible, setProfileMenuVisible] = useState(false);
   const [notificationPanelVisible, setNotificationPanelVisible] = useState(false);
@@ -48,7 +49,7 @@ const DashboardTechScreen: React.FC = () => {
     unreadCount: marketplaceUnreadCount,
     markAsRead,
     deleteNotification,
-  } = useMarketplaceNotifications();
+  } = useMarketplaceNotifications({ enabled: isFocused });
 
   const techProfile = currentUser?.roles?.technician;
 

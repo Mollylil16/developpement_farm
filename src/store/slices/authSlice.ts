@@ -298,10 +298,10 @@ export const signIn = createAsyncThunk(
     } catch (error: unknown) {
       // Gérer les erreurs API
       if (error && typeof error === 'object' && 'status' in error && error.status === 401) {
-        const apiError = error as { status: number; data?: { message?: string } };
+        // Pour les erreurs 401 (identifiants incorrects), utiliser un message générique
+        // qui ne révèle pas si l'utilisateur existe ou non (sécurité)
         return rejectWithValue(
-          apiError.data?.message ||
-            'Aucun compte trouvé avec cet email ou ce numéro. Veuillez vous inscrire.'
+          'Identifiant ou mot de passe incorrect. Si ceci est votre première connexion, veuillez créer un compte.'
         );
       }
       return rejectWithValue(
@@ -412,7 +412,7 @@ export const signOut = createAsyncThunk('auth/signOut', async (_, { dispatch }) 
 
     if (refreshToken) {
       try {
-        await apiClient.post('/auth/logout', { refresh_token: refreshToken }, { skipAuth: true });
+        await apiClient.post('/auth/logout', { refresh_token: refreshToken });
       } catch (error) {
         // Ne pas bloquer la déconnexion si l'appel API échoue
         logger.warn('Avertissement lors de la déconnexion côté backend:', error);

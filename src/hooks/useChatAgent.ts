@@ -3,13 +3,16 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAppSelector } from '../store/hooks';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { ChatAgentService, ProactiveRemindersService, VoiceService } from '../services/chatAgent';
 import { ChatMessage, AgentConfig, VoiceConfig, Reminder } from '../types/chatAgent';
 import { format } from 'date-fns';
 import apiClient from '../services/api/apiClient';
 import { OPENAI_CONFIG } from '../config/openaiConfig';
 import { createLoggerWithPrefix } from '../utils/logger';
+import { getOrCreateConversationId, loadConversationHistory, clearConversationId } from '../services/chatAgent/core/ConversationStorage';
+import { loadChargesFixes, loadDepensesPonctuelles, loadRevenus } from '../store/slices/financeSlice';
+import { loadProductionAnimaux } from '../store/slices/productionSlice';
 
 const logger = createLoggerWithPrefix('useChatAgent');
 
@@ -57,6 +60,7 @@ function calculateThinkingTime(message: string): number {
 }
 
 export function useChatAgent() {
+  const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   const { user } = useAppSelector((state) => state.auth);
 
@@ -83,22 +87,34 @@ export function useChatAgent() {
 
     const initializeAgent = async () => {
       try {
-        // Trouver ou créer une conversation via l'API
+        // Récupérer ou créer un conversationId persistant pour ce projet
         let conversationId: string | null = null;
         try {
-          // Les endpoints de conversation ne sont pas encore implémentés dans le backend
-          // On génère un ID local pour la session
-          conversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          logger.debug('Conversation ID généré localement:', conversationId);
+          conversationId = await getOrCreateConversationId(projetActif.id);
+          logger.debug('Conversation ID récupéré/créé:', conversationId);
         } catch (error) {
-          logger.error('Erreur lors de la génération de la conversation:', error);
-          // Continuer sans conversation ID si nécessaire
+          logger.error('Erreur lors de la récupération/création du conversationId:', error);
+          // Fallback: générer un ID local
+          conversationId = `conv_${projetActif.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         }
         conversationIdRef.current = conversationId;
 
-        // Les endpoints de messages ne sont pas encore implémentés dans le backend
-        // L'historique sera géré localement pour l'instant
+        // Charger l'historique depuis le backend
         let savedMessages: ChatMessage[] = [];
+        try {
+          savedMessages = await loadConversationHistory(projetActif.id, conversationId, 100);
+          logger.debug(`Historique chargé: ${savedMessages.length} messages`);
+        } catch (error) {
+          // Si l'erreur est 500 (Internal Server Error), c'est probablement que la table n'existe pas encore
+          // Dans ce cas, on log en debug au lieu d'error pour ne pas alarmer l'utilisateur
+          if ((error as any)?.status === 500) {
+            logger.debug('Erreur 500 lors du chargement de l\'historique (table peut-être non créée) - continuation sans historique');
+          } else {
+            logger.error('Erreur lors du chargement de l\'historique:', error);
+          }
+          // Continuer sans historique en cas d'erreur
+          savedMessages = [];
+        }
 
         // Configuration de l'agent
         const config: AgentConfig = {
@@ -129,13 +145,16 @@ export function useChatAgent() {
           transcriptionApiKey,
         });
 
-        // Initialiser le contexte
-        await agentService.initializeContext({
-          projetId: projetActif.id,
-          userId: user.id,
-          userName: user.nom || user.email,
-          currentDate: format(new Date(), 'yyyy-MM-dd'),
-        });
+        // Initialiser le contexte avec le conversationId
+        await agentService.initializeContext(
+          {
+            projetId: projetActif.id,
+            userId: user.id,
+            userName: user.nom || user.email,
+            currentDate: format(new Date(), 'yyyy-MM-dd'),
+          },
+          conversationId
+        );
 
         await remindersService.initialize({
           projetId: projetActif.id,
@@ -150,9 +169,8 @@ export function useChatAgent() {
 
         // Restaurer l'historique dans le service
         if (savedMessages.length > 0) {
-          // Exclure le message de bienvenue s'il existe
-          const messagesWithoutWelcome = savedMessages.filter((msg: ChatMessage) => msg.id !== 'welcome');
-          agentService.restoreHistory(messagesWithoutWelcome);
+          // Restaurer tous les messages (y compris le message de bienvenue s'il existe)
+          agentService.restoreHistory(savedMessages);
           setMessages(savedMessages);
         } else {
           // Générer les rappels proactifs
@@ -188,7 +206,14 @@ export function useChatAgent() {
 
         setIsInitialized(true);
       } catch (error) {
-        logger.error("Erreur lors de l'initialisation de l'agent:", error);
+        // Si l'erreur est 500 et concerne l'historique, c'est probablement que la table n'existe pas encore
+        // Dans ce cas, on log en debug au lieu d'error pour ne pas alarmer l'utilisateur
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if ((error as any)?.status === 500 && errorMessage.includes('Internal server error')) {
+          logger.debug("Erreur 500 lors de l'initialisation de l'agent (probablement table non créée) - continuation en mode dégradé");
+        } else {
+          logger.error("Erreur lors de l'initialisation de l'agent:", error);
+        }
         // Même en cas d'erreur, permettre à l'agent de fonctionner avec des capacités limitées
         // L'erreur peut venir de l'API mais l'agent local peut quand même fonctionner
         if (agentServiceRef.current) {
@@ -236,6 +261,27 @@ export function useChatAgent() {
 
       try {
         const response = await agentServiceRef.current.sendMessage(content);
+
+        // UI sync: si l'agent a exécuté une action, rafraîchir les données concernées
+        try {
+          const actionExecuted = response?.metadata?.actionExecuted as string | undefined;
+          const projetId = projetActif?.id;
+
+          if (actionExecuted && projetId) {
+            if (actionExecuted === 'create_depense') {
+              dispatch(loadDepensesPonctuelles(projetId));
+            } else if (actionExecuted === 'create_revenu') {
+              dispatch(loadRevenus(projetId));
+            } else if (actionExecuted === 'create_charge_fixe') {
+              dispatch(loadChargesFixes(projetId));
+            } else if (actionExecuted === 'create_pesee') {
+              dispatch(loadProductionAnimaux({ projetId, inclureInactifs: true }));
+            }
+          }
+        } catch {
+          // Ne pas bloquer l'UI si le refresh échoue
+        }
+
         setMessages((prev) => [...prev, response]);
 
         // Si la voix est activée, lire la réponse
@@ -296,9 +342,17 @@ export function useChatAgent() {
       setMessages([]);
     }
 
-    // Les endpoints de messages ne sont pas encore implémentés dans le backend
-    // Les messages sont gérés localement pour l'instant
-  }, []);
+    // Supprimer le conversationId pour créer une nouvelle conversation au prochain démarrage
+    if (projetActif?.id && conversationIdRef.current) {
+      try {
+        await clearConversationId(projetActif.id);
+        conversationIdRef.current = null;
+        logger.debug('Conversation ID supprimé, nouvelle conversation sera créée au prochain démarrage');
+      } catch (error) {
+        logger.error('Erreur lors de la suppression du conversationId:', error);
+      }
+    }
+  }, [projetActif?.id]);
 
   /**
    * Récupère les rappels

@@ -1,5 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsNumber, IsOptional, IsDateString, Min } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsDateString,
+  Min,
+  IsArray,
+  ArrayMinSize,
+} from 'class-validator';
 
 export class CreateWeighingDto {
   @ApiProperty({
@@ -16,8 +25,9 @@ export class CreateWeighingDto {
     minimum: 1,
   })
   @IsNumber()
+  @IsOptional()
   @Min(1, { message: 'Le nombre de porcs doit être au moins 1' })
-  count: number;
+  count?: number;
 
   @ApiProperty({
     description: 'Date de la pesée',
@@ -34,6 +44,22 @@ export class CreateWeighingDto {
   @IsNumber()
   @Min(0, { message: 'Le poids moyen doit être positif' })
   average_weight_kg: number;
+
+  @ApiProperty({
+    description: 'Liste des poids mesurés (kg) dans l’ordre saisi',
+    type: [Number],
+    example: [25.4, 26.1, 23.8],
+  })
+  @IsArray()
+  @ArrayMinSize(1, { message: 'Au moins un poids est requis' })
+  @IsNumber(
+    {},
+    {
+      each: true,
+      message: 'Chaque poids saisi doit être un nombre',
+    },
+  )
+  weights_kg: number[];
 
   @ApiPropertyOptional({
     description: 'Poids minimal observé en kg',

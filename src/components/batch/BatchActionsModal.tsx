@@ -22,6 +22,7 @@ import {
   Edit,
   ChevronRight,
   ShoppingCart,
+  SlidersHorizontal,
 } from 'lucide-react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constants/theme';
@@ -31,6 +32,7 @@ import PigListModal from './PigListModal';
 import TransferPigModal from './TransferPigModal';
 import RemovePigModal from './RemovePigModal';
 import CreateBatchListingModal from './CreateBatchListingModal';
+import BatchSettingsModal from './BatchSettingsModal';
 // import EditBatchModal from './EditBatchModal'; // À créer plus tard
 
 interface BatchActionsModalProps {
@@ -40,7 +42,15 @@ interface BatchActionsModalProps {
   onRefresh: () => void;
 }
 
-type ActionType = 'add' | 'list' | 'transfer' | 'remove' | 'edit' | 'marketplace' | null;
+type ActionType =
+  | 'add'
+  | 'list'
+  | 'transfer'
+  | 'remove'
+  | 'edit'
+  | 'marketplace'
+  | 'settings'
+  | null;
 
 export default function BatchActionsModal({
   visible,
@@ -81,6 +91,12 @@ export default function BatchActionsModal({
       label: 'Retirer un sujet',
       icon: MinusCircle,
       color: colors.error,
+    },
+    {
+      id: 'settings' as ActionType,
+      label: 'Paramètres & GMQ',
+      icon: SlidersHorizontal,
+      color: colors.info,
     },
     // {
     //   id: 'edit' as ActionType,
@@ -137,7 +153,7 @@ export default function BatchActionsModal({
               {BATCH_CATEGORY_LABELS[batch.category]}
             </Text>
             <Text style={[styles.batchDetails, { color: colors.textSecondary }]}>
-              {batch.total_count} sujets • Loge {batch.pen_name}
+              {batch.total_count} sujets • {batch.pen_name}
             </Text>
           </View>
 
@@ -223,6 +239,15 @@ export default function BatchActionsModal({
           batch={batch}
           onClose={handleActionComplete}
           onSuccess={handleActionComplete}
+        />
+      )}
+
+      {selectedAction === 'settings' && (
+        <BatchSettingsModal
+          visible={true}
+          batch={batch}
+          onClose={handleCloseAction}
+          onSaved={handleActionComplete}
         />
       )}
 

@@ -30,6 +30,7 @@ import { ActionParser } from './core/ActionParser';
 import { PerformanceMonitor } from './monitoring/PerformanceMonitor';
 import type { DetectedIntent } from './IntentDetector';
 import { createLoggerWithPrefix } from '../../utils/logger';
+import { KnowledgeBaseAPI } from './knowledge/KnowledgeBaseAPI';
 
 const logger = createLoggerWithPrefix('ChatAgentService');
 
@@ -79,14 +80,14 @@ export class ChatAgentService {
   /**
    * Initialise le contexte de l'agent
    */
-  async initializeContext(context: AgentContext): Promise<void> {
+  async initializeContext(context: AgentContext, conversationId?: string): Promise<void> {
     this.context = context;
     await this.actionExecutor.initialize(context);
     await this.dataValidator.initialize(context);
 
-    // V4.0 - Initialiser le LearningService avec le projet
+    // V4.0 - Initialiser le LearningService avec le projet et conversationId
     if (context.projetId) {
-      this.learningService.initialize(context.projetId);
+      this.learningService.initialize(context.projetId, conversationId);
     }
 
     // Charger l'historique dans le contexte conversationnel
@@ -120,20 +121,9 @@ export class ChatAgentService {
     this.learningService.recordConversationMessage('user', userMessage);
 
     try {
-      // Préparer le contexte pour l'IA
-      const systemPrompt = buildOptimizedSystemPrompt(this.context);
-      const messagesForAPI = [
-        { role: 'system' as const, content: systemPrompt },
-        ...this.conversationHistory.slice(-10).map((msg) => ({
-          role: msg.role,
-          content: msg.content,
-        })),
-      ];
-
-      // Appeler l'API de l'IA
-      const apiCallStartTime = Date.now();
-      const aiResponse = await this.api.sendMessage(messagesForAPI);
-      const apiCallTime = Date.now() - apiCallStartTime;
+      // Appel LLM (ChatAgentAPI) uniquement si nécessaire (fallback). On évite les appels inutiles.
+      let aiResponse: string | null = null;
+      let apiCallTime = 0;
 
       // Mettre à jour le contexte conversationnel
       this.conversationContext.updateFromMessage(userMsg);
@@ -164,7 +154,7 @@ export class ChatAgentService {
           logger.debug(`Fast path activé: ${detectedIntent.action}, confiance: ${fastPathResult.confidence}`);
           this.performanceMonitor.recordStepTiming({ fastPathTime });
         } else {
-          // DÉTECTION D'INTENTION : Utiliser RAG
+          // DÉTECTION D'INTENTION : Utiliser RAG (intent)
           const ragStartTime = Date.now();
           detectedIntent = await this.intentRAG.detectIntent(userMessage);
           ragTime = Date.now() - ragStartTime;
@@ -298,7 +288,20 @@ export class ChatAgentService {
           requiresConfirmation: confirmationDecision.requiresConfirmation,
         };
       } else {
-        // Fallback: parser la réponse de l'IA
+        // Fallback: appel LLM puis parser une action depuis la réponse
+        const systemPrompt = buildOptimizedSystemPrompt(this.context);
+        const messagesForAPI = [
+          { role: 'system' as const, content: systemPrompt },
+          ...this.conversationHistory.slice(-10).map((msg) => ({
+            role: msg.role,
+            content: msg.content,
+          })),
+        ];
+
+        const apiCallStartTime = Date.now();
+        aiResponse = await this.api.sendMessage(messagesForAPI);
+        apiCallTime = Date.now() - apiCallStartTime;
+
         action = ActionParser.parseActionFromResponse(aiResponse, userMessage);
         if (action) {
           const confirmationDecision = this.confirmationManager.shouldConfirmAndExecute(
@@ -313,7 +316,9 @@ export class ChatAgentService {
       let assistantMessage: ChatMessage;
       let actionResult: AgentActionResult | null = null;
 
-      if (action && action.type !== 'other') {
+      // IMPORTANT: we must execute "other" too (identity questions, small talk, etc.)
+      // Previously, "other" fell into the misunderstanding fallback, causing Kouakou to "forget" his name.
+      if (action) {
         const confidence = detectedIntent?.confidence || 0.7;
         const confirmationDecision = this.confirmationManager.shouldConfirmAndExecute(
           action,
@@ -333,6 +338,47 @@ export class ChatAgentService {
             },
           };
         } else {
+          // RAG-GATE (obligatoire avant exécution): récupérer une preuve/procédure depuis la base de connaissances
+          // pour éviter d'exécuter des actions sans référence aux règles/procédures officielles.
+          const isMutatingAction =
+            action.type.startsWith('create_') ||
+            action.type.startsWith('update_') ||
+            action.type.startsWith('delete_') ||
+            action.type === 'creer_loge' ||
+            action.type === 'deplacer_animaux';
+
+          if (isMutatingAction) {
+            const ragQuery = `${action.type} ${userMessage}`;
+            const ragResults = await KnowledgeBaseAPI.search(ragQuery, {
+              projetId: this.context.projetId,
+              limit: 3,
+            });
+
+            // Si aucune info RAG, on bloque l'exécution et on demande clarification/confirmation
+            if (!ragResults || ragResults.length === 0) {
+              assistantMessage = {
+                id: this.generateId(),
+                role: 'assistant',
+                content:
+                  "Avant d'enregistrer, je dois vérifier la procédure dans ma base de connaissances. Je n'ai pas trouvé la procédure correspondante. Peux-tu préciser (catégorie / date / détails) ou reformuler ?",
+                timestamp: new Date().toISOString(),
+                metadata: {
+                  requiresConfirmation: true,
+                  pendingAction: { action: action.type, params: action.params },
+                  rag: { query: ragQuery, hits: 0 },
+                },
+              };
+              this.conversationHistory.push(assistantMessage);
+              return assistantMessage;
+            }
+
+            // Ajouter les preuves RAG à l'action pour audit/UX (optionnel)
+            (action.params as any).__ragEvidence = {
+              query: ragQuery,
+              top: ragResults[0],
+            };
+          }
+
           // Exécuter l'action
           const actionExecutionStartTime = Date.now();
           actionResult = await this.actionExecutor.execute(action, this.context);

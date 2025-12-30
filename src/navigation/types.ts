@@ -17,6 +17,7 @@ export const SCREENS = {
   SANTE: 'Sante',
   FINANCE: 'Finance',
   REPORTS: 'Reports',
+  LOGIN_LOGS: 'LoginLogs',
   PLANIFICATION: 'Planification',
   TRAINING: 'Training',
   COLLABORATION: 'Collaboration',

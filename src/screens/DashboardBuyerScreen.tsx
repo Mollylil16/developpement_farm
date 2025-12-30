@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import type { ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
@@ -43,6 +43,7 @@ const DashboardBuyerScreen: React.FC = () => {
   const { currentUser } = useRole();
   const { colors, isDark } = useTheme();
   const navigation = useNavigation();
+  const isFocused = useIsFocused();
   const [refreshing, setRefreshing] = useState(false);
   const [profileMenuVisible, setProfileMenuVisible] = useState(false);
   const [notificationPanelVisible, setNotificationPanelVisible] = useState(false);
@@ -55,7 +56,7 @@ const DashboardBuyerScreen: React.FC = () => {
     unreadCount: marketplaceUnreadCount,
     markAsRead,
     deleteNotification,
-  } = useMarketplaceNotifications();
+  } = useMarketplaceNotifications({ enabled: isFocused });
 
   const buyerProfile = currentUser?.roles?.buyer;
 

@@ -55,11 +55,12 @@ WHERE statut = 'a_faire';
 CREATE INDEX IF NOT EXISTS idx_maladies_projet_date 
 ON maladies(projet_id, date_debut DESC);
 
--- Index composite pour requêtes par animal avec statut
--- Utilisé pour les maladies en cours d'un animal
-CREATE INDEX IF NOT EXISTS idx_maladies_animal_statut 
-ON maladies(animal_id, statut, date_debut DESC)
-WHERE animal_id IS NOT NULL;
+-- Index composite pour requêtes par animal "en cours"
+-- NOTE: la table maladies utilise `gueri` (boolean) et non `statut`
+-- Utilisé pour les maladies en cours d'un animal (gueri = false)
+CREATE INDEX IF NOT EXISTS idx_maladies_animal_en_cours
+ON maladies(animal_id, date_debut DESC)
+WHERE animal_id IS NOT NULL AND gueri = false;
 
 -- ==================== TRAITEMENTS ====================
 -- Index composite pour requêtes: WHERE projet_id = X ORDER BY date_debut DESC
@@ -67,11 +68,12 @@ WHERE animal_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_traitements_projet_date 
 ON traitements(projet_id, date_debut DESC);
 
--- Index composite pour requêtes par animal avec statut
--- Utilisé pour les traitements en cours d'un animal
-CREATE INDEX IF NOT EXISTS idx_traitements_animal_statut 
-ON traitements(animal_id, statut, date_debut DESC)
-WHERE animal_id IS NOT NULL;
+-- Index composite pour requêtes par animal "en cours"
+-- NOTE: la table traitements utilise `termine` (boolean) et non `statut`
+-- Utilisé pour les traitements en cours d'un animal (termine = false)
+CREATE INDEX IF NOT EXISTS idx_traitements_animal_en_cours
+ON traitements(animal_id, date_debut DESC)
+WHERE animal_id IS NOT NULL AND termine = false;
 
 -- ==================== VISITES VÉTÉRINAIRES ====================
 -- Index composite pour requêtes: WHERE projet_id = X ORDER BY date_visite DESC
@@ -80,10 +82,10 @@ CREATE INDEX IF NOT EXISTS idx_visites_veterinaires_projet_date
 ON visites_veterinaires(projet_id, date_visite DESC);
 
 -- ==================== GESTATIONS ====================
--- Index composite pour requêtes: WHERE projet_id = X ORDER BY date_insemination DESC
+-- Index composite pour requêtes: WHERE projet_id = X ORDER BY date_sautage DESC
 -- Utilisé dans: findAllGestations
 CREATE INDEX IF NOT EXISTS idx_gestations_projet_date 
-ON gestations(projet_id, date_insemination DESC);
+ON gestations(projet_id, date_sautage DESC);
 
 -- Index composite pour requêtes "en cours" avec tri par date mise bas
 -- Utilisé pour le calendrier des gestations
@@ -104,27 +106,27 @@ CREATE INDEX IF NOT EXISTS idx_rapports_croissance_projet_date
 ON rapports_croissance(projet_id, date DESC);
 
 -- ==================== PLANIFICATIONS ====================
--- Index composite pour requêtes: WHERE projet_id = X ORDER BY date_debut ASC
+-- Index composite pour requêtes: WHERE projet_id = X ORDER BY date_prevue ASC
 -- Utilisé dans: findAllPlanifications
 CREATE INDEX IF NOT EXISTS idx_planifications_projet_date 
-ON planifications(projet_id, date_debut ASC);
+ON planifications(projet_id, date_prevue ASC);
 
 -- Index composite pour requêtes "à faire" futures
 -- Utilisé pour le calendrier des tâches à venir
 CREATE INDEX IF NOT EXISTS idx_planifications_projet_statut_date 
-ON planifications(projet_id, statut, date_debut ASC)
-WHERE statut = 'a_faire' AND date_debut >= CURRENT_DATE;
+ON planifications(projet_id, statut, date_prevue ASC)
+WHERE statut = 'a_faire';
 
 -- ==================== COLLABORATIONS ====================
--- Index composite pour requêtes: WHERE projet_id = X OR collaborateur_id = X
+-- Index composite pour requêtes: WHERE projet_id = X OR user_id = X
 -- Utilisé dans: findAllCollaborations
 CREATE INDEX IF NOT EXISTS idx_collaborations_projet_collaborateur 
-ON collaborations(projet_id, collaborateur_id, date_creation DESC);
+ON collaborations(projet_id, user_id, date_creation DESC);
 
 -- Index pour requêtes par collaborateur
 -- Utilisé pour les collaborations d'un utilisateur
 CREATE INDEX IF NOT EXISTS idx_collaborations_collaborateur 
-ON collaborations(collaborateur_id, date_creation DESC);
+ON collaborations(user_id, date_creation DESC);
 
 -- ==================== ANALYSE DES TABLES ====================
 -- Analyser les tables après ajout des indexes pour optimiser les statistiques
@@ -151,9 +153,9 @@ COMMENT ON INDEX idx_vaccinations_projet_date IS 'Index composite pour optimiser
 COMMENT ON INDEX idx_vaccinations_animal_date IS 'Index composite pour optimiser l''historique des vaccinations d''un animal';
 COMMENT ON INDEX idx_vaccinations_projet_statut_date IS 'Index partiel pour optimiser le calendrier des vaccinations à faire';
 COMMENT ON INDEX idx_maladies_projet_date IS 'Index composite pour optimiser les requêtes de maladies par projet triées par date';
-COMMENT ON INDEX idx_maladies_animal_statut IS 'Index composite pour optimiser les requêtes de maladies en cours d''un animal';
+COMMENT ON INDEX idx_maladies_animal_en_cours IS 'Index partiel pour optimiser les requêtes de maladies en cours (gueri = false) d''un animal';
 COMMENT ON INDEX idx_traitements_projet_date IS 'Index composite pour optimiser les requêtes de traitements par projet triées par date';
-COMMENT ON INDEX idx_traitements_animal_statut IS 'Index composite pour optimiser les requêtes de traitements en cours d''un animal';
+COMMENT ON INDEX idx_traitements_animal_en_cours IS 'Index partiel pour optimiser les requêtes de traitements en cours (termine = false) d''un animal';
 COMMENT ON INDEX idx_visites_veterinaires_projet_date IS 'Index composite pour optimiser les requêtes de visites vétérinaires par projet triées par date';
 COMMENT ON INDEX idx_gestations_projet_date IS 'Index composite pour optimiser les requêtes de gestations par projet triées par date';
 COMMENT ON INDEX idx_gestations_projet_statut_date IS 'Index partiel pour optimiser le calendrier des gestations en cours';

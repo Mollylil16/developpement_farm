@@ -170,30 +170,6 @@ CREATE TABLE IF NOT EXISTS batch_sales (
 CREATE INDEX IF NOT EXISTS idx_batch_sales_batch ON batch_sales(batch_id);
 CREATE INDEX IF NOT EXISTS idx_batch_sales_date ON batch_sales(sale_date);
 
--- ========================================
--- 6. MODIFICATIONS batch_pigs
--- Ajouter colonnes de suivi
--- ========================================
-ALTER TABLE batch_pigs
-ADD COLUMN IF NOT EXISTS gestation_status VARCHAR(50) DEFAULT 'not_pregnant' CHECK (gestation_status IN (
-  'not_pregnant', 'pregnant', 'delivered', 'aborted'
-));
-
-ALTER TABLE batch_pigs
-ADD COLUMN IF NOT EXISTS last_weighing_date TIMESTAMP;
-
-ALTER TABLE batch_pigs
-ADD COLUMN IF NOT EXISTS last_vaccination_date TIMESTAMP;
-
-ALTER TABLE batch_pigs
-ADD COLUMN IF NOT EXISTS last_vaccination_type VARCHAR(50);
-
--- Index pour améliorer les performances
-CREATE INDEX IF NOT EXISTS idx_batch_pigs_gestation_status ON batch_pigs(gestation_status);
-CREATE INDEX IF NOT EXISTS idx_batch_pigs_health_status ON batch_pigs(health_status);
-CREATE INDEX IF NOT EXISTS idx_batch_pigs_last_weighing ON batch_pigs(last_weighing_date);
-CREATE INDEX IF NOT EXISTS idx_batch_pigs_last_vaccination ON batch_pigs(last_vaccination_date);
-
 -- Commentaires pour documentation
 COMMENT ON TABLE batch_vaccinations IS 'Vaccinations effectuées par batch';
 COMMENT ON TABLE batch_gestations IS 'Gestations des truies par batch';

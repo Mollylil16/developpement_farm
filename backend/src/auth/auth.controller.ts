@@ -24,6 +24,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
+import { RateLimit } from '../common/decorators/rate-limit.decorator';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -70,6 +71,7 @@ export class AuthController {
   }
 
   @Public()
+  @RateLimit({ maxRequests: 3, windowMs: 10_000 }) // 3 refresh en 10s max
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Rafraîchir le token d'accès" })
@@ -172,5 +174,16 @@ export class AuthController {
   async deleteAccount(@CurrentUser() user: any) {
     await this.authService.deleteAccount(user.id);
     return { message: 'Compte supprimé avec succès' };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('login-logs')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Journal de connexion (historique auth) de l'utilisateur connecté" })
+  @ApiResponse({ status: 200, description: 'Liste des logs' })
+  async getLoginLogs(@CurrentUser() user: any, @Request() req: any) {
+    const limitRaw = req?.query?.limit;
+    const limit = limitRaw ? parseInt(String(limitRaw), 10) : 100;
+    return this.authService.getLoginLogs(user.id, limit);
   }
 }

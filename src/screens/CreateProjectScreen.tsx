@@ -158,14 +158,34 @@ export default function CreateProjectScreen() {
       }
 
       const totalAnimaux =
-        formData.nombre_truies + formData.nombre_verrats + formData.nombre_porcelets;
+        formData.nombre_truies +
+        formData.nombre_verrats +
+        formData.nombre_porcelets +
+        (formData.nombre_croissance || 0);
 
-      await dispatch(
+      const nouveauProjet = await dispatch(
         createProjet({
           ...formData,
           // proprietaire_id est récupéré automatiquement par le backend depuis le JWT
         })
       ).unwrap();
+
+      // 🔧 Robustesse: s'assurer que les animaux individuels initiaux sont bien créés côté backend
+      // (idempotent: le backend ignore si des animaux existent déjà)
+      if (nouveauProjet?.management_method === 'individual' && totalAnimaux > 0) {
+        try {
+          await apiClient.post(`/projets/${nouveauProjet.id}/initialize-individual-animals`, {});
+        } catch (e) {
+          // Ne pas bloquer la création du projet si l'initialisation échoue (le user peut créer à la main)
+          console.warn('[CreateProjectScreen] Initialisation cheptel échouée:', e);
+        }
+      } else if (nouveauProjet?.management_method === 'batch' && totalAnimaux > 0) {
+        try {
+          await apiClient.post(`/projets/${nouveauProjet.id}/initialize-batches`, {});
+        } catch (e) {
+          console.warn('[CreateProjectScreen] Initialisation des loges échouée:', e);
+        }
+      }
 
       // S'assurer que le rôle actif est "producer" après la création d'un projet
       // et que le profil producteur existe

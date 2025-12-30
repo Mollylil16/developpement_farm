@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, Platform, KeyboardAvoidingView } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, Platform, KeyboardAvoidingView, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
@@ -42,25 +42,30 @@ const SignInScreen: React.FC = () => {
       // La navigation sera gérée par AppNavigator qui détecte isAuthenticated
     } catch (error: unknown) {
       console.error('Erreur connexion:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+      console.error('Type erreur:', typeof error, 'Is Error:', error instanceof Error);
       
-      if (errorMessage.includes('introuvable') || errorMessage.includes('not found')) {
-        Alert.alert(
-          'Compte introuvable',
-          'Aucun compte trouvé avec ces identifiants. Voulez-vous créer un compte ?',
-          [
-            { text: 'Annuler', style: 'cancel' },
-            {
-              text: 'Créer un compte',
-              onPress: () => navigation.navigate(SCREENS.SIGN_UP_METHOD as never),
-            },
-          ]
-        );
-      } else if (errorMessage.includes('mot de passe') || errorMessage.includes('password')) {
-        Alert.alert('Erreur', 'Mot de passe incorrect. Veuillez réessayer.');
-      } else {
-        Alert.alert('Erreur de connexion', errorMessage);
+      // Extraire le message d'erreur correctement
+      // Avec Redux Toolkit, rejectWithValue retourne directement la valeur (string)
+      let errorMessage = 'Erreur de connexion. Veuillez réessayer.';
+      
+      if (typeof error === 'string') {
+        // Si c'est directement une string (cas le plus probable avec rejectWithValue)
+        errorMessage = error;
+      } else if (error instanceof Error) {
+        // Si c'est une Error standard
+        errorMessage = error.message || errorMessage;
+      } else if (error && typeof error === 'object') {
+        // Si c'est un objet, vérifier les propriétés communes
+        const errorObj = error as Record<string, unknown>;
+        errorMessage = 
+          (typeof errorObj.message === 'string' ? errorObj.message : null) ||
+          (typeof errorObj.payload === 'string' ? errorObj.payload : null) ||
+          (typeof errorObj.error === 'string' ? errorObj.error : null) ||
+          errorMessage;
       }
+      
+      console.error('Message d\'erreur extrait:', errorMessage);
+      Alert.alert('Erreur de connexion', errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -116,7 +121,12 @@ const SignInScreen: React.FC = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        <View style={styles.content}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           {/* Header */}
           <TouchableOpacity
             style={styles.backButton}
@@ -263,7 +273,7 @@ const SignInScreen: React.FC = () => {
               <Text style={[styles.footerLink, { color: colors.primary }]}>Créer un compte</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -276,9 +286,12 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
-  content: {
+  scrollView: {
     flex: 1,
+  },
+  scrollContent: {
     padding: SPACING.lg,
+    paddingBottom: SPACING.xl * 2,
   },
   backButton: {
     padding: SPACING.sm,

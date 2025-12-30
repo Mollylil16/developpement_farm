@@ -135,9 +135,6 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
     >
       <Animated.View style={[styles.button, { transform: [{ scale: scaleAnim }] }]}>
         <Text style={styles.icon}>{isListening ? '🎙️' : '🎤'}</Text>
-        <Text style={[styles.label, isListening && styles.labelListening]}>
-          {isListening ? 'À l\'écoute...' : 'Parler'}
-        </Text>
         {isListening && <View style={styles.recordingIndicator} />}
       </Animated.View>
     </TouchableOpacity>
@@ -146,39 +143,30 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
 
 const styles = StyleSheet.create({
   container: {
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 8,
   },
   containerDisabled: {
     opacity: 0.5,
   },
   button: {
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 12,
     borderRadius: 20,
     backgroundColor: COLORS.surface,
-    minWidth: 70,
     position: 'relative',
   },
   icon: {
-    fontSize: 28,
-  },
-  label: {
-    fontSize: 11,
-    marginTop: 4,
-    color: COLORS.textSecondary,
-    fontWeight: '500',
-  },
-  labelListening: {
-    color: COLORS.primary,
-    fontWeight: '600',
+    fontSize: 20,
   },
   recordingIndicator: {
     position: 'absolute',
-    top: 8,
-    right: 8,
+    top: 4,
+    right: 4,
     width: 8,
     height: 8,
     borderRadius: 4,

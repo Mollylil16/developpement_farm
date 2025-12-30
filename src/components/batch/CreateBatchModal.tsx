@@ -2,7 +2,7 @@
  * Modal pour créer une nouvelle loge/bande avec ou sans population initiale
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -57,6 +57,30 @@ export default function CreateBatchModal({
   const [averageWeight, setAverageWeight] = useState('');
 
   const [loading, setLoading] = useState(false);
+  const [loadingNextName, setLoadingNextName] = useState(false);
+
+  // Charger le prochain nom de loge disponible quand le modal s'ouvre
+  useEffect(() => {
+    if (visible && projetActif?.id) {
+      loadNextPenName();
+    }
+  }, [visible, projetActif?.id]);
+
+  async function loadNextPenName() {
+    if (!projetActif?.id) return;
+    setLoadingNextName(true);
+    try {
+      const response = await apiClient.get<{ pen_name: string }>(
+        `/batch-pigs/projet/${projetActif.id}/next-pen-name`
+      );
+      setPenName(response.pen_name);
+    } catch (error: any) {
+      // En cas d'erreur, laisser l'utilisateur saisir manuellement
+      console.warn('Impossible de charger le prochain nom de loge:', error);
+    } finally {
+      setLoadingNextName(false);
+    }
+  }
 
   function getTotalCount(): number {
     return (
@@ -204,20 +228,36 @@ export default function CreateBatchModal({
           <Text style={[styles.label, { color: colors.text }]}>
             Nom de la loge *
           </Text>
-          <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-                color: colors.text,
-              },
-            ]}
-            value={penName}
-            onChangeText={setPenName}
-            placeholder="Ex: Loge A1, Enclos 1..."
-            placeholderTextColor={colors.textSecondary}
-          />
+          <View style={{ position: 'relative' }}>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  color: colors.text,
+                },
+                loadingNextName && { opacity: 0.6 },
+              ]}
+              value={penName}
+              onChangeText={setPenName}
+              placeholder="Ex: A1, B1, A2..."
+              placeholderTextColor={colors.textSecondary}
+              editable={!loadingNextName}
+            />
+            {loadingNextName && (
+              <ActivityIndicator
+                size="small"
+                color={colors.primary}
+                style={{ position: 'absolute', right: 12, top: 12 }}
+              />
+            )}
+          </View>
+          {penName && !loadingNextName && (
+            <Text style={[styles.hint, { color: colors.textSecondary }]}>
+              💡 Nom généré automatiquement. Vous pouvez le modifier si besoin.
+            </Text>
+          )}
 
           {/* Catégorie */}
           <Text style={[styles.label, { color: colors.text }]}>Catégorie *</Text>
@@ -631,6 +671,11 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     flex: 2,
+  },
+  hint: {
+    fontSize: FONT_SIZES.xs,
+    fontStyle: 'italic',
+    marginTop: SPACING.xs,
   },
 });
 

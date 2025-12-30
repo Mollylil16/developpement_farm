@@ -13,7 +13,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, StyleSheet, RefreshControl, ActivityIndicator, Text } from 'react-native';
+import { View, ScrollView, StyleSheet, RefreshControl, ActivityIndicator, Text, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import { useTheme } from '../contexts/ThemeContext';
@@ -26,7 +26,6 @@ import CalendrierVaccinalModal from '../components/CalendrierVaccinalModal';
 import { getIconeType, getCouleurType } from '../utils/vaccinationHelpers';
 import StandardHeader from '../components/StandardHeader';
 import apiClient from '../services/api/apiClient';
-import { Alert } from 'react-native';
 import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
 
 // Type pour les paramètres de route (mode batch)

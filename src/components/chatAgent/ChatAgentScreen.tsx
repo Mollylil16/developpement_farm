@@ -660,7 +660,7 @@ const styles = StyleSheet.create({
   },
   inputContainer: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     padding: 12,
     backgroundColor: COLORS.surface,
     borderTopWidth: 1,
@@ -668,7 +668,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   voiceButton: {
-    padding: 8,
+    width: 40,
+    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 20,
@@ -686,6 +687,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     fontSize: 15,
     color: COLORS.text,
+    textAlignVertical: 'center',
   },
   sendButton: {
     width: 40,

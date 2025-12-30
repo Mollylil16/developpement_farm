@@ -5,11 +5,30 @@
 
 import { VoiceConfig } from '../../types/chatAgent';
 import { Platform } from 'react-native';
-import { Audio } from 'expo-av';
-// Note: Utilisation de require pour éviter les erreurs TypeScript avec expo-file-system
+// Lazy imports pour éviter les erreurs si les modules ne sont pas disponibles dans Expo Go
+let Audio: typeof import('expo-av').Audio | null = null;
+let FileSystem: typeof import('expo-file-system') | null = null;
 import { SpeechTranscriptionService, TranscriptionProvider } from './SpeechTranscriptionService';
 import { logger } from '../../utils/logger';
 // import * as Speech from 'expo-speech'; // TODO: Installer expo-speech si nécessaire pour TTS
+
+// Charger les modules Expo de manière lazy
+async function loadExpoModules() {
+  if (!Audio) {
+    try {
+      Audio = (await import('expo-av')).Audio;
+    } catch (error) {
+      logger.warn('[VoiceService] expo-av non disponible:', error);
+    }
+  }
+  if (!FileSystem) {
+    try {
+      FileSystem = await import('expo-file-system');
+    } catch (error) {
+      logger.warn('[VoiceService] expo-file-system non disponible:', error);
+    }
+  }
+}
 
 // Note: Pour la reconnaissance vocale, on utilise expo-av pour l'enregistrement
 // et une API de transcription pour convertir en texte
@@ -88,7 +107,7 @@ function getWindow(): Window | undefined {
 export class VoiceService {
   private config: VoiceConfig;
   private isListening: boolean = false;
-  private recording: Audio.Recording | null = null;
+  private recording: any | null = null; // Audio.Recording mais chargé lazy
   // Le paramètre text est utilisé dans les implémentations du callback
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private onTranscriptCallback: ((text: string) => void) | null = null;
@@ -296,6 +315,15 @@ export class VoiceService {
    */
   private async startMobileRecording(): Promise<void> {
     try {
+      // Charger les modules Expo de manière lazy
+      await loadExpoModules();
+      
+      if (!Audio) {
+        throw new Error(
+          'expo-av n\'est pas disponible. Veuillez créer un build de développement.'
+        );
+      }
+
       // Demander les permissions
       const { status } = await Audio.requestPermissionsAsync();
       if (status !== 'granted') {
@@ -319,17 +347,17 @@ export class VoiceService {
       this.isListening = true;
 
       // Utiliser FileSystem pour préparer le répertoire de sauvegarde des enregistrements
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const FileSystem = require('expo-file-system');
-      const recordingDir = `${FileSystem.documentDirectory}recordings/`;
-      
-      try {
-        // Essayer de créer le répertoire (si il n'existe pas, il sera créé; si il existe, rien ne se passe)
-        await FileSystem.makeDirectoryAsync(recordingDir, { intermediates: true });
-      } catch (error: any) {
-        // Si le répertoire existe déjà, ignorer l'erreur
-        if (!error.message?.includes('already exists')) {
-          console.warn('[VoiceService] Impossible de créer le répertoire recordings:', error);
+      if (FileSystem && FileSystem.documentDirectory) {
+        const recordingDir = `${FileSystem.documentDirectory}recordings/`;
+        
+        try {
+          // Essayer de créer le répertoire (si il n'existe pas, il sera créé; si il existe, rien ne se passe)
+          await FileSystem.makeDirectoryAsync(recordingDir, { intermediates: true });
+        } catch (error: any) {
+          // Si le répertoire existe déjà, ignorer l'erreur
+          if (!error.message?.includes('already exists')) {
+            logger.warn('[VoiceService] Impossible de créer le répertoire recordings:', error);
+          }
         }
       }
 

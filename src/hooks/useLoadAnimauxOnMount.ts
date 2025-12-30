@@ -57,9 +57,12 @@ export function useLoadAnimauxOnMount(options: UseLoadAnimauxOnMountOptions = {}
     }
 
     // Vérifier si les animaux du projet sont déjà dans Redux (cache)
+    // Mais seulement si pas de force reload - sinon, forcer le rechargement
     const animauxDuProjet = animaux.filter((a) => a.projet_id === projetActif.id);
     
     // Si les animaux sont déjà chargés et pas de force reload, marquer comme chargé
+    // ATTENTION: Ne pas utiliser ce cache si on vient de créer un projet car les animaux
+    // viennent d'être créés par le backend et ne sont pas encore dans Redux
     if (animauxDuProjet.length > 0 && !forceReload) {
       chargeRef.current = projetActif.id;
       onLoaded?.();
@@ -67,8 +70,9 @@ export function useLoadAnimauxOnMount(options: UseLoadAnimauxOnMountOptions = {}
     }
 
     // Charger les animaux uniquement si nécessaire
+    // Inclure les inactifs pour avoir tous les animaux (actif et autre statuts)
     chargeRef.current = projetActif.id;
-    dispatch(loadProductionAnimaux({ projetId: projetActif.id }))
+    dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: true }))
       .then(() => {
         onLoaded?.();
       })
