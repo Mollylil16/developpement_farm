@@ -416,11 +416,17 @@ export default function WeighingScreen() {
       setLoading(true);
       try {
         const data = await apiClient.get(`/batch-weighings/batch/${batchToLoad.id}/history`);
-        setWeighings(data || []);
-        // Mettre à jour la map pour les stats globales
+        // Trier les pesées par date croissante pour le graphique
+        const sortedData = (data || []).sort((a: any, b: any) => {
+          const dateA = new Date(a.weighing_date || a.date).getTime();
+          const dateB = new Date(b.weighing_date || b.date).getTime();
+          return dateA - dateB;
+        });
+        setWeighings(sortedData);
+        // Mettre à jour la map pour les stats globales (trier aussi)
         setWeighingsMap((prev) => {
           const newMap = new Map(prev);
-          newMap.set(batchToLoad.id, data || []);
+          newMap.set(batchToLoad.id, sortedData);
           return newMap;
         });
       } catch (error: any) {
@@ -442,7 +448,13 @@ export default function WeighingScreen() {
       batchList.map(async (b) => {
         try {
           const data = await apiClient.get(`/batch-weighings/batch/${b.id}/history`);
-          newMap.set(b.id, data || []);
+          // Trier par date croissante pour le graphique
+          const sortedData = (data || []).sort((a: any, b: any) => {
+            const dateA = new Date(a.weighing_date || a.date).getTime();
+            const dateB = new Date(b.weighing_date || b.date).getTime();
+            return dateA - dateB;
+          });
+          newMap.set(b.id, sortedData);
         } catch {
           newMap.set(b.id, []);
         }

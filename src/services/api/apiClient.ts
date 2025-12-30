@@ -118,9 +118,8 @@ function parseRetryAfter(headerValue: string | null): number | undefined {
 async function getAccessToken(): Promise<string | null> {
   try {
     const token = await AsyncStorage.getItem(ACCESS_TOKEN_KEY);
-    if (isLoggingEnabled() && token) {
-      logger.debug('Token récupéré');
-    }
+    // Ne logger le token que si le logging très détaillé est activé (évite les logs excessifs)
+    // Le token est récupéré à chaque requête API, donc pas besoin de logger systématiquement
     return token;
   } catch (error) {
     logger.error('Erreur lors de la récupération du token:', error);

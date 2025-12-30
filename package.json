@@ -31,6 +31,7 @@
     "deps:check": "node scripts/check-dependencies.js",
     "deps:update": "npm update",
     "deps:security": "npm audit --audit-level=moderate",
+    "deps:security:check": "node scripts/check-security-vulnerabilities.js",
     "deps:verify": "npm run deps:check",
     "find:any": "node scripts/find-any-usage.js",
     "test:identify-untested": "node scripts/identify-untested-files.js",

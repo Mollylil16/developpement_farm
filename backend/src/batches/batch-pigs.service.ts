@@ -441,34 +441,75 @@ throw error;
 
     // IMPORTANT: on calcule les effectifs depuis batch_pigs pour éviter toute incohérence
     // (ex: anciens projets affectés par un double comptage).
-    const result = await this.db.query(
-      `SELECT
-         b.*,
-         COALESCE(p.total_count, 0) AS total_count_calc,
-         COALESCE(p.male_count, 0) AS male_count_calc,
-         COALESCE(p.female_count, 0) AS female_count_calc,
-         COALESCE(p.castrated_count, 0) AS castrated_count_calc,
-         COALESCE(p.avg_weight_kg, b.average_weight_kg) AS average_weight_kg_calc,
-         COALESCE(p.avg_age_months, b.average_age_months) AS average_age_months_calc
-       FROM batches b
-       LEFT JOIN (
-         SELECT
-           batch_id,
-           COUNT(*)::int AS total_count,
-           COUNT(*) FILTER (WHERE sex = 'male')::int AS male_count,
-           COUNT(*) FILTER (WHERE sex = 'female')::int AS female_count,
-           COUNT(*) FILTER (WHERE sex = 'castrated')::int AS castrated_count,
-           COALESCE(AVG(current_weight_kg), 0) AS avg_weight_kg,
-           COALESCE(AVG(age_months), 0) AS avg_age_months
-         FROM batch_pigs
-         GROUP BY batch_id
-       ) p ON p.batch_id = b.id
-       WHERE b.projet_id = $1
-       ORDER BY b.position, b.pen_name`,
-      [projetId],
-    );
+    // Gérer le cas où la colonne position n'existe pas encore (migration non exécutée)
+    try {
+      const result = await this.db.query(
+        `SELECT
+           b.*,
+           COALESCE(p.total_count, 0) AS total_count_calc,
+           COALESCE(p.male_count, 0) AS male_count_calc,
+           COALESCE(p.female_count, 0) AS female_count_calc,
+           COALESCE(p.castrated_count, 0) AS castrated_count_calc,
+           COALESCE(p.avg_weight_kg, b.average_weight_kg) AS average_weight_kg_calc,
+           COALESCE(p.avg_age_months, b.average_age_months) AS average_age_months_calc
+         FROM batches b
+         LEFT JOIN (
+           SELECT
+             batch_id,
+             COUNT(*)::int AS total_count,
+             COUNT(*) FILTER (WHERE sex = 'male')::int AS male_count,
+             COUNT(*) FILTER (WHERE sex = 'female')::int AS female_count,
+             COUNT(*) FILTER (WHERE sex = 'castrated')::int AS castrated_count,
+             COALESCE(AVG(current_weight_kg), 0) AS avg_weight_kg,
+             COALESCE(AVG(age_months), 0) AS avg_age_months
+           FROM batch_pigs
+           GROUP BY batch_id
+         ) p ON p.batch_id = b.id
+         WHERE b.projet_id = $1
+         ORDER BY COALESCE(b.position, 'droite'), b.pen_name`,
+        [projetId],
+      );
+      return this.mapBatchesResult(result.rows);
+    } catch (error: any) {
+      // Si la colonne position n'existe pas, utiliser une requête de fallback
+      if (error.message && error.message.includes('position')) {
+        const result = await this.db.query(
+          `SELECT
+             b.*,
+             COALESCE(p.total_count, 0) AS total_count_calc,
+             COALESCE(p.male_count, 0) AS male_count_calc,
+             COALESCE(p.female_count, 0) AS female_count_calc,
+             COALESCE(p.castrated_count, 0) AS castrated_count_calc,
+             COALESCE(p.avg_weight_kg, b.average_weight_kg) AS average_weight_kg_calc,
+             COALESCE(p.avg_age_months, b.average_age_months) AS average_age_months_calc
+           FROM batches b
+           LEFT JOIN (
+             SELECT
+               batch_id,
+               COUNT(*)::int AS total_count,
+               COUNT(*) FILTER (WHERE sex = 'male')::int AS male_count,
+               COUNT(*) FILTER (WHERE sex = 'female')::int AS female_count,
+               COUNT(*) FILTER (WHERE sex = 'castrated')::int AS castrated_count,
+               COALESCE(AVG(current_weight_kg), 0) AS avg_weight_kg,
+               COALESCE(AVG(age_months), 0) AS avg_age_months
+             FROM batch_pigs
+             GROUP BY batch_id
+           ) p ON p.batch_id = b.id
+           WHERE b.projet_id = $1
+           ORDER BY b.pen_name`,
+          [projetId],
+        );
+        return this.mapBatchesResult(result.rows);
+      }
+      throw error;
+    }
+  }
 
-    return result.rows.map((row) => ({
+  /**
+   * Mappe les résultats de la requête vers le format attendu
+   */
+  private mapBatchesResult(rows: any[]): any[] {
+    return rows.map((row) => ({
       id: row.id,
       projet_id: row.projet_id,
       pen_name: row.pen_name,
@@ -491,6 +532,7 @@ throw error;
       updated_at: row.updated_at,
     }));
   }
+
 
   /**
    * Obtenir statistiques d'une bande

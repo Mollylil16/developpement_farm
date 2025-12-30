@@ -18,6 +18,7 @@ import {
   Platform,
   UIManager,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
@@ -124,34 +125,49 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
     }
   }, [dispatch, projetActif?.id]);
 
-  // Charger les données au montage
-  useEffect(() => {
-    if (projetActif?.id) {
+  // Charger les données uniquement quand l'écran est visible (useFocusEffect)
+  useFocusEffect(
+    useCallback(() => {
+      if (!projetActif?.id) return;
+
+      // Charger les vaccinations et animaux uniquement quand l'écran est visible
       dispatch(loadVaccinations(projetActif.id));
       // Inclure les inactifs pour avoir tous les animaux (actif et autre statuts)
       dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: true }));
-    }
-  }, [projetActif?.id, dispatch]);
+    }, [projetActif?.id, dispatch])
+  );
 
-  // Charger les bandes en mode batch
-  useEffect(() => {
-    if (!isModeBatch || !projetActif?.id) {
-      setBatches([]);
-      return;
-    }
-
-    const loadBatches = async () => {
-      try {
-        const data = await apiClient.get<Batch[]>(`/batch-pigs/projet/${projetActif.id}`);
-        setBatches(data || []);
-      } catch (error) {
-        console.error('[VaccinationsComponentAccordion] Erreur chargement bandes:', error);
+  // Charger les bandes en mode batch uniquement quand l'écran est visible
+  useFocusEffect(
+    useCallback(() => {
+      if (!isModeBatch || !projetActif?.id) {
         setBatches([]);
+        return;
       }
-    };
 
-    loadBatches();
-  }, [isModeBatch, projetActif?.id]);
+      let cancelled = false;
+
+      const loadBatches = async () => {
+        try {
+          const data = await apiClient.get<Batch[]>(`/batch-pigs/projet/${projetActif.id}`);
+          if (!cancelled) {
+            setBatches(data || []);
+          }
+        } catch (error) {
+          if (!cancelled) {
+            console.error('[VaccinationsComponentAccordion] Erreur chargement bandes:', error);
+            setBatches([]);
+          }
+        }
+      };
+
+      loadBatches();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [isModeBatch, projetActif?.id])
+  );
 
   // Debug removed to prevent "Text must be rendered" errors
 

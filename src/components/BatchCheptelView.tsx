@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAppSelector } from '../store/hooks';
 import { selectProjetActif } from '../store/selectors/projetSelectors';
 import { Batch, BATCH_CATEGORY_LABELS, BATCH_CATEGORY_ICONS } from '../types/batch';
@@ -74,11 +75,14 @@ setBatches(batchesData);
     }
   }, [projetActif?.id, calculateStats]);
 
-  useEffect(() => {
-    if (projetActif) {
-      loadBatches();
-    }
-  }, [projetActif?.id, loadBatches]);
+  // Charger les bandes uniquement quand l'écran est visible
+  useFocusEffect(
+    useCallback(() => {
+      if (projetActif) {
+        loadBatches();
+      }
+    }, [projetActif?.id, loadBatches])
+  );
 
   const handleBatchPress = (batch: Batch) => {
     setSelectedBatch(batch);

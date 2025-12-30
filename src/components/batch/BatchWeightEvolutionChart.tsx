@@ -35,40 +35,68 @@ export default function BatchWeightEvolutionChart({ weighings, batchName }: Prop
       return null;
     }
 
-    // Trier par date
-    const sortedWeighings = [...weighings].sort((a, b) => {
+    // Filtrer et valider les pesées (poids valide et date valide)
+    const validWeighings = weighings.filter((w) => {
+      const weight = w.average_weight_kg;
+      const date = new Date(w.weighing_date);
+      return (
+        typeof weight === 'number' &&
+        !isNaN(weight) &&
+        isFinite(weight) &&
+        weight > 0 &&
+        !isNaN(date.getTime())
+      );
+    });
+
+    if (validWeighings.length === 0) {
+      return null;
+    }
+
+    // Trier par date (croissante)
+    const sortedWeighings = [...validWeighings].sort((a, b) => {
       const dateA = new Date(a.weighing_date).getTime();
       const dateB = new Date(b.weighing_date).getTime();
       return dateA - dateB;
     });
 
-    // Extraire les poids moyens et dates (filtrer les valeurs invalides)
-    const weights = sortedWeighings
-      .map((w) => w.average_weight_kg)
-      .filter((w) => typeof w === 'number' && !isNaN(w) && isFinite(w));
+    // Extraire les poids moyens et dates
+    const weights = sortedWeighings.map((w) => w.average_weight_kg);
 
-    if (weights.length === 0) {
-      return null;
-    }
+    // Formater les dates pour l'affichage (inclure l'année si nécessaire)
+    const firstDate = new Date(sortedWeighings[0].weighing_date);
+    const lastDate = new Date(sortedWeighings[sortedWeighings.length - 1].weighing_date);
+    const spansMultipleYears = firstDate.getFullYear() !== lastDate.getFullYear();
 
-    const dates = sortedWeighings
-      .filter((w) => typeof w.average_weight_kg === 'number' && !isNaN(w.average_weight_kg) && isFinite(w.average_weight_kg))
-      .map((w) => {
-        const date = new Date(w.weighing_date);
+    const dates = sortedWeighings.map((w) => {
+      const date = new Date(w.weighing_date);
+      if (spansMultipleYears) {
+        // Si les pesées s'étalent sur plusieurs années, inclure l'année
+        return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear().toString().slice(-2)}`;
+      } else {
+        // Sinon, format simple
         return `${date.getDate()}/${date.getMonth() + 1}`;
-      });
+      }
+    });
 
-    // Calculer le gain moyen quotidien (GMQ)
+    // Calculer le gain moyen quotidien (GMQ) de manière plus précise
     let gmq = 0;
     if (sortedWeighings.length >= 2) {
       const firstWeighing = sortedWeighings[0];
       const lastWeighing = sortedWeighings[sortedWeighings.length - 1];
+      const firstDate = new Date(firstWeighing.weighing_date);
+      const lastDate = new Date(lastWeighing.weighing_date);
+      
+      // Calculer la différence en millisecondes
+      const diffMs = lastDate.getTime() - firstDate.getTime();
+      // Convertir en jours (avec décimales pour plus de précision)
+      const joursTotal = diffMs / (1000 * 60 * 60 * 24);
+      
+      // Calculer le gain total en kg
       const gainTotal = lastWeighing.average_weight_kg - firstWeighing.average_weight_kg;
-      const joursTotal = Math.ceil(
-        (new Date(lastWeighing.weighing_date).getTime() - new Date(firstWeighing.weighing_date).getTime()) /
-          (1000 * 60 * 60 * 24)
-      );
-      gmq = joursTotal > 0 ? (gainTotal * 1000) / joursTotal : 0; // Convertir kg en grammes
+      
+      // GMQ = (gain en kg / nombre de jours) * 1000 pour convertir en grammes/jour
+      // Utiliser Math.max(1, joursTotal) pour éviter la division par zéro
+      gmq = joursTotal >= 1 ? (gainTotal / joursTotal) * 1000 : 0;
     }
 
     // Calculer min et max pour l'échelle
