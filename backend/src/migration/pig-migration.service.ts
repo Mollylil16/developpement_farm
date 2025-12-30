@@ -904,7 +904,7 @@ export class PigMigrationService {
           // IMPORTANT: les triggers sur batch_pigs maintiennent les compteurs dans batches.
           // On initialise donc à 0 pour éviter un double comptage lors de l'insertion des batch_pigs.
           // Déterminer la position selon le nom de la loge (A = droite, B = gauche)
-          const position = batch.pen_name && batch.pen_name.toUpperCase().startsWith('B') ? 'gauche' : 'droite';
+          const position = batchNumber.toUpperCase().startsWith('B') ? 'gauche' : 'droite';
           
           await client.query(
           `INSERT INTO batches (

@@ -31,6 +31,7 @@ export class BatchWeighingController {
     return await this.weighingService.createWeighing(dto, user.id);
   }
 
+  // Routes spécifiques AVANT les routes génériques pour éviter les conflits de routage
   @Get('projet/:projetId')
   @ApiOperation({ summary: 'Récupérer toutes les pesées de batch pour un projet' })
   async getWeighingsByProjet(
@@ -49,6 +50,7 @@ export class BatchWeighingController {
     return await this.weighingService.getWeighingHistory(batchId, user.id);
   }
 
+  // Route générique en dernier pour éviter d'intercepter les routes spécifiques
   @Get(':weighingId/details')
   @ApiOperation({ summary: 'Détails complets d\'une pesée collective' })
   async getWeighingDetails(

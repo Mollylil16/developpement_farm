@@ -182,6 +182,17 @@ export class KnowledgeActions {
     question: string,
     relatedTopics?: string[]
   ): string {
+    const questionLower = question.toLowerCase();
+    
+    // Réponses spécifiques pour des questions directes
+    if (questionLower.includes('naisseur') && !questionLower.includes('engraisseur') && !questionLower.includes('cycle complet')) {
+      return this.getNaisseurExplanation();
+    }
+    
+    if (questionLower.includes('engraisseur') && !questionLower.includes('naisseur') && !questionLower.includes('cycle complet')) {
+      return this.getEngraisseurExplanation();
+    }
+    
     const intros = [
       `Ah, bonne question! 📚`,
       `Je vais t'expliquer ça! 🎓`,
@@ -214,6 +225,17 @@ export class KnowledgeActions {
     question: string,
     relatedTopics?: string[]
   ): string {
+    const questionLower = question.toLowerCase();
+    
+    // Réponses spécifiques pour des questions directes
+    if (questionLower.includes('naisseur') && !questionLower.includes('engraisseur') && !questionLower.includes('cycle complet')) {
+      return this.getNaisseurExplanation();
+    }
+    
+    if (questionLower.includes('engraisseur') && !questionLower.includes('naisseur') && !questionLower.includes('cycle complet')) {
+      return this.getEngraisseurExplanation();
+    }
+    
     const intros = [
       `Ah, bonne question! 📚`,
       `Je vais t'expliquer ça! 🎓`,
@@ -233,6 +255,72 @@ export class KnowledgeActions {
     response += this.getCategoryTip(topic.category);
     
     return response;
+  }
+  
+  /**
+   * Explication claire et directe du naisseur
+   */
+  private static getNaisseurExplanation(): string {
+    return `🐷 **C'est quoi un naisseur ?**
+
+Un **naisseur** est un éleveur qui se spécialise dans la **production de porcelets**. Son activité principale consiste à :
+
+**Ce qu'il fait :**
+• Élever des truies reproductrices et des verrats
+• Faire reproduire ses truies (saillie)
+• Suivre les gestations (environ 114 jours)
+• Assister les mises bas
+• Élever les porcelets jusqu'au sevrage (21-28 jours)
+• Vendre les porcelets sevrés à d'autres éleveurs (les engraisseurs)
+
+**En résumé :** Le naisseur produit des bébés porcs (porcelets) qu'il vend ensuite. Il ne garde pas les porcs jusqu'à l'âge adulte pour la vente de viande.
+
+**Avantages :**
+✅ Marge bénéficiaire élevée par porcelet
+✅ Moins d'espace nécessaire (pas besoin de grands enclos d'engraissement)
+✅ Cycle de reproduction rapide (truie peut avoir 2-3 portées par an)
+
+**Inconvénients :**
+❌ Expertise technique nécessaire (gestion de la reproduction, soins aux porcelets)
+❌ Investissement initial élevé (truies, verrats, équipements de maternité)
+❌ Risque de mortalité périnatale (mortalité des porcelets à la naissance)
+
+**Investissement :** Élevé (truies reproductrices, verrats, équipements de maternité)
+**Rentabilité :** Bonne si taux de survie > 90%
+
+💡 **Pour info :** Il existe aussi l'**engraisseur** (qui achète des porcelets pour les élever jusqu'à la vente) et le **naisseur-engraisseur** (qui fait les deux). Tu veux que je t'explique ces autres types ?`;
+  }
+  
+  /**
+   * Explication claire et directe de l'engraisseur
+   */
+  private static getEngraisseurExplanation(): string {
+    return `🐖 **C'est quoi un engraisseur ?**
+
+Un **engraisseur** est un éleveur qui se spécialise dans l'**engraissement des porcs**. Son activité principale consiste à :
+
+**Ce qu'il fait :**
+• Acheter des porcelets sevrés (généralement à des naisseurs)
+• Les élever et les nourrir pendant la phase de croissance (environ 180 jours)
+• Les amener jusqu'au poids de vente (généralement 80-120 kg)
+• Vendre les porcs finis pour la viande
+
+**En résumé :** L'engraisseur achète des bébés porcs et les élève jusqu'à l'âge adulte pour la vente de viande. Il ne fait pas de reproduction.
+
+**Avantages :**
+✅ Cycle court et gestion simplifiée
+✅ Investissement moyen (pas besoin de truies reproductrices)
+✅ Moins de complexité technique (pas de gestion de reproduction)
+
+**Inconvénients :**
+❌ Dépendance aux naisseurs (doit acheter les porcelets)
+❌ Coût d'achat des porcelets (30 000 - 50 000 FCFA par porcelet)
+❌ Besoin de plus d'espace pour l'engraissement
+
+**Investissement :** Moyen (bâtiments d'engraissement, aliments)
+**Rentabilité :** Stable avec bon GMQ (>700g/jour)
+
+💡 **Pour info :** Il existe aussi le **naisseur** (qui produit des porcelets) et le **naisseur-engraisseur** (qui fait les deux). Tu veux que je t'explique ces autres types ?`;
   }
   
   /**
