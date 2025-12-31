@@ -10,6 +10,7 @@ import { withRetry, RetryOptions } from './retryHandler';
 import { checkNetworkConnectivity } from '../network/networkService';
 import { createLoggerWithPrefix } from '../../utils/logger';
 import { requestQueue } from './requestQueue';
+import { APIError } from './apiError';
 
 const logger = createLoggerWithPrefix('apiClient');
 
@@ -72,21 +73,8 @@ interface RequestOptions extends RequestInit {
   skipQueue?: boolean; // Pour les requêtes prioritaires (auth, refresh token)
 }
 
-/**
- * Classe d'erreur personnalisée pour les erreurs API
- */
-export class APIError extends Error {
-  // Propriétés publiques utilisées par les consommateurs de l'erreur
-  public readonly status: number;
-  public readonly data?: unknown;
-
-  constructor(message: string, status: number, data?: unknown) {
-    super(message);
-    this.name = 'APIError';
-    this.status = status;
-    this.data = data;
-  }
-}
+// APIError est maintenant exporté depuis apiError.ts pour éviter les cycles de dépendances
+export { APIError } from './apiError';
 
 class RefreshHttpError extends Error {
   status?: number;

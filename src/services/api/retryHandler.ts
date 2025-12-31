@@ -3,7 +3,7 @@
  * Implémente une stratégie de retry exponentielle
  */
 
-import { APIError } from './apiClient';
+import { APIError } from './apiError';
 import { checkNetworkConnectivity } from '../network/networkService';
 
 export interface RetryOptions {

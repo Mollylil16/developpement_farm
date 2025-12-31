@@ -1055,6 +1055,7 @@ export class SanteService {
       veterinaire: row.veterinaire,
       motif: row.motif,
       animaux_examines: this.parseJsonArray(row.animaux_examines),
+      batch_id: row.batch_id || undefined,
       diagnostic: row.diagnostic || undefined,
       prescriptions: row.prescriptions || undefined,
       recommandations: row.recommandations || undefined,
@@ -1088,10 +1089,10 @@ export class SanteService {
 
     const result = await this.databaseService.query(
       `INSERT INTO visites_veterinaires (
-        id, projet_id, date_visite, veterinaire, motif, animaux_examines,
+        id, projet_id, date_visite, veterinaire, motif, animaux_examines, batch_id,
         diagnostic, prescriptions, recommandations, traitement, cout,
         prochaine_visite, notes, date_creation, derniere_modification
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       RETURNING *`,
       [
         id,
@@ -1100,6 +1101,7 @@ export class SanteService {
         createVisiteVeterinaireDto.veterinaire,
         createVisiteVeterinaireDto.motif,
         animauxExamines,
+        createVisiteVeterinaireDto.batch_id || null,
         createVisiteVeterinaireDto.diagnostic || null,
         createVisiteVeterinaireDto.prescriptions || null,
         createVisiteVeterinaireDto.recommandations || null,
@@ -1119,7 +1121,7 @@ export class SanteService {
     await this.checkProjetOwnership(projetId, userId);
 
     // Colonnes nécessaires pour mapRowToVisiteVeterinaire (optimisation: éviter SELECT *)
-    const visiteColumns = `id, projet_id, date_visite, veterinaire, motif, animaux_examines, 
+    const visiteColumns = `id, projet_id, date_visite, veterinaire, motif, animaux_examines, batch_id,
       diagnostic, prescriptions, recommandations, traitement, cout, prochaine_visite, 
       notes, date_creation, derniere_modification`;
 
@@ -1180,6 +1182,11 @@ export class SanteService {
             );
       fields.push(`animaux_examines = $${paramIndex}`);
       values.push(animauxExamines);
+      paramIndex++;
+    }
+    if (updateVisiteVeterinaireDto.batch_id !== undefined) {
+      fields.push(`batch_id = $${paramIndex}`);
+      values.push(updateVisiteVeterinaireDto.batch_id || null);
       paramIndex++;
     }
     if (updateVisiteVeterinaireDto.diagnostic !== undefined) {

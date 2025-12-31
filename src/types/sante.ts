@@ -303,6 +303,7 @@ export interface VisiteVeterinaire {
   veterinaire: string;
   motif: string; // Raison de la visite
   animaux_examines?: string; // IDs des animaux séparés par virgules
+  batch_id?: string; // ID de la bande (mode batch)
   diagnostic?: string;
   prescriptions?: string;
   recommandations?: string;
@@ -319,6 +320,7 @@ export interface CreateVisiteVeterinaireInput {
   veterinaire: string;
   motif: string;
   animaux_examines?: string;
+  batch_id?: string; // ID de la bande (mode batch)
   diagnostic?: string;
   prescriptions?: string;
   recommandations?: string;
@@ -332,6 +334,7 @@ export interface UpdateVisiteVeterinaireInput {
   veterinaire?: string;
   motif?: string;
   animaux_examines?: string;
+  batch_id?: string; // ID de la bande (mode batch)
   diagnostic?: string;
   prescriptions?: string;
   recommandations?: string;

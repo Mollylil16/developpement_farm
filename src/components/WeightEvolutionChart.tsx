@@ -18,6 +18,47 @@ interface Props {
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
+// Fonction pour évaluer le GMQ et générer un commentaire
+const getGmqComment = (gmqValue: number, colors: any): { message: string; color: string; icon: string } => {
+  if (gmqValue === 0) {
+    return {
+      message: 'Aucun gain mesuré. Vérifiez la santé de l\'animal.',
+      color: colors.warning || '#F59E0B',
+      icon: 'warning',
+    };
+  } else if (gmqValue < 300) {
+    return {
+      message: '⚠️ GMQ faible. L\'animal peut être malnutri ou malade. Consultez un vétérinaire.',
+      color: colors.error || '#EF4444',
+      icon: 'alert-circle',
+    };
+  } else if (gmqValue < 500) {
+    return {
+      message: '⚠️ GMQ modéré. Surveillez l\'alimentation et la santé de l\'animal.',
+      color: colors.warning || '#F59E0B',
+      icon: 'warning',
+    };
+  } else if (gmqValue < 700) {
+    return {
+      message: '✅ GMQ correct. La croissance est normale.',
+      color: colors.success || '#10B981',
+      icon: 'checkmark-circle',
+    };
+  } else if (gmqValue < 900) {
+    return {
+      message: '✅ GMQ bon. Excellente croissance !',
+      color: colors.success || '#10B981',
+      icon: 'checkmark-circle',
+    };
+  } else {
+    return {
+      message: '✅ GMQ excellent. Croissance optimale !',
+      color: colors.success || '#10B981',
+      icon: 'star',
+    };
+  }
+};
+
 export default function WeightEvolutionChart({ pesees, animalName }: Props) {
   const { colors } = useTheme();
 
@@ -48,17 +89,33 @@ export default function WeightEvolutionChart({ pesees, animalName }: Props) {
         return `${date.getDate()}/${date.getMonth() + 1}`;
       });
 
-    // Calculer le gain moyen quotidien (GMQ)
+    // Calculer le gain moyen quotidien (GMQ) de manière plus précise
     let gmq = 0;
     if (sortedPesees.length >= 2) {
       const firstPesee = sortedPesees[0];
       const lastPesee = sortedPesees[sortedPesees.length - 1];
+      const firstDate = new Date(firstPesee.date);
+      const lastDate = new Date(lastPesee.date);
+      
+      // Calculer la différence en millisecondes
+      const diffMs = lastDate.getTime() - firstDate.getTime();
+      // Convertir en jours (avec décimales pour plus de précision)
+      const joursTotal = diffMs / (1000 * 60 * 60 * 24);
+      
+      // Calculer le gain total en kg
       const gainTotal = lastPesee.poids_kg - firstPesee.poids_kg;
-      const joursTotal = Math.ceil(
-        (new Date(lastPesee.date).getTime() - new Date(firstPesee.date).getTime()) /
-          (1000 * 60 * 60 * 24)
-      );
-      gmq = joursTotal > 0 ? (gainTotal * 1000) / joursTotal : 0; // Convertir kg en grammes
+      
+      // GMQ = (gain en kg / nombre de jours) * 1000 pour convertir en grammes/jour
+      // Si les pesées sont le même jour (joursTotal < 1), utiliser au minimum 0.1 jour pour le calcul
+      if (joursTotal > 0) {
+        const joursPourCalcul = Math.max(joursTotal, 0.1); // Minimum 0.1 jour (2.4 heures)
+        gmq = (gainTotal / joursPourCalcul) * 1000;
+      } else if (joursTotal === 0 && gainTotal > 0) {
+        // Si exactement le même moment mais gain positif, utiliser 0.1 jour
+        gmq = (gainTotal / 0.1) * 1000;
+      } else {
+        gmq = 0;
+      }
     }
 
     // Calculer min et max pour l'échelle
@@ -206,6 +263,19 @@ export default function WeightEvolutionChart({ pesees, animalName }: Props) {
           GMQ = Gain Moyen Quotidien • Moyenne : {chartData.gmq.toFixed(0)} g/jour
         </Text>
       </View>
+
+      {/* Commentaire GMQ pour l'utilisateur */}
+      {chartData.gmq > 0 && (() => {
+        const gmqComment = getGmqComment(chartData.gmq, colors);
+        return (
+          <View style={[styles.commentBox, { backgroundColor: `${gmqComment.color}20`, borderColor: gmqComment.color }]}>
+            <Ionicons name={gmqComment.icon as any} size={18} color={gmqComment.color} />
+            <Text style={[styles.commentText, { color: gmqComment.color }]}>
+              {gmqComment.message}
+            </Text>
+          </View>
+        );
+      })()}
     </View>
   );
 }
@@ -303,5 +373,19 @@ const styles = StyleSheet.create({
   emptySubtext: {
     fontSize: 13,
     textAlign: 'center',
+  },
+  commentBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 12,
+    borderWidth: 1,
+  },
+  commentText: {
+    fontSize: 12,
+    flex: 1,
+    fontWeight: '500',
   },
 });

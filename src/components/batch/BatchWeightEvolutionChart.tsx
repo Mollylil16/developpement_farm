@@ -22,11 +22,18 @@ interface BatchWeighing {
 interface Props {
   weighings: BatchWeighing[];
   batchName?: string;
+  gmqOverride?: number; // GMQ calculé externe (pour le graphique global)
+  showTotalWeight?: boolean; // Si true, affiche le poids total au lieu du poids moyen
 }
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
-export default function BatchWeightEvolutionChart({ weighings, batchName }: Props) {
+export default function BatchWeightEvolutionChart({ 
+  weighings, 
+  batchName, 
+  gmqOverride,
+  showTotalWeight = false 
+}: Props) {
   const { colors } = useTheme();
 
   // Trier les pesées par date et calculer les données du graphique
@@ -59,28 +66,76 @@ export default function BatchWeightEvolutionChart({ weighings, batchName }: Prop
       return dateA - dateB;
     });
 
-    // Extraire les poids moyens et dates
-    const weights = sortedWeighings.map((w) => w.average_weight_kg);
+    // Extraire les poids : total si showTotalWeight, sinon moyenne
+    const weights = sortedWeighings.map((w) => {
+      if (showTotalWeight) {
+        // Pour le graphique global : poids total = average_weight_kg (qui contient déjà le total)
+        return w.average_weight_kg;
+      } else {
+        // Pour le graphique par loge : poids moyen
+        return w.average_weight_kg;
+      }
+    });
 
-    // Formater les dates pour l'affichage (inclure l'année si nécessaire)
+    // Formater les dates pour l'affichage
+    // Si plusieurs pesées le même jour, inclure l'heure pour les distinguer
     const firstDate = new Date(sortedWeighings[0].weighing_date);
     const lastDate = new Date(sortedWeighings[sortedWeighings.length - 1].weighing_date);
     const spansMultipleYears = firstDate.getFullYear() !== lastDate.getFullYear();
-
-    const dates = sortedWeighings.map((w) => {
+    
+    // Vérifier si plusieurs pesées sont le même jour
+    const datesByDay = new Map<string, number>();
+    sortedWeighings.forEach((w) => {
       const date = new Date(w.weighing_date);
+      const dayKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+      datesByDay.set(dayKey, (datesByDay.get(dayKey) || 0) + 1);
+    });
+    const hasMultipleWeighingsSameDay = Array.from(datesByDay.values()).some(count => count > 1);
+
+    // Créer un compteur pour les pesées du même jour
+    const dayCounters = new Map<string, number>();
+    
+    const dates = sortedWeighings.map((w, index) => {
+      const date = new Date(w.weighing_date);
+      const dayKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+      const countSameDay = datesByDay.get(dayKey) || 1;
+      const dayCounter = (dayCounters.get(dayKey) || 0) + 1;
+      dayCounters.set(dayKey, dayCounter);
+      
       if (spansMultipleYears) {
         // Si les pesées s'étalent sur plusieurs années, inclure l'année
+        if (hasMultipleWeighingsSameDay && countSameDay > 1) {
+          // Si plusieurs pesées le même jour, inclure l'heure ou un numéro
+          if (date.getHours() !== 0 || date.getMinutes() !== 0) {
+            // Si l'heure est définie, l'utiliser
+            return `${date.getDate()}/${date.getMonth() + 1} ${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
+          } else {
+            // Sinon, utiliser un numéro pour distinguer
+            return `${date.getDate()}/${date.getMonth() + 1} #${dayCounter}`;
+          }
+        }
         return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear().toString().slice(-2)}`;
       } else {
+        // Si plusieurs pesées le même jour, inclure l'heure ou un numéro pour les distinguer
+        if (hasMultipleWeighingsSameDay && countSameDay > 1) {
+          if (date.getHours() !== 0 || date.getMinutes() !== 0) {
+            // Si l'heure est définie, l'utiliser
+            return `${date.getDate()}/${date.getMonth() + 1} ${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
+          } else {
+            // Sinon, utiliser un numéro pour distinguer (ex: "30/12 #1", "30/12 #2")
+            return `${date.getDate()}/${date.getMonth() + 1} #${dayCounter}`;
+          }
+        }
         // Sinon, format simple
         return `${date.getDate()}/${date.getMonth() + 1}`;
       }
     });
 
     // Calculer le gain moyen quotidien (GMQ) de manière plus précise
-    let gmq = 0;
-    if (sortedWeighings.length >= 2) {
+    // Utiliser le GMQ fourni en override si disponible (pour le graphique global)
+    let gmq = gmqOverride !== undefined ? gmqOverride : 0;
+    
+    if (gmq === 0 && sortedWeighings.length >= 2) {
       const firstWeighing = sortedWeighings[0];
       const lastWeighing = sortedWeighings[sortedWeighings.length - 1];
       const firstDate = new Date(firstWeighing.weighing_date);
@@ -95,8 +150,17 @@ export default function BatchWeightEvolutionChart({ weighings, batchName }: Prop
       const gainTotal = lastWeighing.average_weight_kg - firstWeighing.average_weight_kg;
       
       // GMQ = (gain en kg / nombre de jours) * 1000 pour convertir en grammes/jour
-      // Utiliser Math.max(1, joursTotal) pour éviter la division par zéro
-      gmq = joursTotal >= 1 ? (gainTotal / joursTotal) * 1000 : 0;
+      // Si les pesées sont le même jour (joursTotal < 1), utiliser au minimum 0.1 jour pour le calcul
+      // Cela permet d'avoir un GMQ même pour des pesées le même jour
+      if (joursTotal > 0) {
+        const joursPourCalcul = Math.max(joursTotal, 0.1); // Minimum 0.1 jour (2.4 heures)
+        gmq = (gainTotal / joursPourCalcul) * 1000;
+      } else if (joursTotal === 0 && gainTotal > 0) {
+        // Si exactement le même moment mais gain positif, utiliser 0.1 jour
+        gmq = (gainTotal / 0.1) * 1000;
+      } else {
+        gmq = 0;
+      }
     }
 
     // Calculer min et max pour l'échelle
@@ -139,34 +203,44 @@ export default function BatchWeightEvolutionChart({ weighings, batchName }: Prop
       {/* En-tête */}
       <View style={styles.header}>
         <Ionicons name="trending-up" size={24} color={colors.primary} />
-        <Text style={[styles.title, { color: colors.text }]}>Évolution du Poids Moyen</Text>
+        <Text style={[styles.title, { color: colors.text }]}>
+          {showTotalWeight ? 'Évolution du Poids Total' : 'Évolution du Poids Moyen'}
+        </Text>
       </View>
 
       {/* Statistiques */}
       <View style={styles.statsContainer}>
         <View style={styles.statBox}>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Poids initial</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+            {showTotalWeight ? 'Poids total initial' : 'Poids initial'}
+          </Text>
           <Text style={[styles.statValue, { color: colors.text }]}>
             {chartData.firstWeight.toFixed(1)} kg
           </Text>
         </View>
 
         <View style={styles.statBox}>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Poids actuel</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+            {showTotalWeight ? 'Poids total actuel' : 'Poids actuel'}
+          </Text>
           <Text style={[styles.statValue, { color: colors.success }]}>
             {chartData.lastWeight.toFixed(1)} kg
           </Text>
         </View>
 
         <View style={styles.statBox}>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Gain total</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+            {showTotalWeight ? 'Gain total ferme' : 'Gain total'}
+          </Text>
           <Text style={[styles.statValue, { color: colors.primary }]}>
             +{chartData.totalGain.toFixed(1)} kg
           </Text>
         </View>
 
         <View style={styles.statBox}>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>GMQ</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+            {showTotalWeight ? 'GMQ moyen' : 'GMQ'}
+          </Text>
           <Text style={[styles.statValue, { color: colors.info }]}>
             {chartData.gmq.toFixed(0)} g/j
           </Text>
@@ -193,8 +267,16 @@ export default function BatchWeightEvolutionChart({ weighings, batchName }: Prop
           }}
           width={Math.max(SCREEN_WIDTH - SPACING.lg * 6, chartData.dates.length * 60)}
           height={220}
-          yAxisSuffix=" kg"
+          yAxisSuffix=""
           yAxisInterval={1}
+          formatYLabel={(value) => {
+            // Formater les valeurs de l'axe Y pour afficher les valeurs numériques avec unité
+            const numValue = parseFloat(value);
+            if (isNaN(numValue)) return value;
+            // Arrondir à 0 décimale pour les grandes valeurs (poids total)
+            const formatted = numValue >= 100 ? numValue.toFixed(0) : numValue.toFixed(1);
+            return `${formatted} kg`;
+          }}
           chartConfig={{
             backgroundColor: colors.surface,
             backgroundGradientFrom: colors.surface,
@@ -229,7 +311,7 @@ export default function BatchWeightEvolutionChart({ weighings, batchName }: Prop
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: colors.primary }]} />
           <Text style={[styles.legendText, { color: colors.textSecondary }]}>
-            Poids moyen (kg) • {weighings.length} pesée{weighings.length > 1 ? 's' : ''}
+            {showTotalWeight ? 'Poids total (kg)' : 'Poids moyen (kg)'} • {weighings.length} pesée{weighings.length > 1 ? 's' : ''}
           </Text>
         </View>
       </View>

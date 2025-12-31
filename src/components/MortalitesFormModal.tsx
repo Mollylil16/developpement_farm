@@ -2,7 +2,7 @@
  * Composant formulaire modal pour mortalité
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { createMortalite, updateMortalite } from '../store/slices/mortalitesSlice';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
@@ -21,11 +22,16 @@ import { selectAllAnimaux } from '../store/selectors/productionSelectors';
 import type { Mortalite, CreateMortaliteInput, CategorieMortalite } from '../types/mortalites';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
-import { SPACING } from '../constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { getCategorieAnimal } from '../utils/animalUtils';
 import { logger } from '../utils/logger';
+import { useModeElevage } from '../hooks/useModeElevage';
+import BatchSelector from './sante/BatchSelector';
+import { Batch } from '../types/batch';
+import { useFocusEffect } from '@react-navigation/native';
+import apiClient from '../services/api/apiClient';
 
 // Fonction helper pour convertir une date en format local YYYY-MM-DD
 const formatDateToLocal = (date: Date): string => {
@@ -62,6 +68,8 @@ export default function MortalitesFormModal({
   const { projetActif } = useAppSelector((state) => state.projet);
   const animaux = useAppSelector(selectAllAnimaux);
   const { canCreate, canUpdate } = useActionPermissions();
+  const modeElevage = useModeElevage();
+  const isModeBatch = modeElevage === 'bande';
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateMortaliteInput>({
     projet_id: projetActif?.id || '',
@@ -72,6 +80,8 @@ export default function MortalitesFormModal({
     animal_code: '',
     notes: '',
   });
+  const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
+  const [batches, setBatches] = useState<Batch[]>([]);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showAnimalModal, setShowAnimalModal] = useState(false);
   const [animalSearchQuery, setAnimalSearchQuery] = useState('');
@@ -123,12 +133,52 @@ export default function MortalitesFormModal({
     return code;
   };
 
-  // Charger les animaux actifs quand le modal est visible
+  // Charger les animaux actifs quand le modal est visible (mode individuel uniquement)
   useEffect(() => {
-    if (visible && projetActif?.id) {
+    if (visible && projetActif?.id && !isModeBatch) {
       dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: false }));
     }
-  }, [visible, projetActif?.id, dispatch]);
+  }, [visible, projetActif?.id, dispatch, isModeBatch]);
+
+  // Charger les bandes en mode batch
+  useFocusEffect(
+    useCallback(() => {
+      if (!visible || !isModeBatch || !projetActif?.id) {
+        setBatches([]);
+        setSelectedBatch(null);
+        return;
+      }
+
+      let cancelled = false;
+
+      const loadBatches = async () => {
+        try {
+          const data = await apiClient.get<Batch[]>(`/batch-pigs/projet/${projetActif.id}`);
+          if (!cancelled) {
+            setBatches(data || []);
+            // Si on est en mode édition et que la mortalité a un batch_id, sélectionner la bande
+            if (mortalite?.batch_id) {
+              const batch = data.find((b) => b.id === mortalite.batch_id);
+              if (batch) {
+                setSelectedBatch(batch);
+              }
+            }
+          }
+        } catch (error) {
+          if (!cancelled) {
+            console.error('[MortalitesFormModal] Erreur chargement bandes:', error);
+            setBatches([]);
+          }
+        }
+      };
+
+      loadBatches();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [visible, isModeBatch, projetActif?.id, mortalite?.batch_id])
+  );
 
   useEffect(() => {
     if (mortalite && isEditing) {
@@ -139,6 +189,7 @@ export default function MortalitesFormModal({
         categorie: mortalite.categorie,
         cause: mortalite.cause || '',
         animal_code: mortalite.animal_code || '',
+        batch_id: mortalite.batch_id,
         notes: mortalite.notes || '',
       });
     } else {
@@ -149,10 +200,12 @@ export default function MortalitesFormModal({
         categorie: 'porcelet',
         cause: '',
         animal_code: '',
+        batch_id: undefined,
         notes: '',
       });
       setShowDatePicker(false);
       setAnimalSearchQuery('');
+      setSelectedBatch(null);
     }
   }, [mortalite, isEditing, visible, projetActif]);
 
@@ -184,17 +237,30 @@ export default function MortalitesFormModal({
       return;
     }
 
+    // Validation mode batch
+    if (isModeBatch && !selectedBatch) {
+      Alert.alert('Erreur', 'Veuillez sélectionner une loge');
+      return;
+    }
+
     setLoading(true);
     try {
+      const finalFormData = {
+        ...formData,
+        batch_id: isModeBatch && selectedBatch ? selectedBatch.id : undefined,
+        // En mode batch, on ne met pas animal_code
+        animal_code: isModeBatch ? undefined : formData.animal_code,
+      };
+
       if (isEditing && mortalite) {
         await dispatch(
           updateMortalite({
             id: mortalite.id,
-            updates: formData,
+            updates: finalFormData,
           })
         ).unwrap();
       } else {
-        await dispatch(createMortalite(formData)).unwrap();
+        await dispatch(createMortalite(finalFormData)).unwrap();
       }
       onSuccess();
     } catch (error: unknown) {
@@ -301,30 +367,64 @@ export default function MortalitesFormModal({
             </View>
           </View>
 
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Numéro du sujet (optionnel)
-            </Text>
-            <Text style={[styles.helperText, { color: colors.textSecondary }]}>
-              Si le sujet mort a un numéro enregistré dans le cheptel, sélectionnez-le. Il sera
-              automatiquement retiré du cheptel et mis dans l'historique. Sinon, laissez vide (pour
-              les porcelets non enregistrés par exemple).
-            </Text>
-            <TouchableOpacity
-              style={[
-                styles.selectButton,
-                { borderColor: colors.border, backgroundColor: colors.surface },
-              ]}
-              onPress={() => setShowAnimalModal(true)}
-            >
-              <Text style={[styles.selectButtonLabel, { color: colors.textSecondary }]}>
-                Numéro du sujet
+          {isModeBatch ? (
+            /* Mode Batch : Sélection de bande */
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Loge concernée *</Text>
+              <Text style={[styles.helperText, { color: colors.textSecondary }]}>
+                Sélectionnez la loge concernée par cette mortalité
               </Text>
-              <Text style={[styles.selectButtonValue, { color: colors.text }]}>
-                {getAnimalLabel(formData.animal_code)}
+              <BatchSelector
+                selectedBatchId={selectedBatch?.id || null}
+                onBatchSelect={setSelectedBatch}
+                label="Sélectionner une loge *"
+              />
+              {selectedBatch && (
+                <View
+                  style={[
+                    styles.batchSelectedInfo,
+                    { backgroundColor: colors.primary + '15', borderColor: colors.primary },
+                  ]}
+                >
+                  <Ionicons name="home" size={20} color={colors.primary} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.batchSelectedName, { color: colors.primary }]}>
+                      {selectedBatch.pen_name}
+                    </Text>
+                    <Text style={[styles.batchSelectedMeta, { color: colors.textSecondary }]}>
+                      {selectedBatch.total_count} sujet(s) • {(selectedBatch.average_weight_kg || 0).toFixed(1)} kg moy.
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </View>
+          ) : (
+            /* Mode Individuel : Sélection d'animal */
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                Numéro du sujet (optionnel)
               </Text>
-            </TouchableOpacity>
-          </View>
+              <Text style={[styles.helperText, { color: colors.textSecondary }]}>
+                Si le sujet mort a un numéro enregistré dans le cheptel, sélectionnez-le. Il sera
+                automatiquement retiré du cheptel et mis dans l'historique. Sinon, laissez vide (pour
+                les porcelets non enregistrés par exemple).
+              </Text>
+              <TouchableOpacity
+                style={[
+                  styles.selectButton,
+                  { borderColor: colors.border, backgroundColor: colors.surface },
+                ]}
+                onPress={() => setShowAnimalModal(true)}
+              >
+                <Text style={[styles.selectButtonLabel, { color: colors.textSecondary }]}>
+                  Numéro du sujet
+                </Text>
+                <Text style={[styles.selectButtonValue, { color: colors.text }]}>
+                  {getAnimalLabel(formData.animal_code)}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           <FormField
             label="Cause (optionnel)"
@@ -555,5 +655,22 @@ const styles = StyleSheet.create({
   noResultsText: {
     fontSize: 14,
     textAlign: 'center',
+  },
+  batchSelectedInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    marginTop: SPACING.sm,
+  },
+  batchSelectedName: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+    marginBottom: SPACING.xs / 2,
+  },
+  batchSelectedMeta: {
+    fontSize: FONT_SIZES.xs,
   },
 });

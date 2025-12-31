@@ -52,6 +52,7 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       cause: row.cause || undefined,
       categorie: row.categorie,
       animal_code: row.animal_code || undefined,
+      batch_id: row.batch_id || undefined,
       poids_kg: row.poids_kg ? parseFloat(row.poids_kg) : undefined,
       notes: row.notes || undefined,
       date_creation: row.date_creation,
@@ -85,8 +86,8 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       const result = await client.query(
         `INSERT INTO mortalites (
           id, projet_id, nombre_porcs, date, cause, categorie,
-          animal_code, poids_kg, notes, date_creation
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          animal_code, batch_id, poids_kg, notes, date_creation
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING *`,
         [
           id,
@@ -96,6 +97,7 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
           createMortaliteDto.cause || null,
           createMortaliteDto.categorie,
           createMortaliteDto.animal_code || null,
+          createMortaliteDto.batch_id || null,
           createMortaliteDto.poids_kg || null,
           createMortaliteDto.notes || null,
           now,
@@ -135,7 +137,7 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
 
       // Colonnes nécessaires pour mapRowToMortalite (optimisation: éviter SELECT *)
       const mortaliteColumns = `id, projet_id, nombre_porcs, date, cause, categorie, 
-        animal_code, poids_kg, notes, date_creation`;
+        animal_code, batch_id, poids_kg, notes, date_creation`;
       
       const result = await this.databaseService.query(
         `SELECT ${mortaliteColumns} FROM mortalites WHERE projet_id = $1 ORDER BY date DESC LIMIT $2 OFFSET $3`,
@@ -147,7 +149,7 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
   async findOne(id: string, userId: string) {
     // Colonnes nécessaires pour mapRowToMortalite (optimisation: éviter SELECT *)
     const mortaliteColumns = `m.id, m.projet_id, m.nombre_porcs, m.date, m.cause, m.categorie, 
-      m.animal_code, m.poids_kg, m.notes, m.date_creation`;
+      m.animal_code, m.batch_id, m.poids_kg, m.notes, m.date_creation`;
     
     const result = await this.databaseService.query(
       `SELECT ${mortaliteColumns} FROM mortalites m
@@ -191,6 +193,11 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
     if (updateMortaliteDto.animal_code !== undefined) {
       fields.push(`animal_code = $${paramIndex}`);
       values.push(updateMortaliteDto.animal_code || null);
+      paramIndex++;
+    }
+    if (updateMortaliteDto.batch_id !== undefined) {
+      fields.push(`batch_id = $${paramIndex}`);
+      values.push(updateMortaliteDto.batch_id || null);
       paramIndex++;
     }
     if (updateMortaliteDto.poids_kg !== undefined) {

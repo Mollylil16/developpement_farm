@@ -2,7 +2,7 @@
  * VisiteVeterinaireFormModalNew - Modal pour ajouter/modifier une visite vétérinaire
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -26,6 +26,11 @@ import { selectAllAnimaux } from '../store/selectors/productionSelectors';
 import { getCurrentLocalDate, formatDisplayDate } from '../utils/dateUtils';
 import { VisiteVeterinaire, CreateVisiteVeterinaireInput } from '../types/sante';
 import { getCategorieAnimal } from '../utils/animalUtils';
+import { useModeElevage } from '../hooks/useModeElevage';
+import BatchSelector from './sante/BatchSelector';
+import { Batch } from '../types/batch';
+import { useFocusEffect } from '@react-navigation/native';
+import apiClient from '../services/api/apiClient';
 
 interface VisiteVeterinaireFormModalNewProps {
   visible: boolean;
@@ -57,6 +62,8 @@ export default function VisiteVeterinaireFormModalNew({
   const dispatch = useAppDispatch();
   const projetActif = useAppSelector((state) => state.projet.projetActif);
   const animaux = useAppSelector(selectAllAnimaux);
+  const modeElevage = useModeElevage();
+  const isModeBatch = modeElevage === 'bande';
 
   const [dateVisite, setDateVisite] = useState(visite?.date_visite || getCurrentLocalDate());
   const [motif, setMotif] = useState<TypeIntervention>(
@@ -71,6 +78,8 @@ export default function VisiteVeterinaireFormModalNew({
     }
     return [];
   });
+  const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
+  const [batches, setBatches] = useState<Batch[]>([]);
   const [rechercheAnimal, setRechercheAnimal] = useState('');
   const [diagnostic, setDiagnostic] = useState(visite?.diagnostic || '');
   const [traitement, setTraitement] = useState(visite?.prescriptions || visite?.recommandations || '');
@@ -83,10 +92,50 @@ export default function VisiteVeterinaireFormModalNew({
 
   // Charger les animaux
   useEffect(() => {
-    if (projetActif?.id) {
+    if (projetActif?.id && !isModeBatch) {
       dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: false }));
     }
-  }, [projetActif?.id, dispatch]);
+  }, [projetActif?.id, dispatch, isModeBatch]);
+
+  // Charger les bandes en mode batch
+  useFocusEffect(
+    useCallback(() => {
+      if (!isModeBatch || !projetActif?.id) {
+        setBatches([]);
+        setSelectedBatch(null);
+        return;
+      }
+
+      let cancelled = false;
+
+      const loadBatches = async () => {
+        try {
+          const data = await apiClient.get<Batch[]>(`/batch-pigs/projet/${projetActif.id}`);
+          if (!cancelled) {
+            setBatches(data || []);
+            // Si on est en mode édition et que la visite a un batch_id, sélectionner la bande
+            if (visite?.batch_id) {
+              const batch = data.find((b) => b.id === visite.batch_id);
+              if (batch) {
+                setSelectedBatch(batch);
+              }
+            }
+          }
+        } catch (error) {
+          if (!cancelled) {
+            console.error('[VisiteVeterinaireFormModalNew] Erreur chargement bandes:', error);
+            setBatches([]);
+          }
+        }
+      };
+
+      loadBatches();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [isModeBatch, projetActif?.id, visite?.batch_id])
+  );
 
   // Demander permission photos
   useEffect(() => {
@@ -175,24 +224,39 @@ export default function VisiteVeterinaireFormModalNew({
       return;
     }
 
+    // Validation mode batch
+    if (isModeBatch && !selectedBatch) {
+      Alert.alert('Erreur', 'Veuillez sélectionner une loge');
+      return;
+    }
+
+    // Validation mode individuel
+    if (!isModeBatch && animauxSelectionnes.length === 0) {
+      Alert.alert('Erreur', 'Veuillez sélectionner au moins un animal');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      // Créer la liste des noms d'animaux sélectionnés
-      const nomsAnimaux = animauxSelectionnes
-        .map((id) => {
-          const animal = animaux.find((a) => a.id === id);
-          return animal ? animal.nom || animal.code || `Porc #${id.slice(0, 8)}` : null;
-        })
-        .filter(Boolean)
-        .join(', ');
+      // Créer la liste des noms d'animaux sélectionnés (mode individuel uniquement)
+      const nomsAnimaux = !isModeBatch && animauxSelectionnes.length > 0
+        ? animauxSelectionnes
+            .map((id) => {
+              const animal = animaux.find((a) => a.id === id);
+              return animal ? animal.nom || animal.code || `Porc #${id.slice(0, 8)}` : null;
+            })
+            .filter(Boolean)
+            .join(', ')
+        : undefined;
 
       const input: CreateVisiteVeterinaireInput = {
         projet_id: projetActif.id,
         date_visite: dateVisite,
         veterinaire: visite?.veterinaire || 'Non spécifié',
         motif: TYPE_INTERVENTION_LABELS[motif],
-        animaux_examines: animauxSelectionnes.length > 0 ? nomsAnimaux : undefined,
+        animaux_examines: nomsAnimaux,
+        batch_id: isModeBatch && selectedBatch ? selectedBatch.id : undefined,
         diagnostic: diagnostic.trim(),
         prescriptions: traitement.trim() || undefined,
         cout: cout ? parseFloat(cout) : 0,
@@ -283,117 +347,152 @@ export default function VisiteVeterinaireFormModalNew({
           ))}
         </ScrollView>
 
-        {/* Sélection des animaux */}
+        {/* Sélection des sujets examinés */}
         <Text style={[styles.label, { color: colors.text }]}>Sujet(s) examiné(s)</Text>
-        <Text style={[styles.helperText, { color: colors.textSecondary }]}>
-          Sélectionnez un ou plusieurs animaux concernés par cette visite
-        </Text>
-
-        {/* Barre de recherche */}
-        <View
-          style={[
-            styles.searchBar,
-            { backgroundColor: colors.background, borderColor: colors.border },
-          ]}
-        >
-          <Ionicons name="search" size={20} color={colors.textSecondary} />
-          <TextInput
-            style={[styles.searchInput, { color: colors.text }]}
-            placeholder="Rechercher un animal..."
-            placeholderTextColor={colors.textSecondary}
-            value={rechercheAnimal}
-            onChangeText={setRechercheAnimal}
-          />
-          {rechercheAnimal.length > 0 && (
-            <TouchableOpacity onPress={() => setRechercheAnimal('')}>
-              <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Badge des animaux sélectionnés */}
-        {animauxSelectionnes.length > 0 && (
-          <View
-            style={[
-              styles.selectedBadge,
-              { backgroundColor: colors.primary + '15', borderColor: colors.primary },
-            ]}
-          >
-            <Text style={[styles.selectedBadgeText, { color: colors.primary }]}>
-              {animauxSelectionnes.length} sujet{animauxSelectionnes.length > 1 ? 's' : ''}{' '}
-              sélectionné{animauxSelectionnes.length > 1 ? 's' : ''}
+        {isModeBatch ? (
+          /* Mode Batch : Sélection de bande */
+          <>
+            <Text style={[styles.helperText, { color: colors.textSecondary }]}>
+              Sélectionnez la loge concernée par cette visite
             </Text>
-            <TouchableOpacity onPress={() => setAnimauxSelectionnes([])}>
-              <Text style={[styles.clearSelectionText, { color: colors.primary }]}>
-                Tout désélectionner
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
+            <BatchSelector
+              selectedBatchId={selectedBatch?.id || null}
+              onBatchSelect={setSelectedBatch}
+              label="Sélectionner une loge *"
+            />
+            {selectedBatch && (
+              <View
+                style={[
+                  styles.batchSelectedInfo,
+                  { backgroundColor: colors.primary + '15', borderColor: colors.primary },
+                ]}
+              >
+                <Ionicons name="home" size={20} color={colors.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.batchSelectedName, { color: colors.primary }]}>
+                    {selectedBatch.pen_name}
+                  </Text>
+                  <Text style={[styles.batchSelectedMeta, { color: colors.textSecondary }]}>
+                    {selectedBatch.total_count} sujet(s) • {(selectedBatch.average_weight_kg || 0).toFixed(1)} kg moy.
+                  </Text>
+                </View>
+              </View>
+            )}
+          </>
+        ) : (
+          /* Mode Individuel : Sélection d'animaux */
+          <>
+            <Text style={[styles.helperText, { color: colors.textSecondary }]}>
+              Sélectionnez un ou plusieurs animaux concernés par cette visite
+            </Text>
 
-        {/* Liste des animaux */}
-        <ScrollView
-          style={[
-            styles.animauxListe,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-          ]}
-          nestedScrollEnabled
-        >
-          {animauxFiltres.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                Aucun animal trouvé
-              </Text>
+            {/* Barre de recherche */}
+            <View
+              style={[
+                styles.searchBar,
+                { backgroundColor: colors.background, borderColor: colors.border },
+              ]}
+            >
+              <Ionicons name="search" size={20} color={colors.textSecondary} />
+              <TextInput
+                style={[styles.searchInput, { color: colors.text }]}
+                placeholder="Rechercher un animal..."
+                placeholderTextColor={colors.textSecondary}
+                value={rechercheAnimal}
+                onChangeText={setRechercheAnimal}
+              />
+              {rechercheAnimal.length > 0 && (
+                <TouchableOpacity onPress={() => setRechercheAnimal('')}>
+                  <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              )}
             </View>
-          ) : (
-            animauxFiltres.map((animal) => {
-              const isSelected = animauxSelectionnes.includes(animal.id);
-              const nom = animal.nom || animal.code || `Porc #${animal.id.slice(0, 8)}`;
-              const categorie = getCategorieAnimal(animal);
 
-              return (
-                <TouchableOpacity
-                  key={animal.id}
-                  style={[
-                    styles.animalItem,
-                    {
-                      backgroundColor: isSelected ? `${colors.primary}15` : 'transparent',
-                      borderColor: isSelected ? colors.primary : colors.border,
-                    },
-                  ]}
-                  onPress={() => toggleAnimalSelection(animal.id)}
-                >
-                  <View style={styles.animalItemLeft}>
-                    <View
+            {/* Badge des animaux sélectionnés */}
+            {animauxSelectionnes.length > 0 && (
+              <View
+                style={[
+                  styles.selectedBadge,
+                  { backgroundColor: colors.primary + '15', borderColor: colors.primary },
+                ]}
+              >
+                <Text style={[styles.selectedBadgeText, { color: colors.primary }]}>
+                  {animauxSelectionnes.length} sujet{animauxSelectionnes.length > 1 ? 's' : ''}{' '}
+                  sélectionné{animauxSelectionnes.length > 1 ? 's' : ''}
+                </Text>
+                <TouchableOpacity onPress={() => setAnimauxSelectionnes([])}>
+                  <Text style={[styles.clearSelectionText, { color: colors.primary }]}>
+                    Tout désélectionner
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Liste des animaux */}
+            <ScrollView
+              style={[
+                styles.animauxListe,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+              nestedScrollEnabled
+            >
+              {animauxFiltres.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                    Aucun animal trouvé
+                  </Text>
+                </View>
+              ) : (
+                animauxFiltres.map((animal) => {
+                  const isSelected = animauxSelectionnes.includes(animal.id);
+                  const nom = animal.nom || animal.code || `Porc #${animal.id.slice(0, 8)}`;
+                  const categorie = getCategorieAnimal(animal);
+
+                  return (
+                    <TouchableOpacity
+                      key={animal.id}
                       style={[
-                        styles.checkbox,
-                        isSelected && {
-                          backgroundColor: colors.primary,
-                          borderColor: colors.primary,
+                        styles.animalItem,
+                        {
+                          backgroundColor: isSelected ? `${colors.primary}15` : 'transparent',
+                          borderColor: isSelected ? colors.primary : colors.border,
                         },
                       ]}
+                      onPress={() => toggleAnimalSelection(animal.id)}
                     >
-                      {isSelected && <Ionicons name="checkmark" size={14} color="#FFF" />}
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.animalNom, { color: colors.text }]} numberOfLines={1}>
-                        {nom}
-                      </Text>
-                      <Text style={[styles.animalDetails, { color: colors.textSecondary }]}>
-                        {categorie}
-                        {animal.code && ` • ${animal.code}`}
-                        {animal.sexe && ` • ${animal.sexe}`}
-                      </Text>
-                    </View>
-                  </View>
-                  {isSelected && (
-                    <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
-                  )}
-                </TouchableOpacity>
-              );
-            })
-          )}
-        </ScrollView>
+                      <View style={styles.animalItemLeft}>
+                        <View
+                          style={[
+                            styles.checkbox,
+                            isSelected && {
+                              backgroundColor: colors.primary,
+                              borderColor: colors.primary,
+                            },
+                          ]}
+                        >
+                          {isSelected && <Ionicons name="checkmark" size={14} color="#FFF" />}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.animalNom, { color: colors.text }]} numberOfLines={1}>
+                            {nom}
+                          </Text>
+                          <Text style={[styles.animalDetails, { color: colors.textSecondary }]}>
+                            {categorie}
+                            {animal.code && ` • ${animal.code}`}
+                            {animal.sexe && ` • ${animal.sexe}`}
+                          </Text>
+                        </View>
+                      </View>
+                      {isSelected && (
+                        <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </ScrollView>
+          </>
+        )}
 
         {/* Diagnostic / Observations */}
         <Text style={[styles.label, { color: colors.text }]}>Diagnostic / Observations *</Text>
@@ -648,6 +747,23 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: FONT_SIZES.sm,
+  },
+  batchSelectedInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    marginTop: SPACING.sm,
+  },
+  batchSelectedName: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+    marginBottom: SPACING.xs / 2,
+  },
+  batchSelectedMeta: {
+    fontSize: FONT_SIZES.xs,
   },
   photosContainer: {
     flexDirection: 'row',

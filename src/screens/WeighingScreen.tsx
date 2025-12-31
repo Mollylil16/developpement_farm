@@ -152,7 +152,8 @@ const GlobalFarmStats: React.FC<GlobalFarmStatsProps> = ({ batches, weighingsMap
   }, [batches, weighingsMap]);
 
   // Données agrégées pour le graphique global d'évolution
-  // Calcule la moyenne pondérée par SEMAINE (toutes loges confondues)
+  // Calcule le poids TOTAL de la ferme (somme de tous les poids) par date
+  // et le GMQ global comme moyenne des GMQ de chaque loge
   const globalChartWeighings = React.useMemo(() => {
     // Collecter toutes les pesées de toutes les loges
     const allWeighings: any[] = [];
@@ -164,6 +165,7 @@ const GlobalFarmStats: React.FC<GlobalFarmStatsProps> = ({ batches, weighingsMap
           weighing_date: w.weighing_date || w.date,
           average_weight_kg: w.average_weight_kg || w.poids_kg || 0,
           count: w.count || 1,
+          batch_id: batch.id,
           batch_name: batch.pen_name,
         });
       });
@@ -171,66 +173,122 @@ const GlobalFarmStats: React.FC<GlobalFarmStatsProps> = ({ batches, weighingsMap
 
     if (allWeighings.length === 0) return [];
 
-    // Fonction pour obtenir le numéro de semaine ISO
-    const getWeekKey = (date: Date): string => {
-      const d = new Date(date);
-      d.setHours(0, 0, 0, 0);
-      // Trouver le jeudi de la semaine (ISO week)
-      d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
-      const week1 = new Date(d.getFullYear(), 0, 4);
-      const weekNum = 1 + Math.round(((d.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
-      return `${d.getFullYear()}-S${weekNum.toString().padStart(2, '0')}`;
-    };
-
-    // Fonction pour obtenir le lundi de la semaine
-    const getWeekStart = (date: Date): Date => {
-      const d = new Date(date);
-      const day = d.getDay();
-      const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Ajuster si dimanche
-      return new Date(d.setDate(diff));
-    };
-
-    // Grouper par SEMAINE et calculer la moyenne pondérée
-    const byWeek = new Map<string, { totalWeight: number; totalCount: number; weekStart: Date; label: string }>();
-    
-    allWeighings.forEach((w) => {
+    // Filtrer et valider les pesées
+    const validWeighings = allWeighings.filter((w) => {
+      const weight = w.average_weight_kg;
       const date = new Date(w.weighing_date);
-      const weekKey = getWeekKey(date);
-      const weekStart = getWeekStart(date);
-      const count = w.count || 1;
-      const weight = (w.average_weight_kg || 0) * count;
-      
-      // Label: "Sem. 1" ou "Jan S1"
-      const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
-      const weekNum = parseInt(weekKey.split('-S')[1]);
-      const label = `${monthNames[weekStart.getMonth()]} S${weekNum}`;
-      
-      if (byWeek.has(weekKey)) {
-        const existing = byWeek.get(weekKey)!;
-        existing.totalWeight += weight;
-        existing.totalCount += count;
-      } else {
-        byWeek.set(weekKey, {
-          totalWeight: weight,
-          totalCount: count,
-          weekStart: weekStart,
-          label: label,
-        });
-      }
+      return (
+        typeof weight === 'number' &&
+        !isNaN(weight) &&
+        isFinite(weight) &&
+        weight > 0 &&
+        !isNaN(date.getTime())
+      );
     });
 
-    // Convertir en tableau et calculer les moyennes pondérées
-    const aggregatedWeighings = Array.from(byWeek.entries())
-      .map(([weekKey, data]) => ({
-        id: weekKey,
-        weighing_date: data.weekStart.toISOString(),
-        average_weight_kg: data.totalCount > 0 ? data.totalWeight / data.totalCount : 0,
-        count: data.totalCount,
-        label: data.label,
-      }))
-      .sort((a, b) => new Date(a.weighing_date).getTime() - new Date(b.weighing_date).getTime());
+    if (validWeighings.length === 0) return [];
+
+    // Trier par date (croissante)
+    const sortedWeighings = [...validWeighings].sort((a, b) => {
+      const dateA = new Date(a.weighing_date).getTime();
+      const dateB = new Date(b.weighing_date).getTime();
+      return dateA - dateB;
+    });
+
+    // Pour chaque pesée, calculer le poids total de la ferme à cette date précise
+    // Le poids total = somme de (average_weight_kg * count) de toutes les loges pesées à cette date
+    const aggregatedWeighings = sortedWeighings.map((w, index) => {
+      const weighingDate = new Date(w.weighing_date);
+      const dateKey = `${weighingDate.getFullYear()}-${weighingDate.getMonth()}-${weighingDate.getDate()}`;
+      
+      // Trouver toutes les pesées de la même date (toutes loges confondues)
+      // Cela inclut les pesées de toutes les loges qui ont été pesées le même jour
+      const weighingsSameDate = sortedWeighings.filter((other) => {
+        const otherDate = new Date(other.weighing_date);
+        const otherDateKey = `${otherDate.getFullYear()}-${otherDate.getMonth()}-${otherDate.getDate()}`;
+        return otherDateKey === dateKey;
+      });
+      
+      // Calculer le poids total de la ferme pour cette date
+      // = somme de (average_weight_kg * count) pour toutes les loges pesées ce jour
+      const totalWeightForDate = weighingsSameDate.reduce((sum, pesee) => {
+        const count = pesee.count || 1;
+        return sum + ((pesee.average_weight_kg || 0) * count);
+      }, 0);
+      
+      // Compter le nombre total de sujets pesés ce jour (toutes loges confondues)
+      const totalCountForDate = weighingsSameDate.reduce((sum, p) => sum + (p.count || 1), 0);
+      
+      return {
+        id: w.id || `global-${new Date(w.weighing_date).getTime()}-${index}`,
+        weighing_date: w.weighing_date, // Garder la date originale avec l'heure pour distinguer les pesées
+        // Poids total de la ferme à cette date (sera le même pour toutes les pesées du même jour)
+        average_weight_kg: totalWeightForDate,
+        count: totalCountForDate,
+      };
+    });
 
     return aggregatedWeighings;
+  }, [batches, weighingsMap]);
+
+  // Calculer le GMQ global comme moyenne des GMQ de chaque loge
+  const globalGMQ = React.useMemo(() => {
+    const gmqsByBatch: number[] = [];
+    
+    batches.forEach((batch) => {
+      const batchWeighings = weighingsMap.get(batch.id) || [];
+      if (batchWeighings.length < 2) return; // Il faut au moins 2 pesées pour calculer un GMQ
+      
+      // Filtrer et valider les pesées
+      const validWeighings = batchWeighings.filter((w) => {
+        const weight = w.average_weight_kg;
+        const date = new Date(w.weighing_date || w.date);
+        return (
+          typeof weight === 'number' &&
+          !isNaN(weight) &&
+          isFinite(weight) &&
+          weight > 0 &&
+          !isNaN(date.getTime())
+        );
+      });
+      
+      if (validWeighings.length < 2) return;
+      
+      // Trier par date
+      const sorted = [...validWeighings].sort((a, b) => {
+        const dateA = new Date(a.weighing_date || a.date).getTime();
+        const dateB = new Date(b.weighing_date || b.date).getTime();
+        return dateA - dateB;
+      });
+      
+      const firstWeighing = sorted[0];
+      const lastWeighing = sorted[sorted.length - 1];
+      const firstDate = new Date(firstWeighing.weighing_date || firstWeighing.date);
+      const lastDate = new Date(lastWeighing.weighing_date || lastWeighing.date);
+      
+      // Calculer la différence en jours
+      const diffMs = lastDate.getTime() - firstDate.getTime();
+      const joursTotal = diffMs / (1000 * 60 * 60 * 24);
+      
+      // Calculer le gain total
+      const gainTotal = lastWeighing.average_weight_kg - firstWeighing.average_weight_kg;
+      
+      // Calculer le GMQ pour cette loge
+      if (joursTotal > 0) {
+        const joursPourCalcul = Math.max(joursTotal, 0.1);
+        const gmq = (gainTotal / joursPourCalcul) * 1000;
+        if (gmq > 0) {
+          gmqsByBatch.push(gmq);
+        }
+      } else if (joursTotal === 0 && gainTotal > 0) {
+        const gmq = (gainTotal / 0.1) * 1000;
+        gmqsByBatch.push(gmq);
+      }
+    });
+    
+    // Retourner la moyenne des GMQ de toutes les loges
+    if (gmqsByBatch.length === 0) return 0;
+    return gmqsByBatch.reduce((sum, gmq) => sum + gmq, 0) / gmqsByBatch.length;
   }, [batches, weighingsMap]);
 
   if (loading || batches.length === 0) return null;
@@ -285,10 +343,12 @@ const GlobalFarmStats: React.FC<GlobalFarmStatsProps> = ({ batches, weighingsMap
             weighings={globalChartWeighings.map((w) => ({
               id: w.id,
               weighing_date: w.weighing_date,
-              average_weight_kg: w.average_weight_kg,
+              average_weight_kg: w.average_weight_kg, // Contient le poids total de la ferme
               count: w.count,
             }))}
             batchName="Toutes les loges"
+            gmqOverride={globalGMQ}
+            showTotalWeight={true}
           />
         </View>
       )}

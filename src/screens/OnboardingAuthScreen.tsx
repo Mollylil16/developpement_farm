@@ -35,7 +35,8 @@ import {
   signIn,
   clearError,
 } from '../store/slices/authSlice';
-import apiClient, { APIError } from '../services/api/apiClient';
+import apiClient from '../services/api/apiClient';
+import { APIError } from '../services/api/apiError';
 
 /**
  * Types d'erreurs possibles lors de l'authentification

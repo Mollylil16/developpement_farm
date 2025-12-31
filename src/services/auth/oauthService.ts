@@ -6,7 +6,8 @@
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
-import apiClient, { APIError } from '../api/apiClient';
+import apiClient from '../api/apiClient';
+import { APIError } from '../api/apiError';
 import type { User } from '../../types/auth';
 import { logger } from '../../utils/logger';
 

@@ -4,7 +4,7 @@
  */
 
 import { Middleware } from '@reduxjs/toolkit';
-import { APIError } from '../../services/api/apiClient';
+import { APIError } from '../../services/api/apiError';
 import { createLoggerWithPrefix } from '../../utils/logger';
 import { signOut } from '../slices/authSlice';
 import type { RootState } from '../store';

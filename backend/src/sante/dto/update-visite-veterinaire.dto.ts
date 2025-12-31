@@ -22,6 +22,13 @@ export class UpdateVisiteVeterinaireDto {
   @IsString()
   animaux_examines?: string;
 
+  @ApiPropertyOptional({
+    description: 'ID de la bande associée à la visite (mode batch)',
+  })
+  @IsOptional()
+  @IsString()
+  batch_id?: string;
+
   @ApiPropertyOptional({ description: 'Diagnostic' })
   @IsOptional()
   @IsString()

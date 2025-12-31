@@ -29,6 +29,13 @@ export class CreateMortaliteDto {
   @IsString()
   animal_code?: string;
 
+  @ApiPropertyOptional({
+    description: 'ID de la bande associée à la mortalité (mode batch)',
+  })
+  @IsOptional()
+  @IsString()
+  batch_id?: string;
+
   @ApiPropertyOptional({ description: 'Poids en kg' })
   @IsOptional()
   @IsNumber()
