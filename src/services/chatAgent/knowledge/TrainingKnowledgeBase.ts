@@ -320,6 +320,106 @@ Soit 22 000 L/mois minimum
 - GMQ > 700 g/jour`
   },
   {
+    id: 'gestion_finances',
+    title: 'Gestion des revenus et dépenses',
+    keywords: ['modifier', 'supprimer', 'corriger', 'changer', 'mettre à jour', 'revenu', 'dépense', 'vente', 'effacer', 'retirer', 'annuler', 'enlever', 'gestion', 'comptabilité'],
+    category: 'finance',
+    content: `**Comment modifier ou supprimer des revenus/dépenses dans l'application :**
+
+📝 **Modifier un revenu/dépense :**
+
+Tu peux modifier une vente ou une dépense de plusieurs façons :
+
+**1. Par ID (recommandé)**
+- "modifier la vente abc123"
+- "changer le montant de la dépense xyz456 à 50000"
+- Kouakou identifiera directement l'élément à modifier
+
+**2. Par date**
+- "modifier la vente d'hier"
+- "changer la dépense du 15/01/2025"
+- Kouakou cherchera l'élément correspondant à cette date
+
+**3. Par description**
+- "modifier la dernière vente"
+- "corriger la première dépense"
+- Kouakou utilisera ces références pour identifier l'élément
+
+**4. Modifications partielles**
+- "changer juste le montant à 900000" → modifie uniquement le montant
+- "modifier seulement la date à demain" → modifie uniquement la date
+- "corriger uniquement la catégorie à alimentation" → modifie uniquement la catégorie
+
+**Champs modifiables :**
+- Montant (prix de vente ou montant de dépense)
+- Date (date de la transaction)
+- Catégorie (pour les dépenses)
+- Acheteur (pour les ventes)
+- Commentaire/Description
+
+🗑️ **Supprimer un revenu/dépense :**
+
+Tu peux supprimer une vente ou une dépense de plusieurs façons :
+
+**1. Par ID (recommandé)**
+- "supprimer la vente abc123"
+- "effacer la dépense xyz456"
+- Kouakou identifiera directement l'élément à supprimer
+
+**2. Par date**
+- "supprimer la vente d'hier"
+- "effacer la dépense du 15/01/2025"
+- Kouakou cherchera l'élément correspondant à cette date
+
+**3. Par description**
+- "supprimer la dernière dépense"
+- "effacer la première vente"
+- Kouakou utilisera ces références pour identifier l'élément
+
+**4. Par montant**
+- "annuler la dépense de 50000"
+- Kouakou cherchera une dépense avec ce montant
+
+⚠️ **Important :**
+- La suppression est **irréversible**
+- Kouakou demandera toujours **confirmation** avant de supprimer
+- Tu peux annuler la suppression en répondant "non" à la confirmation
+
+💡 **Astuces :**
+
+**Si tu ne connais pas l'ID :**
+- Utilise des références : "la dernière", "celle d'hier", "la vente de 500000"
+- Kouakou peut chercher par date : "modifier la vente du 15/01"
+- Kouakou peut chercher par montant : "supprimer la dépense de 50000"
+
+**Pour les modifications partielles :**
+- Dis "juste" ou "seulement" : "changer juste le montant"
+- Kouakou ne modifiera que ce champ spécifique
+- Les autres informations resteront inchangées
+
+**Pour éviter les erreurs :**
+- Vérifie bien l'ID ou la date avant de modifier/supprimer
+- Utilise des références claires : "dernière", "première", "d'hier"
+- En cas de doute, demande à Kouakou de lister tes revenus/dépenses récents
+
+📊 **Exemples concrets :**
+
+**Modification :**
+- "modifier la vente abc123, mettre le montant à 900 000"
+- "changer le montant de la dépense d'hier à 25 000"
+- "corriger la dernière vente, mettre la date à aujourd'hui"
+
+**Suppression :**
+- "supprimer la vente abc123"
+- "effacer la dernière dépense"
+- "retirer la dépense d'hier"
+
+**Modification partielle :**
+- "changer juste le montant de la vente abc123 à 800000"
+- "modifier seulement la date de la dépense xyz à demain"`
+
+  },
+  {
     id: 'commerce',
     title: 'Commercialisation',
     keywords: ['vente', 'vendre', 'prix', 'marché', 'client', 'acheteur', 'restaurant', 'boucherie', 'marketing'],

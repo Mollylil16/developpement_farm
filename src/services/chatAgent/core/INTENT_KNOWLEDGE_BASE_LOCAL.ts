@@ -1,19 +1,22 @@
 /**
  * Base de connaissances d'exemples RAG pour intentions locales
- * 500 exemples spécifiques au contexte ivoirien et élevage porcin
+ * 616 exemples spécifiques au contexte ivoirien et élevage porcin
  * 
  * Ces exemples couvrent :
  * - Expressions locales ivoiriennes
  * - Vocabulaire spécifique à l'élevage porcin
  * - Variations linguistiques (français parlé, français écrit)
  * - Contextes culturels et pratiques locales
+ * - Actions de création, modification et suppression (revenus/dépenses)
  */
 
 import { TrainingExample } from './IntentRAG';
 import { AgentActionType } from '../../../types/chatAgent';
 
 /**
- * 500 exemples RAG pour intentions locales (ivoirien, élevage porcin)
+ * 616 exemples RAG pour intentions locales (ivoirien, élevage porcin)
+ * Inclut : statistiques, ventes, dépenses, pesées, vaccinations, stocks, coûts, connaissances,
+ * modifications (revenus/dépenses), suppressions (revenus/dépenses)
  */
 export const INTENT_KNOWLEDGE_BASE_LOCAL: TrainingExample[] = [
   // ========== STATISTIQUES (get_statistics) - 50 exemples ==========
@@ -493,5 +496,133 @@ export const INTENT_KNOWLEDGE_BASE_LOCAL: TrainingExample[] = [
   { text: 'recommandations', action: 'answer_knowledge_question', params: {}, confidence: 0.85 },
   { text: 'avantages', action: 'answer_knowledge_question', params: {}, confidence: 0.85 },
   { text: 'inconvenients', action: 'answer_knowledge_question', params: {}, confidence: 0.85 },
+
+  // ========== MODIFICATION REVENUS (update_revenu) - 30 exemples ==========
+  { text: 'modifier la vente [ID]', action: 'update_revenu', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'changer la vente [ID]', action: 'update_revenu', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'corriger la vente [ID]', action: 'update_revenu', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'mettre a jour la vente [ID]', action: 'update_revenu', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'modifier le revenu [ID]', action: 'update_revenu', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'changer le revenu [ID]', action: 'update_revenu', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'corriger le revenu [ID]', action: 'update_revenu', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'mettre a jour le revenu [ID]', action: 'update_revenu', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'modifier la vente [ID] mettre le montant a [MONTANT]', action: 'update_revenu', params: { id: '[ID]', montant: '[MONTANT]' }, confidence: 0.98 },
+  { text: 'changer le montant de la vente [ID] a [MONTANT]', action: 'update_revenu', params: { id: '[ID]', montant: '[MONTANT]' }, confidence: 0.98 },
+  { text: 'corriger la vente [ID] montant [MONTANT]', action: 'update_revenu', params: { id: '[ID]', montant: '[MONTANT]' }, confidence: 0.98 },
+  { text: 'modifier la derniere vente', action: 'update_revenu', params: { description: 'dernière' }, confidence: 0.9 },
+  { text: 'changer la derniere vente', action: 'update_revenu', params: { description: 'dernière' }, confidence: 0.9 },
+  { text: 'corriger la derniere vente', action: 'update_revenu', params: { description: 'dernière' }, confidence: 0.9 },
+  { text: 'modifier la vente d hier', action: 'update_revenu', params: { date: 'hier' }, confidence: 0.9 },
+  { text: 'changer la vente d hier', action: 'update_revenu', params: { date: 'hier' }, confidence: 0.9 },
+  { text: 'corriger la vente d hier', action: 'update_revenu', params: { date: 'hier' }, confidence: 0.9 },
+  { text: 'modifier la vente de [DATE]', action: 'update_revenu', params: { date: '[DATE]' }, confidence: 0.9 },
+  { text: 'changer la vente de [DATE]', action: 'update_revenu', params: { date: '[DATE]' }, confidence: 0.9 },
+  { text: 'corriger la vente de [DATE]', action: 'update_revenu', params: { date: '[DATE]' }, confidence: 0.9 },
+  { text: 'changer le montant de la vente d hier a [MONTANT]', action: 'update_revenu', params: { date: 'hier', montant: '[MONTANT]' }, confidence: 0.92 },
+  { text: 'modifier la vente d hier mettre le montant a [MONTANT]', action: 'update_revenu', params: { date: 'hier', montant: '[MONTANT]' }, confidence: 0.92 },
+  { text: 'corriger la vente d hier montant [MONTANT]', action: 'update_revenu', params: { date: 'hier', montant: '[MONTANT]' }, confidence: 0.92 },
+  { text: 'changer le montant de la vente de [DATE] a [MONTANT]', action: 'update_revenu', params: { date: '[DATE]', montant: '[MONTANT]' }, confidence: 0.92 },
+  { text: 'modifier la vente de [DATE] mettre le montant a [MONTANT]', action: 'update_revenu', params: { date: '[DATE]', montant: '[MONTANT]' }, confidence: 0.92 },
+  { text: 'corriger la vente de [DATE] montant [MONTANT]', action: 'update_revenu', params: { date: '[DATE]', montant: '[MONTANT]' }, confidence: 0.92 },
+  { text: 'changer juste le montant de la vente [ID] a [MONTANT]', action: 'update_revenu', params: { id: '[ID]', montant: '[MONTANT]' }, confidence: 0.95 },
+  { text: 'modifier seulement le montant de la vente [ID] a [MONTANT]', action: 'update_revenu', params: { id: '[ID]', montant: '[MONTANT]' }, confidence: 0.95 },
+  { text: 'corriger uniquement le montant de la vente [ID] a [MONTANT]', action: 'update_revenu', params: { id: '[ID]', montant: '[MONTANT]' }, confidence: 0.95 },
+  { text: 'mettre a jour la vente [ID]', action: 'update_revenu', params: { id: '[ID]' }, confidence: 0.95 },
+
+  // ========== SUPPRESSION REVENUS (delete_revenu) - 30 exemples ==========
+  { text: 'supprimer la vente [ID]', action: 'delete_revenu', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'effacer la vente [ID]', action: 'delete_revenu', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'retirer la vente [ID]', action: 'delete_revenu', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'annuler la vente [ID]', action: 'delete_revenu', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'enlever la vente [ID]', action: 'delete_revenu', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'supprimer le revenu [ID]', action: 'delete_revenu', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'effacer le revenu [ID]', action: 'delete_revenu', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'retirer le revenu [ID]', action: 'delete_revenu', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'annuler le revenu [ID]', action: 'delete_revenu', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'enlever le revenu [ID]', action: 'delete_revenu', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'supprimer la derniere vente', action: 'delete_revenu', params: { description: 'dernière' }, confidence: 0.9 },
+  { text: 'effacer la derniere vente', action: 'delete_revenu', params: { description: 'dernière' }, confidence: 0.9 },
+  { text: 'retirer la derniere vente', action: 'delete_revenu', params: { description: 'dernière' }, confidence: 0.9 },
+  { text: 'annuler la derniere vente', action: 'delete_revenu', params: { description: 'dernière' }, confidence: 0.9 },
+  { text: 'enlever la derniere vente', action: 'delete_revenu', params: { description: 'dernière' }, confidence: 0.9 },
+  { text: 'supprimer la vente d hier', action: 'delete_revenu', params: { date: 'hier' }, confidence: 0.9 },
+  { text: 'effacer la vente d hier', action: 'delete_revenu', params: { date: 'hier' }, confidence: 0.9 },
+  { text: 'retirer la vente d hier', action: 'delete_revenu', params: { date: 'hier' }, confidence: 0.9 },
+  { text: 'annuler la vente d hier', action: 'delete_revenu', params: { date: 'hier' }, confidence: 0.9 },
+  { text: 'enlever la vente d hier', action: 'delete_revenu', params: { date: 'hier' }, confidence: 0.9 },
+  { text: 'supprimer la vente de [DATE]', action: 'delete_revenu', params: { date: '[DATE]' }, confidence: 0.9 },
+  { text: 'effacer la vente de [DATE]', action: 'delete_revenu', params: { date: '[DATE]' }, confidence: 0.9 },
+  { text: 'retirer la vente de [DATE]', action: 'delete_revenu', params: { date: '[DATE]' }, confidence: 0.9 },
+  { text: 'annuler la vente de [DATE]', action: 'delete_revenu', params: { date: '[DATE]' }, confidence: 0.9 },
+  { text: 'enlever la vente de [DATE]', action: 'delete_revenu', params: { date: '[DATE]' }, confidence: 0.9 },
+  { text: 'supprimer celle d hier', action: 'delete_revenu', params: { date: 'hier' }, confidence: 0.88 },
+  { text: 'effacer celle d hier', action: 'delete_revenu', params: { date: 'hier' }, confidence: 0.88 },
+  { text: 'retirer celle d hier', action: 'delete_revenu', params: { date: 'hier' }, confidence: 0.88 },
+  { text: 'annuler celle d hier', action: 'delete_revenu', params: { date: 'hier' }, confidence: 0.88 },
+  { text: 'enlever celle d hier', action: 'delete_revenu', params: { date: 'hier' }, confidence: 0.88 },
+
+  // ========== MODIFICATION DEPENSES (update_depense) - 30 exemples ==========
+  { text: 'modifier la depense [ID]', action: 'update_depense', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'changer la depense [ID]', action: 'update_depense', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'corriger la depense [ID]', action: 'update_depense', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'mettre a jour la depense [ID]', action: 'update_depense', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'modifier la depense [ID] mettre le montant a [MONTANT]', action: 'update_depense', params: { id: '[ID]', montant: '[MONTANT]' }, confidence: 0.98 },
+  { text: 'changer le montant de la depense [ID] a [MONTANT]', action: 'update_depense', params: { id: '[ID]', montant: '[MONTANT]' }, confidence: 0.98 },
+  { text: 'corriger la depense [ID] montant [MONTANT]', action: 'update_depense', params: { id: '[ID]', montant: '[MONTANT]' }, confidence: 0.98 },
+  { text: 'modifier la derniere depense', action: 'update_depense', params: { description: 'dernière' }, confidence: 0.9 },
+  { text: 'changer la derniere depense', action: 'update_depense', params: { description: 'dernière' }, confidence: 0.9 },
+  { text: 'corriger la derniere depense', action: 'update_depense', params: { description: 'dernière' }, confidence: 0.9 },
+  { text: 'modifier la depense d hier', action: 'update_depense', params: { date: 'hier' }, confidence: 0.9 },
+  { text: 'changer la depense d hier', action: 'update_depense', params: { date: 'hier' }, confidence: 0.9 },
+  { text: 'corriger la depense d hier', action: 'update_depense', params: { date: 'hier' }, confidence: 0.9 },
+  { text: 'modifier la depense de [DATE]', action: 'update_depense', params: { date: '[DATE]' }, confidence: 0.9 },
+  { text: 'changer la depense de [DATE]', action: 'update_depense', params: { date: '[DATE]' }, confidence: 0.9 },
+  { text: 'corriger la depense de [DATE]', action: 'update_depense', params: { date: '[DATE]' }, confidence: 0.9 },
+  { text: 'changer le montant de la depense d hier a [MONTANT]', action: 'update_depense', params: { date: 'hier', montant: '[MONTANT]' }, confidence: 0.92 },
+  { text: 'modifier la depense d hier mettre le montant a [MONTANT]', action: 'update_depense', params: { date: 'hier', montant: '[MONTANT]' }, confidence: 0.92 },
+  { text: 'corriger la depense d hier montant [MONTANT]', action: 'update_depense', params: { date: 'hier', montant: '[MONTANT]' }, confidence: 0.92 },
+  { text: 'changer le montant de la depense de [DATE] a [MONTANT]', action: 'update_depense', params: { date: '[DATE]', montant: '[MONTANT]' }, confidence: 0.92 },
+  { text: 'modifier la depense de [DATE] mettre le montant a [MONTANT]', action: 'update_depense', params: { date: '[DATE]', montant: '[MONTANT]' }, confidence: 0.92 },
+  { text: 'corriger la depense de [DATE] montant [MONTANT]', action: 'update_depense', params: { date: '[DATE]', montant: '[MONTANT]' }, confidence: 0.92 },
+  { text: 'changer juste le montant de la depense [ID] a [MONTANT]', action: 'update_depense', params: { id: '[ID]', montant: '[MONTANT]' }, confidence: 0.95 },
+  { text: 'modifier seulement le montant de la depense [ID] a [MONTANT]', action: 'update_depense', params: { id: '[ID]', montant: '[MONTANT]' }, confidence: 0.95 },
+  { text: 'corriger uniquement le montant de la depense [ID] a [MONTANT]', action: 'update_depense', params: { id: '[ID]', montant: '[MONTANT]' }, confidence: 0.95 },
+  { text: 'changer la categorie de la depense [ID] a [CATEGORIE]', action: 'update_depense', params: { id: '[ID]', categorie: '[CATEGORIE]' }, confidence: 0.95 },
+  { text: 'modifier la categorie de la depense [ID] a [CATEGORIE]', action: 'update_depense', params: { id: '[ID]', categorie: '[CATEGORIE]' }, confidence: 0.95 },
+  { text: 'corriger la categorie de la depense [ID] a [CATEGORIE]', action: 'update_depense', params: { id: '[ID]', categorie: '[CATEGORIE]' }, confidence: 0.95 },
+  { text: 'mettre a jour la depense [ID]', action: 'update_depense', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'modifier la depense [ID] date [DATE]', action: 'update_depense', params: { id: '[ID]', date: '[DATE]' }, confidence: 0.95 },
+
+  // ========== SUPPRESSION DEPENSES (delete_depense) - 30 exemples ==========
+  { text: 'supprimer la depense [ID]', action: 'delete_depense', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'effacer la depense [ID]', action: 'delete_depense', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'retirer la depense [ID]', action: 'delete_depense', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'annuler la depense [ID]', action: 'delete_depense', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'enlever la depense [ID]', action: 'delete_depense', params: { id: '[ID]' }, confidence: 0.95 },
+  { text: 'supprimer la derniere depense', action: 'delete_depense', params: { description: 'dernière' }, confidence: 0.9 },
+  { text: 'effacer la derniere depense', action: 'delete_depense', params: { description: 'dernière' }, confidence: 0.9 },
+  { text: 'retirer la derniere depense', action: 'delete_depense', params: { description: 'dernière' }, confidence: 0.9 },
+  { text: 'annuler la derniere depense', action: 'delete_depense', params: { description: 'dernière' }, confidence: 0.9 },
+  { text: 'enlever la derniere depense', action: 'delete_depense', params: { description: 'dernière' }, confidence: 0.9 },
+  { text: 'supprimer la depense d hier', action: 'delete_depense', params: { date: 'hier' }, confidence: 0.9 },
+  { text: 'effacer la depense d hier', action: 'delete_depense', params: { date: 'hier' }, confidence: 0.9 },
+  { text: 'retirer la depense d hier', action: 'delete_depense', params: { date: 'hier' }, confidence: 0.9 },
+  { text: 'annuler la depense d hier', action: 'delete_depense', params: { date: 'hier' }, confidence: 0.9 },
+  { text: 'enlever la depense d hier', action: 'delete_depense', params: { date: 'hier' }, confidence: 0.9 },
+  { text: 'supprimer la depense de [DATE]', action: 'delete_depense', params: { date: '[DATE]' }, confidence: 0.9 },
+  { text: 'effacer la depense de [DATE]', action: 'delete_depense', params: { date: '[DATE]' }, confidence: 0.9 },
+  { text: 'retirer la depense de [DATE]', action: 'delete_depense', params: { date: '[DATE]' }, confidence: 0.9 },
+  { text: 'annuler la depense de [DATE]', action: 'delete_depense', params: { date: '[DATE]' }, confidence: 0.9 },
+  { text: 'enlever la depense de [DATE]', action: 'delete_depense', params: { date: '[DATE]' }, confidence: 0.9 },
+  { text: 'supprimer celle d hier', action: 'delete_depense', params: { date: 'hier' }, confidence: 0.88 },
+  { text: 'effacer celle d hier', action: 'delete_depense', params: { date: 'hier' }, confidence: 0.88 },
+  { text: 'retirer celle d hier', action: 'delete_depense', params: { date: 'hier' }, confidence: 0.88 },
+  { text: 'annuler celle d hier', action: 'delete_depense', params: { date: 'hier' }, confidence: 0.88 },
+  { text: 'enlever celle d hier', action: 'delete_depense', params: { date: 'hier' }, confidence: 0.88 },
+  { text: 'supprimer la depense de [MONTANT]', action: 'delete_depense', params: { description: '[MONTANT]' }, confidence: 0.85 },
+  { text: 'effacer la depense de [MONTANT]', action: 'delete_depense', params: { description: '[MONTANT]' }, confidence: 0.85 },
+  { text: 'retirer la depense de [MONTANT]', action: 'delete_depense', params: { description: '[MONTANT]' }, confidence: 0.85 },
+  { text: 'annuler la depense de [MONTANT]', action: 'delete_depense', params: { description: '[MONTANT]' }, confidence: 0.85 },
+  { text: 'enlever la depense de [MONTANT]', action: 'delete_depense', params: { description: '[MONTANT]' }, confidence: 0.85 },
 ];
 

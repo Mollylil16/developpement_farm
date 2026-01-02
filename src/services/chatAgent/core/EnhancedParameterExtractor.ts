@@ -28,6 +28,12 @@ export class EnhancedParameterExtractor extends ParameterExtractor {
           return this.enhanceVaccinationParams(params, text);
         case 'create_pesee':
           return this.enhancePeseeParams(params, text);
+        case 'update_revenu':
+        case 'update_depense':
+          return this.enhanceUpdateParams(params, text, actionType);
+        case 'delete_revenu':
+        case 'delete_depense':
+          return this.enhanceDeleteParams(params, text, actionType);
         default:
           return params;
       }
@@ -261,6 +267,291 @@ export class EnhancedParameterExtractor extends ParameterExtractor {
       }
     }
 
+    return params;
+  }
+
+  /**
+   * Améliore l'extraction pour les modifications de revenus/dépenses
+   * Gère les références implicites, les modifications partielles, et l'identification par ID/date/description
+   */
+  private enhanceUpdateParams(params: ExtractedParams, text: string, actionType: string): ExtractedParams {
+    const normalized = text.toLowerCase();
+    
+    // Extraire l'ID si présent (plusieurs formats possibles)
+    if (!params.id && !params.revenu_id && !params.depense_id) {
+      // Patterns: "vente abc123", "revenu xyz", "dépense 456", "ID: abc123"
+      const idPatterns = [
+        /(?:vente|revenu|depense|dépense)\s+([a-z0-9_-]+)/i,
+        /(?:id|identifiant)[:\s]*([a-z0-9_-]+)/i,
+        /(?:modifier|changer|corriger|mettre\s+a\s+jour)\s+(?:la|le)\s+(?:vente|revenu|depense|dépense)\s+([a-z0-9_-]+)/i,
+      ];
+      
+      for (const pattern of idPatterns) {
+        const match = text.match(pattern);
+        if (match && match[1]) {
+          const extractedId = match[1].trim();
+          // Vérifier que ce n'est pas un mot commun
+          if (!['dernière', 'dernier', 'première', 'premier', 'hier', 'aujourd\'hui', 'demain'].includes(extractedId.toLowerCase())) {
+            if (actionType === 'update_revenu') {
+              params.revenu_id = extractedId;
+            } else if (actionType === 'update_depense') {
+              params.depense_id = extractedId;
+            } else {
+              params.id = extractedId;
+            }
+            break;
+          }
+        }
+      }
+    }
+    
+    // Extraire les références temporelles et descriptions
+    if (!params.date && !params.description) {
+      const timeRefs: Record<string, string> = {
+        'dernier': 'dernière',
+        'dernière': 'dernière',
+        'derniere': 'dernière',
+        'premier': 'première',
+        'première': 'première',
+        'premiere': 'première',
+        'hier': 'hier',
+        'aujourd\'hui': 'aujourd\'hui',
+        'aujourd hui': 'aujourd\'hui',
+        'aujourdhui': 'aujourd\'hui',
+        'demain': 'demain',
+      };
+      
+      for (const [key, value] of Object.entries(timeRefs)) {
+        if (normalized.includes(key)) {
+          // Si c'est "hier", "aujourd'hui", "demain", extraire la date réelle
+          if (value === 'hier' || value === 'aujourd\'hui' || value === 'demain') {
+            const dateStr = DateExtractor.extract(text);
+            if (dateStr) {
+              params.date = dateStr;
+            } else {
+              params.description = value;
+            }
+          } else {
+            params.description = value;
+          }
+          break;
+        }
+      }
+      
+      // Chercher "celle d'hier", "la dernière", etc.
+      if (!params.description && !params.date) {
+        const referencePatterns = [
+          /(?:celle|celui)\s+d['\s]?(hier|aujourd['\s]?hui|demain)/i,
+          /(?:la|le)\s+(dernière|dernier|première|premier)/i,
+        ];
+        
+        for (const pattern of referencePatterns) {
+          const match = text.match(pattern);
+          if (match && match[1]) {
+            const ref = match[1].toLowerCase();
+            if (ref === 'hier' || ref === 'aujourd\'hui' || ref === 'aujourd hui' || ref === 'demain') {
+              const dateStr = DateExtractor.extract(text);
+              if (dateStr) {
+                params.date = dateStr;
+              } else {
+                params.description = ref;
+              }
+            } else {
+              params.description = ref.includes('dernier') ? 'dernière' : 'première';
+            }
+            break;
+          }
+        }
+      }
+    }
+    
+    // Extraire les modifications partielles ("juste le montant", "seulement la date")
+    if (normalized.includes('juste') || normalized.includes('seulement') || normalized.includes('uniquement')) {
+      // Si on dit "juste le montant", extraire le nouveau montant
+      if (normalized.includes('montant') || normalized.includes('prix')) {
+        if (!params.montant) {
+          const montant = MontantExtractor.extract(text);
+          if (montant) {
+            params.montant = montant;
+          }
+        }
+      }
+      
+      // Si on dit "juste la date", extraire la nouvelle date
+      if (normalized.includes('date')) {
+        if (!params.date) {
+          const dateStr = DateExtractor.extract(text);
+          if (dateStr) {
+            params.date = dateStr;
+          }
+        }
+      }
+      
+      // Si on dit "juste la catégorie", extraire la nouvelle catégorie
+      if (normalized.includes('categorie') || normalized.includes('catégorie')) {
+        if (!params.categorie) {
+          const categorie = this.extractCategorie(text);
+          if (categorie) {
+            // Normaliser la catégorie
+            const normalizedCategory = this.categoryNormalizer.normalize(categorie, false);
+            if (normalizedCategory) {
+              params.categorie = normalizedCategory;
+            }
+          }
+        }
+      }
+    }
+    
+    // Extraire le nouveau montant si mentionné ("mettre le montant à 900000", "changer à 50000")
+    if (!params.montant) {
+      const montantPatterns = [
+        /(?:montant|prix)\s+(?:à|a|de|pour)\s+([\d\s.,]+)/i,
+        /(?:mettre|changer|corriger)\s+(?:le\s+)?(?:montant|prix)\s+(?:à|a|de|pour)\s+([\d\s.,]+)/i,
+        /(?:à|a)\s+([\d\s.,]+)\s*(?:fcfa|francs?|f)?/i,
+      ];
+      
+      for (const pattern of montantPatterns) {
+        const match = text.match(pattern);
+        if (match && match[1]) {
+          const montant = MontantExtractor.extract(match[1]);
+          if (montant && montant > 0) {
+            params.montant = montant;
+            break;
+          }
+        }
+      }
+    }
+    
+    // Extraire la nouvelle date si mentionnée ("mettre la date à 15/01", "changer pour demain")
+    if (!params.date) {
+      const datePatterns = [
+        /(?:date|jour)\s+(?:à|a|de|pour|le)\s+([\d\/\-]+|[a-z]+)/i,
+        /(?:mettre|changer|corriger)\s+(?:la\s+)?(?:date|jour)\s+(?:à|a|de|pour|le)\s+([\d\/\-]+|[a-z]+)/i,
+        /(?:le|pour)\s+([\d\/\-]+|[a-z]+)/i,
+      ];
+      
+      for (const pattern of datePatterns) {
+        const match = text.match(pattern);
+        if (match && match[1]) {
+          const dateStr = DateExtractor.extract(match[1]);
+          if (dateStr) {
+            params.date = dateStr;
+            break;
+          }
+        }
+      }
+    }
+    
+    return params;
+  }
+
+  /**
+   * Améliore l'extraction pour les suppressions de revenus/dépenses
+   * Gère les références implicites et l'identification par ID/date/description
+   */
+  private enhanceDeleteParams(params: ExtractedParams, text: string, actionType: string): ExtractedParams {
+    const normalized = text.toLowerCase();
+    
+    // Extraire l'ID si présent (même logique que pour les modifications)
+    if (!params.id && !params.revenu_id && !params.depense_id) {
+      const idPatterns = [
+        /(?:vente|revenu|depense|dépense)\s+([a-z0-9_-]+)/i,
+        /(?:id|identifiant)[:\s]*([a-z0-9_-]+)/i,
+        /(?:supprimer|effacer|retirer|annuler|enlever)\s+(?:la|le)\s+(?:vente|revenu|depense|dépense)\s+([a-z0-9_-]+)/i,
+      ];
+      
+      for (const pattern of idPatterns) {
+        const match = text.match(pattern);
+        if (match && match[1]) {
+          const extractedId = match[1].trim();
+          // Vérifier que ce n'est pas un mot commun
+          if (!['dernière', 'dernier', 'première', 'premier', 'hier', 'aujourd\'hui', 'demain'].includes(extractedId.toLowerCase())) {
+            if (actionType === 'delete_revenu') {
+              params.revenu_id = extractedId;
+            } else if (actionType === 'delete_depense') {
+              params.depense_id = extractedId;
+            } else {
+              params.id = extractedId;
+            }
+            break;
+          }
+        }
+      }
+    }
+    
+    // Extraire les références temporelles et descriptions (même logique que pour les modifications)
+    if (!params.date && !params.description) {
+      const timeRefs: Record<string, string> = {
+        'dernier': 'dernière',
+        'dernière': 'dernière',
+        'derniere': 'dernière',
+        'premier': 'première',
+        'première': 'première',
+        'premiere': 'première',
+        'hier': 'hier',
+        'aujourd\'hui': 'aujourd\'hui',
+        'aujourd hui': 'aujourd\'hui',
+        'aujourdhui': 'aujourd\'hui',
+        'demain': 'demain',
+      };
+      
+      for (const [key, value] of Object.entries(timeRefs)) {
+        if (normalized.includes(key)) {
+          // Si c'est "hier", "aujourd'hui", "demain", extraire la date réelle
+          if (value === 'hier' || value === 'aujourd\'hui' || value === 'demain') {
+            const dateStr = DateExtractor.extract(text);
+            if (dateStr) {
+              params.date = dateStr;
+            } else {
+              params.description = value;
+            }
+          } else {
+            params.description = value;
+          }
+          break;
+        }
+      }
+      
+      // Chercher "celle d'hier", "la dernière", etc.
+      if (!params.description && !params.date) {
+        const referencePatterns = [
+          /(?:celle|celui)\s+d['\s]?(hier|aujourd['\s]?hui|demain)/i,
+          /(?:la|le)\s+(dernière|dernier|première|premier)/i,
+        ];
+        
+        for (const pattern of referencePatterns) {
+          const match = text.match(pattern);
+          if (match && match[1]) {
+            const ref = match[1].toLowerCase();
+            if (ref === 'hier' || ref === 'aujourd\'hui' || ref === 'aujourd hui' || ref === 'demain') {
+              const dateStr = DateExtractor.extract(text);
+              if (dateStr) {
+                params.date = dateStr;
+              } else {
+                params.description = ref;
+              }
+            } else {
+              params.description = ref.includes('dernier') ? 'dernière' : 'première';
+            }
+            break;
+          }
+        }
+      }
+    }
+    
+    // Pour les suppressions, on peut aussi identifier par montant ("supprimer la dépense de 50000")
+    if (!params.id && !params.revenu_id && !params.depense_id && !params.date && !params.description) {
+      const montantPattern = /(?:depense|dépense|vente|revenu)\s+(?:de|à|a)\s+([\d\s.,]+)/i;
+      const match = text.match(montantPattern);
+      if (match && match[1]) {
+        const montant = MontantExtractor.extract(match[1]);
+        if (montant && montant > 0) {
+          // Utiliser description pour stocker le montant comme critère de recherche
+          params.description = `montant_${montant}`;
+        }
+      }
+    }
+    
     return params;
   }
 

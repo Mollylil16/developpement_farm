@@ -267,15 +267,79 @@ export class DepenseActions {
   }
 
   /**
+   * Trouve une dépense par description/date
+   */
+  private static async findDepenseByDescription(
+    params: Record<string, unknown>,
+    context: AgentContext
+  ): Promise<string | null> {
+    try {
+      // Récupérer les dépenses récentes
+      const depenses = await apiClient.get<any[]>(`/finance/depenses-ponctuelles`, {
+        params: { projet_id: context.projetId },
+      });
+
+      // Filtrer par date si fournie
+      if (params.date && typeof params.date === 'string') {
+        const dateStr = params.date;
+        const depensesParDate = depenses.filter((d) => {
+          if (!d.date) return false;
+          const dDate = new Date(d.date).toISOString().split('T')[0];
+          return dDate === dateStr || dDate === new Date(dateStr).toISOString().split('T')[0];
+        });
+        if (depensesParDate.length === 1) {
+          return depensesParDate[0].id;
+        }
+        if (depensesParDate.length > 1) {
+          // Plusieurs dépenses pour cette date, retourner la plus récente
+          const sorted = depensesParDate.sort(
+            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+          );
+          return sorted[0]?.id || null;
+        }
+      }
+
+      // Chercher "dernier", "premier", etc.
+      const description = params.description as string;
+      if (description) {
+        const normalized = description.toLowerCase();
+        if (normalized.includes('dernier') || normalized.includes('dernière')) {
+          // Trier par date décroissante
+          const sorted = depenses.sort(
+            (a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime()
+          );
+          return sorted[0]?.id || null;
+        }
+        if (normalized.includes('premier') || normalized.includes('première')) {
+          const sorted = depenses.sort(
+            (a, b) => new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime()
+          );
+          return sorted[0]?.id || null;
+        }
+      }
+
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
    * Met à jour une dépense
    */
   static async updateDepense(params: unknown, context: AgentContext): Promise<AgentActionResult> {
     const paramsTyped = params as Record<string, unknown>;
 
-    // ID de la dépense à modifier (requis)
-    const depenseId = paramsTyped.id || paramsTyped.depense_id;
+    // ID de la dépense à modifier (peut être fourni directement ou cherché)
+    let depenseId = paramsTyped.id || paramsTyped.depense_id;
+    
+    // Si pas d'ID direct, chercher par description/date
     if (!depenseId || typeof depenseId !== 'string') {
-      throw new Error('L\'ID de la dépense à modifier est requis. Veuillez préciser quelle dépense modifier.');
+      depenseId = await this.findDepenseByDescription(paramsTyped, context);
+    }
+    
+    if (!depenseId || typeof depenseId !== 'string') {
+      throw new Error('Impossible d\'identifier la dépense à modifier. Peux-tu préciser l\'ID, la date ou la description (ex: "la dernière dépense", "celle d\'hier") ?');
     }
 
     // Construire l'objet de mise à jour avec seulement les champs fournis
@@ -332,6 +396,37 @@ export class DepenseActions {
       data: depense,
       message,
     };
+  }
+
+  /**
+   * Supprime une dépense
+   */
+  static async deleteDepense(params: unknown, context: AgentContext): Promise<AgentActionResult> {
+    const paramsTyped = params as Record<string, unknown>;
+
+    // Identifier la dépense à supprimer
+    let depenseId = paramsTyped.id || paramsTyped.depense_id;
+
+    // Si pas d'ID direct, chercher par description/date
+    if (!depenseId || typeof depenseId !== 'string') {
+      depenseId = await this.findDepenseByDescription(paramsTyped, context);
+    }
+
+    if (!depenseId || typeof depenseId !== 'string') {
+      throw new Error('Impossible d\'identifier la dépense à supprimer. Peux-tu préciser l\'ID, la date ou la description (ex: "la dernière dépense", "celle d\'hier") ?');
+    }
+
+    // Supprimer via l'API
+    try {
+      await apiClient.delete(`/finance/depenses-ponctuelles/${depenseId}`);
+      return {
+        success: true,
+        message: '✅ Dépense supprimée avec succès !',
+      };
+    } catch (error: any) {
+      const errorMessage = error?.message || error?.errorData?.message || 'Erreur lors de la suppression';
+      throw new Error(`Impossible de supprimer la dépense : ${errorMessage}`);
+    }
   }
 }
 

@@ -85,6 +85,31 @@ export const ACTIONS_SCHEMA = {
     keywords: ["j'ai vendu", 'vente', 'vendu', 'vendre'],
     requiresConfirmation: false,
   },
+  update_revenu: {
+    description: 'Modifier un revenu (vente) existant',
+    params: {
+      id: 'string (obligatoire: ID du revenu, ou description comme "dernière", "d\'hier", ou date)',
+      revenu_id: 'string (synonyme de id)',
+      montant: 'number (optionnel: nouveau montant)',
+      date: 'string YYYY-MM-DD (optionnel: nouvelle date)',
+      acheteur: 'string (optionnel: nouvel acheteur)',
+      description: 'string (optionnel: nouvelle description)',
+      commentaire: 'string (optionnel: nouveau commentaire)',
+    },
+    keywords: ['modifier vente', 'changer vente', 'corriger vente', 'mettre à jour vente', 'modifier revenu'],
+    requiresConfirmation: false,
+  },
+  delete_revenu: {
+    description: 'Supprimer un revenu (vente)',
+    params: {
+      id: 'string (obligatoire: ID du revenu, ou description comme "dernière", "d\'hier", ou date)',
+      revenu_id: 'string (synonyme de id)',
+      description: 'string (optionnel: "la dernière vente", "celle d\'hier", etc.)',
+      date: 'string YYYY-MM-DD (optionnel: pour identifier une vente par date)',
+    },
+    keywords: ['supprimer vente', 'effacer vente', 'retirer vente', 'annuler vente', 'enlever vente', 'supprimer revenu'],
+    requiresConfirmation: true,
+  },
   create_depense: {
     description: 'Enregistrer une dépense',
     params: {
@@ -97,6 +122,30 @@ export const ACTIONS_SCHEMA = {
     },
     keywords: ["j'ai acheté", 'dépense', "j'ai dépensé", 'achat', 'payer'],
     requiresConfirmation: false,
+  },
+  update_depense: {
+    description: 'Modifier une dépense existante',
+    params: {
+      id: 'string (obligatoire: ID de la dépense, ou description comme "dernière", "d\'hier", ou date)',
+      depense_id: 'string (synonyme de id)',
+      montant: 'number (optionnel: nouveau montant)',
+      date: 'string YYYY-MM-DD (optionnel: nouvelle date)',
+      categorie: 'string (optionnel: nouvelle catégorie)',
+      commentaire: 'string (optionnel: nouveau commentaire)',
+    },
+    keywords: ['modifier dépense', 'changer dépense', 'corriger dépense', 'mettre à jour dépense'],
+    requiresConfirmation: false,
+  },
+  delete_depense: {
+    description: 'Supprimer une dépense',
+    params: {
+      id: 'string (obligatoire: ID de la dépense, ou description comme "dernière", "d\'hier", ou date)',
+      depense_id: 'string (synonyme de id)',
+      description: 'string (optionnel: "la dernière dépense", "celle d\'hier", etc.)',
+      date: 'string YYYY-MM-DD (optionnel: pour identifier une dépense par date)',
+    },
+    keywords: ['supprimer dépense', 'effacer dépense', 'retirer dépense', 'annuler dépense', 'enlever dépense'],
+    requiresConfirmation: true,
   },
   create_charge_fixe: {
     description: 'Créer une charge fixe récurrente',
@@ -416,6 +465,42 @@ export const EXAMPLES = [
         commentaire: '20 sacs de provende',
       },
       message: "C'est noté ! Dépense de 18 000 FCFA pour l'alimentation.",
+      confidence: 0.9,
+    },
+  },
+  {
+    user: 'modifier la vente abc123, mettre le montant à 900 000',
+    response: {
+      action: 'update_revenu',
+      params: {
+        id: 'abc123',
+        montant: 900000,
+      },
+      message: 'Je vais modifier la vente abc123 avec le nouveau montant de 900 000 FCFA.',
+      confidence: 0.95,
+    },
+  },
+  {
+    user: 'supprimer la dernière dépense',
+    response: {
+      action: 'delete_depense',
+      params: {
+        description: 'dernière',
+      },
+      message: 'Je vais supprimer la dernière dépense. Tu confirmes ?',
+      confidence: 0.9,
+      requiresConfirmation: true,
+    },
+  },
+  {
+    user: 'changer le montant de la dépense d\'hier à 25 000',
+    response: {
+      action: 'update_depense',
+      params: {
+        date: 'hier',
+        montant: 25000,
+      },
+      message: 'Je vais modifier la dépense d\'hier avec le nouveau montant de 25 000 FCFA.',
       confidence: 0.9,
     },
   },

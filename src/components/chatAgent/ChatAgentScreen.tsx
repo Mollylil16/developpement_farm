@@ -57,6 +57,7 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
   const flatListRef = useRef<FlatList>(null);
   const voiceServiceRef = useRef<VoiceService | null>(null);
   const voiceServiceV2Ref = useRef<VoiceServiceV2 | null>(null);
+  const lastReadMessageIdRef = useRef<string | null>(null); // Suivre le dernier message lu
   
   // Initialiser VoiceServiceV2
   useEffect(() => {
@@ -83,13 +84,29 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
       
-      // Faire parler Kouakou si la voix est activée et qu'on vient de recevoir une réponse
+      // Faire parler Kouakou si la voix est activée et qu'on vient de recevoir une nouvelle réponse
       if (voiceEnabled && voiceServiceV2Ref.current) {
         const lastMessage = messages[messages.length - 1];
-        if (lastMessage.role === 'assistant' && lastMessage.content) {
+        
+        // Ne lire que si c'est un nouveau message assistant (pas déjà lu)
+        if (
+          lastMessage.role === 'assistant' && 
+          lastMessage.content &&
+          lastMessage.id !== lastReadMessageIdRef.current
+        ) {
+          // Marquer ce message comme lu
+          lastReadMessageIdRef.current = lastMessage.id;
+          
+          // Arrêter toute lecture en cours avant de lire le nouveau message
+          voiceServiceV2Ref.current.stopSpeaking().catch((error) => {
+            logger.warn('[ChatAgentScreen] Erreur arrêt lecture:', error);
+          });
+          
           // Attendre un peu pour que l'utilisateur voie le message
           setTimeout(() => {
-            voiceServiceV2Ref.current?.speak(lastMessage.content);
+            if (voiceServiceV2Ref.current && lastReadMessageIdRef.current === lastMessage.id) {
+              voiceServiceV2Ref.current.speak(lastMessage.content);
+            }
           }, 800);
         }
       }
@@ -104,18 +121,8 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
       setSending(true);
       setInputText('');
       await sendMessage(content);
-      
-      // Faire parler Kouakou si la voix est activée
-      // On attend que le message soit ajouté à la liste avant de parler
-      setTimeout(() => {
-        if (voiceEnabled && voiceServiceV2Ref.current && messages.length > 0) {
-          // Prendre le dernier message de l'assistant
-          const lastAssistantMessage = [...messages].reverse().find(msg => msg.role === 'assistant');
-          if (lastAssistantMessage?.content) {
-            voiceServiceV2Ref.current.speak(lastAssistantMessage.content);
-          }
-        }
-      }, 1000); // Attendre 1 seconde pour que le message soit traité
+      // La lecture de la réponse sera gérée par le useEffect qui surveille messages.length
+      // Pas besoin de lire ici pour éviter les doublons
     } catch (error) {
       logger.error('Erreur envoi message:', error);
       Alert.alert('Erreur', "Impossible d'envoyer le message. Réessayez.");
@@ -131,6 +138,12 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
         text: 'Effacer',
         style: 'destructive',
         onPress: () => {
+          // Arrêter toute lecture en cours
+          voiceServiceV2Ref.current?.stopSpeaking().catch((error) => {
+            logger.warn('[ChatAgentScreen] Erreur arrêt lecture lors effacement:', error);
+          });
+          // Réinitialiser le ref du dernier message lu
+          lastReadMessageIdRef.current = null;
           clearConversation();
           setInputText('');
         },

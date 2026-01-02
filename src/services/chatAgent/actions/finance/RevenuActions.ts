@@ -276,15 +276,79 @@ export class RevenuActions {
   }
 
   /**
+   * Trouve un revenu par description/date
+   */
+  private static async findRevenuByDescription(
+    params: Record<string, unknown>,
+    context: AgentContext
+  ): Promise<string | null> {
+    try {
+      // Récupérer les revenus récents
+      const revenus = await apiClient.get<any[]>(`/finance/revenus`, {
+        params: { projet_id: context.projetId },
+      });
+
+      // Filtrer par date si fournie
+      if (params.date && typeof params.date === 'string') {
+        const dateStr = params.date;
+        const revenusParDate = revenus.filter((r) => {
+          if (!r.date) return false;
+          const rDate = new Date(r.date).toISOString().split('T')[0];
+          return rDate === dateStr || rDate === new Date(dateStr).toISOString().split('T')[0];
+        });
+        if (revenusParDate.length === 1) {
+          return revenusParDate[0].id;
+        }
+        if (revenusParDate.length > 1) {
+          // Plusieurs revenus pour cette date, retourner le plus récent
+          const sorted = revenusParDate.sort(
+            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+          );
+          return sorted[0]?.id || null;
+        }
+      }
+
+      // Chercher "dernier", "premier", etc.
+      const description = params.description as string;
+      if (description) {
+        const normalized = description.toLowerCase();
+        if (normalized.includes('dernier') || normalized.includes('dernière')) {
+          // Trier par date décroissante
+          const sorted = revenus.sort(
+            (a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime()
+          );
+          return sorted[0]?.id || null;
+        }
+        if (normalized.includes('premier') || normalized.includes('première')) {
+          const sorted = revenus.sort(
+            (a, b) => new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime()
+          );
+          return sorted[0]?.id || null;
+        }
+      }
+
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
    * Met à jour un revenu (vente)
    */
   static async updateRevenu(params: unknown, context: AgentContext): Promise<AgentActionResult> {
     const paramsTyped = params as Record<string, unknown>;
 
-    // ID du revenu à modifier (requis)
-    const revenuId = paramsTyped.id || paramsTyped.revenu_id;
+    // ID du revenu à modifier (peut être fourni directement ou cherché)
+    let revenuId = paramsTyped.id || paramsTyped.revenu_id;
+    
+    // Si pas d'ID direct, chercher par description/date
     if (!revenuId || typeof revenuId !== 'string') {
-      throw new Error('L\'ID du revenu à modifier est requis. Veuillez préciser quel revenu modifier.');
+      revenuId = await this.findRevenuByDescription(paramsTyped, context);
+    }
+    
+    if (!revenuId || typeof revenuId !== 'string') {
+      throw new Error('Impossible d\'identifier le revenu à modifier. Peux-tu préciser l\'ID, la date ou la description (ex: "la dernière vente", "celle d\'hier") ?');
     }
 
     // Construire l'objet de mise à jour avec seulement les champs fournis
@@ -332,6 +396,37 @@ export class RevenuActions {
       data: revenu,
       message,
     };
+  }
+
+  /**
+   * Supprime un revenu (vente)
+   */
+  static async deleteRevenu(params: unknown, context: AgentContext): Promise<AgentActionResult> {
+    const paramsTyped = params as Record<string, unknown>;
+
+    // Identifier le revenu à supprimer
+    let revenuId = paramsTyped.id || paramsTyped.revenu_id;
+
+    // Si pas d'ID direct, chercher par description/date
+    if (!revenuId || typeof revenuId !== 'string') {
+      revenuId = await this.findRevenuByDescription(paramsTyped, context);
+    }
+
+    if (!revenuId || typeof revenuId !== 'string') {
+      throw new Error('Impossible d\'identifier le revenu à supprimer. Peux-tu préciser l\'ID, la date ou la description (ex: "la dernière vente", "celle d\'hier") ?');
+    }
+
+    // Supprimer via l'API
+    try {
+      await apiClient.delete(`/finance/revenus/${revenuId}`);
+      return {
+        success: true,
+        message: '✅ Revenu supprimé avec succès !',
+      };
+    } catch (error: any) {
+      const errorMessage = error?.message || error?.errorData?.message || 'Erreur lors de la suppression';
+      throw new Error(`Impossible de supprimer le revenu : ${errorMessage}`);
+    }
   }
 }
 
