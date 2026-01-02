@@ -15,7 +15,7 @@ import Card from './Card';
 import LoadingSpinner from './LoadingSpinner';
 import EmptyState from './EmptyState';
 import Button from './Button';
-import { PlusCircle } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
 import BatchActionsModal from './batch/BatchActionsModal';
 import CreateBatchModal from './batch/CreateBatchModal';
 import apiClient from '../services/api/apiClient';
@@ -206,7 +206,7 @@ setBatches(batchesData);
       onPress={handleAddBatch}
       activeOpacity={0.7}
     >
-      <PlusCircle size={48} color={colors.primary} />
+      <Ionicons name="add-circle" size={48} color={colors.primary} />
       <Text style={[styles.addText, { color: colors.primary }]}>Ajouter une loge</Text>
     </TouchableOpacity>
   );
