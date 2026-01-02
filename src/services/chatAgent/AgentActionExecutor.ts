@@ -50,6 +50,9 @@ export class AgentActionExecutor {
         case 'update_revenu':
           return await RevenuActions.updateRevenu(action.params, context);
         
+        case 'delete_revenu':
+          return await RevenuActions.deleteRevenu(action.params, context);
+        
         case 'get_ventes':
           return await RevenuActions.getVentes(action.params, context);
         
@@ -61,6 +64,9 @@ export class AgentActionExecutor {
         
         case 'update_depense':
           return await DepenseActions.updateDepense(action.params, context);
+        
+        case 'delete_depense':
+          return await DepenseActions.deleteDepense(action.params, context);
         
         case 'create_charge_fixe':
           return await ChargeFixeActions.createChargeFixe(action.params, context);
