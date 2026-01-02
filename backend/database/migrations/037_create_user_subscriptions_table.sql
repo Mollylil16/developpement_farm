@@ -25,6 +25,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_user_subscriptions_updated_at ON user_subscriptions;
 CREATE TRIGGER trigger_update_user_subscriptions_updated_at
   BEFORE UPDATE ON user_subscriptions
   FOR EACH ROW

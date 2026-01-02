@@ -15,6 +15,9 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
 } from 'react-native';
 import { X } from 'lucide-react-native';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -55,6 +58,7 @@ export default function CreateBatchListingModal({
   const [selectedPigIds, setSelectedPigIds] = useState<string[]>([]);
   const [pricePerKg, setPricePerKg] = useState('');
   const [averageWeight, setAverageWeight] = useState('');
+  const scrollViewRef = React.useRef<ScrollView>(null);
 
   useEffect(() => {
     if (visible) {
@@ -197,16 +201,28 @@ export default function CreateBatchListingModal({
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.header, { borderBottomColor: colors.divider }]}>
-          <TouchableOpacity onPress={onClose}>
-            <X size={24} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={[styles.title, { color: colors.text }]}>Vendre sur le Marketplace</Text>
-          <View style={{ width: 24 }} />
-        </View>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+          <View style={[styles.header, { borderBottomColor: colors.divider }]}>
+            <TouchableOpacity onPress={onClose}>
+              <X size={24} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={[styles.title, { color: colors.text }]}>Vendre sur le Marketplace</Text>
+            <View style={{ width: 24 }} />
+          </View>
 
-        <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.content}
+            contentContainerStyle={styles.contentContainer}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={true}
+            bounces={true}
+          >
           {/* Info de la bande */}
           <View style={[styles.batchInfo, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.batchName, { color: colors.text }]}>{batch.pen_name}</Text>
@@ -340,18 +356,19 @@ export default function CreateBatchListingModal({
             placeholder="Ex: 50.5"
             placeholderTextColor={colors.textSecondary}
           />
-        </ScrollView>
+          </ScrollView>
 
-        <View style={[styles.footer, { borderTopColor: colors.divider, backgroundColor: colors.background }]}>
-          <Button title="Annuler" variant="outline" onPress={onClose} style={styles.cancelButton} />
-          <Button
-            title="Créer l'annonce"
-            onPress={handleSubmit}
-            loading={loading}
-            style={styles.submitButton}
-          />
-        </View>
-      </SafeAreaView>
+          <View style={[styles.footer, { borderTopColor: colors.divider, backgroundColor: colors.background }]}>
+            <Button title="Annuler" variant="outline" onPress={onClose} style={styles.cancelButton} />
+            <Button
+              title="Créer l'annonce"
+              onPress={handleSubmit}
+              loading={loading}
+              style={styles.submitButton}
+            />
+          </View>
+        </SafeAreaView>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -383,9 +400,11 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+    flexGrow: 1,
   },
   contentContainer: {
     padding: SPACING.md,
+    paddingBottom: SPACING.xl * 3, // Espace supplémentaire pour le clavier
     gap: SPACING.md,
   },
   batchInfo: {

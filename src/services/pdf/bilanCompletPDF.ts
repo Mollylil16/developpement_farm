@@ -11,6 +11,8 @@ import {
   formatDate,
   generateAndSharePDF,
   formatNumber,
+  generatePieChartHTML,
+  type PieChartData,
 } from '../pdfService';
 import type { Projet } from '../../types/projet';
 import { parseISO, format } from 'date-fns';
@@ -64,6 +66,7 @@ interface BilanCompletData {
     ratio_rentabilite: number;
     cout_kg_opex: number;
     total_kg_vendus: number;
+    total_kg_vendus_estime?: boolean;
   };
 }
 
@@ -158,6 +161,20 @@ export function generateBilanCompletHTML(data: BilanCompletData): string {
         </table>
         ` : '<p style="color: #999;">Aucun revenu enregistré</p>'}
       </div>
+      
+      ${Object.keys(revenus.par_categorie).length > 0 ? (() => {
+        const pieData: PieChartData = {
+          labels: Object.keys(revenus.par_categorie),
+          values: Object.values(revenus.par_categorie),
+          colors: ['#2e7d32', '#1b5e20', '#1976D2', '#1565C0', '#FF8C42', '#F57C00', '#7B1FA2'],
+        };
+        return generatePieChartHTML(
+          'revenusPieChart',
+          pieData,
+          'Répartition des revenus par catégorie',
+          'Visualisation de la distribution des revenus selon les différentes catégories'
+        );
+      })() : ''}
     </div>
 
     <!-- Dépenses -->
@@ -207,6 +224,35 @@ export function generateBilanCompletHTML(data: BilanCompletData): string {
         </table>
         ` : ''}
       </div>
+      
+      ${Object.keys(depenses.par_categorie).length > 0 ? (() => {
+        const pieData: PieChartData = {
+          labels: Object.keys(depenses.par_categorie),
+          values: Object.values(depenses.par_categorie),
+          colors: ['#ef5350', '#e57373', '#ef9a9a', '#ffcdd2', '#f44336', '#d32f2f', '#c62828'],
+        };
+        return generatePieChartHTML(
+          'depensesPieChart',
+          pieData,
+          'Répartition des dépenses par catégorie',
+          'Visualisation de la distribution des dépenses selon les différentes catégories'
+        );
+      })() : ''}
+      
+      ${revenus.total > 0 || depenses.total > 0 ? (() => {
+        const total = revenus.total + depenses.total;
+        const pieData: PieChartData = {
+          labels: ['Revenus', 'Dépenses'],
+          values: [revenus.total, depenses.total],
+          colors: ['#2e7d32', '#ef5350'],
+        };
+        return generatePieChartHTML(
+          'revenusDepensesPieChart',
+          pieData,
+          'Répartition globale Revenus vs Dépenses',
+          `Répartition entre revenus (${formatNumber((revenus.total / total) * 100, 1)}%) et dépenses (${formatNumber((depenses.total / total) * 100, 1)}%)`
+        );
+      })() : ''}
     </div>
 
     <!-- Dettes -->
@@ -307,10 +353,19 @@ export function generateBilanCompletHTML(data: BilanCompletData): string {
             <td class="text-right">${formatCurrency(indicateurs.cout_kg_opex)}/kg</td>
           </tr>
           <tr>
-            <td><strong>Total kg vendus</strong></td>
+            <td><strong>Total kg vendus</strong>${indicateurs.total_kg_vendus_estime ? ' <span style="color: #ff9800; font-size: 11px;">(estimation)</span>' : ''}</td>
             <td class="text-right">${formatNumber(indicateurs.total_kg_vendus, 0)} kg</td>
           </tr>
         </table>
+        ${indicateurs.total_kg_vendus_estime ? `
+        <div style="margin-top: 15px; padding: 10px; background-color: #fff3cd; border-left: 4px solid #ff9800; border-radius: 4px;">
+          <p style="margin: 0; font-size: 11px; color: #856404;">
+            <strong>⚠️ Note importante :</strong> Le calcul du total kg vendus est une estimation basée sur les ventes réalisées. 
+            Pour certaines ventes, le poids n'était pas disponible. Dans ce cas, le poids a été estimé en divisant le revenu total 
+            par le prix de vente au kg. Cette estimation peut varier légèrement des valeurs réelles.
+          </p>
+        </div>
+        ` : ''}
       </div>
     </div>
 

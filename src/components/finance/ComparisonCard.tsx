@@ -2,8 +2,9 @@
  * Composant pour la comparaison des options de vente et recommandations
  */
 
-import React from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAppSelector } from '../../store/hooks';
 import { selectPeseesParAnimal } from '../../store/selectors/productionSelectors';
 import { SPACING, FONT_SIZES } from '../../constants/theme';
@@ -11,6 +12,9 @@ import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
 import { calculatePoidsTotalAnimauxActifs } from '../../utils/animalUtils';
 import { useAnimauxActifs } from '../../hooks/useAnimauxActifs';
+import apiClient from '../../services/api/apiClient';
+import type { Batch } from '../../types/batch';
+import { logger } from '../../utils/logger';
 
 const TAUX_CARCASSE = 0.75;
 const PRIX_KG_VIF_DEFAUT = 1000;
@@ -21,6 +25,73 @@ export default function ComparisonCard() {
   const { projetActif } = useAppSelector((state) => state.projet);
   const peseesParAnimal = useAppSelector(selectPeseesParAnimal);
   const { animauxActifs } = useAnimauxActifs({ projetId: projetActif?.id });
+  
+  // État pour les batches (mode batch)
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [loadingBatches, setLoadingBatches] = useState(false);
+
+  // Détecter le mode batch
+  const isModeBatch = projetActif?.management_method === 'batch';
+
+  // Charger les batches en mode batch
+  const loadBatches = useCallback(async () => {
+    if (!projetActif?.id || !isModeBatch) return;
+
+    setLoadingBatches(true);
+    try {
+      const batchesData = await apiClient.get<Batch[]>(
+        `/batch-pigs/projet/${projetActif.id}`
+      );
+      setBatches(batchesData);
+    } catch (error: any) {
+      logger.error('[ComparisonCard] Erreur lors du chargement des batches:', error);
+      setBatches([]);
+    } finally {
+      setLoadingBatches(false);
+    }
+  }, [projetActif?.id, isModeBatch]);
+
+  // Charger les batches quand l'écran est visible (mode batch uniquement)
+  useFocusEffect(
+    useCallback(() => {
+      if (isModeBatch) {
+        loadBatches();
+      }
+    }, [isModeBatch, loadBatches])
+  );
+
+  // Fonction pour calculer le poids total (utilisée dans plusieurs useMemo)
+  const calculatePoidsTotal = useCallback(() => {
+    if (!projetActif) return 0;
+
+    // Mode batch : calculer à partir des batches
+    // IMPORTANT: Utiliser la même logique que LivestockStatsCard pour la cohérence
+    // mais exclure les reproducteurs car ils ne sont généralement pas vendus
+    if (isModeBatch) {
+      // Exclure les reproducteurs du calcul (truies_reproductrices et verrats_reproducteurs)
+      // car les reproducteurs ne sont généralement pas vendus
+      const batchesNonReproducteurs = batches.filter(
+        (batch) =>
+          batch.category !== 'truie_reproductrice' && batch.category !== 'verrat_reproducteur'
+      );
+
+      // Calculer le poids total : somme de (average_weight_kg * total_count) pour chaque batch non reproducteur
+      // Même logique que LivestockStatsCard, mais en excluant les reproducteurs
+      return batchesNonReproducteurs.reduce((sum, batch) => {
+        const poidsMoyenBatch = batch.average_weight_kg || 0;
+        const nombreBatch = batch.total_count || 0;
+        // Utiliser la même logique que LivestockStatsCard (pas de validation supplémentaire)
+        return sum + (poidsMoyenBatch * nombreBatch);
+      }, 0);
+    }
+
+    // Mode individuel : calculer à partir des animaux
+    return calculatePoidsTotalAnimauxActifs(
+      animauxActifs,
+      peseesParAnimal,
+      projetActif.poids_moyen_actuel || 0
+    );
+  }, [isModeBatch, batches, animauxActifs, peseesParAnimal, projetActif]);
 
   const comparaisonOptions = React.useMemo(() => {
     if (!projetActif) {
@@ -31,11 +102,7 @@ export default function ComparisonCard() {
       };
     }
 
-    const poidsTotal = calculatePoidsTotalAnimauxActifs(
-      animauxActifs,
-      peseesParAnimal,
-      projetActif.poids_moyen_actuel || 0
-    );
+    const poidsTotal = calculatePoidsTotal();
 
     const prixKgVif = projetActif.prix_kg_vif || PRIX_KG_VIF_DEFAUT;
     const prixKgCarcasse = projetActif.prix_kg_carcasse || PRIX_KG_CARCASSE_DEFAUT;
@@ -53,12 +120,10 @@ export default function ComparisonCard() {
       meilleureOption: difference > 0 ? ('carcasse' as const) : ('vif' as const),
     };
   }, [
-    animauxActifs,
-    peseesParAnimal,
     projetActif?.id,
     projetActif?.prix_kg_vif,
     projetActif?.prix_kg_carcasse,
-    projetActif?.poids_moyen_actuel,
+    calculatePoidsTotal,
   ]);
 
   const formatAmount = (amount: number) => {
@@ -72,19 +137,9 @@ export default function ComparisonCard() {
   if (!projetActif) return null;
 
   const revenuVifInitial = React.useMemo(() => {
-    const poidsTotal = calculatePoidsTotalAnimauxActifs(
-      animauxActifs,
-      peseesParAnimal,
-      projetActif.poids_moyen_actuel || 0
-    );
+    const poidsTotal = calculatePoidsTotal();
     return poidsTotal * (projetActif.prix_kg_vif || PRIX_KG_VIF_DEFAUT);
-  }, [
-    animauxActifs,
-    peseesParAnimal,
-    projetActif?.id,
-    projetActif?.prix_kg_vif,
-    projetActif?.poids_moyen_actuel,
-  ]);
+  }, [calculatePoidsTotal, projetActif?.prix_kg_vif]);
 
   if (revenuVifInitial === 0) return null;
 

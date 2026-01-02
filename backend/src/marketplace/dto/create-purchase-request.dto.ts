@@ -121,5 +121,40 @@ export class CreatePurchaseRequestDto {
   @IsOptional()
   @IsString()
   expiresAt?: string;
+
+  // Nouveaux champs pour producteurs et modes
+  @ApiPropertyOptional({ description: 'Type d\'émetteur', enum: ['buyer', 'producer'], default: 'buyer' })
+  @IsOptional()
+  @IsEnum(['buyer', 'producer'])
+  senderType?: 'buyer' | 'producer';
+
+  @ApiPropertyOptional({ description: 'ID de l\'émetteur (remplace buyerId)' })
+  @IsOptional()
+  @IsString()
+  senderId?: string;
+
+  @ApiPropertyOptional({ description: 'Mode de gestion préféré', enum: ['individual', 'batch', 'both'] })
+  @IsOptional()
+  @IsEnum(['individual', 'batch', 'both'])
+  managementMode?: 'individual' | 'batch' | 'both';
+
+  @ApiPropertyOptional({ description: 'Stade de croissance souhaité', enum: ['porcelet', 'croissance', 'engraissement', 'fini', 'tous'] })
+  @IsOptional()
+  @IsEnum(['porcelet', 'croissance', 'engraissement', 'fini', 'tous'])
+  growthStage?: string;
+
+  @ApiPropertyOptional({ description: 'Seuils de matching configurables' })
+  @IsOptional()
+  @IsObject()
+  matchingThresholds?: {
+    weightTolerance?: number; // % (défaut: 10)
+    priceTolerance?: number; // % (défaut: 20)
+    locationRadius?: number; // km (défaut: 50)
+  };
+
+  @ApiPropertyOptional({ description: 'ID du projet/ferme pour les producteurs' })
+  @IsOptional()
+  @IsString()
+  farmId?: string;
 }
 

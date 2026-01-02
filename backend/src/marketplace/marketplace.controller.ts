@@ -10,9 +10,11 @@ import {
   HttpCode,
   HttpStatus,
   Query,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { MarketplaceService } from './marketplace.service';
+import { MarketplaceUnifiedService } from './marketplace-unified.service';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 import { CreateOfferDto } from './dto/create-offer.dto';
@@ -30,7 +32,10 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 @UseGuards(JwtAuthGuard)
 @Controller('marketplace')
 export class MarketplaceController {
-  constructor(private readonly marketplaceService: MarketplaceService) {}
+  constructor(
+    private readonly marketplaceService: MarketplaceService,
+    private readonly marketplaceUnifiedService: MarketplaceUnifiedService
+  ) {}
 
   // ========================================
   // LISTINGS
@@ -38,26 +43,28 @@ export class MarketplaceController {
 
   @Post('listings')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Créer une nouvelle annonce (animal individuel)' })
+  @ApiOperation({ summary: 'Créer une nouvelle annonce (animal individuel) - Unifié' })
   @ApiResponse({ status: 201, description: 'Annonce créée avec succès.' })
   @ApiResponse({ status: 400, description: 'Données invalides.' })
   async createListing(
     @Body() createListingDto: CreateListingDto,
     @CurrentUser('id') userId: string
   ) {
-    return this.marketplaceService.createListing(createListingDto, userId);
+    // Utiliser le nouveau service unifié
+    return this.marketplaceUnifiedService.createUnifiedListing(createListingDto, userId, 'individual');
   }
 
   @Post('listings/batch')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Créer une nouvelle annonce pour une bande (batch)' })
+  @ApiOperation({ summary: 'Créer une nouvelle annonce pour une bande (batch) - Unifié' })
   @ApiResponse({ status: 201, description: 'Annonce de bande créée avec succès.' })
   @ApiResponse({ status: 400, description: 'Données invalides.' })
   async createBatchListing(
     @Body() createBatchListingDto: CreateBatchListingDto,
     @CurrentUser('id') userId: string
   ) {
-    return this.marketplaceService.createBatchListing(createBatchListingDto, userId);
+    // Utiliser le nouveau service unifié
+    return this.marketplaceUnifiedService.createUnifiedListing(createBatchListingDto, userId, 'batch');
   }
 
   @Get('listings')
@@ -97,7 +104,7 @@ export class MarketplaceController {
   }
 
   @Patch('listings/:id')
-  @ApiOperation({ summary: 'Mettre à jour une annonce' })
+  @ApiOperation({ summary: 'Mettre à jour une annonce (individuelle ou bande) - Unifié' })
   @ApiResponse({ status: 200, description: 'Annonce mise à jour avec succès.' })
   @ApiResponse({ status: 404, description: 'Annonce introuvable.' })
   async updateListing(
@@ -105,16 +112,18 @@ export class MarketplaceController {
     @Body() updateListingDto: UpdateListingDto,
     @CurrentUser('id') userId: string
   ) {
-    return this.marketplaceService.updateListing(id, updateListingDto, userId);
+    // Utiliser le nouveau service unifié
+    return this.marketplaceUnifiedService.updateUnifiedListing(id, updateListingDto, userId);
   }
 
   @Delete('listings/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Supprimer une annonce' })
+  @ApiOperation({ summary: 'Supprimer une annonce (individuelle ou bande) - Unifié' })
   @ApiResponse({ status: 204, description: 'Annonce supprimée avec succès.' })
   @ApiResponse({ status: 404, description: 'Annonce introuvable.' })
   async deleteListing(@Param('id') id: string, @CurrentUser('id') userId: string) {
-    return this.marketplaceService.deleteListing(id, userId);
+    // Utiliser le nouveau service unifié
+    await this.marketplaceUnifiedService.deleteUnifiedListing(id, userId);
   }
 
   // ========================================
@@ -267,6 +276,23 @@ export class MarketplaceController {
     return this.marketplaceService.findAllPurchaseRequests(userId, buyerId, status);
   }
 
+  // IMPORTANT: Les routes spécifiques (/sent, /received) doivent être définies AVANT la route paramétrée (/:id)
+  // pour éviter que NestJS ne match "sent" ou "received" comme un :id
+  @Get('purchase-requests/sent')
+  @ApiOperation({ summary: 'Récupérer les demandes envoyées par l\'utilisateur' })
+  @ApiResponse({ status: 200, description: 'Liste des demandes envoyées.' })
+  async getSentPurchaseRequests(@CurrentUser('id') userId: string) {
+    return this.marketplaceService.findSentPurchaseRequests(userId);
+  }
+
+  @Get('purchase-requests/received')
+  @ApiOperation({ summary: 'Récupérer les demandes reçues par l\'utilisateur' })
+  @ApiResponse({ status: 200, description: 'Liste des demandes reçues.' })
+  async getReceivedPurchaseRequests(@CurrentUser('id') userId: string) {
+    return this.marketplaceService.findReceivedPurchaseRequests(userId);
+  }
+
+  // Route paramétrée :id doit être APRÈS les routes spécifiques
   @Get('purchase-requests/:id')
   @ApiOperation({ summary: 'Récupérer une demande d\'achat' })
   @ApiResponse({ status: 200, description: 'Demande d\'achat trouvée.' })
@@ -285,6 +311,19 @@ export class MarketplaceController {
     @CurrentUser('id') userId: string
   ) {
     return this.marketplaceService.updatePurchaseRequest(id, updatePurchaseRequestDto, userId);
+  }
+
+  @Post('purchase-requests/:id/match')
+  @ApiOperation({ summary: 'Déclencher le matching automatique pour une demande' })
+  @ApiResponse({ status: 200, description: 'Matching effectué avec succès.' })
+  @ApiResponse({ status: 404, description: 'Demande introuvable.' })
+  async triggerMatching(@Param('id') id: string, @CurrentUser('id') userId: string) {
+    // Vérifier que l'utilisateur est le propriétaire de la demande
+    const request = await this.marketplaceService.findOnePurchaseRequest(id, userId);
+    if (request.buyerId !== userId && (request as any).senderId !== userId) {
+      throw new ForbiddenException('Vous ne pouvez déclencher le matching que pour vos propres demandes');
+    }
+    return this.marketplaceService.findMatchingProducersForRequest(id);
   }
 
   @Delete('purchase-requests/:id')

@@ -15,8 +15,10 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Kouakou a besoin du microphone pour comprendre vos commandes vocales et vous aider à gérer votre élevage plus facilement.",
-        "NSSpeechRecognitionUsageDescription": "Kouakou utilise la reconnaissance vocale pour transcrire ce que vous dites et enregistrer vos dépenses, ventes ou pesées."
-      }
+        "NSSpeechRecognitionUsageDescription": "Kouakou utilise la reconnaissance vocale pour transcrire ce que vous dites et enregistrer vos dépenses, ventes ou pesées.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.misterh225.fermierpro"
     },
     "android": {
       "adaptiveIcon": {
@@ -38,12 +40,14 @@
     "plugins": [
       "expo-sqlite",
       "expo-localization",
+      "expo-apple-authentication",
       "./app.plugin.js"
     ],
     "extra": {
       "eas": {
-        "projectId": "bf020624-333a-4bd1-bf4d-c67f6e7c0f7c"
+        "projectId": "feda5c21-1aaf-44cc-acd5-8d26758926dd"
       }
-    }
+    },
+    "owner": "misterh225"
   }
 }

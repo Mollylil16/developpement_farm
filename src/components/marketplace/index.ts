@@ -6,6 +6,8 @@
 export { default as FarmCard } from './FarmCard';
 export { default as SubjectCard } from './SubjectCard';
 export { default as BatchListingCard } from './BatchListingCard';
+export { default as UnifiedListingCard } from './UnifiedListingCard'; // Nouveau composant unifié
+export { default as PurchaseRequestCard } from './PurchaseRequestCard'; // Carte de demande (bleu)
 export { default as FarmDetailsModal } from './FarmDetailsModal';
 export { default as TransactionCard } from './TransactionCard';
 export { default as NotificationCard } from './NotificationCard';
@@ -18,6 +20,8 @@ export { default as MarketplaceFilters } from './MarketplaceFilters';
 // Modals
 export { default as SaleTermsDisplay } from './SaleTermsDisplay';
 export { default as BatchAddModal } from './BatchAddModal';
+export { default as AddListingModal } from './AddListingModal'; // Nouveau modal unifié
+export { default as MarketplaceActionModal } from './MarketplaceActionModal'; // Modal unifié pour actions
 export { default as OfferModal } from './OfferModal';
 export { default as OfferResponseModal } from './OfferResponseModal';
 export { default as DeliveryConfirmationModal } from './DeliveryConfirmationModal';

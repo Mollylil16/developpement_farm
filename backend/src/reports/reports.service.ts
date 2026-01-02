@@ -435,81 +435,135 @@ export class ReportsService {
     userId: string,
     periodeJours: number = 30
   ) {
-    await this.checkProjetOwnership(projetId, userId);
+    try {
+      await this.checkProjetOwnership(projetId, userId);
 
-    const dateFin = new Date();
-    const dateDebut = new Date();
-    dateDebut.setDate(dateDebut.getDate() - periodeJours);
+      // Vérifier le mode du projet
+      const projetResult = await this.databaseService.query(
+        'SELECT management_method FROM projets WHERE id = $1',
+        [projetId]
+      );
 
-    // Calculer les différents indicateurs en parallèle
-    const [
-      tauxCroissance,
-      efficaciteAlimentaire,
-      alimentationConsommeeKg,
-      gainPoidsTotal,
-    ] = await Promise.all([
-      this.calculerTauxCroissance(projetId, periodeJours),
-      this.calculerEfficaciteAlimentaire(projetId, periodeJours),
-      this.calculerAlimentationConsommeeKg(projetId, dateDebut, dateFin),
-      this.calculerGainPoidsTotal(projetId, dateDebut, dateFin),
-    ]);
+      if (projetResult.rows.length === 0) {
+        throw new NotFoundException('Projet introuvable');
+      }
 
-    // Calculer l'Indice de Consommation (IC) = inverse de l'efficacité
-    const indiceConsommation = gainPoidsTotal > 0 ? alimentationConsommeeKg / gainPoidsTotal : 0;
+      const managementMethod = projetResult.rows[0].management_method || 'individual';
 
-    // Récupérer les statistiques de base
-    const animauxResult = await this.databaseService.query(
-      `SELECT 
-         COUNT(*) FILTER (WHERE statut = 'actif') as nombre_actifs,
-         COUNT(*) FILTER (WHERE statut = 'mort') as nombre_morts,
-         COUNT(*) FILTER (WHERE statut = 'vendu') as nombre_vendus,
-         COUNT(*) as nombre_total
-       FROM production_animaux 
-       WHERE projet_id = $1`,
-      [projetId]
-    );
+      // Pour l'instant, le mode batch n'est pas encore supporté pour les indicateurs de performance
+      if (managementMethod === 'batch') {
+        // Retourner des valeurs par défaut pour le mode batch
+        // TODO: Implémenter le calcul des indicateurs pour le mode batch
+        return {
+          taux_mortalite: 0,
+          taux_croissance: 0,
+          efficacite_alimentaire: 0,
+          indice_consommation: 0,
+          nombre_porcs_total: 0,
+          nombre_porcs_vivants: 0,
+          nombre_porcs_morts: 0,
+          poids_total: 0,
+          alimentation_totale: 0,
+          gain_poids_total: 0,
+          periode_jours: periodeJours,
+          date_debut: new Date(Date.now() - periodeJours * 24 * 60 * 60 * 1000).toISOString(),
+          date_fin: new Date().toISOString(),
+        };
+      }
 
-    const stats = animauxResult.rows[0] || {};
-    const nombrePorcsActifs = parseInt(stats.nombre_actifs) || 0;
-    const nombrePorcsMorts = parseInt(stats.nombre_morts) || 0;
-    const nombrePorcsVendus = parseInt(stats.nombre_vendus) || 0;
-    const nombrePorcsTotal = parseInt(stats.nombre_total) || 0;
+      const dateFin = new Date();
+      const dateDebut = new Date();
+      dateDebut.setDate(dateDebut.getDate() - periodeJours);
 
-    // Calculer le taux de mortalité
-    const tauxMortalite = nombrePorcsTotal > 0 ? (nombrePorcsMorts / nombrePorcsTotal) * 100 : 0;
+      // Calculer les différents indicateurs en parallèle
+      const [
+        tauxCroissance,
+        efficaciteAlimentaire,
+        alimentationConsommeeKg,
+        gainPoidsTotal,
+      ] = await Promise.all([
+        this.calculerTauxCroissance(projetId, periodeJours),
+        this.calculerEfficaciteAlimentaire(projetId, periodeJours),
+        this.calculerAlimentationConsommeeKg(projetId, dateDebut, dateFin),
+        this.calculerGainPoidsTotal(projetId, dateDebut, dateFin),
+      ]);
 
-    // Calculer le poids total actuel (dernières pesées)
-    const poidsTotalResult = await this.databaseService.query(
-      `SELECT COALESCE(SUM(p.poids_kg), 0) as poids_total
-       FROM (
-         SELECT DISTINCT ON (animal_id) poids_kg
-         FROM production_pesees
-         WHERE animal_id IN (
-           SELECT id FROM production_animaux 
-           WHERE projet_id = $1 AND statut = 'actif'
-         )
-         ORDER BY animal_id, date DESC
-       ) p`,
-      [projetId]
-    );
+      // Calculer l'Indice de Consommation (IC) = inverse de l'efficacité
+      const indiceConsommation = gainPoidsTotal > 0 ? alimentationConsommeeKg / gainPoidsTotal : 0;
 
-    const poidsTotal = parseFloat(poidsTotalResult.rows[0]?.poids_total) || 0;
+      // Récupérer les statistiques de base
+      const animauxResult = await this.databaseService.query(
+        `SELECT 
+           COUNT(*) FILTER (WHERE statut = 'actif') as nombre_actifs,
+           COUNT(*) FILTER (WHERE statut = 'mort') as nombre_morts,
+           COUNT(*) FILTER (WHERE statut = 'vendu') as nombre_vendus,
+           COUNT(*) as nombre_total
+         FROM production_animaux 
+         WHERE projet_id = $1`,
+        [projetId]
+      );
 
-    return {
-      taux_mortalite: tauxMortalite,
-      taux_croissance: tauxCroissance,
-      efficacite_alimentaire: efficaciteAlimentaire,
-      indice_consommation: indiceConsommation,
-      nombre_porcs_total: nombrePorcsActifs,
-      nombre_porcs_vivants: nombrePorcsVendus,
-      nombre_porcs_morts: nombrePorcsMorts,
-      poids_total: poidsTotal,
-      alimentation_totale: alimentationConsommeeKg,
-      gain_poids_total: gainPoidsTotal,
-      periode_jours: periodeJours,
-      date_debut: dateDebut.toISOString(),
-      date_fin: dateFin.toISOString(),
-    };
+      const stats = animauxResult.rows[0] || {};
+      const nombrePorcsActifs = parseInt(stats.nombre_actifs) || 0;
+      const nombrePorcsMorts = parseInt(stats.nombre_morts) || 0;
+      const nombrePorcsVendus = parseInt(stats.nombre_vendus) || 0;
+      const nombrePorcsTotal = parseInt(stats.nombre_total) || 0;
+
+      // Calculer le taux de mortalité
+      const tauxMortalite = nombrePorcsTotal > 0 ? (nombrePorcsMorts / nombrePorcsTotal) * 100 : 0;
+
+      // Calculer le poids total actuel (dernières pesées)
+      const poidsTotalResult = await this.databaseService.query(
+        `SELECT COALESCE(SUM(p.poids_kg), 0) as poids_total
+         FROM (
+           SELECT DISTINCT ON (animal_id) poids_kg
+           FROM production_pesees
+           WHERE animal_id IN (
+             SELECT id FROM production_animaux 
+             WHERE projet_id = $1 AND statut = 'actif'
+           )
+           ORDER BY animal_id, date DESC
+         ) p`,
+        [projetId]
+      );
+
+      const poidsTotal = parseFloat(poidsTotalResult.rows[0]?.poids_total) || 0;
+
+      return {
+        taux_mortalite: tauxMortalite,
+        taux_croissance: tauxCroissance,
+        efficacite_alimentaire: efficaciteAlimentaire,
+        indice_consommation: indiceConsommation,
+        nombre_porcs_total: nombrePorcsActifs,
+        nombre_porcs_vivants: nombrePorcsVendus,
+        nombre_porcs_morts: nombrePorcsMorts,
+        poids_total: poidsTotal,
+        alimentation_totale: alimentationConsommeeKg,
+        gain_poids_total: gainPoidsTotal,
+        periode_jours: periodeJours,
+        date_debut: dateDebut.toISOString(),
+        date_fin: dateFin.toISOString(),
+      };
+    } catch (error: any) {
+      // Logger l'erreur pour le débogage
+      console.error('[ReportsService] Erreur dans calculerIndicateursPerformance:', {
+        projetId,
+        userId,
+        periodeJours,
+        error: error.message,
+        stack: error.stack,
+      });
+
+      // Si c'est une exception NestJS, la relancer
+      if (error instanceof NotFoundException || error instanceof ForbiddenException) {
+        throw error;
+      }
+
+      // Sinon, lancer une erreur générique
+      throw new Error(
+        `Erreur lors du calcul des indicateurs de performance: ${error.message || 'Erreur inconnue'}`
+      );
+    }
   }
 
   // ==================== CALCUL DE LA PERFORMANCE GLOBALE ====================
@@ -708,5 +762,454 @@ export class ReportsService {
       message_diagnostic: messageDiagnostic,
       suggestions,
     };
+  }
+
+  /**
+   * Génère les données agrégées pour le rapport santé
+   */
+  async getHealthReportData(
+    projetId: string,
+    userId: string,
+    dateDebut?: Date,
+    dateFin?: Date
+  ) {
+    await this.checkProjetOwnership(projetId, userId);
+
+    // Vérifier le mode du projet
+    const projetResult = await this.databaseService.query(
+      'SELECT management_method FROM projets WHERE id = $1',
+      [projetId]
+    );
+    const managementMethod = projetResult.rows[0]?.management_method || 'individual';
+    const isModeBatch = managementMethod === 'batch';
+
+    // Récupérer les vaccinations
+    let vaccinationsQuery = `SELECT id, vaccin, nom_vaccin, produit_administre, dosage, unite_dosage, 
+              date_vaccination, animal_id, animal_ids, batch_id
+       FROM vaccinations 
+       WHERE projet_id = $1`;
+    const vaccinationsParams: any[] = [projetId];
+    if (dateDebut) {
+      vaccinationsQuery += ` AND date_vaccination >= $${vaccinationsParams.length + 1}`;
+      vaccinationsParams.push(dateDebut.toISOString());
+    }
+    if (dateFin) {
+      vaccinationsQuery += ` AND date_vaccination <= $${vaccinationsParams.length + 1}`;
+      vaccinationsParams.push(dateFin.toISOString());
+    }
+    vaccinationsQuery += ` ORDER BY date_vaccination DESC`;
+    const vaccinationsResult = await this.databaseService.query(
+      vaccinationsQuery,
+      vaccinationsParams
+    );
+
+    // Récupérer les mortalités
+    let mortalitesQuery = `SELECT id, nombre_porcs, date, cause, categorie, animal_code, batch_id
+       FROM mortalites 
+       WHERE projet_id = $1`;
+    const mortalitesParams: any[] = [projetId];
+    if (dateDebut) {
+      mortalitesQuery += ` AND date >= $${mortalitesParams.length + 1}`;
+      mortalitesParams.push(dateDebut.toISOString());
+    }
+    if (dateFin) {
+      mortalitesQuery += ` AND date <= $${mortalitesParams.length + 1}`;
+      mortalitesParams.push(dateFin.toISOString());
+    }
+    mortalitesQuery += ` ORDER BY date DESC`;
+    const mortalitesResult = await this.databaseService.query(
+      mortalitesQuery,
+      mortalitesParams
+    );
+
+    // Récupérer les maladies
+    let maladiesQuery = `SELECT id, type, nom_maladie, gravite, date_debut, date_fin, symptomes, 
+              diagnostic, nombre_animaux_affectes, nombre_deces, cout_traitement, gueri, animal_id, batch_id
+       FROM maladies 
+       WHERE projet_id = $1`;
+    const maladiesParams: any[] = [projetId];
+    if (dateDebut) {
+      maladiesQuery += ` AND date_debut >= $${maladiesParams.length + 1}`;
+      maladiesParams.push(dateDebut.toISOString());
+    }
+    if (dateFin) {
+      maladiesQuery += ` AND date_debut <= $${maladiesParams.length + 1}`;
+      maladiesParams.push(dateFin.toISOString());
+    }
+    maladiesQuery += ` ORDER BY date_debut DESC`;
+    const maladiesResult = await this.databaseService.query(
+      maladiesQuery,
+      maladiesParams
+    );
+
+    // Récupérer les visites vétérinaires
+    let visitesQuery = `SELECT id, date_visite, veterinaire, motif, diagnostic, cout, animaux_examines, batch_id
+       FROM visites_veterinaires 
+       WHERE projet_id = $1`;
+    const visitesParams: any[] = [projetId];
+    if (dateDebut) {
+      visitesQuery += ` AND date_visite >= $${visitesParams.length + 1}`;
+      visitesParams.push(dateDebut.toISOString());
+    }
+    if (dateFin) {
+      visitesQuery += ` AND date_visite <= $${visitesParams.length + 1}`;
+      visitesParams.push(dateFin.toISOString());
+    }
+    visitesQuery += ` ORDER BY date_visite DESC`;
+    const visitesResult = await this.databaseService.query(
+      visitesQuery,
+      visitesParams
+    );
+
+    // Calculer les statistiques de vaccination
+    const vaccinations = vaccinationsResult.rows;
+    const vaccinationsParType: Record<string, number> = {};
+    let totalVaccinations = 0;
+    vaccinations.forEach((v) => {
+      const type = v.nom_vaccin || v.vaccin || 'Autre';
+      vaccinationsParType[type] = (vaccinationsParType[type] || 0) + 1;
+      totalVaccinations++;
+    });
+
+    // Calculer les statistiques de mortalité
+    const mortalites = mortalitesResult.rows;
+    const totalMorts = mortalites.reduce((sum, m) => sum + parseInt(m.nombre_porcs || 0, 10), 0);
+    const mortalitesParCause: Record<string, number> = {};
+    const mortalitesParCategorie: Record<string, number> = {};
+    mortalites.forEach((m) => {
+      const cause = m.cause || 'Non spécifiée';
+      mortalitesParCause[cause] = (mortalitesParCause[cause] || 0) + parseInt(m.nombre_porcs || 0, 10);
+      const categorie = m.categorie || 'autre';
+      mortalitesParCategorie[categorie] = (mortalitesParCategorie[categorie] || 0) + parseInt(m.nombre_porcs || 0, 10);
+    });
+
+    // Récupérer le nombre total d'animaux pour calculer le taux de mortalité
+    let totalAnimaux = 0;
+    if (isModeBatch) {
+      const batchesResult = await this.databaseService.query(
+        'SELECT SUM(total_count) as total FROM batches WHERE projet_id = $1',
+        [projetId]
+      );
+      totalAnimaux = parseInt(batchesResult.rows[0]?.total || 0, 10);
+    } else {
+      const animauxResult = await this.databaseService.query(
+        'SELECT COUNT(*) as total FROM production_animaux WHERE projet_id = $1',
+        [projetId]
+      );
+      totalAnimaux = parseInt(animauxResult.rows[0]?.total || 0, 10);
+    }
+
+    const tauxMortalite = totalAnimaux > 0 ? (totalMorts / totalAnimaux) * 100 : 0;
+
+    return {
+      isModeBatch,
+      vaccinations: vaccinations.map((v) => ({
+        id: v.id,
+        vaccin: v.nom_vaccin || v.vaccin,
+        produit: v.produit_administre,
+        dosage: v.dosage,
+        unite: v.unite_dosage,
+        date: v.date_vaccination,
+        animal_id: v.animal_id,
+        animal_ids: v.animal_ids,
+        batch_id: v.batch_id,
+      })),
+      vaccinationsParType,
+      totalVaccinations,
+      mortalites: mortalites.map((m) => ({
+        id: m.id,
+        nombre_porcs: parseInt(m.nombre_porcs || 0, 10),
+        date: m.date,
+        cause: m.cause,
+        categorie: m.categorie,
+        animal_code: m.animal_code,
+        batch_id: m.batch_id,
+      })),
+      mortalitesParCause,
+      mortalitesParCategorie,
+      totalMorts,
+      tauxMortalite,
+      maladies: maladiesResult.rows.map((m) => ({
+        id: m.id,
+        type: m.type,
+        nom: m.nom_maladie,
+        gravite: m.gravite,
+        date_debut: m.date_debut,
+        date_fin: m.date_fin,
+        symptomes: m.symptomes,
+        diagnostic: m.diagnostic,
+        nombre_animaux_affectes: parseInt(m.nombre_animaux_affectes || 0, 10),
+        nombre_deces: parseInt(m.nombre_deces || 0, 10),
+        cout_traitement: m.cout_traitement ? parseFloat(m.cout_traitement) : undefined,
+        gueri: m.gueri,
+        animal_id: m.animal_id,
+        batch_id: m.batch_id,
+      })),
+      visites: visitesResult.rows.map((v) => ({
+        id: v.id,
+        date_visite: v.date_visite,
+        veterinaire: v.veterinaire,
+        motif: v.motif,
+        diagnostic: v.diagnostic,
+        cout: v.cout ? parseFloat(v.cout) : undefined,
+        animaux_examines: v.animaux_examines,
+        batch_id: v.batch_id,
+      })),
+    };
+  }
+
+  /**
+   * Génère les données agrégées pour le rapport production
+   */
+  async getProductionReportData(
+    projetId: string,
+    userId: string,
+    dateDebut?: Date,
+    dateFin?: Date
+  ) {
+    try {
+      await this.checkProjetOwnership(projetId, userId);
+
+      // Vérifier le mode du projet
+      const projetResult = await this.databaseService.query(
+        'SELECT management_method FROM projets WHERE id = $1',
+        [projetId]
+      );
+      const managementMethod = projetResult.rows[0]?.management_method || 'individual';
+      const isModeBatch = managementMethod === 'batch';
+
+    let cheptelData: any = {};
+    let peseesData: any[] = [];
+
+    if (isModeBatch) {
+      // Mode batch : récupérer les données des batches
+      let batchesResult: any = { rows: [] };
+      try {
+        batchesResult = await this.databaseService.query(
+          `SELECT id, pen_name, category, total_count, average_weight_kg, batch_creation_date
+           FROM batches 
+           WHERE projet_id = $1 
+           ORDER BY batch_creation_date DESC`,
+          [projetId]
+        );
+      } catch (batchesError: any) {
+        // Si la table n'existe pas, ignorer l'erreur (pas de batches)
+        if (!batchesError.message?.includes('does not exist') && !batchesError.message?.includes('n\'existe pas')) {
+          console.warn('[ReportsService] Erreur lors de la récupération des batches:', batchesError.message);
+          throw batchesError; // Re-lancer si c'est une autre erreur
+        }
+      }
+
+      // Essayer de récupérer les pesées batch (la table peut ne pas exister)
+      // Ne tenter que si on a réussi à récupérer des batches
+      let batchWeighingsResult: any = { rows: [] };
+      if (batchesResult.rows.length > 0) {
+        try {
+          // Récupérer les IDs des batches pour la requête
+          const batchIds = batchesResult.rows.map((b: any) => b.id);
+          if (batchIds.length > 0) {
+            let batchWeighingsQuery = `SELECT id, batch_id, weighing_date, average_weight_kg, count
+               FROM batch_weighings 
+               WHERE batch_id = ANY($1)`;
+            const batchWeighingsParams: any[] = [batchIds];
+            if (dateDebut) {
+              batchWeighingsQuery += ` AND weighing_date >= $${batchWeighingsParams.length + 1}`;
+              batchWeighingsParams.push(dateDebut.toISOString());
+            }
+            if (dateFin) {
+              batchWeighingsQuery += ` AND weighing_date <= $${batchWeighingsParams.length + 1}`;
+              batchWeighingsParams.push(dateFin.toISOString());
+            }
+            batchWeighingsQuery += ` ORDER BY weighing_date DESC`;
+            batchWeighingsResult = await this.databaseService.query(
+              batchWeighingsQuery,
+              batchWeighingsParams
+            );
+          }
+        } catch (weighingError: any) {
+          // Si la table n'existe pas, ignorer l'erreur (pas de pesées batch)
+          if (!weighingError.message?.includes('does not exist') && !weighingError.message?.includes('n\'existe pas')) {
+            console.warn('[ReportsService] Erreur lors de la récupération des pesées batch:', weighingError.message);
+          }
+        }
+      }
+
+      cheptelData = {
+        total: batchesResult.rows.reduce((sum, b) => sum + parseInt(b.total_count || 0, 10), 0),
+        par_categorie: {},
+        batches: batchesResult.rows.map((b) => ({
+          id: b.id,
+          nom: b.pen_name,
+          categorie: b.category,
+          nombre: parseInt(b.total_count || 0, 10),
+          poids_moyen: b.average_weight_kg ? parseFloat(b.average_weight_kg) : undefined,
+          date_entree: b.batch_creation_date,
+        })),
+      };
+
+      batchesResult.rows.forEach((b) => {
+        const cat = b.category || 'autre';
+        cheptelData.par_categorie[cat] = (cheptelData.par_categorie[cat] || 0) + parseInt(b.total_count || 0, 10);
+      });
+
+      peseesData = batchWeighingsResult.rows.map((w) => ({
+        id: w.id,
+        batch_id: w.batch_id,
+        date: w.weighing_date,
+        poids_kg: w.average_weight_kg ? parseFloat(w.average_weight_kg) : undefined,
+        nombre: parseInt(w.count || 0, 10),
+      }));
+    } else {
+      // Mode individuel : récupérer les données des animaux
+      let animauxResult: any = { rows: [] };
+      try {
+        animauxResult = await this.databaseService.query(
+          `SELECT id, code, nom, sexe, date_naissance, statut, race, reproducteur
+           FROM production_animaux 
+           WHERE projet_id = $1 
+           ORDER BY date_creation DESC`,
+          [projetId]
+        );
+      } catch (animauxError: any) {
+        // Si la table n'existe pas, ignorer l'erreur (pas d'animaux)
+        if (!animauxError.message?.includes('does not exist') && !animauxError.message?.includes('n\'existe pas')) {
+          console.warn('[ReportsService] Erreur lors de la récupération des animaux:', animauxError.message);
+          throw animauxError; // Re-lancer si c'est une autre erreur
+        }
+      }
+
+      let peseesResult: any = { rows: [] };
+      // Essayer de récupérer les pesées individuelles (la table peut ne pas exister)
+      // Ne tenter que si on a réussi à récupérer des animaux
+      if (animauxResult.rows.length > 0) {
+        try {
+          // Récupérer les IDs des animaux pour la requête
+          const animalIds = animauxResult.rows.map((a: any) => a.id);
+          if (animalIds.length > 0) {
+            let peseesQuery = `SELECT id, animal_id, date, poids_kg
+               FROM production_pesees 
+               WHERE animal_id = ANY($1)`;
+            const peseesParams: any[] = [animalIds];
+            if (dateDebut) {
+              peseesQuery += ` AND date >= $${peseesParams.length + 1}`;
+              peseesParams.push(dateDebut.toISOString());
+            }
+            if (dateFin) {
+              peseesQuery += ` AND date <= $${peseesParams.length + 1}`;
+              peseesParams.push(dateFin.toISOString());
+            }
+            peseesQuery += ` ORDER BY date DESC`;
+            peseesResult = await this.databaseService.query(
+              peseesQuery,
+              peseesParams
+            );
+          }
+        } catch (weighingError: any) {
+          // Si la table n'existe pas, ignorer l'erreur (pas de pesées)
+          if (!weighingError.message?.includes('does not exist') && !weighingError.message?.includes('n\'existe pas')) {
+            console.warn('[ReportsService] Erreur lors de la récupération des pesées individuelles:', weighingError.message);
+          }
+        }
+      }
+
+      cheptelData = {
+        total: animauxResult.rows.length,
+        par_sexe: {},
+        par_statut: {},
+        animaux: animauxResult.rows.map((a) => ({
+          id: a.id,
+          code: a.code,
+          nom: a.nom,
+          sexe: a.sexe,
+          date_naissance: a.date_naissance,
+          statut: a.statut,
+          race: a.race,
+          reproducteur: a.reproducteur,
+        })),
+      };
+
+      animauxResult.rows.forEach((a) => {
+        const sexe = a.sexe || 'indetermine';
+        cheptelData.par_sexe[sexe] = (cheptelData.par_sexe[sexe] || 0) + 1;
+        const statut = a.statut || 'actif';
+        cheptelData.par_statut[statut] = (cheptelData.par_statut[statut] || 0) + 1;
+      });
+
+      peseesData = peseesResult.rows.map((p) => ({
+        id: p.id,
+        animal_id: p.animal_id,
+        date: p.date,
+        poids_kg: p.poids_kg ? parseFloat(p.poids_kg) : undefined,
+      }));
+    }
+
+    // Récupérer les ventes (marketplace)
+    // Note: marketplace_listings n'a pas de colonne weight, on utilise calculated_price / price_per_kg pour estimer
+    let ventes: any[] = [];
+    try {
+      let ventesQuery = `SELECT t.id, t.final_price, t.completed_at, t.status, l.price_per_kg, l.calculated_price
+         FROM marketplace_transactions t
+         JOIN marketplace_listings l ON t.listing_id = l.id
+         WHERE l.farm_id = $1 AND t.status = 'completed'`;
+      const ventesParams: any[] = [projetId];
+      if (dateDebut) {
+        ventesQuery += ` AND t.completed_at >= $${ventesParams.length + 1}`;
+        ventesParams.push(dateDebut.toISOString());
+      }
+      if (dateFin) {
+        ventesQuery += ` AND t.completed_at <= $${ventesParams.length + 1}`;
+        ventesParams.push(dateFin.toISOString());
+      }
+      ventesQuery += ` ORDER BY t.completed_at DESC`;
+      const ventesResult = await this.databaseService.query(
+        ventesQuery,
+        ventesParams
+      );
+
+      ventes = ventesResult.rows.map((v) => {
+        const prix = v.final_price ? parseFloat(v.final_price) : undefined;
+        const prixPerKg = v.price_per_kg ? parseFloat(v.price_per_kg) : undefined;
+        // Estimer la quantité en kg à partir du prix final et du prix au kg
+        const quantiteKg = prix && prixPerKg && prixPerKg > 0 ? prix / prixPerKg : undefined;
+        
+        return {
+          id: v.id,
+          prix,
+          quantite_kg: quantiteKg,
+          prix_kg: prixPerKg,
+          date: v.completed_at,
+        };
+      });
+    } catch (ventesError: any) {
+      // Si les tables n'existent pas, ignorer l'erreur (pas de ventes)
+      if (!ventesError.message?.includes('does not exist') && !ventesError.message?.includes('n\'existe pas')) {
+        console.warn('[ReportsService] Erreur lors de la récupération des ventes:', ventesError.message);
+      }
+    }
+
+      return {
+        isModeBatch,
+        cheptel: cheptelData,
+        pesees: peseesData,
+        ventes,
+      };
+    } catch (error: any) {
+      console.error('[ReportsService] Erreur dans getProductionReportData:', {
+        projetId,
+        userId,
+        dateDebut: dateDebut?.toISOString(),
+        dateFin: dateFin?.toISOString(),
+        error: error.message,
+        stack: error.stack,
+      });
+
+      // Si c'est une exception NestJS, la relancer
+      if (error instanceof NotFoundException || error instanceof ForbiddenException) {
+        throw error;
+      }
+
+      // Sinon, lancer une erreur générique
+      throw new Error(`Erreur lors de la récupération des données de production: ${error.message}`);
+    }
   }
 }

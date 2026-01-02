@@ -1,49 +1,18 @@
 /**
- * Écran Rapports - Design standardisé cohérent avec Planning Production
+ * Écran Rapports - Hub central de téléchargement de rapports
  */
 
-import React, { useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import React from 'react';
+import { StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import ProtectedScreen from '../components/ProtectedScreen';
 import StandardHeader from '../components/StandardHeader';
-import StandardTabs, { TabItem } from '../components/StandardTabs';
-import PerformanceIndicatorsComponent from '../components/PerformanceIndicatorsComponent';
-import TendancesChartsComponent from '../components/TendancesChartsComponent';
+import ReportsHub from '../components/reports/ReportsHub';
 import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
-
-type TabType = 'performance' | 'tendances';
 
 function ReportsScreenContent() {
   const { colors } = useTheme();
-  const [activeTab, setActiveTab] = useState<TabType>('performance');
-
-  const tabs: TabItem[] = [
-    {
-      id: 'performance',
-      label: 'Indicateurs',
-      icon: 'speedometer-outline',
-      description: 'KPIs clés',
-    },
-    {
-      id: 'tendances',
-      label: 'Tendances',
-      icon: 'trending-up-outline',
-      description: 'Évolution',
-    },
-  ];
-
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'performance':
-        return <PerformanceIndicatorsComponent />;
-      case 'tendances':
-        return <TendancesChartsComponent />;
-      default:
-        return null;
-    }
-  };
 
   return (
     <SafeAreaView
@@ -51,18 +20,12 @@ function ReportsScreenContent() {
       edges={['top']}
     >
       <StandardHeader
-        icon="bar-chart"
+        icon="document-text-outline"
         title="Rapports"
-        subtitle="Indicateurs de performance et tendances"
+        subtitle="Téléchargez des rapports détaillés pour analyser votre exploitation"
       />
 
-      <StandardTabs
-        tabs={tabs}
-        activeTab={activeTab}
-        onTabChange={(tabId) => setActiveTab(tabId as TabType)}
-      />
-
-      <View style={styles.content}>{renderContent()}</View>
+      <ReportsHub />
       <ChatAgentFAB />
     </SafeAreaView>
   );
@@ -78,9 +41,6 @@ export default function ReportsScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-  },
-  content: {
     flex: 1,
   },
 });

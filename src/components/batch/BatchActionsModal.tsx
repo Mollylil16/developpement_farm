@@ -33,7 +33,7 @@ import TransferPigModal from './TransferPigModal';
 import RemovePigModal from './RemovePigModal';
 import CreateBatchListingModal from './CreateBatchListingModal';
 import BatchSettingsModal from './BatchSettingsModal';
-// import EditBatchModal from './EditBatchModal'; // À créer plus tard
+import EditBatchModal from './EditBatchModal';
 
 interface BatchActionsModalProps {
   visible: boolean;
@@ -98,12 +98,12 @@ export default function BatchActionsModal({
       icon: SlidersHorizontal,
       color: colors.info,
     },
-    // {
-    //   id: 'edit' as ActionType,
-    //   label: 'Modifier la loge',
-    //   icon: Edit,
-    //   color: colors.info,
-    // },
+    {
+      id: 'edit' as ActionType,
+      label: 'Modifier la loge',
+      icon: Edit,
+      color: colors.info,
+    },
   ];
 
   function handleActionSelect(actionId: ActionType) {
@@ -251,13 +251,14 @@ export default function BatchActionsModal({
         />
       )}
 
-      {/* {selectedAction === 'edit' && (
+      {selectedAction === 'edit' && (
         <EditBatchModal
           visible={true}
           batch={batch}
           onClose={handleActionComplete}
+          onSaved={handleActionComplete}
         />
-      )} */}
+      )}
     </>
   );
 }

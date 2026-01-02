@@ -247,7 +247,7 @@ ID Ferme: ${farm.farmId}`;
             <View style={styles.locationRow}>
               <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
               <Text style={[styles.locationText, { color: colors.textSecondary }]}>
-                {farm.location.city || farm.location.region}
+                {farm.location.city || farm.location.region || 'Localisation non disponible'}
               </Text>
               {distance !== null && distance !== undefined && (
                 <View
@@ -275,10 +275,10 @@ ID Ferme: ${farm.farmId}`;
 
             {/* Rating */}
             <View style={styles.ratingRow}>
-              {renderStars(farm.producerRating?.overall || farm.averageRating)}
+              {renderStars(farm.producerRating?.overall || farm.averageRating || 0)}
               <Text style={[styles.ratingText, { color: colors.textSecondary }]}>
-                {(farm.producerRating?.overall || farm.averageRating).toFixed(1)} (
-                {farm.producerRating?.totalReviews || farm.stats.totalRatings})
+                {(farm.producerRating?.overall || farm.averageRating || 0).toFixed(1)} (
+                {farm.producerRating?.totalReviews || farm.stats?.totalRatings || 0})
               </Text>
             </View>
           </View>
@@ -316,7 +316,7 @@ ID Ferme: ${farm.farmId}`;
           <View style={styles.statItem}>
             <Ionicons name="paw" size={20} color={colors.primary} />
             <Text style={[styles.statValue, { color: colors.text }]}>
-              {farm.aggregatedData?.totalSubjectsForSale || farm.totalSubjects}
+              {farm.aggregatedData?.totalSubjectsForSale || farm.totalSubjects || 0}
             </Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Sujets</Text>
           </View>
@@ -324,7 +324,7 @@ ID Ferme: ${farm.farmId}`;
           <View style={styles.statItem}>
             <Ionicons name="scale-outline" size={20} color={colors.primary} />
             <Text style={[styles.statValue, { color: colors.text }]}>
-              {farm.aggregatedData?.totalWeight || farm.totalWeight} kg
+              {farm.aggregatedData?.totalWeight || farm.totalWeight || 0} kg
             </Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Poids total</Text>
           </View>
@@ -333,7 +333,7 @@ ID Ferme: ${farm.farmId}`;
             <Ionicons name="cash-outline" size={20} color={colors.primary} />
             <Text style={[styles.statValue, { color: colors.text }]}>
               {farm.aggregatedData?.priceRange
-                ? `${Math.round(farm.aggregatedData.priceRange.min)}-${Math.round(farm.aggregatedData.priceRange.max)}`
+                ? `${Math.round(farm.aggregatedData.priceRange.min || 0)}-${Math.round(farm.aggregatedData.priceRange.max || 0)}`
                 : 'N/A'}
             </Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>FCFA/kg</Text>

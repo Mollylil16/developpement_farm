@@ -11,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { normalizeIconName } from '../utils/iconValidation';
 
-export type FinanceOngletType = 'vue_ensemble' | 'charges_fixes' | 'depenses' | 'revenus' | 'bilan';
+export type FinanceOngletType = 'vue_ensemble' | 'charges_fixes' | 'depenses' | 'revenus' | 'dettes' | 'bilan';
 
 interface FinanceOnglet {
   id: FinanceOngletType;

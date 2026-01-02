@@ -12,10 +12,25 @@ ALTER TABLE marketplace_listings
 
 -- Rendre subject_id nullable car pour les listings de bande, on n'a pas de subject_id unique
 -- Note: La contrainte de clé étrangère reste mais accepte NULL
-ALTER TABLE marketplace_listings
-  ALTER COLUMN subject_id DROP NOT NULL;
+-- Vérifier si la colonne est déjà nullable avant de modifier
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'marketplace_listings' 
+      AND column_name = 'subject_id' 
+      AND is_nullable = 'NO'
+  ) THEN
+    ALTER TABLE marketplace_listings
+      ALTER COLUMN subject_id DROP NOT NULL;
+  END IF;
+END $$;
 
 -- Ajouter une contrainte : si listing_type = 'batch', batch_id doit être renseigné
+-- DROP la contrainte si elle existe déjà (pour éviter les conflits avec migration 63)
+ALTER TABLE marketplace_listings
+  DROP CONSTRAINT IF EXISTS check_batch_listing;
+
 ALTER TABLE marketplace_listings
   ADD CONSTRAINT check_batch_listing 
     CHECK (

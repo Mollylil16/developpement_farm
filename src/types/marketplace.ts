@@ -501,12 +501,37 @@ export type PurchaseRequestStatus =
   | 'fulfilled'
   | 'expired'
   | 'archived'
-  | 'cancelled';
+  | 'cancelled'
+  | 'pending';
+
+/**
+ * Type d'émetteur d'une demande
+ */
+export type PurchaseRequestSenderType = 'buyer' | 'producer';
+
+/**
+ * Mode de gestion pour une demande
+ */
+export type PurchaseRequestManagementMode = 'individual' | 'batch' | 'both';
+
+/**
+ * Stade de croissance
+ */
+export type GrowthStage = 'porcelet' | 'croissance' | 'engraissement' | 'fini' | 'tous';
 
 /**
  * Catégorie d'âge pour les demandes d'achat
  */
 export type AgeCategory = 'jeunes' | 'engraissement' | 'finis' | 'tous';
+
+/**
+ * Seuils de matching pour les demandes
+ */
+export interface MatchingThresholds {
+  weightTolerance?: number; // Tolérance sur le poids en % (défaut: 10)
+  priceTolerance?: number; // Tolérance sur le prix en % (défaut: 20)
+  locationRadius?: number; // Rayon de recherche en km (défaut: 50)
+}
 
 /**
  * Localisation de livraison pour une demande d'achat
@@ -523,10 +548,13 @@ export interface DeliveryLocation {
 
 /**
  * Demande d'achat (Purchase Request)
+ * Supporte maintenant les acheteurs ET les producteurs
  */
 export interface PurchaseRequest {
   id: string;
-  buyerId: string;
+  buyerId: string; // @deprecated - utiliser senderId et senderType
+  senderId: string; // ID de l'émetteur (buyer ou producer)
+  senderType: PurchaseRequestSenderType; // Type d'émetteur
   title: string;
   race: string;
   minWeight: number;
@@ -550,6 +578,11 @@ export interface PurchaseRequest {
   createdAt: string;
   updatedAt: string;
   deletedAt?: string;
+  // Nouveaux champs pour producteurs et modes
+  managementMode?: PurchaseRequestManagementMode; // Mode de gestion préféré
+  growthStage?: GrowthStage; // Stade de croissance souhaité
+  matchingThresholds?: MatchingThresholds; // Seuils de matching configurables
+  farmId?: string; // ID du projet/ferme pour les producteurs
 }
 
 /**
@@ -564,14 +597,18 @@ export type PurchaseRequestOfferStatus =
   | 'withdrawn';
 
 /**
- * Offre d'un producteur sur une demande d'achat
+ * Offre/Réponse sur une demande d'achat
+ * Peut être créée par un producteur (en réponse à une demande) ou par un autre utilisateur
  */
 export interface PurchaseRequestOffer {
   id: string;
   purchaseRequestId: string;
-  producerId: string;
+  producerId: string; // @deprecated - utiliser responderId et responderType
+  responderId: string; // ID du répondant
+  responderType: PurchaseRequestSenderType; // Type de répondant (buyer ou producer)
   listingId?: string; // Listing associé si disponible
-  subjectIds: string[]; // IDs des sujets proposés
+  subjectIds?: string[]; // IDs des sujets proposés (mode individuel)
+  batchId?: string; // ID de la bande (mode batch)
   proposedPricePerKg: number;
   proposedTotalPrice: number;
   quantity: number;

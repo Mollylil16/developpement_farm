@@ -172,6 +172,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_batch_counts ON batch_pigs;
 CREATE TRIGGER trigger_update_batch_counts
 AFTER INSERT OR DELETE OR UPDATE OF batch_id ON batch_pigs
 FOR EACH ROW
@@ -201,6 +202,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_batch_weight ON batch_pigs;
 CREATE TRIGGER trigger_update_batch_weight
 AFTER INSERT OR UPDATE OF current_weight_kg OR DELETE ON batch_pigs
 FOR EACH ROW

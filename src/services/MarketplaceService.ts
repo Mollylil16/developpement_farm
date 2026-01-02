@@ -168,9 +168,36 @@ export class MarketplaceService {
     // Filtrer les listings de l'utilisateur si userId fourni
     let filteredListings = listings;
     if (userId) {
-      const { getMarketplacePermissions } = await import('./MarketplacePermissions');
-      const permissions = getMarketplacePermissions();
-      filteredListings = await permissions.filterListingsForUser(userId, listings);
+      try {
+        const { getMarketplacePermissions } = await import('./MarketplacePermissions');
+        const permissions = getMarketplacePermissions();
+        filteredListings = await permissions.filterListingsForUser(userId, listings);
+      } catch (error) {
+        logger.error('Erreur lors du filtrage des listings dans searchListings:', error);
+        // En cas d'erreur, filtrer manuellement par producerId et farmId
+        try {
+          const { ProjetRepository } = await import('../database/repositories');
+          const projetRepo = new ProjetRepository();
+          const userProjets = await projetRepo.findByOwnerId(userId);
+          const userFarmIds = userProjets.map((p) => p.id);
+          
+          filteredListings = listings.filter((listing) => {
+            // Exclure si producerId correspond à userId
+            if (listing.producerId === userId) {
+              return false;
+            }
+            // Exclure si farmId correspond à un projet de l'utilisateur
+            if (listing.farmId && userFarmIds.includes(listing.farmId)) {
+              return false;
+            }
+            return true;
+          });
+        } catch (fallbackError) {
+          logger.error('Erreur lors du filtrage de secours:', fallbackError);
+          // En dernier recours, filtrer uniquement par producerId
+          filteredListings = listings.filter((listing) => listing.producerId !== userId);
+        }
+      }
     }
 
     // Enrichir les listings avec les données des animaux
@@ -184,7 +211,29 @@ export class MarketplaceService {
     const enrichedListings = await Promise.all(
       filteredListings.map(async (listing) => {
         try {
-          // Récupérer les données de l'animal
+          // Gérer les listings batch (sans subjectId)
+          if (listing.listingType === 'batch' || (!listing.subjectId && listing.batchId)) {
+            // Pour les listings batch, retourner le listing tel quel avec quelques enrichissements
+            return {
+              ...listing,
+              type: 'batch' as const,
+              code: listing.batchId ? `Bande #${listing.batchId.slice(0, 8)}` : 'Bande',
+              race: 'Bande',
+              weight: listing.weight || 0,
+              weightDate: listing.lastWeightDate,
+              age: 0,
+              totalPrice: listing.calculatedPrice,
+              healthStatus: 'good' as const,
+              vaccinations: false,
+              available: listing.status === 'available',
+            };
+          }
+
+          // Pour les listings individuels, récupérer les données de l'animal
+          if (!listing.subjectId) {
+            return null; // Ignorer les listings sans subjectId ni batchId
+          }
+
           const animal = await animalRepo.findById(listing.subjectId);
           if (!animal) {
             return null; // Ignorer les listings avec animaux introuvables
@@ -223,7 +272,7 @@ export class MarketplaceService {
             ...listing,
             type: 'subject' as const,
             // Propriétés pour SubjectCard
-            code: animal.code || animal.numero_identification || `#${animal.id.slice(0, 8)}`,
+            code: animal.code || animal.numero_identification || (animal.id ? `#${animal.id.slice(0, 8)}` : listing.subjectId || 'N/A'),
             race: animal.race || 'Non spécifiée',
             weight: poidsActuel,
             weightDate: dernierePesee?.date_pesee || listing.lastWeightDate,
@@ -282,9 +331,36 @@ export class MarketplaceService {
     // Filtrer les listings de l'utilisateur si userId fourni
     let filteredListings = listings;
     if (userId) {
-      const { getMarketplacePermissions } = await import('./MarketplacePermissions');
-      const permissions = getMarketplacePermissions();
-      filteredListings = await permissions.filterListingsForUser(userId, listings);
+      try {
+        const { getMarketplacePermissions } = await import('./MarketplacePermissions');
+        const permissions = getMarketplacePermissions();
+        filteredListings = await permissions.filterListingsForUser(userId, listings);
+      } catch (error) {
+        logger.error('Erreur lors du filtrage des listings dans groupListingsByFarm:', error);
+        // En cas d'erreur, filtrer manuellement par producerId et farmId
+        try {
+          const { ProjetRepository } = await import('../database/repositories');
+          const projetRepo = new ProjetRepository();
+          const userProjets = await projetRepo.findByOwnerId(userId);
+          const userFarmIds = userProjets.map((p) => p.id);
+          
+          filteredListings = listings.filter((listing) => {
+            // Exclure si producerId correspond à userId
+            if (listing.producerId === userId) {
+              return false;
+            }
+            // Exclure si farmId correspond à un projet de l'utilisateur
+            if (listing.farmId && userFarmIds.includes(listing.farmId)) {
+              return false;
+            }
+            return true;
+          });
+        } catch (fallbackError) {
+          logger.error('Erreur lors du filtrage de secours:', fallbackError);
+          // En dernier recours, filtrer uniquement par producerId
+          filteredListings = listings.filter((listing) => listing.producerId !== userId);
+        }
+      }
     }
     // Grouper par farmId
     const farmGroups = new Map<string, MarketplaceListing[]>();
@@ -298,15 +374,22 @@ export class MarketplaceService {
     }
 
     // Créer les FarmCards
-    const { UserRepository } = await import('../database/repositories');
-    const { ProjetRepository } = await import('../database/repositories');
-    const { MarketplaceRatingRepository } = await import('../database/repositories');
-    const { AnimalRepository } = await import('../database/repositories');
+    let userRepo: any;
+    let projetRepo: any;
+    let ratingRepo: any;
+    let animalRepo: any;
 
-    const userRepo = new UserRepository();
-    const projetRepo = new ProjetRepository();
-      const ratingRepo = new MarketplaceRatingRepository();
-      const animalRepo = new AnimalRepository();
+    try {
+      const repositories = await import('../database/repositories');
+      userRepo = new repositories.UserRepository();
+      projetRepo = new repositories.ProjetRepository();
+      ratingRepo = new repositories.MarketplaceRatingRepository();
+      animalRepo = new repositories.AnimalRepository();
+    } catch (error) {
+      logger.error('Erreur lors de l\'import des repositories dans groupListingsByFarm:', error);
+      // Retourner un tableau vide si les repositories ne peuvent pas être chargés
+      return [];
+    }
 
     const farmCards: FarmCard[] = [];
 
@@ -331,22 +414,51 @@ export class MarketplaceService {
         const avgPrice = prices.reduce((sum, p) => sum + p, 0) / prices.length;
 
         // Récupérer les races disponibles
-        const subjectIds = farmListings.map((l) => l.subjectId);
+        // Filtrer les listings individuels (avec subjectId) et batch (avec batchId)
+        const individualListings = farmListings.filter((l) => l.subjectId && (l.listingType === 'individual' || !l.listingType));
+        const batchListings = farmListings.filter((l) => l.listingType === 'batch' && l.batchId);
+        
         const races = new Set<string>();
         const photos: string[] = [];
 
+        // Traiter les listings individuels
+        const subjectIds = individualListings.map((l) => l.subjectId).filter((id): id is string => !!id);
         for (const subjectId of subjectIds.slice(0, 4)) {
-          const animal = await animalRepo.findById(subjectId);
-          if (animal) {
-            if (animal.race) races.add(animal.race);
-            if (animal.photo_uri) photos.push(animal.photo_uri);
+          try {
+            const animal = await animalRepo.findById(subjectId);
+            if (animal) {
+              if (animal.race) races.add(animal.race);
+              if (animal.photo_uri) photos.push(animal.photo_uri);
+            }
+          } catch (error) {
+            logger.warn(`Erreur récupération animal ${subjectId}:`, error);
+          }
+        }
+
+        // Traiter les listings batch (récupérer les races depuis les batches)
+        for (const batchListing of batchListings.slice(0, 4)) {
+          try {
+            if (batchListing.batchId) {
+              // Récupérer les informations de la bande depuis l'API
+              const apiClient = (await import('./api/apiClient')).default;
+              const batch = await apiClient.get<any>(`/batch-pigs/batch/${batchListing.batchId}`);
+              if (batch) {
+                // Les batches peuvent avoir une catégorie qui peut être utilisée comme "race"
+                if (batch.category) {
+                  races.add(batch.category);
+                }
+                // Pour les photos, on pourrait récupérer depuis batch_pigs si nécessaire
+              }
+            }
+          } catch (error) {
+            logger.warn(`Erreur récupération batch ${batchListing.batchId}:`, error);
           }
         }
 
         // Récupérer les ratings
         const ratings = await ratingRepo.findByProducerId(producerId);
         const avgRating =
-          ratings.length > 0 ? ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length : 0;
+          ratings.length > 0 ? ratings.reduce((sum, r) => sum + (r.overall || 0), 0) / ratings.length : 0;
 
         // Calculer la distance si location fournie
         let distance: number | undefined;
@@ -429,9 +541,36 @@ export class MarketplaceService {
     // Filtrer les FarmCards de l'utilisateur si userId fourni
     let filteredFarmCards = farmCards;
     if (userId) {
-      const { getMarketplacePermissions } = await import('./MarketplacePermissions');
-      const permissions = getMarketplacePermissions();
-      filteredFarmCards = await permissions.filterFarmCardsForUser(userId, farmCards);
+      try {
+        const { getMarketplacePermissions } = await import('./MarketplacePermissions');
+        const permissions = getMarketplacePermissions();
+        filteredFarmCards = await permissions.filterFarmCardsForUser(userId, farmCards);
+      } catch (error) {
+        logger.error('Erreur lors du filtrage des FarmCards:', error);
+        // En cas d'erreur, filtrer manuellement par producerId et farmId
+        try {
+          const { ProjetRepository } = await import('../database/repositories');
+          const projetRepo = new ProjetRepository();
+          const userProjets = await projetRepo.findByOwnerId(userId);
+          const userFarmIds = userProjets.map((p) => p.id);
+          
+          filteredFarmCards = farmCards.filter((farm) => {
+            // Exclure si producerId correspond à userId
+            if (farm.producerId === userId) {
+              return false;
+            }
+            // Exclure si farmId correspond à un projet de l'utilisateur
+            if (farm.farmId && userFarmIds.includes(farm.farmId)) {
+              return false;
+            }
+            return true;
+          });
+        } catch (fallbackError) {
+          logger.error('Erreur lors du filtrage de secours des FarmCards:', fallbackError);
+          // En dernier recours, filtrer uniquement par producerId
+          filteredFarmCards = farmCards.filter((farm) => farm.producerId !== userId);
+        }
+      }
     }
 
     // Trier les fermes : favoris en premier, puis les autres

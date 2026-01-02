@@ -93,6 +93,7 @@ export async function generateAndSharePDF(
 
 /**
  * Style CSS commun pour tous les PDFs
+ * Palette harmonieuse vert/bleu pour évoquer la nature et l'élevage
  */
 export const PDF_COMMON_STYLES = `
   <style>
@@ -103,170 +104,201 @@ export const PDF_COMMON_STYLES = `
     }
     
     body {
-      font-family: 'Helvetica', 'Arial', sans-serif;
+      font-family: 'Helvetica Neue', 'Arial', sans-serif;
       font-size: 12px;
-      line-height: 1.6;
-      color: #333;
+      line-height: 1.7;
+      color: #2c3e50;
       padding: 40px;
+      background: #f8f9fa;
     }
     
     h1 {
-      font-size: 24px;
+      font-size: 26px;
       font-weight: bold;
-      margin-bottom: 10px;
-      color: #1a1a1a;
-      border-bottom: 3px solid #1565C0;
-      padding-bottom: 10px;
+      margin-bottom: 12px;
+      color: #1a5f2e;
+      border-bottom: 3px solid #2e7d32;
+      padding-bottom: 12px;
     }
     
     h2 {
-      font-size: 18px;
+      font-size: 20px;
       font-weight: bold;
-      margin-top: 20px;
-      margin-bottom: 10px;
-      color: #2c2c2c;
-      border-left: 4px solid #1565C0;
-      padding-left: 10px;
+      margin-top: 30px;
+      margin-bottom: 15px;
+      color: #1a5f2e;
+      border-left: 5px solid #2e7d32;
+      padding-left: 15px;
+      background: linear-gradient(to right, #f5f5f5 0%, transparent 100%);
+      padding-top: 8px;
+      padding-bottom: 8px;
     }
     
     h3 {
-      font-size: 14px;
-      font-weight: bold;
-      margin-top: 15px;
-      margin-bottom: 8px;
-      color: #444;
+      font-size: 16px;
+      font-weight: 600;
+      margin-top: 20px;
+      margin-bottom: 12px;
+      color: #2e7d32;
     }
     
     p {
-      margin-bottom: 8px;
+      margin-bottom: 10px;
+      color: #34495e;
     }
     
     .header {
       text-align: center;
-      margin-bottom: 30px;
-      padding-bottom: 20px;
-      border-bottom: 2px solid #e0e0e0;
+      margin-bottom: 35px;
+      padding: 25px;
+      background: linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%);
+      border-radius: 12px;
+      color: white;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
     
     .header-title {
-      font-size: 28px;
+      font-size: 32px;
       font-weight: bold;
-      color: #1565C0;
-      margin-bottom: 5px;
+      color: white;
+      margin-bottom: 8px;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
     
     .header-subtitle {
-      font-size: 14px;
-      color: #666;
+      font-size: 16px;
+      color: rgba(255,255,255,0.95);
+      margin-bottom: 5px;
     }
     
     .header-date {
-      font-size: 11px;
-      color: #999;
-      margin-top: 5px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.85);
+      margin-top: 10px;
     }
     
     .section {
-      margin-bottom: 25px;
+      margin-bottom: 30px;
       page-break-inside: avoid;
     }
     
     .card {
-      background: #f9f9f9;
-      border: 1px solid #e0e0e0;
-      border-radius: 8px;
-      padding: 15px;
-      margin-bottom: 15px;
+      background: white;
+      border: 1px solid #bdbdbd;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
       page-break-inside: avoid;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
     
     .stats-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 15px;
-      margin-bottom: 15px;
+      gap: 18px;
+      margin-bottom: 20px;
     }
     
     .stat-card {
-      background: white;
-      border: 1px solid #e0e0e0;
-      border-radius: 6px;
-      padding: 12px;
+      background: linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%);
+      border: 2px solid #2e7d32;
+      border-radius: 10px;
+      padding: 18px;
       text-align: center;
+      box-shadow: 0 2px 8px rgba(46,125,50,0.15);
+      transition: transform 0.2s;
     }
     
     .stat-value {
-      font-size: 24px;
+      font-size: 28px;
       font-weight: bold;
-      color: #1565C0;
-      margin-bottom: 5px;
+      color: #2e7d32;
+      margin-bottom: 8px;
     }
     
     .stat-label {
       font-size: 11px;
-      color: #666;
+      color: #2e7d32;
       text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
     }
     
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-bottom: 15px;
+      margin-bottom: 20px;
       font-size: 11px;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
     }
     
     th {
-      background: #1565C0;
+      background: linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%);
       color: white;
-      padding: 10px;
+      padding: 12px 15px;
       text-align: left;
-      font-weight: bold;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 10px;
+      letter-spacing: 0.5px;
     }
     
     td {
-      padding: 8px 10px;
+      padding: 10px 15px;
       border-bottom: 1px solid #e0e0e0;
+      color: #2c3e50;
     }
     
     tr:nth-child(even) {
-      background: #f9f9f9;
+      background: #f8f9fa;
+    }
+    
+    tr:hover {
+      background: #f5f5f5;
     }
     
     .footer {
-      margin-top: 40px;
-      padding-top: 20px;
-      border-top: 2px solid #e0e0e0;
+      margin-top: 50px;
+      padding-top: 25px;
+      border-top: 3px solid #2e7d32;
       text-align: center;
       font-size: 10px;
-      color: #999;
+      color: #7f8c8d;
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 8px;
     }
     
     .badge {
       display: inline-block;
-      padding: 4px 8px;
-      border-radius: 4px;
+      padding: 5px 10px;
+      border-radius: 6px;
       font-size: 10px;
-      font-weight: bold;
+      font-weight: 600;
     }
     
     .badge-success {
-      background: #e3f2fd;
-      color: #0d47a1;
+      background: #f1f8f4;
+      color: #1b5e20;
+      border: 1px solid #2e7d32;
     }
     
     .badge-warning {
-      background: #fff3cd;
-      color: #856404;
+      background: #fff9c4;
+      color: #f57f17;
     }
     
     .badge-danger {
-      background: #f8d7da;
-      color: #721c24;
+      background: #ffcdd2;
+      color: #c62828;
     }
     
     .badge-info {
-      background: #d1ecf1;
-      color: #0c5460;
+      background: #b3e5fc;
+      color: #01579b;
     }
     
     .text-right {
@@ -278,32 +310,81 @@ export const PDF_COMMON_STYLES = `
     }
     
     .text-success {
-      color: #1976D2;
+      color: #2e7d32;
+      font-weight: 600;
     }
     
     .text-danger {
-      color: #dc3545;
+      color: #c62828;
+      font-weight: 600;
     }
     
     .text-warning {
-      color: #ffc107;
+      color: #f57f17;
+      font-weight: 600;
+    }
+    
+    .text-info {
+      color: #0277bd;
+      font-weight: 600;
     }
     
     .mb-2 {
-      margin-bottom: 10px;
+      margin-bottom: 15px;
     }
     
     .mt-2 {
-      margin-top: 10px;
+      margin-top: 15px;
+    }
+    
+    .chart-container {
+      background: white;
+      border: 1px solid #bdbdbd;
+      border-radius: 10px;
+      padding: 20px;
+      margin: 20px 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      page-break-inside: avoid;
+    }
+    
+    .chart-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #2e7d32;
+      margin-bottom: 15px;
+      text-align: center;
+    }
+    
+    .chart-description {
+      font-size: 11px;
+      color: #7f8c8d;
+      margin-top: 12px;
+      text-align: center;
+      font-style: italic;
+      padding: 10px;
+      background: #f8f9fa;
+      border-radius: 6px;
+    }
+    
+    canvas {
+      max-width: 100%;
+      height: auto;
+      display: block;
+      margin: 0 auto;
     }
     
     @media print {
       body {
         padding: 20px;
+        background: white;
       }
       
       .page-break {
         page-break-before: always;
+      }
+      
+      .chart-container {
+        page-break-inside: avoid;
       }
     }
   </style>
@@ -326,8 +407,8 @@ export function generatePDFHeader(title: string, subtitle: string, projetNom?: s
     <div class="header">
       <div class="header-title">🐷 Fermier Pro</div>
       <div class="header-subtitle">${projetNom || 'Rapport'}</div>
-      <h1>${title}</h1>
-      <p>${subtitle}</p>
+      <h1 style="color: white; border: none; padding: 0; margin-top: 10px;">${title}</h1>
+      <p style="color: rgba(255,255,255,0.95); margin-top: 8px;">${subtitle}</p>
       <div class="header-date">Généré le ${dateFormatted}</div>
     </div>
   `;
@@ -401,4 +482,382 @@ export function formatDate(dateString: string): string {
   } catch {
     return dateString;
   }
+}
+
+/**
+ * Interface pour les données d'un graphique en ligne
+ */
+export interface LineChartData {
+  labels: string[];
+  datasets: Array<{
+    label: string;
+    data: number[];
+    color: string;
+    lineWidth?: number;
+  }>;
+}
+
+/**
+ * Interface pour les données d'un graphique en barres
+ */
+export interface BarChartData {
+  labels: string[];
+  datasets: Array<{
+    label: string;
+    data: number[];
+    color: string;
+  }>;
+}
+
+/**
+ * Interface pour les données d'un graphique camembert
+ */
+export interface PieChartData {
+  labels: string[];
+  values: number[];
+  colors: string[];
+}
+
+/**
+ * Génère un graphique en ligne avec Canvas HTML
+ */
+export function generateLineChartHTML(
+  chartId: string,
+  data: LineChartData,
+  title: string,
+  description?: string,
+  width: number = 800,
+  height: number = 300
+): string {
+  const datasetsJson = JSON.stringify(data.datasets);
+  const labelsJson = JSON.stringify(data.labels);
+
+  return `
+    <div class="chart-container">
+      <div class="chart-title">${title}</div>
+      <canvas id="${chartId}" width="${width}" height="${height}"></canvas>
+      ${description ? `<div class="chart-description">${description}</div>` : ''}
+      <script>
+        (function() {
+          const canvas = document.getElementById('${chartId}');
+          if (!canvas) return;
+          
+          const ctx = canvas.getContext('2d');
+          const width = canvas.width;
+          const height = canvas.height;
+          const padding = { top: 30, right: 40, bottom: 40, left: 60 };
+          const chartWidth = width - padding.left - padding.right;
+          const chartHeight = height - padding.top - padding.bottom;
+          
+          const labels = ${labelsJson};
+          const datasets = ${datasetsJson};
+          
+          // Trouver les valeurs min/max pour l'échelle
+          let minValue = Infinity;
+          let maxValue = -Infinity;
+          datasets.forEach(dataset => {
+            dataset.data.forEach(val => {
+              if (val < minValue) minValue = val;
+              if (val > maxValue) maxValue = val;
+            });
+          });
+          
+          // Ajouter une marge
+          const range = maxValue - minValue;
+          minValue = minValue - range * 0.1;
+          maxValue = maxValue + range * 0.1;
+          
+          // Dessiner la grille
+          ctx.strokeStyle = '#e0e0e0';
+          ctx.lineWidth = 1;
+          const gridLines = 5;
+          for (let i = 0; i <= gridLines; i++) {
+            const y = padding.top + (chartHeight / gridLines) * i;
+            ctx.beginPath();
+            ctx.moveTo(padding.left, y);
+            ctx.lineTo(padding.left + chartWidth, y);
+            ctx.stroke();
+            
+            // Labels Y
+            const value = maxValue - ((maxValue - minValue) / gridLines) * i;
+            ctx.fillStyle = '#7f8c8d';
+            ctx.font = '10px Arial';
+            ctx.textAlign = 'right';
+            ctx.fillText(value.toFixed(0), padding.left - 10, y + 4);
+          }
+          
+          // Dessiner les axes
+          ctx.strokeStyle = '#2c3e50';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(padding.left, padding.top);
+          ctx.lineTo(padding.left, padding.top + chartHeight);
+          ctx.lineTo(padding.left + chartWidth, padding.top + chartHeight);
+          ctx.stroke();
+          
+          // Dessiner les lignes de données
+          datasets.forEach((dataset, datasetIndex) => {
+            ctx.strokeStyle = dataset.color;
+            ctx.lineWidth = dataset.lineWidth || 3;
+            ctx.beginPath();
+            
+            dataset.data.forEach((value, index) => {
+              const x = padding.left + (chartWidth / (labels.length - 1)) * index;
+              const y = padding.top + chartHeight - ((value - minValue) / (maxValue - minValue)) * chartHeight;
+              
+              if (index === 0) {
+                ctx.moveTo(x, y);
+              } else {
+                ctx.lineTo(x, y);
+              }
+            });
+            
+            ctx.stroke();
+            
+            // Dessiner les points
+            dataset.data.forEach((value, index) => {
+              const x = padding.left + (chartWidth / (labels.length - 1)) * index;
+              const y = padding.top + chartHeight - ((value - minValue) / (maxValue - minValue)) * chartHeight;
+              
+              ctx.fillStyle = dataset.color;
+              ctx.beginPath();
+              ctx.arc(x, y, 4, 0, 2 * Math.PI);
+              ctx.fill();
+            });
+          });
+          
+          // Labels X
+          ctx.fillStyle = '#7f8c8d';
+          ctx.font = '10px Arial';
+          ctx.textAlign = 'center';
+          labels.forEach((label, index) => {
+            const x = padding.left + (chartWidth / (labels.length - 1)) * index;
+            ctx.fillText(label, x, padding.top + chartHeight + 20);
+          });
+          
+          // Légende
+          ctx.textAlign = 'left';
+          ctx.font = '11px Arial';
+          datasets.forEach((dataset, index) => {
+            const x = padding.left + chartWidth - 150;
+            const y = padding.top + 20 + index * 20;
+            
+            ctx.fillStyle = dataset.color;
+            ctx.fillRect(x, y - 8, 15, 3);
+            
+            ctx.fillStyle = '#2c3e50';
+            ctx.fillText(dataset.label, x + 20, y);
+          });
+        })();
+      </script>
+    </div>
+  `;
+}
+
+/**
+ * Génère un graphique en barres avec Canvas HTML
+ */
+export function generateBarChartHTML(
+  chartId: string,
+  data: BarChartData,
+  title: string,
+  description?: string,
+  width: number = 800,
+  height: number = 300
+): string {
+  const datasetsJson = JSON.stringify(data.datasets);
+  const labelsJson = JSON.stringify(data.labels);
+
+  return `
+    <div class="chart-container">
+      <div class="chart-title">${title}</div>
+      <canvas id="${chartId}" width="${width}" height="${height}"></canvas>
+      ${description ? `<div class="chart-description">${description}</div>` : ''}
+      <script>
+        (function() {
+          const canvas = document.getElementById('${chartId}');
+          if (!canvas) return;
+          
+          const ctx = canvas.getContext('2d');
+          const width = canvas.width;
+          const height = canvas.height;
+          const padding = { top: 30, right: 40, bottom: 40, left: 60 };
+          const chartWidth = width - padding.left - padding.right;
+          const chartHeight = height - padding.top - padding.bottom;
+          
+          const labels = ${labelsJson};
+          const datasets = ${datasetsJson};
+          
+          // Trouver les valeurs min/max
+          let maxValue = 0;
+          datasets.forEach(dataset => {
+            dataset.data.forEach(val => {
+              if (val > maxValue) maxValue = val;
+            });
+          });
+          maxValue = maxValue * 1.1; // Marge de 10%
+          
+          // Dessiner la grille
+          ctx.strokeStyle = '#e0e0e0';
+          ctx.lineWidth = 1;
+          const gridLines = 5;
+          for (let i = 0; i <= gridLines; i++) {
+            const y = padding.top + (chartHeight / gridLines) * i;
+            ctx.beginPath();
+            ctx.moveTo(padding.left, y);
+            ctx.lineTo(padding.left + chartWidth, y);
+            ctx.stroke();
+            
+            const value = maxValue - ((maxValue) / gridLines) * i;
+            ctx.fillStyle = '#7f8c8d';
+            ctx.font = '10px Arial';
+            ctx.textAlign = 'right';
+            ctx.fillText(value.toFixed(0), padding.left - 10, y + 4);
+          }
+          
+          // Dessiner les axes
+          ctx.strokeStyle = '#2c3e50';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(padding.left, padding.top);
+          ctx.lineTo(padding.left, padding.top + chartHeight);
+          ctx.lineTo(padding.left + chartWidth, padding.top + chartHeight);
+          ctx.stroke();
+          
+          // Dessiner les barres
+          const barWidth = chartWidth / labels.length * 0.6;
+          const barSpacing = chartWidth / labels.length;
+          
+          datasets.forEach((dataset, datasetIndex) => {
+            ctx.fillStyle = dataset.color;
+            
+            dataset.data.forEach((value, index) => {
+              const x = padding.left + barSpacing * index + (barSpacing - barWidth) / 2;
+              const barHeight = (value / maxValue) * chartHeight;
+              const y = padding.top + chartHeight - barHeight;
+              
+              ctx.fillRect(x, y, barWidth, barHeight);
+            });
+          });
+          
+          // Labels X
+          ctx.fillStyle = '#7f8c8d';
+          ctx.font = '10px Arial';
+          ctx.textAlign = 'center';
+          labels.forEach((label, index) => {
+            const x = padding.left + barSpacing * index + barSpacing / 2;
+            ctx.fillText(label, x, padding.top + chartHeight + 20);
+          });
+          
+          // Légende
+          ctx.textAlign = 'left';
+          ctx.font = '11px Arial';
+          datasets.forEach((dataset, index) => {
+            const x = padding.left + chartWidth - 150;
+            const y = padding.top + 20 + index * 20;
+            
+            ctx.fillStyle = dataset.color;
+            ctx.fillRect(x, y - 8, 15, 12);
+            
+            ctx.fillStyle = '#2c3e50';
+            ctx.fillText(dataset.label, x + 20, y);
+          });
+        })();
+      </script>
+    </div>
+  `;
+}
+
+/**
+ * Génère un graphique camembert avec Canvas HTML
+ */
+export function generatePieChartHTML(
+  chartId: string,
+  data: PieChartData,
+  title: string,
+  description?: string,
+  width: number = 500,
+  height: number = 400
+): string {
+  const labelsJson = JSON.stringify(data.labels);
+  const valuesJson = JSON.stringify(data.values);
+  const colorsJson = JSON.stringify(data.colors);
+
+  return `
+    <div class="chart-container">
+      <div class="chart-title">${title}</div>
+      <canvas id="${chartId}" width="${width}" height="${height}"></canvas>
+      ${description ? `<div class="chart-description">${description}</div>` : ''}
+      <script>
+        (function() {
+          const canvas = document.getElementById('${chartId}');
+          if (!canvas) return;
+          
+          const ctx = canvas.getContext('2d');
+          const centerX = canvas.width / 2;
+          const centerY = canvas.height / 2;
+          const radius = Math.min(centerX, centerY) - 50;
+          
+          const labels = ${labelsJson};
+          const values = ${valuesJson};
+          const colors = ${colorsJson};
+          
+          const total = values.reduce((sum, val) => sum + val, 0);
+          
+          let currentAngle = -Math.PI / 2;
+          
+          // Dessiner le camembert
+          values.forEach((value, index) => {
+            const sliceAngle = (value / total) * 2 * Math.PI;
+            
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
+            ctx.closePath();
+            ctx.fillStyle = colors[index] || '#2e7d32';
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Label
+            const labelAngle = currentAngle + sliceAngle / 2;
+            const labelX = centerX + Math.cos(labelAngle) * (radius * 0.7);
+            const labelY = centerY + Math.sin(labelAngle) * (radius * 0.7);
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 12px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const percentage = ((value / total) * 100).toFixed(1);
+            ctx.fillText(percentage + '%', labelX, labelY);
+            
+            currentAngle += sliceAngle;
+          });
+          
+          // Légende
+          ctx.textAlign = 'left';
+          ctx.font = '11px Arial';
+          const legendX = centerX + radius + 30;
+          let legendY = centerY - (labels.length * 20) / 2;
+          
+          labels.forEach((label, index) => {
+            ctx.fillStyle = colors[index] || '#2e7d32';
+            ctx.fillRect(legendX, legendY - 8, 15, 12);
+            
+            ctx.fillStyle = '#2c3e50';
+            ctx.fillText(label, legendX + 20, legendY);
+            
+            const valueText = values[index] + ' (' + ((values[index] / total) * 100).toFixed(1) + '%)';
+            ctx.fillStyle = '#7f8c8d';
+            ctx.font = '10px Arial';
+            ctx.fillText(valueText, legendX + 20, legendY + 12);
+            ctx.font = '11px Arial';
+            
+            legendY += 35;
+          });
+        })();
+      </script>
+    </div>
+  `;
 }

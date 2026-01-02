@@ -78,6 +78,7 @@ interface BilanCompletData {
     ratio_rentabilite: number;
     cout_kg_opex: number;
     total_kg_vendus: number;
+    total_kg_vendus_estime?: boolean;
   };
 }
 
@@ -591,10 +592,18 @@ export default function FinanceBilanCompletComponent() {
           <View style={[styles.indicatorBox, { backgroundColor: colors.surface }]}>
             <Text style={[styles.indicatorLabel, { color: colors.textSecondary }]}>
               Total kg vendus
+              {bilanData.indicateurs.total_kg_vendus_estime && (
+                <Text style={{ color: colors.warning, fontSize: FONT_SIZES.xs }}> (estimation)</Text>
+              )}
             </Text>
             <Text style={[styles.indicatorValue, { color: colors.text }]}>
               {formatMontant(bilanData.indicateurs.total_kg_vendus)} kg
             </Text>
+            {bilanData.indicateurs.total_kg_vendus_estime && (
+              <Text style={[styles.indicatorSubtext, { color: colors.textSecondary }]}>
+                Estimation basée sur les ventes réalisées
+              </Text>
+            )}
           </View>
         </View>
       </Card>
@@ -868,6 +877,11 @@ const styles = StyleSheet.create({
   indicatorValue: {
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.bold,
+  },
+  indicatorSubtext: {
+    fontSize: FONT_SIZES.xs,
+    marginTop: SPACING.xs / 2,
+    fontStyle: 'italic',
   },
   exportCard: {
     marginTop: SPACING.md,

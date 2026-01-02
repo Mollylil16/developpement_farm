@@ -183,3 +183,82 @@ export const CATEGORIE_DEPENSE_LABELS: Record<CategorieDepense, string> = {
   equipement_lourd: '🚜 Équipement lourd',
   achat_sujet: '🐷 Achat sujet',
 };
+
+// ==================== DETTES ====================
+
+export type TypeDette = 'pret_bancaire' | 'pret_personnel' | 'fournisseur' | 'autre';
+
+export type StatutDette = 'en_cours' | 'rembourse' | 'en_defaut' | 'annule';
+
+export type FrequenceRemboursement = 'mensuel' | 'trimestriel' | 'annuel' | 'ponctuel';
+
+export interface Dette {
+  id: string;
+  projet_id: string;
+  libelle: string;
+  type_dette: TypeDette;
+  montant_initial: number;
+  montant_restant: number;
+  taux_interet: number;
+  date_debut: string;
+  date_echeance?: string;
+  frequence_remboursement: FrequenceRemboursement;
+  montant_remboursement?: number;
+  statut: StatutDette;
+  preteur?: string;
+  notes?: string;
+  date_creation: string;
+  derniere_modification: string;
+}
+
+export interface CreateDetteInput {
+  projet_id: string;
+  libelle: string;
+  type_dette: TypeDette;
+  montant_initial: number;
+  montant_restant: number;
+  taux_interet?: number;
+  date_debut: string;
+  date_echeance?: string;
+  frequence_remboursement?: FrequenceRemboursement;
+  montant_remboursement?: number;
+  statut?: StatutDette;
+  preteur?: string;
+  notes?: string;
+}
+
+export interface UpdateDetteInput {
+  libelle?: string;
+  type_dette?: TypeDette;
+  montant_initial?: number;
+  montant_restant?: number;
+  taux_interet?: number;
+  date_debut?: string;
+  date_echeance?: string;
+  frequence_remboursement?: FrequenceRemboursement;
+  montant_remboursement?: number;
+  statut?: StatutDette;
+  preteur?: string;
+  notes?: string;
+}
+
+export const TYPE_DETTE_LABELS: Record<TypeDette, string> = {
+  pret_bancaire: 'Prêt bancaire',
+  pret_personnel: 'Prêt personnel',
+  fournisseur: 'Crédit fournisseur',
+  autre: 'Autre',
+};
+
+export const STATUT_DETTE_LABELS: Record<StatutDette, string> = {
+  en_cours: 'En cours',
+  rembourse: 'Remboursé',
+  en_defaut: 'En défaut',
+  annule: 'Annulé',
+};
+
+export const FREQUENCE_REMBOURSEMENT_LABELS: Record<FrequenceRemboursement, string> = {
+  mensuel: 'Mensuel',
+  trimestriel: 'Trimestriel',
+  annuel: 'Annuel',
+  ponctuel: 'Ponctuel',
+};

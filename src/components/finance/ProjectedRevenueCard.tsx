@@ -2,8 +2,9 @@
  * Composant pour afficher les revenus prévisionnels (VIF ou CARCASSE)
  */
 
-import React from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAppSelector } from '../../store/hooks';
 import { selectPeseesParAnimal } from '../../store/selectors/productionSelectors';
 import { selectAllRevenus } from '../../store/selectors/financeSelectors';
@@ -12,6 +13,9 @@ import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
 import { calculatePoidsTotalAnimauxActifs } from '../../utils/animalUtils';
 import { useAnimauxActifs } from '../../hooks/useAnimauxActifs';
+import apiClient from '../../services/api/apiClient';
+import type { Batch } from '../../types/batch';
+import { logger } from '../../utils/logger';
 
 const TAUX_CARCASSE = 0.75; // 75% du poids vif
 const PRIX_KG_VIF_DEFAUT = 1000;
@@ -27,6 +31,46 @@ export default function ProjectedRevenueCard({ type }: ProjectedRevenueCardProps
   const revenus = useAppSelector(selectAllRevenus);
   const peseesParAnimal = useAppSelector(selectPeseesParAnimal);
   const { animauxActifs } = useAnimauxActifs({ projetId: projetActif?.id });
+  
+  // État pour les batches (mode batch)
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [loadingBatches, setLoadingBatches] = useState(false);
+
+  // Détecter le mode batch
+  const isModeBatch = projetActif?.management_method === 'batch';
+
+  // Charger les batches en mode batch
+  const loadBatches = useCallback(async () => {
+    if (!projetActif?.id || !isModeBatch) return;
+
+    setLoadingBatches(true);
+    try {
+      const batchesData = await apiClient.get<Batch[]>(
+        `/batch-pigs/projet/${projetActif.id}`
+      );
+      setBatches(batchesData);
+    } catch (error: any) {
+      logger.error('[ProjectedRevenueCard] Erreur lors du chargement des batches:', error);
+      setBatches([]);
+    } finally {
+      setLoadingBatches(false);
+    }
+  }, [projetActif?.id, isModeBatch]);
+
+  // Charger les batches quand l'écran est visible (mode batch uniquement)
+  useFocusEffect(
+    useCallback(() => {
+      if (isModeBatch) {
+        loadBatches();
+      }
+    }, [isModeBatch, loadBatches])
+  );
+
+  // Filtrer les revenus par projet
+  const revenusProjet = useMemo(() => {
+    if (!projetActif?.id) return [];
+    return revenus.filter((r) => r.projet_id === projetActif.id);
+  }, [revenus, projetActif?.id]);
 
   const revenusPrevisionnels = React.useMemo(() => {
     if (!projetActif) {
@@ -37,14 +81,40 @@ export default function ProjectedRevenueCard({ type }: ProjectedRevenueCardProps
       };
     }
 
-    // Exclure les reproducteurs du calcul du poids total pour les revenus prévisionnels
-    // car les reproducteurs ne sont généralement pas vendus
-    const poidsTotal = calculatePoidsTotalAnimauxActifs(
-      animauxActifs,
-      peseesParAnimal,
-      projetActif.poids_moyen_actuel || 0,
-      true // exclureReproducteurs = true
-    );
+    let poidsTotal = 0;
+
+    // Mode batch : calculer à partir des batches
+    // IMPORTANT: Utiliser la même logique que LivestockStatsCard pour la cohérence
+    // mais exclure les reproducteurs car ils ne sont généralement pas vendus
+    if (isModeBatch) {
+      // Exclure les reproducteurs du calcul (truies_reproductrices et verrats_reproducteurs)
+      // car les reproducteurs ne sont généralement pas vendus
+      const batchesNonReproducteurs = batches.filter(
+        (batch) =>
+          batch.category !== 'truie_reproductrice' && batch.category !== 'verrat_reproducteur'
+      );
+
+      // Calculer le poids total : somme de (average_weight_kg * total_count) pour chaque batch non reproducteur
+      // Même logique que LivestockStatsCard, mais en excluant les reproducteurs
+      poidsTotal = batchesNonReproducteurs.reduce((sum, batch) => {
+        const poidsMoyenBatch = batch.average_weight_kg || 0;
+        const nombreBatch = batch.total_count || 0;
+        // Utiliser la même logique que LivestockStatsCard (pas de validation supplémentaire)
+        return sum + (poidsMoyenBatch * nombreBatch);
+      }, 0);
+    } else {
+      // Mode individuel : calculer à partir des animaux
+      // Exclure les reproducteurs du calcul du poids total pour les revenus prévisionnels
+      // car les reproducteurs ne sont généralement pas vendus
+      // Note: LivestockStatsCard n'exclut pas les reproducteurs en mode individuel,
+      // mais pour les revenus prévisionnels, on les exclut car ils ne sont généralement pas vendus
+      poidsTotal = calculatePoidsTotalAnimauxActifs(
+        animauxActifs,
+        peseesParAnimal,
+        projetActif.poids_moyen_actuel || 0,
+        true // exclureReproducteurs = true
+      );
+    }
 
     const prixKg =
       type === 'vif'
@@ -53,7 +123,7 @@ export default function ProjectedRevenueCard({ type }: ProjectedRevenueCardProps
 
     const poidsPourCalcul = type === 'vif' ? poidsTotal : poidsTotal * TAUX_CARCASSE;
     const revenuInitial = poidsPourCalcul * prixKg;
-    const revenusRealises = revenus
+    const revenusRealises = revenusProjet
       .filter((r) => r.categorie === 'vente_porc')
       .reduce((sum, r) => sum + r.montant, 0);
     const revenuRestant = Math.max(0, revenuInitial - revenusRealises);
@@ -70,8 +140,10 @@ export default function ProjectedRevenueCard({ type }: ProjectedRevenueCardProps
     projetActif?.prix_kg_vif,
     projetActif?.prix_kg_carcasse,
     projetActif?.poids_moyen_actuel,
-    revenus,
+    revenusProjet,
     type,
+    isModeBatch,
+    batches,
   ]);
 
   const formatAmount = (amount: number) => {

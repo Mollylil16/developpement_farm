@@ -151,4 +151,48 @@ export class ReportsController {
 
     return { available: true, data: result };
   }
+
+  @Get('sante/data')
+  @ApiOperation({
+    summary: "Récupérer les données agrégées pour le rapport santé",
+    description: 'Retourne toutes les données nécessaires pour générer le rapport santé (vaccinations, mortalités, maladies, visites vétérinaires)',
+  })
+  @ApiQuery({ name: 'projet_id', required: true, description: 'ID du projet' })
+  @ApiQuery({ name: 'date_debut', required: false, description: 'Date de début de la période (ISO string)' })
+  @ApiQuery({ name: 'date_fin', required: false, description: 'Date de fin de la période (ISO string)' })
+  @ApiResponse({ status: 200, description: 'Données du rapport santé.' })
+  @ApiResponse({ status: 404, description: 'Projet introuvable.' })
+  @ApiResponse({ status: 403, description: "Vous n'êtes pas propriétaire de ce projet." })
+  async getHealthReportData(
+    @Query('projet_id') projetId: string,
+    @CurrentUser('id') userId: string,
+    @Query('date_debut') dateDebut?: string,
+    @Query('date_fin') dateFin?: string
+  ) {
+    const dateDebutObj = dateDebut ? new Date(dateDebut) : undefined;
+    const dateFinObj = dateFin ? new Date(dateFin) : undefined;
+    return this.reportsService.getHealthReportData(projetId, userId, dateDebutObj, dateFinObj);
+  }
+
+  @Get('production/data')
+  @ApiOperation({
+    summary: "Récupérer les données agrégées pour le rapport production",
+    description: 'Retourne toutes les données nécessaires pour générer le rapport production (cheptel, pesées, ventes)',
+  })
+  @ApiQuery({ name: 'projet_id', required: true, description: 'ID du projet' })
+  @ApiQuery({ name: 'date_debut', required: false, description: 'Date de début de la période (ISO string)' })
+  @ApiQuery({ name: 'date_fin', required: false, description: 'Date de fin de la période (ISO string)' })
+  @ApiResponse({ status: 200, description: 'Données du rapport production.' })
+  @ApiResponse({ status: 404, description: 'Projet introuvable.' })
+  @ApiResponse({ status: 403, description: "Vous n'êtes pas propriétaire de ce projet." })
+  async getProductionReportData(
+    @Query('projet_id') projetId: string,
+    @CurrentUser('id') userId: string,
+    @Query('date_debut') dateDebut?: string,
+    @Query('date_fin') dateFin?: string
+  ) {
+    const dateDebutObj = dateDebut ? new Date(dateDebut) : undefined;
+    const dateFinObj = dateFin ? new Date(dateFin) : undefined;
+    return this.reportsService.getProductionReportData(projetId, userId, dateDebutObj, dateFinObj);
+  }
 }

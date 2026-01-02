@@ -17,6 +17,7 @@ const ONGLETS = [
   { id: 'charges_fixes' as FinanceOngletType, label: 'Charges Fixes', icon: 'calendar-outline' },
   { id: 'depenses' as FinanceOngletType, label: 'Dépenses', icon: 'trending-down-outline' },
   { id: 'revenus' as FinanceOngletType, label: 'Revenus', icon: 'trending-up-outline' },
+  { id: 'dettes' as FinanceOngletType, label: 'Dettes', icon: 'card-outline' },
   { id: 'bilan' as FinanceOngletType, label: 'Bilan', icon: 'calculator-outline' },
 ];
 

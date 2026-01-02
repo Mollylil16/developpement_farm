@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Patch,
+  Delete,
   Body,
   Param,
   Query,
@@ -20,6 +21,7 @@ import {
   RemovePigDto,
   CreateBatchWithPigsDto,
   UpdateBatchSettingsDto,
+  UpdateBatchDto,
 } from './dto';
 
 @Controller('batch-pigs')
@@ -131,6 +133,25 @@ this.logger.error(`getAllBatchesByProjet: error for projetId=${projetId}, userId
       dto,
       user.id,
     );
+  }
+
+  @Patch('batch/:batchId')
+  async updateBatch(
+    @Param('batchId') batchId: string,
+    @Body() dto: UpdateBatchDto,
+    @CurrentUser() user: any,
+  ) {
+    return await this.batchPigsService.updateBatch(batchId, dto, user.id);
+  }
+
+  @Delete('batch/:batchId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteBatch(
+    @Param('batchId') batchId: string,
+    @CurrentUser() user: any,
+  ) {
+    await this.batchPigsService.deleteBatch(batchId, user.id);
+    return { message: 'Loge supprimée avec succès' };
   }
 
   @Post('create-batch')

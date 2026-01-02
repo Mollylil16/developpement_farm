@@ -4,7 +4,7 @@
 
 CREATE TABLE IF NOT EXISTS transactions (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE SET NULL,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   subscription_id TEXT REFERENCES user_subscriptions(id) ON DELETE SET NULL,
   plan_id TEXT REFERENCES subscription_plans(id),
   amount NUMERIC(10, 2) NOT NULL CHECK (amount >= 0),
@@ -30,6 +30,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_transactions_updated_at ON transactions;
 CREATE TRIGGER trigger_update_transactions_updated_at
   BEFORE UPDATE ON transactions
   FOR EACH ROW

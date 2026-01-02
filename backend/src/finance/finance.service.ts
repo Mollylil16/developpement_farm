@@ -1052,9 +1052,9 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       const dateDepense = new Date(d.date);
       return dateDepense >= debut && dateDepense <= fin;
     });
-    // Filtrer seulement les OPEX (non CAPEX)
+    // Filtrer seulement les OPEX (non CAPEX) - utiliser type_opex_capex comme dans getCoutsProduction
     const depensesOpex = depensesPeriode.filter(
-      (d) => !d.date_fin_amortissement || new Date(d.date_fin_amortissement) <= fin
+      (d) => !d.type_opex_capex || d.type_opex_capex.toLowerCase() === 'opex'
     );
     const totalDepensesOpex = depensesOpex.reduce((sum, d) => sum + d.montant, 0);
     const depensesParCategorie = depensesOpex.reduce((acc, d) => {
@@ -1066,12 +1066,16 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
     // 3. CHARGES FIXES
     const chargesFixes = await this.findAllChargesFixes(projetId, userId);
     const chargesActives = chargesFixes.filter((c) => c.statut === 'actif');
+    
+    // Calculer le nombre de mois calendaires dans la période (inclusif)
+    // Exemple: 1er janvier à 31 décembre = 12 mois
     const moisDebut = new Date(debut);
     const moisFin = new Date(fin);
     const nombreMois =
       (moisFin.getFullYear() - moisDebut.getFullYear()) * 12 +
       (moisFin.getMonth() - moisDebut.getMonth()) +
       1;
+    
     const totalChargesFixes = chargesActives.reduce((sum, c) => sum + c.montant, 0) * nombreMois;
 
     // 4. DETTES
@@ -1084,25 +1088,68 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
     }, 0);
 
     // 5. ACTIFS
-    // Valeur du cheptel (estimation basée sur poids moyen * prix/kg)
-    const animauxResult = await this.databaseService.query(
-      `SELECT COUNT(*) as count, AVG(p.poids_kg) as poids_moyen
-       FROM production_animaux a
-       LEFT JOIN (
-         SELECT animal_id, poids_kg, ROW_NUMBER() OVER (PARTITION BY animal_id ORDER BY date DESC) as rn
-         FROM production_pesees
-       ) p ON a.id = p.animal_id AND p.rn = 1
-       WHERE a.projet_id = $1 AND a.statut = 'actif'`,
-      [projetId]
-    );
-    const nombreAnimaux = parseInt(animauxResult.rows[0]?.count || '0');
-    const poidsMoyen = parseFloat(animauxResult.rows[0]?.poids_moyen || '0');
+    // Valeur du cheptel (estimation basée sur poids total * prix/kg)
+    // Vérifier le mode de gestion du projet
     const projetResult = await this.databaseService.query(
-      'SELECT prix_kg_vif FROM projets WHERE id = $1',
+      'SELECT prix_kg_vif, management_method FROM projets WHERE id = $1',
       [projetId]
     );
     const prixKgVif = parseFloat(projetResult.rows[0]?.prix_kg_vif || '0');
-    const valeurCheptel = nombreAnimaux * poidsMoyen * prixKgVif;
+    const managementMethod = projetResult.rows[0]?.management_method || 'individual';
+
+    let nombreAnimaux = 0;
+    let poidsTotal = 0;
+    let poidsMoyen = 0;
+
+    if (managementMethod === 'batch') {
+      // Mode batch : calculer à partir des batches
+      const batchesResult = await this.databaseService.query(
+        `SELECT 
+          COALESCE(SUM(total_count), 0) as nombre_animaux,
+          COALESCE(SUM(average_weight_kg * total_count), 0) as poids_total
+        FROM batches
+        WHERE projet_id = $1`,
+        [projetId]
+      );
+      nombreAnimaux = parseInt(batchesResult.rows[0]?.nombre_animaux || '0');
+      poidsTotal = parseFloat(batchesResult.rows[0]?.poids_total || '0');
+      poidsMoyen = nombreAnimaux > 0 ? poidsTotal / nombreAnimaux : 0;
+    } else {
+      // Mode individuel : calculer à partir des animaux individuels
+      // Calculer le poids total réel (somme des poids) au lieu de moyenne * nombre
+      const animauxResult = await this.databaseService.query(
+        `SELECT 
+          COUNT(*) as count,
+          COALESCE(SUM(p.poids_kg), 0) as poids_total,
+          COALESCE(AVG(p.poids_kg), 0) as poids_moyen
+        FROM production_animaux a
+        LEFT JOIN (
+          SELECT animal_id, poids_kg, ROW_NUMBER() OVER (PARTITION BY animal_id ORDER BY date DESC) as rn
+          FROM production_pesees
+        ) p ON a.id = p.animal_id AND p.rn = 1
+        WHERE a.projet_id = $1 AND a.statut = 'actif'`,
+        [projetId]
+      );
+      nombreAnimaux = parseInt(animauxResult.rows[0]?.count || '0');
+      poidsTotal = parseFloat(animauxResult.rows[0]?.poids_total || '0');
+      poidsMoyen = parseFloat(animauxResult.rows[0]?.poids_moyen || '0');
+      
+      // Si aucun poids n'est enregistré, utiliser le poids moyen du projet comme fallback
+      if (poidsTotal === 0 && nombreAnimaux > 0) {
+        const projetPoidsMoyen = await this.databaseService.query(
+          'SELECT poids_moyen_actuel FROM projets WHERE id = $1',
+          [projetId]
+        );
+        const poidsMoyenProjet = parseFloat(projetPoidsMoyen.rows[0]?.poids_moyen_actuel || '0');
+        if (poidsMoyenProjet > 0) {
+          poidsTotal = nombreAnimaux * poidsMoyenProjet;
+          poidsMoyen = poidsMoyenProjet;
+        }
+      }
+    }
+
+    // Valeur du cheptel = poids total * prix au kg vif
+    const valeurCheptel = poidsTotal * prixKgVif;
 
     // Valeur des stocks
     const stocksResult = await this.databaseService.query(
@@ -1124,7 +1171,30 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
     const ratioRentabilite = totalRevenus > 0 ? (solde / totalRevenus) * 100 : 0;
 
     // 7. KG VENDUS (pour coût/kg)
-    const totalKgVendus = revenusPeriode.reduce((sum, r) => sum + (r.poids_kg || 0), 0);
+    // Filtrer uniquement les revenus de catégorie 'vente_porc' pour la période
+    const ventesPorc = revenusPeriode.filter((r) => r.categorie === 'vente_porc');
+    
+    // Calculer le total kg vendus : utiliser le poids si disponible, sinon approximation
+    let totalKgVendus = 0;
+    let totalKgVendusEstime = false;
+    let totalKgVendusReel = 0;
+    let totalKgVendusApprox = 0;
+    
+    for (const vente of ventesPorc) {
+      if (vente.poids_kg && vente.poids_kg > 0) {
+        // Poids disponible : utiliser la valeur réelle
+        totalKgVendusReel += vente.poids_kg;
+      } else {
+        // Poids non disponible : approximation = revenu / prix_kg_vif
+        if (prixKgVif > 0) {
+          const kgApprox = vente.montant / prixKgVif;
+          totalKgVendusApprox += kgApprox;
+          totalKgVendusEstime = true; // Au moins une vente utilise l'approximation
+        }
+      }
+    }
+    
+    totalKgVendus = totalKgVendusReel + totalKgVendusApprox;
     const coutKgOpex = totalKgVendus > 0 ? totalDepensesOpex / totalKgVendus : 0;
 
     return {
@@ -1174,6 +1244,7 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
         ratio_rentabilite: ratioRentabilite,
         cout_kg_opex: coutKgOpex,
         total_kg_vendus: totalKgVendus,
+        total_kg_vendus_estime: totalKgVendusEstime,
       },
     };
   }

@@ -117,49 +117,84 @@ export async function signInWithGoogle(): Promise<OAuthResult> {
 }
 
 /**
- * Authentification Apple
- * TODO: Installer expo-apple-authentication
- * npm install expo-apple-authentication
+ * Authentification Apple avec expo-apple-authentication
+ * 
+ * IMPORTANT: Apple Sign In ne nécessite PAS de clé API côté client.
+ * Il utilise le bundleIdentifier configuré dans app.json (com.misterh225.fermierpro).
+ * 
+ * Configuration requise:
+ * 1. Installer: npx expo install expo-apple-authentication
+ * 2. Configurer dans Apple Developer Console:
+ *    - Créer un App ID avec bundle identifier: com.misterh225.fermierpro
+ *    - Activer "Sign in with Apple" capability
+ *    - Créer un Service ID si nécessaire
  */
 export async function signInWithApple(): Promise<OAuthResult> {
   try {
-    // TODO: Implémenter avec expo-apple-authentication
-    // Pour l'instant, simulation avec l'API backend
-    // Une fois expo-apple-authentication configuré, récupérer les credentials Apple ici
+    // Vérifier si expo-apple-authentication est disponible
+    let AppleAuthentication;
+    try {
+      AppleAuthentication = require('expo-apple-authentication');
+    } catch {
+      throw new Error(
+        'expo-apple-authentication n\'est pas installé. Exécutez: npx expo install expo-apple-authentication'
+      );
+    }
 
-    // Exemple de structure (à adapter avec expo-apple-authentication):
-    /*
-    import * as AppleAuthentication from 'expo-apple-authentication';
-    
+    // Vérifier si Apple Sign In est disponible sur l'appareil
+    const isAvailable = await AppleAuthentication.isAvailableAsync();
+    if (!isAvailable) {
+      throw new Error(
+        'Apple Sign In n\'est pas disponible sur cet appareil. Disponible uniquement sur iOS 13+ et appareils physiques.'
+      );
+    }
+
+    // Lancer l'authentification Apple
     const credential = await AppleAuthentication.signInAsync({
       requestedScopes: [
         AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
         AppleAuthentication.AppleAuthenticationScope.EMAIL,
       ],
     });
-    
-    // Envoyer les credentials au backend
-    */
 
-    // Pour l'instant, utiliser l'endpoint backend OAuth
-    // Le backend doit gérer l'authentification Apple
+    if (!credential.identityToken) {
+      throw new Error('Token d\'identité Apple manquant');
+    }
+
+    logger.debug('[Apple OAuth] Credentials obtenus, envoi au backend...');
+
+    // Envoyer les credentials Apple au backend pour authentification
     const response = await apiClient.post<OAuthResult>(
       '/auth/apple',
       {
-        // TODO: Envoyer les credentials Apple une fois expo-apple-authentication configuré
-        // identityToken: credential.identityToken,
-        // authorizationCode: credential.authorizationCode,
+        identityToken: credential.identityToken,
+        authorizationCode: credential.authorizationCode || undefined,
+        user: credential.user || undefined, // ID utilisateur Apple (stable)
+        email: credential.email || undefined,
+        fullName: credential.fullName
+          ? {
+              givenName: credential.fullName.givenName || undefined,
+              familyName: credential.fullName.familyName || undefined,
+            }
+          : undefined,
       },
       { skipAuth: true }
     );
 
     return response;
   } catch (error: unknown) {
+    logger.error('[Apple OAuth] Erreur:', error);
+
     if (error instanceof APIError && error.status === 404) {
       throw new Error(
-        "L'authentification Apple n'est pas encore configurée. Veuillez utiliser email/téléphone."
+        "L'authentification Apple n'est pas encore configurée sur le serveur. Veuillez utiliser email/téléphone."
       );
     }
-    throw error;
+
+    if (error instanceof Error) {
+      throw error;
+    }
+
+    throw new Error('Erreur inconnue lors de l\'authentification Apple');
   }
 }

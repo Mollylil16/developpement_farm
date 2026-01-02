@@ -23,15 +23,19 @@ import { SPACING } from '../../constants/theme';
 import { RACES_LIST } from '../../constants/races';
 import { useGeolocation } from '../../hooks/useGeolocation';
 import apiClient from '../../services/api/apiClient';
-import type { PurchaseRequest } from '../../types/marketplace';
+import type { PurchaseRequest, PurchaseRequestManagementMode, GrowthStage, MatchingThresholds } from '../../types/marketplace';
 import { logger } from '../../utils/logger';
+import { useAppSelector } from '../../store/hooks';
+import { selectProjetActif } from '../../store/selectors/projetSelectors';
+import { useRole } from '../../contexts/RoleContext';
 
 interface CreatePurchaseRequestModalProps {
   visible: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  buyerId: string;
+  buyerId: string; // @deprecated - utiliser senderId et détecter le type
   editRequest?: PurchaseRequest; // PurchaseRequest à modifier (optionnel)
+  senderType?: 'buyer' | 'producer'; // Type d'émetteur (optionnel, détecté automatiquement si non fourni)
 }
 
 const AGE_CATEGORIES = [
@@ -41,15 +45,37 @@ const AGE_CATEGORIES = [
   { value: 'tous', label: 'Tous âges' },
 ];
 
+const GROWTH_STAGES: { value: GrowthStage; label: string }[] = [
+  { value: 'porcelet', label: 'Porcelet' },
+  { value: 'croissance', label: 'Croissance' },
+  { value: 'engraissement', label: 'Engraissement' },
+  { value: 'fini', label: 'Fini' },
+  { value: 'tous', label: 'Tous stades' },
+];
+
+const MANAGEMENT_MODES: { value: PurchaseRequestManagementMode; label: string }[] = [
+  { value: 'individual', label: 'Individuel' },
+  { value: 'batch', label: 'Bande' },
+  { value: 'both', label: 'Les deux' },
+];
+
 export default function CreatePurchaseRequestModal({
   visible,
   onClose,
   onSuccess,
   buyerId,
   editRequest,
+  senderType: providedSenderType,
 }: CreatePurchaseRequestModalProps) {
   const { colors } = MarketplaceTheme;
   const { location, getCurrentLocation } = useGeolocation();
+  const projetActif = useAppSelector(selectProjetActif);
+  const { isProducer } = useRole();
+  
+  // Détecter le type d'émetteur
+  const senderType = providedSenderType || (isProducer ? 'producer' : 'buyer');
+  const isProducerMode = senderType === 'producer';
+  const managementMethod = projetActif?.management_method || 'individual';
 
   // Debug: Log quand le modal devient visible
   useEffect(() => {
@@ -81,6 +107,15 @@ export default function CreatePurchaseRequestModal({
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [showRacePicker, setShowRacePicker] = useState(false);
+  
+  // Nouveaux champs pour producteurs et modes
+  const [managementMode, setManagementMode] = useState<PurchaseRequestManagementMode>(
+    managementMethod === 'batch' ? 'batch' : managementMethod === 'individual' ? 'individual' : 'both'
+  );
+  const [growthStage, setGrowthStage] = useState<GrowthStage | ''>('');
+  const [weightTolerance, setWeightTolerance] = useState('10'); // % par défaut
+  const [priceTolerance, setPriceTolerance] = useState('20'); // % par défaut
+  const [locationRadius, setLocationRadius] = useState('50'); // km par défaut
 
   // Initialiser les champs si on est en mode édition
   useEffect(() => {
@@ -101,6 +136,12 @@ export default function CreatePurchaseRequestModal({
       setMaxTotalPrice(editRequest.maxTotalPrice?.toString() || '');
       setDeliveryDate(editRequest.deliveryDate || '');
       setMessage(editRequest.message || '');
+      // Nouveaux champs
+      setManagementMode(editRequest.managementMode || (managementMethod === 'batch' ? 'batch' : managementMethod === 'individual' ? 'individual' : 'both'));
+      setGrowthStage(editRequest.growthStage || '');
+      setWeightTolerance(editRequest.matchingThresholds?.weightTolerance?.toString() || '10');
+      setPriceTolerance(editRequest.matchingThresholds?.priceTolerance?.toString() || '20');
+      setLocationRadius(editRequest.matchingThresholds?.locationRadius?.toString() || deliveryRadius);
     } else if (visible && !editRequest) {
       // Réinitialiser les champs si on est en mode création
       setTitle('');
@@ -119,8 +160,14 @@ export default function CreatePurchaseRequestModal({
       setMaxTotalPrice('');
       setDeliveryDate('');
       setMessage('');
+      // Réinitialiser les nouveaux champs
+      setManagementMode(managementMethod === 'batch' ? 'batch' : managementMethod === 'individual' ? 'individual' : 'both');
+      setGrowthStage('');
+      setWeightTolerance('10');
+      setPriceTolerance('20');
+      setLocationRadius('50');
     }
-  }, [visible, editRequest]);
+  }, [visible, editRequest, managementMethod]);
 
   const handleSubmit = async () => {
     // Validation
@@ -204,6 +251,19 @@ export default function CreatePurchaseRequestModal({
           if (maxTotalPrice) updates.maxTotalPrice = parseFloat(maxTotalPrice);
           if (deliveryDate) updates.deliveryDate = deliveryDate;
           if (message.trim()) updates.message = message.trim();
+          // Nouveaux champs
+          if (managementMode) (updates as any).managementMode = managementMode;
+          if (growthStage) (updates as any).growthStage = growthStage;
+          if (weightTolerance || priceTolerance || locationRadius) {
+            (updates as any).matchingThresholds = {
+              weightTolerance: weightTolerance ? parseFloat(weightTolerance) : 10,
+              priceTolerance: priceTolerance ? parseFloat(priceTolerance) : 20,
+              locationRadius: locationRadius ? parseFloat(locationRadius) : 50,
+            };
+          }
+          if (isProducerMode && projetActif?.id) {
+            (updates as any).farmId = projetActif.id;
+          }
 
           // Gérer deliveryLocation : utiliser la nouvelle localisation si disponible, sinon garder l'ancienne
           let finalDeliveryLocation = deliveryLocation;
@@ -240,8 +300,10 @@ export default function CreatePurchaseRequestModal({
         }
       } else {
         // Mode création - utiliser l'API backend directement
-        await apiClient.post('/marketplace/purchase-requests', {
-          buyerId,
+        const requestData: any = {
+          buyerId, // @deprecated - sera remplacé par senderId et senderType
+          senderId: buyerId,
+          senderType,
           title: title.trim() || undefined,
           race: race && race !== 'Peu importe' ? race : undefined,
           minWeight: parseFloat(minWeight),
@@ -255,7 +317,27 @@ export default function CreatePurchaseRequestModal({
           maxTotalPrice: maxTotalPrice ? parseFloat(maxTotalPrice) : undefined,
           deliveryDate: deliveryDate || undefined,
           message: message.trim() || undefined,
-        });
+        };
+        
+        // Nouveaux champs pour producteurs et modes
+        if (managementMode) {
+          requestData.managementMode = managementMode;
+        }
+        if (growthStage) {
+          requestData.growthStage = growthStage;
+        }
+        if (weightTolerance || priceTolerance || locationRadius) {
+          requestData.matchingThresholds = {
+            weightTolerance: weightTolerance ? parseFloat(weightTolerance) : 10,
+            priceTolerance: priceTolerance ? parseFloat(priceTolerance) : 20,
+            locationRadius: locationRadius ? parseFloat(locationRadius) : 50,
+          };
+        }
+        if (isProducerMode && projetActif?.id) {
+          requestData.farmId = projetActif.id;
+        }
+        
+        await apiClient.post('/marketplace/purchase-requests', requestData);
 
         Alert.alert(
           'Succès',
@@ -675,6 +757,115 @@ export default function CreatePurchaseRequestModal({
             />
           </View>
 
+          {/* Nouveaux champs pour producteurs et modes */}
+          {isProducerMode && (
+            <>
+              {/* Mode de gestion */}
+              <View style={styles.field}>
+                <Text style={[styles.label, { color: colors.text }]}>Mode de gestion préféré</Text>
+                <View style={styles.optionsRow}>
+                  {MANAGEMENT_MODES.map((mode) => (
+                    <TouchableOpacity
+                      key={mode.value}
+                      style={[
+                        styles.optionButton,
+                        {
+                          backgroundColor: managementMode === mode.value ? colors.primary + '20' : colors.surface,
+                          borderColor: managementMode === mode.value ? colors.primary : colors.border,
+                        },
+                      ]}
+                      onPress={() => setManagementMode(mode.value)}
+                    >
+                      <Text
+                        style={[
+                          styles.optionButtonText,
+                          {
+                            color: managementMode === mode.value ? colors.primary : colors.text,
+                            fontWeight: managementMode === mode.value ? '600' : '400',
+                          },
+                        ]}
+                      >
+                        {mode.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Stade de croissance */}
+              <View style={styles.field}>
+                <Text style={[styles.label, { color: colors.text }]}>Stade de croissance souhaité</Text>
+                <View style={styles.optionsRow}>
+                  {GROWTH_STAGES.map((stage) => (
+                    <TouchableOpacity
+                      key={stage.value}
+                      style={[
+                        styles.optionButton,
+                        {
+                          backgroundColor: growthStage === stage.value ? colors.info + '20' : colors.surface,
+                          borderColor: growthStage === stage.value ? colors.info : colors.border,
+                        },
+                      ]}
+                      onPress={() => setGrowthStage(stage.value)}
+                    >
+                      <Text
+                        style={[
+                          styles.optionButtonText,
+                          {
+                            color: growthStage === stage.value ? colors.info : colors.text,
+                            fontWeight: growthStage === stage.value ? '600' : '400',
+                          },
+                        ]}
+                      >
+                        {stage.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </>
+          )}
+
+          {/* Seuils de matching (pour tous) */}
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: colors.text }]}>
+              Seuils de correspondance (optionnel)
+            </Text>
+            <Text style={[styles.helperText, { color: colors.textSecondary }]}>
+              Définissez les tolérances pour trouver des correspondances proches
+            </Text>
+            <View style={styles.row}>
+              <View style={styles.halfField}>
+                <Text style={[styles.sublabel, { color: colors.textSecondary }]}>Tolérance poids (%)</Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border },
+                  ]}
+                  value={weightTolerance}
+                  onChangeText={setWeightTolerance}
+                  placeholder="10"
+                  keyboardType="numeric"
+                  placeholderTextColor={colors.textSecondary}
+                />
+              </View>
+              <View style={styles.halfField}>
+                <Text style={[styles.sublabel, { color: colors.textSecondary }]}>Tolérance prix (%)</Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border },
+                  ]}
+                  value={priceTolerance}
+                  onChangeText={setPriceTolerance}
+                  placeholder="20"
+                  keyboardType="numeric"
+                  placeholderTextColor={colors.textSecondary}
+                />
+              </View>
+            </View>
+          </View>
+
           {/* Message */}
           <View style={styles.field}>
             <Text style={[styles.label, { color: colors.text }]}>Message / Remarques</Text>
@@ -774,6 +965,35 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginBottom: SPACING.xs,
+  },
+  sublabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginBottom: SPACING.xs / 2,
+  },
+  helperText: {
+    fontSize: 12,
+    marginBottom: SPACING.sm,
+    lineHeight: 16,
+  },
+  optionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.sm,
+    marginTop: SPACING.xs,
+  },
+  optionButton: {
+    flex: 1,
+    minWidth: '30%',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.sm,
+    alignItems: 'center',
+  },
+  optionButtonText: {
+    fontSize: 13,
+    textAlign: 'center',
   },
   input: {
     borderWidth: 1,

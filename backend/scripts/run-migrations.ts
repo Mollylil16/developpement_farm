@@ -38,10 +38,16 @@ async function runMigrations() {
   const client = await pool.connect();
 
   try {
+    console.log('\n========================================');
+    console.log('  Exécution des migrations SQL');
+    console.log('========================================\n');
+
     // Obtenir le répertoire du script (CommonJS avec tsx)
     // @ts-ignore - __dirname est disponible dans CommonJS avec tsx
     const scriptDir = typeof __dirname !== 'undefined' ? __dirname : path.dirname(process.argv[1] || '');
     const migrationsDir = path.resolve(scriptDir, '../database/migrations');
+
+    console.log(`📂 Dossier migrations: ${migrationsDir}\n`);
 
     // Lire automatiquement TOUS les fichiers .sql et les trier par ordre numérique
     const migrations = fs.readdirSync(migrationsDir)
@@ -53,6 +59,8 @@ async function runMigrations() {
         return numA - numB;
       });
 
+    console.log(`📋 ${migrations.length} fichier(s) de migration trouvé(s)\n`);
+
     for (const migrationFile of migrations) {
       const migrationPath = path.join(migrationsDir, migrationFile);
 
@@ -60,22 +68,30 @@ async function runMigrations() {
         continue;
       }
 
+      console.log(`🔄 Exécution: ${migrationFile}...`);
       const sql = fs.readFileSync(migrationPath, 'utf8');
 
       try {
         await client.query(sql);
+        console.log(`   ✅ ${migrationFile} - OK`);
       } catch (error: any) {
         // Si la table/trigger/index existe déjà, on continue (IF NOT EXISTS)
         if (error.message.includes('already exists') ||
             error.message.includes('duplicate') ||
             error.message.includes('existe déjà') ||
             error.code === '42710') { // Code PostgreSQL pour "objet existe déjà"
-          // Ignorer silencieusement
+          console.log(`   ⚠️  ${migrationFile} - Déjà appliqué`);
         } else {
+          console.log(`   ❌ ${migrationFile} - ERREUR`);
+          console.error(`      ${error.message}`);
           throw error;
         }
       }
     }
+
+    console.log('\n========================================');
+    console.log('✅ Toutes les migrations ont été appliquées');
+    console.log('========================================\n');
   } catch (error) {
     throw error;
   } finally {
@@ -91,6 +107,8 @@ runMigrations()
     process.exit(0);
   })
   .catch((error) => {
+    console.error('\n❌ Erreur lors de l\'exécution des migrations:', error.message);
+    console.error(error.stack);
     process.exit(1);
   });
 

@@ -87,33 +87,63 @@ export const searchListings = createAsyncThunk(
       filters?: MarketplaceFilters;
       sort?: MarketplaceSortOption;
       page?: number;
-      userId?: string; // ID de l'utilisateur pour filtrer ses propres listings
+      userId?: string; // ID de l'utilisateur pour EXCLURE ses propres listings (onglet Acheter)
       projetId?: string;
+      excludeUserId?: boolean; // Si true, exclure les listings de userId (défaut: true pour onglet Acheter)
     },
     { rejectWithValue, getState }
   ) => {
     try {
       const state = getState() as RootState;
       const userId = params.userId || state?.auth?.user?.id;
+      const excludeUserId = params.excludeUserId !== false; // Par défaut, exclure les listings du producteur
 
+      // Récupérer tous les listings (sans filtrer par user_id pour éviter d'inclure ceux du producteur)
       const listings = await apiClient.get<MarketplaceListing[]>('/marketplace/listings', {
         params: {
-          user_id: userId,
-          projet_id: params.projetId,
+          // Ne pas passer user_id pour l'onglet "Acheter" (on veut tous les listings sauf ceux du producteur)
+          // projet_id: params.projetId, // Optionnel : filtrer par projet si nécessaire
         },
       });
+
+      // Filtrer les listings pour exclure ceux du producteur si nécessaire
+      let filteredListings = listings;
+      if (excludeUserId && userId) {
+        try {
+          // Récupérer les IDs des projets de l'utilisateur pour filtrer par farmId aussi
+          const projets = await apiClient.get<any[]>('/projets');
+          const userProjets = projets.filter((p) => p.proprietaire_id === userId);
+          const userFarmIds = userProjets.map((p) => p.id);
+
+          // Filtrer les listings qui n'appartiennent pas à l'utilisateur
+          filteredListings = listings.filter((listing) => {
+            // Exclure si producerId correspond à userId
+            if (listing.producerId === userId) {
+              return false;
+            }
+            // Exclure si farmId correspond à un projet de l'utilisateur
+            if (listing.farmId && userFarmIds.includes(listing.farmId)) {
+              return false;
+            }
+            return true;
+          });
+        } catch (error) {
+          // En cas d'erreur, filtrer uniquement par producerId
+          filteredListings = listings.filter((listing) => listing.producerId !== userId);
+        }
+      }
 
       // Simuler la pagination côté client pour l'instant
       const page = params.page || 1;
       const limit = 20;
       const start = (page - 1) * limit;
       const end = start + limit;
-      const paginatedListings = listings.slice(start, end);
-      const totalPages = Math.ceil(listings.length / limit);
+      const paginatedListings = filteredListings.slice(start, end);
+      const totalPages = Math.ceil(filteredListings.length / limit);
 
       return {
         listings: paginatedListings,
-        total: listings.length,
+        total: filteredListings.length,
         page,
         totalPages,
         hasMore: page < totalPages,

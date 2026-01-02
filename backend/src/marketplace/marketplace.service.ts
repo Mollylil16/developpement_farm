@@ -118,147 +118,319 @@ export class MarketplaceService {
   }
 
   async createBatchListing(createBatchListingDto: CreateBatchListingDto, userId: string) {
-    // Vérifier que l'utilisateur est propriétaire du projet
-    await this.checkProjetOwnership(createBatchListingDto.farmId, userId);
+    try {
+      // Vérifier que l'utilisateur est propriétaire du projet
+      await this.checkProjetOwnership(createBatchListingDto.farmId, userId);
 
-    // Vérifier que la bande existe et appartient au projet
-    const batch = await this.databaseService.query(
-      `SELECT b.id, b.total_count, b.projet_id, b.average_weight_kg, b.category
-       FROM batches b
-       JOIN projets p ON b.projet_id = p.id
-       WHERE b.id = $1 AND p.id = $2 AND p.proprietaire_id = $3`,
-      [createBatchListingDto.batchId, createBatchListingDto.farmId, userId]
-    );
+      // Valider les champs requis
+      if (!createBatchListingDto.averageWeight || createBatchListingDto.averageWeight <= 0) {
+        throw new BadRequestException('Le poids moyen doit être supérieur à 0');
+      }
 
-    if (batch.rows.length === 0) {
-      throw new NotFoundException('Bande introuvable ou ne vous appartient pas');
-    }
+      if (!createBatchListingDto.pricePerKg || createBatchListingDto.pricePerKg <= 0) {
+        throw new BadRequestException('Le prix au kg doit être supérieur à 0');
+      }
 
-    const batchData = batch.rows[0];
-    const totalCount = parseInt(batchData.total_count) || 0;
+      if (!createBatchListingDto.lastWeightDate) {
+        throw new BadRequestException('La date de dernière pesée est requise');
+      }
 
-    // Déterminer le nombre de porcs et les IDs
-    let pigCount: number;
-    let pigIds: string[] = [];
+      // Valider que location est fournie
+      if (!createBatchListingDto.location || !createBatchListingDto.location.latitude || !createBatchListingDto.location.longitude) {
+        throw new BadRequestException('La localisation (latitude et longitude) est requise');
+      }
 
-    if (createBatchListingDto.pigIds && createBatchListingDto.pigIds.length > 0) {
-      // Si pigIds est fourni, l'utiliser
-      pigIds = createBatchListingDto.pigIds;
-      pigCount = pigIds.length;
-
-      // Vérifier que tous les porcs appartiennent à la bande
-      const pigsCheck = await this.databaseService.query(
-        `SELECT id FROM batch_pigs 
-         WHERE id = ANY($1::varchar[]) AND batch_id = $2`,
-        [pigIds, createBatchListingDto.batchId]
+      // Vérifier que la bande existe et appartient au projet
+      const batch = await this.databaseService.query(
+        `SELECT b.id, b.total_count, b.projet_id, b.average_weight_kg, b.category
+         FROM batches b
+         JOIN projets p ON b.projet_id = p.id
+         WHERE b.id = $1 AND p.id = $2 AND p.proprietaire_id = $3`,
+        [createBatchListingDto.batchId, createBatchListingDto.farmId, userId]
       );
 
-      if (pigsCheck.rows.length !== pigIds.length) {
-        throw new BadRequestException('Certains porcs ne font pas partie de cette bande');
+      if (batch.rows.length === 0) {
+        throw new NotFoundException('Bande introuvable ou ne vous appartient pas');
       }
-    } else if (createBatchListingDto.pigCount) {
-      // Si pigCount est fourni, sélectionner les N porcs les plus lourds
-      pigCount = createBatchListingDto.pigCount;
 
-      if (pigCount > totalCount) {
-        throw new BadRequestException(
-          `La bande ne contient que ${totalCount} porc(s), impossible de vendre ${pigCount}`
+      const batchData = batch.rows[0];
+      const totalCount = parseInt(batchData.total_count) || 0;
+
+      // Déterminer le nombre de porcs et les IDs
+      let pigCount: number;
+      let pigIds: string[] = [];
+
+      if (createBatchListingDto.pigIds && createBatchListingDto.pigIds.length > 0) {
+        // Si pigIds est fourni, l'utiliser
+        pigIds = createBatchListingDto.pigIds;
+        pigCount = pigIds.length;
+
+        // Vérifier que tous les porcs appartiennent à la bande
+        const pigsCheck = await this.databaseService.query(
+          `SELECT id FROM batch_pigs 
+           WHERE id = ANY($1::varchar[]) AND batch_id = $2`,
+          [pigIds, createBatchListingDto.batchId]
         );
+
+        if (pigsCheck.rows.length !== pigIds.length) {
+          throw new BadRequestException('Certains porcs ne font pas partie de cette bande');
+        }
+      } else if (createBatchListingDto.pigCount) {
+        // Si pigCount est fourni, sélectionner les N porcs les plus lourds
+        pigCount = createBatchListingDto.pigCount;
+
+        if (pigCount > totalCount) {
+          throw new BadRequestException(
+            `La bande ne contient que ${totalCount} porc(s), impossible de vendre ${pigCount}`
+          );
+        }
+
+        const pigsResult = await this.databaseService.query(
+          `SELECT id FROM batch_pigs 
+           WHERE batch_id = $1 
+           ORDER BY current_weight_kg DESC NULLS LAST
+           LIMIT $2`,
+          [createBatchListingDto.batchId, pigCount]
+        );
+
+        pigIds = pigsResult.rows.map((row) => row.id);
+      } else {
+        // Si ni pigIds ni pigCount, vendre toute la bande
+        pigCount = totalCount;
+
+        const pigsResult = await this.databaseService.query(
+          `SELECT id FROM batch_pigs WHERE batch_id = $1`,
+          [createBatchListingDto.batchId]
+        );
+
+        pigIds = pigsResult.rows.map((row) => row.id);
       }
 
-      const pigsResult = await this.databaseService.query(
-        `SELECT id FROM batch_pigs 
-         WHERE batch_id = $1 
-         ORDER BY current_weight_kg DESC NULLS LAST
-         LIMIT $2`,
-        [createBatchListingDto.batchId, pigCount]
-      );
+      if (pigIds.length === 0) {
+        throw new BadRequestException('Aucun porc disponible dans cette bande');
+      }
 
-      pigIds = pigsResult.rows.map((row) => row.id);
-    } else {
-      // Si ni pigIds ni pigCount, vendre toute la bande
-      pigCount = totalCount;
+      // Vérifier qu'il n'y a pas déjà un listing actif pour cette bande avec les mêmes porcs
+      // Utiliser une requête qui compare les arrays JSON de manière fiable
+      let existingListing;
+      try {
+        // Trier les IDs pour une comparaison cohérente
+        const sortedPigIds = [...pigIds].sort();
+        existingListing = await this.databaseService.query(
+          `SELECT id FROM marketplace_listings 
+           WHERE batch_id = $1 AND listing_type = 'batch' AND status IN ('available', 'reserved')
+           AND pig_ids::text = $2::text`,
+          [createBatchListingDto.batchId, JSON.stringify(sortedPigIds)]
+        );
+      } catch (error: any) {
+        // Si la colonne pig_ids n'existe pas ou n'est pas JSONB, ignorer cette vérification
+        if (
+          error.message?.includes('does not exist') ||
+          error.message?.includes("n'existe pas") ||
+          error.message?.includes('operator does not exist') ||
+          error.message?.includes('cannot cast')
+        ) {
+          this.logger.warn(
+            'Colonne pig_ids non disponible ou type incompatible, vérification des doublons ignorée'
+          );
+          existingListing = { rows: [] };
+        } else {
+          throw error;
+        }
+      }
 
-      const pigsResult = await this.databaseService.query(
-        `SELECT id FROM batch_pigs WHERE batch_id = $1`,
-        [createBatchListingDto.batchId]
-      );
+      if (existingListing.rows.length > 0) {
+        throw new BadRequestException('Ces porcs sont déjà en vente sur le marketplace');
+      }
 
-      pigIds = pigsResult.rows.map((row) => row.id);
-    }
+      // Utiliser une transaction pour garantir la cohérence des données
+      return await this.databaseService.transaction(async (client) => {
+        const id = this.generateId('listing');
+        const now = new Date().toISOString();
+        
+        // S'assurer que averageWeight est un nombre valide
+        const averageWeight = parseFloat(String(createBatchListingDto.averageWeight)) || 0;
+        const pricePerKg = parseFloat(String(createBatchListingDto.pricePerKg)) || 0;
+        
+        if (averageWeight <= 0 || pricePerKg <= 0) {
+          throw new BadRequestException('Le poids moyen et le prix au kg doivent être des nombres positifs');
+        }
+        
+        const calculatedPrice = pricePerKg * averageWeight * pigCount;
 
-    if (pigIds.length === 0) {
-      throw new BadRequestException('Aucun porc disponible dans cette bande');
-    }
-
-    // Vérifier qu'il n'y a pas déjà un listing actif pour cette bande avec les mêmes porcs
-    const existingListing = await this.databaseService.query(
-      `SELECT id FROM marketplace_listings 
-       WHERE batch_id = $1 AND listing_type = 'batch' AND status IN ('available', 'reserved')
-       AND pig_ids @> $2::jsonb`,
-      [createBatchListingDto.batchId, JSON.stringify(pigIds)]
-    );
-
-    if (existingListing.rows.length > 0) {
-      throw new BadRequestException('Ces porcs sont déjà en vente sur le marketplace');
-    }
-
-    // Utiliser une transaction pour garantir la cohérence des données
-    return await this.databaseService.transaction(async (client) => {
-      const id = this.generateId('listing');
-      const now = new Date().toISOString();
-      const calculatedPrice = createBatchListingDto.pricePerKg * createBatchListingDto.averageWeight * pigCount;
-
-      const result = await client.query(
-        `INSERT INTO marketplace_listings (
-          id, listing_type, batch_id, pig_ids, pig_count, producer_id, farm_id, 
-          price_per_kg, calculated_price, weight, status, listed_at, updated_at, last_weight_date,
-          location_latitude, location_longitude, location_address, location_city, location_region,
-          sale_terms, views, inquiries, date_creation, derniere_modification
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
-        RETURNING *`,
-        [
-          id,
-          'batch',
-          createBatchListingDto.batchId,
-          JSON.stringify(pigIds),
-          pigCount,
-          userId, // producerId = userId
-          createBatchListingDto.farmId,
-          createBatchListingDto.pricePerKg,
-          calculatedPrice,
-          createBatchListingDto.averageWeight, // Poids moyen stocké
-          'available',
-          now,
-          now,
-          createBatchListingDto.lastWeightDate,
-          createBatchListingDto.location.latitude,
-          createBatchListingDto.location.longitude,
-          createBatchListingDto.location.address || null,
-          createBatchListingDto.location.city || null,
-          createBatchListingDto.location.region || null,
-          JSON.stringify(
-            createBatchListingDto.saleTerms || {
-              transport: 'buyer_responsibility',
-              slaughter: 'buyer_responsibility',
-              paymentTerms: 'on_delivery',
-              warranty: 'Tous les documents sanitaires et certificats seront fournis.',
-              cancellationPolicy: "Annulation possible jusqu'à 48h avant la date de livraison.",
+        // S'assurer que lastWeightDate est une date valide
+        let lastWeightDateValue: string;
+        try {
+          // Si c'est déjà une date ISO, l'utiliser directement
+          if (typeof createBatchListingDto.lastWeightDate === 'string') {
+            // Valider que c'est une date valide
+            const date = new Date(createBatchListingDto.lastWeightDate);
+            if (isNaN(date.getTime())) {
+              throw new BadRequestException('La date de dernière pesée n\'est pas valide');
             }
-          ),
-          0, // views
-          0, // inquiries
-          now,
-          now,
-        ]
-      );
+            lastWeightDateValue = date.toISOString();
+          } else {
+            throw new BadRequestException('La date de dernière pesée doit être une chaîne de caractères (ISO 8601)');
+          }
+        } catch (error: any) {
+          if (error instanceof BadRequestException) {
+            throw error;
+          }
+          throw new BadRequestException(`Erreur lors de la validation de la date de dernière pesée: ${error.message}`);
+        }
 
-      this.logger.log(
-        `Annonce marketplace créée pour bande ${createBatchListingDto.batchId}: ${pigCount} porc(s)`
-      );
+        // Vérifier si la colonne weight existe dans la table
+        let weightColumnExists = true;
+        try {
+          const checkColumn = await client.query(
+            `SELECT column_name 
+             FROM information_schema.columns 
+             WHERE table_name = 'marketplace_listings' AND column_name = 'weight'`
+          );
+          weightColumnExists = checkColumn.rows.length > 0;
+        } catch (error) {
+          // En cas d'erreur, supposer que la colonne n'existe pas
+          weightColumnExists = false;
+        }
 
-      return this.mapRowToListing(result.rows[0]);
-    });
+        // Construire la requête INSERT selon que la colonne weight existe ou non
+        let insertQuery: string;
+        let insertValues: any[];
+
+        if (weightColumnExists) {
+          // Colonne weight existe : utiliser la requête complète
+          insertQuery = `INSERT INTO marketplace_listings (
+            id, listing_type, batch_id, pig_ids, pig_count, producer_id, farm_id, 
+            price_per_kg, calculated_price, weight, status, listed_at, updated_at, last_weight_date,
+            location_latitude, location_longitude, location_address, location_city, location_region,
+            sale_terms, views, inquiries, date_creation, derniere_modification
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+          RETURNING *`;
+          insertValues = [
+            id,
+            'batch',
+            createBatchListingDto.batchId,
+            JSON.stringify(pigIds),
+            pigCount,
+            userId, // producerId = userId
+            createBatchListingDto.farmId,
+            pricePerKg,
+            calculatedPrice,
+            averageWeight, // Poids moyen stocké
+            'available',
+            now,
+            now,
+            lastWeightDateValue,
+            createBatchListingDto.location.latitude,
+            createBatchListingDto.location.longitude,
+            createBatchListingDto.location.address || null,
+            createBatchListingDto.location.city || null,
+            createBatchListingDto.location.region || null,
+            JSON.stringify(
+              createBatchListingDto.saleTerms || {
+                transport: 'buyer_responsibility',
+                slaughter: 'buyer_responsibility',
+                paymentTerms: 'on_delivery',
+                warranty: 'Tous les documents sanitaires et certificats seront fournis.',
+                cancellationPolicy: "Annulation possible jusqu'à 48h avant la date de livraison.",
+              }
+            ),
+            0, // views
+            0, // inquiries
+            now,
+            now,
+          ];
+        } else {
+          // Colonne weight n'existe pas : utiliser une requête sans weight
+          // Le poids sera stocké dans calculated_price / price_per_kg / pig_count si nécessaire
+          this.logger.warn(
+            'Colonne weight non trouvée dans marketplace_listings. La migration 052_add_batch_support_to_marketplace_listings.sql doit être exécutée. ' +
+            'Le listing sera créé sans la colonne weight, mais le poids moyen est disponible via calculated_price / (price_per_kg * pig_count).'
+          );
+          insertQuery = `INSERT INTO marketplace_listings (
+            id, listing_type, batch_id, pig_ids, pig_count, producer_id, farm_id, 
+            price_per_kg, calculated_price, status, listed_at, updated_at, last_weight_date,
+            location_latitude, location_longitude, location_address, location_city, location_region,
+            sale_terms, views, inquiries, date_creation, derniere_modification
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+          RETURNING *`;
+          insertValues = [
+            id,
+            'batch',
+            createBatchListingDto.batchId,
+            JSON.stringify(pigIds),
+            pigCount,
+            userId, // producerId = userId
+            createBatchListingDto.farmId,
+            pricePerKg,
+            calculatedPrice,
+            'available',
+            now,
+            now,
+            lastWeightDateValue,
+            createBatchListingDto.location.latitude,
+            createBatchListingDto.location.longitude,
+            createBatchListingDto.location.address || null,
+            createBatchListingDto.location.city || null,
+            createBatchListingDto.location.region || null,
+            JSON.stringify(
+              createBatchListingDto.saleTerms || {
+                transport: 'buyer_responsibility',
+                slaughter: 'buyer_responsibility',
+                paymentTerms: 'on_delivery',
+                warranty: 'Tous les documents sanitaires et certificats seront fournis.',
+                cancellationPolicy: "Annulation possible jusqu'à 48h avant la date de livraison.",
+              }
+            ),
+            0, // views
+            0, // inquiries
+            now,
+            now,
+          ];
+        }
+
+        const result = await client.query(insertQuery, insertValues);
+
+        this.logger.log(
+          `Annonce marketplace créée pour bande ${createBatchListingDto.batchId}: ${pigCount} porc(s)`
+        );
+
+        return this.mapRowToListing(result.rows[0]);
+      });
+    } catch (error: any) {
+      // Logger l'erreur pour le débogage
+      this.logger.error('[MarketplaceService] Erreur dans createBatchListing:', {
+        batchId: createBatchListingDto.batchId,
+        farmId: createBatchListingDto.farmId,
+        userId,
+        error: error.message,
+        stack: error.stack,
+      });
+
+      // Si c'est une exception NestJS, la relancer
+      if (error instanceof NotFoundException || error instanceof BadRequestException || error instanceof ForbiddenException) {
+        throw error;
+      }
+
+      // Sinon, lancer une erreur générique avec plus de détails
+      this.logger.error('[MarketplaceService] Erreur détaillée createBatchListing:', {
+        errorName: error.name,
+        errorMessage: error.message,
+        errorStack: error.stack,
+        dto: {
+          batchId: createBatchListingDto.batchId,
+          farmId: createBatchListingDto.farmId,
+          averageWeight: createBatchListingDto.averageWeight,
+          pricePerKg: createBatchListingDto.pricePerKg,
+          lastWeightDate: createBatchListingDto.lastWeightDate,
+          hasLocation: !!createBatchListingDto.location,
+        },
+      });
+
+      throw new BadRequestException(
+        `Erreur lors de la création de l'annonce de bande: ${error.message || 'Erreur inconnue'}. Veuillez vérifier que tous les champs requis sont correctement remplis.`
+      );
+    }
   }
 
   async findAllListings(projetId?: string, userId?: string, limit?: number, offset?: number) {
@@ -785,6 +957,46 @@ export class MarketplaceService {
     }
   }
 
+  async createNotification(data: {
+    userId: string;
+    type: string;
+    title: string;
+    message: string;
+    relatedId?: string;
+    relatedType?: string;
+  }) {
+    try {
+      const id = this.generateId('notif');
+      const now = new Date().toISOString();
+
+      await this.databaseService.query(
+        `INSERT INTO marketplace_notifications (
+          id, user_id, type, title, message, related_id, related_type, read, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          id,
+          data.userId,
+          data.type,
+          data.title,
+          data.message,
+          data.relatedId || null,
+          data.relatedType || null,
+          false,
+          now,
+        ]
+      );
+
+      return { id };
+    } catch (error: any) {
+      // Si la table n'existe pas encore, logger un warning mais ne pas faire échouer
+      if (error.message?.includes('does not exist') || error.message?.includes('n\'existe pas')) {
+        this.logger.warn('Table marketplace_notifications n\'existe pas encore, notification non créée');
+        return null;
+      }
+      throw error;
+    }
+  }
+
   async markNotificationAsRead(notificationId: string, userId: string) {
     const result = await this.databaseService.query(
       'UPDATE marketplace_notifications SET read = $1, read_at = $2 WHERE id = $3 AND user_id = $4 RETURNING id',
@@ -953,47 +1165,121 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
   async createPurchaseRequest(createPurchaseRequestDto: CreatePurchaseRequestDto, userId: string) {
     const id = this.generateId('pr');
     const now = new Date().toISOString();
+    
+    // Détecter le type d'émetteur
+    const senderType = createPurchaseRequestDto.senderType || 'buyer';
+    const senderId = createPurchaseRequestDto.senderId || userId;
+    
+    // Préparer les seuils de matching
+    const matchingThresholds = createPurchaseRequestDto.matchingThresholds || {
+      weightTolerance: 10,
+      priceTolerance: 20,
+      locationRadius: 50,
+    };
+
+    // Vérifier si les colonnes existent (pour compatibilité avec anciennes migrations)
+    const columnCheck = await this.databaseService.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'purchase_requests' 
+      AND column_name IN ('sender_type', 'sender_id', 'management_mode', 'growth_stage', 'matching_thresholds', 'farm_id')
+    `);
+    const existingColumns = columnCheck.rows.map((r) => r.column_name);
+    const hasNewColumns = existingColumns.length > 0;
+
+    // Construire la requête dynamiquement selon les colonnes disponibles
+    let columns = [
+      'id', 'buyer_id', 'title', 'race', 'min_weight', 'max_weight', 'age_category',
+      'min_age_months', 'max_age_months', 'quantity', 'delivery_location',
+      'max_price_per_kg', 'max_total_price', 'delivery_date', 'delivery_period_start',
+      'delivery_period_end', 'message', 'status', 'views', 'matched_producers_count',
+      'offers_count', 'expires_at', 'created_at', 'updated_at'
+    ];
+    let values = [
+      id,
+      senderId, // buyer_id pour compatibilité
+      createPurchaseRequestDto.title,
+      createPurchaseRequestDto.race,
+      createPurchaseRequestDto.minWeight,
+      createPurchaseRequestDto.maxWeight,
+      createPurchaseRequestDto.ageCategory || null,
+      createPurchaseRequestDto.minAgeMonths || null,
+      createPurchaseRequestDto.maxAgeMonths || null,
+      createPurchaseRequestDto.quantity,
+      createPurchaseRequestDto.deliveryLocation
+        ? JSON.stringify(createPurchaseRequestDto.deliveryLocation)
+        : null,
+      createPurchaseRequestDto.maxPricePerKg || null,
+      createPurchaseRequestDto.maxTotalPrice || null,
+      createPurchaseRequestDto.deliveryDate || null,
+      createPurchaseRequestDto.deliveryPeriodStart || null,
+      createPurchaseRequestDto.deliveryPeriodEnd || null,
+      createPurchaseRequestDto.message || null,
+      'published',
+      0, // views
+      0, // matched_producers_count
+      0, // offers_count
+      createPurchaseRequestDto.expiresAt || null,
+      now,
+      now,
+    ];
+    let paramIndex = values.length + 1;
+
+    // Ajouter les nouveaux champs si les colonnes existent
+    if (hasNewColumns) {
+      if (existingColumns.includes('sender_type')) {
+        columns.push('sender_type');
+        values.push(senderType);
+        paramIndex++;
+      }
+      if (existingColumns.includes('sender_id')) {
+        columns.push('sender_id');
+        values.push(senderId);
+        paramIndex++;
+      }
+      if (existingColumns.includes('management_mode') && createPurchaseRequestDto.managementMode) {
+        columns.push('management_mode');
+        values.push(createPurchaseRequestDto.managementMode);
+        paramIndex++;
+      }
+      if (existingColumns.includes('growth_stage') && createPurchaseRequestDto.growthStage) {
+        columns.push('growth_stage');
+        values.push(createPurchaseRequestDto.growthStage);
+        paramIndex++;
+      }
+      if (existingColumns.includes('matching_thresholds')) {
+        columns.push('matching_thresholds');
+        values.push(JSON.stringify(matchingThresholds));
+        paramIndex++;
+      }
+      if (existingColumns.includes('farm_id') && createPurchaseRequestDto.farmId) {
+        columns.push('farm_id');
+        values.push(createPurchaseRequestDto.farmId);
+        paramIndex++;
+      }
+    }
+
+    const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
+    const columnsStr = columns.join(', ');
 
     const result = await this.databaseService.query(
-      `INSERT INTO purchase_requests (
-        id, buyer_id, title, race, min_weight, max_weight, age_category,
-        min_age_months, max_age_months, quantity, delivery_location,
-        max_price_per_kg, max_total_price, delivery_date, delivery_period_start,
-        delivery_period_end, message, status, views, matched_producers_count,
-        offers_count, expires_at, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
-      RETURNING *`,
-      [
-        id,
-        userId,
-        createPurchaseRequestDto.title,
-        createPurchaseRequestDto.race,
-        createPurchaseRequestDto.minWeight,
-        createPurchaseRequestDto.maxWeight,
-        createPurchaseRequestDto.ageCategory || null,
-        createPurchaseRequestDto.minAgeMonths || null,
-        createPurchaseRequestDto.maxAgeMonths || null,
-        createPurchaseRequestDto.quantity,
-        createPurchaseRequestDto.deliveryLocation
-          ? JSON.stringify(createPurchaseRequestDto.deliveryLocation)
-          : null,
-        createPurchaseRequestDto.maxPricePerKg || null,
-        createPurchaseRequestDto.maxTotalPrice || null,
-        createPurchaseRequestDto.deliveryDate || null,
-        createPurchaseRequestDto.deliveryPeriodStart || null,
-        createPurchaseRequestDto.deliveryPeriodEnd || null,
-        createPurchaseRequestDto.message || null,
-        'published',
-        0, // views
-        0, // matched_producers_count
-        0, // offers_count
-        createPurchaseRequestDto.expiresAt || null,
-        now,
-        now,
-      ]
+      `INSERT INTO purchase_requests (${columnsStr}) VALUES (${placeholders}) RETURNING *`,
+      values
     );
 
-    return this.mapRowToPurchaseRequest(result.rows[0]);
+    const request = this.mapRowToPurchaseRequest(result.rows[0]);
+    
+    // Déclencher le matching automatique si les colonnes existent
+    if (hasNewColumns) {
+      try {
+        await this.findMatchingProducersForRequest(id, matchingThresholds);
+      } catch (error) {
+        this.logger.warn(`Erreur lors du matching automatique pour la demande ${id}:`, error);
+        // Ne pas faire échouer la création si le matching échoue
+      }
+    }
+
+    return request;
   }
 
   async findAllPurchaseRequests(userId: string, buyerId?: string, status?: string) {
@@ -1001,8 +1287,19 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
     const params: any[] = [];
     let paramIndex = 1;
 
+    // Vérifier si sender_id existe
+    const hasSenderId = await this.databaseService.query(`
+      SELECT column_name FROM information_schema.columns 
+      WHERE table_name = 'purchase_requests' AND column_name = 'sender_id'
+    `);
+    const useSenderId = hasSenderId.rows.length > 0;
+
     if (buyerId) {
-      query += ` AND buyer_id = $${paramIndex}`;
+      if (useSenderId) {
+        query += ` AND sender_id = $${paramIndex}`;
+      } else {
+        query += ` AND buyer_id = $${paramIndex}`;
+      }
       params.push(buyerId);
       paramIndex++;
     } else {
@@ -1020,6 +1317,343 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
 
     const result = await this.databaseService.query(query, params);
     return result.rows.map((row) => this.mapRowToPurchaseRequest(row));
+  }
+
+  /**
+   * Récupère les demandes envoyées par l'utilisateur (acheteur ou producteur)
+   */
+  async findSentPurchaseRequests(userId: string) {
+    try {
+      // Vérifier d'abord si la table existe
+      const tableExists = await this.databaseService.query(`
+        SELECT table_name FROM information_schema.tables 
+        WHERE table_name = 'purchase_requests'
+      `);
+      
+      if (tableExists.rows.length === 0) {
+        this.logger.warn('Table purchase_requests n\'existe pas encore, retour d\'un tableau vide');
+        return [];
+      }
+
+      const hasSenderId = await this.databaseService.query(`
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_name = 'purchase_requests' AND column_name = 'sender_id'
+      `);
+      const useSenderId = hasSenderId.rows.length > 0;
+
+      const query = useSenderId
+        ? 'SELECT * FROM purchase_requests WHERE sender_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC'
+        : 'SELECT * FROM purchase_requests WHERE buyer_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC';
+
+      const result = await this.databaseService.query(query, [userId]);
+      return result.rows.map((row) => this.mapRowToPurchaseRequest(row));
+    } catch (error: any) {
+      // Si la table n'existe pas encore, retourner un tableau vide
+      if (error.message?.includes('does not exist') || error.message?.includes("n'existe pas")) {
+        this.logger.warn('Table purchase_requests n\'existe pas encore, retour d\'un tableau vide');
+        return [];
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Récupère les demandes reçues par l'utilisateur (producteur ou autre)
+   * Inclut les demandes où l'utilisateur est un producteur correspondant
+   */
+  async findReceivedPurchaseRequests(userId: string) {
+    try {
+      // Vérifier d'abord si la table purchase_requests existe
+      const tableExists = await this.databaseService.query(`
+        SELECT table_name FROM information_schema.tables 
+        WHERE table_name = 'purchase_requests'
+      `);
+      
+      if (tableExists.rows.length === 0) {
+        this.logger.warn('Table purchase_requests n\'existe pas encore, retour d\'un tableau vide');
+        return [];
+      }
+
+      // Récupérer les demandes où l'utilisateur est un producteur correspondant
+      // via purchase_request_matches
+      const hasMatchesTable = await this.databaseService.query(`
+        SELECT table_name FROM information_schema.tables 
+        WHERE table_name = 'purchase_request_matches'
+      `);
+
+      if (hasMatchesTable.rows.length > 0) {
+        // Récupérer les demandes où l'utilisateur est matché
+        const matchesQuery = `
+          SELECT DISTINCT pr.*
+          FROM purchase_requests pr
+          INNER JOIN purchase_request_matches prm ON pr.id = prm.purchase_request_id
+          WHERE prm.producer_id = $1
+          AND pr.status = 'published'
+          AND pr.deleted_at IS NULL
+          ORDER BY pr.created_at DESC
+        `;
+        const matchesResult = await this.databaseService.query(matchesQuery, [userId]);
+        return matchesResult.rows.map((row) => this.mapRowToPurchaseRequest(row));
+      }
+
+      // Fallback : retourner les demandes publiées (pour compatibilité)
+      const fallbackQuery = `
+        SELECT * FROM purchase_requests 
+        WHERE status = 'published' 
+        AND deleted_at IS NULL 
+        ORDER BY created_at DESC
+      `;
+      const result = await this.databaseService.query(fallbackQuery);
+      return result.rows.map((row) => this.mapRowToPurchaseRequest(row));
+    } catch (error: any) {
+      // Si la table n'existe pas encore, retourner un tableau vide
+      if (error.message?.includes('does not exist') || error.message?.includes("n'existe pas")) {
+        this.logger.warn('Table purchase_requests n\'existe pas encore, retour d\'un tableau vide');
+        return [];
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Trouve les producteurs correspondant à une demande avec seuils configurables
+   */
+  async findMatchingProducersForRequest(
+    requestId: string,
+    thresholds?: { weightTolerance?: number; priceTolerance?: number; locationRadius?: number }
+  ) {
+    const request = await this.databaseService.query(
+      'SELECT * FROM purchase_requests WHERE id = $1',
+      [requestId]
+    );
+
+    if (request.rows.length === 0) {
+      throw new NotFoundException('Demande introuvable');
+    }
+
+    const requestData = request.rows[0];
+    const managementMode = requestData.management_mode || 'both';
+    const effectiveThresholds = {
+      weightTolerance: thresholds?.weightTolerance || 10, // %
+      priceTolerance: thresholds?.priceTolerance || 20, // %
+      locationRadius: thresholds?.locationRadius || 50, // km
+    };
+
+    // Récupérer les seuils depuis la demande si disponibles
+    let requestThresholds = effectiveThresholds;
+    if (requestData.matching_thresholds) {
+      try {
+        const parsed = typeof requestData.matching_thresholds === 'string'
+          ? JSON.parse(requestData.matching_thresholds)
+          : requestData.matching_thresholds;
+        requestThresholds = {
+          weightTolerance: parsed.weightTolerance || effectiveThresholds.weightTolerance,
+          priceTolerance: parsed.priceTolerance || effectiveThresholds.priceTolerance,
+          locationRadius: parsed.locationRadius || effectiveThresholds.locationRadius,
+        };
+      } catch (error) {
+        this.logger.warn('Erreur parsing matching_thresholds, utilisation des valeurs par défaut');
+      }
+    }
+
+    const matches: any[] = [];
+    const now = new Date().toISOString();
+
+    // Mode individuel
+    if (managementMode === 'individual' || managementMode === 'both') {
+      const individualQuery = `
+        SELECT DISTINCT
+          p.proprietaire_id as producer_id,
+          p.id as farm_id,
+          ml.id as listing_id,
+          AVG(pp.poids_kg) as avg_weight,
+          ml.price_per_kg,
+          COUNT(DISTINCT pa.id) as available_count
+        FROM projets p
+        INNER JOIN production_animaux pa ON pa.projet_id = p.id
+        LEFT JOIN (
+          SELECT animal_id, poids_kg, ROW_NUMBER() OVER (PARTITION BY animal_id ORDER BY date DESC) as rn
+          FROM production_pesees
+        ) pp ON pa.id = pp.animal_id AND pp.rn = 1
+        LEFT JOIN marketplace_listings ml ON ml.subject_id = pa.id AND ml.status = 'available'
+        WHERE pa.statut = 'actif'
+        AND pa.race = $1
+        AND (pp.poids_kg BETWEEN $2 AND $3 OR pa.poids_initial BETWEEN $2 AND $3)
+        AND (ml.price_per_kg IS NULL OR ml.price_per_kg <= $4)
+        GROUP BY p.proprietaire_id, p.id, ml.id, ml.price_per_kg
+        HAVING COUNT(DISTINCT pa.id) >= $5
+      `;
+
+      const minWeight = requestData.min_weight * (1 - requestThresholds.weightTolerance / 100);
+      const maxWeight = requestData.max_weight * (1 + requestThresholds.weightTolerance / 100);
+      const maxPrice = requestData.max_price_per_kg
+        ? requestData.max_price_per_kg * (1 + requestThresholds.priceTolerance / 100)
+        : null;
+
+      try {
+        const individualMatches = await this.databaseService.query(individualQuery, [
+          requestData.race,
+          minWeight,
+          maxWeight,
+          maxPrice || 999999999,
+          requestData.quantity,
+        ]);
+
+        for (const match of individualMatches.rows) {
+          const matchScore = this.calculateMatchScore(requestData, match, requestThresholds, 'individual');
+          if (matchScore >= 50) {
+            // Seuil minimum de 50% pour créer un match
+            matches.push({
+              producerId: match.producer_id,
+              farmId: match.farm_id,
+              listingId: match.listing_id,
+              matchScore,
+              mode: 'individual',
+            });
+          }
+        }
+      } catch (error) {
+        this.logger.warn('Erreur lors du matching individuel:', error);
+      }
+    }
+
+    // Mode batch
+    if (managementMode === 'batch' || managementMode === 'both') {
+      const batchQuery = `
+        SELECT DISTINCT
+          p.proprietaire_id as producer_id,
+          p.id as farm_id,
+          ml.id as listing_id,
+          b.average_weight_kg as avg_weight,
+          ml.price_per_kg,
+          b.total_count as available_count
+        FROM projets p
+        INNER JOIN batches b ON b.projet_id = p.id
+        LEFT JOIN marketplace_listings ml ON ml.batch_id = b.id AND ml.status = 'available'
+        WHERE b.total_count > 0
+        AND b.category NOT IN ('truie_reproductrice', 'verrat_reproducteur')
+        AND b.average_weight_kg BETWEEN $1 AND $2
+        AND (ml.price_per_kg IS NULL OR ml.price_per_kg <= $3)
+        AND b.total_count >= $4
+      `;
+
+      const minWeight = requestData.min_weight * (1 - requestThresholds.weightTolerance / 100);
+      const maxWeight = requestData.max_weight * (1 + requestThresholds.weightTolerance / 100);
+      const maxPrice = requestData.max_price_per_kg
+        ? requestData.max_price_per_kg * (1 + requestThresholds.priceTolerance / 100)
+        : null;
+
+      try {
+        const batchMatches = await this.databaseService.query(batchQuery, [
+          minWeight,
+          maxWeight,
+          maxPrice || 999999999,
+          requestData.quantity,
+        ]);
+
+        for (const match of batchMatches.rows) {
+          const matchScore = this.calculateMatchScore(requestData, match, requestThresholds, 'batch');
+          if (matchScore >= 50) {
+            matches.push({
+              producerId: match.producer_id,
+              farmId: match.farm_id,
+              listingId: match.listing_id,
+              matchScore,
+              mode: 'batch',
+            });
+          }
+        }
+      } catch (error) {
+        this.logger.warn('Erreur lors du matching batch:', error);
+      }
+    }
+
+    // Créer les enregistrements de match et envoyer les notifications
+    const createdMatches = [];
+    for (const match of matches) {
+      try {
+        const matchId = this.generateId('prm');
+        await this.databaseService.query(
+          `INSERT INTO purchase_request_matches (
+            id, purchase_request_id, producer_id, farm_id, listing_id, match_score, notified, created_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          ON CONFLICT DO NOTHING`,
+          [matchId, requestId, match.producerId, match.farmId, match.listingId, match.matchScore, false, now]
+        );
+
+        // Envoyer notification
+        await this.createNotification({
+          userId: match.producerId,
+          type: 'purchase_request_match',
+          title: 'Nouvelle demande correspondant à vos sujets',
+          message: `Une demande correspond à vos critères avec un score de ${Math.round(match.matchScore)}%`,
+          relatedId: requestId,
+          relatedType: 'purchase_request',
+        });
+
+        // Marquer comme notifié
+        await this.databaseService.query(
+          'UPDATE purchase_request_matches SET notified = true, notification_sent_at = $1 WHERE id = $2',
+          [now, matchId]
+        );
+
+        createdMatches.push({ id: matchId, ...match });
+      } catch (error) {
+        this.logger.warn(`Erreur lors de la création du match pour producteur ${match.producerId}:`, error);
+      }
+    }
+
+    // Mettre à jour le compteur de correspondances
+    await this.databaseService.query(
+      'UPDATE purchase_requests SET matched_producers_count = $1 WHERE id = $2',
+      [createdMatches.length, requestId]
+    );
+
+    return createdMatches;
+  }
+
+  /**
+   * Calcule le score de correspondance (0-100)
+   */
+  private calculateMatchScore(
+    request: any,
+    match: any,
+    thresholds: { weightTolerance: number; priceTolerance: number },
+    mode: 'individual' | 'batch'
+  ): number {
+    let score = 0;
+    const maxScore = 100;
+
+    // Poids (40 points)
+    const weightDiff = Math.abs(match.avg_weight - (request.min_weight + request.max_weight) / 2);
+    const weightRange = request.max_weight - request.min_weight;
+    const weightScore = Math.max(0, 40 * (1 - weightDiff / (weightRange * (1 + thresholds.weightTolerance / 100))));
+    score += weightScore;
+
+    // Prix (30 points)
+    if (request.max_price_per_kg && match.price_per_kg) {
+      if (match.price_per_kg <= request.max_price_per_kg) {
+        score += 30;
+      } else if (match.price_per_kg <= request.max_price_per_kg * (1 + thresholds.priceTolerance / 100)) {
+        const priceDiff = match.price_per_kg - request.max_price_per_kg;
+        const priceToleranceRange = request.max_price_per_kg * (thresholds.priceTolerance / 100);
+        score += 30 * (1 - priceDiff / priceToleranceRange);
+      }
+    } else {
+      score += 15; // Pas de critère prix = score partiel
+    }
+
+    // Quantité (20 points)
+    if (match.available_count >= request.quantity) {
+      score += 20;
+    } else {
+      score += 20 * (match.available_count / request.quantity);
+    }
+
+    // Race (10 points)
+    // Supposé déjà filtré dans la requête
+
+    return Math.min(maxScore, Math.round(score));
   }
 
   async findOnePurchaseRequest(id: string, userId: string) {

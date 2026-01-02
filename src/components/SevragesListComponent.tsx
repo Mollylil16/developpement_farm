@@ -17,6 +17,8 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadSevrages, deleteSevrage, createSevrage } from '../store/slices/reproductionSlice';
+import { selectAllGestations, selectAllSevrages } from '../store/selectors/reproductionSelectors';
+import { selectProjetActif } from '../store/selectors/projetSelectors';
 import type { Sevrage, Gestation } from '../types/reproduction';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -31,18 +33,9 @@ export default function SevragesListComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canDelete } = useActionPermissions();
-  const gestations = useAppSelector((state) => {
-    const reproState = state.reproduction;
-    if (!reproState?.entities?.gestations || !reproState?.ids?.gestations) return [];
-    return reproState.ids.gestations
-      .map((id) => reproState.entities.gestations[id])
-      .filter(Boolean);
-  });
-  const sevrages = useAppSelector((state) => {
-    const reproState = state.reproduction;
-    if (!reproState?.entities?.sevrages || !reproState?.ids?.sevrages) return [];
-    return reproState.ids.sevrages.map((id) => reproState.entities.sevrages[id]).filter(Boolean);
-  });
+  // ✅ Utiliser les selectors mémorisés pour éviter les rerenders inutiles
+  const gestations = useAppSelector(selectAllGestations);
+  const sevrages = useAppSelector(selectAllSevrages);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedGestation, setSelectedGestation] = useState<Gestation | null>(null);
@@ -58,7 +51,8 @@ export default function SevragesListComponent() {
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
 
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // ✅ Utiliser le selector mémorisé pour éviter les rerenders inutiles
+  const projetActif = useAppSelector(selectProjetActif);
 
   // ✅ MÉMOÏSER les lengths pour éviter les boucles infinies
   const gestationsLength = Array.isArray(gestations) ? gestations.length : 0;

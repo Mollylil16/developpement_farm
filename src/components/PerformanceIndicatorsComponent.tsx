@@ -874,7 +874,7 @@ export default function PerformanceIndicatorsComponent() {
                         },
                       ]}
                     >
-                      {performanceGlobale.ecart_absolu >= 0 ? '+' : null}
+                      {performanceGlobale.ecart_absolu >= 0 ? '+' : ''}
                       {formatAmount(performanceGlobale.ecart_absolu)}
                     </Text>
                     <Text
@@ -890,7 +890,7 @@ export default function PerformanceIndicatorsComponent() {
                         },
                       ]}
                     >
-                      ({typeof performanceGlobale.ecart_pourcentage === 'number' && performanceGlobale.ecart_pourcentage >= 0 ? '+' : null}
+                      ({typeof performanceGlobale.ecart_pourcentage === 'number' && performanceGlobale.ecart_pourcentage >= 0 ? '+' : ''}
                       {typeof performanceGlobale.ecart_pourcentage === 'number' ? performanceGlobale.ecart_pourcentage.toFixed(1) : 'N/A'}%)
                     </Text>
                   </View>

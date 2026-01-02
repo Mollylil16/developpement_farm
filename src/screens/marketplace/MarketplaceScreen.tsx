@@ -48,6 +48,7 @@ import {
   RatingModal,
   MarketplaceBellIcon,
   NotificationPanel,
+  MarketplaceActionModal,
 } from '../../components/marketplace';
 import CreatePurchaseRequestModal from '../../components/marketplace/CreatePurchaseRequestModal';
 import CreatePurchaseRequestOfferModal from '../../components/marketplace/CreatePurchaseRequestOfferModal';
@@ -55,6 +56,7 @@ import MarketplaceBuyTab from '../../components/marketplace/tabs/MarketplaceBuyT
 import MarketplaceMyListingsTab from '../../components/marketplace/tabs/MarketplaceMyListingsTab';
 import MarketplaceMyPurchaseRequestsTab from '../../components/marketplace/tabs/MarketplaceMyPurchaseRequestsTab';
 import MarketplaceMatchedRequestsTab from '../../components/marketplace/tabs/MarketplaceMatchedRequestsTab';
+import MarketplaceRequestsTab from '../../components/marketplace/tabs/MarketplaceRequestsTab'; // Nouveau composant unifié
 import MarketplaceOffersTab from '../../components/marketplace/tabs/MarketplaceOffersTab';
 
 // Hooks
@@ -138,6 +140,7 @@ export default function MarketplaceScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [offerModalVisible, setOfferModalVisible] = useState(false);
+  const [actionModalVisible, setActionModalVisible] = useState(false); // Modal unifié
   const [batchAddModalVisible, setBatchAddModalVisible] = useState(false);
   const [createPurchaseRequestModalVisible, setCreatePurchaseRequestModalVisible] = useState(false);
   const [editPurchaseRequestModalVisible, setEditPurchaseRequestModalVisible] = useState(false);
@@ -245,7 +248,7 @@ export default function MarketplaceScreen() {
 
             return {
               ...listing,
-              code: animal.code || `#${animal.id.slice(0, 8)}`,
+              code: animal.code || (animal.id ? `#${animal.id.slice(0, 8)}` : listing.subjectId || 'N/A'),
               race: animal.race || 'Non spécifiée',
               weight: poidsActuel,
               weightDate: dernierePesee?.date || listing.lastWeightDate,
@@ -504,6 +507,9 @@ export default function MarketplaceScreen() {
 
         const subjects = await Promise.all(
           validListings.map(async (listing: MarketplaceListing) => {
+            // Vérifier que le listing a un subjectId (pas un listing batch)
+            if (!listing.subjectId) return null;
+            
             const animal = await animalRepo.findById(listing.subjectId);
             if (!animal) return null;
 
@@ -537,7 +543,7 @@ export default function MarketplaceScreen() {
             return {
               listingId: listing.id,
               subjectId: listing.subjectId,
-              code: animal.code || listing.subjectId,
+              code: animal.code || (listing.subjectId ? listing.subjectId : 'N/A'),
               race: animal.race || listing.race || 'Non spécifiée',
               weight: poidsActuel,
               weightDate: dernierePesee?.date || listing.lastWeightDate,
@@ -587,6 +593,14 @@ export default function MarketplaceScreen() {
 
   const handleListingPress = useCallback(async (listing: MarketplaceListing) => {
     // Enrichir les données du listing avec les informations de l'animal
+    // Vérifier que le listing a un subjectId (pas un listing batch)
+    if (!listing.subjectId) {
+      // Pour les listings batch, utiliser le listing tel quel
+      setSelectedListing(listing);
+      setOfferModalVisible(true);
+      return;
+    }
+
     try {
       const animalRepo = new (await import('../../database/repositories')).AnimalRepository();
       const peseeRepo = new (await import('../../database/repositories')).PeseeRepository();
@@ -726,7 +740,7 @@ export default function MarketplaceScreen() {
             {(isProducer || isBuyer) && (
               <TouchableOpacity
                 style={[styles.createButton, { backgroundColor: marketplaceColors.primary }]}
-                onPress={isProducer ? handleCreateListing : handleCreatePurchaseRequest}
+                onPress={() => setActionModalVisible(true)}
               >
                 <Ionicons name="add" size={24} color={marketplaceColors.textInverse} />
               </TouchableOpacity>
@@ -932,10 +946,10 @@ export default function MarketplaceScreen() {
         />
       )}
 
-      {/* Onglet "Mes demandes" pour les acheteurs */}
+      {/* Onglet "Mes demandes" pour les acheteurs - Utilise le composant unifié */}
       {activeTab === 'mes-demandes' && isBuyer && user?.id && (
-        <MarketplaceMyPurchaseRequestsTab
-          buyerId={user.id}
+        <MarketplaceRequestsTab
+          userId={user.id}
           onRequestPress={(request) => {
             // TODO: Ouvrir un modal pour voir les détails et les offres
             Alert.alert('Détails', `Demande: ${request.title}\nOffres: ${request.offersCount}`);
@@ -946,21 +960,36 @@ export default function MarketplaceScreen() {
             setEditPurchaseRequestModalVisible(true);
             console.log("✅ [MarketplaceScreen] Modal d'édition ouvert");
           }}
+          onDeleteRequest={(request) => {
+            // Recharger les demandes après suppression
+            // Le composant gère déjà le rechargement
+          }}
+          onRespondToRequest={(request) => {
+            // TODO: Ouvrir modal pour répondre à la demande
+            Alert.alert('Répondre', `Répondre à la demande: ${request.title}`);
+          }}
         />
       )}
 
-      {/* Onglet Demandes (pour les producteurs) */}
+      {/* Onglet Demandes (pour les producteurs) - Utilise le composant unifié */}
       {activeTab === 'demandes' && isProducer && user?.id && (
-        <MarketplaceMatchedRequestsTab
-          producerId={user.id}
-          onRequestPress={(request, match) => {
-            setSelectedPurchaseRequest(request);
-            setSelectedPurchaseRequestMatch(match);
+        <MarketplaceRequestsTab
+          userId={user.id}
+          onRequestPress={(request) => {
             // TODO: Ouvrir un modal de détails
+            Alert.alert('Détails', `Demande: ${request.title}`);
           }}
-          onMakeOffer={(request, match) => {
+          onEditRequest={(request) => {
+            // Les producteurs peuvent aussi modifier leurs demandes
+            setSelectedPurchaseRequestForEdit(request);
+            setEditPurchaseRequestModalVisible(true);
+          }}
+          onDeleteRequest={(request) => {
+            // Recharger les demandes après suppression
+          }}
+          onRespondToRequest={(request) => {
+            // Ouvrir modal pour créer une offre en réponse à la demande
             setSelectedPurchaseRequest(request);
-            setSelectedPurchaseRequestMatch(match);
             setPurchaseRequestOfferModalVisible(true);
           }}
         />
@@ -984,13 +1013,13 @@ export default function MarketplaceScreen() {
         onApply={handleApplyFilters}
       />
 
-      {selectedListing && (
+      {selectedListing && selectedListing.subjectId && (
         <OfferModal
           visible={offerModalVisible}
           subjects={[
             {
               id: selectedListing.subjectId, // Utiliser subjectId comme id pour la sélection
-              code: selectedListing.code || selectedListing.subjectId,
+              code: selectedListing.code || (selectedListing.subjectId ? selectedListing.subjectId : 'N/A'),
               race: selectedListing.race || 'Non spécifiée',
               weight: selectedListing.weight || 0,
               weightDate: selectedListing.lastWeightDate,
@@ -1038,7 +1067,19 @@ export default function MarketplaceScreen() {
         />
       )}
 
-      {projetActif && (
+      {/* Modal unifié pour choisir l'action */}
+      {(isProducer || isBuyer) && (
+        <MarketplaceActionModal
+          visible={actionModalVisible}
+          onClose={() => setActionModalVisible(false)}
+          onSellPress={handleCreateListing}
+          onRequestPress={handleCreatePurchaseRequest}
+          isProducer={isProducer}
+        />
+      )}
+
+      {/* Modal de mise en vente (pour les producteurs) */}
+      {isProducer && projetActif && (
         <BatchAddModal
           visible={batchAddModalVisible}
           projetId={projetActif.id}
@@ -1050,8 +1091,8 @@ export default function MarketplaceScreen() {
         />
       )}
 
-      {/* Modal de création de demande d'achat (pour les acheteurs) */}
-      {isBuyer && user?.id && (
+      {/* Modal de création de demande d'achat (pour les acheteurs et producteurs) */}
+      {user?.id && (
         <>
           <CreatePurchaseRequestModal
             visible={createPurchaseRequestModalVisible}
@@ -1226,7 +1267,9 @@ export default function MarketplaceScreen() {
                 </Text>
                 <Text style={[styles.detailsValue, { color: marketplaceColors.text }]}>
                   {selectedListingForDetails.code ||
-                    `#${selectedListingForDetails.subjectId.slice(0, 8)}`}
+                    (selectedListingForDetails.subjectId
+                      ? `#${selectedListingForDetails.subjectId.slice(0, 8)}`
+                      : 'N/A')}
                   {(() => {
                     const animal = allAnimaux?.find(
                       (a: ProductionAnimal) => a.id === selectedListingForDetails.subjectId

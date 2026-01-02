@@ -24,8 +24,10 @@ import { MarketplaceTheme } from '../../styles/marketplace.theme';
 import { SPACING } from '../../constants/theme';
 import SaleTermsDisplay from './SaleTermsDisplay';
 import type { ProductionAnimal } from '../../types/production';
+import type { Batch } from '../../types/batch';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { selectAllAnimaux } from '../../store/selectors/productionSelectors';
+import { selectProjetActif } from '../../store/selectors/projetSelectors';
 import apiClient from '../../services/api/apiClient';
 import { createListing } from '../../store/slices/marketplaceSlice';
 import { loadProductionAnimaux, loadPeseesRecents } from '../../store/slices/productionSlice';
@@ -51,7 +53,11 @@ export default function BatchAddModal({
   const { colors, spacing, typography, borderRadius } = MarketplaceTheme;
   const dispatch = useAppDispatch();
 
-  // Charger les animaux depuis Redux si non fournis
+  // Détecter le mode du projet
+  const projetActif = useAppSelector(selectProjetActif);
+  const isBatchMode = projetActif?.management_method === 'batch';
+
+  // Charger les animaux depuis Redux si non fournis (mode individuel)
   const allAnimaux = useAppSelector(selectAllAnimaux);
   const { user } = useAppSelector((state) => state.auth);
   const { getCurrentLocation } = useGeolocation();
@@ -60,6 +66,10 @@ export default function BatchAddModal({
   const [peseesParAnimal, setPeseesParAnimal] = useState<
     Record<string, Array<{ date: string; poids_kg: number }>>
   >({});
+
+  // Pour mode bande : charger les batches et batch_pigs
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [batchPigs, setBatchPigs] = useState<any[]>([]);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pricePerKg, setPricePerKg] = useState('');
@@ -109,36 +119,99 @@ export default function BatchAddModal({
     try {
       setLoadingSubjects(true);
       
-      // Charger les animaux depuis le backend via Redux
-      await dispatch(loadProductionAnimaux({ projetId, inclureInactifs: false })).unwrap();
-      
-      // Charger les pesées récentes
-      await dispatch(loadPeseesRecents({ projetId, limit: 100 })).unwrap();
-      
-      // Filtrer les animaux actifs depuis Redux
-      const animauxActifs = allAnimaux.filter(
-        (a) => a.projet_id === projetId && a.statut === 'actif'
-      );
-      
-      // Construire le map des pesées depuis Redux
-      const peseesMap: Record<string, Array<{ date: string; poids_kg: number }>> = {};
-      for (const animal of animauxActifs) {
-        const peseesAnimal = peseesRecents
-          .map((id) => peseesEntities[id])
-          .filter((p) => p && p.animal_id === animal.id)
-          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      if (isBatchMode) {
+        // Mode bande : charger les batches et leurs batch_pigs
+        const batchesData = await apiClient.get<Batch[]>(`/batch-pigs/projet/${projetId}`);
+        setBatches(batchesData);
         
-        peseesMap[animal.id] = peseesAnimal.map((p) => ({
-          date: p.date,
-          poids_kg: p.poids_kg,
+        // Charger les batch_pigs de tous les batches
+        const allBatchPigs: any[] = [];
+        for (const batch of batchesData) {
+          try {
+            // Exclure les batches de reproducteurs
+            if (batch.category === 'truie_reproductrice' || batch.category === 'verrat_reproducteur') {
+              continue;
+            }
+            
+            const pigs = await apiClient.get<any[]>(`/batch-pigs/batch/${batch.id}`);
+            // Ajouter les informations de la bande à chaque porc
+            const pigsWithBatchInfo = pigs.map((pig) => ({
+              ...pig,
+              batch_id: batch.id,
+              batch_name: batch.pen_name,
+              batch_category: batch.category,
+            }));
+            allBatchPigs.push(...pigsWithBatchInfo);
+          } catch (error) {
+            logger.warn(`Erreur chargement batch_pigs pour batch ${batch.id}:`, error);
+          }
+        }
+        
+        setBatchPigs(allBatchPigs);
+        
+        // Convertir les batch_pigs en format compatible avec ProductionAnimal pour l'affichage
+        const subjectsAsAnimals: ProductionAnimal[] = allBatchPigs.map((pig) => ({
+          id: pig.id,
+          projet_id: projetId,
+          code: pig.pig_code || pig.code || `BP-${pig.id.slice(0, 8)}`,
+          nom: pig.nom || null,
+          race: pig.race || pig.batch_category || 'Non spécifiée',
+          sexe: pig.sex || pig.sexe || 'non_specifie',
+          date_naissance: pig.birth_date || pig.date_naissance || null,
+          poids_initial: pig.current_weight_kg || pig.initial_weight_kg || 0,
+          statut: 'actif',
+          date_creation: pig.created_at || new Date().toISOString(),
+          derniere_modification: pig.updated_at || new Date().toISOString(),
+          // Métadonnées batch
+          batch_id: pig.batch_id,
+          batch_name: pig.batch_name,
         }));
+        
+        setLocalSubjects(subjectsAsAnimals);
+        
+        // Construire le map des poids depuis batch_pigs
+        const peseesMap: Record<string, Array<{ date: string; poids_kg: number }>> = {};
+        for (const pig of allBatchPigs) {
+          if (pig.current_weight_kg) {
+            peseesMap[pig.id] = [{
+              date: pig.last_weight_date || pig.updated_at || new Date().toISOString(),
+              poids_kg: pig.current_weight_kg,
+            }];
+          }
+        }
+        setPeseesParAnimal(peseesMap);
+      } else {
+        // Mode individuel : charger les animaux depuis le backend via Redux
+        await dispatch(loadProductionAnimaux({ projetId, inclureInactifs: false })).unwrap();
+        
+        // Charger les pesées récentes
+        await dispatch(loadPeseesRecents({ projetId, limit: 100 })).unwrap();
+        
+        // Filtrer les animaux actifs depuis Redux
+        const animauxActifs = allAnimaux.filter(
+          (a) => a.projet_id === projetId && a.statut === 'actif'
+        );
+        
+        // Construire le map des pesées depuis Redux
+        const peseesMap: Record<string, Array<{ date: string; poids_kg: number }>> = {};
+        for (const animal of animauxActifs) {
+          const peseesAnimal = peseesRecents
+            .map((id) => peseesEntities[id])
+            .filter((p) => p && p.animal_id === animal.id)
+            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+          
+          peseesMap[animal.id] = peseesAnimal.map((p) => ({
+            date: p.date,
+            poids_kg: p.poids_kg,
+          }));
+        }
+        
+        setPeseesParAnimal(peseesMap);
+        setLocalSubjects(animauxActifs);
       }
-      
-      setPeseesParAnimal(peseesMap);
-      setLocalSubjects(animauxActifs);
     } catch (error: unknown) {
-      logger.error('Erreur chargement animaux:', error);
-      Alert.alert('Erreur', 'Impossible de charger les animaux disponibles');
+      logger.error('Erreur chargement sujets:', error);
+      Alert.alert('Erreur', 'Impossible de charger les sujets disponibles');
     } finally {
       setLoadingSubjects(false);
     }
@@ -262,68 +335,132 @@ export default function BatchAddModal({
     try {
       setLoading(true);
 
-      // Créer un listing pour chaque sujet sélectionné
-      const subjectIds = Array.from(selectedIds);
+      // Obtenir la localisation actuelle
+      const userLocation = await getCurrentLocation();
+      if (!userLocation) {
+        throw new Error(
+          "Impossible d'obtenir votre localisation. Veuillez activer la géolocalisation."
+        );
+      }
 
-      for (const subjectId of subjectIds) {
-        const subject = availableSubjects.find((s) => s.id === subjectId);
-        if (!subject) continue;
+      // Vérifier que l'utilisateur est connecté
+      if (!user || !user.id) {
+        throw new Error('Utilisateur non connecté');
+      }
 
-        // Récupérer les informations nécessaires pour créer le listing depuis l'API backend
-        const animal = await apiClient.get<any>(`/production/animaux/${subjectId}`);
-
-        if (!animal) continue;
-
-        // Récupérer la dernière pesée pour obtenir le poids actuel et la date depuis l'API backend
-        const pesees = await apiClient.get<any[]>(`/production/pesees`, {
-          params: { animal_id: animal.id, limit: 1 },
-        });
-        const dernierePesee = pesees && pesees.length > 0 ? pesees[0] : null;
-        const poidsActuel = dernierePesee?.poids_kg || animal.poids_initial || 0;
-        const lastWeightDate = dernierePesee?.date || new Date().toISOString();
-
-        // Obtenir la localisation actuelle
-        const userLocation = await getCurrentLocation();
-        if (!userLocation) {
-          throw new Error(
-            "Impossible d'obtenir votre localisation. Veuillez activer la géolocalisation."
-          );
+      if (isBatchMode) {
+        // Mode bande : créer un listing de bande avec les batch_pigs sélectionnés
+        const selectedPigs = batchPigs.filter((pig) => selectedIds.has(pig.id));
+        if (selectedPigs.length === 0) {
+          throw new Error('Aucun porc sélectionné');
         }
 
-        // Vérifier que l'utilisateur est connecté
-        if (!user || !user.id) {
-          throw new Error('Utilisateur non connecté');
-        }
-
-        // Créer le listing avec toutes les propriétés requises
-        try {
-          await dispatch(
-            createListing({
-              subjectId: animal.id,
-              producerId: user.id,
-              farmId: projetId,
-              pricePerKg: price,
-              weight: poidsActuel,
-              lastWeightDate: lastWeightDate,
-              location: {
-                latitude: userLocation.latitude,
-                longitude: userLocation.longitude,
-                address: undefined,
-                city: userLocation.city,
-                region: userLocation.region,
-              },
-            })
-          ).unwrap();
-        } catch (error: unknown) {
-          // Améliorer le message d'erreur avec les informations de l'animal
-          const animalName = animal.nom || animal.code || 'sujet';
-          const errorMsg = getErrorMessage(error);
-          if (errorMsg.includes('déjà en vente')) {
-            throw new Error(
-              `Le sujet "${animalName}" (${animal.code}) est déjà en vente sur le marketplace`
-            );
+        // Grouper les porcs par batch_id
+        const pigsByBatch = selectedPigs.reduce((acc, pig) => {
+          const batchId = pig.batch_id;
+          if (!acc[batchId]) {
+            acc[batchId] = [];
           }
-          throw error;
+          acc[batchId].push(pig);
+          return acc;
+        }, {} as Record<string, any[]>);
+
+        // Créer un listing de bande pour chaque batch
+        for (const [batchId, pigs] of Object.entries(pigsByBatch)) {
+          const batch = batches.find((b) => b.id === batchId);
+          if (!batch) continue;
+
+          // Calculer le poids moyen des porcs sélectionnés
+          const totalWeight = pigs.reduce((sum, pig) => sum + (pig.current_weight_kg || 0), 0);
+          const averageWeight = pigs.length > 0 ? totalWeight / pigs.length : 0;
+
+          if (averageWeight <= 0) {
+            throw new Error(`Le poids moyen doit être supérieur à 0 pour la bande ${batch.pen_name}`);
+          }
+
+          // Récupérer la date de dernière pesée la plus récente
+          const lastWeightDate = pigs
+            .map((pig) => pig.last_weight_date || pig.updated_at)
+            .filter(Boolean)
+            .sort()
+            .reverse()[0] || new Date().toISOString();
+
+          // Créer le listing de bande
+          await apiClient.post('/marketplace/listings/batch', {
+            batchId,
+            farmId: projetId,
+            pricePerKg: price,
+            averageWeight,
+            pigCount: pigs.length,
+            pigIds: pigs.map((p) => p.id),
+            lastWeightDate,
+            location: {
+              latitude: userLocation.latitude,
+              longitude: userLocation.longitude,
+              address: undefined,
+              city: userLocation.city,
+              region: userLocation.region,
+            },
+            saleTerms: {
+              transport: 'buyer_responsibility',
+              slaughter: 'buyer_responsibility',
+              paymentTerms: 'on_delivery',
+              warranty: 'Tous les documents sanitaires et certificats seront fournis.',
+              cancellationPolicy: "Annulation possible jusqu'à 48h avant la date de livraison.",
+            },
+          });
+        }
+      } else {
+        // Mode individuel : créer un listing pour chaque sujet sélectionné
+        const subjectIds = Array.from(selectedIds);
+
+        for (const subjectId of subjectIds) {
+          const subject = availableSubjects.find((s) => s.id === subjectId);
+          if (!subject) continue;
+
+          // Récupérer les informations nécessaires pour créer le listing depuis l'API backend
+          const animal = await apiClient.get<any>(`/production/animaux/${subjectId}`);
+
+          if (!animal) continue;
+
+          // Récupérer la dernière pesée pour obtenir le poids actuel et la date depuis l'API backend
+          const pesees = await apiClient.get<any[]>(`/production/pesees`, {
+            params: { animal_id: animal.id, limit: 1 },
+          });
+          const dernierePesee = pesees && pesees.length > 0 ? pesees[0] : null;
+          const poidsActuel = dernierePesee?.poids_kg || animal.poids_initial || 0;
+          const lastWeightDate = dernierePesee?.date || new Date().toISOString();
+
+          // Créer le listing avec toutes les propriétés requises
+          try {
+            await dispatch(
+              createListing({
+                subjectId: animal.id,
+                producerId: user.id,
+                farmId: projetId,
+                pricePerKg: price,
+                weight: poidsActuel,
+                lastWeightDate: lastWeightDate,
+                location: {
+                  latitude: userLocation.latitude,
+                  longitude: userLocation.longitude,
+                  address: undefined,
+                  city: userLocation.city,
+                  region: userLocation.region,
+                },
+              })
+            ).unwrap();
+          } catch (error: unknown) {
+            // Améliorer le message d'erreur avec les informations de l'animal
+            const animalName = animal.nom || animal.code || 'sujet';
+            const errorMsg = getErrorMessage(error);
+            if (errorMsg.includes('déjà en vente')) {
+              throw new Error(
+                `Le sujet "${animalName}" (${animal.code}) est déjà en vente sur le marketplace`
+              );
+            }
+            throw error;
+          }
         }
       }
 
@@ -482,6 +619,11 @@ export default function BatchAddModal({
                     <View style={styles.subjectInfo}>
                       <Text style={[styles.subjectCode, { color: colors.text }]}>
                         #{subject.code || subject.id}
+                        {isBatchMode && (subject as any).batch_name && (
+                          <Text style={[styles.batchName, { color: colors.textSecondary }]}>
+                            {' '}• {(subject as any).batch_name}
+                          </Text>
+                        )}
                       </Text>
                       <Text style={[styles.subjectDetails, { color: colors.textSecondary }]}>
                         {subject.nom ? `${subject.nom} • ` : ''}
@@ -696,6 +838,10 @@ const styles = StyleSheet.create({
   subjectCode: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
     fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+  },
+  batchName: {
+    fontSize: MarketplaceTheme.typography.fontSizes.sm,
+    fontWeight: MarketplaceTheme.typography.fontWeights.normal,
   },
   subjectDetails: {
     fontSize: MarketplaceTheme.typography.fontSizes.sm,

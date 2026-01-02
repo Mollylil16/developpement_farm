@@ -11,6 +11,7 @@ import {
   RemovePigDto,
   CreateBatchWithPigsDto,
   UpdateBatchSettingsDto,
+  UpdateBatchDto,
 } from './dto';
 
 @Injectable()
@@ -627,6 +628,123 @@ throw error;
           : null,
       updated_at: row.updated_at,
     };
+  }
+
+  /**
+   * Met à jour les informations d'une bande (nom, catégorie, position, notes)
+   */
+  async updateBatch(
+    batchId: string,
+    dto: UpdateBatchDto,
+    userId: string,
+  ): Promise<any> {
+    await this.checkBatchOwnership(batchId, userId);
+
+    if (!dto || Object.keys(dto).length === 0) {
+      throw new BadRequestException('Aucun paramètre à mettre à jour');
+    }
+
+    // Vérifier que le nouveau nom de loge n'est pas déjà utilisé dans le même projet
+    if (dto.pen_name) {
+      const batchResult = await this.db.query(
+        'SELECT projet_id FROM batches WHERE id = $1',
+        [batchId],
+      );
+      if (batchResult.rows.length === 0) {
+        throw new NotFoundException('Bande non trouvée');
+      }
+      const projetId = batchResult.rows[0].projet_id;
+
+      const existingBatch = await this.db.query(
+        'SELECT id FROM batches WHERE projet_id = $1 AND pen_name = $2 AND id != $3',
+        [projetId, dto.pen_name, batchId],
+      );
+      if (existingBatch.rows.length > 0) {
+        throw new BadRequestException(
+          `Une loge avec le nom "${dto.pen_name}" existe déjà dans ce projet`,
+        );
+      }
+    }
+
+    // Construire la requête UPDATE dynamiquement
+    const updates: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    if (dto.pen_name !== undefined) {
+      updates.push(`pen_name = $${paramIndex}`);
+      values.push(dto.pen_name);
+      paramIndex++;
+    }
+
+    if (dto.category !== undefined) {
+      updates.push(`category = $${paramIndex}`);
+      values.push(dto.category);
+      paramIndex++;
+    }
+
+    if (dto.position !== undefined) {
+      updates.push(`position = $${paramIndex}`);
+      values.push(dto.position);
+      paramIndex++;
+    }
+
+    if (dto.notes !== undefined) {
+      updates.push(`notes = $${paramIndex}`);
+      values.push(dto.notes);
+      paramIndex++;
+    }
+
+    if (updates.length === 0) {
+      throw new BadRequestException('Aucun paramètre valide à mettre à jour');
+    }
+
+    updates.push(`updated_at = NOW()`);
+    values.push(batchId);
+
+    const result = await this.db.query(
+      `UPDATE batches
+       SET ${updates.join(', ')}
+       WHERE id = $${paramIndex}
+       RETURNING *`,
+      values,
+    );
+
+    if (result.rows.length === 0) {
+      throw new NotFoundException('Bande non trouvée');
+    }
+
+    return this.mapBatchesResult(result.rows)[0];
+  }
+
+  /**
+   * Supprime une bande (seulement si elle est vide)
+   */
+  async deleteBatch(batchId: string, userId: string): Promise<void> {
+    await this.checkBatchOwnership(batchId, userId);
+
+    // Vérifier que la bande est vide
+    const pigsResult = await this.db.query(
+      'SELECT COUNT(*) as count FROM batch_pigs WHERE batch_id = $1',
+      [batchId],
+    );
+    const pigCount = parseInt(pigsResult.rows[0]?.count || '0');
+
+    if (pigCount > 0) {
+      throw new BadRequestException(
+        `Impossible de supprimer la loge : elle contient encore ${pigCount} sujet(s). Veuillez d'abord déplacer ou retirer tous les sujets.`,
+      );
+    }
+
+    // Supprimer la bande
+    const deleteResult = await this.db.query(
+      'DELETE FROM batches WHERE id = $1 RETURNING id',
+      [batchId],
+    );
+
+    if (deleteResult.rows.length === 0) {
+      throw new NotFoundException('Bande non trouvée');
+    }
   }
 
   /**

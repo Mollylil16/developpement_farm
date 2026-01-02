@@ -23,6 +23,7 @@ CREATE OR REPLACE FUNCTION update_subscription_plans_updated_at() RETURNS TRIGGE
 RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS trigger_update_subscription_plans_updated_at ON subscription_plans;
 CREATE TRIGGER trigger_update_subscription_plans_updated_at BEFORE
 UPDATE ON subscription_plans FOR EACH ROW EXECUTE FUNCTION update_subscription_plans_updated_at();
 -- Index
