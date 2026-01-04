@@ -6,7 +6,7 @@ buildscript {
     targetSdkVersion = 34
     minSdkVersion = 24
     // buildToolsVersion is automatically managed by Android Gradle Plugin
-    ndkVersion = "26.1.10909125"
+    ndkVersion = "27.0.12077987"
   }
   repositories {
     google()
