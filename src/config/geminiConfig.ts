@@ -16,16 +16,20 @@
  * 2. Définissez EXPO_PUBLIC_GEMINI_API_KEY dans votre .env
  * 3. Ou utilisez saveGeminiConfig() pour stocker la clé dans AsyncStorage
  */
+import Constants from 'expo-constants';
+
 export const GEMINI_CONFIG = {
   /**
    * Clé API Gemini
    * Peut être définie via :
+   * - expo-constants (app.json extra.geminiApiKey): Constants.expoConfig?.extra?.geminiApiKey
    * - Variable d'environnement: EXPO_PUBLIC_GEMINI_API_KEY
    * - AsyncStorage: 'GEMINI_API_KEY'
    * 
    * Si null/undefined, l'agent utilisera Jaccard comme fallback
    */
-  apiKey: (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_GEMINI_API_KEY) || null,
+  apiKey: (typeof Constants !== 'undefined' && Constants.expoConfig?.extra?.geminiApiKey) ||
+          (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_GEMINI_API_KEY) || null,
   
   /**
    * Modèle Gemini à utiliser

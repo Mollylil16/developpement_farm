@@ -41,7 +41,8 @@
       "expo-sqlite",
       "expo-localization",
       "expo-apple-authentication",
-      "./app.plugin.js"
+      "./app.plugin.js",
+      "expo-font"
     ],
     "extra": {
       "eas": {
