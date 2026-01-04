@@ -100,6 +100,11 @@ export interface AgentActionResult {
   data?: unknown;
   message: string;
   error?: string;
+  // Champs pour les clarifications
+  needsClarification?: boolean;
+  clarificationType?: string;
+  missingParams?: string[];
+  actionType?: string; // Type d'action pour la boucle de clarification
 }
 
 export interface AgentContext {
@@ -113,7 +118,7 @@ export interface AgentContext {
 }
 
 export interface AgentConfig {
-  apiKey?: string;
+  geminiApiKey?: string;
   apiUrl?: string;
   model?: string;
   temperature?: number;

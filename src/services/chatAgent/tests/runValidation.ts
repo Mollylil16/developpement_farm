@@ -6,7 +6,7 @@
 import { ChatAgentService } from '../ChatAgentService';
 import { AgentConfig, AgentContext } from '../../../types/chatAgent';
 import { AgentValidationTest, ValidationReport } from './AgentValidationTest';
-import { OPENAI_CONFIG } from '../../../config/openaiConfig';
+import { GEMINI_CONFIG } from '../../../config/geminiConfig';
 import { exportValidationReportPDF } from './ValidationReportPDF';
 import { PerformanceMonitor } from '../monitoring/PerformanceMonitor';
 
@@ -14,10 +14,10 @@ import { PerformanceMonitor } from '../monitoring/PerformanceMonitor';
  * Exécute les tests de validation et retourne le rapport
  */
 export async function runAgentValidation(context: AgentContext): Promise<ValidationReport> {
-  // Configuration de l'agent avec OpenAI
+  // Configuration de l'agent avec Gemini
   const config: AgentConfig = {
-    apiKey: OPENAI_CONFIG.apiKey,
-    model: OPENAI_CONFIG.model,
+    geminiApiKey: GEMINI_CONFIG.apiKey,
+    model: GEMINI_CONFIG.model,
     language: 'fr-CI',
     enableVoice: false,
     enableProactiveAlerts: true,

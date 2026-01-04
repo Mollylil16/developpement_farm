@@ -8,6 +8,8 @@ import { CreateDepensePonctuelleDto } from './dto/create-depense-ponctuelle.dto'
 import { UpdateDepensePonctuelleDto } from './dto/update-depense-ponctuelle.dto';
 import { CreateRevenuDto } from './dto/create-revenu.dto';
 import { UpdateRevenuDto } from './dto/update-revenu.dto';
+import { CreateVentePorcDto } from './dto/create-vente-porc.dto';
+import { BadRequestException } from '@nestjs/common';
 
 @Injectable()
 export class FinanceService {
@@ -1246,6 +1248,222 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
         total_kg_vendus: totalKgVendus,
         total_kg_vendus_estime: totalKgVendusEstime,
       },
+    };
+  }
+
+  // ==================== VENTE DE PORCS AVEC VALIDATION STRICTE ====================
+
+  /**
+   * Crée une vente de porc avec validation stricte des sujets vendus
+   * Met à jour automatiquement le cheptel (statut "vendu", date_vente)
+   */
+  async createVentePorc(createVentePorcDto: CreateVentePorcDto, userId: string) {
+    await this.checkProjetOwnership(createVentePorcDto.projet_id, userId);
+
+    // 1. VALIDATION : Vérifier que les sujets sont identifiés
+    const hasAnimalIds = createVentePorcDto.animal_ids && createVentePorcDto.animal_ids.length > 0;
+    const hasBatchId = createVentePorcDto.batch_id && createVentePorcDto.quantite && createVentePorcDto.quantite > 0;
+
+    if (!hasAnimalIds && !hasBatchId) {
+      throw new BadRequestException(
+        'Pour enregistrer une vente, vous devez obligatoirement identifier les porcs vendus : ' +
+        'en mode suivi individuel, fournissez les IDs des animaux (animal_ids), ' +
+        'ou en mode élevage en bande, fournissez la loge (batch_id) et la quantité (quantite).'
+      );
+    }
+
+    // 2. Récupérer le mode de gestion du projet
+    const projetResult = await this.databaseService.query(
+      'SELECT management_method FROM projets WHERE id = $1',
+      [createVentePorcDto.projet_id]
+    );
+
+    if (projetResult.rows.length === 0) {
+      throw new NotFoundException('Projet introuvable');
+    }
+
+    const managementMethod = projetResult.rows[0].management_method || 'individual';
+
+    // 3. VALIDATION ET MISE À JOUR DU CHEPTEL selon le mode
+    let animalIdsToUpdate: string[] = [];
+    let totalPoidsKg = createVentePorcDto.poids_kg || 0;
+
+    if (managementMethod === 'individual' || hasAnimalIds) {
+      // MODE INDIVIDUEL : Vérifier que les animaux existent et sont actifs
+      if (!hasAnimalIds) {
+        throw new BadRequestException(
+          'En mode suivi individuel, vous devez fournir les IDs des animaux vendus (animal_ids).'
+        );
+      }
+
+      // Vérifier que tous les animaux existent, sont actifs et appartiennent au projet
+      const animauxResult = await this.databaseService.query(
+        `SELECT id, code, statut, projet_id, poids_kg 
+         FROM production_animaux 
+         WHERE id = ANY($1::varchar[]) AND projet_id = $2`,
+        [createVentePorcDto.animal_ids, createVentePorcDto.projet_id]
+      );
+
+      if (animauxResult.rows.length !== createVentePorcDto.animal_ids.length) {
+        throw new BadRequestException(
+          'Certains animaux spécifiés n\'existent pas ou n\'appartiennent pas à ce projet.'
+        );
+      }
+
+      // Vérifier que tous les animaux sont actifs
+      const animauxInactifs = animauxResult.rows.filter((a) => a.statut !== 'actif');
+      if (animauxInactifs.length > 0) {
+        const codesInactifs = animauxInactifs.map((a) => a.code).join(', ');
+        throw new BadRequestException(
+          `Les animaux suivants ne sont pas actifs et ne peuvent pas être vendus : ${codesInactifs}`
+        );
+      }
+
+      animalIdsToUpdate = createVentePorcDto.animal_ids;
+
+      // Calculer le poids total si non fourni
+      if (!createVentePorcDto.poids_kg || createVentePorcDto.poids_kg === 0) {
+        const poidsResult = await this.databaseService.query(
+          `SELECT COALESCE(SUM(p.poids_kg), 0) as poids_total
+           FROM (
+             SELECT DISTINCT ON (animal_id) poids_kg
+             FROM production_pesees
+             WHERE animal_id = ANY($1::varchar[])
+             ORDER BY animal_id, date DESC
+           ) p`,
+          [animalIdsToUpdate]
+        );
+        totalPoidsKg = parseFloat(poidsResult.rows[0]?.poids_total) || 0;
+      }
+    } else if (managementMethod === 'batch' || hasBatchId) {
+      // MODE BANDE : Vérifier que la bande existe et a assez de porcs
+      if (!hasBatchId) {
+        throw new BadRequestException(
+          'En mode élevage en bande, vous devez fournir la loge (batch_id) et la quantité (quantite).'
+        );
+      }
+
+      // Vérifier que la bande existe et appartient au projet
+      const batchResult = await this.databaseService.query(
+        `SELECT b.id, b.total_count, b.projet_id, b.pen_name
+         FROM batches b
+         WHERE b.id = $1 AND b.projet_id = $2`,
+        [createVentePorcDto.batch_id, createVentePorcDto.projet_id]
+      );
+
+      if (batchResult.rows.length === 0) {
+        throw new NotFoundException('Bande/loge introuvable ou n\'appartient pas à ce projet.');
+      }
+
+      const batch = batchResult.rows[0];
+      if (createVentePorcDto.quantite > batch.total_count) {
+        throw new BadRequestException(
+          `La bande "${batch.pen_name}" ne contient que ${batch.total_count} porc(s), ` +
+          `impossible de vendre ${createVentePorcDto.quantite} porc(s).`
+        );
+      }
+
+      // Sélectionner les porcs les plus lourds pour la vente
+      const pigsResult = await this.databaseService.query(
+        `SELECT id, current_weight_kg
+         FROM batch_pigs
+         WHERE batch_id = $1
+         ORDER BY current_weight_kg DESC
+         LIMIT $2`,
+        [createVentePorcDto.batch_id, createVentePorcDto.quantite]
+      );
+
+      if (pigsResult.rows.length < createVentePorcDto.quantite) {
+        throw new BadRequestException(
+          `Seulement ${pigsResult.rows.length} porc(s) disponible(s) dans la bande pour la vente.`
+        );
+      }
+
+      animalIdsToUpdate = pigsResult.rows.map((row) => row.id);
+
+      // Calculer le poids total si non fourni
+      if (!createVentePorcDto.poids_kg || createVentePorcDto.poids_kg === 0) {
+        totalPoidsKg = pigsResult.rows.reduce(
+          (sum, row) => sum + (parseFloat(row.current_weight_kg) || 0),
+          0
+        );
+      }
+
+      // Supprimer les porcs de batch_pigs (le trigger mettra à jour total_count)
+      await this.databaseService.query(
+        `DELETE FROM batch_pigs WHERE id = ANY($1::varchar[])`,
+        [animalIdsToUpdate]
+      );
+    }
+
+    // 4. Mettre à jour le cheptel : marquer les animaux comme "vendu"
+    const dateVente = createVentePorcDto.date || new Date().toISOString();
+
+    if (managementMethod === 'individual' || hasAnimalIds) {
+      // Mode individuel : mettre à jour production_animaux
+      await this.databaseService.query(
+        `UPDATE production_animaux
+         SET statut = 'vendu',
+             date_vente = $1,
+             actif = false
+         WHERE id = ANY($2::varchar[])`,
+        [dateVente, animalIdsToUpdate]
+      );
+    }
+
+    // 5. Créer le revenu
+    const revenuId = this.generateRevenuId();
+    const now = new Date().toISOString();
+
+    // Compresser les images avant stockage
+    const compressedPhotos = await compressImagesArray(
+      createVentePorcDto.photos,
+      this.imageService,
+      { maxWidth: 1920, maxHeight: 1920, quality: 80 }
+    );
+
+    const description =
+      createVentePorcDto.description ||
+      (managementMethod === 'batch'
+        ? `Vente de ${createVentePorcDto.quantite} porc(s) depuis la bande ${createVentePorcDto.batch_id}`
+        : `Vente de ${animalIdsToUpdate.length} porc(s)`);
+
+    const result = await this.databaseService.query(
+      `INSERT INTO revenus (
+        id, projet_id, montant, categorie, libelle_categorie, date,
+        description, commentaire, photos, poids_kg, animal_id,
+        date_creation, derniere_modification
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      RETURNING *`,
+      [
+        revenuId,
+        createVentePorcDto.projet_id,
+        createVentePorcDto.montant,
+        'vente_porc',
+        'Vente de porcs',
+        dateVente,
+        description,
+        createVentePorcDto.commentaire || null,
+        this.stringifyArray(compressedPhotos),
+        totalPoidsKg > 0 ? totalPoidsKg : null,
+        managementMethod === 'individual' && animalIdsToUpdate.length === 1
+          ? animalIdsToUpdate[0]
+          : null, // animal_id pour un seul animal en mode individuel
+        now,
+        now,
+      ]
+    );
+
+    const revenu = this.mapRowToRevenu(result.rows[0]);
+
+    // 6. Retourner le résultat avec les informations de mise à jour
+    return {
+      ...revenu,
+      animaux_vendus: animalIdsToUpdate.length,
+      animal_ids: animalIdsToUpdate,
+      batch_id: createVentePorcDto.batch_id || null,
+      quantite: createVentePorcDto.quantite || null,
+      message: `Vente enregistrée avec succès. ${animalIdsToUpdate.length} porc(s) retiré(s) du cheptel actif.`,
     };
   }
 }

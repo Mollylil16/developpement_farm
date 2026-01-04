@@ -96,7 +96,7 @@ function createTestConfig(): AgentConfig {
     temperature: 0.7,
     maxTokens: 1000,
     language: 'fr-CI',
-    apiKey: process.env.OPENAI_API_KEY || 'test-api-key', // Utiliser la clé d'API réelle si disponible
+    geminiApiKey: process.env.GEMINI_API_KEY || 'test-api-key', // Utiliser la clé d'API réelle si disponible
   };
 }
 

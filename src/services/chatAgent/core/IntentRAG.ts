@@ -6,7 +6,6 @@
 
 import { AgentActionType } from '../../../types/chatAgent';
 import { DetectedIntent } from '../IntentDetector';
-import { OpenAIIntentService } from './OpenAIIntentService';
 import { logger } from '../../../utils/logger';
 
 export interface TrainingExample {
@@ -1395,8 +1394,8 @@ function normalizeText(text: string): string {
  */
 export class IntentRAG {
   private knowledgeBase: TrainingExample[];
-  private openAIService: OpenAIIntentService | null;
-  private useOpenAI: boolean;
+  // OpenAI service removed - using Jaccard fallback only
+  private useOpenAI: boolean = false;
   private embeddingsCache: Map<string, number[]> = new Map();
 
   // Cache pour normalisations (optimisation v3.0)
@@ -1408,12 +1407,13 @@ export class IntentRAG {
 
   constructor(
     knowledgeBase: TrainingExample[] = INTENT_KNOWLEDGE_BASE_COMPLETE,
-    openAIService?: OpenAIIntentService
+    // OpenAI service parameter removed - using Jaccard fallback only
+    _unused?: any
   ) {
     // Utiliser la base complète par défaut (440+ manuels + 5000+ générés = ~5500+ exemples)
     this.knowledgeBase = knowledgeBase;
-    this.openAIService = openAIService || null;
-    this.useOpenAI = !!openAIService && openAIService.isConfigured();
+    // OpenAI embeddings no longer supported - using Jaccard similarity only
+    this.useOpenAI = false;
 
     // Construire l'index inversé et précalculer les normalisations (optimisation v3.0)
     this.buildInvertedIndex();
@@ -1429,62 +1429,17 @@ export class IntentRAG {
    * Utilise OpenAI embeddings si disponible, sinon Jaccard
    */
   async detectIntent(message: string): Promise<DetectedIntent | null> {
-    if (this.useOpenAI && this.openAIService) {
-      return await this.detectIntentWithOpenAI(message);
-    }
+    // OpenAI embeddings no longer supported - using Jaccard only
     return this.detectIntentWithJaccard(message);
   }
 
   /**
-   * Détection d'intention avec OpenAI embeddings (plus précis)
+   * Détection d'intention avec OpenAI embeddings (désactivé - utilise Jaccard)
+   * OpenAI embeddings no longer supported - using Jaccard fallback
    */
   private async detectIntentWithOpenAI(message: string): Promise<DetectedIntent | null> {
-    if (!this.openAIService) {
-      return this.detectIntentWithJaccard(message);
-    }
-
-    try {
-      // Calculer l'embedding du message
-      const messageEmbedding = await this.openAIService.getEmbedding(message);
-
-      // Calculer les embeddings des exemples (avec cache)
-      const exampleTexts = this.knowledgeBase.map((e) => e.text);
-      const exampleEmbeddings = await this.openAIService.getEmbeddings(exampleTexts);
-
-      // Calculer les similarités
-      const similarities = this.knowledgeBase.map((example, index) => ({
-        example,
-        similarity: this.openAIService!.cosineSimilarity(
-          messageEmbedding,
-          exampleEmbeddings[index]
-        ),
-      }));
-
-      // Trier par similarité décroissante
-      similarities.sort((a, b) => b.similarity - a.similarity);
-
-      // Prendre le meilleur match si similarité > seuil
-      const bestMatch = similarities[0];
-      const threshold = 0.75; // Seuil élevé pour embeddings (précision maximale)
-
-      if (bestMatch && bestMatch.similarity >= threshold) {
-        // Ajuster la confiance selon la similarité
-        const baseConfidence = bestMatch.example.confidence;
-        const similarityBoost = (bestMatch.similarity - threshold) / (1 - threshold); // 0 à 1
-        const finalConfidence = Math.min(0.98, baseConfidence * (0.8 + 0.2 * similarityBoost));
-
-        return {
-          action: bestMatch.example.action,
-          confidence: finalConfidence,
-          params: { ...bestMatch.example.params },
-        };
-      }
-
-      return null;
-    } catch (error) {
-      logger.warn('[IntentRAG] Erreur avec OpenAI embeddings, fallback sur Jaccard:', error);
-      return this.detectIntentWithJaccard(message);
-    }
+    // OpenAI embeddings no longer supported - using Jaccard fallback
+    return this.detectIntentWithJaccard(message);
   }
 
   /**
@@ -1540,9 +1495,7 @@ export class IntentRAG {
     message: string,
     topN: number = 3
   ): Promise<Array<{ example: TrainingExample; similarity: number }>> {
-    if (this.useOpenAI && this.openAIService) {
-      return await this.findTopMatchesWithOpenAI(message, topN);
-    }
+    // OpenAI embeddings no longer supported - using Jaccard only
     return this.findTopMatchesWithJaccard(message, topN);
   }
 
@@ -1658,18 +1611,18 @@ export class IntentRAG {
   }
 
   /**
-   * Configure le service OpenAI
+   * Configure le service OpenAI (désactivé - OpenAI no longer supported)
    */
-  setOpenAIService(service: OpenAIIntentService | null): void {
-    this.openAIService = service;
-    this.useOpenAI = !!service && service.isConfigured();
+  setOpenAIService(_service: any): void {
+    // OpenAI embeddings no longer supported - using Jaccard fallback only
+    this.useOpenAI = false;
   }
 
   /**
-   * Vérifie si OpenAI est utilisé
+   * Vérifie si OpenAI est utilisé (toujours false - OpenAI no longer supported)
    */
   isUsingOpenAI(): boolean {
-    return this.useOpenAI;
+    return false; // OpenAI embeddings no longer supported
   }
 
   // ============================================

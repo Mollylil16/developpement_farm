@@ -16,7 +16,7 @@ describe('ChatAgentService - Tests d\'intégration', () => {
 
   beforeEach(() => {
     const config: AgentConfig = {
-      apiKey: 'test-key',
+      geminiApiKey: 'test-key',
       model: 'gpt-4o-mini',
       temperature: 0.7,
     };

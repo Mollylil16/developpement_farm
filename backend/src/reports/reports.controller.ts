@@ -152,6 +152,60 @@ export class ReportsController {
     return { available: true, data: result };
   }
 
+  @Get('performance-globale/periode')
+  @ApiOperation({
+    summary: "Calculer la performance globale d'un projet sur une période donnée",
+    description:
+      'Calcule la performance globale en comparant le coût de production (OPEX + CAPEX amorti) avec le prix du marché pour une période spécifique. ' +
+      "Génère un diagnostic et des suggestions d'amélioration.",
+  })
+  @ApiQuery({ name: 'projet_id', required: true, description: 'ID du projet' })
+  @ApiQuery({ name: 'date_debut', required: true, description: 'Date de début de la période (ISO string)' })
+  @ApiQuery({ name: 'date_fin', required: true, description: 'Date de fin de la période (ISO string)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Performance globale calculée avec succès.',
+    type: PerformanceGlobaleDto,
+  })
+  @ApiResponse({ status: 404, description: 'Projet introuvable ou pas assez de données.' })
+  @ApiResponse({ status: 403, description: "Vous n'êtes pas propriétaire de ce projet." })
+  async calculerPerformanceGlobalePeriode(
+    @Query('projet_id') projetId: string,
+    @Query('date_debut') dateDebut: string,
+    @Query('date_fin') dateFin: string,
+    @CurrentUser('id') userId: string
+  ) {
+    const dateDebutObj = new Date(dateDebut);
+    const dateFinObj = new Date(dateFin);
+
+    if (isNaN(dateDebutObj.getTime()) || isNaN(dateFinObj.getTime())) {
+      throw new BadRequestException('Dates invalides');
+    }
+
+    if (dateDebutObj > dateFinObj) {
+      throw new BadRequestException('La date de début doit être antérieure à la date de fin');
+    }
+
+    const result = await this.reportsService.calculerPerformanceGlobalePeriode(
+      projetId,
+      userId,
+      dateDebutObj,
+      dateFinObj
+    );
+
+    // IMPORTANT: Toujours renvoyer un JSON objet (évite réponses vides / parse errors côté mobile)
+    if (result === null) {
+      return {
+        available: false,
+        reason: 'not_enough_data',
+        message: "Pas assez de données pour calculer la performance globale sur cette période (aucune vente 'vente_porc').",
+        data: null,
+      };
+    }
+
+    return { available: true, data: result };
+  }
+
   @Get('sante/data')
   @ApiOperation({
     summary: "Récupérer les données agrégées pour le rapport santé",

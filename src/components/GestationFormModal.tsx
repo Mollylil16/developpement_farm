@@ -84,6 +84,13 @@ export default function GestationFormModal({
   const mortalites: Mortalite[] = useAppSelector(selectAllMortalites);
   const { canCreate, canUpdate } = useActionPermissions();
   const [loading, setLoading] = useState(false);
+  
+  // Détecter le mode de gestion (individuel ou bande)
+  const isModeBatch = projetActif?.management_method === 'batch';
+  
+  // État pour les bandes (mode bande uniquement)
+  const [batches, setBatches] = useState<any[]>([]);
+  const [loadingBatches, setLoadingBatches] = useState(false);
   const [formData, setFormData] = useState<CreateGestationInput>({
     projet_id: projetActif?.id ?? '',
     truie_id: '',
@@ -104,19 +111,54 @@ export default function GestationFormModal({
     null
   );
 
-  // Charger les animaux et mortalités au montage du composant
+  // Charger les bandes en mode batch
   useEffect(() => {
-    if (projetActif && visible) {
+    if (!projetActif?.id || !isModeBatch || !visible) return;
+
+    const loadBatches = async () => {
+      setLoadingBatches(true);
+      try {
+        const apiClient = (await import('../services/api/apiClient')).default;
+        const batchesData = await apiClient.get<any[]>(`/batch-pigs/projet/${projetActif.id}`);
+        // Filtrer uniquement les bandes de truies reproductrices
+        const truiesBatches = batchesData.filter((b) => b.category === 'truie_reproductrice');
+        setBatches(truiesBatches);
+      } catch (error) {
+        console.error('Erreur lors du chargement des bandes:', error);
+        setBatches([]);
+      } finally {
+        setLoadingBatches(false);
+      }
+    };
+
+    loadBatches();
+  }, [projetActif?.id, isModeBatch, visible]);
+
+  // Charger les animaux et mortalités au montage du composant (mode individuel uniquement)
+  useEffect(() => {
+    if (projetActif && visible && !isModeBatch) {
       dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
       dispatch(loadMortalitesParProjet(projetActif.id));
     }
-  }, [dispatch, projetActif?.id, visible]);
+  }, [dispatch, projetActif?.id, visible, isModeBatch]);
 
   // Générer une liste de truies basée sur le projet actif (en soustrayant les mortalités)
+  // En mode batch, utiliser les bandes de truies reproductrices
   const truies = useMemo(() => {
     if (!projetActif) return [];
+    
+    // Mode bande : utiliser les bandes de truies reproductrices
+    if (isModeBatch) {
+      return batches.map((batch) => ({
+        id: batch.id,
+        nom: batch.pen_name || `Bande ${batch.id}`,
+        numero: parseInt(batch.id.replace(/\D/g, '')) || 0,
+        batch: batch, // Garder la référence à la bande
+        total_count: batch.total_count || 0,
+      }));
+    }
 
-    // Calculer le nombre de truies mortes
+    // Mode individuel : calculer le nombre de truies mortes
     const mortalitesProjet = mortalites.filter((m: Mortalite) => m.projet_id === projetActif.id);
     const mortalitesTruies = mortalitesProjet
       .filter((m: Mortalite) => m.categorie === 'truie')
@@ -134,7 +176,7 @@ export default function GestationFormModal({
       });
     }
     return truiesList;
-  }, [projetActif?.id, mortalites]);
+  }, [projetActif?.id, mortalites, isModeBatch, batches]);
 
   const animauxProjet = useMemo(() => {
     if (!projetActif) return [];
@@ -229,7 +271,20 @@ export default function GestationFormModal({
 
   // Filtrer les truies selon la recherche ou la saisie directe
   const truiesFiltrees = useMemo(() => {
-    // Si un numéro direct est saisi et valide, retourner uniquement cette truie
+    // Mode batch : filtrer par recherche textuelle uniquement
+    if (isModeBatch) {
+      const query = searchQuery.toLowerCase().trim();
+      if (!query) {
+        return truies; // Afficher toutes les bandes si pas de recherche
+      }
+
+      return truies.filter((truie) => {
+        const nomLower = truie.nom.toLowerCase();
+        return nomLower.includes(query);
+      });
+    }
+
+    // Mode individuel : Si un numéro direct est saisi et valide, retourner uniquement cette truie
     if (directInput.trim()) {
       const numero = parseInt(directInput.trim());
       if (!isNaN(numero) && numero > 0 && numero <= truies.length) {
@@ -253,7 +308,7 @@ export default function GestationFormModal({
     });
 
     return filtrees.slice(0, 50); // Limiter à 50 résultats
-  }, [truies, searchQuery, directInput]);
+  }, [truies, searchQuery, directInput, isModeBatch]);
 
   // Gérer la sélection directe par numéro
   useEffect(() => {
@@ -474,13 +529,21 @@ export default function GestationFormModal({
       >
         <>
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Truie *</Text>
-
-            {/* Champ de saisie directe du numéro */}
-            <View style={styles.inputContainer}>
-              <Text style={[styles.inputLabel, { color: colors.text }]}>
-                Numéro de la truie (saisie rapide)
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              {isModeBatch ? 'Bande de truies reproductrices *' : 'Truie *'}
+            </Text>
+            {isModeBatch && (
+              <Text style={[styles.helperText, { color: colors.textSecondary }]}>
+                Sélectionnez la bande de truies reproductrices pour cette gestation
               </Text>
+            )}
+
+            {/* Champ de saisie directe du numéro (mode individuel uniquement) */}
+            {!isModeBatch && (
+              <View style={styles.inputContainer}>
+                <Text style={[styles.inputLabel, { color: colors.text }]}>
+                  Numéro de la truie (saisie rapide)
+                </Text>
               <TextInput
                 style={[
                   styles.directInput,
@@ -513,10 +576,11 @@ export default function GestationFormModal({
                   })()}
                 </Text>
               )}
-            </View>
+              </View>
+            )}
 
             {/* Barre de recherche (si pas de saisie directe valide) */}
-            {(!directInput.trim() ||
+            {!isModeBatch && (!directInput.trim() ||
               parseInt(directInput.trim()) > truies.length ||
               isNaN(parseInt(directInput.trim()))) && (
               <View style={styles.inputContainer}>
@@ -540,7 +604,30 @@ export default function GestationFormModal({
               </View>
             )}
 
-            {/* Affichage de la truie sélectionnée */}
+            {/* Barre de recherche pour les bandes (mode batch) */}
+            {isModeBatch && (
+              <View style={styles.inputContainer}>
+                <Text style={[styles.inputLabel, { color: colors.text }]}>
+                  Rechercher une bande
+                </Text>
+                <TextInput
+                  style={[
+                    styles.searchInput,
+                    {
+                      borderColor: colors.border,
+                      backgroundColor: colors.background,
+                      color: colors.text,
+                    },
+                  ]}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Rechercher par nom de loge..."
+                  placeholderTextColor={colors.textSecondary}
+                />
+              </View>
+            )}
+
+            {/* Affichage de la truie/bande sélectionnée */}
             {formData.truie_id && (
               <View
                 style={[
@@ -549,11 +636,19 @@ export default function GestationFormModal({
                 ]}
               >
                 <Text style={[styles.selectedTruieLabel, { color: colors.textSecondary }]}>
-                  Truie sélectionnée:
+                  {isModeBatch ? 'Bande sélectionnée:' : 'Truie sélectionnée:'}
                 </Text>
                 <Text style={[styles.selectedTruieValue, { color: colors.primary }]}>
                   {formData.truie_nom}
                 </Text>
+                {isModeBatch && (() => {
+                  const selectedBatch = batches.find((b) => b.id === formData.truie_id);
+                  return selectedBatch ? (
+                    <Text style={[styles.selectedTruieLabel, { color: colors.textSecondary, marginTop: 4 }]}>
+                      {selectedBatch.total_count} truie{selectedBatch.total_count > 1 ? 's' : ''} dans cette bande
+                    </Text>
+                  ) : null;
+                })()}
               </View>
             )}
 
@@ -564,10 +659,10 @@ export default function GestationFormModal({
                   <>
                     <View style={styles.resultsHeader}>
                       <Text style={[styles.resultsCount, { color: colors.textSecondary }]}>
-                        {truiesFiltrees.length} résultat{truiesFiltrees.length > 1 ? 's' : ''}
+                        {truiesFiltrees.length} {isModeBatch ? 'bande' : 'résultat'}{truiesFiltrees.length > 1 ? 's' : ''}
                         {!showFullList && truiesFiltrees.length === 50 && ` (sur ${truies.length})`}
                       </Text>
-                      {!showFullList && truies.length > 50 && (
+                      {!showFullList && truies.length > 50 && !isModeBatch && (
                         <TouchableOpacity
                           style={[styles.showAllButton, { backgroundColor: colors.primary }]}
                           onPress={() => setShowFullList(true)}
@@ -597,7 +692,9 @@ export default function GestationFormModal({
                               truie_id: item.id,
                               truie_nom: item.nom,
                             });
-                            setDirectInput(item.numero.toString());
+                            if (!isModeBatch) {
+                              setDirectInput(item.numero.toString());
+                            }
                             setSearchQuery('');
                           }}
                         >
@@ -614,6 +711,11 @@ export default function GestationFormModal({
                             ]}
                           >
                             {item.nom}
+                            {isModeBatch && item.total_count && (
+                              <Text style={{ fontSize: 12, opacity: 0.8 }}>
+                                {' '}({item.total_count} truie{item.total_count > 1 ? 's' : ''})
+                              </Text>
+                            )}
                           </Text>
                         </TouchableOpacity>
                       ))}
@@ -624,6 +726,8 @@ export default function GestationFormModal({
                     <Text style={[styles.noResultsText, { color: colors.textSecondary }]}>
                       {searchQuery.trim()
                         ? 'Aucun résultat trouvé'
+                        : isModeBatch
+                        ? 'Aucune bande de truies reproductrices disponible'
                         : 'Commencez à rechercher ou saisissez un numéro'}
                     </Text>
                   </View>
@@ -631,13 +735,13 @@ export default function GestationFormModal({
               </View>
             )}
 
-            {/* Option de saisie manuelle si aucune truie */}
+            {/* Option de saisie manuelle si aucune truie/bande */}
             {truies.length === 0 && (
               <FormField
-                label="Nom de la truie"
+                label={isModeBatch ? "Nom de la bande" : "Nom de la truie"}
                 value={formData.truie_nom || ''}
                 onChangeText={(text) => setFormData({ ...formData, truie_nom: text })}
-                placeholder="Ex: TRU015"
+                placeholder={isModeBatch ? "Ex: Loge A - Truies" : "Ex: TRU015"}
                 required
               />
             )}

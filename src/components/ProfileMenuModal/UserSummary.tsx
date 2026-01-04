@@ -2,21 +2,28 @@
  * Résumé utilisateur affiché dans la vue d'accueil
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Image } from 'react-native';
 import { useAppSelector } from '../../store/hooks';
 import { useTheme } from '../../contexts/ThemeContext';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS } from '../../constants/theme';
+import { useProfilData } from '../../hooks/useProfilData';
 
 export default function UserSummary() {
   const { colors } = useTheme();
   const { user } = useAppSelector((state) => state.auth);
   const { projetActif } = useAppSelector((state) => state.projet);
+  
+  // Utiliser useProfilData pour avoir la photo synchronisée
+  const { profilPhotoUri } = useProfilData();
+  
+  // Utiliser la photo synchronisée si disponible, sinon fallback sur user.photo
+  const displayPhoto = profilPhotoUri || user?.photo;
 
   return (
     <View style={[styles.userInfo, { borderBottomColor: colors.border }]}>
-      {user?.photo ? (
-        <Image source={{ uri: user.photo }} style={styles.userPhoto} />
+      {displayPhoto ? (
+        <Image source={{ uri: displayPhoto }} style={styles.userPhoto} />
       ) : (
         <View style={[styles.userPhotoPlaceholder, { backgroundColor: colors.primary + '15' }]}>
           <Text style={[styles.userInitials, { color: colors.primary }]}>

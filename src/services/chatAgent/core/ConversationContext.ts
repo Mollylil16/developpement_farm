@@ -47,6 +47,26 @@ export interface ConversationContext {
     timestamp: string;
   };
 
+  // État de conversation pour les ventes (nouveau flow)
+  venteState?: {
+    state: 'demande_loges' | 'affichage_sujets' | 'selection_sujets' | 'demande_montant';
+    montant?: number;
+    date?: string;
+    nombre?: number;
+    acheteur?: string;
+    loges?: string[];
+    sujetsDisponibles?: Array<{
+      id: string;
+      code?: string;
+      nom?: string;
+      race?: string;
+      poids_kg?: number;
+      date_derniere_pesee?: string;
+      loge?: string;
+    }>;
+    sujetsSelectionnes?: string[];
+  };
+
   // Mémorisation des corrections utilisateur (pour apprentissage)
   userCorrections?: Array<{
     originalCategory?: string;
@@ -507,6 +527,31 @@ export class ConversationContextManager {
    */
   getClarificationNeeded(): { question: string; missingParams: string[] } | undefined {
     return this.context.clarificationNeeded;
+  }
+
+  /**
+   * Réinitialise la clarification nécessaire
+   */
+  clearClarificationNeeded(): void {
+    this.context.clarificationNeeded = undefined;
+  }
+
+  /**
+   * Définit une action en attente
+   */
+  setPendingAction(action: string, params: Record<string, unknown>): void {
+    this.context.pendingAction = {
+      action,
+      params,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Réinitialise l'action en attente
+   */
+  clearPendingAction(): void {
+    this.context.pendingAction = undefined;
   }
 
   /**

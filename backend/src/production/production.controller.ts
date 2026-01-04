@@ -191,4 +191,17 @@ export class ProductionController {
   getProjetStats(@Param('projet_id') projetId: string, @CurrentUser() user: any) {
     return this.productionService.getProjetStats(projetId, user.id);
   }
+
+  @Get('animaux/by-loges')
+  @ApiOperation({ summary: 'Récupérer les animaux actifs par nom(s) de loge(s)' })
+  @ApiQuery({ name: 'projet_id', required: true, description: 'ID du projet' })
+  @ApiQuery({ name: 'loges', required: true, description: 'Noms des loges séparés par des virgules (ex: LogeA,LogeB)' })
+  getAnimauxByLoges(
+    @Query('projet_id') projetId: string,
+    @Query('loges') loges: string,
+    @CurrentUser() user: any
+  ) {
+    const logesList = loges.split(',').map((l) => l.trim()).filter((l) => l.length > 0);
+    return this.productionService.getAnimauxByLoges(projetId, logesList, user.id);
+  }
 }

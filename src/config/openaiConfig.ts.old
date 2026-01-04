@@ -1,0 +1,87 @@
+/**
+ * Configuration OpenAI pour l'agent conversationnel
+ * 
+ * Cette configuration peut être fournie via :
+ * 1. Variables d'environnement (EXPO_PUBLIC_OPENAI_API_KEY)
+ * 2. AsyncStorage (pour stockage sécurisé côté client)
+ * 
+ * Note: L'agent fonctionne sans OpenAI en utilisant Jaccard comme fallback
+ */
+
+/**
+ * Configuration OpenAI par défaut
+ * 
+ * Pour utiliser OpenAI :
+ * 1. Obtenez une clé API sur https://platform.openai.com
+ * 2. Définissez EXPO_PUBLIC_OPENAI_API_KEY dans votre .env
+ * 3. Ou utilisez saveOpenAIConfig() pour stocker la clé dans AsyncStorage
+ */
+export const OPENAI_CONFIG = {
+  /**
+   * Clé API OpenAI
+   * Peut être définie via :
+   * - Variable d'environnement: EXPO_PUBLIC_OPENAI_API_KEY
+   * - AsyncStorage: 'OPENAI_API_KEY'
+   * 
+   * Si null/undefined, l'agent utilisera Jaccard comme fallback
+   */
+  apiKey: (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_OPENAI_API_KEY) || null,
+  
+  /**
+   * Modèle OpenAI à utiliser
+   * Recommandé: 'gpt-4o-mini' (économique et performant)
+   * Alternatives: 'gpt-4o', 'gpt-3.5-turbo'
+   */
+  model: 'gpt-4o-mini' as const,
+} as const;
+
+/**
+ * Récupère la configuration OpenAI depuis AsyncStorage (asynchrone)
+ * Utilisez cette fonction si vous stockez la clé dans AsyncStorage
+ * 
+ * @returns Configuration avec apiKey depuis AsyncStorage
+ */
+export async function getOpenAIConfig(): Promise<{ apiKey: string | null; model: string }> {
+  try {
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+    const apiKey = await AsyncStorage.getItem('OPENAI_API_KEY');
+    return {
+      apiKey,
+      model: OPENAI_CONFIG.model,
+    };
+  } catch (error) {
+    console.error('Erreur récupération clé OpenAI depuis AsyncStorage:', error);
+    return {
+      apiKey: OPENAI_CONFIG.apiKey,
+      model: OPENAI_CONFIG.model,
+    };
+  }
+}
+
+/**
+ * Sauvegarde la clé API OpenAI dans AsyncStorage
+ * 
+ * @param apiKey - Clé API OpenAI à sauvegarder
+ */
+export async function saveOpenAIConfig(apiKey: string): Promise<void> {
+  try {
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+    await AsyncStorage.setItem('OPENAI_API_KEY', apiKey);
+  } catch (error) {
+    console.error('Erreur sauvegarde clé OpenAI:', error);
+    throw error;
+  }
+}
+
+/**
+ * Supprime la clé API OpenAI d'AsyncStorage
+ */
+export async function clearOpenAIConfig(): Promise<void> {
+  try {
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+    await AsyncStorage.removeItem('OPENAI_API_KEY');
+  } catch (error) {
+    console.error('Erreur suppression clé OpenAI:', error);
+  }
+}
+

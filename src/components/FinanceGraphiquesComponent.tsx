@@ -175,6 +175,30 @@ export default function FinanceGraphiquesComponent() {
       const depensesMensuelle = (totalCharges + totalDepenses) / nombreMois;
       const revenusMensuel = totalRevenus / nombreMois;
 
+      // Déterminer la période pour la performance globale
+      // Utiliser les 6 derniers mois ou toute la période disponible
+      const dateFin = new Date();
+      const dateDebut = subMonths(dateFin, nombreMois);
+      
+      // Ajuster la date de début si le projet est plus récent
+      const dateCreationProjet = projetActif.date_creation ? new Date(projetActif.date_creation) : null;
+      const dateDebutFinal = dateCreationProjet && dateCreationProjet > dateDebut ? dateCreationProjet : dateDebut;
+
+      // Récupérer les données de performance globale pour la période
+      let performanceGlobale = null;
+      try {
+        const { default: PerformanceGlobaleService } = await import('../services/PerformanceGlobaleService');
+        performanceGlobale = await PerformanceGlobaleService.calculatePerformanceGlobalePeriode(
+          projetActif.id,
+          dateDebutFinal,
+          dateFin,
+          projetActif
+        );
+      } catch (error) {
+        console.warn("Erreur lors de la récupération de la performance globale:", error);
+        // Continuer sans les données de performance globale
+      }
+
       // Préparer les données pour le PDF
       const financeData = {
         projet: projetActif,
@@ -192,6 +216,9 @@ export default function FinanceGraphiquesComponent() {
           depensesMensuelle: depensesMensuelle,
           revenusMensuel: revenusMensuel,
         },
+        performanceGlobale: performanceGlobale,
+        dateDebut: dateDebutFinal,
+        dateFin: dateFin,
       };
 
       // Générer et partager le PDF

@@ -59,6 +59,13 @@ export default function GestationsListComponent() {
   const [refreshing, setRefreshing] = useState(false);
 
   const { projetActif } = useAppSelector((state) => state.projet);
+  
+  // Détecter le mode de gestion (individuel ou bande)
+  const isModeBatch = projetActif?.management_method === 'batch';
+  
+  // État pour les bandes (mode bande uniquement)
+  const [batches, setBatches] = useState<any[]>([]);
+  const [loadingBatches, setLoadingBatches] = useState(false);
 
   // ✅ MÉMOÏSER la length pour éviter les boucles infinies
   const gestationsLength = Array.isArray(gestations) ? gestations.length : 0;
@@ -69,6 +76,29 @@ export default function GestationsListComponent() {
   // ✅ CORRECTION CRITIQUE: Utiliser useRef pour éviter les mises à jour inutiles (pagination)
   const lastGestationsLengthRef = React.useRef<number>(gestationsLength);
   const displayedGestationsLength = displayedGestations.length;
+
+  // Charger les bandes en mode batch
+  useEffect(() => {
+    if (!projetActif?.id || !isModeBatch) return;
+
+    const loadBatches = async () => {
+      setLoadingBatches(true);
+      try {
+        const apiClient = (await import('../services/api/apiClient')).default;
+        const batchesData = await apiClient.get<any[]>(`/batch-pigs/projet/${projetActif.id}`);
+        // Filtrer uniquement les bandes de truies reproductrices
+        const truiesBatches = batchesData.filter((b) => b.category === 'truie_reproductrice');
+        setBatches(truiesBatches);
+      } catch (error) {
+        console.error('Erreur lors du chargement des bandes:', error);
+        setBatches([]);
+      } finally {
+        setLoadingBatches(false);
+      }
+    };
+
+    loadBatches();
+  }, [projetActif?.id, isModeBatch]);
 
   useEffect(() => {
     if (!projetActif?.id) {
@@ -84,12 +114,14 @@ export default function GestationsListComponent() {
       gestationsChargeesRef.current = projetActif.id;
       dispatch(loadGestations(projetActif.id));
       dispatch(loadGestationsEnCours(projetActif.id));
-      // Charger les animaux pour pouvoir afficher les noms des verrats
-      dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
+      // Charger les animaux pour pouvoir afficher les noms des verrats (mode individuel uniquement)
+      if (!isModeBatch) {
+        dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
+      }
     } catch (error) {
       console.error('Erreur lors du chargement des gestations:', error);
     }
-  }, [dispatch, projetActif?.id]);
+  }, [dispatch, projetActif?.id, isModeBatch]);
 
   // ✅ MÉMOÏSER gestationsEnCours.length pour éviter les re-calculs inutiles
   const gestationsEnCoursLength = React.useMemo(() => {
@@ -380,7 +412,9 @@ export default function GestationsListComponent() {
                 >
                   <Text style={[styles.alerteText, { color: colors.warning }]}>
                     ⚠️ Mise bas prévue dans {joursRestants} jour{joursRestants > 1 ? 's' : ''} pour{' '}
-                    {gestation.truie_nom || gestation.truie_id}
+                    {isModeBatch 
+                      ? `${gestation.truie_nom || gestation.truie_id} (Bande)`
+                      : (gestation.truie_nom || gestation.truie_id)}
                   </Text>
                   <Text style={[styles.alerteDate, { color: colors.textSecondary }]}>
                     Date prévue: {formatDate(gestation.date_mise_bas_prevue)}
@@ -443,7 +477,9 @@ export default function GestationsListComponent() {
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderLeft}>
                   <Text style={[styles.cardTitle, { color: colors.text }]}>
-                    {gestation.truie_nom || gestation.truie_id}
+                    {isModeBatch 
+                      ? `${gestation.truie_nom || gestation.truie_id} (Bande)`
+                      : (gestation.truie_nom || gestation.truie_id)}
                   </Text>
                   <View
                     style={[
@@ -634,7 +670,8 @@ export default function GestationsListComponent() {
                   Informations de la gestation
                 </Text>
                 <Text style={[styles.infoBoxText, { color: colors.text }]}>
-                  Truie: {gestationATerminer.truie_nom || gestationATerminer.truie_id}
+                  {isModeBatch ? 'Bande' : 'Truie'}: {gestationATerminer.truie_nom || gestationATerminer.truie_id}
+                  {isModeBatch && ' (Bande)'}
                 </Text>
                 <Text style={[styles.infoBoxText, { color: colors.text }]}>
                   Porcelets prévus: {gestationATerminer.nombre_porcelets_prevu}

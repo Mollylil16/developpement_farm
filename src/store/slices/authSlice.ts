@@ -405,6 +405,14 @@ export const signInWithApple = createAsyncThunk(
 
 // Thunk pour la déconnexion
 export const signOut = createAsyncThunk('auth/signOut', async (_, { dispatch }) => {
+  // Arrêter la synchronisation du profil
+  try {
+    const { profileSyncService } = await import('../../services/profileSyncService');
+    profileSyncService.stop();
+  } catch (error) {
+    // Ne pas bloquer la déconnexion si le service n'est pas disponible
+    logger.warn('[AuthSlice] Impossible d\'arrêter la synchronisation du profil:', error);
+  }
   try {
     // Récupérer le refresh token pour le révoquer côté backend
     const refreshTokenKey = '@fermier_pro:refresh_token';

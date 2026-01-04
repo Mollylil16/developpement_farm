@@ -25,6 +25,8 @@ import type { Revenu, CreateRevenuInput, CategorieRevenu } from '../types/financ
 import type { ProductionAnimal } from '../types/production';
 import { selectAllAnimaux, selectPeseesRecents } from '../store/selectors/productionSelectors';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
+import apiClient from '../services/api/apiClient';
+import type { Batch } from '../types/batch';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING, BORDER_RADIUS } from '../constants/theme';
@@ -61,10 +63,20 @@ export default function RevenuFormModal({
   const [loading, setLoading] = useState(false);
   const [poidsKg, setPoidsKg] = useState<string>('');
   const [selectedAnimalId, setSelectedAnimalId] = useState<string | undefined>(animalId);
+  const [selectedAnimalIds, setSelectedAnimalIds] = useState<string[]>(animalId ? [animalId] : []); // Multi-sélection pour mode individuel
   const [searchAnimalQuery, setSearchAnimalQuery] = useState('');
   const [showAnimalSearch, setShowAnimalSearch] = useState(false);
+  // Mode bande
+  const [selectedBatchId, setSelectedBatchId] = useState<string | undefined>(undefined);
+  const [batchQuantite, setBatchQuantite] = useState<string>('');
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [loadingBatches, setLoadingBatches] = useState(false);
+  const [showBatchPicker, setShowBatchPicker] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
+  
+  // Détecter le mode de gestion
+  const isModeBatch = projetActif?.management_method === 'batch';
   const [formData, setFormData] = useState<
     Omit<CreateRevenuInput, 'projet_id'> & { photos: string[] }
   >({
@@ -155,20 +167,43 @@ export default function RevenuFormModal({
     }
   }, [visible, projetActif?.id, animalId, dispatch]);
 
-  // Filtrer les animaux pour la recherche
+  // Charger les batches en mode bande
+  useEffect(() => {
+    if (visible && projetActif && isModeBatch && formData.categorie === 'vente_porc') {
+      const loadBatches = async () => {
+        try {
+          setLoadingBatches(true);
+          const batchesData = await apiClient.get<Batch[]>(`/batch-pigs/projet/${projetActif.id}`);
+          // Filtrer les batches non reproducteurs (disponibles pour la vente)
+          const batchesVendables = batchesData.filter(
+            (b) => b.category !== 'truie_reproductrice' && b.category !== 'verrat_reproducteur'
+          );
+          setBatches(batchesVendables);
+        } catch (error) {
+          logger.error('Erreur chargement batches:', error);
+        } finally {
+          setLoadingBatches(false);
+        }
+      };
+      loadBatches();
+    }
+  }, [visible, projetActif?.id, isModeBatch, formData.categorie]);
+
+  // Filtrer les animaux pour la recherche (uniquement actifs pour les ventes)
   const animauxFiltres = useMemo(() => {
+    // Pour les ventes, on ne veut que les animaux actifs (pas vendus)
+    const animauxActifs = animaux.filter((a) => a.statut === 'actif' && a.projet_id === projetActif?.id);
     if (!searchAnimalQuery.trim()) {
-      return animaux.filter((a) => a.statut === 'actif' || a.statut === 'vendu');
+      return animauxActifs;
     }
     const query = searchAnimalQuery.toLowerCase();
-    return animaux.filter(
+    return animauxActifs.filter(
       (a) =>
-        (a.statut === 'actif' || a.statut === 'vendu') &&
-        (a.code?.toLowerCase().includes(query) ||
-          a.nom?.toLowerCase().includes(query) ||
-          a.race?.toLowerCase().includes(query))
+        a.code?.toLowerCase().includes(query) ||
+        a.nom?.toLowerCase().includes(query) ||
+        a.race?.toLowerCase().includes(query)
     );
-  }, [animaux, searchAnimalQuery]);
+  }, [animaux, searchAnimalQuery, projetActif?.id]);
 
   // Trouver l'animal sélectionné
   const selectedAnimal = useMemo(() => {
@@ -286,6 +321,54 @@ export default function RevenuFormModal({
       return;
     }
 
+    // Validation stricte pour les ventes de porcs : identification obligatoire des sujets
+    if (formData.categorie === 'vente_porc' && !isEditing) {
+      if (isModeBatch) {
+        // Mode bande : batch_id et quantite_vendue obligatoires
+        if (!selectedBatchId || !batchQuantite || parseInt(batchQuantite) <= 0) {
+          Alert.alert(
+            'Identification obligatoire',
+            'Pour enregistrer une vente, vous devez obligatoirement identifier les porcs vendus (loge/bande + quantité).'
+          );
+          setValidationErrors((prev) => ({
+            ...prev,
+            batch_id: 'La loge/bande est obligatoire',
+            quantite_vendue: 'La quantité est obligatoire',
+          }));
+          setTouched((prev) => ({ ...prev, batch_id: true, quantite_vendue: true }));
+          return;
+        }
+        // Vérifier que la quantité ne dépasse pas le nombre disponible dans la batch
+        const selectedBatch = batches.find((b) => b.id === selectedBatchId);
+        if (selectedBatch && parseInt(batchQuantite) > selectedBatch.total_count) {
+          Alert.alert(
+            'Erreur',
+            `La quantité demandée (${batchQuantite}) dépasse le nombre disponible dans cette loge (${selectedBatch.total_count}).`
+          );
+          setValidationErrors((prev) => ({
+            ...prev,
+            quantite_vendue: `Quantité maximale: ${selectedBatch.total_count}`,
+          }));
+          setTouched((prev) => ({ ...prev, quantite_vendue: true }));
+          return;
+        }
+      } else {
+        // Mode individuel : animal_ids obligatoires
+        if (!selectedAnimalIds || selectedAnimalIds.length === 0) {
+          Alert.alert(
+            'Identification obligatoire',
+            'Pour enregistrer une vente, vous devez obligatoirement identifier les porcs vendus (ID ou IDs des porcs).'
+          );
+          setValidationErrors((prev) => ({
+            ...prev,
+            animal_ids: 'Au moins un porc doit être sélectionné',
+          }));
+          setTouched((prev) => ({ ...prev, animal_ids: true }));
+          return;
+        }
+      }
+    }
+
     // Validation poids pour vente de porc (règle métier supplémentaire)
     if (formData.categorie === 'vente_porc' && poidsKg && parseFloat(poidsKg) <= 0) {
       Alert.alert('Erreur', 'Le poids doit être supérieur à 0');
@@ -334,23 +417,58 @@ export default function RevenuFormModal({
           setLoading(false);
           return;
         }
-        const result = await dispatch(
-          createRevenu({
-            ...formData,
-            projet_id: projetActif.id,
-            animal_id: selectedAnimalId || animalId,
-            poids_kg: poidsKg ? parseFloat(poidsKg) : undefined,
-          })
-        ).unwrap();
 
-        // Si vente de porc avec poids, calculer les marges
-        if (formData.categorie === 'vente_porc' && poidsKg && parseFloat(poidsKg) > 0) {
-          await dispatch(
-            calculateAndSaveMargesVente({
-              venteId: result.id,
-              poidsKg: parseFloat(poidsKg),
+        // Pour les ventes de porcs, utiliser le nouvel endpoint dédié
+        if (formData.categorie === 'vente_porc') {
+          try {
+            const venteData: any = {
+              projet_id: projetActif.id,
+              montant: formData.montant,
+              date: formData.date,
+              description: formData.description || undefined,
+              commentaire: formData.commentaire || undefined,
+              poids_kg: poidsKg ? parseFloat(poidsKg) : undefined,
+            };
+
+            if (isModeBatch) {
+              venteData.batch_id = selectedBatchId;
+              venteData.quantite_vendue = parseInt(batchQuantite);
+            } else {
+              venteData.animal_ids = selectedAnimalIds;
+            }
+
+            await apiClient.post('/finance/ventes-porcs', venteData);
+
+            Alert.alert(
+              'Succès',
+              `Vente enregistrée avec succès. Le cheptel a été mis à jour : ${isModeBatch ? `${batchQuantite} porc(s) retirés de la loge` : `${selectedAnimalIds.length} porc(s) marqués comme vendus`}.`
+            );
+          } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : String(error) || "Erreur lors de l'enregistrement";
+            Alert.alert('Erreur', errorMessage);
+            setLoading(false);
+            return;
+          }
+        } else {
+          // Pour les autres catégories, utiliser l'endpoint classique
+          const result = await dispatch(
+            createRevenu({
+              ...formData,
+              projet_id: projetActif.id,
+              animal_id: selectedAnimalId || animalId,
+              poids_kg: poidsKg ? parseFloat(poidsKg) : undefined,
             })
           ).unwrap();
+
+          // Si vente de porc avec poids, calculer les marges
+          if (formData.categorie === 'vente_porc' && poidsKg && parseFloat(poidsKg) > 0) {
+            await dispatch(
+              calculateAndSaveMargesVente({
+                venteId: result.id,
+                poidsKg: parseFloat(poidsKg),
+              })
+            ).unwrap();
+          }
         }
       }
 
@@ -463,115 +581,210 @@ export default function RevenuFormModal({
 
         {formData.categorie === 'vente_porc' && (
           <View>
-            {/* Sélection de porc (uniquement si pas d'animalId fourni) */}
+            {/* Sélection des sujets vendus - OBLIGATOIRE */}
             {!animalId && (
               <View style={styles.section}>
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                  Porc vendu (optionnel)
+                  Sujets vendus *
+                  {touched.animal_ids || touched.batch_id ? (
+                    <Text style={{ color: colors.error, fontSize: 12 }}>
+                      {' '}
+                      {validationErrors.animal_ids || validationErrors.batch_id}
+                    </Text>
+                  ) : null}
                 </Text>
-                <TouchableOpacity
-                  style={[
-                    styles.animalSelector,
-                    {
-                      borderColor: colors.border,
-                      backgroundColor: colors.background,
-                    },
-                  ]}
-                  onPress={() => setShowAnimalSearch(!showAnimalSearch)}
-                >
-                  <Text
-                    style={[
-                      styles.animalSelectorText,
-                      { color: selectedAnimal ? colors.text : colors.textSecondary },
-                    ]}
-                  >
-                    {selectedAnimal
-                      ? `${selectedAnimal.code}${selectedAnimal.nom ? ` - ${selectedAnimal.nom}` : ''}`
-                      : 'Rechercher un porc...'}
-                  </Text>
-                  <Text style={[styles.animalSelectorIcon, { color: colors.textSecondary }]}>
-                    {showAnimalSearch ? '▲' : '▼'}
-                  </Text>
-                </TouchableOpacity>
-                {showAnimalSearch && (
-                  <View
-                    style={[
-                      styles.animalSearchContainer,
-                      { backgroundColor: colors.surface, borderColor: colors.border },
-                    ]}
-                  >
-                    <TextInput
+                <Text style={[styles.helperText, { color: colors.textSecondary, marginBottom: SPACING.sm }]}>
+                  {isModeBatch
+                    ? 'Sélectionnez la loge/bande et la quantité de porcs vendus'
+                    : 'Sélectionnez un ou plusieurs porcs vendus'}
+                </Text>
+                {isModeBatch ? (
+                  // MODE BANDE : Sélection batch + quantité
+                  <>
+                    <TouchableOpacity
                       style={[
-                        styles.animalSearchInput,
-                        { color: colors.text, borderColor: colors.border },
+                        styles.animalSelector,
+                        {
+                          borderColor: touched.batch_id && validationErrors.batch_id ? colors.error : colors.border,
+                          backgroundColor: colors.background,
+                        },
                       ]}
-                      placeholder="Rechercher par code, nom ou race..."
-                      placeholderTextColor={colors.textSecondary}
-                      value={searchAnimalQuery}
-                      onChangeText={setSearchAnimalQuery}
-                    />
-                    <View style={[styles.animalList, { maxHeight: 200 }]}>
-                      <FlatList
-                        data={animauxFiltres}
-                        keyExtractor={(item) => item.id}
-                        renderItem={({ item }) => (
-                          <TouchableOpacity
-                            style={[
-                              styles.animalOption,
-                              {
-                                backgroundColor:
-                                  selectedAnimalId === item.id ? colors.primary : colors.background,
-                              },
-                            ]}
-                            onPress={() => {
-                              setSelectedAnimalId(item.id);
-                              const poidsActuel =
-                                peseesRecents.find((p) => p.animal_id === item.id)?.poids_kg ||
-                                item.poids_initial ||
-                                0;
-                              setPoidsKg(poidsActuel.toString());
-                              setShowAnimalSearch(false);
-                              setSearchAnimalQuery('');
-                            }}
-                          >
-                            <Text
-                              style={[
-                                styles.animalOptionText,
-                                {
-                                  color:
-                                    selectedAnimalId === item.id ? colors.textOnPrimary : colors.text,
-                                },
-                              ]}
-                            >
-                              {item.code}
-                              {item.nom ? ` - ${item.nom}` : ''}
-                              {item.race ? ` (${item.race})` : ''}
-                              {(() => {
-                                const poidsActuel =
-                                  peseesRecents.find((p) => p.animal_id === item.id)?.poids_kg ||
-                                  item.poids_initial ||
-                                  0;
-                                return poidsActuel > 0 ? ` - ${poidsActuel} kg` : '';
-                              })()}
-                            </Text>
-                          </TouchableOpacity>
-                        )}
+                      onPress={() => setShowBatchPicker(!showBatchPicker)}
+                    >
+                      <Text
+                        style={[
+                          styles.animalSelectorText,
+                          {
+                            color: selectedBatchId
+                              ? colors.text
+                              : colors.textSecondary,
+                          }]
+                        }
+                      >
+                        {selectedBatchId
+                          ? batches.find((b) => b.id === selectedBatchId)?.pen_name || 'Bande sélectionnée'
+                          : 'Sélectionner une loge/bande...'}
+                      </Text>
+                      <Text style={[styles.animalSelectorIcon, { color: colors.textSecondary }]}>
+                        {showBatchPicker ? '▲' : '▼'}
+                      </Text>
+                    </TouchableOpacity>
+                    {showBatchPicker && (
+                      <View
+                        style={[
+                          styles.animalSearchContainer,
+                          { backgroundColor: colors.surface, borderColor: colors.border },
+                        ]}
+                      >
+                        <View style={[styles.animalList, { maxHeight: 200 }]}>
+                          <FlatList
+                            data={batches}
+                            keyExtractor={(item) => item.id}
+                            renderItem={({ item }) => (
+                              <TouchableOpacity
+                                style={[
+                                  styles.animalOption,
+                                  {
+                                    backgroundColor:
+                                      selectedBatchId === item.id ? colors.primary : colors.background,
+                                  },
+                                ]}
+                                onPress={() => {
+                                  setSelectedBatchId(item.id);
+                                  setShowBatchPicker(false);
+                                }}
+                              >
+                                <Text
+                                  style={[
+                                    styles.animalOptionText,
+                                    {
+                                      color:
+                                        selectedBatchId === item.id ? colors.textOnPrimary : colors.text,
+                                    },
+                                  ]}
+                                >
+                                  {item.pen_name} ({item.category}) - {item.total_count} porc(s)
+                                </Text>
+                              </TouchableOpacity>
+                            )}
+                          />
+                        </View>
+                      </View>
+                    )}
+                    {selectedBatchId && (
+                      <FormField
+                        label="Quantité vendue"
+                        value={batchQuantite}
+                        onChangeText={setBatchQuantite}
+                        keyboardType="numeric"
+                        placeholder="Ex: 5"
+                        required
+                        error={touched.quantite_vendue ? validationErrors.quantite_vendue : undefined}
+                        onBlur={() => handleFieldBlur('quantite_vendue')}
                       />
-                    </View>
-                  </View>
-                )}
-                {selectedAnimal && (
-                  <Text style={[styles.helperText, { color: colors.textSecondary, marginTop: 4 }]}>
-                    Porc sélectionné: {selectedAnimal.code}
-                    {selectedAnimal.nom ? ` (${selectedAnimal.nom})` : ''}
-                    {(() => {
-                      const poidsActuel =
-                        peseesRecents.find((p) => p.animal_id === selectedAnimal.id)?.poids_kg ||
-                        selectedAnimal.poids_initial ||
-                        0;
-                      return poidsActuel > 0 ? ` - Poids actuel: ${poidsActuel} kg` : '';
-                    })()}
-                  </Text>
+                    )}
+                  </>
+                ) : (
+                  // MODE INDIVIDUEL : Sélection multi-ID
+                  <>
+                    <TouchableOpacity
+                      style={[
+                        styles.animalSelector,
+                        {
+                          borderColor: touched.animal_ids && validationErrors.animal_ids ? colors.error : colors.border,
+                          backgroundColor: colors.background,
+                        },
+                      ]}
+                      onPress={() => setShowAnimalSearch(!showAnimalSearch)}
+                    >
+                      <Text
+                        style={[
+                          styles.animalSelectorText,
+                          {
+                            color: selectedAnimalIds.length > 0 ? colors.text : colors.textSecondary,
+                          }]
+                        }
+                      >
+                        {selectedAnimalIds.length > 0
+                          ? `${selectedAnimalIds.length} porc(s) sélectionné(s)`
+                          : 'Rechercher et sélectionner des porcs...'}
+                      </Text>
+                      <Text style={[styles.animalSelectorIcon, { color: colors.textSecondary }]}>
+                        {showAnimalSearch ? '▲' : '▼'}
+                      </Text>
+                    </TouchableOpacity>
+                    {showAnimalSearch && (
+                      <View
+                        style={[
+                          styles.animalSearchContainer,
+                          { backgroundColor: colors.surface, borderColor: colors.border },
+                        ]}
+                      >
+                        <TextInput
+                          style={[
+                            styles.animalSearchInput,
+                            { color: colors.text, borderColor: colors.border },
+                          ]}
+                          placeholder="Rechercher par code, nom ou race..."
+                          placeholderTextColor={colors.textSecondary}
+                          value={searchAnimalQuery}
+                          onChangeText={setSearchAnimalQuery}
+                        />
+                        <View style={[styles.animalList, { maxHeight: 200 }]}>
+                          <FlatList
+                            data={animauxFiltres}
+                            keyExtractor={(item) => item.id}
+                            renderItem={({ item }) => {
+                              const isSelected = selectedAnimalIds.includes(item.id);
+                              return (
+                                <TouchableOpacity
+                                  style={[
+                                    styles.animalOption,
+                                    {
+                                      backgroundColor: isSelected ? colors.primary : colors.background,
+                                    },
+                                  ]}
+                                  onPress={() => {
+                                    if (isSelected) {
+                                      setSelectedAnimalIds(selectedAnimalIds.filter((id) => id !== item.id));
+                                    } else {
+                                      setSelectedAnimalIds([...selectedAnimalIds, item.id]);
+                                    }
+                                  }}
+                                >
+                                  <Text
+                                    style={[
+                                      styles.animalOptionText,
+                                      {
+                                        color: isSelected ? colors.textOnPrimary : colors.text,
+                                      },
+                                    ]}
+                                  >
+                                    {isSelected ? '✓ ' : '  '}
+                                    {item.code}
+                                    {item.nom ? ` - ${item.nom}` : ''}
+                                    {item.race ? ` (${item.race})` : ''}
+                                    {(() => {
+                                      const poidsActuel =
+                                        peseesRecents.find((p) => p.animal_id === item.id)?.poids_kg ||
+                                        item.poids_initial ||
+                                        0;
+                                      return poidsActuel > 0 ? ` - ${poidsActuel} kg` : '';
+                                    })()}
+                                  </Text>
+                                </TouchableOpacity>
+                              );
+                            }}
+                          />
+                        </View>
+                      </View>
+                    )}
+                    {selectedAnimalIds.length > 0 && (
+                      <Text style={[styles.helperText, { color: colors.textSecondary, marginTop: 4 }]}>
+                        {selectedAnimalIds.length} porc(s) sélectionné(s)
+                      </Text>
+                    )}
+                  </>
                 )}
               </View>
             )}

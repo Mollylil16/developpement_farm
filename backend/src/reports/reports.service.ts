@@ -577,7 +577,7 @@ export class ReportsService {
 
     // 1. Récupérer le projet pour obtenir le prix du marché et la durée d'amortissement
     const projetResult = await this.databaseService.query(
-      'SELECT prix_kg_carcasse, duree_amortissement_par_defaut_mois FROM projets WHERE id = $1',
+      'SELECT prix_kg_carcasse, prix_kg_vif, duree_amortissement_par_defaut_mois, date_creation FROM projets WHERE id = $1',
       [projetId]
     );
 
@@ -587,7 +587,9 @@ export class ReportsService {
 
     const projet = projetResult.rows[0];
     const prixKgMarche = parseFloat(projet.prix_kg_carcasse) || 1300;
+    const prixKgVif = parseFloat(projet.prix_kg_vif) || 0;
     const dureeAmortissementMois = parseInt(projet.duree_amortissement_par_defaut_mois) || 36;
+    const dateCreationProjet = new Date(projet.date_creation || new Date());
 
     // 2. Charger toutes les dépenses ponctuelles
     // Colonnes nécessaires (optimisation: éviter SELECT *)
@@ -610,9 +612,27 @@ export class ReportsService {
         : null,
     }));
 
+    // 2b. Charger toutes les charges fixes (OPEX récurrents)
+    const chargesFixesResult = await this.databaseService.query(
+      `SELECT id, montant, frequence, date_debut, statut 
+       FROM charges_fixes 
+       WHERE projet_id = $1 
+       AND statut = 'actif'
+       ORDER BY date_debut ASC`,
+      [projetId]
+    );
+
+    const chargesFixes = chargesFixesResult.rows.map((row) => ({
+      id: row.id,
+      montant: parseFloat(row.montant),
+      frequence: row.frequence,
+      date_debut: row.date_debut,
+      statut: row.statut,
+    }));
+
     // 3. Charger toutes les ventes de porcs (revenus avec catégorie 'vente_porc')
     // Colonnes nécessaires (optimisation: éviter SELECT *)
-    const revenuColumns = `id, poids_kg, date`;
+    const revenuColumns = `id, poids_kg, montant, date`;
     
     const ventesResult = await this.databaseService.query(
       `SELECT ${revenuColumns} FROM revenus 
@@ -624,30 +644,113 @@ export class ReportsService {
 
     const ventes = ventesResult.rows.map((row) => ({
       id: row.id,
-      poids_kg: row.poids_kg ? parseFloat(row.poids_kg) : 0,
+      poids_kg: row.poids_kg ? parseFloat(row.poids_kg) : null,
+      montant: parseFloat(row.montant) || 0,
       date: row.date,
     }));
 
-    // 4. Calculer total_kg_vendus_global
-    const totalKgVendusGlobal = ventes.reduce((sum, v) => sum + (v.poids_kg || 0), 0);
+    // 4. Calculer total_kg_vendus_global (avec estimation si poids_kg manquant)
+    let totalKgVendusGlobal = 0;
+    let totalKgVendusReel = 0;
+    let totalKgVendusApprox = 0;
+    
+    for (const vente of ventes) {
+      if (vente.poids_kg && vente.poids_kg > 0) {
+        // Poids disponible : utiliser la valeur réelle
+        totalKgVendusReel += vente.poids_kg;
+      } else if (vente.montant > 0 && prixKgVif > 0) {
+        // Poids non disponible : estimation = revenu / prix_kg_vif
+        const kgApprox = vente.montant / prixKgVif;
+        totalKgVendusApprox += kgApprox;
+      }
+    }
+    
+    totalKgVendusGlobal = totalKgVendusReel + totalKgVendusApprox;
+
+    // Logs de débogage pour le calcul des kg vendus
+    console.log('[calculerPerformanceGlobale] Calcul kg vendus:', {
+      projetId,
+      nombreVentes: ventes.length,
+      ventesAvecPoids: ventes.filter((v) => v.poids_kg && v.poids_kg > 0).length,
+      ventesSansPoids: ventes.filter((v) => !v.poids_kg || v.poids_kg <= 0).length,
+      prixKgVif,
+      totalKgVendusReel,
+      totalKgVendusApprox,
+      totalKgVendusGlobal,
+    });
 
     if (totalKgVendusGlobal === 0) {
+      // Logger pour débogage
+      console.log('[calculerPerformanceGlobale] Pas assez de données:', {
+        projetId,
+        nombreVentes: ventes.length,
+        ventesAvecPoids: ventes.filter((v) => v.poids_kg && v.poids_kg > 0).length,
+        prixKgVif,
+        totalKgVendusReel,
+        totalKgVendusApprox,
+      });
       return null; // Pas assez de données
     }
 
-    // 5. Calculer total_opex_global (dépenses OPEX uniquement)
+    // 5. Calculer total_opex_global (dépenses OPEX + charges fixes)
     const depensesOpex = depenses.filter(
       (d) => !d.type_depense || d.type_depense.toUpperCase() === 'OPEX'
     );
-    const totalOpexGlobal = depensesOpex.reduce((sum, d) => sum + d.montant, 0);
+    const totalOpexDepenses = depensesOpex.reduce((sum, d) => sum + d.montant, 0);
 
-    // 6. Trouver la période de production (première vente à aujourd'hui)
+    // Calculer le total des charges fixes depuis la création du projet jusqu'à aujourd'hui
+    const dateFinProduction = new Date();
+    let totalChargesFixes = 0;
+    
+    for (const charge of chargesFixes) {
+      const dateDebutCharge = new Date(charge.date_debut);
+      if (dateDebutCharge > dateFinProduction) {
+        continue; // Charge pas encore active
+      }
+
+      let nombrePeriodes = 0;
+      const moisEcoules = Math.floor(
+        (dateFinProduction.getTime() - Math.max(dateDebutCharge.getTime(), dateCreationProjet.getTime())) /
+        (1000 * 60 * 60 * 24 * 30)
+      ) + 1;
+
+      switch (charge.frequence) {
+        case 'mensuel':
+          nombrePeriodes = Math.max(1, moisEcoules);
+          break;
+        case 'trimestriel':
+          nombrePeriodes = Math.max(1, Math.floor(moisEcoules / 3));
+          break;
+        case 'annuel':
+          nombrePeriodes = Math.max(1, Math.floor(moisEcoules / 12));
+          break;
+        default:
+          // Par défaut, mensuel
+          nombrePeriodes = Math.max(1, moisEcoules);
+      }
+
+      totalChargesFixes += charge.montant * nombrePeriodes;
+    }
+
+    const totalOpexGlobal = totalOpexDepenses + totalChargesFixes;
+
+    // Logs de débogage pour le calcul OPEX
+    console.log('[calculerPerformanceGlobale] Calcul OPEX:', {
+      projetId,
+      totalOpexDepenses,
+      totalChargesFixes,
+      totalOpexGlobal,
+      nombreDepensesOpex: depensesOpex.length,
+      nombreChargesFixes: chargesFixes.length,
+    });
+
+    // 6. Trouver la période de production (première vente à aujourd'hui, ou création du projet si aucune vente)
     const datesVentes = ventes.map((v) => new Date(v.date));
     const dateDebutProduction =
       datesVentes.length > 0
         ? new Date(Math.min(...datesVentes.map((d) => d.getTime())))
-        : new Date();
-    const dateFinProduction = new Date();
+        : dateCreationProjet;
+    // dateFinProduction est déjà défini plus haut
 
     // 7. Calculer total_amortissement_capex_global
     const depensesCapex = depenses.filter(
@@ -749,6 +852,22 @@ export class ReportsService {
         break;
     }
 
+    // Log final avec toutes les valeurs calculées
+    console.log('[calculerPerformanceGlobale] Résultat final:', {
+      projetId,
+      total_kg_vendus_global: totalKgVendusGlobal,
+      total_opex_global: totalOpexGlobal,
+      total_amortissement_capex_global: totalAmortissementCapexGlobal,
+      cout_kg_opex_global: coutKgOpexGlobal,
+      cout_kg_complet_global: coutKgCompletGlobal,
+      prix_kg_marche: prixKgMarche,
+      ecart_absolu: ecartAbsolu,
+      ecart_pourcentage: ecartPourcentage,
+      statut,
+      dateDebutProduction: dateDebutProduction.toISOString(),
+      dateFinProduction: dateFinProduction.toISOString(),
+    });
+
     return {
       total_kg_vendus_global: totalKgVendusGlobal,
       total_opex_global: totalOpexGlobal,
@@ -761,6 +880,278 @@ export class ReportsService {
       statut,
       message_diagnostic: messageDiagnostic,
       suggestions,
+    };
+  }
+
+  /**
+   * Calcule la performance globale de l'élevage sur une période donnée
+   * Compare le coût de production avec le prix du marché pour la période spécifiée
+   */
+  async calculerPerformanceGlobalePeriode(
+    projetId: string,
+    userId: string,
+    dateDebut: Date,
+    dateFin: Date
+  ) {
+    await this.checkProjetOwnership(projetId, userId);
+
+    // 1. Récupérer le projet pour obtenir le prix du marché et la durée d'amortissement
+    const projetResult = await this.databaseService.query(
+      'SELECT prix_kg_carcasse, prix_kg_vif, duree_amortissement_par_defaut_mois, date_creation FROM projets WHERE id = $1',
+      [projetId]
+    );
+
+    if (projetResult.rows.length === 0) {
+      throw new NotFoundException('Projet introuvable');
+    }
+
+    const projet = projetResult.rows[0];
+    const prixKgMarche = parseFloat(projet.prix_kg_carcasse) || 1300;
+    const prixKgVif = parseFloat(projet.prix_kg_vif) || 0;
+    const dureeAmortissementMois = parseInt(projet.duree_amortissement_par_defaut_mois) || 36;
+    const dateCreationProjet = new Date(projet.date_creation || new Date());
+
+    // Normaliser les dates
+    const dateDebutNorm = new Date(dateDebut);
+    dateDebutNorm.setHours(0, 0, 0, 0);
+    const dateFinNorm = new Date(dateFin);
+    dateFinNorm.setHours(23, 59, 59, 999);
+
+    // 2. Charger les dépenses ponctuelles dans la période
+    const depenseColumns = `id, montant, date, type_opex_capex, duree_amortissement_mois`;
+    
+    const depensesResult = await this.databaseService.query(
+      `SELECT ${depenseColumns} FROM depenses_ponctuelles 
+       WHERE projet_id = $1 
+       AND date >= $2 
+       AND date <= $3
+       ORDER BY date ASC`,
+      [projetId, dateDebutNorm, dateFinNorm]
+    );
+
+    const depenses = depensesResult.rows.map((row) => ({
+      id: row.id,
+      montant: parseFloat(row.montant),
+      date: row.date,
+      type_depense: row.type_opex_capex || 'OPEX',
+      duree_amortissement_mois: row.duree_amortissement_mois
+        ? parseInt(row.duree_amortissement_mois)
+        : null,
+    }));
+
+    // 2b. Charger les charges fixes actives dans la période
+    const chargesFixesResult = await this.databaseService.query(
+      `SELECT id, montant, frequence, date_debut, statut 
+       FROM charges_fixes 
+       WHERE projet_id = $1 
+       AND statut = 'actif'
+       AND date_debut <= $3
+       ORDER BY date_debut ASC`,
+      [projetId, dateDebutNorm, dateFinNorm]
+    );
+
+    const chargesFixes = chargesFixesResult.rows.map((row) => ({
+      id: row.id,
+      montant: parseFloat(row.montant),
+      frequence: row.frequence,
+      date_debut: row.date_debut,
+      statut: row.statut,
+    }));
+
+    // 3. Charger les ventes de porcs dans la période
+    const revenuColumns = `id, poids_kg, montant, date`;
+    
+    const ventesResult = await this.databaseService.query(
+      `SELECT ${revenuColumns} FROM revenus 
+       WHERE projet_id = $1 
+       AND categorie = 'vente_porc'
+       AND date >= $2 
+       AND date <= $3
+       ORDER BY date ASC`,
+      [projetId, dateDebutNorm, dateFinNorm]
+    );
+
+    const ventes = ventesResult.rows.map((row) => ({
+      id: row.id,
+      poids_kg: row.poids_kg ? parseFloat(row.poids_kg) : null,
+      montant: parseFloat(row.montant) || 0,
+      date: row.date,
+    }));
+
+    // 4. Calculer total_kg_vendus_global (avec estimation si poids_kg manquant)
+    let totalKgVendusGlobal = 0;
+    let totalKgVendusReel = 0;
+    let totalKgVendusApprox = 0;
+    
+    for (const vente of ventes) {
+      if (vente.poids_kg && vente.poids_kg > 0) {
+        totalKgVendusReel += vente.poids_kg;
+      } else if (vente.montant > 0 && prixKgVif > 0) {
+        const kgApprox = vente.montant / prixKgVif;
+        totalKgVendusApprox += kgApprox;
+      }
+    }
+    
+    totalKgVendusGlobal = totalKgVendusReel + totalKgVendusApprox;
+
+    if (totalKgVendusGlobal === 0) {
+      return null; // Pas assez de données
+    }
+
+    // 5. Calculer total_opex_global (dépenses OPEX + charges fixes)
+    const depensesOpex = depenses.filter(
+      (d) => !d.type_depense || d.type_depense.toUpperCase() === 'OPEX'
+    );
+    const totalOpexDepenses = depensesOpex.reduce((sum, d) => sum + d.montant, 0);
+
+    // Calculer le total des charges fixes pour la période
+    let totalChargesFixes = 0;
+    
+    for (const charge of chargesFixes) {
+      const dateDebutCharge = new Date(charge.date_debut);
+      const dateDebutPeriode = dateDebutCharge > dateDebutNorm ? dateDebutCharge : dateDebutNorm;
+      
+      if (dateDebutPeriode > dateFinNorm) {
+        continue; // Charge pas encore active dans la période
+      }
+
+      let nombrePeriodes = 0;
+      const moisEcoules = Math.floor(
+        (dateFinNorm.getTime() - dateDebutPeriode.getTime()) / (1000 * 60 * 60 * 24 * 30)
+      ) + 1;
+
+      switch (charge.frequence) {
+        case 'mensuel':
+          nombrePeriodes = Math.max(1, moisEcoules);
+          break;
+        case 'trimestriel':
+          nombrePeriodes = Math.max(1, Math.floor(moisEcoules / 3));
+          break;
+        case 'annuel':
+          nombrePeriodes = Math.max(1, Math.floor(moisEcoules / 12));
+          break;
+        default:
+          nombrePeriodes = Math.max(1, moisEcoules);
+      }
+      totalChargesFixes += charge.montant * nombrePeriodes;
+    }
+
+    const totalOpexGlobal = totalOpexDepenses + totalChargesFixes;
+
+    // 6. Calculer total_amortissement_capex_global pour la période
+    const depensesCapex = depenses.filter(
+      (d) => d.type_depense && d.type_depense.toUpperCase() === 'CAPEX'
+    );
+
+    let totalAmortissementCapexGlobal = 0;
+    for (const depense of depensesCapex) {
+      const dateDepense = new Date(depense.date);
+      const dureeAmortissement =
+        depense.duree_amortissement_mois || dureeAmortissementMois;
+
+      const dateFinAmortissement = new Date(dateDepense);
+      dateFinAmortissement.setMonth(dateFinAmortissement.getMonth() + dureeAmortissement);
+
+      const debutAmortissement =
+        dateDepense > dateDebutNorm ? dateDepense : dateDebutNorm;
+      const finAmortissement =
+        dateFinAmortissement < dateFinNorm ? dateFinAmortissement : dateFinNorm;
+
+      if (debutAmortissement < finAmortissement) {
+        const amortissementMensuel = depense.montant / dureeAmortissement;
+        const moisAmortis = Math.max(
+          1,
+          Math.floor(
+            (finAmortissement.getTime() - debutAmortissement.getTime()) /
+              (1000 * 60 * 60 * 24 * 30)
+          ) + 1
+        );
+        totalAmortissementCapexGlobal += amortissementMensuel * moisAmortis;
+      }
+    }
+
+    // 7. Calculer coûts par kg
+    const coutKgOpexGlobal = totalOpexGlobal / totalKgVendusGlobal;
+    const coutKgCompletGlobal =
+      (totalOpexGlobal + totalAmortissementCapexGlobal) / totalKgVendusGlobal;
+
+    // 8. Calculer écarts
+    const ecartAbsolu = prixKgMarche - coutKgCompletGlobal;
+    const ecartPourcentage = (ecartAbsolu / prixKgMarche) * 100;
+
+    // 9. Calculer la marge réalisée
+    const margeRealisee = ecartAbsolu * totalKgVendusGlobal;
+
+    // 10. Déterminer le statut
+    let statut: 'rentable' | 'fragile' | 'perte';
+    if (coutKgCompletGlobal > prixKgMarche) {
+      statut = 'perte';
+    } else if (Math.abs(ecartPourcentage) <= 5) {
+      statut = 'fragile';
+    } else {
+      statut = 'rentable';
+    }
+
+    // 11. Générer le message de diagnostic
+    const marge = prixKgMarche - coutKgCompletGlobal;
+    const margePourcentage = prixKgMarche > 0 ? ((marge / prixKgMarche) * 100).toFixed(1) : '0';
+    let messageDiagnostic: string;
+
+    switch (statut) {
+      case 'rentable':
+        messageDiagnostic = `Votre coût de production (${coutKgCompletGlobal.toFixed(0)} FCFA/kg) est inférieur au prix du marché (${prixKgMarche.toFixed(0)} FCFA/kg). Marge: ${marge.toFixed(0)} FCFA/kg (${margePourcentage}%). Vous travaillez avec une marge positive. 🎉`;
+        break;
+      case 'fragile':
+        messageDiagnostic = `Votre coût de production (${coutKgCompletGlobal.toFixed(0)} FCFA/kg) est très proche du prix du marché (${prixKgMarche.toFixed(0)} FCFA/kg). Marge: ${marge.toFixed(0)} FCFA/kg (${margePourcentage}%). Votre marge est faible, prudence. ⚠️`;
+        break;
+      case 'perte':
+        messageDiagnostic = `Votre coût de production (${coutKgCompletGlobal.toFixed(0)} FCFA/kg) est supérieur au prix du marché (${prixKgMarche.toFixed(0)} FCFA/kg). Perte: ${Math.abs(marge).toFixed(0)} FCFA/kg. Vous travaillez à perte. 🚨`;
+        break;
+      default:
+        messageDiagnostic = 'Données insuffisantes pour établir un diagnostic.';
+    }
+
+    // 12. Générer des suggestions
+    const suggestions: string[] = [];
+    switch (statut) {
+      case 'perte':
+        suggestions.push(
+          "Réduire le coût de l'aliment en optimisant la formulation des rations",
+          'Améliorer la croissance (GMQ) pour vendre des porcs plus lourds',
+          'Analyser les mortalités pour réduire les pertes',
+          'Revoir le prix de vente si le marché local le permet'
+        );
+        break;
+      case 'fragile':
+        suggestions.push(
+          "Surveiller l'évolution du coût de l'aliment",
+          'Limiter les dépenses non essentielles (OPEX)',
+          'Optimiser les performances par lot'
+        );
+        break;
+      case 'rentable':
+        suggestions.push(
+          "Vos performances sont bonnes. Vous pouvez envisager d'augmenter le volume",
+          'Continuez à suivre vos coûts pour maintenir cette rentabilité'
+        );
+        break;
+    }
+
+    return {
+      total_kg_vendus_global: totalKgVendusGlobal,
+      total_opex_global: totalOpexGlobal,
+      total_amortissement_capex_global: totalAmortissementCapexGlobal,
+      cout_kg_opex_global: coutKgOpexGlobal,
+      cout_kg_complet_global: coutKgCompletGlobal,
+      prix_kg_marche: prixKgMarche,
+      ecart_absolu: ecartAbsolu,
+      ecart_pourcentage: ecartPourcentage,
+      marge_realisee: margeRealisee,
+      statut,
+      message_diagnostic: messageDiagnostic,
+      suggestions,
+      date_debut: dateDebutNorm.toISOString(),
+      date_fin: dateFinNorm.toISOString(),
     };
   }
 
@@ -1008,19 +1399,21 @@ export class ReportsService {
           // Récupérer les IDs des batches pour la requête
           const batchIds = batchesResult.rows.map((b: any) => b.id);
           if (batchIds.length > 0) {
-            let batchWeighingsQuery = `SELECT id, batch_id, weighing_date, average_weight_kg, count
-               FROM batch_weighings 
-               WHERE batch_id = ANY($1)`;
+            // Faire un JOIN avec batches pour récupérer pen_name (numéro de loge)
+            let batchWeighingsQuery = `SELECT bw.id, bw.batch_id, bw.weighing_date, bw.average_weight_kg, bw.count, b.pen_name
+               FROM batch_weighings bw
+               INNER JOIN batches b ON bw.batch_id = b.id
+               WHERE bw.batch_id = ANY($1)`;
             const batchWeighingsParams: any[] = [batchIds];
             if (dateDebut) {
-              batchWeighingsQuery += ` AND weighing_date >= $${batchWeighingsParams.length + 1}`;
+              batchWeighingsQuery += ` AND bw.weighing_date >= $${batchWeighingsParams.length + 1}`;
               batchWeighingsParams.push(dateDebut.toISOString());
             }
             if (dateFin) {
-              batchWeighingsQuery += ` AND weighing_date <= $${batchWeighingsParams.length + 1}`;
+              batchWeighingsQuery += ` AND bw.weighing_date <= $${batchWeighingsParams.length + 1}`;
               batchWeighingsParams.push(dateFin.toISOString());
             }
-            batchWeighingsQuery += ` ORDER BY weighing_date DESC`;
+            batchWeighingsQuery += ` ORDER BY bw.weighing_date DESC`;
             batchWeighingsResult = await this.databaseService.query(
               batchWeighingsQuery,
               batchWeighingsParams
@@ -1030,6 +1423,45 @@ export class ReportsService {
           // Si la table n'existe pas, ignorer l'erreur (pas de pesées batch)
           if (!weighingError.message?.includes('does not exist') && !weighingError.message?.includes('n\'existe pas')) {
             console.warn('[ReportsService] Erreur lors de la récupération des pesées batch:', weighingError.message);
+          }
+        }
+      }
+
+      // Récupérer les sujets individuels (batch_pigs) pour chaque batch
+      let batchPigsData: any = {};
+      if (batchesResult.rows.length > 0) {
+        try {
+          const batchIds = batchesResult.rows.map((b: any) => b.id);
+          if (batchIds.length > 0) {
+            const batchPigsResult = await this.databaseService.query(
+              `SELECT id, batch_id, name, sex, birth_date, age_months, current_weight_kg, health_status
+               FROM batch_pigs
+               WHERE batch_id = ANY($1)
+               ORDER BY batch_id, name`,
+              [batchIds]
+            );
+            
+            // Organiser les porcs par batch_id
+            batchPigsData = {};
+            batchPigsResult.rows.forEach((pig: any) => {
+              if (!batchPigsData[pig.batch_id]) {
+                batchPigsData[pig.batch_id] = [];
+              }
+              batchPigsData[pig.batch_id].push({
+                id: pig.id,
+                name: pig.name,
+                sex: pig.sex,
+                birth_date: pig.birth_date,
+                age_months: pig.age_months,
+                current_weight_kg: pig.current_weight_kg ? parseFloat(pig.current_weight_kg) : undefined,
+                health_status: pig.health_status,
+              });
+            });
+          }
+        } catch (batchPigsError: any) {
+          // Si la table n'existe pas, ignorer l'erreur (pas de sujets individuels)
+          if (!batchPigsError.message?.includes('does not exist') && !batchPigsError.message?.includes('n\'existe pas')) {
+            console.warn('[ReportsService] Erreur lors de la récupération des batch_pigs:', batchPigsError.message);
           }
         }
       }
@@ -1044,6 +1476,7 @@ export class ReportsService {
           nombre: parseInt(b.total_count || 0, 10),
           poids_moyen: b.average_weight_kg ? parseFloat(b.average_weight_kg) : undefined,
           date_entree: b.batch_creation_date,
+          sujets: batchPigsData[b.id] || [], // Ajouter les sujets individuels
         })),
       };
 
@@ -1055,6 +1488,7 @@ export class ReportsService {
       peseesData = batchWeighingsResult.rows.map((w) => ({
         id: w.id,
         batch_id: w.batch_id,
+        pen_name: w.pen_name, // Ajouter le numéro de loge
         date: w.weighing_date,
         poids_kg: w.average_weight_kg ? parseFloat(w.average_weight_kg) : undefined,
         nombre: parseInt(w.count || 0, 10),

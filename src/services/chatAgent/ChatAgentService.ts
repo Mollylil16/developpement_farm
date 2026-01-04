@@ -20,8 +20,8 @@ import {
   ParameterExtractor,
   ConversationContextManager,
   DataValidator,
-  OpenAIIntentService,
-  OpenAIParameterExtractor,
+  GeminiIntentService,
+  GeminiParameterExtractor,
   ClarificationService,
 } from './core';
 import { EnhancedParameterExtractor } from './core/EnhancedParameterExtractor';
@@ -48,7 +48,7 @@ export class ChatAgentService {
   private intentRAG: IntentRAG;
   private conversationContext: ConversationContextManager;
   private dataValidator: DataValidator;
-  private openAIService: OpenAIIntentService | null = null;
+  private geminiService: GeminiIntentService | null = null;
   private confirmationManager: ConfirmationManager;
   private learningService: LearningService;
   private performanceMonitor: PerformanceMonitor;
@@ -67,13 +67,13 @@ export class ChatAgentService {
     this.actionExecutor = new AgentActionExecutor();
     this.api = new ChatAgentAPI(this.config);
 
-    // Initialiser le service OpenAI si la clé est fournie
-    if (this.config.apiKey) {
-      this.openAIService = new OpenAIIntentService(this.config.apiKey);
+    // Initialiser le service Gemini si la clé est fournie
+    if (this.config.geminiApiKey) {
+      this.geminiService = new GeminiIntentService(this.config.geminiApiKey);
     }
 
     // Initialiser les composants core
-    this.intentRAG = new IntentRAG(undefined, this.openAIService || undefined);
+    this.intentRAG = new IntentRAG(undefined, this.geminiService || undefined);
     this.conversationContext = new ConversationContextManager();
     this.dataValidator = new DataValidator();
     this.confirmationManager = new ConfirmationManager();
@@ -138,6 +138,85 @@ export class ChatAgentService {
       const processedMessage = nlpResult.processed; // Message nettoyé et corrigé
       logger.debug(`NLP: "${userMessage}" → "${processedMessage}", hints: ${nlpResult.intentHints.map(h => h.intent).join(', ')}`);
 
+      // Vérifier s'il y a une clarification en cours et si ce message y répond
+      const pendingClarification = this.conversationContext.getClarificationNeeded();
+      const pendingAction = this.conversationContext.getPendingAction();
+      const venteState = this.conversationContext.getVenteState();
+      
+      let isClarificationResponse = false;
+      if (pendingClarification && pendingAction) {
+        // Extraire les paramètres manquants du message utilisateur
+        const extractionContext = this.conversationContext.getExtractionContext();
+        const parameterExtractor = new EnhancedParameterExtractor({
+          ...extractionContext,
+          currentDate: this.context.currentDate,
+          availableAnimals: this.context.availableAnimals,
+        });
+        
+        const extractedParams = parameterExtractor.extractAllEnhanced(processedMessage, pendingAction.action);
+        
+        // Gestion spéciale pour les ventes : détecter les loges et les IDs
+        if (pendingAction.action === 'create_revenu' && pendingClarification.clarificationType) {
+          // Si clarificationType = demande_loges, extraire les noms de loges
+          if (pendingClarification.clarificationType === 'demande_loges') {
+            // Extraire les noms de loges du message (ex: "Loge A", "Loge B et C", "A1, A2")
+            const logesMatch = processedMessage.match(/(?:loge|bande|enclos)\s*([A-Z0-9]+(?:\s*et\s*[A-Z0-9]+)*)/gi);
+            if (logesMatch) {
+              const loges: string[] = [];
+              logesMatch.forEach((match) => {
+                const parts = match.replace(/loge|bande|enclos/gi, '').trim().split(/\s*et\s*|\s*,\s*/);
+                loges.push(...parts.map((p) => p.trim()).filter((p) => p.length > 0));
+              });
+              if (loges.length > 0) {
+                extractedParams.loges = loges;
+                isClarificationResponse = true;
+              }
+            } else {
+              // Essayer de détecter des codes de loges simples (A1, B2, etc.)
+              const simpleLogesMatch = processedMessage.match(/\b([A-Z]\d+)\b/g);
+              if (simpleLogesMatch) {
+                extractedParams.loges = simpleLogesMatch;
+                isClarificationResponse = true;
+              }
+            }
+          }
+          
+          // Si clarificationType = selection_sujets, extraire les IDs sélectionnés
+          if (pendingClarification.clarificationType === 'selection_sujets') {
+            // Les IDs peuvent être dans le message (ex: "1024, 1027" ou "ID: 1024 et 1027")
+            const idsMatch = processedMessage.match(/(?:id|code)[\s:]*(\d+)/gi);
+            if (idsMatch) {
+              const ids = idsMatch.map((m) => m.replace(/id|code/gi, '').replace(':', '').trim());
+              extractedParams.animal_ids = ids;
+              isClarificationResponse = true;
+            } else {
+              // Essayer de détecter des nombres qui pourraient être des IDs
+              const numbersMatch = processedMessage.match(/\b(\d{4,})\b/g);
+              if (numbersMatch && numbersMatch.length <= 10) {
+                // Limiter à 10 IDs pour éviter les faux positifs
+                extractedParams.animal_ids = numbersMatch;
+                isClarificationResponse = true;
+              }
+            }
+          }
+        }
+        
+        // Vérifier si les paramètres manquants sont maintenant présents
+        const hasMissingParams = pendingClarification.missingParams.every(
+          (param) => extractedParams[param] !== undefined && extractedParams[param] !== null
+        );
+        
+        if (hasMissingParams || isClarificationResponse) {
+          isClarificationResponse = true;
+          logger.debug('[ChatAgentService] Détection réponse à clarification:', {
+            action: pendingAction.action,
+            missingParams: pendingClarification.missingParams,
+            extractedParams,
+            clarificationType: pendingClarification.clarificationType,
+          });
+        }
+      }
+
       // V4.0 - Chercher un apprentissage similaire d'abord
       const similarLearning = await this.learningService.findSimilarLearning(processedMessage);
       let detectedIntent: DetectedIntent | null = null;
@@ -180,8 +259,8 @@ export class ChatAgentService {
           detectedIntent = await this.intentRAG.detectIntent(processedMessage);
           ragTime = Date.now() - ragStartTime;
 
-          // Si RAG ne trouve rien, essayer OpenAI classification
-          if ((!detectedIntent || detectedIntent.confidence < 0.85) && this.openAIService) {
+          // Si RAG ne trouve rien, essayer Gemini classification
+          if ((!detectedIntent || detectedIntent.confidence < 0.85) && this.geminiService) {
             const availableActions: AgentActionType[] = [
               'get_statistics',
               'get_stock_status',
@@ -204,17 +283,17 @@ export class ChatAgentService {
               'other',
             ];
 
-            const openAIClassification = await this.openAIService.classifyIntent(
+            const geminiClassification = await this.geminiService.classifyIntent(
               processedMessage, // Utiliser le message traité
               availableActions
             );
-            if (openAIClassification && openAIClassification.confidence >= 0.85) {
+            if (geminiClassification && geminiClassification.confidence >= 0.85) {
               detectedIntent = {
-                action: openAIClassification.action,
-                confidence: openAIClassification.confidence,
+                action: geminiClassification.action,
+                confidence: geminiClassification.confidence,
                 params: {},
               };
-              logger.debug('Action OpenAI:', detectedIntent.action, 'confiance:', detectedIntent.confidence);
+              logger.debug('Action Gemini:', detectedIntent.action, 'confiance:', detectedIntent.confidence);
             }
           }
 
@@ -244,9 +323,18 @@ export class ChatAgentService {
         });
 
         let extractedParams = parameterExtractor.extractAllEnhanced(processedMessage, detectedIntent.action);
+        
+        // Si réponse à clarification, fusionner avec les paramètres de l'action en attente
+        if (isClarificationResponse && pendingAction) {
+          extractedParams = {
+            ...pendingAction.params,
+            ...extractedParams,
+          };
+          logger.debug('[ChatAgentService] Paramètres fusionnés pour clarification:', extractedParams);
+        }
 
-        // Extraction OpenAI si paramètres manquants
-        if (this.openAIService && this.config.apiKey) {
+        // Extraction Gemini si paramètres manquants
+        if (this.geminiService && this.config.geminiApiKey) {
           const hasMissingParams = ActionParser.hasMissingCriticalParams(
             detectedIntent.action,
             extractedParams
@@ -254,15 +342,15 @@ export class ChatAgentService {
 
           if (hasMissingParams || detectedIntent.confidence < 0.85) {
             try {
-              const openAIParameterExtractor = new OpenAIParameterExtractor(this.config.apiKey);
-              const openAIParams = await openAIParameterExtractor.extractAll(
+              const geminiParameterExtractor = new GeminiParameterExtractor(this.config.geminiApiKey);
+              const geminiParams = await geminiParameterExtractor.extractAll(
                 userMessage,
                 detectedIntent.action
               );
-              extractedParams = { ...extractedParams, ...openAIParams };
-              logger.debug('Extraction OpenAI utilisée');
+              extractedParams = { ...extractedParams, ...geminiParams };
+              logger.debug('Extraction Gemini utilisée');
             } catch (error) {
-              logger.warn('Erreur extraction OpenAI:', error);
+              logger.warn('Erreur extraction Gemini:', error);
             }
           }
         }
@@ -478,32 +566,69 @@ export class ChatAgentService {
           actionResult = await this.actionExecutor.execute(action, this.context);
           const actionExecutionTime = Date.now() - actionExecutionStartTime;
 
-          // V4.0 - Enregistrer le succès pour apprentissage (fire-and-forget, non-bloquant)
-          if (detectedIntent && actionResult.success) {
-            this.learningService.recordIntentSuccess(
-              detectedIntent.action,
-              detectedIntent.confidence,
-              userMessage,
-              action.params
+          // Gérer les clarifications nécessaires
+          if (actionResult.needsClarification) {
+            // Enregistrer la clarification dans le contexte
+            this.conversationContext.setClarificationNeeded(
+              actionResult.message,
+              actionResult.missingParams || []
             );
+
+            assistantMessage = {
+              id: this.generateId(),
+              role: 'assistant',
+              content: actionResult.message,
+              timestamp: new Date().toISOString(),
+              metadata: {
+                actionExecuted: action.type,
+                requiresClarification: true,
+                missingParams: actionResult.missingParams,
+                clarificationType: actionResult.clarificationType,
+                pendingAction: {
+                  action: actionResult.actionType || action.type,
+                  params: action.params,
+                },
+              },
+            };
+            
+            // Enregistrer l'action en attente dans le contexte pour la prochaine réponse
+            this.conversationContext.setPendingAction(actionResult.actionType || action.type, action.params);
+          } else {
+            // V4.0 - Enregistrer le succès pour apprentissage (fire-and-forget, non-bloquant)
+            if (detectedIntent && actionResult.success) {
+              this.learningService.recordIntentSuccess(
+                detectedIntent.action,
+                detectedIntent.confidence,
+                userMessage,
+                action.params
+              );
+            }
+
+            this.performanceMonitor.recordStepTiming({ actionExecutionTime });
+
+            const responseMessage = confirmationDecision.message || actionResult.message;
+
+            assistantMessage = {
+              id: this.generateId(),
+              role: 'assistant',
+              content: responseMessage,
+              timestamp: new Date().toISOString(),
+              metadata: {
+                actionExecuted: action.type,
+                actionResult: actionResult.data,
+                requiresConfirmation: false,
+                pendingAction: { action: action.type, params: action.params },
+              },
+            };
+            
+            // Si succès après clarification, nettoyer le contexte de clarification
+            if (isClarificationResponse) {
+              this.conversationContext.clearClarificationNeeded();
+              this.conversationContext.clearPendingAction();
+              this.conversationContext.clearVenteState();
+              logger.debug('[ChatAgentService] Clarification résolue avec succès');
+            }
           }
-
-          this.performanceMonitor.recordStepTiming({ actionExecutionTime });
-
-          const responseMessage = confirmationDecision.message || actionResult.message;
-
-          assistantMessage = {
-            id: this.generateId(),
-            role: 'assistant',
-            content: responseMessage,
-            timestamp: new Date().toISOString(),
-            metadata: {
-              actionExecuted: action.type,
-              actionResult: actionResult.data,
-              requiresConfirmation: false,
-              pendingAction: { action: action.type, params: action.params },
-            },
-          };
         }
       } else {
         // V4.1 - AMÉLIORATION: Chercher dans la base de connaissances avant de déclarer incompréhension

@@ -8,7 +8,7 @@ import { ChatAgentService, ProactiveRemindersService, VoiceService } from '../se
 import { ChatMessage, AgentConfig, VoiceConfig, Reminder } from '../types/chatAgent';
 import { format } from 'date-fns';
 import apiClient from '../services/api/apiClient';
-import { OPENAI_CONFIG } from '../config/openaiConfig';
+import { GEMINI_CONFIG } from '../config/geminiConfig';
 import { createLoggerWithPrefix } from '../utils/logger';
 import { getOrCreateConversationId, loadConversationHistory, clearConversationId } from '../services/chatAgent/core/ConversationStorage';
 import { loadChargesFixes, loadDepensesPonctuelles, loadRevenus } from '../store/slices/financeSlice';
@@ -118,8 +118,8 @@ export function useChatAgent() {
 
         // Configuration de l'agent
         const config: AgentConfig = {
-          apiKey: OPENAI_CONFIG.apiKey,
-          model: OPENAI_CONFIG.model,
+          geminiApiKey: GEMINI_CONFIG.apiKey,
+          model: GEMINI_CONFIG.model,
           language: 'fr-CI',
           enableVoice: voiceEnabled,
           enableProactiveAlerts: true,

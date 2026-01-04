@@ -17,6 +17,7 @@ import { CreateDepensePonctuelleDto } from './dto/create-depense-ponctuelle.dto'
 import { UpdateDepensePonctuelleDto } from './dto/update-depense-ponctuelle.dto';
 import { CreateRevenuDto } from './dto/create-revenu.dto';
 import { UpdateRevenuDto } from './dto/update-revenu.dto';
+import { CreateVentePorcDto } from './dto/create-vente-porc.dto';
 import { CoutsProductionDto } from './dto/couts-production.dto';
 import { CreateDetteDto } from './dto/create-dette.dto';
 import { UpdateDetteDto } from './dto/update-dette.dto';
@@ -113,6 +114,18 @@ export class FinanceController {
   @ApiOperation({ summary: 'Créer un nouveau revenu' })
   createRevenu(@Body() createRevenuDto: CreateRevenuDto, @CurrentUser() user: any) {
     return this.financeService.createRevenu(createRevenuDto, user.id);
+  }
+
+  @Post('ventes-porcs')
+  @ApiOperation({
+    summary: 'Créer une vente de porc avec validation stricte',
+    description:
+      'Crée une vente de porc en validant obligatoirement l\'identification des sujets vendus. ' +
+      'Met à jour automatiquement le cheptel (statut "vendu", date_vente). ' +
+      'En mode individuel : fournir animal_ids. En mode bande : fournir batch_id et quantite.',
+  })
+  createVentePorc(@Body() createVentePorcDto: CreateVentePorcDto, @CurrentUser() user: any) {
+    return this.financeService.createVentePorc(createVentePorcDto, user.id);
   }
 
   @Get('revenus')

@@ -37,7 +37,8 @@ import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import StatCard from './StatCard';
 import LoadingSpinner from './LoadingSpinner';
-import { parseISO, differenceInMonths, differenceInDays, isAfter, isBefore } from 'date-fns';
+import { parseISO, differenceInMonths, differenceInDays, isAfter, isBefore, subMonths, startOfMonth, endOfMonth, format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { calculatePoidsTotalAnimauxActifs } from '../utils/animalUtils';
 import { exportRapportCompletPDF } from '../services/pdf/rapportCompletPDF';
 import PerformanceGlobaleService, {
@@ -642,6 +643,143 @@ export default function PerformanceIndicatorsComponent() {
       const depensesMensuelle = (totalCharges + totalDepenses) / nombreMois;
       const revenusMensuel = totalRevenus / nombreMois;
 
+      // Filtrer les données par projet
+      const chargesFixesProjet = chargesFixes.filter((cf) => cf.projet_id === projetActif.id);
+      const depensesPonctuellesProjet = depensesPonctuelles.filter((dp) => dp.projet_id === projetActif.id);
+      const revenusProjet = revenus.filter((r) => r.projet_id === projetActif.id);
+
+      // Calculer les données pour les graphiques financiers (6 derniers mois)
+      const now = new Date();
+      const monthsData = [];
+      const labelsMois: string[] = [];
+      const depensesPlanifie: number[] = [];
+      const depensesReel: number[] = [];
+      const revenusMois: number[] = [];
+
+      for (let i = 5; i >= 0; i--) {
+        const monthDate = subMonths(now, i);
+        const monthStart = startOfMonth(monthDate);
+        const monthEnd = endOfMonth(monthDate);
+        const monthKey = format(monthDate, 'MMM', { locale: fr });
+        labelsMois.push(monthKey);
+
+        // Dépenses planifiées (charges fixes actives)
+        let planifie = 0;
+        chargesFixesProjet
+          .filter((cf) => cf.statut === 'actif')
+          .forEach((cf) => {
+            const cfDate = parseISO(cf.date_debut);
+            if (cfDate <= monthEnd) {
+              if (cf.frequence === 'mensuel') {
+                planifie += cf.montant;
+              } else if (cf.frequence === 'trimestriel' && i % 3 === 0) {
+                planifie += cf.montant;
+              } else if (cf.frequence === 'annuel' && i === 5) {
+                planifie += cf.montant;
+              }
+            }
+          });
+        depensesPlanifie.push(Math.round(planifie));
+
+        // Dépenses réelles (dépenses ponctuelles du mois)
+        const reel = depensesPonctuellesProjet
+          .filter((dp) => {
+            const dpDate = parseISO(dp.date);
+            return dpDate >= monthStart && dpDate <= monthEnd;
+          })
+          .reduce((sum, dp) => sum + dp.montant, 0);
+        depensesReel.push(Math.round(reel));
+
+        // Revenus du mois
+        const revenusMoisValue = revenusProjet
+          .filter((r) => {
+            const rDate = parseISO(r.date);
+            return rDate >= monthStart && rDate <= monthEnd;
+          })
+          .reduce((sum, r) => sum + r.montant, 0);
+        revenusMois.push(Math.round(revenusMoisValue));
+      }
+
+      // Données pour graphique par catégorie de dépenses
+      const categoryData: Record<string, number> = {};
+      depensesPonctuellesProjet.forEach((dp) => {
+        const category = dp.categorie;
+        categoryData[category] = (categoryData[category] || 0) + dp.montant;
+      });
+      const pieChartColors = ['#2E7D32', '#4CAF50', '#FF9800', '#F44336', '#2196F3', '#9C27B0'];
+      const depensesParCategorie = Object.entries(categoryData).map(([category, montant], index) => ({
+        name: category,
+        value: montant,
+        color: pieChartColors[index % pieChartColors.length],
+      }));
+
+      // Données pour graphique par catégorie de revenus
+      const revenusCategoryData: Record<string, number> = {};
+      revenusProjet.forEach((r) => {
+        const category = r.categorie;
+        revenusCategoryData[category] = (revenusCategoryData[category] || 0) + r.montant;
+      });
+      const categoryLabels: Record<string, string> = {
+        vente_porc: 'Vente porc',
+        vente_autre: 'Vente autre',
+        subvention: 'Subvention',
+        autre: 'Autre',
+      };
+      const revenusParCategorie = Object.entries(revenusCategoryData).map(([category, montant], index) => ({
+        name: categoryLabels[category] || category,
+        value: montant,
+        color: pieChartColors[index % pieChartColors.length],
+      }));
+
+      // Calculer les données pour les graphiques de production
+      // Évolution du poids moyen (groupé par mois)
+      const poidsParMois: Record<string, { total: number; count: number }> = {};
+      Object.values(peseesParAnimal).flat().forEach((pesee) => {
+        const datePesee = parseISO(pesee.date);
+        const moisKey = format(datePesee, 'MMM yyyy', { locale: fr });
+        if (!poidsParMois[moisKey]) {
+          poidsParMois[moisKey] = { total: 0, count: 0 };
+        }
+        poidsParMois[moisKey].total += pesee.poids_kg;
+        poidsParMois[moisKey].count += 1;
+      });
+      const evolutionPoidsLabels = Object.keys(poidsParMois).slice(-6); // 6 derniers mois
+      const evolutionPoidsData = evolutionPoidsLabels.map((mois) => {
+        const data = poidsParMois[mois];
+        return data.count > 0 ? data.total / data.count : 0;
+      });
+
+      // Évolution des mortalités (groupé par mois)
+      const mortalitesParMois: Record<string, number> = {};
+      mortalites
+        .filter((m) => m.projet_id === projetActif.id)
+        .forEach((m) => {
+          const dateMortalite = parseISO(m.date);
+          const moisKey = format(dateMortalite, 'MMM yyyy', { locale: fr });
+          mortalitesParMois[moisKey] = (mortalitesParMois[moisKey] || 0) + (m.nombre_porcs || 1);
+        });
+      const mortalitesLabels = Object.keys(mortalitesParMois).slice(-6); // 6 derniers mois
+      const mortalitesData = mortalitesLabels.map((mois) => mortalitesParMois[mois] || 0);
+
+      // Évolution du GMQ (basé sur les pesées)
+      const gmqParMois: Record<string, { total: number; count: number }> = {};
+      Object.values(peseesParAnimal).flat().forEach((pesee) => {
+        if (pesee.gmq) {
+          const datePesee = parseISO(pesee.date);
+          const moisKey = format(datePesee, 'MMM yyyy', { locale: fr });
+          if (!gmqParMois[moisKey]) {
+            gmqParMois[moisKey] = { total: 0, count: 0 };
+          }
+          gmqParMois[moisKey].total += pesee.gmq;
+          gmqParMois[moisKey].count += 1;
+        }
+      });
+      const gmqLabels = Object.keys(gmqParMois).slice(-6); // 6 derniers mois
+      const gmqData = gmqLabels.map((mois) => {
+        const data = gmqParMois[mois];
+        return data.count > 0 ? data.total / data.count : 0;
+      });
+
       // Préparer les données pour le PDF COMPLET
       const rapportCompletData = {
         projet: projetActif,
@@ -717,6 +855,30 @@ export default function PerformanceIndicatorsComponent() {
           priorite: r.type === 'avertissement' ? ('haute' as const) : ('moyenne' as const),
           message: r.message,
         })),
+        
+        // Données pour les graphiques
+        graphiques: {
+          depensesPlanifieVsReel: {
+            labels: labelsMois,
+            planifie: depensesPlanifie,
+            reel: depensesReel,
+            revenus: revenusMois,
+          },
+          depensesParCategorie: depensesParCategorie,
+          revenusParCategorie: revenusParCategorie,
+          evolutionPoids: evolutionPoidsLabels.length > 0 ? {
+            labels: evolutionPoidsLabels,
+            poidsMoyen: evolutionPoidsData,
+          } : undefined,
+          mortalites: mortalitesLabels.length > 0 ? {
+            labels: mortalitesLabels,
+            nombre: mortalitesData,
+          } : undefined,
+          gmq: gmqLabels.length > 0 ? {
+            labels: gmqLabels,
+            gmq: gmqData,
+          } : undefined,
+        },
       };
 
       // Générer et partager le PDF COMPLET

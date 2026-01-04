@@ -6,6 +6,7 @@
 
 import apiClient from './api/apiClient';
 import type { Projet } from '../types/projet';
+import { logger } from '../utils/logger';
 
 export interface PerformanceGlobale {
   // Données brutes
@@ -24,12 +25,19 @@ export interface PerformanceGlobale {
   ecart_absolu: number;
   ecart_pourcentage: number;
 
+  // Marge réalisée (optionnel, pour les calculs sur période)
+  marge_realisee?: number;
+
   // Diagnostic
   statut: 'rentable' | 'fragile' | 'perte';
   message_diagnostic: string;
 
   // Suggestions
   suggestions: string[];
+
+  // Dates de période (optionnel, pour les calculs sur période)
+  date_debut?: string;
+  date_fin?: string;
 }
 
 class PerformanceGlobaleService {
@@ -42,16 +50,62 @@ class PerformanceGlobaleService {
     projet?: Projet
   ): Promise<PerformanceGlobale | null> {
     try {
-const result = await apiClient.get<PerformanceGlobale>('/reports/performance-globale', {
-        params: { projet_id: projetId },
-      });
-      return result;
+      // Le backend retourne { available: true, data: result } ou { available: false, ... }
+      const response = await apiClient.get<{ available: boolean; data: PerformanceGlobale | null; reason?: string; message?: string }>(
+        '/reports/performance-globale',
+        {
+          params: { projet_id: projetId },
+        }
+      );
+
+      // Si available === false, retourner null
+      if (!response.available || !response.data) {
+        return null;
+      }
+
+      // Retourner les données extraites
+      return response.data;
     } catch (error: any) {
       // Si l'erreur indique qu'il n'y a pas assez de données, retourner null
       if (error?.status === 404 || error?.message?.includes('pas assez de données')) {
         return null;
       }
       // Pour les autres erreurs, les propager
+      throw error;
+    }
+  }
+
+  /**
+   * Calcule la performance globale de l'élevage sur une période donnée
+   */
+  async calculatePerformanceGlobalePeriode(
+    projetId: string,
+    dateDebut: Date,
+    dateFin: Date,
+    projet?: Projet
+  ): Promise<PerformanceGlobale | null> {
+    try {
+      const response = await apiClient.get<{ available: boolean; data: PerformanceGlobale | null; reason?: string; message?: string }>(
+        '/reports/performance-globale/periode',
+        {
+          params: {
+            projet_id: projetId,
+            date_debut: dateDebut.toISOString(),
+            date_fin: dateFin.toISOString(),
+          },
+        }
+      );
+
+      if (!response.available || !response.data) {
+        return null;
+      }
+
+      return response.data;
+    } catch (error: any) {
+      logger.error('Erreur chargement performance globale période:', error);
+      if (error?.status === 404 || error?.message?.includes('pas assez de données')) {
+        return null;
+      }
       throw error;
     }
   }

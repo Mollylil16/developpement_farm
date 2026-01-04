@@ -5,13 +5,15 @@
  * - Gérer les initiales
  * - Gérer le prénom
  * - Recharger au focus de l'écran
+ * - Synchroniser automatiquement avec les autres appareils
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { useAppSelector } from '../store/hooks';
+import { useAppSelector, useAppDispatch } from '../store/hooks';
 import apiClient from '../services/api/apiClient';
 import { logger } from '../utils/logger';
+import { profileSyncService } from '../services/profileSyncService';
 
 interface UseProfilDataReturn {
   profilPhotoUri: string | null;
@@ -22,9 +24,11 @@ interface UseProfilDataReturn {
 
 export function useProfilData(): UseProfilDataReturn {
   const { user } = useAppSelector((state) => state.auth);
+  const dispatch = useAppDispatch();
   const [profilPhotoUri, setProfilPhotoUri] = useState<string | null>(null);
   const [profilInitiales, setProfilInitiales] = useState<string>('');
   const [profilPrenom, setProfilPrenom] = useState<string>('');
+  const syncStartedRef = useRef(false);
 
   /**
    * Charge la photo et les infos de profil depuis la base de données (table users)
@@ -91,6 +95,62 @@ export function useProfilData(): UseProfilDataReturn {
       loadProfilPhoto();
     }, [loadProfilPhoto])
   );
+
+  /**
+   * Démarrer la synchronisation automatique du profil
+   * La synchronisation vérifie périodiquement si la photo a changé
+   */
+  useEffect(() => {
+    if (!user?.id || syncStartedRef.current) {
+      return;
+    }
+
+    // Démarrer la synchronisation
+    profileSyncService.start(
+      user.id,
+      dispatch,
+      {
+        checkInterval: 30000, // Vérifier toutes les 30 secondes
+        onProfileChanged: (updatedUser) => {
+          // Mettre à jour les états locaux quand un changement est détecté
+          setProfilPhotoUri(updatedUser.photo || null);
+          setProfilPrenom(updatedUser.prenom || '');
+          if (updatedUser.prenom && updatedUser.nom) {
+            const initiales = `${updatedUser.prenom.charAt(0).toUpperCase()}${updatedUser.nom.charAt(0).toUpperCase()}`;
+            setProfilInitiales(initiales);
+          } else {
+            setProfilInitiales('');
+          }
+          logger.log('[useProfilData] Profil mis à jour via synchronisation');
+        },
+      }
+    );
+
+    syncStartedRef.current = true;
+
+    // Nettoyer à la déconnexion ou changement d'utilisateur
+    return () => {
+      profileSyncService.stop();
+      syncStartedRef.current = false;
+    };
+  }, [user?.id, dispatch]);
+
+  /**
+   * Mettre à jour les états locaux quand le user Redux change
+   * (pour prendre en compte les mises à jour locales)
+   */
+  useEffect(() => {
+    if (user) {
+      setProfilPhotoUri(user.photo || null);
+      setProfilPrenom(user.prenom || '');
+      if (user.prenom && user.nom) {
+        const initiales = `${user.prenom.charAt(0).toUpperCase()}${user.nom.charAt(0).toUpperCase()}`;
+        setProfilInitiales(initiales);
+      } else {
+        setProfilInitiales('');
+      }
+    }
+  }, [user?.photo, user?.prenom, user?.nom]);
 
   return {
     profilPhotoUri,

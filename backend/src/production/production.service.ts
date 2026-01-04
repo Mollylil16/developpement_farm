@@ -648,6 +648,207 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
     return { poids: Math.max(latestPoids, poidsEstime) };
   }
 
+  /**
+   * Récupère les animaux actifs par nom(s) de loge(s)
+   * Fonctionne pour les deux modes : individuel et batch
+   */
+  async getAnimauxByLoges(projetId: string, logesNames: string[], userId: string) {
+    await this.checkProjetOwnership(projetId, userId);
+
+    // Récupérer le mode de gestion du projet
+    const projetResult = await this.databaseService.query(
+      'SELECT management_method FROM projets WHERE id = $1',
+      [projetId]
+    );
+    if (projetResult.rows.length === 0) {
+      throw new NotFoundException('Projet introuvable');
+    }
+    const managementMethod = projetResult.rows[0].management_method;
+
+    const animaux: Array<{
+      id: string;
+      code?: string;
+      nom?: string;
+      race?: string;
+      poids_kg?: number;
+      date_derniere_pesee?: string;
+      loge?: string;
+      batch_id?: string;
+      batch_name?: string;
+    }> = [];
+
+    if (managementMethod === 'batch') {
+      // Mode batch : chercher les batches par pen_name, puis récupérer leurs batch_pigs
+      const batchesResult = await this.databaseService.query(
+        `SELECT id, pen_name, category FROM batches 
+         WHERE projet_id = $1 AND pen_name = ANY($2::text[])`,
+        [projetId, logesNames]
+      );
+
+      for (const batch of batchesResult.rows) {
+        // Récupérer les batch_pigs de cette batch
+        const pigsResult = await this.databaseService.query(
+          `SELECT 
+            bp.id,
+            bp.current_weight_kg,
+            bp.last_weighing_date,
+            bp.sex,
+            bp.race,
+            bp.entry_date,
+            b.pen_name,
+            b.category
+           FROM batch_pigs bp
+           JOIN batches b ON bp.batch_id = b.id
+           WHERE bp.batch_id = $1
+             AND bp.removed = false
+           ORDER BY bp.entry_date DESC`,
+          [batch.id]
+        );
+
+        for (const pig of pigsResult.rows) {
+          // Récupérer la dernière pesée si disponible
+          const peseeResult = await this.databaseService.query(
+            `SELECT poids_kg, date 
+             FROM batch_weighing_details 
+             WHERE pig_id = $1 
+             ORDER BY date DESC 
+             LIMIT 1`,
+            [pig.id]
+          );
+
+          animaux.push({
+            id: pig.id,
+            code: pig.id, // En mode batch, l'ID sert de code
+            nom: undefined,
+            race: pig.race || undefined,
+            poids_kg: peseeResult.rows.length > 0 
+              ? parseFloat(peseeResult.rows[0].poids_kg) 
+              : (pig.current_weight_kg ? parseFloat(pig.current_weight_kg) : undefined),
+            date_derniere_pesee: peseeResult.rows.length > 0 
+              ? peseeResult.rows[0].date 
+              : (pig.last_weighing_date || undefined),
+            loge: pig.pen_name,
+            batch_id: batch.id,
+            batch_name: pig.pen_name,
+          });
+        }
+      }
+    } else {
+      // Mode individuel : chercher dans production_animaux
+      // D'abord, chercher si les animaux sont liés à des batches via batch_pigs
+      const batchesResult = await this.databaseService.query(
+        `SELECT id, pen_name FROM batches 
+         WHERE projet_id = $1 AND pen_name = ANY($2::text[])`,
+        [projetId, logesNames]
+      );
+
+      const batchIds = batchesResult.rows.map((b) => b.id);
+      const batchNamesMap = new Map(batchesResult.rows.map((b) => [b.id, b.pen_name]));
+
+      if (batchIds.length > 0) {
+        // Récupérer les animaux liés à ces batches via batch_pigs
+        const animauxBatchResult = await this.databaseService.query(
+          `SELECT DISTINCT
+            a.id,
+            a.code,
+            a.nom,
+            a.race,
+            bp.batch_id,
+            b.pen_name
+           FROM production_animaux a
+           JOIN batch_pigs bp ON a.id = bp.pig_id OR a.code = bp.id::text
+           JOIN batches b ON bp.batch_id = b.id
+           WHERE a.projet_id = $1
+             AND a.statut = 'actif'
+             AND bp.batch_id = ANY($2::text[])
+             AND bp.removed = false`,
+          [projetId, batchIds]
+        );
+
+        for (const animal of animauxBatchResult.rows) {
+          // Récupérer la dernière pesée
+          const peseeResult = await this.databaseService.query(
+            `SELECT poids_kg, date 
+             FROM production_pesees 
+             WHERE animal_id = $1 
+             ORDER BY date DESC 
+             LIMIT 1`,
+            [animal.id]
+          );
+
+          animaux.push({
+            id: animal.id,
+            code: animal.code,
+            nom: animal.nom || undefined,
+            race: animal.race || undefined,
+            poids_kg: peseeResult.rows.length > 0 
+              ? parseFloat(peseeResult.rows[0].poids_kg) 
+              : undefined,
+            date_derniere_pesee: peseeResult.rows.length > 0 
+              ? peseeResult.rows[0].date 
+              : undefined,
+            loge: animal.pen_name,
+            batch_id: animal.batch_id,
+            batch_name: animal.pen_name,
+          });
+        }
+      }
+
+      // Aussi chercher directement dans production_animaux si un champ "loge" existe
+      // (pour compatibilité avec les anciennes données)
+      try {
+        const animauxDirectResult = await this.databaseService.query(
+          `SELECT 
+            id,
+            code,
+            nom,
+            race
+           FROM production_animaux
+           WHERE projet_id = $1
+             AND statut = 'actif'
+             AND (loge = ANY($2::text[]) OR pen_name = ANY($2::text[]))`,
+          [projetId, logesNames]
+        );
+
+        for (const animal of animauxDirectResult.rows) {
+          // Éviter les doublons
+          if (animaux.find((a) => a.id === animal.id)) continue;
+
+          // Récupérer la dernière pesée
+          const peseeResult = await this.databaseService.query(
+            `SELECT poids_kg, date 
+             FROM production_pesees 
+             WHERE animal_id = $1 
+             ORDER BY date DESC 
+             LIMIT 1`,
+            [animal.id]
+          );
+
+          animaux.push({
+            id: animal.id,
+            code: animal.code,
+            nom: animal.nom || undefined,
+            race: animal.race || undefined,
+            poids_kg: peseeResult.rows.length > 0 
+              ? parseFloat(peseeResult.rows[0].poids_kg) 
+              : undefined,
+            date_derniere_pesee: peseeResult.rows.length > 0 
+              ? peseeResult.rows[0].date 
+              : undefined,
+            loge: logesNames.find((l) => 
+              animal.loge === l || animal.pen_name === l
+            ),
+          });
+        }
+      } catch (error) {
+        // Si les colonnes loge/pen_name n'existent pas, ignorer cette partie
+        // (compatibilité avec les schémas qui n'ont pas ces colonnes)
+      }
+    }
+
+    return animaux;
+  }
+
   async getProjetStats(projetId: string, userId: string) {
     await this.checkProjetOwnership(projetId, userId);
 

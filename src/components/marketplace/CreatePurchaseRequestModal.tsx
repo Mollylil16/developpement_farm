@@ -23,7 +23,7 @@ import { SPACING } from '../../constants/theme';
 import { RACES_LIST } from '../../constants/races';
 import { useGeolocation } from '../../hooks/useGeolocation';
 import apiClient from '../../services/api/apiClient';
-import type { PurchaseRequest, PurchaseRequestManagementMode, GrowthStage, MatchingThresholds } from '../../types/marketplace';
+import type { PurchaseRequest, GrowthStage, MatchingThresholds } from '../../types/marketplace';
 import { logger } from '../../utils/logger';
 import { useAppSelector } from '../../store/hooks';
 import { selectProjetActif } from '../../store/selectors/projetSelectors';
@@ -38,25 +38,12 @@ interface CreatePurchaseRequestModalProps {
   senderType?: 'buyer' | 'producer'; // Type d'émetteur (optionnel, détecté automatiquement si non fourni)
 }
 
-const AGE_CATEGORIES = [
-  { value: 'jeunes', label: 'Jeunes (0-3 mois)' },
-  { value: 'engraissement', label: 'Engraissement (3-8 mois)' },
-  { value: 'finis', label: 'Finis (>8 mois)' },
-  { value: 'tous', label: 'Tous âges' },
-];
-
 const GROWTH_STAGES: { value: GrowthStage; label: string }[] = [
   { value: 'porcelet', label: 'Porcelet' },
   { value: 'croissance', label: 'Croissance' },
   { value: 'engraissement', label: 'Engraissement' },
   { value: 'fini', label: 'Fini' },
   { value: 'tous', label: 'Tous stades' },
-];
-
-const MANAGEMENT_MODES: { value: PurchaseRequestManagementMode; label: string }[] = [
-  { value: 'individual', label: 'Individuel' },
-  { value: 'batch', label: 'Bande' },
-  { value: 'both', label: 'Les deux' },
 ];
 
 export default function CreatePurchaseRequestModal({
@@ -75,7 +62,6 @@ export default function CreatePurchaseRequestModal({
   // Détecter le type d'émetteur
   const senderType = providedSenderType || (isProducer ? 'producer' : 'buyer');
   const isProducerMode = senderType === 'producer';
-  const managementMethod = projetActif?.management_method || 'individual';
 
   // Debug: Log quand le modal devient visible
   useEffect(() => {
@@ -93,9 +79,6 @@ export default function CreatePurchaseRequestModal({
   const [race, setRace] = useState('');
   const [minWeight, setMinWeight] = useState('');
   const [maxWeight, setMaxWeight] = useState('');
-  const [ageCategory, setAgeCategory] = useState<string>('');
-  const [minAgeMonths, setMinAgeMonths] = useState('');
-  const [maxAgeMonths, setMaxAgeMonths] = useState('');
   const [quantity, setQuantity] = useState('');
   const [deliveryCity, setDeliveryCity] = useState('');
   const [deliveryRegion, setDeliveryRegion] = useState('');
@@ -109,9 +92,6 @@ export default function CreatePurchaseRequestModal({
   const [showRacePicker, setShowRacePicker] = useState(false);
   
   // Nouveaux champs pour producteurs et modes
-  const [managementMode, setManagementMode] = useState<PurchaseRequestManagementMode>(
-    managementMethod === 'batch' ? 'batch' : managementMethod === 'individual' ? 'individual' : 'both'
-  );
   const [growthStage, setGrowthStage] = useState<GrowthStage | ''>('');
   const [weightTolerance, setWeightTolerance] = useState('10'); // % par défaut
   const [priceTolerance, setPriceTolerance] = useState('20'); // % par défaut
@@ -124,9 +104,6 @@ export default function CreatePurchaseRequestModal({
       setRace(editRequest.race || '');
       setMinWeight(editRequest.minWeight?.toString() || '');
       setMaxWeight(editRequest.maxWeight?.toString() || '');
-      setAgeCategory(editRequest.ageCategory || '');
-      setMinAgeMonths(editRequest.minAgeMonths?.toString() || '');
-      setMaxAgeMonths(editRequest.maxAgeMonths?.toString() || '');
       setQuantity(editRequest.quantity?.toString() || '');
       setDeliveryCity(editRequest.deliveryLocation?.city || '');
       setDeliveryRegion(editRequest.deliveryLocation?.region || '');
@@ -137,7 +114,6 @@ export default function CreatePurchaseRequestModal({
       setDeliveryDate(editRequest.deliveryDate || '');
       setMessage(editRequest.message || '');
       // Nouveaux champs
-      setManagementMode(editRequest.managementMode || (managementMethod === 'batch' ? 'batch' : managementMethod === 'individual' ? 'individual' : 'both'));
       setGrowthStage(editRequest.growthStage || '');
       setWeightTolerance(editRequest.matchingThresholds?.weightTolerance?.toString() || '10');
       setPriceTolerance(editRequest.matchingThresholds?.priceTolerance?.toString() || '20');
@@ -148,9 +124,6 @@ export default function CreatePurchaseRequestModal({
       setRace('');
       setMinWeight('');
       setMaxWeight('');
-      setAgeCategory('');
-      setMinAgeMonths('');
-      setMaxAgeMonths('');
       setQuantity('');
       setDeliveryCity('');
       setDeliveryRegion('');
@@ -161,13 +134,12 @@ export default function CreatePurchaseRequestModal({
       setDeliveryDate('');
       setMessage('');
       // Réinitialiser les nouveaux champs
-      setManagementMode(managementMethod === 'batch' ? 'batch' : managementMethod === 'individual' ? 'individual' : 'both');
       setGrowthStage('');
       setWeightTolerance('10');
       setPriceTolerance('20');
       setLocationRadius('50');
     }
-  }, [visible, editRequest, managementMethod]);
+  }, [visible, editRequest]);
 
   const handleSubmit = async () => {
     // Validation
@@ -227,9 +199,6 @@ export default function CreatePurchaseRequestModal({
             minWeight?: number;
             maxWeight?: number;
             quantity?: number;
-            ageCategory?: string;
-            minAgeMonths?: number;
-            maxAgeMonths?: number;
             maxPricePerKg?: number;
             maxTotalPrice?: number;
             deliveryDate?: string;
@@ -244,15 +213,11 @@ export default function CreatePurchaseRequestModal({
           };
 
           // Ajouter les champs optionnels seulement s'ils ont des valeurs
-          if (ageCategory) updates.ageCategory = ageCategory;
-          if (minAgeMonths) updates.minAgeMonths = parseInt(minAgeMonths);
-          if (maxAgeMonths) updates.maxAgeMonths = parseInt(maxAgeMonths);
           if (maxPricePerKg) updates.maxPricePerKg = parseFloat(maxPricePerKg);
           if (maxTotalPrice) updates.maxTotalPrice = parseFloat(maxTotalPrice);
           if (deliveryDate) updates.deliveryDate = deliveryDate;
           if (message.trim()) updates.message = message.trim();
           // Nouveaux champs
-          if (managementMode) (updates as any).managementMode = managementMode;
           if (growthStage) (updates as any).growthStage = growthStage;
           if (weightTolerance || priceTolerance || locationRadius) {
             (updates as any).matchingThresholds = {
@@ -308,9 +273,6 @@ export default function CreatePurchaseRequestModal({
           race: race && race !== 'Peu importe' ? race : undefined,
           minWeight: parseFloat(minWeight),
           maxWeight: parseFloat(maxWeight),
-          ageCategory: ageCategory || undefined,
-          minAgeMonths: minAgeMonths ? parseInt(minAgeMonths) : undefined,
-          maxAgeMonths: maxAgeMonths ? parseInt(maxAgeMonths) : undefined,
           quantity: parseInt(quantity),
           deliveryLocation,
           maxPricePerKg: maxPricePerKg ? parseFloat(maxPricePerKg) : undefined,
@@ -320,9 +282,6 @@ export default function CreatePurchaseRequestModal({
         };
         
         // Nouveaux champs pour producteurs et modes
-        if (managementMode) {
-          requestData.managementMode = managementMode;
-        }
         if (growthStage) {
           requestData.growthStage = growthStage;
         }
@@ -360,9 +319,6 @@ export default function CreatePurchaseRequestModal({
     setRace('');
     setMinWeight('');
     setMaxWeight('');
-    setAgeCategory('');
-    setMinAgeMonths('');
-    setMaxAgeMonths('');
     setQuantity('');
     setDeliveryCity('');
     setDeliveryRegion('');
@@ -562,69 +518,6 @@ export default function CreatePurchaseRequestModal({
             </View>
           </View>
 
-          {/* Âge */}
-          <View style={styles.field}>
-            <Text style={[styles.label, { color: colors.text }]}>Catégorie d'âge</Text>
-            <View style={styles.row}>
-              {AGE_CATEGORIES.map((cat) => (
-                <TouchableOpacity
-                  key={cat.value}
-                  style={[
-                    styles.ageCategoryButton,
-                    ageCategory === cat.value && { backgroundColor: colors.primary },
-                    { borderColor: colors.border },
-                  ]}
-                  onPress={() => setAgeCategory(cat.value)}
-                >
-                  <Text
-                    style={[
-                      styles.ageCategoryText,
-                      { color: ageCategory === cat.value ? '#FFFFFF' : colors.text },
-                    ]}
-                  >
-                    {cat.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <View style={[styles.row, { marginTop: SPACING.sm }]}>
-              <View style={styles.halfField}>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: colors.surface,
-                      color: colors.text,
-                      borderColor: colors.border,
-                    },
-                  ]}
-                  value={minAgeMonths}
-                  onChangeText={setMinAgeMonths}
-                  placeholder="Âge min (mois)"
-                  keyboardType="numeric"
-                  placeholderTextColor={colors.textSecondary}
-                />
-              </View>
-              <View style={styles.halfField}>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: colors.surface,
-                      color: colors.text,
-                      borderColor: colors.border,
-                    },
-                  ]}
-                  value={maxAgeMonths}
-                  onChangeText={setMaxAgeMonths}
-                  placeholder="Âge max (mois)"
-                  keyboardType="numeric"
-                  placeholderTextColor={colors.textSecondary}
-                />
-              </View>
-            </View>
-          </View>
-
           {/* Quantité */}
           <View style={styles.field}>
             <Text style={[styles.label, { color: colors.text }]}>Quantité souhaitée (têtes) *</Text>
@@ -760,38 +653,6 @@ export default function CreatePurchaseRequestModal({
           {/* Nouveaux champs pour producteurs et modes */}
           {isProducerMode && (
             <>
-              {/* Mode de gestion */}
-              <View style={styles.field}>
-                <Text style={[styles.label, { color: colors.text }]}>Mode de gestion préféré</Text>
-                <View style={styles.optionsRow}>
-                  {MANAGEMENT_MODES.map((mode) => (
-                    <TouchableOpacity
-                      key={mode.value}
-                      style={[
-                        styles.optionButton,
-                        {
-                          backgroundColor: managementMode === mode.value ? colors.primary + '20' : colors.surface,
-                          borderColor: managementMode === mode.value ? colors.primary : colors.border,
-                        },
-                      ]}
-                      onPress={() => setManagementMode(mode.value)}
-                    >
-                      <Text
-                        style={[
-                          styles.optionButtonText,
-                          {
-                            color: managementMode === mode.value ? colors.primary : colors.text,
-                            fontWeight: managementMode === mode.value ? '600' : '400',
-                          },
-                        ]}
-                      >
-                        {mode.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
               {/* Stade de croissance */}
               <View style={styles.field}>
                 <Text style={[styles.label, { color: colors.text }]}>Stade de croissance souhaité</Text>
@@ -1056,17 +917,6 @@ const styles = StyleSheet.create({
   pickerOptionText: {
     fontSize: 16,
     lineHeight: 20,
-  },
-  ageCategoryButton: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingVertical: SPACING.sm,
-    alignItems: 'center',
-  },
-  ageCategoryText: {
-    fontSize: 12,
-    fontWeight: '500',
   },
   locationButton: {
     flexDirection: 'row',

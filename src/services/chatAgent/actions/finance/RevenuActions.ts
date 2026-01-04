@@ -11,6 +11,7 @@ import apiClient from '../../../api/apiClient';
 export class RevenuActions {
   /**
    * Crée un revenu (vente)
+   * Pour les ventes de porcs, utilise le nouvel endpoint avec validation stricte des sujets vendus
    */
   static async createRevenu(params: unknown, context: AgentContext): Promise<AgentActionResult> {
     const paramsTyped = params as Record<string, unknown>;
@@ -70,12 +71,240 @@ export class RevenuActions {
       (paramsTyped.buyer && typeof paramsTyped.buyer === 'string' ? paramsTyped.buyer : undefined) ||
       'client';
 
+    const categorie = (paramsTyped.categorie && typeof paramsTyped.categorie === 'string'
+      ? paramsTyped.categorie
+      : 'vente_porc') || 'vente_porc';
+
+    // ========== VALIDATION STRICTE POUR VENTES DE PORCS ==========
+    if (categorie === 'vente_porc') {
+      // Récupérer le mode de gestion du projet
+      let managementMethod = 'individual';
+      try {
+        const projet = await apiClient.get<any>(`/projets/${context.projetId}`);
+        managementMethod = projet.management_method || 'individual';
+      } catch (error) {
+        // Si erreur, utiliser 'individual' par défaut
+      }
+
+      // Vérifier l'état de vente dans les params (passé depuis ChatAgentService)
+      const venteState = paramsTyped.venteState as
+        | 'demande_loges'
+        | 'affichage_sujets'
+        | 'selection_sujets'
+        | 'demande_montant'
+        | undefined;
+
+      // Vérifier si les sujets sont identifiés
+      const animalIds = paramsTyped.animal_ids as string[] | undefined;
+      const animalId = paramsTyped.animal_id as string | undefined;
+      const batchId = paramsTyped.batch_id as string | undefined;
+      const quantite = paramsTyped.quantite as number | undefined;
+      const loges = paramsTyped.loges as string[] | string | undefined;
+      const logesList = Array.isArray(loges) ? loges : loges ? [loges] : undefined;
+
+      const hasAnimalIds = (animalIds && animalIds.length > 0) || (animalId && animalId.length > 0);
+      const hasBatchInfo = batchId && quantite && quantite > 0;
+
+      // ========== NOUVEAU FLOW : DEMANDE PAR LOGES ==========
+      // Si pas d'IDs et pas d'état de vente, commencer le nouveau flow
+      if (!hasAnimalIds && !hasBatchInfo && !venteState) {
+        // Demander les loges
+        return {
+          success: false,
+          needsClarification: true,
+          clarificationType: 'demande_loges',
+          message:
+            "D'accord ! Pour enregistrer cette vente, pouvez-vous me indiquer la ou les loge(s) d'où proviennent les porcs vendus ?",
+          missingParams: ['loges'],
+          actionType: 'create_revenu',
+          data: {
+            montant,
+            date,
+            nombre,
+            acheteur,
+            categorie,
+            managementMethod,
+            venteState: 'demande_loges',
+          },
+        };
+      }
+
+      // Si état = demande_loges et loges fournies, récupérer les sujets
+      if (venteState === 'demande_loges' && logesList && logesList.length > 0) {
+        try {
+          // Récupérer les animaux des loges
+          const logesParam = logesList.join(',');
+          const animaux = await apiClient.get<any[]>(
+            `/production/animaux/by-loges?projet_id=${context.projetId}&loges=${encodeURIComponent(logesParam)}`
+          );
+
+          if (!animaux || animaux.length === 0) {
+            return {
+              success: false,
+              needsClarification: true,
+              clarificationType: 'demande_loges',
+              message: `Aucun porc actif trouvé dans les loges "${logesList.join(', ')}". Pouvez-vous vérifier les noms des loges ?`,
+              missingParams: ['loges'],
+              actionType: 'create_revenu',
+              data: {
+                montant,
+                date,
+                nombre,
+                acheteur,
+                categorie,
+                managementMethod,
+                venteState: 'demande_loges',
+              },
+            };
+          }
+
+          // Construire le message avec la liste des sujets
+          let message = `Voici les porcs dans les loges sélectionnées :\n\n`;
+          animaux.forEach((animal, index) => {
+            const poids = animal.poids_kg ? `${animal.poids_kg} kg` : 'poids non disponible';
+            const datePesee = animal.date_derniere_pesee
+              ? format(new Date(animal.date_derniere_pesee), 'dd/MM/yyyy')
+              : 'non disponible';
+            const race = animal.race ? ` - ${animal.race}` : '';
+            message += `• [ID: ${animal.id}] – ${poids} (dernière pesée : ${datePesee})${race}\n`;
+          });
+          message += `\nCliquez sur les IDs des porcs que vous avez vendus.`;
+
+          return {
+            success: false,
+            needsClarification: true,
+            clarificationType: 'selection_sujets',
+            message,
+            missingParams: ['animal_ids'],
+            actionType: 'create_revenu',
+            data: {
+              montant,
+              date,
+              nombre,
+              acheteur,
+              categorie,
+              managementMethod,
+              venteState: 'affichage_sujets',
+              sujetsDisponibles: animaux,
+              loges: logesList,
+            },
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            needsClarification: true,
+            clarificationType: 'demande_loges',
+            message: `Erreur lors de la récupération des porcs : ${error.message || 'Erreur inconnue'}. Pouvez-vous réessayer ?`,
+            missingParams: ['loges'],
+            actionType: 'create_revenu',
+            data: {
+              montant,
+              date,
+              nombre,
+              acheteur,
+              categorie,
+              managementMethod,
+              venteState: 'demande_loges',
+            },
+          };
+        }
+      }
+
+      // Si état = affichage_sujets et IDs sélectionnés, demander le montant
+      if (venteState === 'affichage_sujets' && hasAnimalIds) {
+        const selectedIds = animalIds || (animalId ? [animalId] : []);
+        return {
+          success: false,
+          needsClarification: true,
+          clarificationType: 'demande_montant',
+          message: `Parfait ! Vous avez sélectionné les porcs ID: ${selectedIds.join(', ')}. Quel est le montant de la vente ?`,
+          missingParams: ['montant'],
+          actionType: 'create_revenu',
+          data: {
+            date,
+            nombre: selectedIds.length,
+            acheteur,
+            categorie,
+            managementMethod,
+            venteState: 'demande_montant',
+            sujetsSelectionnes: selectedIds,
+          },
+        };
+      }
+
+      // Si état = demande_montant et montant fourni, enregistrer la vente
+      if (venteState === 'demande_montant' && hasAnimalIds && montant > 0) {
+        // Continuer avec l'enregistrement normal ci-dessous
+      }
+
+      // Si les sujets ne sont toujours pas identifiés (fallback), demander clarification classique
+      if (!hasAnimalIds && !hasBatchInfo && venteState !== 'demande_montant') {
+        const clarificationMessage =
+          managementMethod === 'batch'
+            ? 'Pour enregistrer cette vente, de quelle loge/bande proviennent les porcs vendus, et quelle quantité avez-vous vendue ?'
+            : 'Pour enregistrer cette vente, pouvez-vous me fournir l\'ID (ou les IDs) du/des porc(s) vendu(s) ?';
+
+        return {
+          success: false,
+          needsClarification: true,
+          clarificationType: 'demande_identification_sujets',
+          message: clarificationMessage,
+          missingParams: managementMethod === 'batch' ? ['batch_id', 'quantite'] : ['animal_ids'],
+          data: {
+            montant,
+            date,
+            nombre,
+            acheteur,
+            categorie,
+            managementMethod,
+          },
+        };
+      }
+
+      // Utiliser le nouvel endpoint pour les ventes de porcs
+      const venteData: any = {
+        projet_id: context.projetId,
+        montant,
+        date,
+        description:
+          (paramsTyped.description && typeof paramsTyped.description === 'string'
+            ? paramsTyped.description
+            : undefined) || `Vente de ${nombre} porc(s) à ${acheteur}`,
+        commentaire:
+          paramsTyped.commentaire && typeof paramsTyped.commentaire === 'string'
+            ? paramsTyped.commentaire
+            : undefined,
+        poids_kg:
+          (paramsTyped.poids_total as number) ||
+          (paramsTyped.poids as number) ||
+          (paramsTyped.poids_kg as number) ||
+          undefined,
+      };
+
+      // Ajouter l'identification des sujets selon le mode
+      if (hasAnimalIds) {
+        venteData.animal_ids = animalIds || (animalId ? [animalId] : []);
+      } else if (hasBatchInfo) {
+        venteData.batch_id = batchId;
+        venteData.quantite = quantite;
+      }
+
+      const revenu = await apiClient.post<any>('/finance/ventes-porcs', venteData);
+
+      const message = `✅ Vente enregistrée avec succès ! ${revenu.message || `${nombre} porc(s) vendu(s) à ${acheteur} pour ${montant.toLocaleString('fr-FR')} FCFA le ${format(new Date(date), 'dd/MM/yyyy')}.`}`;
+
+      return {
+        success: true,
+        data: revenu,
+        message,
+      };
+    }
+
+    // Pour les autres catégories de revenus, utiliser l'endpoint classique
     const revenu = await apiClient.post<any>('/finance/revenus', {
       projet_id: context.projetId,
       montant,
-      categorie: (paramsTyped.categorie && typeof paramsTyped.categorie === 'string'
-        ? paramsTyped.categorie
-        : 'vente_porc') || 'vente_porc',
+      categorie,
       date,
       description:
         (paramsTyped.description && typeof paramsTyped.description === 'string'

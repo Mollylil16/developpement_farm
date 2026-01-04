@@ -164,6 +164,10 @@ export default function ProfilScreen() {
 
       // Recharger l'utilisateur dans le state Redux pour que les autres composants voient les changements
       await dispatch(loadUserFromStorageThunk());
+      
+      // Déclencher une vérification immédiate de la synchronisation pour les autres appareils
+      const { profileSyncService } = await import('../services/profileSyncService');
+      profileSyncService.checkNow();
 
       Alert.alert('Succès', 'Profil enregistré avec succès');
 

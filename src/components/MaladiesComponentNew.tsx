@@ -121,22 +121,51 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
 
   // Calculer les stats
   const stats = useMemo(() => {
-    const animauxActifs = (animaux || []).filter((a) => a.statut === 'actif');
-    const totalActifs = animauxActifs.length;
+    // Calculer le total d'animaux actifs selon le mode
+    let totalActifs = 0;
+    if (isModeBatch) {
+      // Mode bande : somme des total_count de toutes les bandes
+      totalActifs = batches.reduce((sum, batch) => sum + (batch.total_count || 0), 0);
+    } else {
+      // Mode individuel : nombre d'animaux actifs
+      const animauxActifs = (animaux || []).filter((a) => a.statut === 'actif');
+      totalActifs = animauxActifs.length;
+    }
 
     // Maladies en cours (non guéries)
     const maladiesEnCours = (maladies || []).filter((m) => !m.gueri);
 
-    // IDs uniques des animaux malades
-    const animauxMaladesSet = new Set<string>();
-    maladiesEnCours.forEach((m) => {
-      if (m.animal_id) {
-        animauxMaladesSet.add(m.animal_id);
-      }
-    });
+    // Calculer le nombre de porcs malades selon le mode
+    let porcsMalades = 0;
+    if (isModeBatch) {
+      // Mode bande : somme des nombre_animaux_affectes des maladies en cours
+      // Si nombre_animaux_affectes n'est pas défini, compter 1 par maladie
+      porcsMalades = maladiesEnCours.reduce((sum, m) => {
+        return sum + (m.nombre_animaux_affectes || 1);
+      }, 0);
+    } else {
+      // Mode individuel : IDs uniques des animaux malades
+      const animauxMaladesSet = new Set<string>();
+      maladiesEnCours.forEach((m) => {
+        if (m.animal_id) {
+          animauxMaladesSet.add(m.animal_id);
+        }
+      });
+      porcsMalades = animauxMaladesSet.size;
+    }
 
-    const porcsMalades = animauxMaladesSet.size;
     const tauxMaladie = totalActifs > 0 ? (porcsMalades / totalActifs) * 100 : 0;
+    
+    // Debug logs pour vérifier les calculs
+    if (isModeBatch) {
+      console.log('[MaladiesComponentNew] Mode batch - Stats:', {
+        totalActifs,
+        porcsMalades,
+        tauxMaladie,
+        maladiesEnCours: maladiesEnCours.length,
+        batchesCount: batches.length,
+      });
+    }
 
     // Couleur du badge selon sévérité (calculée séparément pour éviter la dépendance colors)
     let badgeSeverity: 'success' | 'warning' | 'error' = 'success';
@@ -149,17 +178,28 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
 
     const maladiesRecentes = (maladies || []).filter((m) => new Date(m.date_debut) >= troismoisAgo);
 
+    // Compter les cas par type (en mode batch, utiliser nombre_animaux_affectes)
     const countByType: Record<string, number> = {};
     maladiesRecentes.forEach((m) => {
-      countByType[m.type] = (countByType[m.type] || 0) + 1;
+      if (isModeBatch) {
+        // Mode bande : compter le nombre d'animaux affectés
+        const nombreAffectes = m.nombre_animaux_affectes || 1;
+        countByType[m.type] = (countByType[m.type] || 0) + nombreAffectes;
+      } else {
+        // Mode individuel : compter 1 par maladie
+        countByType[m.type] = (countByType[m.type] || 0) + 1;
+      }
     });
+
+    // Calculer le total de cas pour le pourcentage
+    const totalCas = Object.values(countByType).reduce((sum, count) => sum + count, 0);
 
     const maladiesRecurrentes = Object.entries(countByType)
       .map(([type, count]) => ({
         type: type as TypeMaladie,
         nom: TYPE_MALADIE_LABELS[type as TypeMaladie],
         count,
-        pourcentage: maladiesRecentes.length > 0 ? (count / maladiesRecentes.length) * 100 : 0,
+        pourcentage: totalCas > 0 ? (count / totalCas) * 100 : 0,
       }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
@@ -291,7 +331,7 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
       maladiesRecurrentes,
       suggestions,
     };
-  }, [animaux, maladies]);
+  }, [animaux, maladies, isModeBatch, batches]);
 
   // Convertir badgeSeverity en couleur
   const getBadgeColor = (severity: 'success' | 'warning' | 'error') => {

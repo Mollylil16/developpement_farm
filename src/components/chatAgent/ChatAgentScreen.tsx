@@ -221,9 +221,42 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
     }
   };
 
+  // État pour la sélection des sujets
+  const [selectedSubjectIds, setSelectedSubjectIds] = useState<string[]>([]);
+
+  const handleSubjectIdClick = (subjectId: string) => {
+    setSelectedSubjectIds((prev) => {
+      if (prev.includes(subjectId)) {
+        // Désélectionner
+        return prev.filter((id) => id !== subjectId);
+      } else {
+        // Sélectionner
+        return [...prev, subjectId];
+      }
+    });
+  };
+
+  const handleConfirmSelection = () => {
+    if (selectedSubjectIds.length === 0) {
+      Alert.alert('Sélection requise', 'Veuillez sélectionner au moins un porc.');
+      return;
+    }
+    // Envoyer les IDs sélectionnés comme message
+    sendMessage(`IDs sélectionnés : ${selectedSubjectIds.join(', ')}`);
+    setSelectedSubjectIds([]);
+  };
+
   const renderMessage = ({ item }: { item: ChatMessage }) => {
     const isUser = item.role === 'user';
     const isSystem = item.role === 'system';
+    const sujetsDisponibles = item.metadata?.sujetsDisponibles as Array<{
+      id: string;
+      code?: string;
+      nom?: string;
+      race?: string;
+      poids_kg?: number;
+      date_derniere_pesee?: string;
+    }> | undefined;
 
     if (isSystem) {
       return (
@@ -232,6 +265,74 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
         </View>
       );
     }
+
+    // Extraire les IDs du message pour les rendre cliquables
+    const renderMessageWithClickableIds = (content: string) => {
+      if (!sujetsDisponibles || sujetsDisponibles.length === 0) {
+        return <Text style={[styles.messageText, { color: isUser ? COLORS.textOnPrimary : COLORS.text }]}>{content}</Text>;
+      }
+
+      // Créer une regex pour trouver les IDs dans le format [ID: 1024]
+      const parts: Array<string | { id: string; isButton: true }> = [];
+      let lastIndex = 0;
+      const idRegex = /\[ID:\s*(\d+)\]/g;
+      let match;
+
+      while ((match = idRegex.exec(content)) !== null) {
+        // Ajouter le texte avant l'ID
+        if (match.index > lastIndex) {
+          parts.push(content.substring(lastIndex, match.index));
+        }
+        // Ajouter l'ID comme bouton
+        parts.push({ id: match[1], isButton: true });
+        lastIndex = match.index + match[0].length;
+      }
+
+      // Ajouter le texte restant
+      if (lastIndex < content.length) {
+        parts.push(content.substring(lastIndex));
+      }
+
+      return (
+        <View>
+          {parts.map((part, index) => {
+            if (typeof part === 'object' && part.isButton) {
+              const isSelected = selectedSubjectIds.includes(part.id);
+              return (
+                <TouchableOpacity
+                  key={`id-${part.id}-${index}`}
+                  style={[
+                    styles.subjectIdButton,
+                    {
+                      backgroundColor: isSelected ? COLORS.primary : COLORS.surface,
+                      borderColor: COLORS.primary,
+                    },
+                  ]}
+                  onPress={() => handleSubjectIdClick(part.id)}
+                >
+                  <Text
+                    style={[
+                      styles.subjectIdButtonText,
+                      { color: isSelected ? COLORS.textOnPrimary : COLORS.primary },
+                    ]}
+                  >
+                    ID: {part.id}
+                  </Text>
+                </TouchableOpacity>
+              );
+            }
+            return (
+              <Text
+                key={`text-${index}`}
+                style={[styles.messageText, { color: isUser ? COLORS.textOnPrimary : COLORS.text }]}
+              >
+                {part}
+              </Text>
+            );
+          })}
+        </View>
+      );
+    };
 
     return (
       <View
@@ -255,7 +356,24 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
                 { backgroundColor: COLORS.surface, marginRight: 8 },
               ]}
             >
-              <Text style={[styles.messageText, { color: COLORS.text }]}>{item.content}</Text>
+              {renderMessageWithClickableIds(item.content)}
+
+              {/* Afficher les boutons de confirmation si des sujets sont sélectionnés */}
+              {sujetsDisponibles && sujetsDisponibles.length > 0 && selectedSubjectIds.length > 0 && (
+                <View style={styles.selectionActions}>
+                  <Text style={[styles.selectionText, { color: COLORS.textSecondary }]}>
+                    {selectedSubjectIds.length} porc(s) sélectionné(s)
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.confirmButton, { backgroundColor: COLORS.primary }]}
+                    onPress={handleConfirmSelection}
+                  >
+                    <Text style={[styles.confirmButtonText, { color: COLORS.textOnPrimary }]}>
+                      Confirmer
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
               {item.metadata?.actionExecuted && (
                 <View style={styles.actionBadge}>
@@ -708,5 +826,40 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  subjectIdButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginVertical: 4,
+    marginRight: 8,
+    alignSelf: 'flex-start',
+  },
+  subjectIdButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  selectionActions: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  selectionText: {
+    fontSize: 12,
+    flex: 1,
+  },
+  confirmButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  confirmButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
