@@ -32,3 +32,9 @@ allprojects {
 
 apply plugin: "expo-root-project"
 apply plugin: "com.facebook.react.rootproject"
+
+// Force compileSdk and targetSdk after Expo plugin is applied
+afterEvaluate {
+  rootProject.ext.compileSdkVersion = 35
+  rootProject.ext.targetSdkVersion = 35
+}
