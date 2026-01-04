@@ -34,6 +34,39 @@ export class AnimalActions {
   }
 
   /**
+   * Liste tous les animaux actifs
+   */
+  static async listAnimals(params: unknown, context: AgentContext): Promise<AgentActionResult> {
+    try {
+      // Récupérer tous les animaux depuis l'API backend
+      const animaux = await apiClient.get<any[]>(`/production/animaux`, {
+        params: { projet_id: context.projetId },
+      });
+
+      // Filtrer seulement les animaux actifs
+      const animauxActifs = animaux.filter((a) => a.statut === 'actif');
+
+      return {
+        success: true,
+        message:
+          animauxActifs.length > 0
+            ? `Tu as ${animauxActifs.length} animal(aux) actif(s) dans ton élevage.`
+            : 'Aucun animal actif trouvé.',
+        data: {
+          total: animauxActifs.length,
+          animaux: animauxActifs,
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: 'Erreur lors de la récupération des animaux.',
+        error: error instanceof Error ? error.message : 'Erreur inconnue',
+      };
+    }
+  }
+
+  /**
    * Recherche un lot d'animaux
    */
   static async searchLot(params: unknown, context: AgentContext): Promise<AgentActionResult> {

@@ -55,6 +55,7 @@ export type AgentActionType =
   | 'schedule_reminder'
   | 'analyze_data'
   | 'search_animal'
+  | 'list_animals'
   | 'search_lot'
   | 'get_stock_status'
   | 'calculate_costs'

@@ -132,29 +132,44 @@ Réponds SEULEMENT le JSON, rien d'autre.`;
         
         // Essayer de réparer un JSON potentiellement tronqué
         jsonText = jsonText.trim();
+        
+        // Détecter et réparer les chaînes non fermées
+        let inString = false;
+        let escapeNext = false;
+        let lastCommaOutsideString = -1;
+        
+        for (let i = 0; i < jsonText.length; i++) {
+          const char = jsonText[i];
+          if (escapeNext) {
+            escapeNext = false;
+            continue;
+          }
+          if (char === '\\') {
+            escapeNext = true;
+            continue;
+          }
+          if (char === '"') {
+            inString = !inString;
+          } else if (!inString && char === ',') {
+            lastCommaOutsideString = i;
+          }
+        }
+        
+        // Si on est encore dans une chaîne non fermée, supprimer la dernière propriété incomplète
+        if (inString && lastCommaOutsideString >= 0) {
+          // Tronquer après la dernière virgule complète (hors chaîne)
+          jsonText = jsonText.substring(0, lastCommaOutsideString).trim();
+        }
+        
+        // Fermer les accolades manquantes
         if (!jsonText.endsWith('}')) {
-          // Si le JSON est tronqué, essayer de le compléter
           const openBraces = (jsonText.match(/\{/g) || []).length;
           const closeBraces = (jsonText.match(/\}/g) || []).length;
           const missingBraces = openBraces - closeBraces;
           if (missingBraces > 0) {
-            // Trouver la dernière virgule ou deux-points et compléter
-            const lastComma = jsonText.lastIndexOf(',');
-            const lastColon = jsonText.lastIndexOf(':');
-            const lastKey = Math.max(lastComma, lastColon);
-            if (lastKey > 0) {
-              // Si on a une valeur incomplète, la compléter avec null
-              const beforeLastKey = jsonText.substring(0, lastKey + 1);
-              const afterLastKey = jsonText.substring(lastKey + 1).trim();
-              if (afterLastKey && !afterLastKey.match(/^["\d\[\{]/)) {
-                // Valeur incomplète, la compléter
-                jsonText = beforeLastKey + ' null' + '}'.repeat(missingBraces);
-              } else {
-                jsonText = jsonText + '}'.repeat(missingBraces);
-              }
-            } else {
-              jsonText = jsonText + '}'.repeat(missingBraces);
-            }
+            // Supprimer la dernière virgule si elle existe (au cas où)
+            jsonText = jsonText.replace(/,\s*$/, '');
+            jsonText = jsonText + '}'.repeat(missingBraces);
           }
         }
 

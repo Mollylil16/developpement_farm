@@ -4,8 +4,9 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { ChatAgentService, ProactiveRemindersService, VoiceService } from '../services/chatAgent';
-import { ChatMessage, AgentConfig, VoiceConfig, Reminder } from '../types/chatAgent';
+import { ProactiveRemindersService, VoiceService } from '../services/chatAgent';
+import { GeminiConversationalAgent } from '../services/agent/GeminiConversationalAgent';
+import { ChatMessage, AgentConfig, VoiceConfig, Reminder, AgentContext } from '../types/chatAgent';
 import { format } from 'date-fns';
 import apiClient from '../services/api/apiClient';
 import { GEMINI_CONFIG } from '../config/geminiConfig';
@@ -71,7 +72,7 @@ export function useChatAgent() {
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [voiceEnabled, setVoiceEnabled] = useState(true); // Activé par défaut pour la reconnaissance vocale
 
-  const agentServiceRef = useRef<ChatAgentService | null>(null);
+  const agentServiceRef = useRef<GeminiConversationalAgent | null>(null);
   const remindersServiceRef = useRef<ProactiveRemindersService | null>(null);
   const voiceServiceRef = useRef<VoiceService | null>(null);
   const conversationIdRef = useRef<string | null>(null);
@@ -116,17 +117,20 @@ export function useChatAgent() {
           savedMessages = [];
         }
 
-        // Configuration de l'agent
-        const config: AgentConfig = {
-          geminiApiKey: GEMINI_CONFIG.apiKey,
-          model: GEMINI_CONFIG.model,
-          language: 'fr-CI',
-          enableVoice: voiceEnabled,
-          enableProactiveAlerts: true,
+        // Créer le contexte de l'agent
+        const context: AgentContext = {
+          projetId: projetActif.id,
+          userId: user.id,
+          userName: user.nom || user.email,
+          currentDate: format(new Date(), 'yyyy-MM-dd'),
         };
 
-        // Créer les services
-        const agentService = new ChatAgentService(config);
+        // Créer l'agent Gemini (le contexte est passé au constructeur)
+        if (!GEMINI_CONFIG.apiKey) {
+          throw new Error('Clé API Gemini non configurée');
+        }
+        const agentService = new GeminiConversationalAgent(GEMINI_CONFIG.apiKey, context);
+        await agentService.initialize();
         const remindersService = new ProactiveRemindersService();
         // Configuration de la transcription vocale (optionnel)
         // Pour activer, utilisez getVoiceConfig() depuis src/config/voiceConfig.ts
@@ -145,17 +149,6 @@ export function useChatAgent() {
           transcriptionApiKey,
         });
 
-        // Initialiser le contexte avec le conversationId
-        await agentService.initializeContext(
-          {
-            projetId: projetActif.id,
-            userId: user.id,
-            userName: user.nom || user.email,
-            currentDate: format(new Date(), 'yyyy-MM-dd'),
-          },
-          conversationId
-        );
-
         await remindersService.initialize({
           projetId: projetActif.id,
           userId: user.id,
@@ -167,10 +160,12 @@ export function useChatAgent() {
         remindersServiceRef.current = remindersService;
         voiceServiceRef.current = voiceService;
 
-        // Restaurer l'historique dans le service
+        // Gérer l'historique (GeminiConversationalAgent gère son historique en interne)
+        // Pour l'instant, on démarre avec un message de bienvenue
         if (savedMessages.length > 0) {
-          // Restaurer tous les messages (y compris le message de bienvenue s'il existe)
-          agentService.restoreHistory(savedMessages);
+          // Si on a un historique sauvegardé, on l'affiche
+          // Note: GeminiConversationalAgent gère son historique en interne, mais on ne peut pas le restaurer
+          // L'historique sera reconstruit au fur et à mesure des messages
           setMessages(savedMessages);
         } else {
           // Générer les rappels proactifs
@@ -260,23 +255,28 @@ export function useChatAgent() {
       setIsLoading(true);
 
       try {
-        const response = await agentServiceRef.current.sendMessage(content);
+        // GeminiConversationalAgent.sendMessage retourne une string (pas ChatMessage)
+        const responseText = await agentServiceRef.current.sendMessage(content);
 
-        // UI sync: si l'agent a exécuté une action, rafraîchir les données concernées
+        // Convertir la réponse en ChatMessage
+        const response: ChatMessage = {
+          id: `assistant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          role: 'assistant',
+          content: responseText,
+          timestamp: new Date().toISOString(),
+        };
+
+        // Rafraîchir les données (on détecte les actions via mots-clés dans la réponse)
+        // Note: Avec Gemini, on ne peut pas détecter directement l'action exécutée
+        // On pourrait améliorer cela plus tard si nécessaire
         try {
-          const actionExecuted = response?.metadata?.actionExecuted as string | undefined;
           const projetId = projetActif?.id;
-
-          if (actionExecuted && projetId) {
-            if (actionExecuted === 'create_depense') {
-              dispatch(loadDepensesPonctuelles(projetId));
-            } else if (actionExecuted === 'create_revenu') {
-              dispatch(loadRevenus(projetId));
-            } else if (actionExecuted === 'create_charge_fixe') {
-              dispatch(loadChargesFixes(projetId));
-            } else if (actionExecuted === 'create_pesee') {
-              dispatch(loadProductionAnimaux({ projetId, inclureInactifs: true }));
-            }
+          if (projetId && /(enregistré|créé|ajouté).*(vente|dépense|pesée|revenu)/i.test(responseText)) {
+            // Rafraîchir toutes les données pour être sûr
+            dispatch(loadDepensesPonctuelles(projetId));
+            dispatch(loadRevenus(projetId));
+            dispatch(loadChargesFixes(projetId));
+            dispatch(loadProductionAnimaux({ projetId, inclureInactifs: true }));
           }
         } catch {
           // Ne pas bloquer l'UI si le refresh échoue
@@ -303,18 +303,6 @@ export function useChatAgent() {
     },
     [isLoading, isThinking, voiceEnabled]
   );
-
-  /**
-   * Confirme une action
-   */
-  const confirmAction = useCallback(async (actionId: string, confirmed: boolean) => {
-    if (!agentServiceRef.current) {
-      return;
-    }
-
-    const response = await agentServiceRef.current.confirmAction(actionId, confirmed);
-    setMessages((prev) => [...prev, response]);
-  }, []);
 
   /**
    * Active/désactive la voix
@@ -374,7 +362,6 @@ export function useChatAgent() {
     reminders,
     voiceEnabled,
     sendMessage,
-    confirmAction,
     toggleVoice,
     clearConversation,
     refreshReminders,

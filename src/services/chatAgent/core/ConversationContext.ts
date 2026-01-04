@@ -664,4 +664,25 @@ export class ConversationContextManager {
       commonCorrections: commonCorrections.sort((a, b) => b.count - a.count).slice(0, 20),
     };
   }
+
+  /**
+   * Récupère l'état de vente
+   */
+  getVenteState(): ConversationContext['venteState'] | undefined {
+    return this.context.venteState;
+  }
+
+  /**
+   * Définit l'état de vente
+   */
+  setVenteState(venteState: ConversationContext['venteState']): void {
+    this.context.venteState = venteState;
+  }
+
+  /**
+   * Réinitialise l'état de vente
+   */
+  clearVenteState(): void {
+    this.context.venteState = undefined;
+  }
 }

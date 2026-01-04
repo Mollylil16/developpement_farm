@@ -103,6 +103,9 @@ export class AgentActionExecutor {
         case 'search_animal':
           return await AnimalActions.searchAnimal(action.params, context);
         
+        case 'list_animals':
+          return await AnimalActions.listAnimals(action.params, context);
+        
         case 'search_lot':
           return await AnimalActions.searchLot(action.params, context);
         
@@ -475,5 +478,137 @@ export class AgentActionExecutor {
       data: maladie,
       message,
     };
+  }
+
+  /**
+   * Exécute une action à partir d'un appel de fonction Gemini
+   * Mappe les noms de fonctions Gemini vers les actions et convertit les arguments
+   */
+  async executeFromFunctionCall(
+    functionName: string,
+    functionArgs: Record<string, unknown>,
+    context: AgentContext
+  ): Promise<{ success: boolean; message: string; data?: unknown; error?: string }> {
+    try {
+      // Mapper le nom de fonction vers le type d'action et convertir les arguments
+      let action: AgentAction | null = null;
+
+      switch (functionName) {
+        case 'creer_vente': {
+          action = {
+            type: 'create_revenu',
+            params: {
+              montant: functionArgs.montant,
+              acheteur: functionArgs.acheteur,
+              date: functionArgs.date || context.currentDate,
+              description: functionArgs.description,
+              animal_ids:
+                typeof functionArgs.animal_ids === 'string'
+                  ? functionArgs.animal_ids.split(',').map((id: string) => id.trim())
+                  : functionArgs.animal_ids,
+            },
+          };
+          break;
+        }
+
+        case 'creer_depense': {
+          action = {
+            type: 'create_depense',
+            params: {
+              montant: functionArgs.montant,
+              categorie: functionArgs.categorie,
+              date: functionArgs.date || context.currentDate,
+              description: functionArgs.description,
+            },
+          };
+          break;
+        }
+
+        case 'creer_pesee': {
+          action = {
+            type: 'create_pesee',
+            params: {
+              animal_code: functionArgs.animal_code,
+              poids: functionArgs.poids,
+              date: functionArgs.date || context.currentDate,
+              notes: functionArgs.notes,
+            },
+          };
+          break;
+        }
+
+        case 'obtenir_statistiques': {
+          action = {
+            type: 'get_statistics',
+            params: {
+              periode: functionArgs.periode,
+            },
+          };
+          break;
+        }
+
+        case 'rechercher_animal': {
+          action = {
+            type: 'search_animal',
+            params: {
+              search: functionArgs.code_ou_nom,
+            },
+          };
+          break;
+        }
+
+        case 'liste_animaux': {
+          action = {
+            type: 'list_animals',
+            params: {},
+          };
+          break;
+        }
+
+        case 'repondre_question_elevage': {
+          action = {
+            type: 'answer_knowledge_question',
+            params: {
+              question: functionArgs.question,
+            },
+          };
+          break;
+        }
+
+        default:
+          logger.warn(`[AgentActionExecutor] Fonction inconnue: ${functionName}`);
+          return {
+            success: false,
+            message: `Fonction "${functionName}" non reconnue`,
+            error: `Fonction inconnue: ${functionName}`,
+          };
+      }
+
+      if (!action) {
+        return {
+          success: false,
+          message: `Impossible de mapper la fonction "${functionName}"`,
+          error: `Mapping échoué pour: ${functionName}`,
+        };
+      }
+
+      // Exécuter l'action
+      const result = await this.execute(action, context);
+
+      // Retourner un résultat structuré pour Gemini
+      return {
+        success: result.success,
+        message: result.message || (result.success ? 'Action exécutée avec succès' : 'Erreur lors de l\'exécution'),
+        data: result.data,
+        error: result.error,
+      };
+    } catch (error) {
+      logger.error(`[AgentActionExecutor] Erreur executeFromFunctionCall pour ${functionName}:`, error);
+      return {
+        success: false,
+        message: `Erreur lors de l'exécution de "${functionName}": ${error instanceof Error ? error.message : 'Erreur inconnue'}`,
+        error: error instanceof Error ? error.message : 'Erreur inconnue',
+      };
+    }
   }
 }
