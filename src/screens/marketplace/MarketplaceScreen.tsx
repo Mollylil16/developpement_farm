@@ -18,7 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { selectAllAnimaux } from '../../store/selectors/productionSelectors';
-import { useNavigation, useIsFocused } from '@react-navigation/native';
+import { useNavigation, useIsFocused, useFocusEffect } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
 import { useRole } from '../../contexts/RoleContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -148,6 +148,7 @@ export default function MarketplaceScreen() {
     useState<PurchaseRequest | null>(null);
   const [farmDetailsModalVisible, setFarmDetailsModalVisible] = useState(false);
   const [selectedFarm, setSelectedFarm] = useState<FarmCardType | null>(null);
+  const [selectedListingForModal, setSelectedListingForModal] = useState<MarketplaceListing | null>(null);
   const [selectedListing, setSelectedListing] = useState<MarketplaceListing | null>(null);
   const [selectedSubjectsForOffer, setSelectedSubjectsForOffer] = useState<{
     subjects: SelectedSubjectForOffer[];
@@ -332,9 +333,11 @@ export default function MarketplaceScreen() {
 
         try {
           // Récupérer la transaction pour obtenir le nom du producteur
-          const transactionRepo = new (
-            await import('../../database/repositories')
-          ).MarketplaceTransactionRepository();
+          const repositories = await import('../../database/repositories');
+          if (!repositories || !repositories.MarketplaceTransactionRepository) {
+            throw new Error('Impossible de charger le repository. Veuillez réessayer.');
+          }
+          const transactionRepo = new repositories.MarketplaceTransactionRepository();
           const transaction = await transactionRepo.findById(notification.relatedId);
 
           if (transaction) {
@@ -345,8 +348,11 @@ export default function MarketplaceScreen() {
             // L'acheteur note le producteur, le producteur note l'acheteur
             if (isBuyer || isProducer) {
               // Récupérer le nom de l'autre partie
-              const { UserRepository } = await import('../../database/repositories');
-              const userRepo = new UserRepository();
+              const repositories = await import('../../database/repositories');
+              if (!repositories || !repositories.UserRepository) {
+                throw new Error('Impossible de charger le repository. Veuillez réessayer.');
+              }
+              const userRepo = new repositories.UserRepository();
               const otherPartyId = isBuyer ? transaction.producerId : transaction.buyerId;
               const otherParty = await userRepo.findById(otherPartyId);
 
@@ -384,10 +390,16 @@ export default function MarketplaceScreen() {
         setGroupingListings(true);
         const service = getMarketplaceService();
 
-        // Récupérer la location de l'utilisateur si disponible
+        // ✅ OPTIMISATION: Récupérer la location avec timeout (ne pas attendre indéfiniment)
+        // Si la géolocalisation prend trop de temps, continuer sans elle
         let buyerLocation: { latitude: number; longitude: number } | undefined;
         try {
-          const location = await getCurrentLocation();
+          const locationPromise = getCurrentLocation();
+          const timeoutPromise = new Promise<null>((resolve) => 
+            setTimeout(() => resolve(null), 1000) // Timeout de 1 seconde
+          );
+          
+          const location = await Promise.race([locationPromise, timeoutPromise]);
           if (location) {
             buyerLocation = {
               latitude: location.latitude,
@@ -395,7 +407,7 @@ export default function MarketplaceScreen() {
             };
           }
         } catch (error) {
-          // Ignorer l'erreur de géolocalisation
+          // Ignorer l'erreur de géolocalisation, continuer sans
         }
 
         // Grouper par ferme (filtrer les listings de l'utilisateur)
@@ -410,7 +422,7 @@ export default function MarketplaceScreen() {
     };
 
     groupListings();
-  }, [listings, listingsLoading, getCurrentLocation]);
+  }, [listings, listingsLoading, user?.id]);
 
   const handleLoadMore = useCallback(() => {
     if (!listingsLoading && hasMore) {
@@ -480,19 +492,37 @@ export default function MarketplaceScreen() {
   }, []);
 
   const handleMakeOfferFromFarm = useCallback(
-    async (selectedListingIds: string[]) => {
-      if (!selectedFarm || selectedListingIds.length === 0) return;
+    async (selections: Array<{ listingId: string; subjectId: string }>) => {
+      if (!selectedFarm || selections.length === 0) return;
 
       try {
         // Récupérer les listings correspondants
-        const listingRepo = new (
-          await import('../../database/repositories')
-        ).MarketplaceListingRepository();
-        const animalRepo = new (await import('../../database/repositories')).AnimalRepository();
-        const peseeRepo = new (await import('../../database/repositories')).PeseeRepository();
+        const repositories = await import('../../database/repositories');
+        if (!repositories || !repositories.MarketplaceListingRepository || !repositories.AnimalRepository || !repositories.PeseeRepository) {
+          throw new Error('Impossible de charger les repositories. Veuillez réessayer.');
+        }
+        const listingRepo = new repositories.MarketplaceListingRepository();
+        const animalRepo = new repositories.AnimalRepository();
+        const peseeRepo = new repositories.PeseeRepository();
 
+        // ✅ Utiliser directement les IDs réels passés depuis FarmDetailsModal
+        const realListingIds = new Set<string>();
+        const selectedPigIds = new Map<string, string[]>(); // Map: listingId -> pigIds sélectionnés
+        
+        for (const selection of selections) {
+          const { listingId, subjectId } = selection;
+          
+          realListingIds.add(listingId);
+          
+          if (!selectedPigIds.has(listingId)) {
+            selectedPigIds.set(listingId, []);
+          }
+          selectedPigIds.get(listingId)!.push(subjectId);
+        }
+
+        // Récupérer les listings réels
         const selectedListings = await Promise.all(
-          selectedListingIds.map((id) => listingRepo.findById(id))
+          Array.from(realListingIds).map((id) => listingRepo.findById(id))
         );
         const validListings = selectedListings.filter((l: MarketplaceListing | null): l is MarketplaceListing => l !== null);
 
@@ -502,81 +532,204 @@ export default function MarketplaceScreen() {
         }
 
         // Convertir les listings en SubjectCard avec toutes les informations
-        const { VaccinationRepository } = await import('../../database/repositories');
-        const vaccinationRepo = new VaccinationRepository();
+        const repositories2 = await import('../../database/repositories');
+        if (!repositories2 || !repositories2.VaccinationRepository) {
+          throw new Error('Impossible de charger le repository. Veuillez réessayer.');
+        }
+        const vaccinationRepo = new repositories2.VaccinationRepository();
 
-        const subjects = await Promise.all(
-          validListings.map(async (listing: MarketplaceListing) => {
-            // Vérifier que le listing a un subjectId (pas un listing batch)
-            if (!listing.subjectId) return null;
+        // Pour chaque listing, enrichir les animaux sélectionnés
+        const subjectsPromises = validListings.map(async (listing: MarketplaceListing) => {
+          // Gérer les batch listings différemment
+          if (listing.listingType === 'batch' && listing.batchId && listing.pigIds && listing.pigIds.length > 0) {
+            // ✅ Utiliser le listing.id réel (pas pigId) pour récupérer les pigIds sélectionnés
+            // Le listing.id ici est le vrai ID du listing, pas un pigId
+            const selectedPigsForListing = selectedPigIds.get(listing.id) || [];
             
-            const animal = await animalRepo.findById(listing.subjectId);
-            if (!animal) return null;
-
-            const dernierePesee = await peseeRepo.findLastByAnimal(animal.id);
-            const poidsActuel = dernierePesee?.poids_kg || animal.poids_initial || 0;
-
-            // Calculer l'âge en mois
-            const ageEnMois = animal.date_naissance
-              ? Math.floor(
-                  (new Date().getTime() - new Date(animal.date_naissance).getTime()) /
-                    (1000 * 60 * 60 * 24 * 30)
-                )
-              : 0;
-
-            // Vérifier le statut des vaccinations
-            const vaccinations = await vaccinationRepo.findByAnimal(animal.id);
-            const vaccinationsAJour =
-              vaccinations.length > 0 &&
-              vaccinations.every(
-                (v) => v.date_rappel === null || new Date(v.date_rappel) > new Date()
-              );
-
-            // Déterminer le statut de santé
-            let healthStatus: 'good' | 'attention' | 'critical' = 'good';
-            if (animal.statut === 'mort') {
-              healthStatus = 'critical';
-            } else if (!vaccinationsAJour) {
-              healthStatus = 'attention';
+            // Si aucun pigId spécifique n'est sélectionné, utiliser tous les pigIds du batch
+            const pigIdsToEnrich = selectedPigsForListing.length > 0 
+              ? listing.pigIds.filter(id => selectedPigsForListing.includes(id))
+              : listing.pigIds;
+            
+            const pricePerKg = listing.pricePerKg;
+            const averageWeight = listing.weight || 0;
+            const pricePerPig = listing.pigCount > 0 ? (listing.calculatedPrice / listing.pigCount) : 0;
+            
+            // Filtrer les pigIds valides
+            const validPigIds = pigIdsToEnrich.filter((id) => id && typeof id === 'string' && id.trim().length > 0);
+            
+            if (validPigIds.length === 0) {
+              return [];
             }
+            
+            // Enrichir chaque animal individuellement
+            const enrichedSubjects = await Promise.all(
+              validPigIds.map(async (pigId) => {
+                try {
+                  const animal = await animalRepo.findById(pigId);
+                  if (!animal) {
+                    const pigIdShort = pigId && typeof pigId === 'string' ? pigId.slice(0, 8) : 'N/A';
+                    return {
+                      listingId: listing.id,
+                      subjectId: pigId,
+                      code: `#${pigIdShort}`,
+                      race: listing.race || 'Non spécifiée',
+                      weight: averageWeight,
+                      weightDate: listing.lastWeightDate || listing.weightDate || new Date().toISOString(),
+                      age: 0,
+                      pricePerKg: pricePerKg,
+                      calculatedPrice: pricePerPig,
+                      healthStatus: 'good' as const,
+                      vaccinations: false,
+                    };
+                  }
 
-            return {
-              listingId: listing.id,
-              subjectId: listing.subjectId,
-              code: animal.code || (listing.subjectId ? listing.subjectId : 'N/A'),
-              race: animal.race || listing.race || 'Non spécifiée',
-              weight: poidsActuel,
-              weightDate: dernierePesee?.date || listing.lastWeightDate,
-              pricePerKg: listing.pricePerKg,
-              calculatedPrice: listing.calculatedPrice,
-              // Champs supplémentaires pour l'enrichissement
-              age: ageEnMois,
-              healthStatus,
-              vaccinations: vaccinationsAJour,
-            } as SelectedSubjectForOffer & {
-              age?: number;
-              healthStatus?: 'good' | 'attention' | 'critical';
-              vaccinations?: boolean;
-            };
-          })
-        );
+                  const ageEnMois = animal.date_naissance
+                    ? Math.floor(
+                        (new Date().getTime() - new Date(animal.date_naissance).getTime()) /
+                          (1000 * 60 * 60 * 24 * 30)
+                      )
+                    : 0;
 
-        const validSubjects = subjects.filter((s: SelectedSubjectForOffer | null): s is SelectedSubjectForOffer => s !== null);
-        if (validSubjects.length === 0) {
+                  const pesees = await peseeRepo.findByAnimal(pigId);
+                  const dernierePesee = pesees.sort(
+                    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+                  )[0];
+                  const poidsActuel = dernierePesee?.poids || averageWeight;
+
+                  const vaccinations = await vaccinationRepo.findByAnimal(pigId);
+                  const vaccinationsAJour =
+                    vaccinations.length > 0 &&
+                    vaccinations.every((v) => v.date_rappel === null || new Date(v.date_rappel) > new Date());
+
+                  let healthStatus: 'good' | 'attention' | 'critical' = 'good';
+                  if (animal.statut === 'mort') {
+                    healthStatus = 'critical';
+                  } else if (!vaccinationsAJour) {
+                    healthStatus = 'attention';
+                  }
+
+                  const prixAnimal = poidsActuel * pricePerKg;
+
+                  return {
+                    listingId: listing.id,
+                    subjectId: pigId,
+                    code: animal.code || animal.nom || `#${pigId.slice(0, 8)}`,
+                    race: animal.race || listing.race || 'Non spécifiée',
+                    weight: poidsActuel,
+                    weightDate: dernierePesee?.date || listing.lastWeightDate || listing.weightDate || new Date().toISOString(),
+                    age: ageEnMois,
+                    pricePerKg: pricePerKg,
+                    calculatedPrice: prixAnimal,
+                    healthStatus,
+                    vaccinations: vaccinationsAJour,
+                  };
+                } catch (error: any) {
+                  const status = error?.status || error?.statusCode;
+                  if (status !== 403) {
+                    console.warn(`Erreur enrichissement animal ${pigId}:`, error);
+                  }
+                  const pigIdShort = pigId && typeof pigId === 'string' ? pigId.slice(0, 8) : 'N/A';
+                  return {
+                    listingId: listing.id,
+                    subjectId: pigId,
+                    code: `#${pigIdShort}`,
+                    race: listing.race || 'Non spécifiée',
+                    weight: averageWeight,
+                    weightDate: listing.lastWeightDate || listing.weightDate || new Date().toISOString(),
+                    age: 0,
+                    pricePerKg: pricePerKg,
+                    calculatedPrice: pricePerPig,
+                    healthStatus: 'good' as const,
+                    vaccinations: false,
+                  };
+                }
+              })
+            );
+            
+            return enrichedSubjects.filter((s) => s && s.subjectId);
+          }
+          
+          // Pour les listings individuels, charger les détails de l'animal
+          if (!listing.subjectId) return [];
+
+          const animal = await animalRepo.findById(listing.subjectId);
+          if (!animal) return [];
+
+          const dernierePesee = await peseeRepo.findLastByAnimal(animal.id);
+          const poidsActuel = dernierePesee?.poids_kg || animal.poids_initial || 0;
+
+          // Calculer l'âge en mois
+          const ageEnMois = animal.date_naissance
+            ? Math.floor(
+                (new Date().getTime() - new Date(animal.date_naissance).getTime()) /
+                  (1000 * 60 * 60 * 24 * 30)
+              )
+            : 0;
+
+          // Vérifier le statut des vaccinations
+          const vaccinations = await vaccinationRepo.findByAnimal(animal.id);
+          const vaccinationsAJour =
+            vaccinations.length > 0 &&
+            vaccinations.every(
+              (v) => v.date_rappel === null || new Date(v.date_rappel) > new Date()
+            );
+
+          // Déterminer le statut de santé
+          let healthStatus: 'good' | 'attention' | 'critical' = 'good';
+          if (animal.statut === 'mort') {
+            healthStatus = 'critical';
+          } else if (!vaccinationsAJour) {
+            healthStatus = 'attention';
+          }
+
+          return [{
+            listingId: listing.id,
+            subjectId: listing.subjectId,
+            code: animal.code || (listing.subjectId ? listing.subjectId : 'N/A'),
+            race: animal.race || listing.race || 'Non spécifiée',
+            weight: poidsActuel,
+            weightDate: dernierePesee?.date || listing.lastWeightDate,
+            pricePerKg: listing.pricePerKg,
+            calculatedPrice: listing.calculatedPrice,
+            age: ageEnMois,
+            healthStatus,
+            vaccinations: vaccinationsAJour,
+          } as SelectedSubjectForOffer & {
+            age?: number;
+            healthStatus?: 'good' | 'attention' | 'critical';
+            vaccinations?: boolean;
+          }];
+        });
+
+        // Attendre que toutes les promesses se résolvent
+        const subjectsArrays = await Promise.all(subjectsPromises);
+
+        // Aplatir les résultats (car chaque promesse retourne un array)
+        const allSubjects = subjectsArrays
+          .reduce((acc, subjectsArray) => {
+            return acc.concat(subjectsArray);
+          }, [] as (SelectedSubjectForOffer & {
+            age?: number;
+            healthStatus?: 'good' | 'attention' | 'critical';
+            vaccinations?: boolean;
+          })[]);
+
+        if (allSubjects.length === 0) {
           Alert.alert('Erreur', 'Impossible de charger les informations des sujets');
           return;
         }
 
         // Calculer le prix total
-        const originalPrice = validListings.reduce((sum: number, l: MarketplaceListing) => sum + (l.calculatedPrice || 0), 0);
+        const originalPrice = allSubjects.reduce((sum, s) => sum + (s.calculatedPrice || 0), 0);
 
-        // Utiliser le premier listingId comme référence (pour regrouper tous les sujets)
+        // Utiliser le premier listingId comme référence
         const firstListingId = validListings[0].id;
 
         // Fermer le modal de détails et ouvrir le modal d'offre
         setFarmDetailsModalVisible(false);
         setSelectedSubjectsForOffer({
-          subjects: validSubjects,
+          subjects: allSubjects,
           listingId: firstListingId,
           originalPrice,
         });
@@ -591,66 +744,11 @@ export default function MarketplaceScreen() {
     [selectedFarm]
   );
 
-  const handleListingPress = useCallback(async (listing: MarketplaceListing) => {
-    // Enrichir les données du listing avec les informations de l'animal
-    // Vérifier que le listing a un subjectId (pas un listing batch)
-    if (!listing.subjectId) {
-      // Pour les listings batch, utiliser le listing tel quel
-      setSelectedListing(listing);
-      setOfferModalVisible(true);
-      return;
-    }
-
-    try {
-      const animalRepo = new (await import('../../database/repositories')).AnimalRepository();
-      const peseeRepo = new (await import('../../database/repositories')).PeseeRepository();
-      const vaccinationRepo = new (
-        await import('../../database/repositories')
-      ).VaccinationRepository();
-
-      const animal = await animalRepo.findById(listing.subjectId);
-      if (animal) {
-        // Calculer l'âge en mois
-        const ageEnMois = animal.date_naissance
-          ? Math.floor(
-              (new Date().getTime() - new Date(animal.date_naissance).getTime()) /
-                (1000 * 60 * 60 * 24 * 30)
-            )
-          : 0;
-
-        // Vérifier le statut des vaccinations
-        const vaccinations = await vaccinationRepo.findByAnimal(animal.id);
-        const vaccinationsAJour =
-          vaccinations.length > 0 &&
-          vaccinations.every((v) => v.date_rappel === null || new Date(v.date_rappel) > new Date());
-
-        // Déterminer le statut de santé
-        let healthStatus: 'good' | 'attention' | 'critical' = 'good';
-        if (animal.statut === 'mort') {
-          healthStatus = 'critical';
-        } else if (!vaccinationsAJour) {
-          healthStatus = 'attention';
-        }
-
-        // Enrichir le listing avec les nouvelles données
-        const enrichedListing = {
-          ...listing,
-          age: ageEnMois,
-          healthStatus,
-          vaccinations: vaccinationsAJour,
-        };
-
-        setSelectedListing(enrichedListing);
-      } else {
-        setSelectedListing(listing);
-      }
-      setOfferModalVisible(true);
-    } catch (error) {
-      console.error('Erreur enrichissement listing:', error);
-      // En cas d'erreur, utiliser le listing tel quel
-      setSelectedListing(listing);
-      setOfferModalVisible(true);
-    }
+  const handleListingPress = useCallback((listing: MarketplaceListing) => {
+    // ✅ Passer directement le listing à FarmDetailsModal (comme en mode suivi individuel)
+    // Plus besoin de créer un FarmCard intermédiaire
+    setSelectedListingForModal(listing);
+    setFarmDetailsModalVisible(true);
   }, []);
 
   const handleOfferSubmit = useCallback(
@@ -659,6 +757,7 @@ export default function MarketplaceScreen() {
         subjectIds: string[];
         proposedPrice: number;
         message?: string;
+        dateRecuperationSouhaitee?: string;
       },
       listingId: string
     ) => {
@@ -669,9 +768,13 @@ export default function MarketplaceScreen() {
 
       try {
         const service = getMarketplaceService();
-        const listingRepo = new (
-          await import('../../database/repositories')
-        ).MarketplaceListingRepository();
+        
+        // Importer le repository avec vérification
+        const repositories = await import('../../database/repositories');
+        if (!repositories || !repositories.MarketplaceListingRepository) {
+          throw new Error('Impossible de charger le repository. Veuillez réessayer.');
+        }
+        const listingRepo = new repositories.MarketplaceListingRepository();
 
         // Utiliser le listingId passé pour trouver le listing principal
         const mainListing = await listingRepo.findById(listingId);
@@ -684,13 +787,35 @@ export default function MarketplaceScreen() {
           throw new Error("Cette annonce n'est plus disponible");
         }
 
-        // Utiliser les subjectIds passés (qui sont déjà les IDs des animaux)
+        // Pour les listings batch, utiliser les subjectIds sélectionnés par l'acheteur
+        // Si aucun n'est sélectionné, utiliser tous les pigIds (offre pour toute la bande)
+        let finalSubjectIds = data.subjectIds;
+        if (mainListing.batchId) {
+          if (!mainListing.pigIds || mainListing.pigIds.length === 0) {
+            throw new Error('Les informations de cette annonce batch ne sont pas disponibles. Veuillez réessayer.');
+          }
+          // Si l'acheteur a sélectionné des animaux spécifiques, utiliser ceux-là
+          // Sinon, utiliser tous les pigIds (offre pour toute la bande)
+          if (finalSubjectIds.length === 0) {
+            finalSubjectIds = mainListing.pigIds;
+          } else {
+            // Vérifier que les subjectIds sélectionnés sont bien dans les pigIds
+            const validSubjectIds = finalSubjectIds.filter(id => mainListing.pigIds?.includes(id));
+            if (validSubjectIds.length === 0) {
+              throw new Error('Les animaux sélectionnés ne sont pas disponibles dans cette annonce.');
+            }
+            finalSubjectIds = validSubjectIds;
+          }
+        }
+
+        // Utiliser les subjectIds (ou pigIds pour batch) passés
         await service.createOffer({
           listingId: mainListing.id,
-          subjectIds: data.subjectIds, // Ce sont déjà les subjectId des animaux
+          subjectIds: finalSubjectIds, // Pour batch, ce sont les pigIds; pour individuel, ce sont les subjectIds
           buyerId: user.id,
           proposedPrice: data.proposedPrice,
           message: data.message,
+          dateRecuperationSouhaitee: data.dateRecuperationSouhaitee,
         });
 
         setOfferModalVisible(false);
@@ -717,6 +842,22 @@ export default function MarketplaceScreen() {
       loadListings();
     },
     [loadListings]
+  );
+
+  // Recharger les listings automatiquement quand l'écran revient au premier plan
+  useFocusEffect(
+    useCallback(() => {
+      // Recharger les listings de l'onglet actif quand l'écran est focus
+      if (activeTab === 'acheter') {
+        loadListings();
+      } else if (activeTab === 'mes-annonces') {
+        loadMyListings();
+      } else if (activeTab === 'mes-demandes') {
+        loadMyPurchaseRequests();
+      } else if (activeTab === 'offres') {
+        loadOffers();
+      }
+    }, [activeTab, loadListings, loadMyListings, loadMyPurchaseRequests, loadOffers])
   );
 
   return (
@@ -1154,9 +1295,11 @@ export default function MarketplaceScreen() {
       <FarmDetailsModal
         visible={farmDetailsModalVisible}
         farm={selectedFarm}
+        initialListing={selectedListingForModal}
         onClose={() => {
           setFarmDetailsModalVisible(false);
           setSelectedFarm(null);
+          setSelectedListingForModal(null);
         }}
         onMakeOffer={handleMakeOfferFromFarm}
       />
@@ -1174,12 +1317,12 @@ export default function MarketplaceScreen() {
           }}
           onSubmit={async (rating) => {
             try {
-              const transactionRepo = new (
-                await import('../../database/repositories')
-              ).MarketplaceTransactionRepository();
-              const ratingRepo = new (
-                await import('../../database/repositories')
-              ).MarketplaceRatingRepository();
+              const repositories = await import('../../database/repositories');
+              if (!repositories || !repositories.MarketplaceTransactionRepository || !repositories.MarketplaceRatingRepository) {
+                throw new Error('Impossible de charger les repositories. Veuillez réessayer.');
+              }
+              const transactionRepo = new repositories.MarketplaceTransactionRepository();
+              const ratingRepo = new repositories.MarketplaceRatingRepository();
 
               // Récupérer la transaction pour obtenir les IDs
               const transaction = await transactionRepo.findById(ratingTransactionId);

@@ -19,6 +19,7 @@ import { CreateListingDto } from './dto/create-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { UpdateOfferDto } from './dto/update-offer.dto';
+import { CounterOfferDto } from './dto/counter-offer.dto';
 import { CreateRatingDto } from './dto/create-rating.dto';
 import { CreatePurchaseRequestDto } from './dto/create-purchase-request.dto';
 import { UpdatePurchaseRequestDto } from './dto/update-purchase-request.dto';
@@ -154,11 +155,34 @@ export class MarketplaceController {
   }
 
   @Patch('offers/:id/accept')
-  @ApiOperation({ summary: 'Accepter une offre' })
+  @ApiOperation({ summary: 'Accepter une offre (producteur ou acheteur pour contre-proposition)' })
+  @ApiQuery({
+    name: 'role',
+    required: false,
+    enum: ['producer', 'buyer'],
+    description: "Rôle de l'utilisateur (défaut: producer)",
+  })
   @ApiResponse({ status: 200, description: 'Offre acceptée avec succès.' })
   @ApiResponse({ status: 404, description: 'Offre introuvable.' })
-  async acceptOffer(@Param('id') id: string, @CurrentUser('id') userId: string) {
-    return this.marketplaceService.acceptOffer(id, userId);
+  async acceptOffer(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @Query('role') role: 'producer' | 'buyer' = 'producer'
+  ) {
+    return this.marketplaceService.acceptOffer(id, userId, role);
+  }
+
+  @Patch('offers/:id/counter')
+  @ApiOperation({ summary: 'Faire une contre-proposition sur une offre (producteur seulement)' })
+  @ApiResponse({ status: 200, description: 'Contre-proposition créée avec succès.' })
+  @ApiResponse({ status: 404, description: 'Offre introuvable.' })
+  @ApiResponse({ status: 400, description: 'Cette offre ne peut plus être modifiée.' })
+  async counterOffer(
+    @Param('id') id: string,
+    @Body() counterOfferDto: CounterOfferDto,
+    @CurrentUser('id') userId: string
+  ) {
+    return this.marketplaceService.counterOffer(id, userId, counterOfferDto);
   }
 
   @Patch('offers/:id/reject')

@@ -203,6 +203,7 @@ export const createOffer = createAsyncThunk(
       buyerId: string;
       proposedPrice: number;
       message?: string;
+      dateRecuperationSouhaitee?: string;
     },
     { rejectWithValue }
   ) => {
@@ -213,6 +214,7 @@ export const createOffer = createAsyncThunk(
         buyerId: data.buyerId,
         proposedPrice: data.proposedPrice,
         message: data.message,
+        dateRecuperationSouhaitee: data.dateRecuperationSouhaitee,
       });
 
       return offer;
@@ -223,19 +225,45 @@ export const createOffer = createAsyncThunk(
 );
 
 /**
- * Accepter une offre
+ * Accepter une offre (producteur ou acheteur pour contre-proposition)
  */
 export const acceptOffer = createAsyncThunk(
   'marketplace/acceptOffer',
-  async (data: { offerId: string; producerId: string }, { rejectWithValue }) => {
+  async (
+    data: { offerId: string; userId: string; role?: 'producer' | 'buyer' },
+    { rejectWithValue }
+  ) => {
     try {
+      const role = data.role || 'producer';
       const transaction = await apiClient.patch<Transaction>(
-        `/marketplace/offers/${data.offerId}/accept`
+        `/marketplace/offers/${data.offerId}/accept?role=${role}`
       );
 
       return transaction;
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || "Erreur lors de l'acceptation");
+    }
+  }
+);
+
+/**
+ * Faire une contre-proposition
+ */
+export const counterOffer = createAsyncThunk(
+  'marketplace/counterOffer',
+  async (
+    data: { offerId: string; producerId: string; nouveauPrixTotal: number; message?: string },
+    { rejectWithValue }
+  ) => {
+    try {
+      const counterOffer = await apiClient.put<Offer>(`/marketplace/offers/${data.offerId}/counter`, {
+        nouveau_prix_total: data.nouveauPrixTotal,
+        message: data.message,
+      });
+
+      return counterOffer;
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la contre-proposition');
     }
   }
 );
@@ -382,6 +410,26 @@ const marketplaceSlice = createSlice({
       state.myTransactions = [action.payload, ...state.myTransactions];
       // Retirer l'offre de la liste
       state.receivedOffers = state.receivedOffers.filter((o) => o.id !== action.meta.arg.offerId);
+    });
+
+    // Counter Offer
+    builder.addCase(counterOffer.pending, (state) => {
+      state.offersLoading = true;
+      state.offersError = null;
+    });
+    builder.addCase(counterOffer.fulfilled, (state, action) => {
+      state.offersLoading = false;
+      // Ajouter la contre-proposition à la liste des offres reçues (pour le producteur)
+      // et à la liste des offres envoyées (pour l'acheteur qui recevra la notification)
+      state.receivedOffers = state.receivedOffers.map((o) =>
+        o.id === action.meta.arg.offerId ? { ...o, status: 'countered' } : o
+      );
+      // La contre-proposition apparaîtra comme une nouvelle offre pour l'acheteur
+      state.myOffers = [action.payload, ...state.myOffers];
+    });
+    builder.addCase(counterOffer.rejected, (state, action) => {
+      state.offersLoading = false;
+      state.offersError = action.payload as string;
     });
 
     // Reject Offer

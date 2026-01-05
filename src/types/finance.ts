@@ -98,6 +98,12 @@ export interface Revenu {
   commentaire?: string;
   photos?: string[]; // URLs des photos de factures/reçus
   date_creation: string;
+  // Nouveaux champs pour ventes marketplace
+  poids_kg?: number; // Ancien champ (pour compatibilité)
+  poids_total?: number; // Poids total en kg (nombre entier)
+  nombre_animaux?: number; // Nombre d'animaux vendus
+  acheteur?: string; // Nom complet de l'acheteur
+  vente_id?: string; // ID de la vente liée
   animal_id?: string; // ID de l'animal vendu (si applicable)
 
   // ✨ Nouveaux champs pour ventes de porcs (OPEX/CAPEX)

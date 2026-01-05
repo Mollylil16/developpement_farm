@@ -42,10 +42,10 @@ export default function MarketplaceOffersTab({
   const dispatch = useAppDispatch();
   const [offersTab, setOffersTab] = useState<'received' | 'sent'>('received');
 
-  const handleAcceptOffer = async (offerId: string) => {
+  const handleAcceptOffer = async (offerId: string, role: 'producer' | 'buyer' = 'producer') => {
     try {
       if (!user?.id) return;
-      await dispatch(acceptOffer({ offerId, producerId: user.id })).unwrap();
+      await dispatch(acceptOffer({ offerId, userId: user.id, role })).unwrap();
       Alert.alert('Succès', 'Offre acceptée');
       onRefresh();
     } catch (error) {
@@ -137,11 +137,24 @@ export default function MarketplaceOffersTab({
             {item.subjectIds?.length || 0} sujet{item.subjectIds?.length > 1 ? 's' : ''}
           </Text>
           <Text style={[styles.price, { color: marketplaceColors.primary }]}>
-            Offre: {item.proposedPrice.toLocaleString()} FCFA
+            {item.status === 'countered' && offersTab === 'sent'
+              ? 'Prix proposé par le producteur: '
+              : 'Offre: '}
+            {item.proposedPrice.toLocaleString()} FCFA
           </Text>
+          {item.prixTotalFinal && (
+            <Text style={[styles.finalPrice, { color: marketplaceColors.success }]}>
+              Prix final accepté: {item.prixTotalFinal.toLocaleString()} FCFA
+            </Text>
+          )}
           {item.originalPrice && (
             <Text style={[styles.originalPrice, { color: marketplaceColors.textSecondary }]}>
               Prix suggéré: {item.originalPrice.toLocaleString()} FCFA
+            </Text>
+          )}
+          {item.dateRecuperationSouhaitee && (
+            <Text style={[styles.dateRecuperation, { color: marketplaceColors.textSecondary }]}>
+              📅 Récupération souhaitée: {format(new Date(item.dateRecuperationSouhaitee), 'd MMM yyyy', { locale: fr })}
             </Text>
           )}
           {item.message && (
@@ -155,7 +168,7 @@ export default function MarketplaceOffersTab({
           <View style={styles.actions}>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: marketplaceColors.success }]}
-              onPress={() => handleAcceptOffer(item.id)}
+              onPress={() => handleAcceptOffer(item.id, 'producer')}
             >
               <Text style={[styles.actionText, { color: marketplaceColors.textInverse }]}>
                 ✅ Accepter
@@ -177,6 +190,28 @@ export default function MarketplaceOffersTab({
             >
               <Text style={[styles.actionText, { color: marketplaceColors.textInverse }]}>
                 💬 Chat
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Pour les contre-propositions reçues par l'acheteur (offres envoyées avec statut "countered") */}
+        {item.status === 'countered' && offersTab === 'sent' && (
+          <View style={styles.actions}>
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: marketplaceColors.success }]}
+              onPress={() => handleAcceptOffer(item.id, 'buyer')}
+            >
+              <Text style={[styles.actionText, { color: marketplaceColors.textInverse }]}>
+                ✅ Accepter la contre-proposition
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: marketplaceColors.error }]}
+              onPress={() => handleRejectOffer(item.id)}
+            >
+              <Text style={[styles.actionText, { color: marketplaceColors.textInverse }]}>
+                ❌ Refuser
               </Text>
             </TouchableOpacity>
           </View>
@@ -256,6 +291,13 @@ export default function MarketplaceOffersTab({
           >
             Envoyées ({sentOffers.length})
           </Text>
+          {sentOffers.filter((o) => o.status === 'countered').length > 0 && (
+            <View style={[styles.tabBadge, { backgroundColor: marketplaceColors.warning }]}>
+              <Text style={[styles.tabBadgeText, { color: marketplaceColors.textInverse }]}>
+                {sentOffers.filter((o) => o.status === 'countered').length}
+              </Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -391,6 +433,15 @@ const styles = StyleSheet.create({
   message: {
     fontSize: 14,
     fontStyle: 'italic',
+  },
+  finalPrice: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  dateRecuperation: {
+    fontSize: 13,
+    marginTop: 4,
   },
   actions: {
     flexDirection: 'row',

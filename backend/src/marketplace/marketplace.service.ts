@@ -4,6 +4,8 @@ import {
   ForbiddenException,
   BadRequestException,
   Logger,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { CreateListingDto } from './dto/create-listing.dto';
@@ -15,12 +17,17 @@ import { CreatePurchaseRequestDto } from './dto/create-purchase-request.dto';
 import { UpdatePurchaseRequestDto } from './dto/update-purchase-request.dto';
 import { CreatePurchaseRequestOfferDto } from './dto/create-purchase-request-offer.dto';
 import { CreateBatchListingDto } from './dto/create-batch-listing.dto';
+import { SaleAutomationService } from './sale-automation.service';
 
 @Injectable()
 export class MarketplaceService {
   private readonly logger = new Logger(MarketplaceService.name);
 
-  constructor(private databaseService: DatabaseService) {}
+  constructor(
+    private databaseService: DatabaseService,
+    @Inject(forwardRef(() => SaleAutomationService))
+    private saleAutomationService: SaleAutomationService
+  ) {}
 
   private generateId(prefix: string): string {
     return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -632,8 +639,9 @@ export class MarketplaceService {
       `INSERT INTO marketplace_offers (
         id, listing_id, subject_ids, buyer_id, producer_id,
         proposed_price, original_price, message, status,
-        terms_accepted, created_at, expires_at, date_creation, derniere_modification
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        terms_accepted, created_at, expires_at, date_recuperation_souhaitee,
+        date_creation, derniere_modification
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *`,
       [
         id,
@@ -648,6 +656,7 @@ export class MarketplaceService {
         false,
         now,
         expiresAt,
+        createOfferDto.dateRecuperationSouhaitee || null,
         now,
         now,
       ]
@@ -700,7 +709,7 @@ export class MarketplaceService {
     }
   }
 
-  async acceptOffer(offerId: string, producerId: string) {
+  async acceptOffer(offerId: string, userId: string, role: 'producer' | 'buyer' = 'producer') {
     // Récupérer l'offre avant la transaction pour validation
     const offer = await this.databaseService.query(
       'SELECT * FROM marketplace_offers WHERE id = $1',
@@ -713,22 +722,32 @@ export class MarketplaceService {
 
     const offerData = offer.rows[0];
 
-    if (offerData.producer_id !== producerId) {
-      throw new ForbiddenException("Vous n'êtes pas autorisé à accepter cette offre");
-    }
-
-    if (offerData.status !== 'pending') {
-      throw new BadRequestException('Cette offre ne peut plus être acceptée');
+    // Vérifier les permissions selon le rôle
+    if (role === 'producer') {
+      if (offerData.producer_id !== userId) {
+        throw new ForbiddenException("Vous n'êtes pas autorisé à accepter cette offre");
+      }
+      if (offerData.status !== 'pending') {
+        throw new BadRequestException('Cette offre ne peut plus être acceptée');
+      }
+    } else if (role === 'buyer') {
+      // L'acheteur ne peut accepter que les contre-propositions
+      if (offerData.buyer_id !== userId) {
+        throw new ForbiddenException("Vous n'êtes pas autorisé à accepter cette offre");
+      }
+      if (offerData.status !== 'countered') {
+        throw new BadRequestException('Vous ne pouvez accepter que les contre-propositions');
+      }
     }
 
     // Utiliser une transaction pour garantir la cohérence des données
     return await this.databaseService.transaction(async (client) => {
       const now = new Date().toISOString();
 
-      // Mettre à jour l'offre
+      // Mettre à jour l'offre avec prix_total_final
       await client.query(
-        'UPDATE marketplace_offers SET status = $1, responded_at = $2, derniere_modification = $2 WHERE id = $3',
-        ['accepted', now, offerId]
+        'UPDATE marketplace_offers SET status = $1, responded_at = $2, prix_total_final = $3, derniere_modification = $2 WHERE id = $4',
+        ['accepted', now, offerData.proposed_price, offerId]
       );
 
       // Mettre à jour le listing
@@ -752,13 +771,26 @@ export class MarketplaceService {
           offerData.subject_ids,
           offerData.buyer_id,
           offerData.producer_id,
-          offerData.proposed_price,
+          offerData.proposed_price, // Prix final négocié
           'confirmed',
           now,
           now,
           now,
         ]
       );
+
+      // Notifier l'autre partie
+      const notifyUserId = role === 'producer' ? offerData.buyer_id : offerData.producer_id;
+      await this.createNotification({
+        userId: notifyUserId,
+        type: 'offer_accepted',
+        title: 'Offre acceptée',
+        message: role === 'producer' 
+          ? 'Votre offre a été acceptée par le producteur'
+          : 'Votre contre-proposition a été acceptée par l\'acheteur',
+        relatedId: transactionId,
+        relatedType: 'transaction',
+      });
 
       return this.mapRowToTransaction(transaction.rows[0]);
     });
@@ -784,6 +816,95 @@ export class MarketplaceService {
     );
 
     return { id: offerId };
+  }
+
+  /**
+   * Créer une contre-proposition (producteur propose un nouveau prix)
+   */
+  async counterOffer(
+    offerId: string,
+    producerId: string,
+    counterOfferDto: { nouveau_prix_total: number; message?: string }
+  ) {
+    // Récupérer l'offre originale
+    const originalOffer = await this.databaseService.query(
+      'SELECT * FROM marketplace_offers WHERE id = $1',
+      [offerId]
+    );
+
+    if (originalOffer.rows.length === 0) {
+      throw new NotFoundException('Offre introuvable');
+    }
+
+    const originalOfferData = originalOffer.rows[0];
+
+    // Vérifier que l'utilisateur est le producteur
+    if (originalOfferData.producer_id !== producerId) {
+      throw new ForbiddenException("Vous n'êtes pas autorisé à faire une contre-proposition sur cette offre");
+    }
+
+    // Vérifier que l'offre est en statut 'pending'
+    if (originalOfferData.status !== 'pending') {
+      throw new BadRequestException('Vous ne pouvez faire une contre-proposition que sur une offre en attente');
+    }
+
+    // Récupérer le listing pour vérifier qu'il est toujours disponible
+    const listing = await this.findOneListing(originalOfferData.listing_id);
+    if (listing.status !== 'available') {
+      throw new BadRequestException("Cette annonce n'est plus disponible");
+    }
+
+    // Utiliser une transaction pour garantir la cohérence
+    return await this.databaseService.transaction(async (client) => {
+      const now = new Date().toISOString();
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+      // Créer une nouvelle offre (contre-proposition)
+      const counterOfferId = this.generateId('offer');
+      const counterOfferResult = await client.query(
+        `INSERT INTO marketplace_offers (
+          id, listing_id, subject_ids, buyer_id, producer_id,
+          proposed_price, original_price, message, status,
+          terms_accepted, counter_offer_of, created_at, expires_at, date_creation, derniere_modification
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        RETURNING *`,
+        [
+          counterOfferId,
+          originalOfferData.listing_id,
+          originalOfferData.subject_ids,
+          originalOfferData.buyer_id,
+          producerId,
+          counterOfferDto.nouveau_prix_total,
+          originalOfferData.original_price,
+          counterOfferDto.message || null,
+          'countered',
+          true, // terms_accepted (hérité de l'offre originale)
+          offerId, // counter_offer_of : lien vers l'offre originale
+          now,
+          expiresAt,
+          now,
+          now,
+        ]
+      );
+
+      // Mettre à jour l'offre originale : status = 'countered'
+      await client.query(
+        'UPDATE marketplace_offers SET status = $1, responded_at = $2, derniere_modification = $2 WHERE id = $3',
+        ['countered', now, offerId]
+      );
+
+      // Notifier l'acheteur
+      await this.createNotification({
+        userId: originalOfferData.buyer_id,
+        type: 'counter_offer_received',
+        title: 'Contre-proposition reçue',
+        message: `Le producteur vous propose un nouveau prix de ${counterOfferDto.nouveau_prix_total.toLocaleString('fr-FR')} FCFA`,
+        relatedId: counterOfferId,
+        relatedType: 'offer',
+      });
+
+      return this.mapRowToOffer(counterOfferResult.rows[0]);
+    });
   }
 
   // ========================================
@@ -852,7 +973,9 @@ export class MarketplaceService {
 
     // Si les deux ont confirmé, passer à "completed"
     let newStatus = transactionData.status;
-    if (deliveryDetails.producerConfirmed && deliveryDetails.buyerConfirmed) {
+    const bothConfirmed = deliveryDetails.producerConfirmed && deliveryDetails.buyerConfirmed;
+
+    if (bothConfirmed) {
       newStatus = 'completed';
     } else if (deliveryDetails.producerConfirmed || deliveryDetails.buyerConfirmed) {
       newStatus = 'delivered';
@@ -862,6 +985,21 @@ export class MarketplaceService {
       'UPDATE marketplace_transactions SET delivery_details = $1, status = $2, derniere_modification = $3 WHERE id = $4',
       [JSON.stringify(deliveryDetails), newStatus, new Date().toISOString(), transactionId]
     );
+
+    // Si les deux ont confirmé, déclencher l'automatisation complète de la vente
+    if (bothConfirmed && this.saleAutomationService) {
+      try {
+        await this.saleAutomationService.processSaleFromTransaction(transactionId);
+        this.logger.log(`Automatisation de vente déclenchée pour la transaction ${transactionId}`);
+      } catch (error) {
+        this.logger.error(
+          `Erreur lors de l'automatisation de la vente pour la transaction ${transactionId}:`,
+          error
+        );
+        // Ne pas faire échouer la confirmation si l'automatisation échoue
+        // L'erreur sera loggée et pourra être traitée manuellement
+      }
+    }
 
     return { transactionId, role };
   }
@@ -1085,6 +1223,7 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       producerId: row.producer_id,
       proposedPrice: parseFloat(row.proposed_price),
       originalPrice: parseFloat(row.original_price),
+      prixTotalFinal: row.prix_total_final ? parseFloat(row.prix_total_final) : undefined,
       message: row.message || undefined,
       status: row.status,
       termsAccepted: row.terms_accepted,
@@ -1094,6 +1233,10 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       createdAt: row.created_at ? new Date(row.created_at).toISOString() : undefined,
       respondedAt: row.responded_at ? new Date(row.responded_at).toISOString() : undefined,
       expiresAt: row.expires_at ? new Date(row.expires_at).toISOString() : undefined,
+      dateRecuperationSouhaitee: row.date_recuperation_souhaitee
+        ? new Date(row.date_recuperation_souhaitee).toISOString()
+        : undefined,
+      counterOfferOf: row.counter_offer_of || undefined,
     };
   }
 

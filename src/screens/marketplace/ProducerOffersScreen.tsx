@@ -118,7 +118,8 @@ export default function ProducerOffersScreen() {
   const handleOfferResponse = async (
     offerId: string,
     action: 'accept' | 'reject' | 'counter',
-    counterPrice?: number
+    counterPrice?: number,
+    counterMessage?: string
   ) => {
     try {
       const service = getMarketplaceService();
@@ -128,13 +129,13 @@ export default function ProducerOffersScreen() {
       }
 
       if (action === 'accept') {
-        await service.acceptOffer(offerId, user.id);
+        await service.acceptOffer(offerId, user.id, 'producer');
         Alert.alert('Succès', 'Offre acceptée. La transaction a été créée.');
       } else if (action === 'reject') {
         await service.rejectOffer(offerId, user.id);
         Alert.alert('Succès', 'Offre refusée.');
       } else if (action === 'counter' && counterPrice) {
-        await service.counterOffer(offerId, user.id, counterPrice);
+        await service.counterOffer(offerId, user.id, counterPrice, counterMessage);
         Alert.alert('Succès', 'Contre-offre envoyée.');
       }
 
@@ -291,11 +292,12 @@ export default function ProducerOffersScreen() {
         <OfferResponseModal
           visible={responseModalVisible}
           offer={selectedOffer}
+          userRole="producer"
           onClose={() => {
             setResponseModalVisible(false);
             setSelectedOffer(null);
           }}
-          onAccept={async () => {
+          onAccept={async (role: 'producer' | 'buyer') => {
             if (selectedOffer?.id) {
               await handleOfferResponse(selectedOffer.id, 'accept');
             }
@@ -305,9 +307,9 @@ export default function ProducerOffersScreen() {
               await handleOfferResponse(selectedOffer.id, 'reject');
             }
           }}
-          onCounter={async (newPrice: number) => {
+          onCounter={async (newPrice: number, message?: string) => {
             if (selectedOffer?.id) {
-              await handleOfferResponse(selectedOffer.id, 'counter', newPrice);
+              await handleOfferResponse(selectedOffer.id, 'counter', newPrice, message);
             }
           }}
         />

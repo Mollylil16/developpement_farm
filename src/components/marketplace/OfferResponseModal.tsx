@@ -25,7 +25,8 @@ interface OfferResponseModalProps {
   visible: boolean;
   onClose: () => void;
   offer: Offer | null;
-  onAccept: () => Promise<void>;
+  userRole: 'producer' | 'buyer'; // Rôle de l'utilisateur qui voit cette modal
+  onAccept: (role: 'producer' | 'buyer') => Promise<void>;
   onReject: (reason?: string) => Promise<void>;
   onCounter: (newPrice: number, message?: string) => Promise<void>;
 }
@@ -36,6 +37,7 @@ export default function OfferResponseModal({
   visible,
   onClose,
   offer,
+  userRole,
   onAccept,
   onReject,
   onCounter,
@@ -69,10 +71,14 @@ export default function OfferResponseModal({
 
       switch (action) {
         case 'accept':
-          await onAccept();
-          Alert.alert('Offre acceptée', "L'offre a été acceptée. Une transaction a été créée.", [
-            { text: 'OK', onPress: handleClose },
-          ]);
+          await onAccept(userRole);
+          Alert.alert(
+            'Offre acceptée',
+            userRole === 'producer'
+              ? "L'offre a été acceptée. Une transaction a été créée."
+              : 'Vous avez accepté la contre-proposition. Une transaction a été créée.',
+            [{ text: 'OK', onPress: handleClose }]
+          );
           break;
 
         case 'reject':
@@ -105,65 +111,109 @@ export default function OfferResponseModal({
     }
   };
 
-  const renderActionSelection = () => (
-    <>
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>Choisissez une action</Text>
+  const renderActionSelection = () => {
+    // Si c'est une contre-proposition (status = 'countered') et que l'utilisateur est l'acheteur,
+    // il peut seulement accepter ou refuser, pas faire une contre-proposition
+    const isCounterOffer = offer.status === 'countered';
+    const canCounter = userRole === 'producer' && offer.status === 'pending';
+    const canAccept =
+      (userRole === 'producer' && offer.status === 'pending') ||
+      (userRole === 'buyer' && isCounterOffer);
 
-      <TouchableOpacity
-        testID="accept-action-card"
-        style={[
-          styles.actionCard,
-          { backgroundColor: colors.success + '10', borderColor: colors.success },
-          action === 'accept' && styles.actionCardSelected,
-        ]}
-        onPress={() => setAction('accept')}
-      >
-        <Ionicons name="checkmark-circle" size={32} color={colors.success} />
-        <View style={styles.actionContent}>
-          <Text style={[styles.actionTitle, { color: colors.success }]}>Accepter l'offre</Text>
-          <Text style={[styles.actionDescription, { color: colors.textSecondary }]}>
-            Une transaction sera créée au prix proposé
-          </Text>
-        </View>
-      </TouchableOpacity>
+    return (
+      <>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Choisissez une action</Text>
 
-      <TouchableOpacity
-        testID="counter-action-card"
-        style={[
-          styles.actionCard,
-          { backgroundColor: colors.primary + '10', borderColor: colors.primary },
-          action === 'counter' && styles.actionCardSelected,
-        ]}
-        onPress={() => setAction('counter')}
-      >
-        <Ionicons name="swap-horizontal" size={32} color={colors.primary} />
-        <View style={styles.actionContent}>
-          <Text style={[styles.actionTitle, { color: colors.primary }]}>Contre-proposer</Text>
-          <Text style={[styles.actionDescription, { color: colors.textSecondary }]}>
-            Proposer un autre prix
-          </Text>
-        </View>
-      </TouchableOpacity>
+        {canAccept && (
+          <TouchableOpacity
+            testID="accept-action-card"
+            style={[
+              styles.actionCard,
+              { backgroundColor: colors.success + '10', borderColor: colors.success },
+              action === 'accept' && styles.actionCardSelected,
+            ]}
+            onPress={() => setAction('accept')}
+          >
+            <Ionicons name="checkmark-circle" size={32} color={colors.success} />
+            <View style={styles.actionContent}>
+              <Text style={[styles.actionTitle, { color: colors.success }]}>
+                {isCounterOffer && userRole === 'buyer'
+                  ? "Accepter la contre-proposition"
+                  : "Accepter l'offre"}
+              </Text>
+              <Text style={[styles.actionDescription, { color: colors.textSecondary }]}>
+                {isCounterOffer && userRole === 'buyer'
+                  ? 'Une transaction sera créée au prix contre-proposé'
+                  : 'Une transaction sera créée au prix proposé'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        )}
 
-      <TouchableOpacity
-        testID="reject-action-card"
-        style={[
-          styles.actionCard,
-          { backgroundColor: colors.error + '10', borderColor: colors.error },
-          action === 'reject' && styles.actionCardSelected,
-        ]}
-        onPress={() => setAction('reject')}
-      >
-        <Ionicons name="close-circle" size={32} color={colors.error} />
-        <View style={styles.actionContent}>
-          <Text style={[styles.actionTitle, { color: colors.error }]}>Refuser l'offre</Text>
-          <Text style={[styles.actionDescription, { color: colors.textSecondary }]}>
-            L'acheteur sera notifié du refus
-          </Text>
-        </View>
-      </TouchableOpacity>
-    </>
-  );
+        {canCounter && (
+          <TouchableOpacity
+            testID="counter-action-card"
+            style={[
+              styles.actionCard,
+              { backgroundColor: colors.primary + '10', borderColor: colors.primary },
+              action === 'counter' && styles.actionCardSelected,
+            ]}
+            onPress={() => setAction('counter')}
+          >
+            <Ionicons name="swap-horizontal" size={32} color={colors.primary} />
+            <View style={styles.actionContent}>
+              <Text style={[styles.actionTitle, { color: colors.primary }]}>Contre-proposer</Text>
+              <Text style={[styles.actionDescription, { color: colors.textSecondary }]}>
+                Proposer un autre prix
+              </Text>
+            </View>
+          </TouchableOpacity>
+        )}
+
+        {userRole === 'producer' && (
+          <TouchableOpacity
+            testID="reject-action-card"
+            style={[
+              styles.actionCard,
+              { backgroundColor: colors.error + '10', borderColor: colors.error },
+              action === 'reject' && styles.actionCardSelected,
+            ]}
+            onPress={() => setAction('reject')}
+          >
+            <Ionicons name="close-circle" size={32} color={colors.error} />
+            <View style={styles.actionContent}>
+              <Text style={[styles.actionTitle, { color: colors.error }]}>Refuser l'offre</Text>
+              <Text style={[styles.actionDescription, { color: colors.textSecondary }]}>
+                L'acheteur sera notifié du refus
+              </Text>
+            </View>
+          </TouchableOpacity>
+        )}
+
+        {isCounterOffer && userRole === 'buyer' && (
+          <TouchableOpacity
+            testID="reject-counter-action-card"
+            style={[
+              styles.actionCard,
+              { backgroundColor: colors.error + '10', borderColor: colors.error },
+              action === 'reject' && styles.actionCardSelected,
+            ]}
+            onPress={() => setAction('reject')}
+          >
+            <Ionicons name="close-circle" size={32} color={colors.error} />
+            <View style={styles.actionContent}>
+              <Text style={[styles.actionTitle, { color: colors.error }]}>
+                Refuser la contre-proposition
+              </Text>
+              <Text style={[styles.actionDescription, { color: colors.textSecondary }]}>
+                Le producteur sera notifié du refus
+              </Text>
+            </View>
+          </TouchableOpacity>
+        )}
+      </>
+    );
+  };
 
   const renderActionDetails = () => {
     if (!action) return null;
@@ -325,6 +375,15 @@ export default function OfferResponseModal({
                   <Text style={[styles.messageText, { color: colors.text }]}>{offer.message}</Text>
                 </View>
               )}
+
+              {offer.status === 'countered' && userRole === 'buyer' && offer.counterOfferOf && (
+                <View style={[styles.infoBox, { backgroundColor: colors.primary + '10' }]}>
+                  <Ionicons name="information-circle" size={20} color={colors.primary} />
+                  <Text style={[styles.infoBoxText, { color: colors.primary }]}>
+                    C'est une contre-proposition du producteur. Vous pouvez l'accepter ou la refuser.
+                  </Text>
+                </View>
+              )}
             </View>
 
             {/* Sélection action */}
@@ -439,6 +498,19 @@ const styles = StyleSheet.create({
   messageText: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
     lineHeight: 20,
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: MarketplaceTheme.spacing.sm,
+    padding: MarketplaceTheme.spacing.md,
+    borderRadius: MarketplaceTheme.borderRadius.md,
+    marginTop: MarketplaceTheme.spacing.sm,
+  },
+  infoBoxText: {
+    flex: 1,
+    fontSize: MarketplaceTheme.typography.fontSizes.sm,
+    lineHeight: 18,
   },
   actionCard: {
     flexDirection: 'row',

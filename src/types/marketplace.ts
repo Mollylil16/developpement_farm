@@ -118,6 +118,7 @@ export interface Offer {
   producerId: string; // ID du producteur
   proposedPrice: number; // Prix propos├®
   originalPrice: number; // Prix initial
+  prixTotalFinal?: number; // Prix final négocié (après acceptation)
   message?: string; // Message optionnel
   status: OfferStatus;
   termsAccepted: boolean; // Acceptation conditions de vente
@@ -125,6 +126,8 @@ export interface Offer {
   createdAt: string; // Date de cr├®ation (ISO)
   respondedAt?: string; // Date de r├®ponse (ISO)
   expiresAt: string; // Date d'expiration (ISO)
+  dateRecuperationSouhaitee?: string; // Date de récupération souhaitée (ISO date string)
+  counterOfferOf?: string; // ID de l'offre originale si c'est une contre-proposition
 }
 
 /**

@@ -381,84 +381,197 @@ export class MarketplaceService {
 
     try {
       const repositories = await import('../database/repositories');
-      userRepo = new repositories.UserRepository();
-      projetRepo = new repositories.ProjetRepository();
-      ratingRepo = new repositories.MarketplaceRatingRepository();
-      animalRepo = new repositories.AnimalRepository();
+      
+      // Vérifier que les classes sont bien définies avant de les instancier
+      if (!repositories.UserRepository || 
+          !repositories.ProjetRepository || 
+          !repositories.MarketplaceRatingRepository || 
+          !repositories.AnimalRepository) {
+        logger.error('Certains repositories ne sont pas disponibles dans l\'import', {
+          hasUserRepository: !!repositories.UserRepository,
+          hasProjetRepository: !!repositories.ProjetRepository,
+          hasMarketplaceRatingRepository: !!repositories.MarketplaceRatingRepository,
+          hasAnimalRepository: !!repositories.AnimalRepository,
+        });
+        return [];
+      }
+      
+      // Vérifier que les prototypes existent (évite "Cannot read property 'prototype' of undefined")
+      if (!repositories.UserRepository.prototype || 
+          !repositories.ProjetRepository.prototype || 
+          !repositories.MarketplaceRatingRepository.prototype || 
+          !repositories.AnimalRepository.prototype) {
+        logger.error('Les prototypes des repositories ne sont pas disponibles', {
+          hasUserRepoProto: !!repositories.UserRepository.prototype,
+          hasProjetRepoProto: !!repositories.ProjetRepository.prototype,
+          hasRatingRepoProto: !!repositories.MarketplaceRatingRepository.prototype,
+          hasAnimalRepoProto: !!repositories.AnimalRepository.prototype,
+        });
+        return [];
+      }
+      
+      // Instancier les repositories avec vérification individuelle
+      try {
+        userRepo = new repositories.UserRepository();
+      } catch (error) {
+        logger.error('Erreur instanciation UserRepository:', error);
+        return [];
+      }
+      
+      try {
+        projetRepo = new repositories.ProjetRepository();
+      } catch (error) {
+        logger.error('Erreur instanciation ProjetRepository:', error);
+        return [];
+      }
+      
+      try {
+        ratingRepo = new repositories.MarketplaceRatingRepository();
+      } catch (error) {
+        logger.error('Erreur instanciation MarketplaceRatingRepository:', error);
+        return [];
+      }
+      
+      try {
+        animalRepo = new repositories.AnimalRepository();
+      } catch (error) {
+        logger.error('Erreur instanciation AnimalRepository:', error);
+        return [];
+      }
+      
+      // Vérifier que les instances sont bien créées
+      if (!userRepo || !projetRepo || !ratingRepo || !animalRepo) {
+        logger.error('Impossible de créer les instances des repositories');
+        return [];
+      }
     } catch (error) {
       logger.error('Erreur lors de l\'import des repositories dans groupListingsByFarm:', error);
       // Retourner un tableau vide si les repositories ne peuvent pas être chargés
       return [];
     }
 
-    const farmCards: FarmCard[] = [];
-
-    for (const [farmId, farmListings] of farmGroups.entries()) {
+    // ✅ OPTIMISATION: Paralléliser la création de toutes les FarmCards
+    const farmCardsPromises = Array.from(farmGroups.entries()).map(async ([farmId, farmListings]) => {
       try {
-        // Récupérer les infos de la ferme
-        const projet = await projetRepo.findById(farmId);
-        if (!projet) continue;
-
-        // Récupérer les infos du producteur
+        // ✅ Paralléliser les appels API pour projet et producteur
         const producerId = farmListings[0].producerId;
-        const producer = await userRepo.findById(producerId);
-        if (!producer) continue;
+        const [projet, producer] = await Promise.all([
+          projetRepo.findById(farmId),
+          userRepo.findById(producerId),
+        ]);
+        
+        if (!projet || !producer) return null;
 
         // Calculer les données agrégées
-        const weights = farmListings.map((l) => l.weight || 0);
-        const prices = farmListings.map((l) => l.pricePerKg);
-        const totalWeight = weights.reduce((sum, w) => sum + w, 0);
-        const totalSubjects = farmListings.length;
-        const minPrice = Math.min(...prices);
-        const maxPrice = Math.max(...prices);
-        const avgPrice = prices.reduce((sum, p) => sum + p, 0) / prices.length;
-
-        // Récupérer les races disponibles
         // Filtrer les listings individuels (avec subjectId) et batch (avec batchId)
         const individualListings = farmListings.filter((l) => l.subjectId && (l.listingType === 'individual' || !l.listingType));
         const batchListings = farmListings.filter((l) => l.listingType === 'batch' && l.batchId);
         
+        // Calculer le poids total et le nombre de sujets
+        // Pour les listings individuels : utiliser le poids du listing
+        // Pour les batch listings : utiliser weight * pigCount (poids moyen * nombre d'animaux)
+        let totalWeight = 0;
+        let totalSubjects = 0;
+        
+        // Poids et sujets des listings individuels
+        for (const listing of individualListings) {
+          totalWeight += listing.weight || 0;
+          totalSubjects += 1; // Un listing = un sujet
+        }
+        
+        // Poids et sujets des batch listings
+        for (const listing of batchListings) {
+          const averageWeight = listing.weight || 0;
+          const pigCount = listing.pigCount || (listing.pigIds?.length || 0);
+          const batchTotalWeight = averageWeight * pigCount;
+          totalWeight += batchTotalWeight;
+          totalSubjects += pigCount; // Nombre d'animaux dans la bande
+        }
+        
+        const prices = farmListings.map((l) => l.pricePerKg);
+        const minPrice = Math.min(...prices);
+        const maxPrice = Math.max(...prices);
+        const avgPrice = prices.reduce((sum, p) => sum + p, 0) / prices.length;
+        
         const races = new Set<string>();
         const photos: string[] = [];
 
-        // Traiter les listings individuels
+        // ✅ OPTIMISATION: Paralléliser la récupération des animaux individuels
         const subjectIds = individualListings.map((l) => l.subjectId).filter((id): id is string => !!id);
-        for (const subjectId of subjectIds.slice(0, 4)) {
+        const animalPromises = subjectIds.slice(0, 4).map(async (subjectId) => {
           try {
-            const animal = await animalRepo.findById(subjectId);
+            // ✅ Utiliser d'abord les données disponibles dans le listing (éviter les appels API inutiles)
+            const listing = individualListings.find((l) => l.subjectId === subjectId);
+            if (listing?.race && listing.race !== 'Non spécifiée') {
+              races.add(listing.race);
+            }
+            
+            // Seulement récupérer l'animal si on a besoin de la photo
+            const animal = await animalRepo.findById(subjectId).catch(() => null);
             if (animal) {
-              if (animal.race) races.add(animal.race);
+              if (animal.race && animal.race !== 'Non spécifiée') races.add(animal.race);
               if (animal.photo_uri) photos.push(animal.photo_uri);
             }
           } catch (error) {
             logger.warn(`Erreur récupération animal ${subjectId}:`, error);
           }
-        }
+        });
+        await Promise.all(animalPromises);
 
-        // Traiter les listings batch (récupérer les races depuis les batches)
+        // ✅ OPTIMISATION: Utiliser les données disponibles dans les listings batch (éviter les appels API)
+        // Pour les acheteurs, on ne peut pas accéder aux détails des batches (403), donc utiliser les données du listing
         for (const batchListing of batchListings.slice(0, 4)) {
-          try {
-            if (batchListing.batchId) {
-              // Récupérer les informations de la bande depuis l'API
-              const apiClient = (await import('./api/apiClient')).default;
-              const batch = await apiClient.get<any>(`/batch-pigs/batch/${batchListing.batchId}`);
-              if (batch) {
-                // Les batches peuvent avoir une catégorie qui peut être utilisée comme "race"
-                if (batch.category) {
-                  races.add(batch.category);
-                }
-                // Pour les photos, on pourrait récupérer depuis batch_pigs si nécessaire
-              }
-            }
-          } catch (error) {
-            logger.warn(`Erreur récupération batch ${batchListing.batchId}:`, error);
+          // Utiliser directement les données du listing (race, etc.) disponibles
+          if (batchListing.race && batchListing.race !== 'Non spécifiée') {
+            races.add(batchListing.race);
           }
         }
+        
+        // ✅ OPTIMISATION: Paralléliser les appels batch seulement si nécessaire (pour les producteurs)
+        // Pour les acheteurs, on skip car cela génère des 403
+        const batchPromises = batchListings.slice(0, 2).map(async (batchListing) => {
+          if (!batchListing.batchId) return;
+          try {
+            const apiClient = (await import('./api/apiClient')).default;
+            const batch = await apiClient.get<any>(`/batch-pigs/batch/${batchListing.batchId}`).catch(() => null);
+            if (batch?.category) {
+              races.add(batch.category);
+            }
+          } catch (error: any) {
+            // Ignorer les erreurs 403 (normal pour les acheteurs)
+            const status = error?.status || error?.statusCode;
+            if (status !== 403 && status !== 404) {
+              logger.warn(`Erreur récupération batch ${batchListing.batchId}:`, error);
+            }
+          }
+        });
+        await Promise.all(batchPromises);
 
-        // Récupérer les ratings
-        const ratings = await ratingRepo.findByProducerId(producerId);
+        // ✅ OPTIMISATION: Paralléliser ratings et stats
+        const [ratings, producerStatsResult] = await Promise.allSettled([
+          ratingRepo.findByProducerId(producerId),
+          this.getProducerStats(producerId).catch(() => ({
+            totalSales: 0,
+            averageRating: 0,
+            totalRatings: 0,
+            responseTime: 0,
+            completionRate: 0,
+          })),
+        ]);
+        
+        const ratingsData = ratings.status === 'fulfilled' ? ratings.value : [];
         const avgRating =
-          ratings.length > 0 ? ratings.reduce((sum, r) => sum + (r.overall || 0), 0) / ratings.length : 0;
+          ratingsData.length > 0 ? ratingsData.reduce((sum, r) => sum + (r.overall || 0), 0) / ratingsData.length : 0;
+        
+        const producerStats = producerStatsResult.status === 'fulfilled' 
+          ? producerStatsResult.value 
+          : {
+              totalSales: 0,
+              averageRating: 0,
+              totalRatings: 0,
+              responseTime: 0,
+              completionRate: 0,
+            };
 
         // Calculer la distance si location fournie
         let distance: number | undefined;
@@ -478,8 +591,6 @@ export class MarketplaceService {
           (now.getTime() - firstListingDate.getTime()) / (1000 * 60 * 60 * 24 * 30);
         const isNewProducer = monthsSinceFirstListing < 3;
 
-        // Calculer fastResponder depuis les stats
-        const producerStats = await this.getProducerStats(producerId);
         const fastResponder = producerStats.responseTime > 0 && producerStats.responseTime < 24; // Répond en moins de 24h
         const isCertified = false; // À implémenter avec système de certifications
 
@@ -498,7 +609,7 @@ export class MarketplaceService {
             totalListings: totalSubjects,
             totalSales: producerStats.totalSales,
             averageRating: avgRating,
-            totalRatings: ratings.length,
+            totalRatings: ratingsData.length,
             responseTime: producerStats.responseTime,
             completionRate: producerStats.completionRate,
           },
@@ -516,7 +627,7 @@ export class MarketplaceService {
           },
           producerRating: {
             overall: avgRating,
-            totalReviews: ratings.length,
+            totalReviews: ratingsData.length,
           },
           badges: {
             isNewProducer,
@@ -532,11 +643,16 @@ export class MarketplaceService {
           ),
         };
 
-        farmCards.push(farmCard);
+        return farmCard;
       } catch (error) {
         logger.error(`Erreur lors de la création de la FarmCard pour ${farmId}:`, error);
+        return null;
       }
-    }
+    });
+    
+    // ✅ Attendre toutes les FarmCards en parallèle et filtrer les null
+    const farmCardsResults = await Promise.all(farmCardsPromises);
+    const farmCards = farmCardsResults.filter((card): card is FarmCard => card !== null);
 
     // Filtrer les FarmCards de l'utilisateur si userId fourni
     let filteredFarmCards = farmCards;
@@ -730,6 +846,7 @@ export class MarketplaceService {
     buyerId: string;
     proposedPrice: number;
     message?: string;
+    dateRecuperationSouhaitee?: string;
   }): Promise<Offer> {
     // Vérifier si l'utilisateur peut faire une offre
     const canMakeOffer = await this.canUserMakeOffer(data.buyerId, data.listingId);
@@ -804,6 +921,7 @@ export class MarketplaceService {
       proposedPrice: data.proposedPrice,
       originalPrice: listing.calculatedPrice,
       message: data.message,
+      dateRecuperationSouhaitee: data.dateRecuperationSouhaitee,
       termsAccepted: true, // Doit être accepté avant création
       termsAcceptedAt: new Date().toISOString(),
       expiresAt: expiresAt.toISOString(),
@@ -826,9 +944,14 @@ export class MarketplaceService {
   }
 
   /**
-   * Accepter une offre
+   * Créer une contre-proposition (producteur propose un nouveau prix)
    */
-  async acceptOffer(offerId: string, producerId: string): Promise<Transaction> {
+  async counterOffer(
+    offerId: string,
+    producerId: string,
+    nouveauPrixTotal: number,
+    message?: string
+  ): Promise<Offer> {
     const offer = await this.offerRepo.findById(offerId);
 
     if (!offer) {
@@ -836,18 +959,74 @@ export class MarketplaceService {
     }
 
     if (offer.producerId !== producerId) {
-      throw new Error("Vous n'êtes pas autorisé à accepter cette offre");
+      throw new Error("Vous n'êtes pas autorisé à faire une contre-proposition sur cette offre");
     }
 
     if (offer.status !== 'pending') {
-      throw new Error("Cette offre n'est plus en attente");
+      throw new Error('Vous ne pouvez faire une contre-proposition que sur une offre en attente');
     }
 
-    // Mettre à jour le statut de l'offre
-    await this.offerRepo.updateStatus(offerId, 'accepted');
+    // Appeler l'API backend
+    const { apiClient } = await import('../services/api/apiClient');
+    const counterOffer = await apiClient.put<Offer>(`/marketplace/offers/${offerId}/counter`, {
+      nouveau_prix_total: nouveauPrixTotal,
+      message: message || undefined,
+    });
 
-    // Créer la transaction
-    const transaction = await this.transactionRepo.create({
+    // Notifier l'acheteur via le repository
+    await this.notificationRepo.create({
+      userId: offer.buyerId,
+      type: 'counter_offer_received',
+      title: 'Contre-proposition reçue',
+      message: `Le producteur vous propose un nouveau prix de ${nouveauPrixTotal.toLocaleString('fr-FR')} FCFA`,
+      relatedId: counterOffer.id,
+      relatedType: 'offer',
+    });
+
+    return counterOffer;
+  }
+
+  /**
+   * Accepter une offre (producteur ou acheteur pour contre-proposition)
+   */
+  async acceptOffer(
+    offerId: string,
+    userId: string,
+    role: 'producer' | 'buyer' = 'producer'
+  ): Promise<Transaction> {
+    const offer = await this.offerRepo.findById(offerId);
+
+    if (!offer) {
+      throw new Error('Offre introuvable');
+    }
+
+    // Vérifier les permissions selon le rôle
+    if (role === 'producer') {
+      if (offer.producerId !== userId) {
+        throw new Error("Vous n'êtes pas autorisé à accepter cette offre");
+      }
+      if (offer.status !== 'pending') {
+        throw new Error("Cette offre n'est plus en attente");
+      }
+    } else if (role === 'buyer') {
+      // L'acheteur ne peut accepter que les contre-propositions
+      if (offer.buyerId !== userId) {
+        throw new Error("Vous n'êtes pas autorisé à accepter cette offre");
+      }
+      if (offer.status !== 'countered') {
+        throw new Error('Vous ne pouvez accepter que les contre-propositions');
+      }
+    }
+
+    // Appeler l'API backend avec le rôle
+    const { apiClient } = await import('../services/api/apiClient');
+    const transaction = await apiClient.patch<Transaction>(
+      `/marketplace/offers/${offerId}/accept?role=${role}`,
+      {}
+    );
+
+    // La transaction a été créée par le backend, on la synchronise localement
+    await this.transactionRepo.create({
       offerId: offer.id,
       listingId: offer.listingId,
       subjectIds: offer.subjectIds,
@@ -1065,11 +1244,30 @@ export class MarketplaceService {
     const transactions = await this.transactionRepo.findByProducerId(producerId);
     const completedTransactions = transactions.filter((t) => t.status === 'completed');
 
-    // Calculer la note moyenne
-    const averageRating = await this.ratingRepo.getAverageRating(producerId);
-
     // Compter le nombre total de notations
     const ratings = await this.ratingRepo.findByProducerId(producerId);
+
+    // Calculer la note moyenne (fallback si l'endpoint n'existe pas)
+    let averageRating = 0;
+    try {
+      averageRating = await this.ratingRepo.getAverageRating(producerId);
+    } catch (error: any) {
+      // Si l'endpoint /ratings/average n'existe pas (404), calculer manuellement
+      const status = error?.status || error?.statusCode;
+      if (status === 404) {
+        // Calculer depuis les ratings récupérés
+        if (ratings.length > 0) {
+          averageRating = ratings.reduce((sum, r) => sum + (r.overall || 0), 0) / ratings.length;
+        }
+        // Ne pas logger les erreurs 404 car l'endpoint n'est pas encore implémenté
+      } else {
+        logger.warn(`Erreur récupération note moyenne pour producteur ${producerId}:`, error);
+        // Fallback: calculer depuis les ratings récupérés
+        if (ratings.length > 0) {
+          averageRating = ratings.reduce((sum, r) => sum + (r.overall || 0), 0) / ratings.length;
+        }
+      }
+    }
 
     // Calculer le taux de complétion (ventes complétées / ventes totales)
     const totalTransactions = transactions.length;

@@ -21,6 +21,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { MarketplaceTheme } from '../../styles/marketplace.theme';
 import { SPACING } from '../../constants/theme';
 import SaleTermsDisplay from './SaleTermsDisplay';
@@ -36,6 +37,7 @@ interface OfferModalProps {
       subjectIds: string[];
       proposedPrice: number;
       message?: string;
+      dateRecuperationSouhaitee?: string;
     },
     listingId: string
   ) => Promise<void>;
@@ -57,6 +59,9 @@ export default function OfferModal({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [proposedPrice, setProposedPrice] = useState('');
   const [message, setMessage] = useState('');
+  const [dateRecuperationSouhaitee, setDateRecuperationSouhaitee] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -109,6 +114,7 @@ export default function OfferModal({
       setSelectedIds(new Set());
       setProposedPrice('');
       setMessage('');
+      setDateRecuperationSouhaitee('');
       setTermsAccepted(false);
       pan.setValue({ x: 0, y: 0 });
     } else {
@@ -119,8 +125,23 @@ export default function OfferModal({
       }
       // Pré-remplir avec le prix original
       setProposedPrice(originalPrice.toString());
+      // Pré-remplir la date de récupération avec 7 jours à partir d'aujourd'hui
+      const defaultDate = new Date();
+      defaultDate.setDate(defaultDate.getDate() + 7);
+      setSelectedDate(defaultDate);
+      setDateRecuperationSouhaitee(defaultDate.toISOString().split('T')[0]);
     }
   }, [visible, subjects, originalPrice]);
+
+  const handleDateChange = (event: any, date?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+    if (date) {
+      setSelectedDate(date);
+      setDateRecuperationSouhaitee(date.toISOString().split('T')[0]);
+    }
+  };
 
   const toggleSelection = (id: string) => {
     const newSelected = new Set(selectedIds);
@@ -185,6 +206,22 @@ export default function OfferModal({
       return;
     }
 
+    // Validation de la date de récupération
+    if (!dateRecuperationSouhaitee) {
+      Alert.alert('Erreur', 'Veuillez sélectionner une date de récupération souhaitée');
+      return;
+    }
+
+    const selectedDate = new Date(dateRecuperationSouhaitee);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    selectedDate.setHours(0, 0, 0, 0);
+
+    if (selectedDate < today) {
+      Alert.alert('Erreur', 'La date de récupération doit être supérieure ou égale à aujourd\'hui');
+      return;
+    }
+
     try {
       setLoading(true);
       await onSubmit(
@@ -192,6 +229,7 @@ export default function OfferModal({
           subjectIds: Array.from(selectedIds),
           proposedPrice: price,
           message: message.trim() || undefined,
+          dateRecuperationSouhaitee: dateRecuperationSouhaitee,
         },
         listingId
       );
@@ -215,6 +253,7 @@ export default function OfferModal({
     proposedPrice.trim() !== '' &&
     !isNaN(parseFloat(proposedPrice)) &&
     parseFloat(proposedPrice) > 0 &&
+    dateRecuperationSouhaitee !== '' &&
     termsAccepted;
 
   return (
@@ -345,6 +384,48 @@ export default function OfferModal({
                   </Text>
                 </View>
               </View>
+            </View>
+
+            {/* Date de récupération souhaitée */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                Date de récupération souhaitée *
+              </Text>
+              <TouchableOpacity
+                style={[styles.datePickerButton, { backgroundColor: colors.surface }]}
+                onPress={() => setShowDatePicker(true)}
+              >
+                <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+                <Text style={[styles.datePickerText, { color: colors.text }]}>
+                  {dateRecuperationSouhaitee
+                    ? new Date(dateRecuperationSouhaitee).toLocaleDateString('fr-FR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                      })
+                    : 'Sélectionner une date'}
+                </Text>
+              </TouchableOpacity>
+              {showDatePicker && (
+                <DateTimePicker
+                  value={selectedDate}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={handleDateChange}
+                  minimumDate={new Date()} // Date minimum : aujourd'hui
+                  locale="fr-FR"
+                />
+              )}
+              {Platform.OS === 'ios' && showDatePicker && (
+                <TouchableOpacity
+                  style={[styles.confirmDateButton, { backgroundColor: colors.primary }]}
+                  onPress={() => setShowDatePicker(false)}
+                >
+                  <Text style={[styles.confirmDateText, { color: colors.textInverse }]}>
+                    Confirmer
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* Message optionnel */}
@@ -585,6 +666,28 @@ const styles = StyleSheet.create({
   warningText: {
     flex: 1,
     fontSize: MarketplaceTheme.typography.fontSizes.xs,
+  },
+  datePickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: MarketplaceTheme.spacing.md,
+    borderRadius: MarketplaceTheme.borderRadius.md,
+    gap: MarketplaceTheme.spacing.sm,
+    ...MarketplaceTheme.shadows.small,
+  },
+  datePickerText: {
+    flex: 1,
+    fontSize: MarketplaceTheme.typography.fontSizes.md,
+  },
+  confirmDateButton: {
+    marginTop: MarketplaceTheme.spacing.sm,
+    padding: MarketplaceTheme.spacing.md,
+    borderRadius: MarketplaceTheme.borderRadius.md,
+    alignItems: 'center',
+  },
+  confirmDateText: {
+    fontSize: MarketplaceTheme.typography.fontSizes.md,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
   },
   footer: {
     flexDirection: 'row',

@@ -1,0 +1,16 @@
+{
+  "ignore_dirs": [
+    "backend",
+    "backend/node_modules",
+    ".git",
+    ".expo",
+    "node_modules",
+    ".gitignore",
+    "dist",
+    "build",
+    ".expo-shared",
+    ".vscode",
+    ".idea"
+  ]
+}
+

@@ -392,7 +392,43 @@ export default function FinanceRevenusComponent() {
                   ) : null;
                 })()}
 
-                {revenu.categorie === 'vente_porc' && revenu.poids_kg && revenu.poids_kg > 0 && (
+                {/* Informations de vente marketplace */}
+                {revenu.categorie === 'vente_porc' && (
+                  <View style={[styles.venteInfoContainer, { borderTopColor: colors.border }]}>
+                    {(revenu.poids_total || revenu.poids_kg) && (
+                      <View style={styles.venteInfoRow}>
+                        <Text style={[styles.venteInfoLabel, { color: colors.textSecondary }]}>
+                          Poids total:
+                        </Text>
+                        <Text style={[styles.venteInfoValue, { color: colors.text }]}>
+                          {((revenu.poids_total || revenu.poids_kg) || 0).toLocaleString()} kg
+                        </Text>
+                      </View>
+                    )}
+                    {revenu.nombre_animaux && (
+                      <View style={styles.venteInfoRow}>
+                        <Text style={[styles.venteInfoLabel, { color: colors.textSecondary }]}>
+                          Nombre d'animaux:
+                        </Text>
+                        <Text style={[styles.venteInfoValue, { color: colors.text }]}>
+                          {revenu.nombre_animaux}
+                        </Text>
+                      </View>
+                    )}
+                    {revenu.acheteur && (
+                      <View style={styles.venteInfoRow}>
+                        <Text style={[styles.venteInfoLabel, { color: colors.textSecondary }]}>
+                          Acheteur:
+                        </Text>
+                        <Text style={[styles.venteInfoValue, { color: colors.text }]}>
+                          {revenu.acheteur}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {revenu.categorie === 'vente_porc' && (revenu.poids_total || revenu.poids_kg) && (revenu.poids_total || revenu.poids_kg) > 0 && (
                   <TouchableOpacity
                     style={[styles.detailButton, { backgroundColor: colors.primary }]}
                     onPress={() => {
@@ -685,5 +721,23 @@ const styles = StyleSheet.create({
   detailButtonText: {
     fontSize: FONT_SIZES.sm,
     fontWeight: '600',
+  },
+  venteInfoContainer: {
+    marginTop: SPACING.sm,
+    paddingTop: SPACING.sm,
+    borderTopWidth: 1,
+  },
+  venteInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.xs,
+  },
+  venteInfoLabel: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+  },
+  venteInfoValue: {
+    fontSize: FONT_SIZES.sm,
   },
 });

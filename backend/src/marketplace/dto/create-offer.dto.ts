@@ -43,4 +43,9 @@ export class CreateOfferDto {
   @IsOptional()
   @IsString()
   expiresAt?: string;
+
+  @ApiPropertyOptional({ description: 'Date de récupération souhaitée (ISO 8601)', example: '2023-04-15' })
+  @IsOptional()
+  @IsString()
+  dateRecuperationSouhaitee?: string;
 }
