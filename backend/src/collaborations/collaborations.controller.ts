@@ -61,18 +61,14 @@ return this.collaborationsService.findAll(projetId, userId);
   @Get('invitations')
   @ApiOperation({ summary: "Récupérer les invitations en attente pour l'utilisateur" })
   @ApiQuery({ name: 'email', required: false, description: "Email de l'utilisateur" })
+  @ApiQuery({ name: 'telephone', required: false, description: "Téléphone de l'utilisateur" })
   @ApiResponse({ status: 200, description: 'Liste des invitations en attente.' })
   async findInvitationsEnAttente(
     @CurrentUser('id') userId: string,
-    @Query('email') email?: string
+    @Query('email') email?: string,
+    @Query('telephone') telephone?: string
   ) {
-    // Récupérer l'email de l'utilisateur si non fourni
-    let userEmail = email;
-    if (!userEmail) {
-      // TODO: Récupérer l'email depuis la base de données
-      // Pour l'instant, on utilise seulement userId
-    }
-    return this.collaborationsService.findInvitationsEnAttente(userId, userEmail);
+    return this.collaborationsService.findInvitationsEnAttente(userId, email, telephone);
   }
 
   @Get(':id')

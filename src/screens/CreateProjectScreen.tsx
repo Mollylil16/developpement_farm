@@ -128,7 +128,10 @@ export default function CreateProjectScreen() {
       let finalUserId = user?.id;
 
       // Si pas d'utilisateur mais qu'on a identifier, récupérer ou créer le compte
-      if (!finalUserId && identifier) {
+      // ⚠️ ATTENTION : Ne créer un compte que si on est dans le flux d'onboarding initial
+      // Si l'utilisateur est déjà connecté et veut juste ajouter un profil producteur,
+      // ne pas créer un nouveau compte
+      if (!finalUserId && identifier && !user) {
         try {
           const onboardingService = await getOnboardingService();
           // createUser vérifie d'abord si l'utilisateur existe déjà
@@ -149,6 +152,11 @@ export default function CreateProjectScreen() {
           setLoading(false);
           return;
         }
+      }
+      
+      // Si l'utilisateur est connecté mais n'a pas de profil producteur, utiliser son ID actuel
+      if (!finalUserId && user?.id) {
+        finalUserId = user.id;
       }
 
       if (!finalUserId) {
@@ -188,38 +196,43 @@ export default function CreateProjectScreen() {
       }
 
       // S'assurer que le rôle actif est "producer" après la création d'un projet
-      // et que le profil producteur existe
+      // et mettre à jour le profil producteur avec le nom de la ferme
       if (finalUserId) {
         // Récupérer l'utilisateur actuel depuis l'API backend
         const currentUser = await apiClient.get<any>(`/users/${finalUserId}`);
 
         if (currentUser) {
-          // Vérifier si le profil producteur existe, sinon le créer
+          // Mettre à jour le profil producteur avec le nom de la ferme
           let updatedRoles = currentUser.roles || {};
-          if (!updatedRoles.producer) {
-            updatedRoles = {
-              ...updatedRoles,
-              producer: {
-                isActive: true,
-                activatedAt: new Date().toISOString(),
-                farmName: formData.nom,
-                farmType: 'individual',
-                capacity: {
-                  totalCapacity: 0,
-                  currentOccupancy: 0,
-                },
-                stats: {
-                  totalSales: 0,
-                  totalRevenue: 0,
-                  averageRating: 0,
-                  totalReviews: 0,
-                },
-                marketplaceSettings: {
-                  defaultPricePerKg: 450,
-                  autoAcceptOffers: false,
-                  minimumOfferPercentage: 80,
-                  notificationsEnabled: true,
-                },
+          
+          // Si le profil producteur existe, mettre à jour farmName
+          if (updatedRoles.producer) {
+            updatedRoles.producer = {
+              ...updatedRoles.producer,
+              farmName: formData.nom,
+            };
+          } else {
+            // Si le profil n'existe pas (cas rare, ne devrait pas arriver), le créer
+            updatedRoles.producer = {
+              isActive: true,
+              activatedAt: new Date().toISOString(),
+              farmName: formData.nom,
+              farmType: 'individual',
+              capacity: {
+                totalCapacity: 0,
+                currentOccupancy: 0,
+              },
+              stats: {
+                totalSales: 0,
+                totalRevenue: 0,
+                averageRating: 0,
+                totalReviews: 0,
+              },
+              marketplaceSettings: {
+                defaultPricePerKg: 450,
+                autoAcceptOffers: false,
+                minimumOfferPercentage: 80,
+                notificationsEnabled: true,
               },
             };
           }
@@ -235,8 +248,26 @@ export default function CreateProjectScreen() {
             dispatch(updateUser(updatedUser));
           }
 
-          // Utiliser switchRole pour mettre à jour le contexte
-          await switchRole('producer');
+          // Utiliser switchRole pour mettre à jour le contexte (si le rôle existe déjà)
+          try {
+            await switchRole('producer');
+          } catch (error) {
+            // Si switchRole échoue (profil pas encore dans availableRoles), ignorer l'erreur
+            // Le profil sera disponible au prochain rafraîchissement du context
+            console.warn('switchRole failed, context will update on next render:', error);
+          }
+
+          // Marquer l'onboarding comme terminé si ce n'est pas déjà fait
+          // (important pour le premier projet, pas pour l'ajout ultérieur d'un profil producteur)
+          if (!currentUser.onboardingCompletedAt) {
+            const onboardingService = await getOnboardingService();
+            await onboardingService.completeOnboarding(finalUserId);
+            // Recharger l'utilisateur pour avoir onboardingCompletedAt à jour
+            const finalUser = await apiClient.get<any>(`/users/${finalUserId}`);
+            if (finalUser) {
+              dispatch(updateUser(finalUser));
+            }
+          }
         }
       }
 

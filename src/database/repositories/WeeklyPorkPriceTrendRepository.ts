@@ -3,6 +3,7 @@
  */
 
 import { BaseRepository } from './BaseRepository';
+import { APIError } from '../../services/api/apiClient';
 
 export interface WeeklyPorkPriceTrend {
   id: string;
@@ -69,12 +70,22 @@ export class WeeklyPorkPriceTrendRepository extends BaseRepository<WeeklyPorkPri
   }
 
   async findLastWeeks(weeks: number = 26): Promise<WeeklyPorkPriceTrend[]> {
-    const rows = await this.query<unknown>(this.apiBasePath, {
-      weeks,
-      order_by: 'year,week_number',
-      order_direction: 'DESC',
-    });
-    return rows.map((r) => this.mapRow(r)).reverse();
+    try {
+      const rows = await this.query<unknown>(this.apiBasePath, {
+        weeks,
+        order_by: 'year,week_number',
+        order_direction: 'DESC',
+      });
+      return rows.map((r) => this.mapRow(r)).reverse();
+    } catch (error: unknown) {
+      // Si l'endpoint n'existe pas (404), retourner un tableau vide silencieusement
+      if (error instanceof APIError && error.status === 404) {
+        // L'endpoint backend n'est pas encore implémenté, retourner vide
+        return [];
+      }
+      // Pour les autres erreurs, propager
+      throw error;
+    }
   }
 
   async findCurrentWeek(): Promise<WeeklyPorkPriceTrend | null> {

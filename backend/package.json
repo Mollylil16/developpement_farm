@@ -7,6 +7,7 @@
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main.js",
     "migrate": "tsx scripts/run-migrations.ts",
+    "migrate:single": "tsx scripts/run-single-migration.ts",
     "migrate:check": "tsx scripts/check-migrations-status.ts",
     "migrate:check-all": "tsx scripts/check-all-migrations.ts",
     "migrate:list": "tsx scripts/list-all-migrations.ts",

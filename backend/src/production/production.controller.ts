@@ -15,6 +15,8 @@ import { CreateAnimalDto } from './dto/create-animal.dto';
 import { UpdateAnimalDto } from './dto/update-animal.dto';
 import { CreatePeseeDto } from './dto/create-pesee.dto';
 import { UpdatePeseeDto } from './dto/update-pesee.dto';
+import { PeseesStatsDto } from './dto/pesees-stats.dto';
+import { PeseesEvolutionDto } from './dto/pesees-evolution.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
@@ -203,5 +205,36 @@ export class ProductionController {
   ) {
     const logesList = loges.split(',').map((l) => l.trim()).filter((l) => l.length > 0);
     return this.productionService.getAnimauxByLoges(projetId, logesList, user.id);
+  }
+
+  // ==================== STATISTIQUES ET ÉVOLUTION UNIFIÉES ====================
+
+  @Post('pesees/stats')
+  @ApiOperation({ summary: 'Calculer les statistiques globales des pesées pour un projet' })
+  getPeseesStats(@Body() dto: PeseesStatsDto, @CurrentUser() user: any) {
+    return this.productionService.getPeseesStats(
+      dto.projet_id,
+      dto.mode,
+      dto.periode || '30j',
+      user.id
+    );
+  }
+
+  @Post('pesees/evolution')
+  @ApiOperation({ summary: 'Récupérer l\'évolution du poids pour un projet' })
+  getPeseesEvolution(@Body() dto: PeseesEvolutionDto, @CurrentUser() user: any) {
+    return this.productionService.getPeseesEvolution(
+      dto.projet_id,
+      dto.mode,
+      dto.periode || '30j',
+      dto.sujet_ids,
+      user.id
+    );
+  }
+
+  @Get('animaux/:id/pesees')
+  @ApiOperation({ summary: 'Récupérer les détails complets des pesées d\'un animal avec métriques' })
+  getAnimalPeseesDetail(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.productionService.getAnimalPeseesDetail(id, user.id);
   }
 }

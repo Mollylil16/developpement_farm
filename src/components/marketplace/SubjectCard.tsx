@@ -9,6 +9,12 @@ import { Ionicons } from '@expo/vector-icons';
 import type { SubjectCard as SubjectCardType } from '../../types/marketplace';
 import { MarketplaceTheme, glassmorphismStyle, badgeStyle } from '../../styles/marketplace.theme';
 import { formatPrice } from '../../services/PricingService';
+import { createLoggerWithPrefix } from '../../utils/logger';
+
+const logger = createLoggerWithPrefix('SubjectCard');
+
+// Créer le composant animé une seule fois en dehors du composant
+const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 interface SubjectCardProps {
   subject: SubjectCardType;
@@ -71,33 +77,49 @@ export default function SubjectCard({
   };
 
   const handlePress = () => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SubjectCard.tsx:73',message:'handlePress appelé',data:{subjectId:subject.id,subjectCode:subject.code,available:subject.available,selectable},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     if (selectable && onSelect) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SubjectCard.tsx:75',message:'Mode sélection activé',data:{subjectId:subject.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       onSelect();
     } else {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SubjectCard.tsx:77',message:'Appel onPress',data:{subjectId:subject.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       onPress();
     }
   };
 
+  // #region agent log
+  useEffect(() => {
+    fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SubjectCard.tsx:81',message:'SubjectCard rendu',data:{subjectId:subject.id,available:subject.available,onPressDefined:!!onPress},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+  }, [subject.id, subject.available, onPress]);
+  // #endregion
+
   return (
-    <Animated.View
+    <AnimatedTouchable
       style={[
+        styles.container,
+        glassmorphismStyle(false),
+        selected && { borderColor: colors.primary, borderWidth: 2.5 },
+        !subject.available && !selected && { opacity: 0.6 },
         {
           opacity: fadeAnim,
           transform: [{ translateY: slideAnim }],
         },
       ]}
+      onPress={handlePress}
+      activeOpacity={0.9}
+      disabled={!subject.available}
+      // #region agent log
+      onPressIn={() => {
+        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SubjectCard.tsx:90',message:'onPressIn déclenché',data:{subjectId:subject.id,available:subject.available,disabled:!subject.available},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      }}
+      // #endregion
     >
-      <TouchableOpacity
-        style={[
-          styles.container,
-          glassmorphismStyle(false),
-          selected && { borderColor: colors.primary, borderWidth: 2.5 },
-          !subject.available && !selected && { opacity: 0.6 },
-        ]}
-        onPress={handlePress}
-        activeOpacity={0.9}
-        disabled={!subject.available}
-      >
         {/* Checkbox pour sélection multiple */}
         {selectable && (
           <View style={styles.checkboxContainer}>
@@ -192,8 +214,7 @@ export default function SubjectCard({
             </Text>
           </View>
         </View>
-      </TouchableOpacity>
-    </Animated.View>
+      </AnimatedTouchable>
   );
 }
 

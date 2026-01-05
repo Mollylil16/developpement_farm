@@ -198,15 +198,44 @@ export default function MarketplaceScreen() {
     try {
       setMyListingsLoading(true);
       
-      // Charger les listings depuis l'API backend
+      // Charger les listings depuis l'API backend (filtrer par projet ET par producteur)
+      console.log('[MarketplaceScreen] Chargement mes annonces:', {
+        projetId: projetActif.id,
+        userId: user.id,
+        projetActif: projetActif,
+      });
+      
       const allListings = await apiClient.get<MarketplaceListing[]>('/marketplace/listings', {
-        params: { projet_id: projetActif.id },
+        params: { 
+          projet_id: projetActif.id,
+          user_id: user.id, // Filtrer par producteur pour n'afficher que les annonces de l'utilisateur
+        },
+      });
+      
+      console.log('[MarketplaceScreen] Listings reçus:', {
+        count: allListings.length,
+        listings: allListings.map(l => ({ 
+          id: l.id, 
+          producerId: l.producerId, 
+          farmId: l.farmId,
+          status: l.status,
+          subjectId: l.subjectId,
+        })),
       });
 
       // Filtrer pour ne garder que les listings actifs (available ou reserved)
       const activeListings = allListings.filter(
         (l) => l.status === 'available' || l.status === 'reserved'
       );
+      
+      console.log('[MarketplaceScreen] Listings après filtrage:', {
+        total: allListings.length,
+        actifs: activeListings.length,
+        statuts: allListings.reduce((acc, l) => {
+          acc[l.status] = (acc[l.status] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>),
+      });
 
       // Enrichir les listings avec les informations des animaux depuis l'API backend
       const enrichedListings = await Promise.all(
@@ -1227,7 +1256,12 @@ export default function MarketplaceScreen() {
           onClose={() => setBatchAddModalVisible(false)}
           onSuccess={() => {
             setBatchAddModalVisible(false);
-            loadListings();
+            // Recharger les listings de l'onglet actif
+            if (activeTab === 'mes-annonces') {
+              loadMyListings();
+            } else {
+              loadListings();
+            }
           }}
         />
       )}

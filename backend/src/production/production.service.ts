@@ -7,6 +7,8 @@ import { CreateAnimalDto } from './dto/create-animal.dto';
 import { UpdateAnimalDto } from './dto/update-animal.dto';
 import { CreatePeseeDto } from './dto/create-pesee.dto';
 import { UpdatePeseeDto } from './dto/update-pesee.dto';
+import { PeseesStatsDto } from './dto/pesees-stats.dto';
+import { PeseesEvolutionDto } from './dto/pesees-evolution.dto';
 
 @Injectable()
 export class ProductionService {
@@ -1004,5 +1006,477 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
     }
 
     return { success: true, pesees_recalculees: peseesResult.rows.length };
+  }
+
+  // ==================== STATISTIQUES ET ÉVOLUTION UNIFIÉES ====================
+
+  /**
+   * Calcule les statistiques globales des pesées pour un projet (mode individuel ou bande)
+   */
+  async getPeseesStats(
+    projetId: string,
+    mode: 'individuel' | 'bande',
+    periode: '7j' | '30j' | '90j' | 'tout',
+    userId: string
+  ) {
+    await this.checkProjetOwnership(projetId, userId);
+
+    const now = new Date();
+    let dateDebut: Date;
+
+    switch (periode) {
+      case '7j':
+        dateDebut = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case '30j':
+        dateDebut = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      case '90j':
+        dateDebut = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        break;
+      case 'tout':
+        dateDebut = new Date(0); // Date très ancienne
+        break;
+    }
+
+    if (mode === 'individuel') {
+      // Mode individuel : Statistiques depuis production_pesees
+      const result = await this.databaseService.query(
+        `SELECT 
+          COUNT(DISTINCT pp.id) as total_pesees,
+          COUNT(DISTINCT pp.animal_id) as total_animaux,
+          AVG(pp.poids_kg)::numeric(10,2) as poids_moyen,
+          MAX(pp.date) as derniere_pesee_date
+        FROM production_pesees pp
+        JOIN production_animaux pa ON pp.animal_id = pa.id
+        WHERE pa.projet_id = $1 
+          AND pp.date >= $2
+          AND pa.actif = true`,
+        [projetId, dateDebut.toISOString()]
+      );
+
+      const stats = result.rows[0];
+      const poidsMoyen = parseFloat(stats.poids_moyen || '0');
+
+      // Calculer GMQ moyen
+      const gmqResult = await this.databaseService.query(
+        `SELECT AVG(pp.gmq)::numeric(10,2) as gmq_moyen
+        FROM production_pesees pp
+        JOIN production_animaux pa ON pp.animal_id = pa.id
+        WHERE pa.projet_id = $1 
+          AND pp.date >= $2
+          AND pa.actif = true
+          AND pp.gmq IS NOT NULL`,
+        [projetId, dateDebut.toISOString()]
+      );
+      const gmqMoyen = parseFloat(gmqResult.rows[0]?.gmq_moyen || '0') * 1000; // Convertir en g/j
+
+      // Compter les animaux en retard (dernière pesée > 7 jours)
+      const retardResult = await this.databaseService.query(
+        `SELECT COUNT(DISTINCT pa.id) as nb_en_retard
+        FROM production_animaux pa
+        LEFT JOIN LATERAL (
+          SELECT date 
+          FROM production_pesees 
+          WHERE animal_id = pa.id 
+          ORDER BY date DESC 
+          LIMIT 1
+        ) derniere_pesee ON true
+        WHERE pa.projet_id = $1 
+          AND pa.actif = true
+          AND (derniere_pesee.date IS NULL OR derniere_pesee.date < $2)`,
+        [projetId, new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()]
+      );
+      const nbEnRetard = parseInt(retardResult.rows[0]?.nb_en_retard || '0');
+
+      // Objectifs atteints (pour l'instant, retourner 0 car pas implémenté)
+      const objectifsAtteints = 0;
+
+      return {
+        poids_moyen: poidsMoyen,
+        gmq_moyen: Math.round(gmqMoyen),
+        derniere_pesee_date: stats.derniere_pesee_date || null,
+        nb_en_retard: nbEnRetard,
+        objectifs_atteints: objectifsAtteints,
+        total_animaux: parseInt(stats.total_animaux || '0'),
+      };
+    } else {
+      // Mode bande : Statistiques depuis batch_weighings
+      const result = await this.databaseService.query(
+        `SELECT 
+          COUNT(DISTINCT bw.id) as total_pesees,
+          COUNT(DISTINCT b.id) as total_loges,
+          SUM(b.total_count) as total_animaux,
+          AVG(bw.average_weight_kg)::numeric(10,2) as poids_moyen,
+          MAX(bw.weighing_date) as derniere_pesee_date
+        FROM batch_weighings bw
+        JOIN batches b ON bw.batch_id = b.id
+        WHERE b.projet_id = $1 
+          AND bw.weighing_date >= $2`,
+        [projetId, dateDebut.toISOString()]
+      );
+
+      const stats = result.rows[0];
+      const poidsMoyen = parseFloat(stats.poids_moyen || '0');
+
+      // Calculer GMQ moyen (moyenne des GMQ calculés par batch)
+      const gmqResult = await this.databaseService.query(
+        `SELECT AVG(gmq)::numeric(10,2) as gmq_moyen
+        FROM (
+          SELECT 
+            b.id as batch_id,
+            (MAX(bw.average_weight_kg) - MIN(bw.average_weight_kg)) / 
+            NULLIF(EXTRACT(EPOCH FROM (MAX(bw.weighing_date) - MIN(bw.weighing_date))) / 86400, 0) * 1000 as gmq
+          FROM batch_weighings bw
+          JOIN batches b ON bw.batch_id = b.id
+          WHERE b.projet_id = $1 
+            AND bw.weighing_date >= $2
+          GROUP BY b.id
+          HAVING COUNT(bw.id) >= 2
+        ) batch_gmq`,
+        [projetId, dateDebut.toISOString()]
+      );
+      const gmqMoyen = parseFloat(gmqResult.rows[0]?.gmq_moyen || '0');
+
+      // Compter les batches en retard (dernière pesée > 7 jours ou pas de pesée)
+      const dateLimiteRetard = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const retardResult = await this.databaseService.query(
+        `SELECT COUNT(DISTINCT b.id) as nb_en_retard
+        FROM batches b
+        LEFT JOIN LATERAL (
+          SELECT weighing_date 
+          FROM batch_weighings 
+          WHERE batch_id = b.id 
+          ORDER BY weighing_date DESC 
+          LIMIT 1
+        ) derniere_pesee ON true
+        WHERE b.projet_id = $1 
+          AND (derniere_pesee.weighing_date IS NULL OR derniere_pesee.weighing_date < $2)`,
+        [projetId, dateLimiteRetard.toISOString()]
+      );
+      const nbEnRetard = parseInt(retardResult.rows[0]?.nb_en_retard || '0');
+
+      // Objectifs atteints (pour l'instant, retourner 0)
+      const objectifsAtteints = 0;
+
+      return {
+        poids_moyen: poidsMoyen,
+        gmq_moyen: Math.round(gmqMoyen),
+        derniere_pesee_date: stats.derniere_pesee_date || null,
+        nb_en_retard: nbEnRetard,
+        objectifs_atteints: objectifsAtteints,
+        total_animaux: parseInt(stats.total_animaux || '0'),
+      };
+    }
+  }
+
+  /**
+   * Récupère l'évolution du poids pour un projet (mode individuel ou bande)
+   */
+  async getPeseesEvolution(
+    projetId: string,
+    mode: 'individuel' | 'bande',
+    periode: '7j' | '30j' | '90j' | 'tout',
+    sujetIds: string[] | undefined,
+    userId: string
+  ) {
+    await this.checkProjetOwnership(projetId, userId);
+
+    const now = new Date();
+    let dateDebut: Date;
+
+    switch (periode) {
+      case '7j':
+        dateDebut = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case '30j':
+        dateDebut = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      case '90j':
+        dateDebut = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        break;
+      case 'tout':
+        dateDebut = new Date(0);
+        break;
+    }
+
+    if (mode === 'individuel') {
+      // Mode individuel
+      let query = `
+        SELECT 
+          pp.date,
+          pp.poids_kg,
+          pp.animal_id,
+          pa.code as animal_code
+        FROM production_pesees pp
+        JOIN production_animaux pa ON pp.animal_id = pa.id
+        WHERE pa.projet_id = $1 
+          AND pp.date >= $2
+          AND pa.actif = true
+      `;
+      const params: any[] = [projetId, dateDebut.toISOString()];
+
+      if (sujetIds && sujetIds.length > 0) {
+        query += ` AND pp.animal_id = ANY($${params.length + 1})`;
+        params.push(sujetIds);
+      }
+
+      query += ` ORDER BY pp.date ASC`;
+
+      const result = await this.databaseService.query(query, params);
+
+      // Grouper par date et calculer poids moyen
+      const byDate = new Map<string, { poids: number[]; count: number }>();
+      const byAnimal = new Map<string, { nom: string; poids: number[]; dates: string[] }>();
+
+      result.rows.forEach((row: any) => {
+        const dateKey = new Date(row.date).toISOString().split('T')[0];
+        if (!byDate.has(dateKey)) {
+          byDate.set(dateKey, { poids: [], count: 0 });
+        }
+        const dateData = byDate.get(dateKey)!;
+        dateData.poids.push(parseFloat(row.poids_kg));
+        dateData.count++;
+
+        // Par animal
+        if (!byAnimal.has(row.animal_id)) {
+          byAnimal.set(row.animal_id, {
+            nom: row.animal_code || row.animal_id.slice(-4),
+            poids: [],
+            dates: [],
+          });
+        }
+        const animalData = byAnimal.get(row.animal_id)!;
+        animalData.dates.push(dateKey);
+        animalData.poids.push(parseFloat(row.poids_kg));
+      });
+
+      const dates = Array.from(byDate.keys()).sort();
+      const poidsMoyens = dates.map((date) => {
+        const data = byDate.get(date)!;
+        return data.poids.reduce((a, b) => a + b, 0) / data.poids.length;
+      });
+
+      // Calculer métriques globales
+      const firstPoids = poidsMoyens[0] || 0;
+      const lastPoids = poidsMoyens[poidsMoyens.length - 1] || 0;
+      const gainTotal = lastPoids - firstPoids;
+      const joursTotal = dates.length > 1
+        ? Math.floor((new Date(dates[dates.length - 1]).getTime() - new Date(dates[0]).getTime()) / (1000 * 60 * 60 * 24))
+        : 0;
+      const gmq = joursTotal > 0 ? (gainTotal / joursTotal) * 1000 : 0;
+
+      // Par sujet (si sujetIds fourni)
+      const parSujet: Record<string, { nom: string; poids: number[] }> = {};
+      if (sujetIds && sujetIds.length > 0) {
+        sujetIds.forEach((animalId) => {
+          const animalData = byAnimal.get(animalId);
+          if (animalData) {
+            parSujet[animalId] = {
+              nom: animalData.nom,
+              poids: animalData.poids,
+            };
+          }
+        });
+      }
+
+      return {
+        dates,
+        poids_moyens: poidsMoyens,
+        poids_initial: firstPoids,
+        poids_actuel: lastPoids,
+        gain_total: gainTotal,
+        gmq: Math.round(gmq),
+        par_sujet: Object.keys(parSujet).length > 0 ? parSujet : undefined,
+      };
+    } else {
+      // Mode bande
+      let query = `
+        SELECT 
+          bw.weighing_date as date,
+          bw.average_weight_kg,
+          bw.count,
+          bw.batch_id,
+          b.pen_name
+        FROM batch_weighings bw
+        JOIN batches b ON bw.batch_id = b.id
+        WHERE b.projet_id = $1 
+          AND bw.weighing_date >= $2
+      `;
+      const params: any[] = [projetId, dateDebut.toISOString()];
+
+      if (sujetIds && sujetIds.length > 0) {
+        query += ` AND bw.batch_id = ANY($${params.length + 1})`;
+        params.push(sujetIds);
+      }
+
+      query += ` ORDER BY bw.weighing_date ASC`;
+
+      const result = await this.databaseService.query(query, params);
+
+      // Grouper par date et calculer poids total (somme des poids moyens * count)
+      const byDate = new Map<string, { poidsTotal: number; countTotal: number }>();
+      const byBatch = new Map<string, { nom: string; poids: number[]; dates: string[] }>();
+
+      result.rows.forEach((row: any) => {
+        const dateKey = new Date(row.date).toISOString().split('T')[0];
+        const poids = parseFloat(row.average_weight_kg || '0');
+        const count = parseInt(row.count || '1');
+
+        if (!byDate.has(dateKey)) {
+          byDate.set(dateKey, { poidsTotal: 0, countTotal: 0 });
+        }
+        const dateData = byDate.get(dateKey)!;
+        dateData.poidsTotal += poids * count;
+        dateData.countTotal += count;
+
+        // Par batch
+        if (!byBatch.has(row.batch_id)) {
+          byBatch.set(row.batch_id, {
+            nom: row.pen_name || row.batch_id.slice(-4),
+            poids: [],
+            dates: [],
+          });
+        }
+        const batchData = byBatch.get(row.batch_id)!;
+        batchData.dates.push(dateKey);
+        batchData.poids.push(poids);
+      });
+
+      const dates = Array.from(byDate.keys()).sort();
+      const poidsMoyens = dates.map((date) => {
+        const data = byDate.get(date)!;
+        return data.countTotal > 0 ? data.poidsTotal / data.countTotal : 0;
+      });
+
+      // Calculer métriques globales
+      const firstPoids = poidsMoyens[0] || 0;
+      const lastPoids = poidsMoyens[poidsMoyens.length - 1] || 0;
+      const gainTotal = lastPoids - firstPoids;
+      const joursTotal = dates.length > 1
+        ? Math.floor((new Date(dates[dates.length - 1]).getTime() - new Date(dates[0]).getTime()) / (1000 * 60 * 60 * 24))
+        : 0;
+      const gmq = joursTotal > 0 ? (gainTotal / joursTotal) * 1000 : 0;
+
+      // Par sujet (si sujetIds fourni)
+      const parSujet: Record<string, { nom: string; poids: number[] }> = {};
+      if (sujetIds && sujetIds.length > 0) {
+        sujetIds.forEach((batchId) => {
+          const batchData = byBatch.get(batchId);
+          if (batchData) {
+            parSujet[batchId] = {
+              nom: batchData.nom,
+              poids: batchData.poids,
+            };
+          }
+        });
+      }
+
+      return {
+        dates,
+        poids_moyens: poidsMoyens,
+        poids_initial: firstPoids,
+        poids_actuel: lastPoids,
+        gain_total: gainTotal,
+        gmq: Math.round(gmq),
+        par_sujet: Object.keys(parSujet).length > 0 ? parSujet : undefined,
+      };
+    }
+  }
+
+  /**
+   * Récupère les détails complets des pesées d'un animal avec métriques
+   */
+  async getAnimalPeseesDetail(animalId: string, userId: string) {
+    await this.checkAnimalOwnership(animalId, userId);
+
+    // Récupérer l'animal
+    const animalResult = await this.databaseService.query(
+      `SELECT * FROM production_animaux WHERE id = $1`,
+      [animalId]
+    );
+    if (animalResult.rows.length === 0) {
+      throw new NotFoundException('Animal introuvable');
+    }
+    const animal = animalResult.rows[0];
+
+    // Récupérer toutes les pesées
+    const peseesResult = await this.databaseService.query(
+      `SELECT * FROM production_pesees 
+       WHERE animal_id = $1 
+       ORDER BY date ASC`,
+      [animalId]
+    );
+
+    const pesees = peseesResult.rows.map((row) => ({
+      id: row.id,
+      date: row.date,
+      poids_kg: parseFloat(row.poids_kg),
+      commentaire: row.commentaire,
+      gmq: row.gmq ? parseFloat(row.gmq) * 1000 : null, // Convertir en g/j
+    }));
+
+    // Calculer les métriques
+    const poidsActuel = pesees.length > 0 ? pesees[pesees.length - 1].poids_kg : parseFloat(animal.poids_initial || '0');
+    const poidsInitial = pesees.length > 0 ? pesees[0].poids_kg : parseFloat(animal.poids_initial || '0');
+    const gainTotal = poidsActuel - poidsInitial;
+
+    // GMQ moyen
+    let gmqMoyen = 0;
+    if (pesees.length >= 2) {
+      const premiereDate = new Date(pesees[0].date);
+      const derniereDate = new Date(pesees[pesees.length - 1].date);
+      const jours = Math.max(1, Math.floor((derniereDate.getTime() - premiereDate.getTime()) / (1000 * 60 * 60 * 24)));
+      gmqMoyen = (gainTotal / jours) * 1000;
+    }
+
+    // Âge en jours
+    const dateNaissance = new Date(animal.date_naissance);
+    const ageJours = Math.floor((new Date().getTime() - dateNaissance.getTime()) / (1000 * 60 * 60 * 24));
+
+    // Vérifier si en retard (dernière pesée > 7 jours)
+    const dernierePeseeDate = pesees.length > 0 ? new Date(pesees[pesees.length - 1].date) : null;
+    const enRetard = !dernierePeseeDate || 
+      (new Date().getTime() - dernierePeseeDate.getTime()) > 7 * 24 * 60 * 60 * 1000;
+
+    // Moyennes du cheptel (pour comparaison)
+    const cheptelResult = await this.databaseService.query(
+      `SELECT 
+        AVG(pp.poids_kg)::numeric(10,2) as poids_moyen,
+        AVG(pp.gmq)::numeric(10,2) as gmq_moyen
+      FROM production_pesees pp
+      JOIN production_animaux pa ON pp.animal_id = pa.id
+      WHERE pa.projet_id = $1 
+        AND pa.actif = true
+        AND pp.gmq IS NOT NULL
+        AND pp.date >= NOW() - INTERVAL '30 days'`,
+      [animal.projet_id]
+    );
+    const moyenneCheptelPoids = parseFloat(cheptelResult.rows[0]?.poids_moyen || '0');
+    const moyenneCheptelGmq = parseFloat(cheptelResult.rows[0]?.gmq_moyen || '0') * 1000;
+
+    return {
+      animal: {
+        id: animal.id,
+        code: animal.code,
+        race: animal.race,
+        sexe: animal.sexe,
+        date_naissance: animal.date_naissance,
+      },
+      pesees,
+      metriques: {
+        poids_actuel: poidsActuel,
+        poids_initial: poidsInitial,
+        gain_total: gainTotal,
+        gmq_moyen: Math.round(gmqMoyen),
+        age_jours: ageJours,
+        objectif_poids: null, // À implémenter plus tard
+        objectif_date: null,
+        progression_objectif: null,
+        en_retard: enRetard,
+        moyenne_cheptel_poids: moyenneCheptelPoids,
+        moyenne_cheptel_gmq: Math.round(moyenneCheptelGmq),
+      },
+    };
   }
 }

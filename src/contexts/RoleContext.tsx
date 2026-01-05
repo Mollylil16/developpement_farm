@@ -52,16 +52,24 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
    * Détermine le rôle par défaut pour un utilisateur
    */
   const determineDefaultRole = useCallback((user: User): RoleType => {
+    // Si l'utilisateur a un activeRole défini, l'utiliser
+    if (user.activeRole) {
+      return user.activeRole;
+    }
+
     // Si l'utilisateur a des rôles définis, prendre le premier disponible
+    // Ordre de priorité : buyer > veterinarian > technician > producer
+    // (pour éviter de forcer producer par défaut)
     if (user.roles) {
-      if (user.roles.producer) return 'producer';
       if (user.roles.buyer) return 'buyer';
       if (user.roles.veterinarian) return 'veterinarian';
       if (user.roles.technician) return 'technician';
+      if (user.roles.producer) return 'producer';
     }
 
-    // Par défaut, tous les utilisateurs existants sont producteurs
-    return 'producer';
+    // Par défaut, retourner buyer (plus neutre que producer)
+    // L'utilisateur pourra ajouter d'autres profils plus tard
+    return 'buyer';
   }, []);
 
   /**
@@ -69,8 +77,9 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
    */
   const availableRoles = useMemo((): RoleType[] => {
     if (!userFromRedux?.roles) {
-      // Si pas de rôles définis, considérer comme producteur (compatibilité)
-      return ['producer'];
+      // Si pas de rôles définis, retourner tableau vide
+      // L'utilisateur devra sélectionner un profil lors de l'onboarding
+      return [];
     }
 
     const roles: RoleType[] = [];
@@ -79,8 +88,8 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (userFromRedux.roles.veterinarian) roles.push('veterinarian');
     if (userFromRedux.roles.technician) roles.push('technician');
 
-    // Si aucun rôle, retourner producteur par défaut
-    return roles.length > 0 ? roles : ['producer'];
+    // Si aucun rôle, retourner tableau vide
+    return roles;
   }, [userFromRedux]);
 
   /**
@@ -180,14 +189,14 @@ export const useRole = (): RoleContextType => {
     }
     return {
       currentUser: null,
-      activeRole: 'producer',
-      availableRoles: ['producer'],
+      activeRole: 'buyer',
+      availableRoles: [],
       switchRole: async () => {
         throw new Error('RoleProvider non disponible');
       },
       hasRole: () => false,
-      isProducer: true,
-      isBuyer: false,
+      isProducer: false,
+      isBuyer: true,
       isVeterinarian: false,
       isTechnician: false,
     };

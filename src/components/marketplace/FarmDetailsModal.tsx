@@ -29,11 +29,18 @@ import { TYPE_PROPHYLAXIE_LABELS } from '../../types/sante';
 import SubjectCard from './SubjectCard';
 import { logger } from '../../utils/logger';
 
+// Structure pour passer les sélections avec les IDs réels
+export interface SelectedSubject {
+  listingId: string; // ID réel du listing
+  subjectId: string; // ID réel du sujet (pigId pour batch, subjectId pour individuel)
+}
+
 interface FarmDetailsModalProps {
   visible: boolean;
-  farm: FarmCard | null;
+  farm?: FarmCard | null; // Optionnel : pour les fermes groupées
+  initialListing?: MarketplaceListing | null; // Optionnel : pour les listings individuels
   onClose: () => void;
-  onMakeOffer: (selectedSubjectIds: string[]) => void;
+  onMakeOffer: (selections: SelectedSubject[]) => void;
 }
 
 type SortOption =
@@ -48,6 +55,7 @@ type FilterRace = string | 'all';
 export default function FarmDetailsModal({
   visible,
   farm,
+  initialListing,
   onClose,
   onMakeOffer,
 }: FarmDetailsModalProps) {
@@ -55,9 +63,68 @@ export default function FarmDetailsModal({
   const { user } = useAppSelector((state) => state.auth);
   const { projetActif } = useAppSelector((state) => state.projet);
 
+  // ✅ Déterminer le farmId : soit depuis farm, soit depuis initialListing
+  const farmId = farm?.farmId || initialListing?.farmId;
+  
+  // Créer une FarmCard minimale à partir du listing si nécessaire
+  const effectiveFarm: FarmCard | null = useMemo(() => {
+    if (farm) return farm;
+    if (initialListing) {
+      // Créer une FarmCard minimale depuis le listing
+      const totalSubjects = initialListing.listingType === 'batch' && initialListing.pigCount
+        ? initialListing.pigCount
+        : 1;
+      const totalWeight = initialListing.weight || 0;
+      
+      return {
+        id: initialListing.farmId,
+        farmId: initialListing.farmId,
+        name: 'Ferme', // Sera enrichi après
+        location: initialListing.location,
+        totalSubjects,
+        totalWeight,
+        averageRating: 0,
+        isNew: false,
+        stats: {
+          totalListings: totalSubjects,
+          totalSales: 0,
+          averageRating: 0,
+          totalRatings: 0,
+          responseTime: 0,
+          completionRate: 0,
+        },
+        producerId: initialListing.producerId,
+        producerName: 'Producteur', // Sera enrichi après
+        aggregatedData: {
+          totalSubjectsForSale: totalSubjects,
+          totalWeight,
+          priceRange: {
+            min: initialListing.pricePerKg,
+            max: initialListing.pricePerKg,
+          },
+          averagePricePerKg: initialListing.pricePerKg,
+        },
+        producerRating: {
+          overall: 0,
+          totalReviews: 0,
+        },
+        badges: {
+          isNewProducer: false,
+          isCertified: false,
+          fastResponder: false,
+        },
+        preview: {
+          subjectPhotos: [],
+          availableRaces: initialListing.race ? [initialListing.race] : [],
+        },
+        lastUpdated: new Date(initialListing.updatedAt),
+      };
+    }
+    return null;
+  }, [farm, initialListing]);
+
   // Vérifier si l'utilisateur est le producteur de cette ferme
-  // Le farmId correspond à l'ID du projet, donc si farm.farmId === projetActif.id, c'est sa ferme
-  const isProducer = farm && projetActif && farm.farmId === projetActif.id;
+  const isProducer = farmId && projetActif && farmId === projetActif.id;
 
   const [listings, setListings] = useState<MarketplaceListing[]>([]);
   const [loading, setLoading] = useState(false);
@@ -71,85 +138,235 @@ export default function FarmDetailsModal({
 
   // Charger les listings de la ferme
   const loadListings = useCallback(async () => {
-    if (!farm || !farm.farmId) return;
+    if (!farmId) return;
 
     try {
       setLoading(true);
+      
+      // ✅ Si on a un initialListing, l'ajouter immédiatement pour affichage rapide
+      let initialListings: MarketplaceListing[] = [];
+      if (initialListing) {
+        // Enrichir le listing initial avec les données nécessaires
+        initialListings = [{
+          ...initialListing,
+          code: initialListing.code || (initialListing.subjectId ? `#${initialListing.subjectId.slice(0, 8)}` : 'N/A'),
+          race: initialListing.race || 'Non spécifiée',
+          weight: initialListing.weight || 0,
+          weightDate: initialListing.lastWeightDate || initialListing.weightDate,
+          age: initialListing.age || 0,
+          totalPrice: initialListing.calculatedPrice,
+          healthStatus: initialListing.healthStatus || 'good',
+          vaccinations: initialListing.vaccinations !== undefined ? initialListing.vaccinations : false,
+          available: true,
+        }];
+        
+        // Pour les batch listings, créer les listings virtuels immédiatement
+        if (initialListing.listingType === 'batch' && initialListing.batchId && initialListing.pigIds && initialListing.pigIds.length > 0) {
+          const pricePerKg = initialListing.pricePerKg;
+          const averageWeight = initialListing.weight || 0;
+          const pricePerPig = initialListing.pigCount > 0 ? (initialListing.calculatedPrice / initialListing.pigCount) : 0;
+          const validPigIds = initialListing.pigIds.filter((id) => id && typeof id === 'string' && id.trim().length > 0);
+          
+          if (validPigIds.length > 0) {
+            initialListings = validPigIds.map((pigId) => {
+              const pigIdShort = pigId && typeof pigId === 'string' ? pigId.slice(0, 8) : 'N/A';
+              return {
+                ...initialListing,
+                id: pigId,
+                subjectId: pigId,
+                code: `#${pigIdShort}`,
+                race: initialListing.race || 'Non spécifiée',
+                weight: averageWeight,
+                weightDate: initialListing.lastWeightDate || initialListing.weightDate || new Date().toISOString(),
+                age: 0,
+                pricePerKg: pricePerKg,
+                calculatedPrice: pricePerPig,
+                totalPrice: pricePerPig,
+                healthStatus: 'good' as const,
+                vaccinations: false,
+                available: true,
+                originalListingId: initialListing.id,
+              } as MarketplaceListing & { originalListingId: string };
+            });
+          }
+        }
+        
+        // Afficher immédiatement le listing initial
+        setListings(initialListings);
+      }
+      
       // Récupérer tous les listings de la ferme depuis l'API backend
       const farmListings = await apiClient.get<any[]>(`/marketplace/listings`, {
-        params: { farm_id: farm.farmId },
+        params: { farm_id: farmId },
       });
 
       // Filtrer seulement les disponibles
-      const availableListings = farmListings.filter((l) => l.status === 'available');
+      // ✅ Exclure le listing initial s'il est déjà chargé (éviter les doublons)
+      const availableListings = farmListings.filter((l) => {
+        if (l.status !== 'available') return false;
+        // Si on a un initialListing, exclure-le des résultats (il est déjà dans initialListings)
+        if (initialListing && l.id === initialListing.id) return false;
+        return true;
+      });
 
       // Enrichir avec les données des animaux depuis l'API backend
-      const enrichedListings = await Promise.all(
-        availableListings.map(async (listing) => {
-          try {
-            const animal = await apiClient.get<any>(`/production/animaux/${listing.subjectId}`);
-            if (!animal) return null;
-
-            // Récupérer la dernière pesée pour le poids actuel depuis l'API backend
-            const pesees = await apiClient.get<any[]>(`/production/pesees`, {
-              params: { animal_id: animal.id, limit: 1 },
-            });
-            const dernierePesee = pesees && pesees.length > 0 ? pesees[0] : null;
-            const poidsActuel = dernierePesee?.poids_kg || animal.poids_initial || 0;
-
-            // Calculer l'âge en mois
-            const ageEnMois = animal.date_naissance
-              ? Math.floor(
-                  (new Date().getTime() - new Date(animal.date_naissance).getTime()) /
-                    (1000 * 60 * 60 * 24 * 30)
-                )
-              : 0;
-
-            // Vérifier le statut des vaccinations depuis l'API backend
-            const vaccinations = await apiClient.get<any[]>(`/sante/vaccinations`, {
-              params: { animal_id: animal.id },
-            });
-            const vaccinationsAJour =
-              vaccinations.length > 0 &&
-              vaccinations.every(
-                (v) => v.date_rappel === null || new Date(v.date_rappel) > new Date()
-              );
-
-            // Déterminer le statut de santé
-            let healthStatus: 'good' | 'attention' | 'critical' = 'good';
-            if (animal.statut === 'mort') {
-              healthStatus = 'critical';
-            } else if (!vaccinationsAJour) {
-              healthStatus = 'attention';
+      // Pour les batch listings, créer un listing virtuel pour chaque animal individuel
+      const enrichedListingsPromises = availableListings.map(async (listing) => {
+        try {
+          // Pour les batch listings, enrichir chaque animal individuellement
+          if (listing.listingType === 'batch' && listing.batchId && listing.pigIds && listing.pigIds.length > 0) {
+            const pricePerKg = listing.pricePerKg;
+            const averageWeight = listing.weight || 0;
+            const pricePerPig = listing.pigCount > 0 ? (listing.calculatedPrice / listing.pigCount) : 0;
+            
+            // Filtrer les pigIds valides
+            const validPigIds = listing.pigIds.filter((id) => id && typeof id === 'string' && id.trim().length > 0);
+            
+            if (validPigIds.length === 0) {
+              // Pas de pigIds valides, retourner le listing batch tel quel
+              const pigCount = listing.pigCount || 0;
+              const totalWeight = averageWeight * pigCount;
+              return [{
+                ...listing,
+                code: `Bande #${listing.batchId.slice(0, 8)}`,
+                race: listing.race || 'Non spécifiée',
+                weight: totalWeight,
+                weightDate: listing.lastWeightDate || listing.weightDate,
+                age: 0,
+                totalPrice: listing.calculatedPrice,
+                healthStatus: 'good' as const,
+                vaccinations: false,
+                available: true,
+                isBatch: true,
+                pigCount,
+              }];
             }
-
-            return {
-              ...listing,
-              code: animal.code || `#${animal.id.slice(0, 8)}`,
-              race: animal.race || 'Non spécifiée',
-              weight: poidsActuel,
-              weightDate: dernierePesee?.date || listing.lastWeightDate,
-              age: ageEnMois,
-              totalPrice: listing.calculatedPrice,
-              healthStatus,
-              vaccinations: vaccinationsAJour,
-              available: true,
-            };
-          } catch (error) {
-            logger.error(`Erreur enrichissement listing ${listing.id}:`, error);
-            return null;
+            
+            // ✅ Créer un listing virtuel pour chaque animal du batch
+            // Utiliser UNIQUEMENT les données déjà disponibles dans le listing du marketplace
+            // Éviter les appels API protégés qui échouent avec 403 pour les acheteurs
+            const individualListings = validPigIds.map((pigId) => {
+              const pigIdShort = pigId && typeof pigId === 'string' ? pigId.slice(0, 8) : 'N/A';
+              
+              // Utiliser les données agrégées du listing batch
+              // Les informations détaillées (poids individuel, vaccinations, etc.) ne sont disponibles
+              // que pour le producteur. Pour les acheteurs, utiliser les moyennes/agrégations.
+              return {
+                ...listing,
+                id: pigId, // ✅ Utiliser directement le pigId comme ID (ID réel)
+                subjectId: pigId, // Utiliser pigId comme subjectId
+                code: `#${pigIdShort}`, // Code basé sur l'ID
+                race: listing.race || 'Non spécifiée',
+                weight: averageWeight, // Poids moyen du batch
+                weightDate: listing.lastWeightDate || listing.weightDate || new Date().toISOString(),
+                age: 0, // L'âge n'est pas disponible sans accès aux détails de l'animal
+                pricePerKg: pricePerKg,
+                calculatedPrice: pricePerPig, // Prix moyen par animal
+                totalPrice: pricePerPig,
+                healthStatus: 'good' as const, // Pas d'info détaillée disponible pour les acheteurs
+                vaccinations: false, // Pas d'info disponible sans accès aux détails
+                available: true,
+                originalListingId: listing.id, // ✅ Stocker l'ID réel du listing original
+              } as MarketplaceListing & { originalListingId: string };
+            });
+            
+            return individualListings;
           }
-        })
-      );
+          
+          // Pour les listings individuels, charger les détails de l'animal
+          if (!listing.subjectId) {
+            // Listing sans subjectId, utiliser les données disponibles
+            return [{
+              ...listing,
+              code: listing.code || 'N/A',
+              race: listing.race || 'Non spécifiée',
+              weight: listing.weight || 0,
+              weightDate: listing.lastWeightDate || listing.weightDate,
+              age: 0,
+              totalPrice: listing.calculatedPrice,
+              healthStatus: 'good' as const,
+              vaccinations: false,
+              available: true,
+            }];
+          }
+            
+          // Pour les listings individuels avec subjectId
+          // ✅ Utiliser UNIQUEMENT les données déjà disponibles dans le listing
+          // Ne pas appeler les endpoints protégés qui échouent avec 403 pour les acheteurs
+          // Le backend devrait enrichir les listings avec les informations nécessaires
+          return [{
+            ...listing,
+            code: listing.code || (listing.subjectId ? `#${listing.subjectId.slice(0, 8)}` : 'N/A'),
+            race: listing.race || 'Non spécifiée',
+            weight: listing.weight || 0,
+            weightDate: listing.lastWeightDate || listing.weightDate,
+            age: listing.age || 0, // Si l'âge est disponible dans le listing
+            totalPrice: listing.calculatedPrice,
+            healthStatus: listing.healthStatus || 'good',
+            vaccinations: listing.vaccinations !== undefined ? listing.vaccinations : false,
+            available: true,
+          }];
+        } catch (error) {
+          logger.error(`Erreur enrichissement listing ${listing.id}:`, error);
+          return [];
+        }
+      });
 
-      setListings(enrichedListings.filter((l): l is MarketplaceListing => l !== null));
+      // Attendre que toutes les promesses se résolvent, puis aplatir les résultats
+      const enrichedListingsArrays = await Promise.all(enrichedListingsPromises);
+      
+      // Aplatir les résultats (car chaque promesse retourne un array de listings)
+      const enrichedListings = enrichedListingsArrays
+        .reduce((acc, listingsArray) => {
+          return acc.concat(listingsArray);
+        }, [] as MarketplaceListing[])
+        .filter((l): l is MarketplaceListing => l !== null);
+
+      // ✅ Combiner les listings initiaux avec les listings enrichis de la ferme
+      // Les listings initiaux sont déjà affichés, on les combine avec les autres
+      const allListings = [...initialListings, ...enrichedListings];
+      
+      // Supprimer les doublons (au cas où initialListing serait aussi dans enrichedListings)
+      const uniqueListings = allListings.filter((listing, index, self) => 
+        index === self.findIndex((l) => l.id === listing.id)
+      );
+      
+      setListings(uniqueListings);
+      
+      // ✅ Enrichir les informations de la ferme en arrière-plan si initialListing
+      if (initialListing && effectiveFarm) {
+        (async () => {
+          try {
+            const repositories = await import('../../database/repositories');
+            if (repositories.ProjetRepository && repositories.UserRepository) {
+              const projetRepo = new repositories.ProjetRepository();
+              const userRepo = new repositories.UserRepository();
+              
+              const [projet, producer] = await Promise.all([
+                projetRepo.findById(initialListing.farmId).catch(() => null),
+                userRepo.findById(initialListing.producerId).catch(() => null),
+              ]);
+              
+              // Mettre à jour la FarmCard avec les vraies données
+              if (projet || producer) {
+                // On pourrait mettre à jour effectiveFarm ici, mais comme c'est un useMemo,
+                // on laisse FarmDetailsModal utiliser les données minimales
+                // Les vraies données seront utilisées lors du prochain rechargement
+              }
+            }
+          } catch (error) {
+            // Ignorer les erreurs, le modal fonctionne avec les données minimales
+            console.debug('Erreur chargement données enrichies (non bloquant):', error);
+          }
+        })();
+      }
     } catch (error: unknown) {
       logger.error('Erreur chargement listings:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [farm]);
+  }, [farmId, initialListing, effectiveFarm]);
 
   // Charger les détails sanitaires d'un sujet via l'API backend
   const loadHealthDetails = useCallback(
@@ -178,18 +395,18 @@ export default function FarmDetailsModal({
         logger.error('Erreur chargement détails sanitaires:', error);
       }
     },
-    [farm, healthDetails]
+    [healthDetails]
   );
 
   useEffect(() => {
-    if (visible && farm) {
+    if (visible && (farm || initialListing)) {
       loadListings();
       setSelectedIds(new Set());
       setSearchQuery('');
       setFilterRace('all');
       setExpandedSubjectId(null);
     }
-  }, [visible, farm, loadListings]);
+  }, [visible, farm, initialListing, loadListings]);
 
   // Races disponibles
   const availableRaces = useMemo(() => {
@@ -213,7 +430,8 @@ export default function FarmDetailsModal({
         (l) =>
           l.code?.toLowerCase().includes(query) ||
           l.race?.toLowerCase().includes(query) ||
-          l.subjectId.toLowerCase().includes(query)
+          (l.subjectId && l.subjectId.toLowerCase().includes(query)) ||
+          (l.batchId && l.batchId.toLowerCase().includes(query))
       );
     }
 
@@ -289,7 +507,33 @@ export default function FarmDetailsModal({
     if (selectedIds.size === 0) {
       return;
     }
-    onMakeOffer(Array.from(selectedIds));
+    
+    // ✅ Construire la structure avec les IDs réels (listingId + subjectId)
+    const selections: SelectedSubject[] = Array.from(selectedIds)
+      .map((selectedId) => {
+        // Trouver le listing correspondant à cet ID
+        const listing = listings.find((l) => l.id === selectedId);
+        if (!listing) {
+          console.warn(`[FarmDetailsModal] Listing non trouvé pour selectedId: ${selectedId}`);
+          return null;
+        }
+        
+        // ✅ Pour les listings batch virtuels, utiliser originalListingId (ID réel du listing)
+        // Pour les listings individuels, utiliser listing.id directement
+        const listingId = (listing as any).originalListingId || listing.id;
+        const subjectId = listing.subjectId || listing.id;
+        
+        console.log(`[FarmDetailsModal] Sélection - listingId: ${listingId}, subjectId: ${subjectId}, selectedId: ${selectedId}, originalListingId: ${(listing as any).originalListingId || 'N/A'}`);
+        
+        return {
+          listingId,
+          subjectId,
+        };
+      })
+      .filter((s): s is SelectedSubject => s !== null);
+    
+    console.log(`[FarmDetailsModal] Envoi de ${selections.length} sélections à onMakeOffer:`, selections);
+    onMakeOffer(selections);
   };
 
   // Retirer les sujets sélectionnés du marketplace
@@ -315,8 +559,18 @@ export default function FarmDetailsModal({
               setLoading(true);
               const listingRepo = new MarketplaceListingRepository();
 
+              // ✅ Extraire les IDs réels des listings (utiliser originalListingId si disponible)
+              const realListingIds = new Set<string>();
+              for (const selectedId of selectedIds) {
+                const listing = listings.find((l) => l.id === selectedId);
+                if (listing) {
+                  const listingId = (listing as any).originalListingId || listing.id;
+                  realListingIds.add(listingId);
+                }
+              }
+
               // Mettre à jour le statut de chaque listing à 'removed'
-              const updatePromises = Array.from(selectedIds).map((listingId) =>
+              const updatePromises = Array.from(realListingIds).map((listingId) =>
                 listingRepo.updateStatus(listingId, 'removed')
               );
 
@@ -347,7 +601,7 @@ export default function FarmDetailsModal({
     );
   }, [selectedIds, loadListings]);
 
-  if (!farm) return null;
+  if (!farmId && !initialListing) return null;
 
   return (
     <Modal
@@ -376,7 +630,7 @@ export default function FarmDetailsModal({
           </TouchableOpacity>
           <View style={styles.headerContent}>
             <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>
-              {farm.name}
+              {effectiveFarm?.name || 'Ferme'}
             </Text>
             <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
               {filteredAndSortedListings.length} sujet

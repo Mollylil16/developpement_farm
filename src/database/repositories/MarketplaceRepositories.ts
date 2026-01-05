@@ -240,10 +240,28 @@ export class MarketplaceRatingRepository extends BaseRepository<ProducerRating> 
   }
 
   async getAverageRating(producerId: string): Promise<number> {
-    const result = await this.queryOne<{ avg: number }>(`${this.apiBasePath}/average`, {
-      producer_id: producerId,
-    });
-    return result?.avg || 0;
+    // Utiliser directement apiClient pour éviter que BaseRepository ne log l'erreur 404
+    // car cet endpoint n'est pas encore implémenté dans le backend
+    try {
+      const apiClient = (await import('../../services/api/apiClient')).default;
+      const result = await apiClient.get<{ avg: number }>(`${this.apiBasePath}/average`, {
+        params: { producer_id: producerId },
+      });
+      return result?.avg || 0;
+    } catch (error: any) {
+      // Si l'endpoint n'existe pas (404), calculer depuis les ratings récupérés
+      const status = error?.status || error?.statusCode;
+      if (status === 404) {
+        // Endpoint non implémenté, calculer manuellement sans logger l'erreur
+        const ratings = await this.findByProducerId(producerId);
+        if (ratings.length > 0) {
+          return ratings.reduce((sum, r) => sum + (r.overall || 0), 0) / ratings.length;
+        }
+        return 0;
+      }
+      // Pour les autres erreurs, les propager normalement
+      throw error;
+    }
   }
 
   private mapRow(row: unknown): ProducerRating {

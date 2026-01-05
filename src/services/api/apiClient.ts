@@ -533,9 +533,16 @@ async function executeHttpRequest<T>(
         errorMessage = `Erreur HTTP ${response.status}`;
       }
       
-      // Ne pas loguer les erreurs 404 attendues (rappels qui n'existent pas encore)
-      const isExpected404 = response.status === 404 && endpoint.includes('rappels-vaccinations');
-      if (!isExpected404) {
+      // Ne pas loguer les erreurs attendues dans certains contextes :
+      // - 404 sur rappels-vaccinations (rappels qui n'existent pas encore)
+      // - 403 sur batch-pigs/batch (acheteurs qui n'ont pas accès aux bandes d'autres producteurs - comportement normal dans le marketplace)
+      // - 404 sur marketplace/ratings/average (endpoint non implémenté, calcul manuel disponible)
+      const isExpectedError =
+        (response.status === 404 && endpoint.includes('rappels-vaccinations')) ||
+        (response.status === 403 && endpoint.includes('/batch-pigs/batch/')) ||
+        (response.status === 404 && endpoint.includes('/marketplace/ratings/average'));
+      
+      if (!isExpectedError) {
         logger.error(`Erreur API [${response.status}]: ${errorMessage}`, {
           endpoint,
           status: response.status,

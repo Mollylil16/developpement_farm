@@ -1,0 +1,12 @@
+0 verbose cli C:\Program Files\nodejs\node.exe C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js
+1 info using npm@11.6.2
+2 info using node@v25.0.0
+3 silly config load:file:C:\Program Files\nodejs\node_modules\npm\npmrc
+4 silly config load:file:C:\Users\HP\developpement_farm\.npmrc
+5 silly config load:file:C:\Users\HP\.npmrc
+6 silly config load:file:C:\Users\HP\AppData\Roaming\npm\etc\npmrc
+7 verbose title npm start
+8 verbose argv "start" "--cache" "--clear"
+9 verbose logfile logs-max:10 dir:C:\Users\HP\developpement_farm\--clear\_logs\2026-01-05T10_50_37_181Z-
+10 verbose logfile C:\Users\HP\developpement_farm\--clear\_logs\2026-01-05T10_50_37_181Z-debug-0.log
+11 silly logfile done cleaning log files

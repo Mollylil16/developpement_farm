@@ -54,6 +54,9 @@ import { useModeElevage } from '../hooks/useModeElevage';
 import BatchSelector from './sante/BatchSelector';
 import { Batch } from '../types/batch';
 import apiClient from '../services/api/apiClient';
+import BandeEnRetardGroup from './sante/BandeEnRetardGroup';
+import AnimauxSansBandeGroup from './sante/AnimauxSansBandeGroup';
+import AnimalEnRetardItem from './sante/AnimalEnRetardItem';
 
 // Activer LayoutAnimation sur Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -93,6 +96,8 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
   const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [nombreSujetsVaccines, setNombreSujetsVaccines] = useState('');
+  // Mapping animal_id -> batch_id pour le mode bande
+  const [animalBatchMap, setAnimalBatchMap] = useState<Map<string, string>>(new Map());
   
   // État pour génération des rappels
   const [generatingRappels, setGeneratingRappels] = useState(false);
@@ -142,6 +147,7 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
     useCallback(() => {
       if (!isModeBatch || !projetActif?.id) {
         setBatches([]);
+        setAnimalBatchMap(new Map());
         return;
       }
 
@@ -152,11 +158,30 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
           const data = await apiClient.get<Batch[]>(`/batch-pigs/projet/${projetActif.id}`);
           if (!cancelled) {
             setBatches(data || []);
+            
+            // Charger les batch_pigs pour créer le mapping animal_id -> batch_id
+            const map = new Map<string, string>();
+            for (const batch of data || []) {
+              try {
+                const batchPigs = await apiClient.get<any[]>(`/batch-pigs/batch/${batch.id}`);
+                batchPigs.forEach((pig) => {
+                  if (pig.id) {
+                    map.set(pig.id, batch.id);
+                  }
+                });
+              } catch (error) {
+                console.warn(`[VaccinationsComponentAccordion] Erreur chargement batch_pigs pour batch ${batch.id}:`, error);
+              }
+            }
+            if (!cancelled) {
+              setAnimalBatchMap(map);
+            }
           }
         } catch (error) {
           if (!cancelled) {
             console.error('[VaccinationsComponentAccordion] Erreur chargement bandes:', error);
             setBatches([]);
+            setAnimalBatchMap(new Map());
           }
         }
       };
@@ -1332,62 +1357,82 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
     );
   };
 
-  const renderCalendrier = (type: TypeProphylaxie, couleur: string) => {
-    const animauxActifs = (animaux || []).filter((a) => a.statut === 'actif');
+  // Fonction utilitaire pour calculer les animaux en retard
+  interface AnimalCalendrier {
+    animal: any;
+    nom: string;
+    categorie: string;
+    ageJours: number;
+    prochainTraitement?: any;
+    dernierTraitement?: Vaccination;
+    enRetard: boolean;
+  }
 
-    // Calculer les animaux en retard ou à venir pour ce type
-    const animauxCalendrier = animauxActifs
-      .map((animal) => {
-        if (!animal.date_naissance) return null;
+  const calculerAnimauxCalendrier = useCallback(
+    (type: TypeProphylaxie, animauxActifs: any[]): AnimalCalendrier[] => {
+      return animauxActifs
+        .map((animal) => {
+          if (!animal.date_naissance) return null;
 
-        const ageJours = calculerAgeJours(animal.date_naissance);
-        const traitementsType = CALENDRIER_VACCINAL_TYPE.filter(
-          (cal) => cal.type_prophylaxie === type
-        );
-
-        const prochainTraitement = traitementsType.find((traitement) => {
-          const aRecuTraitement = (vaccinations || []).some(
-            (v) =>
-              animalIncludedInVaccination(v.animal_ids, animal.id) &&
-              v.type_prophylaxie === traitement.type_prophylaxie &&
-              v.statut === 'effectue'
+          const ageJours = calculerAgeJours(animal.date_naissance);
+          const traitementsType = CALENDRIER_VACCINAL_TYPE.filter(
+            (cal) => cal.type_prophylaxie === type
           );
-          return !aRecuTraitement && traitement.age_jours <= ageJours + 7; // À faire dans 7 jours max
+
+          const prochainTraitement = traitementsType.find((traitement) => {
+            const aRecuTraitement = (vaccinations || []).some(
+              (v) =>
+                animalIncludedInVaccination(v.animal_ids, animal.id) &&
+                v.type_prophylaxie === traitement.type_prophylaxie &&
+                v.statut === 'effectue'
+            );
+            return !aRecuTraitement && traitement.age_jours <= ageJours + 7;
+          });
+
+          const dernierTraitement = (vaccinations || [])
+            .filter(
+              (v) =>
+                animalIncludedInVaccination(v.animal_ids, animal.id) && v.type_prophylaxie === type
+            )
+            .sort(
+              (a, b) =>
+                new Date(b.date_vaccination).getTime() - new Date(a.date_vaccination).getTime()
+            )[0];
+
+          if (!prochainTraitement && !dernierTraitement) return null;
+
+          const nom = animal.nom || animal.code || `Animal ${animal.id.slice(0, 6)}`;
+          const categorie = getCategorieAnimal(animal);
+
+          return {
+            animal,
+            nom,
+            categorie,
+            ageJours,
+            prochainTraitement,
+            dernierTraitement,
+            enRetard: prochainTraitement && prochainTraitement.age_jours < ageJours,
+          };
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null)
+        .sort((a, b) => {
+          // En retard d'abord
+          if (a.enRetard && !b.enRetard) return -1;
+          if (!a.enRetard && b.enRetard) return 1;
+          // Puis par âge décroissant
+          return b.ageJours - a.ageJours;
         });
+    },
+    [vaccinations]
+  );
 
-        const dernierTraitement = (vaccinations || [])
-          .filter(
-            (v) =>
-              animalIncludedInVaccination(v.animal_ids, animal.id) && v.type_prophylaxie === type
-          )
-          .sort(
-            (a, b) =>
-              new Date(b.date_vaccination).getTime() - new Date(a.date_vaccination).getTime()
-          )[0];
-
-        if (!prochainTraitement && !dernierTraitement) return null;
-
-        const nom = animal.nom || animal.code || `Animal ${animal.id.slice(0, 6)}`;
-        const categorie = getCategorieAnimal(animal);
-
-        return {
-          animal,
-          nom,
-          categorie,
-          ageJours,
-          prochainTraitement,
-          dernierTraitement,
-          enRetard: prochainTraitement && prochainTraitement.age_jours < ageJours,
-        };
-      })
-      .filter((item): item is NonNullable<typeof item> => item !== null)
-      .sort((a, b) => {
-        // En retard d'abord
-        if (a.enRetard && !b.enRetard) return -1;
-        if (!a.enRetard && b.enRetard) return 1;
-        // Puis par âge décroissant
-        return b.ageJours - a.ageJours;
-      });
+  // Mode individuel : affichage liste plate
+  const renderCalendrierIndividuel = (
+    type: TypeProphylaxie,
+    couleur: string,
+    animauxActifs: any[]
+  ) => {
+    const animauxCalendrier = calculerAnimauxCalendrier(type, animauxActifs);
 
     return (
       <View
@@ -1408,81 +1453,137 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
           </View>
         ) : (
           <ScrollView style={styles.calendrierListe} nestedScrollEnabled>
-            {animauxCalendrier.map((item, index) => (
-              <View
+            {animauxCalendrier.map((item) => (
+              <AnimalEnRetardItem
                 key={item.animal.id}
-                style={[
-                  styles.calendrierItem,
-                  {
-                    backgroundColor: colors.surface,
-                    borderLeftColor: item.enRetard ? colors.error : couleur,
-                    ...colors.shadow.small,
-                  },
-                ]}
-              >
-                <View style={styles.calendrierItemHeader}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.calendrierItemNom, { color: colors.text }]}>
-                      {item.nom}
-                    </Text>
-                    <Text style={[styles.calendrierItemDetails, { color: colors.textSecondary }]}>
-                      {item.categorie} • {item.ageJours}j
-                    </Text>
-                  </View>
-                  {item.enRetard && (
-                    <View style={[styles.badgeRetard, { backgroundColor: colors.error }]}>
-                      <Text style={styles.badgeRetardTexte}>En retard</Text>
-                    </View>
-                  )}
-                </View>
-
-                {item.dernierTraitement && (
-                  <View style={styles.calendrierItemRow}>
-                    <Ionicons name="checkmark-circle" size={14} color={colors.success} />
-                    <Text style={[styles.calendrierItemTexte, { color: colors.textSecondary }]}>
-                      Dernier :{' '}
-                      {new Date(item.dernierTraitement.date_vaccination).toLocaleDateString(
-                        'fr-FR'
-                      )}
-                    </Text>
-                  </View>
-                )}
-
-                {item.prochainTraitement && (
-                  <View style={styles.calendrierItemRow}>
-                    <Ionicons
-                      name="alarm"
-                      size={14}
-                      color={item.enRetard ? colors.error : couleur}
-                    />
-                    <Text style={[styles.calendrierItemTexte, { color: colors.textSecondary }]}>
-                      {item.prochainTraitement.nom_traitement} (
-                      {item.prochainTraitement.age_display})
-                    </Text>
-                  </View>
-                )}
-
-                <TouchableOpacity
-                  style={[styles.boutonVaccinerMaintenant, { backgroundColor: couleur }]}
-                  onPress={() => {
-                    // Pré-remplir le formulaire avec cet animal
-                    setAnimauxSelectionnes([item.animal.id]);
-                    if (item.prochainTraitement) {
-                      setProduitAdministre(item.prochainTraitement.nom_traitement);
-                      setDosage(item.prochainTraitement.dosage_recommande || '');
-                    }
-                    toggleSection(type);
-                  }}
-                >
-                  <Ionicons name="medical" size={16} color="#FFF" />
-                  <Text style={styles.boutonVaccinerMaintenantTexte}>Vacciner maintenant</Text>
-                </TouchableOpacity>
-              </View>
+                item={item}
+                couleur={couleur}
+                showVaccinerButton={true}
+                onVacciner={(animalId) => {
+                  setAnimauxSelectionnes([animalId]);
+                  if (item.prochainTraitement) {
+                    setProduitAdministre(item.prochainTraitement.nom_traitement);
+                    setDosage(item.prochainTraitement.dosage_recommande || '');
+                  }
+                  toggleSection(type);
+                }}
+              />
             ))}
           </ScrollView>
         )}
       </View>
     );
+  };
+
+  // Mode bande : affichage groupé par bande
+  const renderCalendrierBande = (
+    type: TypeProphylaxie,
+    couleur: string,
+    animauxActifs: any[]
+  ) => {
+    // Calculer les animaux en retard
+    const animauxCalendrier = calculerAnimauxCalendrier(type, animauxActifs);
+    const animauxEnRetard = animauxCalendrier.filter((item) => item.enRetard);
+
+    // Grouper par batch_id
+    const animauxParBande = useMemo(() => {
+      const grouped: { [batchId: string]: AnimalCalendrier[] } = {};
+      const sansBande: AnimalCalendrier[] = [];
+
+      animauxEnRetard.forEach((item) => {
+        const batchId = animalBatchMap.get(item.animal.id);
+        if (!batchId) {
+          sansBande.push(item);
+          return;
+        }
+
+        if (!grouped[batchId]) {
+          grouped[batchId] = [];
+        }
+        grouped[batchId].push(item);
+      });
+
+      return { grouped, sansBande };
+    }, [animauxEnRetard, animalBatchMap]);
+
+    // Récupérer les informations des bandes
+    const bandesAvecRetards = useMemo(() => {
+      return Object.entries(animauxParBande.grouped).map(([batchId, animaux]) => {
+        const batch = batches.find((b) => b.id === batchId);
+        return {
+          batchId,
+          batch: batch || null,
+          animaux,
+          nombreEnRetard: animaux.length,
+        };
+      });
+    }, [animauxParBande.grouped, batches]);
+
+    // Trier : bandes avec le plus de retards en premier
+    bandesAvecRetards.sort((a, b) => b.nombreEnRetard - a.nombreEnRetard);
+
+    return (
+      <View
+        style={[
+          styles.calendrierContainer,
+          { backgroundColor: `${couleur}10`, borderColor: couleur },
+        ]}
+      >
+        <Text style={[styles.calendrierTitre, { color: colors.text }]}>
+          📅 Calendrier de vaccination - {TYPE_PROPHYLAXIE_LABELS[type]}
+        </Text>
+
+        {bandesAvecRetards.length === 0 && animauxParBande.sansBande.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+              Aucun sujet en retard pour ce traitement
+            </Text>
+          </View>
+        ) : (
+          <ScrollView style={styles.calendrierListe} nestedScrollEnabled>
+            {/* Afficher les bandes avec retards */}
+            {bandesAvecRetards.map((bandeData) => (
+              <BandeEnRetardGroup
+                key={bandeData.batchId}
+                bandeData={bandeData}
+                type={type}
+                couleur={couleur}
+                onVaccinerBande={(batchId, animauxIds) => {
+                  const batch = batches.find((b) => b.id === batchId);
+                  setSelectedBatch(batch || null);
+                  setNombreSujetsVaccines(animauxIds.length.toString());
+                  toggleSection(type);
+                }}
+              />
+            ))}
+
+            {/* Afficher les animaux sans bande */}
+            {animauxParBande.sansBande.length > 0 && (
+              <AnimauxSansBandeGroup
+                animaux={animauxParBande.sansBande}
+                type={type}
+                couleur={couleur}
+                onVaccinerAnimal={(animalId) => {
+                  setAnimauxSelectionnes([animalId]);
+                  toggleSection(type);
+                }}
+              />
+            )}
+          </ScrollView>
+        )}
+      </View>
+    );
+  };
+
+  // Fonction principale adaptative
+  const renderCalendrier = (type: TypeProphylaxie, couleur: string) => {
+    const animauxActifs = (animaux || []).filter((a) => a.statut === 'actif');
+
+    if (isModeBatch) {
+      return renderCalendrierBande(type, couleur, animauxActifs);
+    } else {
+      return renderCalendrierIndividuel(type, couleur, animauxActifs);
+    }
   };
 
   return (

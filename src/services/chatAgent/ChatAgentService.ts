@@ -419,7 +419,8 @@ export class ChatAgentService {
           // Enregistrer dans le contexte
           this.conversationContext.setClarificationNeeded(
             clarificationMessage,
-            clarificationResult.clarification.missingParams
+            clarificationResult.clarification.missingParams,
+            undefined // clarificationType sera défini via metadata si nécessaire
           );
 
           return {
@@ -571,7 +572,8 @@ export class ChatAgentService {
             // Enregistrer la clarification dans le contexte
             this.conversationContext.setClarificationNeeded(
               actionResult.message,
-              actionResult.missingParams || []
+              actionResult.missingParams || [],
+              actionResult.clarificationType
             );
 
             assistantMessage = {

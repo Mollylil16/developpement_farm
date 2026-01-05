@@ -25,7 +25,7 @@ export { RappelVaccinationRepository } from './VaccinationRepository';
 export { MaladieRepository } from './MaladieRepository';
 export { TraitementRepository } from './TraitementRepository';
 export { VisiteVeterinaireRepository } from './VisiteVeterinaireRepository';
-export { MarketplaceListingRepository } from './MarketplaceRepositories';
+export { MarketplaceListingRepository } from './MarketplaceListingRepository';
 export { MarketplaceOfferRepository } from './MarketplaceRepositories';
 export { MarketplaceTransactionRepository } from './MarketplaceRepositories';
 export { MarketplaceRatingRepository } from './MarketplaceRepositories';

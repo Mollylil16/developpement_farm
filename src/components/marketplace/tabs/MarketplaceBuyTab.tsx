@@ -71,12 +71,28 @@ export default function MarketplaceBuyTab({
           <BatchListingCard
             listing={item}
             selected={false}
-            onPress={() => onListingPress(item)}
+            onPress={() => {
+              console.log('[MarketplaceBuyTab] Clic sur BatchListingCard', {
+                listingId: item.id,
+                listingType: item.listingType,
+                batchId: item.batchId,
+                status: item.status,
+                hasOnListingPress: !!onListingPress,
+              });
+              if (onListingPress) {
+                onListingPress(item);
+              } else {
+                console.warn('[MarketplaceBuyTab] onListingPress n\'est pas défini pour BatchListingCard');
+              }
+            }}
           />
         );
       }
 
       // Sinon, utiliser SubjectCard pour les listings individuels
+      // S'assurer que available est défini : un listing est disponible si status === 'available'
+      const available = item.status === 'available' && (item.available !== false);
+      
       return (
         <SubjectCard
           subject={{
@@ -90,10 +106,22 @@ export default function MarketplaceBuyTab({
             totalPrice: item.calculatedPrice,
             healthStatus: item.healthStatus || 'good',
             vaccinations: item.vaccinations || false,
-            available: item.available !== false,
+            available,
           }}
           selected={false}
-          onPress={() => onListingPress(item)}
+          onPress={() => {
+            console.log('[MarketplaceBuyTab] Clic sur SubjectCard', {
+              listingId: item.id,
+              subjectId: item.subjectId,
+              available,
+              status: item.status,
+            });
+            if (onListingPress) {
+              onListingPress(item);
+            } else {
+              console.warn('[MarketplaceBuyTab] onListingPress n\'est pas défini');
+            }
+          }}
         />
       );
     },

@@ -70,7 +70,7 @@ export function useChatAgent() {
   const [isThinking, setIsThinking] = useState(false); // Nouvel état pour la phase de réflexion
   const [isInitialized, setIsInitialized] = useState(false);
   const [reminders, setReminders] = useState<Reminder[]>([]);
-  const [voiceEnabled, setVoiceEnabled] = useState(true); // Activé par défaut pour la reconnaissance vocale
+  const [voiceEnabled, setVoiceEnabled] = useState(false); // Désactivé par défaut - l'utilisateur peut l'activer manuellement
 
   const agentServiceRef = useRef<GeminiConversationalAgent | null>(null);
   const remindersServiceRef = useRef<ProactiveRemindersService | null>(null);

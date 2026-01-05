@@ -51,8 +51,15 @@ export class MarketplaceController {
     @Body() createListingDto: CreateListingDto,
     @CurrentUser('id') userId: string
   ) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace.controller.ts:50',message:'Controller createListing appelé',data:{userId,producerId_from_body:createListingDto.producerId,farmId:createListingDto.farmId,subjectId:createListingDto.subjectId,userId_type:typeof userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     // Utiliser le nouveau service unifié
-    return this.marketplaceUnifiedService.createUnifiedListing(createListingDto, userId, 'individual');
+    const result = await this.marketplaceUnifiedService.createUnifiedListing(createListingDto, userId, 'individual');
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace.controller.ts:58',message:'Controller createListing terminé',data:{result_id:result?.id,result_producerId:result?.producerId,result_farmId:result?.farmId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    return result;
   }
 
   @Post('listings/batch')

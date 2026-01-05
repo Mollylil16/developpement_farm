@@ -541,7 +541,7 @@ export class AgentActionExecutor {
           action = {
             type: 'get_statistics',
             params: {
-              periode: functionArgs.periode,
+              periode: functionArgs?.periode || undefined,
             },
           };
           break;

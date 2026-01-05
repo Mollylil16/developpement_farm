@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import {
@@ -16,6 +17,8 @@ import {
 
 @Injectable()
 export class BatchPigsService {
+  private readonly logger = new Logger(BatchPigsService.name);
+
   constructor(private db: DatabaseService) {}
 
   /**
@@ -46,26 +49,61 @@ export class BatchPigsService {
     batchId: string,
     userId: string,
   ): Promise<void> {
-try {
+    try {
+      // Vérifier directement dans la requête SQL (comme checkProjetOwnership dans marketplace)
       const result = await this.db.query(
-        `SELECT b.projet_id, p.proprietaire_id 
+        `SELECT b.id 
          FROM batches b
          JOIN projets p ON b.projet_id = p.id
-         WHERE b.id = $1`,
-        [batchId],
+         WHERE b.id = $1 AND p.proprietaire_id = $2`,
+        [batchId, userId],
       );
-if (result.rows.length === 0) {
-        throw new NotFoundException('Bande non trouvée');
-      }
-      // Normaliser les IDs pour la comparaison (comme dans checkProjetOwnership)
-      const rawProprietaireId = result.rows[0].proprietaire_id;
-      const proprietaireId = String(rawProprietaireId || '').trim();
-      const normalizedUserId = String(userId || '').trim();
-      if (proprietaireId !== normalizedUserId) {
+      if (result.rows.length === 0) {
+        // Vérifier si la bande existe pour donner un message d'erreur plus précis
+        const batchCheck = await this.db.query(
+          `SELECT b.id, b.projet_id FROM batches b WHERE b.id = $1`,
+          [batchId],
+        );
+        if (batchCheck.rows.length === 0) {
+          throw new NotFoundException('Bande non trouvée');
+        }
+        
+        // Vérifier le proprietaire_id du projet pour le débogage
+        const projetCheck = await this.db.query(
+          `SELECT id, proprietaire_id FROM projets WHERE id = $1`,
+          [batchCheck.rows[0].projet_id],
+        );
+        if (projetCheck.rows.length > 0) {
+          const proprietaireId = projetCheck.rows[0].proprietaire_id;
+          const proprietaireIdStr = proprietaireId ? String(proprietaireId).trim() : 'NULL';
+          const normalizedUserId = String(userId || '').trim();
+          const match = proprietaireId ? String(proprietaireId).trim() === normalizedUserId : false;
+          
+          this.logger.warn(
+            `[checkBatchOwnership] Bande ${batchId} appartient au projet ${batchCheck.rows[0].projet_id}, ` +
+            `proprietaire_id=${proprietaireIdStr} (type: ${typeof proprietaireId}), userId=${normalizedUserId} (type: ${typeof userId}), match=${match}`
+          );
+          
+          // Si proprietaire_id est NULL, c'est un problème de configuration
+          if (!proprietaireId) {
+            this.logger.error(
+              `[checkBatchOwnership] Le projet ${batchCheck.rows[0].projet_id} n'a pas de proprietaire_id défini. ` +
+              `C'est un problème de configuration de la base de données.`
+            );
+          }
+        }
+        
+        // La bande existe mais n'appartient pas à l'utilisateur
         throw new ForbiddenException('Cette bande ne vous appartient pas');
       }
     } catch (error) {
-throw error;
+      // Si c'est déjà une exception NestJS, la relancer telle quelle
+      if (error instanceof NotFoundException || error instanceof ForbiddenException) {
+        throw error;
+      }
+      // Sinon, logger l'erreur et relancer
+      this.logger.error(`[checkBatchOwnership] Erreur inattendue:`, error);
+      throw error;
     }
   }
 

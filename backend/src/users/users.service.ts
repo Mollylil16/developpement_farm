@@ -337,6 +337,410 @@ export class UsersService {
   }
 
   /**
+   * Ajoute un profil à un utilisateur (producteur, acheteur, etc.)
+   * Crée un profil minimal si le profil n'existe pas encore
+   */
+  async addProfile(userId: string, profileName: string) {
+    const user = await this.findOne(userId);
+    if (!user) {
+      throw new Error('Utilisateur introuvable');
+    }
+
+    const validProfiles = ['producer', 'buyer', 'veterinarian', 'technician'];
+    const normalizedProfile = profileName.toLowerCase();
+    
+    if (!validProfiles.includes(normalizedProfile)) {
+      throw new Error(`Profil invalide: ${profileName}. Profils valides: ${validProfiles.join(', ')}`);
+    }
+
+    // Récupérer les rôles actuels
+    let roles = user.roles || {};
+
+    // Vérifier si le profil existe déjà
+    if (roles[normalizedProfile]) {
+      this.logger.debug(`addProfile: profil ${normalizedProfile} existe déjà pour userId=${userId}`);
+      return user; // Retourner l'utilisateur tel quel si le profil existe déjà
+    }
+
+    // Créer un profil minimal selon le type
+    let newProfile: any = {
+      isActive: true,
+      activatedAt: new Date().toISOString(),
+    };
+
+    switch (normalizedProfile) {
+      case 'producer':
+        // Profil producteur minimal (sera complété lors de la création du projet)
+        newProfile = {
+          ...newProfile,
+          farmName: '', // Sera défini lors de la création du projet
+          farmType: 'individual', // Par défaut
+          capacity: {
+            totalCapacity: 0,
+            currentOccupancy: 0,
+          },
+          stats: {
+            totalSales: 0,
+            totalRevenue: 0,
+            averageRating: 0,
+            totalReviews: 0,
+          },
+          marketplaceSettings: {
+            defaultPricePerKg: 450,
+            autoAcceptOffers: false,
+            minimumOfferPercentage: 80,
+            notificationsEnabled: true,
+          },
+        };
+        break;
+      case 'buyer':
+        newProfile = {
+          ...newProfile,
+          buyerType: 'individual',
+          businessInfo: null,
+          purchaseHistory: {
+            totalPurchases: 0,
+            totalSpent: 0,
+            averageOrderValue: 0,
+            preferredRaces: [],
+          },
+          preferences: {
+            preferredWeightRange: { min: 20, max: 150 },
+            maxDistance: 50,
+            notifyNewListings: true,
+            notifyPriceDrops: false,
+          },
+          rating: {
+            asReviewer: 0,
+            totalReviewsGiven: 0,
+          },
+        };
+        break;
+      case 'veterinarian':
+        newProfile = {
+          ...newProfile,
+          validationStatus: 'pending',
+          submittedAt: new Date().toISOString(),
+          qualifications: null,
+          specializations: [],
+          stats: {
+            totalConsultations: 0,
+            totalClients: 0,
+            averageRating: 0,
+          },
+        };
+        break;
+      case 'technician':
+        newProfile = {
+          ...newProfile,
+          level: 'junior',
+          skills: [],
+          stats: {
+            totalConsultations: 0,
+            totalClients: 0,
+            averageRating: 0,
+          },
+        };
+        break;
+    }
+
+    // Ajouter le nouveau profil
+    roles[normalizedProfile] = newProfile;
+
+    // Mettre à jour l'utilisateur
+    const updatedUser = await this.update(userId, {
+      roles: roles,
+    });
+
+    this.logger.log(`addProfile: profil ${normalizedProfile} ajouté avec succès pour userId=${userId}`);
+    return updatedUser;
+  }
+
+  /**
+   * Supprime un profil d'un utilisateur et toutes ses données associées
+   * Vérifie qu'il reste au moins un autre profil
+   */
+  async removeProfile(userId: string, profileName: string) {
+    const user = await this.findOne(userId);
+    if (!user) {
+      throw new Error('Utilisateur introuvable');
+    }
+
+    const normalizedProfile = profileName.toLowerCase();
+    const roles = user.roles || {};
+
+    // Vérifier que le profil existe
+    if (!roles[normalizedProfile]) {
+      throw new Error(`Le profil ${profileName} n'existe pas pour cet utilisateur`);
+    }
+
+    // Vérifier qu'il reste au moins un autre profil
+    const remainingProfiles = Object.keys(roles).filter((p) => p !== normalizedProfile);
+    if (remainingProfiles.length === 0) {
+      throw new Error(
+        'Impossible de supprimer le dernier profil. Vous devez avoir au moins un profil. Pour supprimer votre compte, utilisez l\'option "Supprimer mon compte".'
+      );
+    }
+
+    // Utiliser une transaction pour garantir la cohérence
+    return await this.databaseService.transaction(async (client) => {
+      try {
+        // Supprimer les données associées selon le type de profil
+        switch (normalizedProfile) {
+          case 'producer':
+            await this.deleteProducerData(userId, client);
+            break;
+          case 'buyer':
+            await this.deleteBuyerData(userId, client);
+            break;
+          case 'veterinarian':
+            await this.deleteVeterinarianData(userId, client);
+            break;
+          case 'technician':
+            await this.deleteTechnicianData(userId, client);
+            break;
+        }
+
+        // Retirer le profil de la liste des rôles
+        delete roles[normalizedProfile];
+
+        // Si le rôle actif était celui qu'on supprime, changer le rôle actif
+        let activeRole = user.activeRole;
+        if (activeRole === normalizedProfile) {
+          // Utiliser le premier profil restant
+          activeRole = remainingProfiles[0] as any;
+        }
+
+        // Mettre à jour l'utilisateur
+        const updatedUser = await this.update(userId, {
+          roles: roles,
+          activeRole: activeRole,
+        });
+
+        this.logger.log(`removeProfile: profil ${normalizedProfile} supprimé avec succès pour userId=${userId}`);
+        return updatedUser;
+      } catch (error) {
+        this.logger.error(`Erreur lors de la suppression du profil ${normalizedProfile}:`, error);
+        throw error;
+      }
+    });
+  }
+
+  /**
+   * Supprime toutes les données associées au profil producteur
+   */
+  private async deleteProducerData(userId: string, client: any): Promise<void> {
+    this.logger.debug(`deleteProducerData: suppression des données producteur pour userId=${userId}`);
+
+    // 1. Récupérer tous les projets du producteur
+    const projetsResult = await client.query(
+      'SELECT id FROM projets WHERE proprietaire_id = $1',
+      [userId]
+    );
+    const projetIds = projetsResult.rows.map((row: any) => row.id);
+
+    if (projetIds.length > 0) {
+      // 2. Supprimer les annonces marketplace liées aux projets
+      await client.query(
+        'DELETE FROM marketplace_listings WHERE producteur_id = $1',
+        [userId]
+      );
+
+      // 3. Supprimer les offres du producteur (qui sont aussi acheteur peut-être, mais on supprime ses offres en tant que producteur)
+      // Note: On garde les offres où il est acheteur pour l'historique
+      await client.query(
+        `DELETE FROM marketplace_offers WHERE producteur_id = $1`,
+        [userId]
+      );
+
+      // 4. Supprimer les transactions du producteur
+      await client.query(
+        'DELETE FROM marketplace_transactions WHERE producteur_id = $1',
+        [userId]
+      );
+
+      // Pour chaque projet, supprimer les données associées
+      for (const projetId of projetIds) {
+        // Supprimer les animaux individuels
+        await client.query(
+          'DELETE FROM production_animaux WHERE projet_id = $1',
+          [projetId]
+        );
+
+        // Supprimer les bandes (cela supprimera automatiquement les batch_pigs via CASCADE)
+        await client.query(
+          'DELETE FROM batches WHERE projet_id = $1',
+          [projetId]
+        );
+
+        // Supprimer les données financières
+        await client.query(
+          'DELETE FROM revenus WHERE projet_id = $1',
+          [projetId]
+        );
+        await client.query(
+          'DELETE FROM depenses WHERE projet_id = $1',
+          [projetId]
+        );
+
+        // Supprimer les ventes
+        await client.query(
+          'DELETE FROM ventes WHERE projet_id = $1',
+          [projetId]
+        );
+
+        // Supprimer les collaborations (où il est propriétaire)
+        await client.query(
+          'DELETE FROM collaborations WHERE projet_id = $1',
+          [projetId]
+        );
+
+        // Supprimer les données de santé (vaccinations, maladies, etc.)
+        await client.query(
+          'DELETE FROM vaccinations WHERE projet_id = $1',
+          [projetId]
+        );
+        await client.query(
+          'DELETE FROM maladies WHERE projet_id = $1',
+          [projetId]
+        );
+        await client.query(
+          'DELETE FROM traitements WHERE projet_id = $1',
+          [projetId]
+        );
+
+        // Supprimer les pesées
+        await client.query(
+          'DELETE FROM pesees WHERE projet_id = $1',
+          [projetId]
+        );
+        await client.query(
+          'DELETE FROM batch_weighings WHERE projet_id = $1',
+          [projetId]
+        );
+
+        // Supprimer les mortalités
+        await client.query(
+          'DELETE FROM mortalites WHERE projet_id = $1',
+          [projetId]
+        );
+        await client.query(
+          'DELETE FROM batch_mortalites WHERE projet_id = $1',
+          [projetId]
+        );
+
+        // Supprimer les gestations
+        await client.query(
+          'DELETE FROM gestations WHERE projet_id = $1',
+          [projetId]
+        );
+        await client.query(
+          'DELETE FROM batch_gestations WHERE projet_id = $1',
+          [projetId]
+        );
+
+        // Supprimer les migrations
+        await client.query(
+          'DELETE FROM migrations WHERE projet_id = $1',
+          [projetId]
+        );
+
+        // Supprimer les rapports de croissance
+        await client.query(
+          'DELETE FROM rapports_croissance WHERE projet_id = $1',
+          [projetId]
+        );
+      }
+
+      // 5. Supprimer les projets eux-mêmes
+      await client.query(
+        'DELETE FROM projets WHERE proprietaire_id = $1',
+        [userId]
+      );
+    }
+
+    this.logger.log(`deleteProducerData: ${projetIds.length} projet(s) et données associées supprimés pour userId=${userId}`);
+  }
+
+  /**
+   * Supprime toutes les données associées au profil acheteur
+   */
+  private async deleteBuyerData(userId: string, client: any): Promise<void> {
+    this.logger.debug(`deleteBuyerData: suppression des données acheteur pour userId=${userId}`);
+
+    // Supprimer les offres de l'acheteur
+    await client.query(
+      'DELETE FROM marketplace_offers WHERE acheteur_id = $1',
+      [userId]
+    );
+
+    // Garder les ventes pour l'historique du producteur, mais anonymiser
+    // (ou supprimer si nécessaire)
+    await client.query(
+      'UPDATE ventes SET acheteur_id = NULL WHERE acheteur_id = $1',
+      [userId]
+    );
+
+    this.logger.log(`deleteBuyerData: données acheteur supprimées pour userId=${userId}`);
+  }
+
+  /**
+   * Supprime toutes les données associées au profil vétérinaire
+   */
+  private async deleteVeterinarianData(userId: string, client: any): Promise<void> {
+    this.logger.debug(`deleteVeterinarianData: suppression des données vétérinaire pour userId=${userId}`);
+
+    // Supprimer les collaborations (où il est collaborateur vétérinaire)
+    await client.query(
+      `DELETE FROM collaborations WHERE user_id = $1 AND role = 'veterinaire'`,
+      [userId]
+    );
+
+    // Supprimer les notes vétérinaires (si table existe)
+    try {
+      await client.query(
+        'DELETE FROM notes_veterinaires WHERE veterinaire_id = $1',
+        [userId]
+      );
+    } catch (error: any) {
+      // Si la table n'existe pas, ignorer
+      if (!error.message?.includes('does not exist') && !error.message?.includes("n'existe pas")) {
+        throw error;
+      }
+    }
+
+    this.logger.log(`deleteVeterinarianData: données vétérinaire supprimées pour userId=${userId}`);
+  }
+
+  /**
+   * Supprime toutes les données associées au profil technicien
+   */
+  private async deleteTechnicianData(userId: string, client: any): Promise<void> {
+    this.logger.debug(`deleteTechnicianData: suppression des données technicien pour userId=${userId}`);
+
+    // Supprimer les collaborations (où il est collaborateur technicien)
+    await client.query(
+      `DELETE FROM collaborations WHERE user_id = $1 AND role = 'technicien'`,
+      [userId]
+    );
+
+    // Supprimer les rapports techniques (si table existe)
+    try {
+      await client.query(
+        'DELETE FROM rapports_techniques WHERE technicien_id = $1',
+        [userId]
+      );
+    } catch (error: any) {
+      // Si la table n'existe pas, ignorer
+      if (!error.message?.includes('does not exist') && !error.message?.includes("n'existe pas")) {
+        throw error;
+      }
+    }
+
+    this.logger.log(`deleteTechnicianData: données technicien supprimées pour userId=${userId}`);
+  }
+
+  /**
    * Mapper une ligne de la base de données vers un objet User (comme le frontend)
    */
   private mapRowToUser(row: any): any {

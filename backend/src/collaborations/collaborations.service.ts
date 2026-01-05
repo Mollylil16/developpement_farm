@@ -144,6 +144,13 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
   async create(createCollaborateurDto: CreateCollaborateurDto, userId: string) {
     await this.checkProjetOwnership(createCollaborateurDto.projet_id, userId);
 
+    // Validation : au moins email OU telephone doit être fourni
+    const hasEmail = createCollaborateurDto.email && createCollaborateurDto.email.trim().length > 0;
+    const hasTelephone = createCollaborateurDto.telephone && createCollaborateurDto.telephone.trim().length > 0;
+    if (!hasEmail && !hasTelephone) {
+      throw new BadRequestException('Au moins un email ou un numéro de téléphone doit être fourni');
+    }
+
     const id = this.generateCollaborateurId();
     const now = new Date().toISOString();
     const statut = createCollaborateurDto.statut || 'en_attente';
@@ -170,7 +177,7 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
         createCollaborateurDto.user_id || null,
         createCollaborateurDto.nom,
         createCollaborateurDto.prenom,
-        createCollaborateurDto.email,
+        createCollaborateurDto.email || null,
         createCollaborateurDto.telephone || null,
         createCollaborateurDto.role,
         statut,
@@ -316,12 +323,33 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
   }
 
   async accepterInvitation(id: string, userId: string) {
-    // Vérifier que l'invitation existe et appartient à l'utilisateur
-    const result = await this.databaseService.query(
-      `SELECT c.* FROM collaborations c
-       WHERE c.id = $1 AND (c.user_id = $2 OR c.email = (SELECT email FROM users WHERE id = $2))`,
-      [id, userId]
+    // Récupérer l'email et le téléphone de l'utilisateur connecté
+    const userResult = await this.databaseService.query(
+      `SELECT email, telephone FROM users WHERE id = $1`,
+      [userId]
     );
+    const user = userResult.rows[0];
+    const userEmail = user?.email;
+    const userTelephone = user?.telephone;
+
+    // Vérifier que l'invitation existe et appartient à l'utilisateur
+    // Par user_id OU email OU telephone
+    let query = `SELECT c.* FROM collaborations c WHERE c.id = $1 AND (c.user_id = $2`;
+    const params: any[] = [id, userId];
+
+    if (userEmail) {
+      query += ` OR c.email = $${params.length + 1}`;
+      params.push(userEmail);
+    }
+
+    if (userTelephone) {
+      query += ` OR c.telephone = $${params.length + 1}`;
+      params.push(userTelephone);
+    }
+
+    query += `)`;
+
+    const result = await this.databaseService.query(query, params);
     if (result.rows.length === 0) {
       throw new NotFoundException('Invitation introuvable');
     }
@@ -345,12 +373,33 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
   }
 
   async rejeterInvitation(id: string, userId: string) {
-    // Vérifier que l'invitation existe et appartient à l'utilisateur
-    const result = await this.databaseService.query(
-      `SELECT c.* FROM collaborations c
-       WHERE c.id = $1 AND (c.user_id = $2 OR c.email = (SELECT email FROM users WHERE id = $2))`,
-      [id, userId]
+    // Récupérer l'email et le téléphone de l'utilisateur connecté
+    const userResult = await this.databaseService.query(
+      `SELECT email, telephone FROM users WHERE id = $1`,
+      [userId]
     );
+    const user = userResult.rows[0];
+    const userEmail = user?.email;
+    const userTelephone = user?.telephone;
+
+    // Vérifier que l'invitation existe et appartient à l'utilisateur
+    // Par user_id OU email OU telephone
+    let query = `SELECT c.* FROM collaborations c WHERE c.id = $1 AND (c.user_id = $2`;
+    const params: any[] = [id, userId];
+
+    if (userEmail) {
+      query += ` OR c.email = $${params.length + 1}`;
+      params.push(userEmail);
+    }
+
+    if (userTelephone) {
+      query += ` OR c.telephone = $${params.length + 1}`;
+      params.push(userTelephone);
+    }
+
+    query += `)`;
+
+    const result = await this.databaseService.query(query, params);
     if (result.rows.length === 0) {
       throw new NotFoundException('Invitation introuvable');
     }
@@ -376,49 +425,86 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
     return result.rows[0] ? this.mapRowToCollaborateur(result.rows[0]) : null;
   }
 
-  async findInvitationsEnAttente(userId?: string, email?: string) {
-    if (!userId && !email) {
+  async findInvitationsEnAttente(
+    userId?: string,
+    email?: string,
+    telephone?: string
+  ) {
+    if (!userId && !email && !telephone) {
       return [];
     }
 
     let query = `SELECT * FROM collaborations WHERE statut = 'en_attente'`;
     const params: any[] = [];
+    let paramIndex = 1;
+
+    // Construire les conditions de recherche
+    const conditions: string[] = [];
 
     if (userId) {
-      query += ` AND (user_id = $1 OR user_id IS NULL)`;
+      conditions.push(`(user_id = $${paramIndex} OR user_id IS NULL)`);
       params.push(userId);
+      paramIndex++;
     }
 
     if (email) {
-      if (params.length > 0) {
-        query += ` OR email = $${params.length + 1}`;
-      } else {
-        query += ` AND email = $1`;
-      }
+      conditions.push(`email = $${paramIndex}`);
       params.push(email);
+      paramIndex++;
+    }
+
+    if (telephone) {
+      conditions.push(`telephone = $${paramIndex}`);
+      params.push(telephone);
+      paramIndex++;
+    }
+
+    if (conditions.length > 0) {
+      query += ` AND (${conditions.join(' OR ')})`;
     }
 
     query += ` ORDER BY date_invitation DESC`;
 
     const result = await this.databaseService.query(query, params);
 
-    // Si on trouve des invitations par email et qu'on a un userId, les lier
-    if (userId && email && result.rows.length > 0) {
+    // Liaison automatique : si on trouve des invitations par email/telephone et qu'on a un userId, les lier
+    if (userId && result.rows.length > 0) {
       for (const row of result.rows) {
-        if (!row.user_id && row.email === email) {
-          await this.databaseService.query(`UPDATE collaborations SET user_id = $1 WHERE id = $2`, [
-            userId,
-            row.id,
-          ]);
+        if (!row.user_id) {
+          const matchByEmail = email && row.email && row.email === email;
+          const matchByTelephone = telephone && row.telephone && row.telephone === telephone;
+          
+          if (matchByEmail || matchByTelephone) {
+            await this.databaseService.query(
+              `UPDATE collaborations SET user_id = $1 WHERE id = $2`,
+              [userId, row.id]
+            );
+          }
         }
       }
+      
       // Recharger après liaison
-      const reloadResult = await this.databaseService.query(
-        `SELECT * FROM collaborations 
-         WHERE statut = 'en_attente' AND (user_id = $1 OR email = $2)
-         ORDER BY date_invitation DESC`,
-        [userId, email]
-      );
+      const reloadConditions: string[] = [`user_id = $1`];
+      const reloadParams: any[] = [userId];
+      let reloadParamIndex = 2;
+
+      if (email) {
+        reloadConditions.push(`email = $${reloadParamIndex}`);
+        reloadParams.push(email);
+        reloadParamIndex++;
+      }
+
+      if (telephone) {
+        reloadConditions.push(`telephone = $${reloadParamIndex}`);
+        reloadParams.push(telephone);
+        reloadParamIndex++;
+      }
+
+      const reloadQuery = `SELECT * FROM collaborations 
+         WHERE statut = 'en_attente' AND (${reloadConditions.join(' OR ')})
+         ORDER BY date_invitation DESC`;
+      
+      const reloadResult = await this.databaseService.query(reloadQuery, reloadParams);
       return reloadResult.rows.map((row) => this.mapRowToCollaborateur(row));
     }
 

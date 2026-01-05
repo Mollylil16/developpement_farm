@@ -404,6 +404,7 @@ export default function AppNavigator() {
           loadInvitationsEnAttente({
             userId: user.id,
             email: user.email || undefined,
+            telephone: user.telephone || undefined,
           })
         );
         invitationsChargeesRef.current = cle;
@@ -420,18 +421,48 @@ export default function AppNavigator() {
 
     let targetRoute: string;
     if (isAuthenticated && user) {
+      // Déterminer le rôle actif de l'utilisateur
+      const activeRole = user.activeRole || 
+        (user.roles?.producer ? 'producer' : 
+         user.roles?.buyer ? 'buyer' : 
+         user.roles?.veterinarian ? 'veterinarian' : 
+         user.roles?.technician ? 'technician' : 'producer');
+      
+      const isProducer = activeRole === 'producer';
+      
       // Si l'utilisateur a un projet actif, aller au Dashboard
       if (projetActif) {
         targetRoute = 'Main';
       }
-      // Si l'utilisateur a des invitations en attente, aller à CreateProjectScreen
-      // (qui affichera le modal d'invitations)
-      else if (invitationsEnAttente.length > 0) {
-        targetRoute = SCREENS.CREATE_PROJECT;
+      // Si l'utilisateur est producteur et n'a pas de projet, rediriger vers création de projet
+      else if (isProducer) {
+        // Si l'utilisateur a des invitations en attente, aller à CreateProjectScreen
+        // (qui affichera le modal d'invitations)
+        if (invitationsEnAttente.length > 0) {
+          targetRoute = SCREENS.CREATE_PROJECT;
+        }
+        // Sinon, créer un projet (obligatoire pour producteur)
+        else {
+          targetRoute = SCREENS.CREATE_PROJECT;
+        }
       }
-      // Sinon, créer un projet
+      // Si l'utilisateur n'est PAS producteur (acheteur, vétérinaire, technicien)
+      // → Accès direct à l'app sans projet
       else {
-        targetRoute = SCREENS.CREATE_PROJECT;
+        // Rediriger vers le dashboard approprié selon le rôle
+        switch (activeRole) {
+          case 'buyer':
+            targetRoute = 'Main'; // Dashboard acheteur
+            break;
+          case 'veterinarian':
+            targetRoute = 'Main'; // Dashboard vétérinaire
+            break;
+          case 'technician':
+            targetRoute = 'Main'; // Dashboard technicien
+            break;
+          default:
+            targetRoute = 'Main';
+        }
       }
     } else if (isAuthenticated && !user) {
       // Utilisateur authentifié mais pas encore chargé - ne rien faire, attendre
@@ -468,7 +499,7 @@ export default function AppNavigator() {
         logger.error('Erreur lors de la navigation:', error);
       }
     }
-  }, [isAuthenticated, user, projetActif?.id, authLoading, invitationsEnAttente.length]);
+  }, [isAuthenticated, user, user?.activeRole, user?.roles, projetActif?.id, authLoading, invitationsEnAttente.length]);
 
   return (
     <NavigationContainer ref={navigationRef}>
@@ -526,6 +557,9 @@ export default function AppNavigator() {
           {() => <LazyScreens.CreateProjectScreen />}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.PROFIL}>{() => <LazyScreens.ProfilScreen />}</Stack.Screen>
+        <Stack.Screen name={SCREENS.MANAGE_PROFILES}>
+          {() => <LazyScreens.ManageProfilesScreen />}
+        </Stack.Screen>
         <Stack.Screen name={SCREENS.DOCUMENTS}>
           {() => <LazyScreens.DocumentsScreen />}
         </Stack.Screen>
@@ -614,6 +648,10 @@ export default function AppNavigator() {
         </Stack.Screen>
         <Stack.Screen name={SCREENS.GESTATION}>
           {() => <LazyScreens.GestationScreen />}
+        </Stack.Screen>
+        {/* Écrans de détails */}
+        <Stack.Screen name={SCREENS.SUJET_PESEE_DETAIL}>
+          {() => <LazyScreens.SujetPeseeDetailScreen />}
         </Stack.Screen>
         <Stack.Screen name="Main" component={MainTabs} />
       </Stack.Navigator>

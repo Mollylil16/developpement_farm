@@ -47,6 +47,9 @@ export class MarketplaceUnifiedService {
     userId: string,
     listingType: 'individual' | 'batch'
   ) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace-unified.service.ts:45',message:'createUnifiedListing appelé',data:{userId,listingType,farmId:dto.farmId,producerId_from_dto:(dto as any).producerId,userId_type:typeof userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     try {
       // Vérification de propriété
       await this.checkProjetOwnership(dto.farmId, userId);
@@ -86,7 +89,7 @@ export class MarketplaceUnifiedService {
   private async createIndividualListing(dto: CreateListingDto, userId: string) {
     // Vérifier que le sujet existe et appartient au projet
     const animal = await this.databaseService.query(
-      'SELECT id, poids_actuel FROM production_animaux WHERE id = $1 AND projet_id = $2 AND statut = $3',
+      'SELECT id FROM production_animaux WHERE id = $1 AND projet_id = $2 AND statut = $3',
       [dto.subjectId, dto.farmId, 'actif']
     );
 
@@ -105,8 +108,11 @@ export class MarketplaceUnifiedService {
       throw new BadRequestException('Cet animal est déjà en vente sur le marketplace');
     }
 
-    return await this.databaseService.transaction(async (client) => {
-      const id = this.generateId('listing');
+    const listingId = this.generateId('listing');
+    let pendingAnimalUpdate: { sql: string; values: any[] } | null = null;
+
+    const result = await this.databaseService.transaction(async (client) => {
+      const id = listingId;
       const now = new Date().toISOString();
       const weight = parseFloat(dto.weight.toString());
       const pricePerKg = parseFloat(dto.pricePerKg.toString());
@@ -120,55 +126,221 @@ export class MarketplaceUnifiedService {
         cancellationPolicy: "Annulation possible jusqu'à 48h avant la date de livraison.",
       };
 
-      // Insertion du listing
-      const result = await client.query(
-        `INSERT INTO marketplace_listings (
-          id, listing_type, subject_id, producer_id, farm_id, 
-          price_per_kg, weight, calculated_price, pig_count,
-          status, listed_at, updated_at, last_weight_date,
-          location_latitude, location_longitude, location_address, location_city, location_region,
-          sale_terms, views, inquiries, date_creation, derniere_modification, pig_ids
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
-        RETURNING *`,
-        [
-          id,
-          'individual',
-          dto.subjectId,
-          userId,
-          dto.farmId,
-          pricePerKg,
-          weight,
-          calculatedPrice,
-          1, // pig_count = 1 pour individuel
-          'available',
-          now,
-          now,
-          dto.lastWeightDate,
-          dto.location.latitude,
-          dto.location.longitude,
-          dto.location.address || dto.location.city || dto.location.region || 'Non spécifié',
-          dto.location.city || 'Non spécifié',
-          dto.location.region || 'Non spécifié',
-          JSON.stringify(dto.saleTerms || defaultSaleTerms),
-          0, // views
-          0, // inquiries
-          now,
-          now,
-          '[]', // pig_ids vide pour individuel
-        ]
+      // Vérifier quelles colonnes existent dans marketplace_listings
+      const columnsCheck = await client.query(
+        `SELECT column_name 
+         FROM information_schema.columns 
+         WHERE table_name = 'marketplace_listings' 
+         AND column_name IN ('weight', 'listing_type', 'batch_id', 'pig_ids', 'pig_count')`
       );
+      const existingColumns = columnsCheck.rows.map((r) => r.column_name);
+      const hasWeight = existingColumns.includes('weight');
+      const hasListingType = existingColumns.includes('listing_type');
+      const hasPigIds = existingColumns.includes('pig_ids');
+      const hasPigCount = existingColumns.includes('pig_count');
 
-      // Mettre à jour le statut marketplace de l'animal
-      await client.query(
-        `UPDATE production_animaux 
-         SET marketplace_status = $1, marketplace_listing_id = $2 
-         WHERE id = $3`,
-        ['available', id, dto.subjectId]
+      // Construire la requête INSERT dynamiquement selon les colonnes disponibles
+      let insertColumns: string[] = [
+        'id',
+        'subject_id',
+        'producer_id',
+        'farm_id',
+        'price_per_kg',
+        'calculated_price',
+        'status',
+        'listed_at',
+        'updated_at',
+        'last_weight_date',
+        'location_latitude',
+        'location_longitude',
+        'location_address',
+        'location_city',
+        'location_region',
+        'sale_terms',
+        'views',
+        'inquiries',
+        'date_creation',
+        'derniere_modification',
+      ];
+      let insertValues: any[] = [
+        id,
+        dto.subjectId,
+        userId,
+        dto.farmId,
+        pricePerKg,
+        calculatedPrice,
+        'available',
+        now,
+        now,
+        dto.lastWeightDate,
+        dto.location.latitude,
+        dto.location.longitude,
+        dto.location.address || dto.location.city || dto.location.region || 'Non spécifié',
+        dto.location.city || 'Non spécifié',
+        dto.location.region || 'Non spécifié',
+        JSON.stringify(dto.saleTerms || defaultSaleTerms),
+        0,
+        0,
+        now,
+        now,
+      ];
+
+      // Ajouter les colonnes optionnelles si elles existent
+      if (hasListingType) {
+        insertColumns.push('listing_type');
+        insertValues.push('individual');
+      }
+      if (hasWeight) {
+        insertColumns.push('weight');
+        insertValues.push(weight);
+      }
+      if (hasPigCount) {
+        insertColumns.push('pig_count');
+        insertValues.push(1); // pig_count = 1 pour individuel
+      }
+      if (hasPigIds) {
+        insertColumns.push('pig_ids');
+        insertValues.push('[]'); // pig_ids vide pour individuel
+      }
+
+      const placeholders = insertValues.map((_, i) => `$${i + 1}`).join(', ');
+      const columnsStr = insertColumns.join(', ');
+
+      // Insertion du listing
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace-unified.service.ts:207',message:'Avant INSERT',data:{id,columnsStr,placeholdersCount:insertValues.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'G'})}).catch(()=>{});
+      // #endregion
+      let result;
+      try {
+        result = await client.query(
+          `INSERT INTO marketplace_listings (${columnsStr}) VALUES (${placeholders}) RETURNING *`,
+          insertValues
+        );
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace-unified.service.ts:211',message:'INSERT réussi',data:{id,rowCount:result.rows.length,insertedId:result.rows[0]?.id,insertedProducerId:result.rows[0]?.producer_id,insertedFarmId:result.rows[0]?.farm_id},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'G'})}).catch(()=>{});
+        // #endregion
+      } catch (insertError: any) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace-unified.service.ts:216',message:'INSERT échoué',data:{id,error:insertError?.message,errorCode:insertError?.code,errorDetail:insertError?.detail},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'G'})}).catch(()=>{});
+        // #endregion
+        throw insertError;
+      }
+
+      // Vérifier l'état de la transaction après l'INSERT
+      try {
+        const txStatus = await client.query('SELECT txid_current() as xid');
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace-unified.service.ts:219',message:'Transaction XID après INSERT',data:{id,xid:txStatus.rows[0]?.xid},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H'})}).catch(()=>{});
+        // #endregion
+      } catch (statusError: any) {
+        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace-unified.service.ts:223',message:'Erreur récupération XID',data:{id,error:statusError?.message,errorCode:statusError?.code},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H'})}).catch(()=>{});
+      }
+
+      const createdListing = result.rows[0];
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace-unified.service.ts:209',message:'Listing créé - valeurs stockées AVANT commit',data:{id,subjectId:dto.subjectId,producerId:userId,farmId:dto.farmId,producer_id_db:createdListing?.producer_id,farm_id_db:createdListing?.farm_id,producer_id_type:typeof createdListing?.producer_id,farm_id_type:typeof createdListing?.farm_id,status:createdListing?.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
+      // Vérifier immédiatement après l'INSERT dans la même transaction
+      try {
+        const checkInTransaction = await client.query(
+          'SELECT id, producer_id, farm_id FROM marketplace_listings WHERE id = $1',
+          [id]
+        );
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace-unified.service.ts:225',message:'Vérification dans transaction (après INSERT, avant COMMIT)',data:{id,found:checkInTransaction.rows.length>0,producer_id:checkInTransaction.rows[0]?.producer_id,farm_id:checkInTransaction.rows[0]?.farm_id},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H'})}).catch(()=>{});
+        // #endregion
+      } catch (e) {
+        // Ignorer
+      }
+      this.logger.log(`[createIndividualListing] Listing créé avec succès: ${id}`, {
+        id,
+        subjectId: dto.subjectId,
+        producerId: userId,
+        farmId: dto.farmId,
+        status: createdListing?.status || 'available',
+        weight: weight,
+        producer_id: createdListing?.producer_id,
+        farm_id: createdListing?.farm_id,
+        listed_at: createdListing?.listed_at,
+        producer_id_type: typeof createdListing?.producer_id,
+        farm_id_type: typeof createdListing?.farm_id,
+      });
+
+      // Vérifier les colonnes disponibles sur production_animaux pour éviter d'aborter la transaction
+      const productionColumnsCheck = await client.query(
+        `SELECT column_name 
+         FROM information_schema.columns 
+         WHERE table_name = 'production_animaux'
+         AND column_name IN ('marketplace_status', 'marketplace_listing_id')`
       );
+      const productionColumns = productionColumnsCheck.rows.map((r) => r.column_name);
+      const hasMarketplaceStatusColumn = productionColumns.includes('marketplace_status');
+      const hasMarketplaceListingIdColumn = productionColumns.includes('marketplace_listing_id');
+
+      // Préparer (éventuellement) la mise à jour du statut marketplace de l'animal
+      if (hasMarketplaceStatusColumn || hasMarketplaceListingIdColumn) {
+        const updateFragments: string[] = [];
+        const updateValues: any[] = [];
+
+        if (hasMarketplaceStatusColumn) {
+          updateFragments.push(`marketplace_status = $${updateValues.length + 1}`);
+          updateValues.push('available');
+        }
+        if (hasMarketplaceListingIdColumn) {
+          updateFragments.push(`marketplace_listing_id = $${updateValues.length + 1}`);
+          updateValues.push(id);
+        }
+        updateValues.push(dto.subjectId);
+
+        const updateSql = `
+          UPDATE production_animaux
+          SET ${updateFragments.join(', ')}
+          WHERE id = $${updateValues.length}
+        `;
+
+        pendingAnimalUpdate = { sql: updateSql, values: updateValues };
+      } else {
+        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace-unified.service.ts:262',message:'Skip UPDATE production_animaux - colonnes indisponibles',data:{id,subjectId:dto.subjectId},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'I'})}).catch(()=>{});
+        this.logger.warn(
+          `[createIndividualListing] Colonnes marketplace_status/marketplace_listing_id non disponibles dans production_animaux, mise à jour ignorée`
+        );
+      }
 
       this.logger.log(`[createIndividualListing] Listing créé: ${id} pour animal ${dto.subjectId}`);
-      return this.mapRowToListing(result.rows[0]);
+      const mappedListing = this.mapRowToListing(result.rows[0]);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace-unified.service.ts:254',message:'Transaction terminée - listing retourné',data:{id,producerId:mappedListing?.producerId,farmId:mappedListing?.farmId},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
+      return mappedListing;
     });
+    // Exécuter la mise à jour (non bloquante) hors transaction si nécessaire
+    if (pendingAnimalUpdate) {
+      this.databaseService
+        .query(pendingAnimalUpdate.sql, pendingAnimalUpdate.values)
+        .catch((error: any) => {
+          fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace-unified.service.ts:273',message:'Erreur UPDATE production_animaux post-transaction',data:{listingId,subjectId:dto.subjectId,error:error?.message,errorCode:error?.code,errorDetail:error?.detail},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'I'})}).catch(()=>{});
+          this.logger.warn(
+            `[createIndividualListing] Mise à jour production_animaux post-transaction ignorée pour ${dto.subjectId}: ${error?.message}`
+          );
+        });
+    }
+
+    // Vérifier que le listing est bien dans la base après le commit (en dehors de la transaction)
+    // Note: setTimeout pour éviter de bloquer la réponse
+    setTimeout(async () => {
+      try {
+        const verifyQuery = await this.databaseService.query(
+          'SELECT id, producer_id, farm_id FROM marketplace_listings WHERE id = $1',
+          [listingId]
+        );
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace-unified.service.ts:262',message:'Vérification après commit',data:{id:listingId,found:verifyQuery.rows.length>0,producer_id:verifyQuery.rows[0]?.producer_id,farm_id:verifyQuery.rows[0]?.farm_id},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
+      } catch (e) {
+        // Ignorer les erreurs de vérification
+      }
+    }, 2000);
+    return result;
   }
 
   /**
@@ -739,38 +911,89 @@ export class MarketplaceUnifiedService {
    * Mapper pour convertir une ligne DB en objet Listing
    */
   private mapRowToListing(row: any): any {
-    return {
+    // Fonction helper pour parser JSON de manière sécurisée
+    const safeJsonParse = (value: any, defaultValue: any = null): any => {
+      if (value === null || value === undefined) {
+        return defaultValue;
+      }
+      // Si c'est déjà un objet/array, le retourner tel quel
+      if (value && (typeof value === 'object' && !Array.isArray(value) || Array.isArray(value))) {
+        return value;
+      }
+      // Si c'est une chaîne, essayer de la parser
+      if (typeof value === 'string') {
+        try {
+          return JSON.parse(value);
+        } catch {
+          return defaultValue;
+        }
+      }
+      return defaultValue;
+    };
+
+    // Fonction helper pour parser un float de manière sécurisée
+    const safeParseFloat = (value: any): number | undefined => {
+      if (value === null || value === undefined) return undefined;
+      const parsed = parseFloat(value);
+      return isNaN(parsed) ? undefined : parsed;
+    };
+
+    // Fonction helper pour parser une date de manière sécurisée
+    const safeParseDate = (value: any): string | undefined => {
+      if (!value) return undefined;
+      try {
+        const date = new Date(value);
+        return isNaN(date.getTime()) ? undefined : date.toISOString();
+      } catch {
+        return undefined;
+      }
+    };
+
+    const listing: any = {
       id: row.id,
-      listingType: row.listing_type,
-      subjectId: row.subject_id || undefined,
-      batchId: row.batch_id || undefined,
-      pigIds: row.pig_ids ? (typeof row.pig_ids === 'string' ? JSON.parse(row.pig_ids) : row.pig_ids) : [],
-      pigCount: row.pig_count ? parseInt(row.pig_count) : 1,
+      listingType: row.listing_type || 'individual', // Par défaut 'individual' si non défini
       producerId: row.producer_id,
       farmId: row.farm_id,
-      pricePerKg: parseFloat(row.price_per_kg),
-      weight: parseFloat(row.weight),
-      calculatedPrice: parseFloat(row.calculated_price),
+      pricePerKg: safeParseFloat(row.price_per_kg),
+      calculatedPrice: safeParseFloat(row.calculated_price),
+      weight: safeParseFloat(row.weight), // Poids moyen (batch) ou individuel
       status: row.status,
-      listedAt: row.listed_at ? new Date(row.listed_at).toISOString() : undefined,
-      updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : undefined,
-      lastWeightDate: row.last_weight_date ? new Date(row.last_weight_date).toISOString() : undefined,
+      listedAt: safeParseDate(row.listed_at),
+      updatedAt: safeParseDate(row.updated_at),
+      lastWeightDate: safeParseDate(row.last_weight_date),
       location: {
-        latitude: parseFloat(row.location_latitude),
-        longitude: parseFloat(row.location_longitude),
+        latitude: safeParseFloat(row.location_latitude),
+        longitude: safeParseFloat(row.location_longitude),
         address: row.location_address || undefined,
         city: row.location_city || undefined,
         region: row.location_region || undefined,
       },
-      saleTerms:
-        typeof row.sale_terms === 'string' ? JSON.parse(row.sale_terms) : row.sale_terms || undefined,
-      views: row.views || 0,
-      inquiries: row.inquiries || 0,
-      dateCreation: row.date_creation ? new Date(row.date_creation).toISOString() : undefined,
-      derniereModification: row.derniere_modification
-        ? new Date(row.derniere_modification).toISOString()
-        : undefined,
+      saleTerms: safeJsonParse(row.sale_terms, {}),
+      views: row.views ? parseInt(row.views, 10) || 0 : 0,
+      inquiries: row.inquiries ? parseInt(row.inquiries, 10) || 0 : 0,
+      dateCreation: safeParseDate(row.date_creation),
+      derniereModification: safeParseDate(row.derniere_modification),
     };
+
+    // Pour les listings individuels
+    if (row.listing_type === 'individual' || !row.listing_type) {
+      listing.subjectId = row.subject_id;
+    }
+
+    // Pour les listings de bande
+    if (row.listing_type === 'batch') {
+      listing.batchId = row.batch_id;
+      listing.pigIds = Array.isArray(row.pig_ids)
+        ? row.pig_ids
+        : safeJsonParse(row.pig_ids, []);
+      listing.pigCount = row.pig_count ? parseInt(row.pig_count, 10) || listing.pigIds.length : listing.pigIds.length;
+    } else {
+      // Pour les listings individuels, pigCount = 1 par défaut
+      listing.pigCount = row.pig_count ? parseInt(row.pig_count, 10) || 1 : 1;
+      listing.pigIds = [];
+    }
+
+    return listing;
   }
 }
 

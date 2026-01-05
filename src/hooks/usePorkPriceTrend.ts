@@ -35,6 +35,22 @@ export function usePorkPriceTrend() {
       // Récupérer les tendances des 26 dernières semaines + semaine en cours
       const trends = await trendService.getLast26WeeksTrends();
 
+      // Si aucune tendance disponible (endpoint backend non implémenté), ne pas calculer
+      // pour éviter des appels API supplémentaires inutiles
+      if (trends.length === 0) {
+        setData({
+          trends: [],
+          currentWeekPrice: undefined,
+          previousWeekPrice: undefined,
+          priceChange: undefined,
+          priceChangePercent: undefined,
+          loading: false,
+          error: null, // Ne pas afficher d'erreur si l'endpoint n'existe pas encore
+          lastUpdated: undefined,
+        });
+        return;
+      }
+
       // Calculer les tendances manquantes si nécessaire
       if (trends.length < 27) {
         // Calculer les tendances manquantes

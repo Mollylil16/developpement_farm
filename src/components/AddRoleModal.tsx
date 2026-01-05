@@ -3,8 +3,8 @@
  * Permet d'activer les profils Acheteur, Vétérinaire ou Technicien
  */
 
-import React from 'react';
-import { View, Text, Modal, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, Modal, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,6 +14,9 @@ import type { RoleType } from '../types/roles';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
 import { SCREENS } from '../navigation/types';
 import ModalLayout from './ModalLayout';
+import apiClient from '../services/api/apiClient';
+import { useAppDispatch } from '../store/hooks';
+import { updateUser } from '../store/slices/authSlice';
 
 interface AddRoleModalProps {
   visible: boolean;
@@ -96,6 +99,8 @@ const AddRoleModal: React.FC<AddRoleModalProps> = ({ visible, onClose, onSuccess
   const { colors, isDark } = useTheme();
   const { currentUser, availableRoles, switchRole } = useRole();
   const navigation = useNavigation<NavigationProp<any>>();
+  const dispatch = useAppDispatch();
+  const [loadingRole, setLoadingRole] = useState<RoleType | null>(null);
 
   // Rôles disponibles à ajouter (exclure ceux déjà activés)
   const rolesToAdd: RoleType[] = ['producer', 'buyer', 'veterinarian', 'technician'].filter(
@@ -140,51 +145,83 @@ const AddRoleModal: React.FC<AddRoleModalProps> = ({ visible, onClose, onSuccess
       return;
     }
 
-    // Le profil n'existe pas, naviguer vers l'écran de complétion
-    onClose();
+    // Le profil n'existe pas, ajouter le profil AVANT de naviguer
+    setLoadingRole(role);
+    
+    try {
+      // Pour le producteur, ajouter le profil minimal d'abord
+      if (role === 'producer') {
+        try {
+          // Appeler l'API pour ajouter le profil producteur
+          const updatedUser = await apiClient.post<any>(`/users/${currentUser.id}/profiles/producer`);
+          
+          // Mettre à jour Redux avec l'utilisateur mis à jour
+          dispatch(updateUser(updatedUser));
+          
+          // Attendre un court délai pour que le context se mette à jour
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          // Maintenant naviguer vers l'écran de création de projet
+          setLoadingRole(null);
+          onClose();
+          navigation.navigate(
+            SCREENS.CREATE_PROJECT as never,
+            {
+              userId: currentUser.id,
+              profileType: 'producer',
+            } as never
+          );
+          onSuccess?.();
+          return;
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : 'Impossible d\'ajouter le profil producteur';
+          Alert.alert('Erreur', errorMessage);
+          setLoadingRole(null);
+          return;
+        }
+      }
 
-    switch (role) {
-      case 'producer':
-        // Pour le producteur, naviguer vers l'écran de création de projet
-        navigation.navigate(
-          SCREENS.CREATE_PROJECT as never,
-          {
-            userId: currentUser.id,
-            profileType: 'producer',
-          } as never
-        );
-        break;
-      case 'buyer':
-        navigation.navigate(
-          SCREENS.BUYER_INFO_COMPLETION as never,
-          {
-            userId: currentUser.id,
-            profileType: 'buyer',
-          } as never
-        );
-        break;
-      case 'veterinarian':
-        navigation.navigate(
-          SCREENS.VETERINARIAN_INFO_COMPLETION as never,
-          {
-            userId: currentUser.id,
-            profileType: 'veterinarian',
-          } as never
-        );
-        break;
-      case 'technician':
-        // Pour le technicien, utiliser le même écran que l'acheteur pour l'instant
-        navigation.navigate(
-          SCREENS.BUYER_INFO_COMPLETION as never,
-          {
-            userId: currentUser.id,
-            profileType: 'technician',
-          } as never
-        );
-        break;
+      // Pour les autres profils, naviguer vers l'écran de complétion normalement
+      onClose();
+      setLoadingRole(null);
+
+      switch (role) {
+        case 'buyer':
+          navigation.navigate(
+            SCREENS.BUYER_INFO_COMPLETION as never,
+            {
+              userId: currentUser.id,
+              profileType: 'buyer',
+            } as never
+          );
+          break;
+        case 'veterinarian':
+          navigation.navigate(
+            SCREENS.VETERINARIAN_INFO_COMPLETION as never,
+            {
+              userId: currentUser.id,
+              profileType: 'veterinarian',
+            } as never
+          );
+          break;
+        case 'technician':
+          // Pour le technicien, utiliser le même écran que l'acheteur pour l'instant
+          navigation.navigate(
+            SCREENS.BUYER_INFO_COMPLETION as never,
+            {
+              userId: currentUser.id,
+              profileType: 'technician',
+            } as never
+          );
+          break;
+      }
+
+      onSuccess?.();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Une erreur est survenue';
+      Alert.alert('Erreur', errorMessage);
+      setLoadingRole(null);
     }
-
-    onSuccess?.();
   };
 
   if (!visible) {
@@ -240,6 +277,7 @@ const AddRoleModal: React.FC<AddRoleModalProps> = ({ visible, onClose, onSuccess
                       ]}
                       onPress={() => handleRoleSelect(role)}
                       activeOpacity={0.7}
+                      disabled={loadingRole !== null}
                     >
                       <View style={[styles.roleIcon, { backgroundColor: `${config.color}20` }]}>
                         <Ionicons name={config.icon} size={32} color={config.color} />
@@ -258,7 +296,11 @@ const AddRoleModal: React.FC<AddRoleModalProps> = ({ visible, onClose, onSuccess
                           {config.description}
                         </Text>
                       </View>
-                      <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                      {loadingRole === role ? (
+                        <ActivityIndicator size="small" color={colors.primary} />
+                      ) : (
+                        <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                      )}
                     </TouchableOpacity>
                   );
                 })}

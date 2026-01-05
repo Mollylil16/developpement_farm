@@ -75,16 +75,53 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         const result = await client.query('SELECT NOW()');
 
         client.release();
+        console.log('✅ Connexion à la base de données établie avec succès');
         return; // Succès, on sort de la fonction
       } catch (error: any) {
         lastError = error;
 
+        // Détecter les erreurs spécifiques et donner des messages clairs
+        if (error.code === 'ENOTFOUND') {
+          const hostname = error.hostname || 'inconnu';
+          console.error(`\n❌ ERREUR DE CONNEXION À LA BASE DE DONNÉES`);
+          console.error(`   Hostname introuvable: ${hostname}`);
+          console.error(`   Code d'erreur: ${error.code}`);
+          console.error(`\n💡 SOLUTIONS POSSIBLES:`);
+          console.error(`   1. Vérifiez que la base de données existe et est accessible`);
+          console.error(`   2. Vérifiez votre connexion Internet`);
+          console.error(`   3. Si vous utilisez DATABASE_URL, vérifiez qu'elle est correcte`);
+          console.error(`   4. Pour utiliser une base locale, supprimez DATABASE_URL et configurez:`);
+          console.error(`      DB_HOST=localhost`);
+          console.error(`      DB_PORT=5432`);
+          console.error(`      DB_NAME=farmtrack_db`);
+          console.error(`      DB_USER=farmtrack_user`);
+          console.error(`      DB_PASSWORD=votre_mot_de_passe\n`);
+        } else if (error.code === 'ECONNREFUSED') {
+          console.error(`\n❌ ERREUR DE CONNEXION: Le serveur PostgreSQL refuse la connexion`);
+          console.error(`   Vérifiez que PostgreSQL est démarré et accessible\n`);
+        } else if (error.code === 'ETIMEDOUT') {
+          console.error(`\n❌ ERREUR DE CONNEXION: Timeout - Le serveur ne répond pas`);
+          console.error(`   Vérifiez votre connexion réseau et les paramètres de timeout\n`);
+        }
+
         if (attempt < maxAttempts) {
           const delayMs = attempt * 2000; // Délai progressif: 2s, 4s, 6s, 8s
+          console.log(`   Tentative ${attempt}/${maxAttempts} échouée. Nouvelle tentative dans ${delayMs/1000}s...`);
           await new Promise(resolve => setTimeout(resolve, delayMs));
         }
       }
     }
+    
+    // Améliorer le message d'erreur final
+    if (lastError?.code === 'ENOTFOUND') {
+      const enhancedError = new Error(
+        `Impossible de se connecter à la base de données: hostname '${lastError.hostname}' introuvable. ` +
+        `Vérifiez votre DATABASE_URL ou configurez une connexion locale avec DB_HOST, DB_PORT, etc.`
+      );
+      enhancedError.stack = lastError.stack;
+      throw enhancedError;
+    }
+    
     throw lastError;
   }
 
@@ -128,7 +165,19 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           errorMessage.includes('ETIMEDOUT') ||
           errorMessage.includes('Connection closed') ||
           error.code === 'ECONNRESET' ||
+          error.code === 'ENOTFOUND' || // Hostname introuvable
           error.code === '57P01'; // PostgreSQL "terminating connection due to administrator command"
+        
+        // Pour ENOTFOUND, ne pas retry (c'est un problème de configuration)
+        if (error.code === 'ENOTFOUND') {
+          const hostname = error.hostname || 'inconnu';
+          const enhancedError = new Error(
+            `Erreur de connexion à la base de données: hostname '${hostname}' introuvable (ENOTFOUND). ` +
+            `Vérifiez que DATABASE_URL est correcte ou configurez une connexion locale.`
+          );
+          enhancedError.stack = error.stack;
+          throw enhancedError;
+        }
         
         if (isConnectionError && attempt < maxRetries) {
           // Attendre avant de réessayer
@@ -149,16 +198,56 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
   async transaction<T>(callback: (client: any) => Promise<T>): Promise<T> {
     const client = await this.pool.connect();
+    const transactionId = `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'database.service.ts:199',message:'Transaction démarrée',data:{transactionId},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'F'})}).catch(()=>{});
+    // #endregion
     try {
       await client.query('BEGIN');
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'database.service.ts:203',message:'BEGIN exécuté',data:{transactionId},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'F'})}).catch(()=>{});
+      // #endregion
       const result = await callback(client);
-      await client.query('COMMIT');
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'database.service.ts:206',message:'Callback terminé - avant COMMIT',data:{transactionId,hasResult:!!result},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'F'})}).catch(()=>{});
+      // #endregion
+      // Vérifier l'état de la transaction avant COMMIT
+      try {
+        const txStatusBefore = await client.query('SELECT pg_transaction_status() as status');
+        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'database.service.ts:210',message:'Statut transaction avant COMMIT',data:{transactionId,status:txStatusBefore.rows[0]?.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'F'})}).catch(()=>{});
+      } catch (_) {}
+      const commitResult = await client.query('COMMIT');
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'database.service.ts:207',message:'COMMIT exécuté',data:{transactionId,commitSuccess:!!commitResult,command:commitResult?.command,rowCount:commitResult?.rowCount},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'F'})}).catch(()=>{});
+      // #endregion
+      if (commitResult?.command !== 'COMMIT') {
+        const commitError = new Error(`Transaction ${transactionId} terminée avec ${commitResult?.command || 'unknown'}`);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'database.service.ts:210',message:'COMMIT inattendu',data:{transactionId,command:commitResult?.command},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'F'})}).catch(()=>{});
+        // #endregion
+        throw commitError;
+      }
+      // Vérifier immédiatement après le commit avec la même connexion (avant release)
+      try {
+        const immediateCheck = await client.query('SELECT COUNT(*) as total FROM marketplace_listings WHERE status != $1', ['removed']);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'database.service.ts:212',message:'Vérification immédiate après COMMIT (même connexion)',data:{transactionId,total:immediateCheck.rows[0]?.total},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'F'})}).catch(()=>{});
+        // #endregion
+      } catch (e) {
+        // Ignorer - juste pour debug
+      }
       return result;
-    } catch (error) {
+    } catch (error: any) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'database.service.ts:209',message:'Erreur dans transaction - ROLLBACK',data:{transactionId,error:error?.message,errorCode:error?.code},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'F'})}).catch(()=>{});
+      // #endregion
       await client.query('ROLLBACK');
       throw error;
     } finally {
       client.release();
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'database.service.ts:214',message:'Transaction terminée - client libéré',data:{transactionId},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'F'})}).catch(()=>{});
+      // #endregion
     }
   }
 

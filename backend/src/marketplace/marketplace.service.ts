@@ -43,7 +43,7 @@ export class MarketplaceService {
 
     // Vérifier que le sujet existe et appartient au projet
     const animal = await this.databaseService.query(
-      'SELECT id, poids_actuel FROM production_animaux WHERE id = $1 AND projet_id = $2',
+      'SELECT id FROM production_animaux WHERE id = $1 AND projet_id = $2',
       [createListingDto.subjectId, createListingDto.farmId]
     );
 
@@ -441,10 +441,15 @@ export class MarketplaceService {
   }
 
   async findAllListings(projetId?: string, userId?: string, limit?: number, offset?: number) {
+    // Déclarer les variables avant le try pour qu'elles soient accessibles dans le catch
+    let query = '';
+    let params: any[] = [];
+    const defaultLimit = 100; // Marketplace: limite plus basse car liste publique
+    const effectiveLimit = limit ? Math.min(limit, 500) : defaultLimit;
+    const effectiveOffset = offset || 0;
+    
     try {
-      const defaultLimit = 100; // Marketplace: limite plus basse car liste publique
-      const effectiveLimit = limit ? Math.min(limit, 500) : defaultLimit;
-      const effectiveOffset = offset || 0;
+      this.logger.debug(`[findAllListings] Paramètres: projetId=${projetId}, userId=${userId}, limit=${effectiveLimit}, offset=${effectiveOffset}`);
 
       // Colonnes nécessaires pour mapRowToListing (optimisation: éviter SELECT *)
       const listingColumns = `id, listing_type, subject_id, batch_id, pig_ids, pig_count, 
@@ -453,30 +458,146 @@ export class MarketplaceService {
         location_latitude, location_longitude, location_address, location_city, location_region,
         sale_terms, views, inquiries, date_creation, derniere_modification`;
 
-      let query = `SELECT ${listingColumns} FROM marketplace_listings WHERE status != $1`;
-      const params: any[] = ['removed'];
+      query = `SELECT ${listingColumns} FROM marketplace_listings WHERE status != $1`;
+      params.push('removed');
 
       if (projetId) {
         query += ` AND farm_id = $${params.length + 1}`;
         params.push(projetId);
+        this.logger.debug(`[findAllListings] Filtre par projet: farm_id = ${projetId}`);
       }
 
       if (userId) {
         query += ` AND producer_id = $${params.length + 1}`;
         params.push(userId);
+        this.logger.debug(`[findAllListings] Filtre par producteur: producer_id = ${userId}`);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace.service.ts:472',message:'Paramètres de recherche findAllListings',data:{userId,projetId,userId_type:typeof userId,projetId_type:typeof projetId,params_count:params.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
       }
 
       query += ` ORDER BY listed_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
       params.push(effectiveLimit, effectiveOffset);
 
       const result = await this.databaseService.query(query, params);
-      return result.rows.map((row) => this.mapRowToListing(row));
+      
+      this.logger.log(`[findAllListings] Requête SQL: ${query}`);
+      this.logger.log(`[findAllListings] Paramètres: ${JSON.stringify(params)}`);
+      this.logger.log(`[findAllListings] Requête exécutée: ${result.rows.length} lignes trouvées`);
+      if (result.rows.length > 0) {
+        this.logger.log(`[findAllListings] Exemples de listings:`, {
+          premier: {
+            id: result.rows[0].id,
+            producer_id: result.rows[0].producer_id,
+            farm_id: result.rows[0].farm_id,
+            status: result.rows[0].status,
+            listed_at: result.rows[0].listed_at,
+          },
+        });
+      } else {
+        // Si aucun résultat, vérifier s'il y a des listings dans la base sans les filtres
+        const checkQuery = `SELECT COUNT(*) as total, 
+          COUNT(CASE WHEN producer_id = $1 THEN 1 END) as by_producer,
+          COUNT(CASE WHEN farm_id = $2 THEN 1 END) as by_farm,
+          COUNT(CASE WHEN producer_id = $1 AND farm_id = $2 THEN 1 END) as by_both
+          FROM marketplace_listings WHERE status != 'removed'`;
+        const checkResult = await this.databaseService.query(checkQuery, [userId || '', projetId || '']);
+        this.logger.warn(`[findAllListings] Aucun listing trouvé. Statistiques:`, checkResult.rows[0]);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace.service.ts:502',message:'Statistiques listings - valeurs recherchées',data:{userId,projetId,userId_type:typeof userId,projetId_type:typeof projetId,stats:checkResult.rows[0]},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+        // Récupérer les valeurs réelles dans la base pour comparaison
+        const actualValuesQuery = `SELECT id, producer_id, farm_id, status, 
+          pg_typeof(producer_id) as producer_id_type, 
+          pg_typeof(farm_id) as farm_id_type
+          FROM marketplace_listings WHERE status != 'removed' LIMIT 5`;
+        const actualValues = await this.databaseService.query(actualValuesQuery);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace.service.ts:510',message:'Valeurs réelles dans la base',data:{actualListings:actualValues.rows.map(r=>({id:r.id,producer_id:r.producer_id,farm_id:r.farm_id,producer_id_type:r.producer_id_type,farm_id_type:r.farm_id_type}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
+        this.logger.warn(`[findAllListings] Valeurs réelles dans la base:`, actualValues.rows);
+      }
+      
+      // Mapper les résultats avec gestion d'erreur pour chaque ligne
+      const listings = [];
+      for (const row of result.rows) {
+        try {
+          listings.push(this.mapRowToListing(row));
+        } catch (error: any) {
+          this.logger.error(`Erreur lors du mapping d'un listing (id: ${row?.id || 'unknown'}):`, {
+            error: error.message,
+            stack: error.stack,
+            rowData: {
+              id: row?.id,
+              listing_type: row?.listing_type,
+              status: row?.status,
+            },
+          });
+          // Continuer avec les autres listings au lieu de tout faire échouer
+          // Skip ce listing problématique
+        }
+      }
+      
+      this.logger.debug(`[findAllListings] ${listings.length} listings mappés avec succès`);
+      return listings;
     } catch (error: any) {
       // Si la table n'existe pas encore, retourner un tableau vide
-      if (error.message?.includes('does not exist') || error.message?.includes('n\'existe pas')) {
-        this.logger.warn('Table marketplace_listings n\'existe pas encore, retour d\'un tableau vide');
+      if (error.message?.includes('does not exist') || error.message?.includes("n'existe pas")) {
+        // Si c'est une erreur de colonne manquante dans la requête SELECT, essayer avec moins de colonnes
+        if (error.message?.includes('column')) {
+          this.logger.warn(
+            'Colonne manquante détectée, tentative avec colonnes de base uniquement',
+            { error: error.message }
+          );
+          try {
+            // Requête minimale avec seulement les colonnes essentielles
+            let minimalQuery = `SELECT id, listing_type, subject_id, batch_id, producer_id, farm_id, 
+              price_per_kg, calculated_price, status, listed_at, updated_at
+              FROM marketplace_listings WHERE status != $1`;
+            const minimalParams: any[] = ['removed'];
+            
+            if (projetId) {
+              minimalQuery += ` AND farm_id = $${minimalParams.length + 1}`;
+              minimalParams.push(projetId);
+            }
+            
+            if (userId) {
+              minimalQuery += ` AND producer_id = $${minimalParams.length + 1}`;
+              minimalParams.push(userId);
+            }
+            
+            minimalQuery += ` ORDER BY listed_at DESC LIMIT $${minimalParams.length + 1} OFFSET $${minimalParams.length + 2}`;
+            minimalParams.push(effectiveLimit, effectiveOffset);
+            
+            const minimalResult = await this.databaseService.query(minimalQuery, minimalParams);
+            const minimalListings = [];
+            for (const row of minimalResult.rows) {
+              try {
+                minimalListings.push(this.mapRowToListing(row));
+              } catch (mapError: any) {
+                this.logger.warn(`Erreur mapping listing minimal (id: ${row?.id}):`, mapError.message);
+              }
+            }
+            return minimalListings;
+          } catch (fallbackError: any) {
+            this.logger.error('Erreur même avec requête minimale:', fallbackError.message);
+            return [];
+          }
+        }
+        
+        // Si c'est la table qui n'existe pas, retourner un tableau vide
+        this.logger.warn(
+          'Table marketplace_listings n\'existe pas encore, retour d\'un tableau vide'
+        );
         return [];
       }
+      
+      this.logger.error('Erreur lors de la récupération des listings:', {
+        error: error.message,
+        stack: error.stack,
+        query: query.substring(0, 200), // Log les 200 premiers caractères de la requête
+        params: params,
+      });
       throw error;
     }
   }
@@ -1169,30 +1290,69 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
   }
 
   private mapRowToListing(row: any): any {
+    // Fonction helper pour parser JSON de manière sécurisée
+    const safeJsonParse = (value: any, defaultValue: any = null): any => {
+      // Si c'est déjà un objet/array, le retourner tel quel
+      if (value && (typeof value === 'object' && !Array.isArray(value) || Array.isArray(value))) {
+        return value;
+      }
+      // Si c'est null/undefined, retourner la valeur par défaut
+      if (!value) {
+        return defaultValue;
+      }
+      // Si c'est une chaîne, essayer de la parser
+      if (typeof value === 'string') {
+        try {
+          return JSON.parse(value);
+        } catch {
+          return defaultValue;
+        }
+      }
+      return defaultValue;
+    };
+
+    // Fonction helper pour parser un float de manière sécurisée
+    const safeParseFloat = (value: any): number | undefined => {
+      if (value === null || value === undefined) return undefined;
+      const parsed = parseFloat(value);
+      return isNaN(parsed) ? undefined : parsed;
+    };
+
+    // Fonction helper pour parser une date de manière sécurisée
+    const safeParseDate = (value: any): string | undefined => {
+      if (!value) return undefined;
+      try {
+        const date = new Date(value);
+        return isNaN(date.getTime()) ? undefined : date.toISOString();
+      } catch {
+        return undefined;
+      }
+    };
+
     const listing: any = {
       id: row.id,
       listingType: row.listing_type || 'individual',
       producerId: row.producer_id,
       farmId: row.farm_id,
-      pricePerKg: parseFloat(row.price_per_kg),
-      calculatedPrice: parseFloat(row.calculated_price),
-      weight: row.weight ? parseFloat(row.weight) : undefined, // Poids moyen (batch) ou individuel
+      pricePerKg: safeParseFloat(row.price_per_kg),
+      calculatedPrice: safeParseFloat(row.calculated_price),
+      weight: safeParseFloat(row.weight), // Poids moyen (batch) ou individuel
       status: row.status,
-      listedAt: row.listed_at ? new Date(row.listed_at).toISOString() : undefined,
-      updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : undefined,
-      lastWeightDate: row.last_weight_date
-        ? new Date(row.last_weight_date).toISOString()
-        : undefined,
+      listedAt: safeParseDate(row.listed_at),
+      updatedAt: safeParseDate(row.updated_at),
+      lastWeightDate: safeParseDate(row.last_weight_date),
       location: {
-        latitude: parseFloat(row.location_latitude),
-        longitude: parseFloat(row.location_longitude),
-        address: row.location_address,
-        city: row.location_city,
-        region: row.location_region,
+        latitude: safeParseFloat(row.location_latitude),
+        longitude: safeParseFloat(row.location_longitude),
+        address: row.location_address || undefined,
+        city: row.location_city || undefined,
+        region: row.location_region || undefined,
       },
-      saleTerms: typeof row.sale_terms === 'string' ? JSON.parse(row.sale_terms) : row.sale_terms,
-      views: row.views || 0,
-      inquiries: row.inquiries || 0,
+      saleTerms: safeJsonParse(row.sale_terms, {}),
+      views: row.views ? parseInt(row.views, 10) || 0 : 0,
+      inquiries: row.inquiries ? parseInt(row.inquiries, 10) || 0 : 0,
+      dateCreation: safeParseDate(row.date_creation),
+      derniereModification: safeParseDate(row.derniere_modification),
     };
 
     // Pour les listings individuels
@@ -1205,10 +1365,8 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       listing.batchId = row.batch_id;
       listing.pigIds = Array.isArray(row.pig_ids)
         ? row.pig_ids
-        : typeof row.pig_ids === 'string'
-        ? JSON.parse(row.pig_ids)
-        : [];
-      listing.pigCount = row.pig_count ? parseInt(row.pig_count) : listing.pigIds.length;
+        : safeJsonParse(row.pig_ids, []);
+      listing.pigCount = row.pig_count ? parseInt(row.pig_count, 10) || listing.pigIds.length : listing.pigIds.length;
     }
 
     return listing;

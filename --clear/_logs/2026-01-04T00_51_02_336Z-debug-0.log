@@ -10,3 +10,9 @@
 9 verbose logfile logs-max:10 dir:C:\Users\HP\developpement_farm\--clear\_logs\2026-01-04T00_51_02_336Z-
 10 verbose logfile C:\Users\HP\developpement_farm\--clear\_logs\2026-01-04T00_51_02_336Z-debug-0.log
 11 silly logfile done cleaning log files
+12 verbose cwd C:\Users\HP\developpement_farm
+13 verbose os Windows_NT 10.0.26100
+14 verbose node v25.0.0
+15 verbose npm  v11.6.2
+16 verbose exit 0
+17 info ok

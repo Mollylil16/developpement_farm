@@ -71,26 +71,27 @@ const ProfileSelectionScreen: React.FC = () => {
     }
 
     try {
-      // Créer le profil spécialisé via OnboardingService
-      const { getOnboardingService } = await import('../services/OnboardingService');
-      const onboardingService = await getOnboardingService();
-
-      // Créer le profil selon le type
-      await onboardingService.createSpecializedProfile(userId, profileType);
-
-      // Marquer l'onboarding comme terminé
-      await onboardingService.completeOnboarding(userId);
+      // IMPORTANT: Ne PAS créer le profil spécialisé ici pour buyer/veterinarian/technician
+      // Ces profils seront créés dans leurs écrans de complément respectifs après avoir rempli le formulaire
+      // Seul le profil producer est créé ici car il nécessite la création d'un projet ensuite
 
       // Naviguer vers l'écran approprié selon le profil
       switch (profileType) {
         case 'producer':
+          // Pour le producteur, créer le profil spécialisé maintenant
+          // car la création du projet nécessite le profil producteur
+          const { getOnboardingService } = await import('../services/OnboardingService');
+          const onboardingService = await getOnboardingService();
+          await onboardingService.createSpecializedProfile(userId, profileType);
           // Naviguer vers création de projet
           (navigation as any).navigate(SCREENS.CREATE_PROJECT, {
             userId,
+            profileType,
           });
           break;
         case 'buyer':
           // Naviguer vers complément d'informations acheteur
+          // Le profil buyer sera créé dans BuyerInfoCompletionScreen après avoir rempli le formulaire
           (navigation as any).navigate(SCREENS.BUYER_INFO_COMPLETION, {
             profileType,
             userId,
@@ -98,6 +99,7 @@ const ProfileSelectionScreen: React.FC = () => {
           break;
         case 'veterinarian':
           // Naviguer vers complément d'informations vétérinaire
+          // Le profil veterinarian sera créé dans VeterinarianInfoCompletionScreen après avoir rempli le formulaire
           (navigation as any).navigate(SCREENS.VETERINARIAN_INFO_COMPLETION, {
             profileType,
             userId,
@@ -105,6 +107,7 @@ const ProfileSelectionScreen: React.FC = () => {
           break;
         case 'technician':
           // Naviguer vers complément d'informations technicien
+          // Le profil technician sera créé dans BuyerInfoCompletionScreen après avoir rempli le formulaire
           (navigation as any).navigate(SCREENS.BUYER_INFO_COMPLETION, {
             profileType: 'technician',
             userId,

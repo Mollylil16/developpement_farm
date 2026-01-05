@@ -55,3 +55,5 @@ export { default as SaleScreen } from '../screens/SaleScreen';
 export { default as MortalityScreen } from '../screens/MortalityScreen';
 export { default as DiseaseScreen } from '../screens/DiseaseScreen';
 export { default as GestationScreen } from '../screens/GestationScreen';
+export { default as ManageProfilesScreen } from '../screens/ManageProfilesScreen';
+export { default as SujetPeseeDetailScreen } from '../screens/pesees/SujetPeseeDetailScreen';

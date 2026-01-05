@@ -60,6 +60,9 @@ export const SCREENS = {
   MORTALITY: 'Mortality',
   DISEASE: 'Disease',
   GESTATION: 'Gestation',
+  MANAGE_PROFILES: 'ManageProfiles',
+  // Écrans de détails
+  SUJET_PESEE_DETAIL: 'SujetPeseeDetail',
 } as const;
 
 export type ScreenName = (typeof SCREENS)[keyof typeof SCREENS];

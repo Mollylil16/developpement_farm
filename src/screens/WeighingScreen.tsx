@@ -27,8 +27,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useModeElevage } from '../hooks/useModeElevage';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { selectPeseesRecents, selectPeseesParAnimal } from '../store/selectors/productionSelectors';
+import { selectPeseesRecents, selectPeseesParAnimal, selectAllAnimaux } from '../store/selectors/productionSelectors';
 import { loadPeseesRecents } from '../store/slices/productionSlice';
+import { useNavigation } from '@react-navigation/native';
+import type { NavigationProp } from '@react-navigation/native';
+import { SCREENS } from '../navigation/types';
 import StandardHeader from '../components/StandardHeader';
 import Card from '../components/Card';
 import Button from '../components/Button';
@@ -43,6 +46,13 @@ import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import BatchSettingsModal from '../components/batch/BatchSettingsModal';
 import BatchWeighingDetailsModal from '../components/batch/BatchWeighingDetailsModal';
 import BatchWeightEvolutionChart from '../components/batch/BatchWeightEvolutionChart';
+// Nouveaux composants pour mode individuel
+import PeseeDashboard from '../components/pesees/PeseeDashboard';
+import PoidsEvolutionChart from '../components/pesees/PoidsEvolutionChart';
+import SujetPeseeCard from '../components/pesees/SujetPeseeCard';
+import AllSubjectsChart from '../components/pesees/AllSubjectsChart';
+import { calculateGMQ, isPeseeEnRetard, joursDepuisDernierePesee } from '../utils/gmqCalculator';
+import { differenceInDays } from 'date-fns';
 
 // Type pour les paramètres de route (mode batch)
 type WeighingRouteParams = {
@@ -423,10 +433,14 @@ export default function WeighingScreen() {
   const [selectedWeighingEntry, setSelectedWeighingEntry] = useState<any | null>(null);
   // Map pour stocker les pesées par batch (pour les stats globales)
   const [weighingsMap, setWeighingsMap] = useState<Map<string, any[]>>(new Map());
+  
+  // État pour la période d'affichage (commun aux deux modes)
+  const [periode, setPeriode] = useState<'7j' | '30j' | '90j' | 'tout'>('30j');
 
   // Redux pour mode individuel
   const peseesRecents = useAppSelector(selectPeseesRecents);
   const peseesParAnimal = useAppSelector(selectPeseesParAnimal);
+  const animaux = useAppSelector(selectAllAnimaux);
 
   useEffect(() => {
     if (isBatchMode && batch?.id) {
@@ -698,13 +712,28 @@ export default function WeighingScreen() {
           />
         }
       >
-        {/* Statistiques globales de la ferme */}
+        {/* Dashboard de statistiques globales (harmonisé avec mode individuel) */}
         {isBatchMode && (
-          <GlobalFarmStats 
-            batches={batches} 
-            weighingsMap={weighingsMap} 
-            loading={batchesLoading} 
-          />
+          <>
+            <PeseeDashboard
+              projetId={projetActif?.id}
+              periode={periode}
+              onPeriodeChange={setPeriode}
+            />
+
+            {/* Graphique d'évolution du poids moyen (harmonisé avec mode individuel) */}
+            <PoidsEvolutionChart
+              projetId={projetActif?.id}
+              periode={periode}
+            />
+
+            {/* Graphique avec courbes superposées (toutes les loges) */}
+            <AllSubjectsChart
+              projetId={projetActif?.id}
+              periode={periode}
+              maxSubjects={10}
+            />
+          </>
         )}
 
         {isBatchMode && (
@@ -896,55 +925,104 @@ export default function WeighingScreen() {
           </Card>
         )}
 
-        {/* Mode individuel - affichage classique */}
+        {/* Mode individuel - Nouvelle interface harmonisée */}
         {!isBatchMode && (
           <>
+            {/* Dashboard de statistiques globales */}
+            <PeseeDashboard
+              projetId={projetActif?.id}
+              periode={periode}
+              onPeriodeChange={setPeriode}
+            />
+
+            {/* Graphique d'évolution du poids moyen */}
+            <PoidsEvolutionChart
+              projetId={projetActif?.id}
+              periode={periode}
+            />
+
+            {/* Graphique avec courbes superposées (tous les animaux) */}
+            <AllSubjectsChart
+              projetId={projetActif?.id}
+              periode={periode}
+              maxSubjects={10}
+            />
+
+            {/* Liste des animaux avec cartes */}
             {loading && !refreshing ? (
               <View style={styles.centerContent}>
                 <ActivityIndicator size="large" color={colors.primary} />
                 <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-                  Chargement...
+                  Chargement des animaux...
                 </Text>
               </View>
-            ) : displayWeighings.length === 0 ? (
-              <Card elevation="small" padding="medium" style={styles.emptyCard}>
-                <Ionicons name="scale-outline" size={48} color={colors.textSecondary} />
-                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                  Aucune pesée enregistrée
-                </Text>
-              </Card>
-            ) : (
-              <>
-                {/* Cartes de statistiques */}
-                <Card elevation="small" padding="medium" style={styles.statsCard}>
-                  <View style={styles.statsRow}>
-                    <View style={styles.statItem}>
-                      <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-                        Total pesées
-                      </Text>
-                      <Text style={[styles.statValue, { color: colors.text }]}>{stats.total}</Text>
-                    </View>
-                    <View style={styles.statItem}>
-                      <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-                        Poids moyen
-                      </Text>
-                      <Text style={[styles.statValue, { color: colors.primary }]}>
-                        {stats.averageWeight.toFixed(1)} kg
-                      </Text>
-                    </View>
-                  </View>
-                </Card>
+            ) : (() => {
+              // Filtrer les animaux actifs du projet
+              const animauxActifs = animaux.filter(
+                (a) => a.projet_id === projetActif?.id && a.statut?.toLowerCase() === 'actif'
+              );
 
-                {/* Liste des pesées */}
-                {displayWeighings.map((weighing) => (
-                  <WeighingCard
-                    key={weighing.id}
-                    weighing={weighing}
-                    isBatchMode={false}
-                  />
-                ))}
-              </>
-            )}
+              if (animauxActifs.length === 0) {
+                return (
+                  <Card elevation="small" padding="medium" style={styles.emptyCard}>
+                    <Ionicons name="paw-outline" size={48} color={colors.textSecondary} />
+                    <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                      Aucun animal actif dans ce projet
+                    </Text>
+                  </Card>
+                );
+              }
+
+              return (
+                <View style={styles.animalsListContainer}>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                    🐷 Liste des animaux ({animauxActifs.length})
+                  </Text>
+                  {animauxActifs.map((animal) => {
+                    const pesees = peseesParAnimal[animal.id] || [];
+                    const dernierePesee = pesees.length > 0 ? pesees[pesees.length - 1] : null;
+                    const avantDernierePesee = pesees.length > 1 ? pesees[pesees.length - 2] : null;
+                    
+                    // Calculer GMQ
+                    const gmq = dernierePesee && avantDernierePesee
+                      ? calculateGMQ(
+                          avantDernierePesee.poids_kg,
+                          dernierePesee.poids_kg,
+                          new Date(avantDernierePesee.date),
+                          new Date(dernierePesee.date)
+                        )
+                      : null;
+                    
+                    // Vérifier si en retard
+                    const enRetard = dernierePesee ? isPeseeEnRetard(dernierePesee) : false;
+                    const joursDepuis = dernierePesee
+                      ? joursDepuisDernierePesee(dernierePesee)
+                      : null;
+
+                    return (
+                      <SujetPeseeCard
+                        key={animal.id}
+                        mode="individuel"
+                        animal={animal}
+                        dernierePesee={dernierePesee || undefined}
+                        gmq={gmq}
+                        enRetard={enRetard}
+                        joursDepuisDernierePesee={joursDepuis}
+                        onViewDetails={() => {
+                          navigation.navigate(SCREENS.SUJET_PESEE_DETAIL as never, {
+                            animalId: animal.id,
+                          });
+                        }}
+                        onNouvellePesee={() => {
+                          setSelectedAnimal(animal);
+                          setModalVisible(true);
+                        }}
+                      />
+                    );
+                  })}
+                </View>
+              );
+            })()}
           </>
         )}
 
@@ -1203,6 +1281,14 @@ const styles = StyleSheet.create({
   batchStatsCard: {
     marginBottom: SPACING.md,
     marginTop: SPACING.sm,
+  },
+  animalsListContainer: {
+    marginTop: SPACING.md,
+  },
+  sectionTitle: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '700',
+    marginBottom: SPACING.md,
   },
 });
 

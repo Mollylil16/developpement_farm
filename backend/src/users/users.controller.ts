@@ -9,10 +9,12 @@ import {
   Query,
   UseGuards,
   Logger,
+  ForbiddenException,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Public } from '../auth/decorators/public.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard)
@@ -90,6 +92,32 @@ export class UsersController {
       this.logger.error(`update: erreur pour userId=${id}`, error);
       throw error;
     }
+  }
+
+  @Post(':id/profiles/:profile')
+  async addProfile(
+    @Param('id') id: string,
+    @Param('profile') profile: string,
+    @CurrentUser() user: any,
+  ) {
+    // Vérifier que l'utilisateur modifie son propre profil
+    if (user.id !== id) {
+      throw new ForbiddenException('Vous ne pouvez modifier que votre propre profil');
+    }
+    return this.usersService.addProfile(id, profile);
+  }
+
+  @Delete(':id/profiles/:profile')
+  async removeProfile(
+    @Param('id') id: string,
+    @Param('profile') profile: string,
+    @CurrentUser() user: any,
+  ) {
+    // Vérifier que l'utilisateur modifie son propre profil
+    if (user.id !== id) {
+      throw new ForbiddenException('Vous ne pouvez modifier que votre propre profil');
+    }
+    return this.usersService.removeProfile(id, profile);
   }
 
   @Delete(':id')

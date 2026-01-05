@@ -185,20 +185,28 @@ export default function CollaborationFormModal({
           placeholder="Ex: Amadou"
         />
 
+        <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: SPACING.xs }]}>
+          Contact (Email ou Téléphone requis) *
+        </Text>
+        
         <FormField
-          label="Email *"
-          value={formData.email}
-          onChangeText={(text) => setFormData({ ...formData, email: text })}
-          placeholder="Ex: amadou@example.com"
+          label="Email"
+          value={formData.email || ''}
+          onChangeText={(text) => setFormData({ ...formData, email: text || undefined })}
+          placeholder="Ex: amadou@example.com (optionnel si téléphone fourni)"
           keyboardType="email-address"
           autoCapitalize="none"
         />
 
+        <Text style={[styles.infoText, { color: colors.textSecondary, marginBottom: SPACING.md }]}>
+          OU
+        </Text>
+
         <FormField
           label="Téléphone"
-          value={formData.telephone}
-          onChangeText={(text) => setFormData({ ...formData, telephone: text })}
-          placeholder="Ex: +221 77 123 45 67"
+          value={formData.telephone || ''}
+          onChangeText={(text) => setFormData({ ...formData, telephone: text || undefined })}
+          placeholder="Ex: +225 07 12 34 56 78 (optionnel si email fourni)"
           keyboardType="phone-pad"
         />
 
@@ -348,5 +356,10 @@ const styles = StyleSheet.create({
   permissionLabel: {
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.medium,
+  },
+  infoText: {
+    fontSize: FONT_SIZES.sm,
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
 });

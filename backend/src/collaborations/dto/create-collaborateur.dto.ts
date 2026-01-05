@@ -1,4 +1,4 @@
-import { IsString, IsEnum, IsOptional, IsBoolean, IsEmail } from 'class-validator';
+import { IsString, IsEnum, IsOptional, IsBoolean, IsEmail, ValidateIf } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class PermissionsDto {
@@ -56,13 +56,20 @@ export class CreateCollaborateurDto {
   @IsString()
   prenom: string;
 
-  @ApiProperty({ description: 'Email du collaborateur' })
-  @IsEmail()
-  email: string;
-
-  @ApiPropertyOptional({ description: 'Téléphone du collaborateur' })
+  @ApiPropertyOptional({ 
+    description: 'Email du collaborateur (requis si telephone non fourni)' 
+  })
+  @ValidateIf((o) => !o.telephone || o.telephone.trim().length === 0)
+  @IsEmail({}, { message: 'Format d\'email invalide' })
   @IsOptional()
+  email?: string;
+
+  @ApiPropertyOptional({ 
+    description: 'Téléphone du collaborateur (requis si email non fourni)' 
+  })
+  @ValidateIf((o) => !o.email || o.email.trim().length === 0)
   @IsString()
+  @IsOptional()
   telephone?: string;
 
   @ApiProperty({

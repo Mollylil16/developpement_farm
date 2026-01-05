@@ -31,7 +31,7 @@ export default function HomeView({
   const navigation = useNavigation<NavigationProp<any>>();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
-  const { activeRole, availableRoles, switchRole } = useRole();
+  const { activeRole, availableRoles, switchRole, currentUser } = useRole();
   const [roleSwitcherVisible, setRoleSwitcherVisible] = useState(false);
   const [addRoleModalVisible, setAddRoleModalVisible] = useState(false);
 
@@ -205,24 +205,44 @@ export default function HomeView({
       </View>
 
       {/* Section CHANGER DE PROFIL */}
-      {availableRoles.length > 1 && (
+      {availableRoles.length > 0 && (
         <View style={styles.section}>
           <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>
-            🔄 CHANGER DE PROFIL
+            🔄 GÉRER MES PROFILS
           </Text>
           <View style={styles.sectionContent}>
+            {availableRoles.length > 1 && (
+              <TouchableOpacity
+                style={[styles.menuItem, { borderBottomColor: colors.border }]}
+                onPress={() => setRoleSwitcherVisible(true)}
+              >
+                <Ionicons name="swap-horizontal-outline" size={24} color={colors.primary} />
+                <View style={styles.menuItemContent}>
+                  <Text style={[styles.menuItemTitle, { color: colors.text }]}>
+                    Changer de profil
+                  </Text>
+                  <Text style={[styles.menuItemSubtitle, { color: colors.textSecondary }]}>
+                    Basculer entre vos profils ({availableRoles.length} disponible
+                    {availableRoles.length > 1 ? 's' : ''})
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={[styles.menuItem, { borderBottomColor: colors.border }]}
-              onPress={() => setRoleSwitcherVisible(true)}
+              onPress={() => {
+                onClose();
+                navigation.navigate(SCREENS.MANAGE_PROFILES);
+              }}
             >
-              <Ionicons name="swap-horizontal-outline" size={24} color={colors.primary} />
+              <Ionicons name="people-outline" size={24} color={colors.primary} />
               <View style={styles.menuItemContent}>
                 <Text style={[styles.menuItemTitle, { color: colors.text }]}>
-                  Changer de profil
+                  Gérer mes profils
                 </Text>
                 <Text style={[styles.menuItemSubtitle, { color: colors.textSecondary }]}>
-                  Basculer entre vos profils ({availableRoles.length} disponible
-                  {availableRoles.length > 1 ? 's' : ''})
+                  Voir, activer ou supprimer vos profils
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />

@@ -165,7 +165,7 @@ export class MarketplaceListingRepository extends BaseRepository<MarketplaceList
    * Mapper une ligne DB vers un objet MarketplaceListing
    */
   private mapRowToListing(row: unknown): MarketplaceListing {
-    return {
+    const listing: MarketplaceListing = {
       id: row.id,
       subjectId: row.subject_id,
       producerId: row.producer_id,
@@ -193,6 +193,27 @@ export class MarketplaceListingRepository extends BaseRepository<MarketplaceList
       views: row.views || 0,
       inquiries: row.inquiries || 0,
     };
+
+    // Ajouter les champs pour les batch listings
+    if (row.listing_type === 'batch') {
+      listing.listingType = 'batch';
+      listing.batchId = row.batch_id;
+      listing.pigIds = Array.isArray(row.pig_ids)
+        ? row.pig_ids
+        : typeof row.pig_ids === 'string'
+        ? JSON.parse(row.pig_ids)
+        : [];
+      listing.pigCount = row.pig_count ? parseInt(row.pig_count) : listing.pigIds?.length || 0;
+    } else {
+      listing.listingType = row.listing_type || 'individual';
+    }
+
+    // Ajouter le poids si disponible
+    if (row.weight !== undefined) {
+      listing.weight = typeof row.weight === 'number' ? row.weight : parseFloat(row.weight);
+    }
+
+    return listing;
   }
 
   /**

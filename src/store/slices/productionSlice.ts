@@ -413,6 +413,18 @@ const productionSlice = createSlice({
             state.ids.pesees.push(peseeId);
           }
         });
+        // Mettre à jour peseesParAnimal pour chaque pesée chargée
+        action.payload.forEach((pesee: ProductionPesee) => {
+          if (pesee.animal_id) {
+            if (!state.peseesParAnimal[pesee.animal_id]) {
+              state.peseesParAnimal[pesee.animal_id] = [];
+            }
+            // Ajouter l'ID de la pesée si pas déjà présent
+            if (!state.peseesParAnimal[pesee.animal_id].includes(pesee.id)) {
+              state.peseesParAnimal[pesee.animal_id].push(pesee.id);
+            }
+          }
+        });
       })
       .addCase(loadPeseesRecents.rejected, (state, action) => {
         state.loading = false;

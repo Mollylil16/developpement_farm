@@ -1,70 +1,47 @@
 # EAS Build ignore file
-# Objectif: réduire la taille de l'archive envoyée à EAS (évite erreurs 400 et uploads très longs).
+# Files and directories excluded from the build archive
 
-# Dépendances installées localement
-node_modules
-**/node_modules
+# Scripts and tests
+scripts/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+test-*.ts
+*-test.ts
 
-# Caches / artefacts
-.expo
-.expo-shared
-.cache
-**/.cache
+# Documentation
+*.md
+docs/
+README*.md
+
+# Logs
 *.log
-**/*.log
-coverage
-reports
-dist
-**/dist
+_logs/
+logs/
 
-# Monorepo: ne pas embarquer backend et sous-projets dans le build mobile
-backend
-admin-web
+# Build artifacts
+dist/
+build/
+.expo/
+node_modules/.cache/
 
-# IA / datasets (très volumineux) — côté prod ça tourne serveur-side, pas dans l'app mobile
-ai-weight-estimation
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
-# Docs / archives (inutile au build)
-archive
-docs
-**/*.md
+# OS
+.DS_Store
+Thumbs.db
 
-# Tests / outils (inutile au build)
-e2e
-scripts
+# Environment files (should use EAS secrets instead)
+.env.local
+.env.*.local
 
-# EAS Build ignore file
-# But: réduire l'archive envoyée à EAS (évite les uploads énormes et erreurs 400).
-
-# Dépendances installées localement
-node_modules
-**/node_modules
-
-# Artifacts / caches
-.expo
-.expo-shared
-.cache
-**/.cache
-npm-debug.log
-**/*.log
-coverage
-reports
-dist
-**/dist
-
-# Docs / archives
-archive
-docs
-**/*.md
-
-# Backend (ne doit pas être packagé dans le build mobile)
-backend
-
-# Outils ML / datasets (très volumineux)
-ai-weight-estimation
-
-# Tests / scripts (pas nécessaires au build)
-e2e
-scripts
-
-
+# Archive and old code
+archive/
+developpement_farm/
+--clear/

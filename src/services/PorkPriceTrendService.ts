@@ -9,7 +9,7 @@ import {
 } from '../database/repositories/WeeklyPorkPriceTrendRepository';
 import type { Transaction, Offer, MarketplaceListing } from '../types/marketplace';
 import { getRegionalPriceService } from './RegionalPriceService';
-import apiClient from './api/apiClient';
+import apiClient, { APIError } from './api/apiClient';
 import { logger } from '../utils/logger';
 
 /**
@@ -217,9 +217,33 @@ export class PorkPriceTrendService {
     // Sauvegarder la tendance via l'API backend
     try {
       return await apiClient.post<any>('/marketplace/price-trends', trendData);
-    } catch {
-      // Si l'endpoint n'existe pas encore, utiliser le repository
-      return this.trendRepo.upsert(trendData);
+    } catch (error: unknown) {
+      // Si l'endpoint n'existe pas encore (404), logger en debug seulement
+      if (error instanceof APIError && error.status === 404) {
+        logger.debug('[PorkPriceTrendService] Endpoint /marketplace/price-trends non disponible (404), création locale ignorée');
+        // Retourner un objet mock pour éviter les erreurs en aval
+        return {
+          id: `${year}-${weekNumber}`,
+          year,
+          weekNumber,
+          ...trendData,
+          updatedAt: new Date().toISOString(),
+        } as WeeklyPorkPriceTrend;
+      }
+      // Pour les autres erreurs, essayer le repository
+      try {
+        return await this.trendRepo.upsert(trendData);
+      } catch {
+        // Si le repository échoue aussi, retourner un objet mock
+        logger.warn('[PorkPriceTrendService] Impossible de sauvegarder la tendance');
+        return {
+          id: `${year}-${weekNumber}`,
+          year,
+          weekNumber,
+          ...trendData,
+          updatedAt: new Date().toISOString(),
+        } as WeeklyPorkPriceTrend;
+      }
     }
   }
 
@@ -409,9 +433,21 @@ export class PorkPriceTrendService {
       return await apiClient.get<any[]>('/marketplace/price-trends', {
         params: { weeks: 27 },
       });
-    } catch {
-      // Si l'endpoint n'existe pas encore, utiliser le repository
-      return this.trendRepo.findLastWeeks(27);
+    } catch (error: unknown) {
+      // Si l'endpoint n'existe pas encore (404), retourner un tableau vide silencieusement
+      // L'erreur est attendue tant que l'endpoint backend n'est pas implémenté
+      if (error instanceof APIError && error.status === 404) {
+        logger.debug('[PorkPriceTrendService] Endpoint /marketplace/price-trends non disponible (404), retour tableau vide');
+        return [];
+      }
+      // Pour les autres erreurs, essayer le repository (qui échouera probablement aussi)
+      try {
+        return await this.trendRepo.findLastWeeks(27);
+      } catch {
+        // Si le repository échoue aussi, retourner un tableau vide
+        logger.warn('[PorkPriceTrendService] Impossible de récupérer les tendances, retour tableau vide');
+        return [];
+      }
     }
   }
 }

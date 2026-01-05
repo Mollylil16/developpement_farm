@@ -45,6 +45,7 @@ export interface ConversationContext {
     question: string;
     missingParams: string[];
     timestamp: string;
+    clarificationType?: string; // Type de clarification (demande_loges, selection_sujets, demande_montant, etc.)
   };
 
   // État de conversation pour les ventes (nouveau flow)
@@ -514,18 +515,19 @@ export class ConversationContextManager {
   /**
    * Définit une clarification nécessaire
    */
-  setClarificationNeeded(question: string, missingParams: string[]): void {
+  setClarificationNeeded(question: string, missingParams: string[], clarificationType?: string): void {
     this.context.clarificationNeeded = {
       question,
       missingParams,
       timestamp: new Date().toISOString(),
+      clarificationType,
     };
   }
 
   /**
    * Récupère la clarification nécessaire
    */
-  getClarificationNeeded(): { question: string; missingParams: string[] } | undefined {
+  getClarificationNeeded(): { question: string; missingParams: string[]; clarificationType?: string } | undefined {
     return this.context.clarificationNeeded;
   }
 

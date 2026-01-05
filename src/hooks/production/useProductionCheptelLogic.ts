@@ -155,7 +155,7 @@ export function useProductionCheptelLogic() {
         params: { animal_id: animalForMarketplace.id, limit: 1 },
       });
       const dernierePesee = pesees && pesees.length > 0 ? pesees[0] : null;
-      const poidsActuel = dernierePesee?.poids_kg || animalForMarketplace.poids_initial || 0;
+      let poidsActuel = dernierePesee?.poids_kg || animalForMarketplace.poids_initial || 0;
       const lastWeightDate = dernierePesee?.date || new Date().toISOString();
 
       if (poidsActuel <= 0) {
@@ -164,13 +164,16 @@ export function useProductionCheptelLogic() {
         return;
       }
 
+      // ✅ Arrondir le poids en nombre entier (pas de décimales)
+      const poidsArrondi = Math.round(poidsActuel);
+
       await dispatch(
         createListing({
           subjectId: animalForMarketplace.id,
           producerId: user.id,
           farmId: projetActif.id,
           pricePerKg: price,
-          weight: poidsActuel,
+          weight: poidsArrondi, // ✅ Poids réel arrondi en nombre entier
           lastWeightDate: lastWeightDate,
           location,
         })

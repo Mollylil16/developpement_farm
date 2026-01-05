@@ -10,6 +10,9 @@ import type { MarketplaceListing } from '../../types/marketplace';
 import { MarketplaceTheme, glassmorphismStyle, badgeStyle } from '../../styles/marketplace.theme';
 import { formatPrice } from '../../services/PricingService';
 
+// Créer le composant animé une seule fois en dehors du composant
+const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
+
 interface BatchListingCardProps {
   listing: MarketplaceListing;
   onPress: () => void;
@@ -47,10 +50,19 @@ export default function BatchListingCard({
   }, []);
 
   const handlePress = () => {
+    console.log('[BatchListingCard] handlePress appelé', {
+      listingId: listing.id,
+      selectable,
+      isAvailable: listing.status === 'available',
+      hasOnSelect: !!onSelect,
+      hasOnPress: !!onPress,
+    });
     if (selectable && onSelect) {
       onSelect();
-    } else {
+    } else if (onPress) {
       onPress();
+    } else {
+      console.warn('[BatchListingCard] Aucun handler onPress disponible');
     }
   };
 
@@ -58,26 +70,32 @@ export default function BatchListingCard({
   const averageWeight = listing.weight || 0;
   const totalWeight = averageWeight * pigCount;
 
+  // S'assurer que le listing est disponible
+  const isAvailable = listing.status === 'available';
+
   return (
-    <Animated.View
+    <AnimatedTouchable
       style={[
+        styles.container,
+        glassmorphismStyle(false),
+        selected && { borderColor: colors.primary, borderWidth: 2.5 },
+        !isAvailable && !selected && { opacity: 0.6 },
         {
           opacity: fadeAnim,
           transform: [{ translateY: slideAnim }],
         },
       ]}
+      onPress={handlePress}
+      onPressIn={() => {
+        console.log('[BatchListingCard] onPressIn déclenché', {
+          listingId: listing.id,
+          isAvailable,
+          disabled: !isAvailable,
+        });
+      }}
+      activeOpacity={0.9}
+      disabled={!isAvailable}
     >
-      <TouchableOpacity
-        style={[
-          styles.container,
-          glassmorphismStyle(false),
-          selected && { borderColor: colors.primary, borderWidth: 2.5 },
-          listing.status !== 'available' && !selected && { opacity: 0.6 },
-        ]}
-        onPress={handlePress}
-        activeOpacity={0.9}
-        disabled={listing.status !== 'available'}
-      >
         {/* Checkbox pour sélection multiple */}
         {selectable && (
           <View style={styles.checkboxContainer}>
@@ -167,8 +185,7 @@ export default function BatchListingCard({
             </Text>
           </View>
         </View>
-      </TouchableOpacity>
-    </Animated.View>
+      </AnimatedTouchable>
   );
 }
 

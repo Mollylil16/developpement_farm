@@ -5,7 +5,7 @@
 
 import { AppDispatch } from '../store/hooks';
 import { loadUserFromStorageThunk, updateUser } from '../store/slices/authSlice';
-import apiClient from './api/apiClient';
+import apiClient, { APIError } from './api/apiClient';
 import { logger } from '../utils/logger';
 import type { User } from '../types/auth';
 
@@ -146,7 +146,14 @@ class ProfileSyncService {
 
       return false;
     } catch (error) {
-      logger.error('[ProfileSyncService] Erreur lors de la vérification des mises à jour:', error);
+      // Ne pas loguer les timeouts (408) comme des erreurs critiques (ils sont récupérables et gérés par le retry handler)
+      if (error instanceof APIError && error.status === 408) {
+        logger.debug('[ProfileSyncService] Timeout réseau lors de la vérification (non critique, retry automatique)');
+      } else if (error instanceof Error && error.message.includes('timeout')) {
+        logger.debug('[ProfileSyncService] Timeout lors de la vérification (non critique)');
+      } else {
+        logger.error('[ProfileSyncService] Erreur lors de la vérification des mises à jour:', error);
+      }
       return false;
     }
   }

@@ -273,7 +273,7 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
         return;
       }
 
-      // Vérifier si le profil existe déjà
+      // Charger l'utilisateur depuis l'API backend pour mettre à jour le téléphone si nécessaire
       const { UserRepository } = await import('../database/repositories');
       const userRepo = new UserRepository();
       const currentUser = await userRepo.findById(finalUserId);
@@ -294,19 +294,8 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
         }
       }
 
-      if (currentUser?.roles?.veterinarian) {
-        // Le profil existe déjà, juste mettre à jour et naviguer
-        Alert.alert(
-          'Info',
-          'Votre profil vétérinaire existe déjà. Redirection vers le dashboard...'
-        );
-        const updatedUser = await userRepo.findById(finalUserId);
-        if (updatedUser) {
-          dispatch(updateUser(updatedUser));
-        }
-        (navigation as any).navigate('Main', { screen: SCREENS.DASHBOARD_VET });
-        return;
-      }
+      // IMPORTANT: Ne pas vérifier si le profil existe déjà ici car c'est la première création
+      // Le profil n'est créé qu'à la fin de cette fonction après avoir rempli le formulaire
 
       // Upload des documents
       const identityCardUrl = await onboardingService.uploadDocument(identityCard!);
@@ -350,7 +339,7 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
       });
 
       // Marquer l'onboarding comme terminé
-      await onboardingService.completeOnboarding(finalUserId, 'veterinarian');
+      await onboardingService.completeOnboarding(finalUserId);
 
       // Recharger l'utilisateur mis à jour dans le store Redux
       // Réutiliser db et userRepo déjà déclarés plus haut

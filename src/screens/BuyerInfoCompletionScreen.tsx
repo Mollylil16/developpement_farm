@@ -151,7 +151,7 @@ const BuyerInfoCompletionScreen: React.FC = () => {
         return;
       }
 
-      // Vérifier si le profil existe déjà depuis l'API backend
+      // Charger l'utilisateur depuis l'API backend pour mettre à jour le téléphone si nécessaire
       const currentUser = await apiClient.get<any>(`/users/${finalUserId}`);
 
       // Mettre à jour le numéro de téléphone au niveau User si fourni
@@ -180,22 +180,11 @@ const BuyerInfoCompletionScreen: React.FC = () => {
         }
       }
 
+      // IMPORTANT: Ne pas vérifier si le profil existe déjà ici car c'est la première création
+      // Le profil n'est créé qu'à la fin de cette fonction après avoir rempli le formulaire
+      
       if (isTechnician) {
-        // Vérifier si le profil technicien existe déjà
-        if (currentUser?.roles?.technician) {
-          Alert.alert(
-            'Info',
-            'Votre profil technicien existe déjà. Redirection vers le dashboard...'
-          );
-          const updatedUser = await userRepo.findById(finalUserId);
-          if (updatedUser) {
-            dispatch(updateUser(updatedUser));
-          }
-          (navigation as any).navigate('Main', { screen: SCREENS.DASHBOARD_TECH });
-          return;
-        }
-
-        // Créer le profil technicien
+        // Créer le profil technicien (première fois)
         await onboardingService.createTechnicianProfile(finalUserId, {
           qualifications: {
             level: techLevel,
@@ -203,21 +192,7 @@ const BuyerInfoCompletionScreen: React.FC = () => {
           skills: skillsArray,
         });
       } else {
-        // Vérifier si le profil acheteur existe déjà
-        if (currentUser?.roles?.buyer) {
-          Alert.alert(
-            'Info',
-            'Votre profil acheteur existe déjà. Redirection vers le dashboard...'
-          );
-          const updatedUser = await userRepo.findById(finalUserId);
-          if (updatedUser) {
-            dispatch(updateUser(updatedUser));
-          }
-          (navigation as any).navigate('Main', { screen: SCREENS.DASHBOARD_BUYER });
-          return;
-        }
-
-        // Créer le profil acheteur
+        // Créer le profil acheteur (première fois)
         await onboardingService.createBuyerProfile(finalUserId, {
           buyerType,
           businessInfo:
@@ -232,8 +207,7 @@ const BuyerInfoCompletionScreen: React.FC = () => {
       }
 
       // Marquer l'onboarding comme terminé
-      const finalProfileType = profileType || 'buyer';
-      await onboardingService.completeOnboarding(finalUserId, finalProfileType);
+      await onboardingService.completeOnboarding(finalUserId);
 
       // Recharger l'utilisateur mis à jour dans le store Redux
       const updatedUser = await userRepo.findById(finalUserId);
@@ -242,6 +216,7 @@ const BuyerInfoCompletionScreen: React.FC = () => {
       }
 
       // Rediriger selon le profil
+      const finalProfileType = profileType || 'buyer';
       if (finalProfileType === 'technician') {
         (navigation as any).navigate('Main', { screen: SCREENS.DASHBOARD_TECH });
       } else {

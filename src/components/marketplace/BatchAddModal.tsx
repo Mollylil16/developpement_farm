@@ -26,7 +26,7 @@ import SaleTermsDisplay from './SaleTermsDisplay';
 import type { ProductionAnimal } from '../../types/production';
 import type { Batch } from '../../types/batch';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
-import { selectAllAnimaux } from '../../store/selectors/productionSelectors';
+import { selectAllAnimaux, selectPeseesParAnimal } from '../../store/selectors/productionSelectors';
 import { selectProjetActif } from '../../store/selectors/projetSelectors';
 import apiClient from '../../services/api/apiClient';
 import { createListing } from '../../store/slices/marketplaceSlice';
@@ -56,9 +56,15 @@ export default function BatchAddModal({
   // Détecter le mode du projet
   const projetActif = useAppSelector(selectProjetActif);
   const isBatchMode = projetActif?.management_method === 'batch';
+  
+  // Vérifier que le projetId correspond au projet actif
+  if (projetActif && projetId !== projetActif.id) {
+    logger.warn(`[BatchAddModal] Attention: projetId prop (${projetId}) différent de projetActif.id (${projetActif.id})`);
+  }
 
   // Charger les animaux depuis Redux si non fournis (mode individuel)
   const allAnimaux = useAppSelector(selectAllAnimaux);
+  const peseesParAnimalRedux = useAppSelector(selectPeseesParAnimal);
   const { user } = useAppSelector((state) => state.auth);
   const { getCurrentLocation } = useGeolocation();
   const [localSubjects, setLocalSubjects] = useState<ProductionAnimal[]>([]);
@@ -77,6 +83,12 @@ export default function BatchAddModal({
   const [loading, setLoading] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  // Poids manuels saisis par l'utilisateur pour les sujets sans poids
+  const [manualWeights, setManualWeights] = useState<Record<string, number>>({});
+  // Modal pour demander le poids
+  const [showWeightModal, setShowWeightModal] = useState(false);
+  const [weightModalSubject, setWeightModalSubject] = useState<ProductionAnimal | null>(null);
+  const [weightInput, setWeightInput] = useState('');
 
   // PanResponder pour le swipe de gauche à droite pour fermer
   const panResponder = React.useRef(
@@ -111,9 +123,6 @@ export default function BatchAddModal({
       }
     }
   }, [visible, projetId, providedSubjects]);
-
-  const peseesRecents = useAppSelector((state) => state.production.peseesRecents);
-  const peseesEntities = useAppSelector((state) => state.production.entities.pesees);
 
   const loadAvailableSubjects = async () => {
     try {
@@ -184,30 +193,17 @@ export default function BatchAddModal({
         // Mode individuel : charger les animaux depuis le backend via Redux
         await dispatch(loadProductionAnimaux({ projetId, inclureInactifs: false })).unwrap();
         
-        // Charger les pesées récentes
-        await dispatch(loadPeseesRecents({ projetId, limit: 100 })).unwrap();
+        // Charger les pesées récentes pour tous les animaux du projet
+        await dispatch(loadPeseesRecents({ projetId, limit: 1000 })).unwrap();
         
         // Filtrer les animaux actifs depuis Redux
         const animauxActifs = allAnimaux.filter(
           (a) => a.projet_id === projetId && a.statut === 'actif'
         );
         
-        // Construire le map des pesées depuis Redux
-        const peseesMap: Record<string, Array<{ date: string; poids_kg: number }>> = {};
-        for (const animal of animauxActifs) {
-          const peseesAnimal = peseesRecents
-            .map((id) => peseesEntities[id])
-            .filter((p) => p && p.animal_id === animal.id)
-            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-          
-          peseesMap[animal.id] = peseesAnimal.map((p) => ({
-            date: p.date,
-            poids_kg: p.poids_kg,
-          }));
-        }
-        
-        setPeseesParAnimal(peseesMap);
         setLocalSubjects(animauxActifs);
+        
+        // Les pesées seront mises à jour via useEffect après le chargement
       }
     } catch (error: unknown) {
       logger.error('Erreur chargement sujets:', error);
@@ -232,6 +228,26 @@ export default function BatchAddModal({
   // Utiliser les sujets fournis ou ceux chargés localement
   const availableSubjects = providedSubjects || localSubjects;
 
+  // Mettre à jour peseesParAnimal quand les pesées Redux changent (mode individuel)
+  useEffect(() => {
+    if (!isBatchMode && localSubjects.length > 0) {
+      const peseesMap: Record<string, Array<{ date: string; poids_kg: number }>> = {};
+      for (const animal of localSubjects) {
+        const peseesAnimal = peseesParAnimalRedux[animal.id] || [];
+        // Trier par date (plus récente en premier) et convertir au format attendu
+        const peseesSorted = [...peseesAnimal]
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+          .map((p) => ({
+            date: p.date,
+            poids_kg: p.poids_kg,
+          }));
+        
+        peseesMap[animal.id] = peseesSorted;
+      }
+      setPeseesParAnimal(peseesMap);
+    }
+  }, [peseesParAnimalRedux, localSubjects, isBatchMode]);
+
   // Reset quand le modal se ferme
   useEffect(() => {
     if (!visible) {
@@ -239,6 +255,10 @@ export default function BatchAddModal({
       setPricePerKg('');
       setSearchQuery('');
       setTermsAccepted(false);
+      setManualWeights({});
+      setShowWeightModal(false);
+      setWeightModalSubject(null);
+      setWeightInput('');
     }
   }, [visible]);
 
@@ -256,17 +276,73 @@ export default function BatchAddModal({
     }
   };
 
-  // Fonction helper pour obtenir le poids actuel
-  const getCurrentWeight = (animalId: string): number => {
-    const pesees = peseesParAnimal[animalId] || [];
-    if (pesees.length > 0) {
-      // Trier par date et prendre la plus récente
-      const sorted = [...pesees].sort(
+  // Fonction helper pour obtenir le poids actuel avec fallback
+  const getCurrentWeight = (subject: ProductionAnimal): number => {
+    const animalId = subject.id;
+    
+    // 1. Poids manuel saisi par l'utilisateur (priorité)
+    if (manualWeights[animalId] && manualWeights[animalId] > 0) {
+      return manualWeights[animalId];
+    }
+    
+    // 2. Pesées récentes (map local pour mode batch)
+    const peseesLocal = peseesParAnimal[animalId];
+    if (peseesLocal && peseesLocal.length > 0) {
+      const sorted = [...peseesLocal].sort(
         (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
       );
-      return sorted[0].poids_kg;
+      const poids = sorted[0].poids_kg;
+      if (poids > 0) return poids;
     }
+    
+    // 3. Pesées récentes (sélecteur Redux pour mode individuel)
+    const peseesRedux = peseesParAnimalRedux[animalId] || [];
+    if (peseesRedux.length > 0) {
+      const sorted = [...peseesRedux].sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      const poids = sorted[0].poids_kg;
+      if (poids > 0) return poids;
+    }
+    
+    // 4. Poids à l'arrivée (poids_initial) comme fallback
+    if (subject.poids_initial && subject.poids_initial > 0) {
+      return subject.poids_initial;
+    }
+    
+    // 5. Aucun poids disponible
     return 0;
+  };
+  
+  // Vérifier si un sujet a un poids valide
+  const hasValidWeight = (subject: ProductionAnimal): boolean => {
+    return getCurrentWeight(subject) > 0;
+  };
+  
+  // Ouvrir le modal pour demander le poids
+  const openWeightModal = (subject: ProductionAnimal) => {
+    setWeightModalSubject(subject);
+    setWeightInput(manualWeights[subject.id]?.toString() || '');
+    setShowWeightModal(true);
+  };
+  
+  // Confirmer le poids saisi
+  const confirmWeight = () => {
+    if (!weightModalSubject) return;
+    
+    const poids = parseFloat(weightInput);
+    if (isNaN(poids) || poids <= 0) {
+      Alert.alert('Erreur', 'Veuillez entrer un poids valide (supérieur à 0)');
+      return;
+    }
+    
+    setManualWeights((prev) => ({
+      ...prev,
+      [weightModalSubject.id]: poids,
+    }));
+    setShowWeightModal(false);
+    setWeightModalSubject(null);
+    setWeightInput('');
   };
 
   // Filtrer les sujets selon la recherche
@@ -304,7 +380,7 @@ export default function BatchAddModal({
   const getTotalWeight = (): number => {
     return availableSubjects
       .filter((s) => selectedIds.has(s.id))
-      .reduce((sum, s) => sum + getCurrentWeight(s.id), 0);
+      .reduce((sum, s) => sum + getCurrentWeight(s), 0);
   };
 
   // Calculer le prix total estimé
@@ -331,6 +407,27 @@ export default function BatchAddModal({
       Alert.alert('Erreur', 'Veuillez accepter les conditions de vente avant de continuer');
       return;
     }
+    
+    // Vérifier que tous les sujets sélectionnés ont un poids valide
+    const selectedSubjects = availableSubjects.filter((s) => selectedIds.has(s.id));
+    const subjectsWithoutWeight = selectedSubjects.filter((s) => !hasValidWeight(s));
+    
+    if (subjectsWithoutWeight.length > 0) {
+      // Demander le poids pour le premier sujet sans poids
+      const firstSubject = subjectsWithoutWeight[0];
+      Alert.alert(
+        'Poids manquant',
+        `Le sujet "${firstSubject.code || firstSubject.id}" n'a pas de poids. Veuillez renseigner le poids pour continuer.`,
+        [
+          { text: 'Annuler', style: 'cancel' },
+          {
+            text: 'Renseigner',
+            onPress: () => openWeightModal(firstSubject),
+          },
+        ]
+      );
+      return;
+    }
 
     try {
       setLoading(true);
@@ -349,66 +446,73 @@ export default function BatchAddModal({
       }
 
       if (isBatchMode) {
-        // Mode bande : créer un listing de bande avec les batch_pigs sélectionnés
+        // ✅ MODE BANDE : Créer un listing INDIVIDUEL pour chaque batch_pig sélectionné
+        // Processus IDENTIQUE au mode individuel pour aligner les deux modes
         const selectedPigs = batchPigs.filter((pig) => selectedIds.has(pig.id));
         if (selectedPigs.length === 0) {
           throw new Error('Aucun porc sélectionné');
         }
 
-        // Grouper les porcs par batch_id
-        const pigsByBatch = selectedPigs.reduce((acc, pig) => {
-          const batchId = pig.batch_id;
-          if (!acc[batchId]) {
-            acc[batchId] = [];
-          }
-          acc[batchId].push(pig);
-          return acc;
-        }, {} as Record<string, any[]>);
+        // Créer un listing individuel pour chaque batch_pig
+        for (const pig of selectedPigs) {
+          // Trouver le sujet correspondant pour utiliser getCurrentWeight
+          const subject = localSubjects.find((s) => s.id === pig.id);
+          if (!subject) continue;
+          
+          // ✅ Récupérer le poids avec fallback (pesée → poids_initial → poids manuel)
+          let poidsActuel = getCurrentWeight(subject);
+          let lastWeightDate = pig.last_weighing_date || pig.updated_at || new Date().toISOString();
 
-        // Créer un listing de bande pour chaque batch
-        for (const [batchId, pigs] of Object.entries(pigsByBatch)) {
-          const batch = batches.find((b) => b.id === batchId);
-          if (!batch) continue;
-
-          // Calculer le poids moyen des porcs sélectionnés
-          const totalWeight = pigs.reduce((sum, pig) => sum + (pig.current_weight_kg || 0), 0);
-          const averageWeight = pigs.length > 0 ? totalWeight / pigs.length : 0;
-
-          if (averageWeight <= 0) {
-            throw new Error(`Le poids moyen doit être supérieur à 0 pour la bande ${batch.pen_name}`);
+          // ✅ Si poids toujours indisponible, utiliser poids moyen de la bande
+          if (poidsActuel <= 0) {
+            const batch = batches.find((b) => b.id === pig.batch_id);
+            poidsActuel = batch?.average_weight_kg || 0;
+            if (poidsActuel <= 0) {
+              logger.warn(`Poids indisponible pour le porc ${pig.id || pig.pig_code || 'inconnu'}, ignoré`);
+              continue;
+            }
           }
 
-          // Récupérer la date de dernière pesée la plus récente
-          const lastWeightDate = pigs
-            .map((pig) => pig.last_weight_date || pig.updated_at)
-            .filter(Boolean)
-            .sort()
-            .reverse()[0] || new Date().toISOString();
+          // ✅ Arrondir le poids en nombre entier (pas de décimales)
+          const poidsArrondi = Math.round(poidsActuel);
 
-          // Créer le listing de bande
-          await apiClient.post('/marketplace/listings/batch', {
-            batchId,
-            farmId: projetId,
-            pricePerKg: price,
-            averageWeight,
-            pigCount: pigs.length,
-            pigIds: pigs.map((p) => p.id),
-            lastWeightDate,
-            location: {
-              latitude: userLocation.latitude,
-              longitude: userLocation.longitude,
-              address: undefined,
-              city: userLocation.city,
-              region: userLocation.region,
-            },
-            saleTerms: {
-              transport: 'buyer_responsibility',
-              slaughter: 'buyer_responsibility',
-              paymentTerms: 'on_delivery',
-              warranty: 'Tous les documents sanitaires et certificats seront fournis.',
-              cancellationPolicy: "Annulation possible jusqu'à 48h avant la date de livraison.",
-            },
-          });
+          // ✅ Créer le listing individuel avec l'ID réel du batch_pig (processus identique au mode individuel)
+          try {
+            logger.info(`[BatchAddModal] Création listing pour batch_pig:`, {
+              pigId: pig.id,
+              producerId: user.id,
+              farmId: projetId,
+              projetActifId: projetActif?.id,
+              weight: poidsArrondi,
+            });
+            await dispatch(
+              createListing({
+                subjectId: pig.id, // ✅ ID réel du batch_pig (pas d'ID virtuel)
+                producerId: user.id,
+                farmId: projetId,
+                pricePerKg: price,
+                weight: poidsArrondi, // ✅ Poids réel arrondi en nombre entier
+                lastWeightDate: lastWeightDate,
+                location: {
+                  latitude: userLocation.latitude,
+                  longitude: userLocation.longitude,
+                  address: userLocation.address || userLocation.city || userLocation.region || 'Non spécifié',
+                  city: userLocation.city || 'Non spécifié',
+                  region: userLocation.region || 'Non spécifié',
+                },
+              })
+            ).unwrap();
+          } catch (error: unknown) {
+            // Améliorer le message d'erreur avec les informations du porc
+            const pigName = pig.name || pig.pig_code || pig.id?.slice(0, 8) || 'porc';
+            const errorMsg = getErrorMessage(error);
+            if (errorMsg.includes('déjà en vente')) {
+              throw new Error(
+                `Le sujet "${pigName}" est déjà en vente sur le marketplace`
+              );
+            }
+            throw error;
+          }
         }
       } else {
         // Mode individuel : créer un listing pour chaque sujet sélectionné
@@ -423,30 +527,43 @@ export default function BatchAddModal({
 
           if (!animal) continue;
 
-          // Récupérer la dernière pesée pour obtenir le poids actuel et la date depuis l'API backend
-          const pesees = await apiClient.get<any[]>(`/production/pesees`, {
-            params: { animal_id: animal.id, limit: 1 },
-          });
-          const dernierePesee = pesees && pesees.length > 0 ? pesees[0] : null;
-          const poidsActuel = dernierePesee?.poids_kg || animal.poids_initial || 0;
-          const lastWeightDate = dernierePesee?.date || new Date().toISOString();
+          // ✅ Récupérer le poids avec fallback (pesée → poids_initial → poids manuel)
+          let poidsActuel = getCurrentWeight(subject);
+          const lastWeightDate = 
+            peseesParAnimalRedux[subject.id]?.[0]?.date || 
+            new Date().toISOString();
+
+          if (poidsActuel <= 0) {
+            logger.warn(`Poids invalide pour l'animal ${animal.code || animal.id}, ignoré`);
+            continue;
+          }
+
+          // ✅ Arrondir le poids en nombre entier (pas de décimales)
+          const poidsArrondi = Math.round(poidsActuel);
 
           // Créer le listing avec toutes les propriétés requises
           try {
+            logger.info(`[BatchAddModal] Création listing pour animal:`, {
+              animalId: animal.id,
+              producerId: user.id,
+              farmId: projetId,
+              projetActifId: projetActif?.id,
+              weight: poidsArrondi,
+            });
             await dispatch(
               createListing({
                 subjectId: animal.id,
                 producerId: user.id,
                 farmId: projetId,
                 pricePerKg: price,
-                weight: poidsActuel,
+                weight: poidsArrondi, // ✅ Poids réel arrondi en nombre entier
                 lastWeightDate: lastWeightDate,
                 location: {
                   latitude: userLocation.latitude,
                   longitude: userLocation.longitude,
-                  address: undefined,
-                  city: userLocation.city,
-                  region: userLocation.region,
+                  address: userLocation.address || userLocation.city || userLocation.region || 'Non spécifié',
+                  city: userLocation.city || 'Non spécifié',
+                  region: userLocation.region || 'Non spécifié',
                 },
               })
             ).unwrap();
@@ -464,12 +581,16 @@ export default function BatchAddModal({
         }
       }
 
+      logger.info(`[BatchAddModal] ${selectedIds.size} sujet(s) mis en vente avec succès`);
       Alert.alert('Succès', `${selectedIds.size} sujet(s) mis en vente avec succès !`, [
         {
           text: 'OK',
           onPress: () => {
             onClose();
-            onSuccess();
+            // Attendre un peu pour laisser le backend finaliser la création
+            setTimeout(() => {
+              onSuccess();
+            }, 500);
           },
         },
       ]);
@@ -628,9 +749,28 @@ export default function BatchAddModal({
                       <Text style={[styles.subjectDetails, { color: colors.textSecondary }]}>
                         {subject.nom ? `${subject.nom} • ` : ''}
                         {subject.race || 'Race non spécifiée'} •{' '}
-                        {getCurrentWeight(subject.id).toFixed(1)} kg •{' '}
-                        {calculateAgeInMonths(subject.date_naissance)} mois
+                        {hasValidWeight(subject) ? (
+                          <Text style={{ color: colors.textSecondary }}>
+                            {getCurrentWeight(subject).toFixed(1)} kg
+                          </Text>
+                        ) : (
+                          <Text style={{ color: colors.error }}>
+                            Poids manquant
+                          </Text>
+                        )}{' '}
+                        • {calculateAgeInMonths(subject.date_naissance)} mois
                       </Text>
+                      {!hasValidWeight(subject) && (
+                        <TouchableOpacity
+                          onPress={() => openWeightModal(subject)}
+                          style={[styles.weightButton, { backgroundColor: colors.primary + '15' }]}
+                        >
+                          <Ionicons name="scale-outline" size={16} color={colors.primary} />
+                          <Text style={[styles.weightButtonText, { color: colors.primary }]}>
+                            Renseigner le poids
+                          </Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
                   </TouchableOpacity>
                 );
@@ -693,6 +833,56 @@ export default function BatchAddModal({
             </TouchableOpacity>
           </View>
         </ScrollView>
+
+        {/* Modal pour demander le poids */}
+        <Modal
+          visible={showWeightModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowWeightModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Renseigner le poids
+              </Text>
+              {weightModalSubject && (
+                <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+                  Sujet : {weightModalSubject.code || weightModalSubject.id}
+                </Text>
+              )}
+              <TextInput
+                style={[styles.modalInput, { color: colors.text, borderColor: colors.border }]}
+                placeholder="Poids en kg"
+                placeholderTextColor={colors.textSecondary}
+                keyboardType="numeric"
+                value={weightInput}
+                onChangeText={setWeightInput}
+                autoFocus={true}
+              />
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: colors.border }]}
+                  onPress={() => {
+                    setShowWeightModal(false);
+                    setWeightModalSubject(null);
+                    setWeightInput('');
+                  }}
+                >
+                  <Text style={[styles.modalButtonText, { color: colors.text }]}>Annuler</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: colors.primary }]}
+                  onPress={confirmWeight}
+                >
+                  <Text style={[styles.modalButtonText, { color: colors.textInverse }]}>
+                    Confirmer
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         {/* Footer avec bouton de soumission */}
         <View style={[styles.footer, { backgroundColor: colors.surface }]}>
@@ -920,5 +1110,63 @@ const styles = StyleSheet.create({
   submitButtonText: {
     fontSize: MarketplaceTheme.typography.fontSizes.lg,
     fontWeight: MarketplaceTheme.typography.fontWeights.bold,
+  },
+  weightButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: MarketplaceTheme.borderRadius.sm,
+    marginTop: 4,
+    alignSelf: 'flex-start',
+  },
+  weightButtonText: {
+    fontSize: MarketplaceTheme.typography.fontSizes.xs,
+    fontWeight: MarketplaceTheme.typography.fontWeights.medium,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: MarketplaceTheme.spacing.md,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: MarketplaceTheme.borderRadius.lg,
+    padding: MarketplaceTheme.spacing.lg,
+    ...MarketplaceTheme.shadows.large,
+  },
+  modalTitle: {
+    fontSize: MarketplaceTheme.typography.fontSizes.xl,
+    fontWeight: MarketplaceTheme.typography.fontWeights.bold,
+    marginBottom: MarketplaceTheme.spacing.sm,
+  },
+  modalSubtitle: {
+    fontSize: MarketplaceTheme.typography.fontSizes.sm,
+    marginBottom: MarketplaceTheme.spacing.md,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderRadius: MarketplaceTheme.borderRadius.md,
+    padding: MarketplaceTheme.spacing.md,
+    fontSize: MarketplaceTheme.typography.fontSizes.lg,
+    marginBottom: MarketplaceTheme.spacing.lg,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: MarketplaceTheme.spacing.sm,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: MarketplaceTheme.spacing.md,
+    borderRadius: MarketplaceTheme.borderRadius.md,
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    fontSize: MarketplaceTheme.typography.fontSizes.md,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
   },
 });
