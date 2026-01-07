@@ -87,8 +87,31 @@ const AnimalCard = memo(
       vaccinationsAnimal.length + maladiesAnimal.length + traitementsAnimal.length;
     const isExpanded = expandedHistorique === animal.id;
 
+    // Vérifier si l'animal est en vente pour ajouter une bordure colorée
+    const isOnMarketplace = 
+      (animal as ProductionAnimalWithMarketplace).marketplace_status === 'available' ||
+      (animal as ProductionAnimalWithMarketplace).marketplace_status === 'reserved';
+    
+    const marketplaceBorderColor = 
+      (animal as ProductionAnimalWithMarketplace).marketplace_status === 'available' 
+        ? '#FF8C42' 
+        : (animal as ProductionAnimalWithMarketplace).marketplace_status === 'reserved'
+        ? '#F39C12'
+        : undefined;
+
     return (
-      <Card elevation="small" padding="medium" style={styles.card}>
+      <Card 
+        elevation="small" 
+        padding="medium" 
+        style={[
+          styles.card,
+          isOnMarketplace && {
+            borderWidth: 2,
+            borderColor: marketplaceBorderColor,
+            borderStyle: 'solid',
+          },
+        ]}
+      >
         <View style={styles.header}>
           {animal.photo_uri ? (
             <OptimizedImage
@@ -145,22 +168,36 @@ const AnimalCard = memo(
                 <View
                   style={[
                     styles.marketplaceBadge,
-                    { backgroundColor: '#FF8C42' + '20', borderColor: '#FF8C42' },
+                    styles.marketplaceBadgeActive,
+                    { 
+                      backgroundColor: '#FF8C42' + '25', 
+                      borderColor: '#FF8C42',
+                      borderWidth: 1.5,
+                    },
                   ]}
                 >
-                  <Ionicons name="storefront-outline" size={12} color="#FF8C42" />
-                  <Text style={[styles.marketplaceText, { color: '#FF8C42' }]}>En vente</Text>
+                  <Ionicons name="storefront" size={14} color="#FF8C42" />
+                  <Text style={[styles.marketplaceText, { color: '#FF8C42', fontWeight: '700' }]}>
+                    En vente
+                  </Text>
                 </View>
               )}
               {(animal as ProductionAnimalWithMarketplace).marketplace_status === 'reserved' && (
                 <View
                   style={[
                     styles.marketplaceBadge,
-                    { backgroundColor: '#F39C12' + '20', borderColor: '#F39C12' },
+                    styles.marketplaceBadgeActive,
+                    { 
+                      backgroundColor: '#F39C12' + '25', 
+                      borderColor: '#F39C12',
+                      borderWidth: 1.5,
+                    },
                   ]}
                 >
-                  <Ionicons name="lock-closed-outline" size={12} color="#F39C12" />
-                  <Text style={[styles.marketplaceText, { color: '#F39C12' }]}>Réservé</Text>
+                  <Ionicons name="lock-closed" size={14} color="#F39C12" />
+                  <Text style={[styles.marketplaceText, { color: '#F39C12', fontWeight: '700' }]}>
+                    Réservé
+                  </Text>
                 </View>
               )}
             </View>
@@ -613,9 +650,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: SPACING.sm,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: BORDER_RADIUS.xs,
     borderWidth: 1,
+  },
+  marketplaceBadgeActive: {
+    // Style pour les badges actifs (en vente/réservé) - plus visible
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   marketplaceText: {
     fontSize: FONT_SIZES.xs,

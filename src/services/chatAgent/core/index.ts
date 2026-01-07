@@ -1,5 +1,8 @@
 /**
  * Exports des composants core de l'agent conversationnel
+ * 
+ * Note: Les services Gemini frontend ont été supprimés.
+ * Toutes les interactions IA passent maintenant par le backend.
  */
 
 export {
@@ -14,8 +17,6 @@ export {
 } from './ConversationContext';
 export { DataValidator, type ValidationResult } from './DataValidator';
 export { IntentRAG, type TrainingExample, INTENT_KNOWLEDGE_BASE } from './IntentRAG';
-export { GeminiIntentService, type GeminiEmbedding } from './GeminiIntentService';
-export { GeminiParameterExtractor } from './GeminiParameterExtractor';
 export { FastPathDetector, type FastPathResult } from './FastPathDetector';
 export { ConfirmationManager, type ConfirmationDecision, type UserPreferences } from './ConfirmationManager';
 export { LearningService, type LearningFailure, type EducationalSuggestion } from './LearningService';

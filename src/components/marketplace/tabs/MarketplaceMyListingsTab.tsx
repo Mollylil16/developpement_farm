@@ -35,7 +35,7 @@ interface MarketplaceMyListingsTabProps {
   onViewDetails: (listing: MarketplaceListing) => void;
 }
 
-export default function MarketplaceMyListingsTab({
+function MarketplaceMyListingsTab({
   listings,
   loading,
   onRefresh,
@@ -283,3 +283,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(MarketplaceMyListingsTab);

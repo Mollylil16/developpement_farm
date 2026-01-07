@@ -17,6 +17,7 @@ config.resolver.sourceExts = [
 // Utiliser 'main' avant 'browser' pour éviter les redirections vers .mjs
 // Le champ "browser" de certains packages redirige vers .mjs (ex: make-plural)
 // En priorisant 'main', on force l'utilisation des fichiers .js/.cjs
+// Utiliser les champs de résolution par défaut de React Native
 config.resolver.resolverMainFields = ['react-native', 'main'];
 
 // Configuration pour supprimer les warnings des packages Redux avec exports invalides
@@ -44,6 +45,10 @@ config.resolver.blockList = [
   // Bloquer jsdom du file watcher (causes erreurs lstat, pas utilisé en React Native)
   // Note: Metro pourra toujours résoudre jsdom si nécessaire, mais ne le surveillera pas
   /node_modules[/\\]jsdom[/\\].*/,
+  // Bloquer android et ios du file watcher (générés par prebuild, peuvent causer des erreurs ENOENT)
+  // Note: Metro pourra toujours résoudre les modules natifs si nécessaire, mais ne surveillera pas ces dossiers
+  /android[/\\].*/,
+  /ios[/\\].*/,
 ];
 
 // Configurer le watcher pour ignorer le dossier backend et node_modules
@@ -54,14 +59,13 @@ if (!config.watcher) {
 }
 config.watcher.watchman = {
   ...config.watcher.watchman,
-  // Ignorer le dossier backend et node_modules dans watchman (si disponible)
-  ignore_dirs: ['backend', 'node_modules'],
+  // Ignorer le dossier backend, node_modules et android/ios (générés par prebuild) dans watchman (si disponible)
+  ignore_dirs: ['backend', 'node_modules', 'android', 'ios'],
 };
 
 // Configuration supplémentaire pour le FallbackWatcher (utilisé si Watchman n'est pas disponible)
 // Le FallbackWatcher utilise fileMap pour déterminer quels fichiers surveiller
 // On configure projectRoot pour limiter la portée de la surveillance
-const path = require('path');
 config.projectRoot = __dirname;
 
 // IMPORTANT: watchFolders contrôle ce que Metro surveille pour les changements
@@ -75,10 +79,10 @@ if (!config.server) {
   config.server = {};
 }
 
-// Gestion des erreurs du FallbackWatcher pour ignorer les erreurs lstat sur node_modules
-// Cette configuration permet à Metro de continuer même si certains fichiers dans node_modules
-// causent des erreurs (ex: fichiers manquants, chemins trop longs sur Windows)
-// Intercepter les événements d'erreur du processus pour ignorer les erreurs UNKNOWN lstat
+// Gestion des erreurs du FallbackWatcher pour ignorer les erreurs lstat/watch sur node_modules et android
+// Cette configuration permet à Metro de continuer même si certains fichiers/dossiers
+// causent des erreurs (ex: fichiers manquants, chemins trop longs sur Windows, dossiers supprimés)
+// Intercepter les événements d'erreur du processus pour ignorer les erreurs UNKNOWN lstat et ENOENT watch
 if (typeof process !== 'undefined' && process.emit) {
   const originalEmit = process.emit;
   process.emit = function (event, ...args) {
@@ -87,6 +91,16 @@ if (typeof process !== 'undefined' && process.emit) {
       const errorPath = args[0].path || '';
       if (errorPath.includes('node_modules') || errorPath.includes('jsdom')) {
         // Ignorer silencieusement ces erreurs spécifiques
+        return false;
+      }
+    }
+    // Ignorer les erreurs ENOENT (fichier/dossier non trouvé) lors du watch
+    // Cela peut arriver si un dossier est supprimé ou renommé pendant que Metro le surveille
+    if (event === 'error' && args[0] && args[0].code === 'ENOENT' && args[0].syscall === 'watch') {
+      const errorPath = args[0].path || '';
+      // Ignorer les erreurs ENOENT sur android (dossiers générés par prebuild qui peuvent être supprimés)
+      if (errorPath.includes('android') || errorPath.includes('ios')) {
+        // Ignorer silencieusement ces erreurs - Metro continuera à fonctionner
         return false;
       }
     }

@@ -46,6 +46,7 @@ import { useActionPermissions } from '../hooks/useActionPermissions';
 import { useProductionCheptelFilters } from '../hooks/production/useProductionCheptelFilters';
 import { useProductionCheptelLogic } from '../hooks/production/useProductionCheptelLogic';
 import { useProductionCheptelStatut } from '../hooks/production/useProductionCheptelStatut';
+import { useMarketplaceStatusForAnimals } from '../hooks/useMarketplaceStatusForAnimals';
 import AnimalCard from './production/AnimalCard';
 import CheptelHeader from './production/CheptelHeader';
 import BatchCheptelView from './BatchCheptelView';
@@ -96,6 +97,25 @@ export default function ProductionCheptelComponent() {
     animauxFiltres,
     countByCategory,
   } = useProductionCheptelFilters(projetActif?.id);
+
+  // Enrichir les animaux avec leur statut marketplace
+  const { animauxEnrichis, refresh: refreshMarketplace } = useMarketplaceStatusForAnimals();
+  
+  // Créer une map pour accéder rapidement aux animaux enrichis
+  const animauxEnrichisMap = React.useMemo(() => {
+    const map = new Map<string, typeof animauxEnrichis[0]>();
+    animauxEnrichis.forEach((animal) => {
+      map.set(animal.id, animal);
+    });
+    return map;
+  }, [animauxEnrichis]);
+
+  // Enrichir les animaux filtrés avec les données marketplace
+  const animauxFiltresEnrichis = React.useMemo(() => {
+    return animauxFiltres.map((animal) => {
+      return animauxEnrichisMap.get(animal.id) || animal;
+    });
+  }, [animauxFiltres, animauxEnrichisMap]);
 
   const {
     togglingMarketplace,
@@ -156,13 +176,13 @@ export default function ProductionCheptelComponent() {
     };
   }, [projetActif?.id]);
   
-  // Paginer les animaux filtrés
+  // Paginer les animaux filtrés enrichis
   const animauxPagines = React.useMemo(() => {
-    return animauxFiltres.slice(0, displayedCount);
-  }, [animauxFiltres, displayedCount]);
+    return animauxFiltresEnrichis.slice(0, displayedCount);
+  }, [animauxFiltresEnrichis, displayedCount]);
   
   // Vérifier s'il y a plus d'animaux à charger
-  const hasMore = animauxFiltres.length > displayedCount;
+  const hasMore = animauxFiltresEnrichis.length > displayedCount;
   
   // Charger plus d'animaux (scroll infini)
   const loadMore = useCallback(() => {
@@ -220,6 +240,9 @@ export default function ProductionCheptelComponent() {
       dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: true })).catch((error) => {
         logger.error('Erreur lors du chargement des animaux:', error);
       });
+      
+      // Recharger aussi les statuts marketplace
+      refreshMarketplace();
 
       // Déferrer les autres chargements (non-critiques) après un court délai
       // pour améliorer le temps de chargement initial
@@ -243,6 +266,9 @@ export default function ProductionCheptelComponent() {
     try {
       // Inclure les inactifs pour avoir tous les animaux du cheptel (actif et autre)
       await dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: true })).unwrap();
+      
+      // Recharger aussi les statuts marketplace
+      await refreshMarketplace();
     } catch (error) {
       logger.error('Erreur lors du rafraîchissement:', error);
     } finally {
@@ -415,7 +441,7 @@ export default function ProductionCheptelComponent() {
         initialNumToRender={10}
         ListHeaderComponent={
           <CheptelHeader
-            totalCount={animauxFiltres.length}
+            totalCount={animauxFiltresEnrichis.length}
             countByCategory={countByCategory}
             filterCategorie={filterCategorie}
             searchQuery={searchQuery}

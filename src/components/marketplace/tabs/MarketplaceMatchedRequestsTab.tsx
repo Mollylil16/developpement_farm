@@ -31,7 +31,7 @@ interface MarketplaceMatchedRequestsTabProps {
   onMakeOffer?: (request: PurchaseRequest, match: PurchaseRequestMatch) => void;
 }
 
-export default function MarketplaceMatchedRequestsTab({
+function MarketplaceMatchedRequestsTab({
   producerId,
   onRequestPress,
   onMakeOffer,
@@ -49,12 +49,25 @@ export default function MarketplaceMatchedRequestsTab({
       const allMatches = await apiClient.get<any[]>('/marketplace/purchase-request-matches');
 
       // Enrichir avec les détails des demandes depuis l'API backend
-      const enrichedMatches = await Promise.all(
-        allMatches.map(async (match) => {
-          const request = await apiClient.get<any>(`/marketplace/purchase-requests/${match.purchaseRequestId}`);
-          return { match, request };
-        })
-      );
+      // Optimisation: Charger en parallèle avec limite pour éviter trop de requêtes simultanées
+      const BATCH_SIZE = 5;
+      const enrichedMatches: Array<{ match: any; request: any }> = [];
+      
+      for (let i = 0; i < allMatches.length; i += BATCH_SIZE) {
+        const batch = allMatches.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.all(
+          batch.map(async (match) => {
+            try {
+              const request = await apiClient.get<any>(`/marketplace/purchase-requests/${match.purchaseRequestId}`);
+              return { match, request };
+            } catch (error) {
+              logger.error(`Erreur chargement demande ${match.purchaseRequestId}:`, error);
+              return null;
+            }
+          })
+        );
+        enrichedMatches.push(...batchResults.filter((r): r is { match: any; request: any } => r !== null));
+      }
 
       // Filtrer uniquement les demandes publiées
       const activeMatches = enrichedMatches.filter(
@@ -354,3 +367,6 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xs,
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(MarketplaceMatchedRequestsTab);

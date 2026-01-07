@@ -427,3 +427,6 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xs,
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(MarketplaceMyPurchaseRequestsTab);

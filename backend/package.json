@@ -24,6 +24,7 @@
     "check-all": "npm run lint && npm run type-check && npm run format:check"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@nestjs/axios": "^4.0.0",
     "@nestjs/common": "^11.0.0",
     "@nestjs/config": "^4.0.2",

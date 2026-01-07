@@ -205,3 +205,6 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(MarketplaceBuyTab);

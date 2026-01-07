@@ -1,12 +1,14 @@
 /**
  * Script pour exécuter les tests de validation de l'agent
  * Usage: Appeler depuis l'application ou un script de test
+ * 
+ * Note: Les tests utilisent maintenant le service local sans Gemini.
+ * En production, utilisez le backend via useChatAgent.
  */
 
 import { ChatAgentService } from '../ChatAgentService';
 import { AgentConfig, AgentContext } from '../../../types/chatAgent';
 import { AgentValidationTest, ValidationReport } from './AgentValidationTest';
-import { GEMINI_CONFIG } from '../../../config/geminiConfig';
 import { exportValidationReportPDF } from './ValidationReportPDF';
 import { PerformanceMonitor } from '../monitoring/PerformanceMonitor';
 
@@ -14,10 +16,9 @@ import { PerformanceMonitor } from '../monitoring/PerformanceMonitor';
  * Exécute les tests de validation et retourne le rapport
  */
 export async function runAgentValidation(context: AgentContext): Promise<ValidationReport> {
-  // Configuration de l'agent avec Gemini
+  // Configuration de l'agent (sans Gemini - détection locale uniquement)
   const config: AgentConfig = {
-    geminiApiKey: GEMINI_CONFIG.apiKey,
-    model: GEMINI_CONFIG.model,
+    model: 'local',
     language: 'fr-CI',
     enableVoice: false,
     enableProactiveAlerts: true,

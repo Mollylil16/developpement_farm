@@ -100,7 +100,11 @@ class ProfileSyncService {
 
     try {
       // Récupérer le profil depuis l'API
-      const apiUser = await apiClient.get<User>(`/users/${this.userId}`);
+      // Timeout réduit pour la sync de profil (non-critique, en arrière-plan)
+      const apiUser = await apiClient.get<User>(`/users/${this.userId}`, {
+        timeout: 8000, // 8 secondes au lieu du timeout par défaut
+        retry: false, // Pas de retry automatique (vérification périodique)
+      });
 
       if (!apiUser) {
         return false;
@@ -146,12 +150,22 @@ class ProfileSyncService {
 
       return false;
     } catch (error) {
-      // Ne pas loguer les timeouts (408) comme des erreurs critiques (ils sont récupérables et gérés par le retry handler)
-      if (error instanceof APIError && error.status === 408) {
-        logger.debug('[ProfileSyncService] Timeout réseau lors de la vérification (non critique, retry automatique)');
-      } else if (error instanceof Error && error.message.includes('timeout')) {
-        logger.debug('[ProfileSyncService] Timeout lors de la vérification (non critique)');
+      // Ne pas loguer les timeouts comme des erreurs critiques (opération en arrière-plan, vérification périodique)
+      const isTimeout = 
+        (error instanceof APIError && error.status === 408) ||
+        (error instanceof Error && error.message.includes('timeout')) ||
+        (error instanceof Error && error.message.includes('Network request timed out')) ||
+        (error instanceof Error && error.name === 'AbortError') ||
+        (error instanceof Error && error.message.includes('aborted'));
+      
+      if (isTimeout) {
+        // Timeout silencieux (vérification périodique, retry automatique au prochain intervalle)
+        // Ne pas logger comme erreur pour éviter le spam dans les logs
+        if (__DEV__) {
+          logger.debug('[ProfileSyncService] Timeout lors de la vérification (non critique, retry au prochain intervalle)');
+        }
       } else {
+        // Logger uniquement les erreurs non-timeout
         logger.error('[ProfileSyncService] Erreur lors de la vérification des mises à jour:', error);
       }
       return false;

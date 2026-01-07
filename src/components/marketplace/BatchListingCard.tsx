@@ -21,7 +21,7 @@ interface BatchListingCardProps {
   onSelect?: () => void;
 }
 
-export default function BatchListingCard({
+function BatchListingCard({
   listing,
   onPress,
   selected = false,
@@ -291,4 +291,7 @@ const styles = StyleSheet.create({
     fontWeight: MarketplaceTheme.typography.fontWeights.medium,
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles dans les FlatList
+export default React.memo(BatchListingCard);
 

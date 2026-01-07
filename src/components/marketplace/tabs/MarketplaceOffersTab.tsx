@@ -31,7 +31,7 @@ interface MarketplaceOffersTabProps {
   onRefresh: () => void;
 }
 
-export default function MarketplaceOffersTab({
+function MarketplaceOffersTab({
   receivedOffers,
   sentOffers,
   loading,
@@ -459,3 +459,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(MarketplaceOffersTab);

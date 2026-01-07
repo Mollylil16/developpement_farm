@@ -49,10 +49,12 @@ const styles = StyleSheet.create({
   },
 });
 
-export default function FinanceScreen() {
+const FinanceScreenMemo = React.memo(function FinanceScreen() {
   return (
     <ProtectedScreen requiredPermission="finance">
       <FinanceScreenContent />
     </ProtectedScreen>
   );
-}
+});
+
+export default FinanceScreenMemo;

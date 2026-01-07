@@ -31,7 +31,7 @@ interface FarmCardProps {
   onFavoriteChange?: (farmId: string, isFavorite: boolean) => void;
 }
 
-export default function FarmCard({
+function FarmCard({
   farm,
   distance,
   onPress,
@@ -588,3 +588,6 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles dans les FlatList
+export default React.memo(FarmCard);

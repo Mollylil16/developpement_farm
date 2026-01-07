@@ -3,13 +3,8 @@ module.exports = function (api) {
   return {
     presets: ['babel-preset-expo'],
     plugins: [
-      [
-        'react-native-reanimated/plugin',
-        {
-          // Désactive le warning "Reduced Motion" en développement
-          // Les animations fonctionneront toujours normalement
-        },
-      ],
+      // react-native-reanimated/plugin DOIT être en dernier
+      'react-native-reanimated/plugin',
     ],
   };
 };

@@ -13,7 +13,7 @@ import { useTheme } from '../contexts/ThemeContext';
 
 const Tab = createMaterialTopTabNavigator();
 
-export default function ProductionScreen() {
+function ProductionScreen() {
   const { colors } = useTheme();
 
   return (
@@ -71,3 +71,6 @@ export default function ProductionScreen() {
     </SafeAreaView>
   );
 }
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(ProductionScreen);

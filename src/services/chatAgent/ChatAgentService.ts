@@ -1,6 +1,9 @@
 /**
  * Service principal pour l'agent conversationnel
- * V4.0 - Avec apprentissage continu et réponses unifiées
+ * V4.1 - Sans appels directs à Gemini (tout passe par le backend)
+ * 
+ * @deprecated Ce service est utilisé uniquement pour les tests.
+ * En production, utilisez le hook useChatAgent qui appelle le backend.
  */
 
 import {
@@ -17,11 +20,8 @@ import { IntentDetector } from './IntentDetector';
 import { buildOptimizedSystemPrompt } from './prompts/systemPrompt';
 import {
   IntentRAG,
-  ParameterExtractor,
   ConversationContextManager,
   DataValidator,
-  GeminiIntentService,
-  GeminiParameterExtractor,
   ClarificationService,
 } from './core';
 import { EnhancedParameterExtractor } from './core/EnhancedParameterExtractor';
@@ -44,11 +44,10 @@ export class ChatAgentService {
   private context: AgentContext | null = null;
   private conversationHistory: ChatMessage[] = [];
 
-  // Composants core
+  // Composants core (sans Gemini - tout passe par le backend)
   private intentRAG: IntentRAG;
   private conversationContext: ConversationContextManager;
   private dataValidator: DataValidator;
-  private geminiService: GeminiIntentService | null = null;
   private confirmationManager: ConfirmationManager;
   private learningService: LearningService;
   private performanceMonitor: PerformanceMonitor;
@@ -56,7 +55,7 @@ export class ChatAgentService {
 
   constructor(config: AgentConfig) {
     this.config = {
-      model: 'gpt-4o-mini',
+      model: 'local', // Détection locale uniquement
       temperature: 0.7,
       maxTokens: 1000,
       language: 'fr-CI',
@@ -67,13 +66,8 @@ export class ChatAgentService {
     this.actionExecutor = new AgentActionExecutor();
     this.api = new ChatAgentAPI(this.config);
 
-    // Initialiser le service Gemini si la clé est fournie
-    if (this.config.geminiApiKey) {
-      this.geminiService = new GeminiIntentService(this.config.geminiApiKey);
-    }
-
-    // Initialiser les composants core
-    this.intentRAG = new IntentRAG(undefined, this.geminiService || undefined);
+    // Initialiser les composants core (sans Gemini)
+    this.intentRAG = new IntentRAG();
     this.conversationContext = new ConversationContextManager();
     this.dataValidator = new DataValidator();
     this.confirmationManager = new ConfirmationManager();
@@ -259,45 +253,7 @@ export class ChatAgentService {
           detectedIntent = await this.intentRAG.detectIntent(processedMessage);
           ragTime = Date.now() - ragStartTime;
 
-          // Si RAG ne trouve rien, essayer Gemini classification
-          if ((!detectedIntent || detectedIntent.confidence < 0.85) && this.geminiService) {
-            const availableActions: AgentActionType[] = [
-              'get_statistics',
-              'get_stock_status',
-              'calculate_costs',
-              'get_reminders',
-              'analyze_data',
-              'search_animal',
-              'create_revenu',
-              'create_depense',
-              'create_charge_fixe',
-              'create_pesee',
-              'create_vaccination',
-              'create_visite_veterinaire',
-              'create_traitement',
-              'create_maladie',
-              'create_ingredient',
-              'create_planification',
-              'answer_knowledge_question',
-              'list_knowledge_topics',
-              'other',
-            ];
-
-            const geminiClassification = await this.geminiService.classifyIntent(
-              processedMessage, // Utiliser le message traité
-              availableActions
-            );
-            if (geminiClassification && geminiClassification.confidence >= 0.85) {
-              detectedIntent = {
-                action: geminiClassification.action,
-                confidence: geminiClassification.confidence,
-                params: {},
-              };
-              logger.debug('Action Gemini:', detectedIntent.action, 'confiance:', detectedIntent.confidence);
-            }
-          }
-
-          // Fallback sur IntentDetector
+          // Fallback sur IntentDetector (sans Gemini - tout passe par le backend)
           if (!detectedIntent || detectedIntent.confidence < 0.85) {
             const fallbackIntent = IntentDetector.detectIntent(processedMessage);
             if (fallbackIntent && fallbackIntent.confidence >= 0.75) {
@@ -333,27 +289,7 @@ export class ChatAgentService {
           logger.debug('[ChatAgentService] Paramètres fusionnés pour clarification:', extractedParams);
         }
 
-        // Extraction Gemini si paramètres manquants
-        if (this.geminiService && this.config.geminiApiKey) {
-          const hasMissingParams = ActionParser.hasMissingCriticalParams(
-            detectedIntent.action,
-            extractedParams
-          );
-
-          if (hasMissingParams || detectedIntent.confidence < 0.85) {
-            try {
-              const geminiParameterExtractor = new GeminiParameterExtractor(this.config.geminiApiKey);
-              const geminiParams = await geminiParameterExtractor.extractAll(
-                userMessage,
-                detectedIntent.action
-              );
-              extractedParams = { ...extractedParams, ...geminiParams };
-              logger.debug('Extraction Gemini utilisée');
-            } catch (error) {
-              logger.warn('Erreur extraction Gemini:', error);
-            }
-          }
-        }
+        // Note: L'extraction Gemini a été supprimée - tout passe par le backend
 
         let mergedParams = {
           ...detectedIntent.params,

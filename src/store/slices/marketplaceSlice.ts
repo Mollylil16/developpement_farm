@@ -133,13 +133,32 @@ export const searchListings = createAsyncThunk(
         }
       }
 
+      // Trier les listings pour prioriser les "Nouveau" (créés dans les 7 derniers jours)
+      const now = Date.now();
+      const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000; // 7 jours en millisecondes
+      
+      const sortedListings = [...filteredListings].sort((a, b) => {
+        // Déterminer si un listing est "Nouveau" (créé dans les 7 derniers jours)
+        const aListedAt = new Date(a.listedAt || a.updatedAt || 0).getTime();
+        const bListedAt = new Date(b.listedAt || b.updatedAt || 0).getTime();
+        const aIsNew = aListedAt >= sevenDaysAgo;
+        const bIsNew = bListedAt >= sevenDaysAgo;
+        
+        // Prioriser les listings "Nouveau"
+        if (aIsNew && !bIsNew) return -1; // a est nouveau, b ne l'est pas → a en premier
+        if (!aIsNew && bIsNew) return 1;  // b est nouveau, a ne l'est pas → b en premier
+        
+        // Si les deux sont nouveaux ou aucun n'est nouveau, trier par listed_at DESC (plus récent en premier)
+        return bListedAt - aListedAt;
+      });
+
       // Simuler la pagination côté client pour l'instant
       const page = params.page || 1;
       const limit = 20;
       const start = (page - 1) * limit;
       const end = start + limit;
-      const paginatedListings = filteredListings.slice(start, end);
-      const totalPages = Math.ceil(filteredListings.length / limit);
+      const paginatedListings = sortedListings.slice(start, end);
+      const totalPages = Math.ceil(sortedListings.length / limit);
 
       return {
         listings: paginatedListings,

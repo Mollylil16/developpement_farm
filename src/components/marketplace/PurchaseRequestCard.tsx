@@ -40,7 +40,7 @@ const STATUS_COLORS: Record<PurchaseRequestStatus, string> = {
   cancelled: '#F44336',
 };
 
-export default function PurchaseRequestCard({
+function PurchaseRequestCard({
   request,
   type,
   onPress,
@@ -319,4 +319,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles dans les FlatList
+export default React.memo(PurchaseRequestCard);
 

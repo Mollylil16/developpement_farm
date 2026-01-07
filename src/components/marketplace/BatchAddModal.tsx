@@ -478,10 +478,16 @@ export default function BatchAddModal({
 
           // ✅ Créer le listing individuel avec l'ID réel du batch_pig (processus identique au mode individuel)
           try {
+            // ✅ CORRECTION: Utiliser projetActif.id au lieu de projetId (prop)
+            const farmIdToUse = projetActif?.id || projetId;
+            if (projetActif && projetId !== projetActif.id) {
+              logger.warn(`[BatchAddModal] Attention: projetId prop (${projetId}) différent de projetActif.id (${projetActif.id}). Utilisation de projetActif.id.`);
+            }
             logger.info(`[BatchAddModal] Création listing pour batch_pig:`, {
               pigId: pig.id,
               producerId: user.id,
-              farmId: projetId,
+              farmId: farmIdToUse,
+              projetIdProp: projetId,
               projetActifId: projetActif?.id,
               weight: poidsArrondi,
             });
@@ -489,7 +495,7 @@ export default function BatchAddModal({
               createListing({
                 subjectId: pig.id, // ✅ ID réel du batch_pig (pas d'ID virtuel)
                 producerId: user.id,
-                farmId: projetId,
+                farmId: farmIdToUse, // ✅ CORRECTION: Utiliser projetActif.id
                 pricePerKg: price,
                 weight: poidsArrondi, // ✅ Poids réel arrondi en nombre entier
                 lastWeightDate: lastWeightDate,
@@ -543,10 +549,16 @@ export default function BatchAddModal({
 
           // Créer le listing avec toutes les propriétés requises
           try {
+            // ✅ CORRECTION: Utiliser projetActif.id au lieu de projetId (prop)
+            const farmIdToUse = projetActif?.id || projetId;
+            if (projetActif && projetId !== projetActif.id) {
+              logger.warn(`[BatchAddModal] Attention: projetId prop (${projetId}) différent de projetActif.id (${projetActif.id}). Utilisation de projetActif.id.`);
+            }
             logger.info(`[BatchAddModal] Création listing pour animal:`, {
               animalId: animal.id,
               producerId: user.id,
-              farmId: projetId,
+              farmId: farmIdToUse,
+              projetIdProp: projetId,
               projetActifId: projetActif?.id,
               weight: poidsArrondi,
             });
@@ -554,7 +566,7 @@ export default function BatchAddModal({
               createListing({
                 subjectId: animal.id,
                 producerId: user.id,
-                farmId: projetId,
+                farmId: farmIdToUse, // ✅ CORRECTION: Utiliser projetActif.id
                 pricePerKg: price,
                 weight: poidsArrondi, // ✅ Poids réel arrondi en nombre entier
                 lastWeightDate: lastWeightDate,

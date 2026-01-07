@@ -9,6 +9,7 @@
 import { AgentContext } from '../../types/chatAgent';
 import { AgentActionExecutor } from '../chatAgent/AgentActionExecutor';
 import { logger } from '../../utils/logger';
+import apiClient from '../api/apiClient';
 
 interface GeminiContent {
   role: 'user' | 'model' | 'function';
@@ -39,16 +40,18 @@ interface GeminiFunctionDeclaration {
 }
 
 export class GeminiConversationalAgent {
-  private apiKey: string;
   private context: AgentContext;
   private actionExecutor: AgentActionExecutor;
   private conversationHistory: GeminiContent[] = [];
   private readonly model = 'gemini-2.5-flash';
-  private readonly apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent`;
   private lastFunctionCalls: string[] = []; // Pour le debugging/testing
 
-  constructor(apiKey: string, context: AgentContext) {
-    this.apiKey = apiKey;
+  constructor(apiKey: string | null, context: AgentContext) {
+    // apiKey n'est plus utilisé directement (appels via backend)
+    // Conservé pour compatibilité avec le code existant
+    if (!apiKey) {
+      logger.warn('[GeminiConversationalAgent] apiKey est null - les appels passeront par le backend');
+    }
     this.context = context;
     this.actionExecutor = new AgentActionExecutor();
   }
@@ -300,13 +303,21 @@ IMPORTANT : Utilise TOUJOURS les fonctions quand l'action le permet. Ne dis jama
       // Gemini gère automatiquement le contexte avec l'historique complet
       const contents = this.conversationHistory;
 
-      // Faire l'appel initial à Gemini
-      const response = await fetch(`${this.apiUrl}?key=${this.apiKey}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      // Faire l'appel via le backend (qui proxy vers Gemini)
+      // La clé API est sécurisée côté backend (process.env.GEMINI_API_KEY)
+      const data = await apiClient.post<{
+          candidates?: Array<{
+            content?: {
+              parts?: Array<{
+                text?: string;
+                functionCall?: {
+                  name: string;
+                  args: Record<string, unknown>;
+                };
+              }>;
+            };
+          }>;
+        }>('/kouakou/chat', {
           contents: contents,
           tools: this.getTools(),
           system_instruction: {
@@ -316,27 +327,18 @@ IMPORTANT : Utilise TOUJOURS les fonctions quand l'action le permet. Ne dis jama
             temperature: 0.7,
             maxOutputTokens: 1000,
           },
-        }),
-      });
+        });
+        const candidate = data.candidates?.[0];
+        const content = candidate?.content;
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        logger.error('[GeminiConversationalAgent] Erreur API Gemini:', errorData);
-        throw new Error(`Erreur Gemini: ${errorData.error?.message || response.status}`);
-      }
+        if (!content) {
+          throw new Error('Aucune réponse de Gemini');
+        }
 
-      const data = await response.json();
-      const candidate = data.candidates?.[0];
-      const content = candidate?.content;
+        // Vérifier si Gemini veut appeler une fonction
+        const functionCalls = content.parts?.filter(part => part.functionCall) || [];
 
-      if (!content) {
-        throw new Error('Aucune réponse de Gemini');
-      }
-
-      // Vérifier si Gemini veut appeler une fonction
-      const functionCalls = content.parts?.filter(part => part.functionCall) || [];
-
-      if (functionCalls.length > 0) {
+        if (functionCalls.length > 0) {
         // Gemini veut appeler une ou plusieurs fonctions
         const functionResponses: Array<{
           name: string;
@@ -409,34 +411,29 @@ IMPORTANT : Utilise TOUJOURS les fonctions quand l'action le permet. Ne dis jama
         };
         this.conversationHistory.push(functionResponseContent);
 
-        // Faire un second appel à Gemini pour générer la réponse naturelle
+        // Faire un second appel à Gemini via le backend pour générer la réponse naturelle
         // IMPORTANT: On envoie l'historique complet (qui contient maintenant user + model(functionCall) + function(response))
         // Gemini va générer la réponse textuelle finale
         // Pas besoin de tools dans le second appel (Gemini génère juste du texte)
-        const finalResponse = await fetch(`${this.apiUrl}?key=${this.apiKey}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
+        const finalData = await apiClient.post<{
+          candidates?: Array<{
+            content?: {
+              parts?: Array<{
+                text?: string;
+              }>;
+            };
+          }>;
+        }>('/kouakou/chat', {
+          contents: this.conversationHistory, // Historique complet
+          system_instruction: {
+            parts: [{ text: this.buildSystemPrompt() }],
           },
-          body: JSON.stringify({
-            contents: this.conversationHistory, // Historique complet
-            system_instruction: {
-              parts: [{ text: this.buildSystemPrompt() }],
-            },
-            generationConfig: {
-              temperature: 0.7,
-              maxOutputTokens: 1000,
-            },
-            // Pas de tools dans le second appel (Gemini génère juste du texte)
-          }),
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 1000,
+          },
+          // Pas de tools dans le second appel (Gemini génère juste du texte)
         });
-
-        if (!finalResponse.ok) {
-          const errorData = await finalResponse.json().catch(() => ({}));
-          throw new Error(`Erreur Gemini (réponse finale): ${errorData.error?.message || finalResponse.status}`);
-        }
-
-        const finalData = await finalResponse.json();
         const finalCandidate = finalData.candidates?.[0];
         const finalText = finalCandidate?.content?.parts?.[0]?.text;
 

@@ -49,8 +49,9 @@ Le rapport HTML contient :
 
 ## Note
 
-Ce script teste l'agent **réellement** avec OpenAI. Assurez-vous d'avoir :
+⚠️ **MIGRATION VERS GEMINI** : Ce script a été migré vers Gemini. Assurez-vous d'avoir :
 - Une connexion Internet
-- Une clé OpenAI valide dans `src/config/openaiConfig.ts`
+- Le backend configuré avec `GEMINI_API_KEY` dans `.env` (backend/.env)
 - Les dépendances installées (`npm install`)
+- Le backend démarré (`npm run start:dev` dans backend/)
 

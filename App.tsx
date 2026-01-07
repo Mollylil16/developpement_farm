@@ -31,42 +31,9 @@ import { ANIMATIONS, LIGHT_COLORS } from './src/constants/theme';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { GlobalTextRenderGuard } from './src/components/GlobalTextRenderGuard';
 
-// Désactiver LogBox et les overlays de développement qui peuvent masquer la barre de navigation
+// Désactiver LogBox en développement pour éviter les overlays intrusifs
 if (__DEV__) {
   LogBox.ignoreAllLogs(true);
-  // Masquer les overlays de développement qui peuvent rester affichés
-  try {
-    // Désactiver les indicateurs de progression d'Expo
-    // Utiliser Object.defineProperty avec configurable: true pour éviter "property is not configurable"
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (typeof (global as any).__expo !== 'undefined') {
-      try {
-        // Essayer de modifier avec defineProperty si possible
-        Object.defineProperty(global, '__expo', {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          value: {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            ...(global as any).__expo,
-            hideDevMenu: true,
-          },
-          writable: true,
-          enumerable: false,
-          configurable: true, // ← CRITIQUE: doit être true
-        });
-      } catch {
-        // Si defineProperty échoue, essayer l'assignation directe
-        // (peut échouer si __expo est déjà défini comme non-configurable)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (global as any).__expo = {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          ...(global as any).__expo,
-          hideDevMenu: true,
-        };
-      }
-    }
-  } catch {
-    // Ignorer les erreurs silencieusement
-  }
 }
 
 function LoadingScreen({ message, error }: { message: string; error?: string }) {
@@ -230,12 +197,5 @@ const styles = StyleSheet.create({
   },
 });
 
-// Enregistrer l'application
-// Utiliser registerRootComponent d'Expo (recommandé pour Expo)
+// Enregistrer l'application avec Expo
 registerRootComponent(App);
-
-// Enregistrer également avec AppRegistry pour compatibilité React Native CLI
-// Note: registerRootComponent devrait déjà enregistrer avec AppRegistry, mais on le fait explicitement pour être sûr
-if (typeof AppRegistry !== 'undefined' && !AppRegistry.getAppKeys().includes('main')) {
-  AppRegistry.registerComponent('main', () => App);
-}

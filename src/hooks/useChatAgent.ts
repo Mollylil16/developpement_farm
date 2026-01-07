@@ -1,21 +1,55 @@
 /**
- * Hook React pour utiliser l'agent conversationnel
+ * Hook React pour utiliser l'agent conversationnel Kouakou
+ * 
+ * Ce hook communique UNIQUEMENT avec le backend - aucun appel direct à Gemini.
+ * Toute l'intelligence IA est gérée côté serveur.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { ProactiveRemindersService, VoiceService } from '../services/chatAgent';
-import { GeminiConversationalAgent } from '../services/agent/GeminiConversationalAgent';
-import { ChatMessage, AgentConfig, VoiceConfig, Reminder, AgentContext } from '../types/chatAgent';
+import { ChatMessage, Reminder } from '../types/chatAgent';
 import { format } from 'date-fns';
 import apiClient from '../services/api/apiClient';
-import { GEMINI_CONFIG } from '../config/geminiConfig';
 import { createLoggerWithPrefix } from '../utils/logger';
-import { getOrCreateConversationId, loadConversationHistory, clearConversationId } from '../services/chatAgent/core/ConversationStorage';
-import { loadChargesFixes, loadDepensesPonctuelles, loadRevenus } from '../store/slices/financeSlice';
+import {
+  getOrCreateConversationId,
+  loadConversationHistory,
+  clearConversationId,
+} from '../services/chatAgent/core/ConversationStorage';
+import {
+  loadChargesFixes,
+  loadDepensesPonctuelles,
+  loadRevenus,
+} from '../store/slices/financeSlice';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
 
 const logger = createLoggerWithPrefix('useChatAgent');
+
+/**
+ * Format de l'historique de conversation pour le backend
+ */
+type ConversationHistoryEntry = {
+  role: 'user' | 'model';
+  parts: Array<{ text: string }>;
+};
+
+/**
+ * Réponse du backend Kouakou
+ */
+interface KouakouBackendResponse {
+  response: string;
+  metadata?: {
+    model?: string;
+    executedActions?: Array<{
+      name: string;
+      args: Record<string, unknown>;
+      success: boolean;
+      message: string;
+      data?: unknown;
+    }>;
+  };
+}
 
 /**
  * Calcule le temps de réflexion (en ms) basé sur la complexité du message
@@ -60,6 +94,15 @@ function calculateThinkingTime(message: string): number {
   return Math.min(Math.max(thinkingTime, 1000), 3000);
 }
 
+function convertMessagesToHistory(messages: ChatMessage[]): ConversationHistoryEntry[] {
+  return messages
+    .filter((message) => message.role === 'user' || message.role === 'assistant')
+    .map((message) => ({
+      role: message.role === 'user' ? 'user' : 'model',
+      parts: [{ text: message.content }],
+    }));
+}
+
 export function useChatAgent() {
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
@@ -72,11 +115,23 @@ export function useChatAgent() {
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [voiceEnabled, setVoiceEnabled] = useState(false); // Désactivé par défaut - l'utilisateur peut l'activer manuellement
 
-  const agentServiceRef = useRef<GeminiConversationalAgent | null>(null);
   const remindersServiceRef = useRef<ProactiveRemindersService | null>(null);
   const voiceServiceRef = useRef<VoiceService | null>(null);
   const conversationIdRef = useRef<string | null>(null);
-  // Plus besoin de repository, on utilise directement l'API
+  const conversationHistoryRef = useRef<ConversationHistoryEntry[]>([]);
+
+  const pushHistory = useCallback((role: 'user' | 'model', text: string) => {
+    if (!text) {
+      return;
+    }
+    conversationHistoryRef.current = [
+      ...conversationHistoryRef.current,
+      {
+        role,
+        parts: [{ text }],
+      },
+    ];
+  }, []);
 
   /**
    * Initialise l'agent
@@ -86,58 +141,48 @@ export function useChatAgent() {
       return;
     }
 
+    let isCancelled = false;
+    setIsInitialized(false);
+
     const initializeAgent = async () => {
       try {
-        // Récupérer ou créer un conversationId persistant pour ce projet
-        let conversationId: string | null = null;
-        try {
-          conversationId = await getOrCreateConversationId(projetActif.id);
-          logger.debug('Conversation ID récupéré/créé:', conversationId);
-        } catch (error) {
-          logger.error('Erreur lors de la récupération/création du conversationId:', error);
-          // Fallback: générer un ID local
-          conversationId = `conv_${projetActif.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        let conversationId: string | null = conversationIdRef.current;
+        if (!conversationId) {
+          try {
+            conversationId = await getOrCreateConversationId(projetActif.id);
+            logger.debug('Conversation ID récupéré/créé:', conversationId);
+          } catch (error) {
+            logger.error('Erreur lors de la récupération/création du conversationId:', error);
+            conversationId = `conv_${projetActif.id}_${Date.now()}_${Math.random()
+              .toString(36)
+              .substr(2, 9)}`;
+          }
         }
         conversationIdRef.current = conversationId;
 
-        // Charger l'historique depuis le backend
         let savedMessages: ChatMessage[] = [];
         try {
           savedMessages = await loadConversationHistory(projetActif.id, conversationId, 100);
           logger.debug(`Historique chargé: ${savedMessages.length} messages`);
         } catch (error) {
-          // Si l'erreur est 500 (Internal Server Error), c'est probablement que la table n'existe pas encore
-          // Dans ce cas, on log en debug au lieu d'error pour ne pas alarmer l'utilisateur
           if ((error as any)?.status === 500) {
-            logger.debug('Erreur 500 lors du chargement de l\'historique (table peut-être non créée) - continuation sans historique');
+            logger.debug(
+              "Erreur 500 lors du chargement de l'historique (table peut-être non créée) - continuation sans historique",
+            );
           } else {
             logger.error('Erreur lors du chargement de l\'historique:', error);
           }
-          // Continuer sans historique en cas d'erreur
           savedMessages = [];
         }
 
-        // Créer le contexte de l'agent
-        const context: AgentContext = {
-          projetId: projetActif.id,
-          userId: user.id,
-          userName: user.nom || user.email,
-          currentDate: format(new Date(), 'yyyy-MM-dd'),
-        };
-
-        // Créer l'agent Gemini (le contexte est passé au constructeur)
-        if (!GEMINI_CONFIG.apiKey) {
-          throw new Error('Clé API Gemini non configurée');
+        if (isCancelled) {
+          return;
         }
-        const agentService = new GeminiConversationalAgent(GEMINI_CONFIG.apiKey, context);
-        await agentService.initialize();
+
+        conversationHistoryRef.current = convertMessagesToHistory(savedMessages);
+
         const remindersService = new ProactiveRemindersService();
-        // Configuration de la transcription vocale (optionnel)
-        // Pour activer, utilisez getVoiceConfig() depuis src/config/voiceConfig.ts
-        // Exemple d'utilisation :
-        // import { getVoiceConfig } from '../config/voiceConfig';
-        // const voiceConfig = await getVoiceConfig();
-        const transcriptionApiKey = undefined; // Récupérer depuis AsyncStorage via getVoiceConfig()
+        const transcriptionApiKey = undefined;
         const transcriptionProvider: 'assemblyai' | 'google' | 'openai' | 'none' =
           transcriptionApiKey ? 'assemblyai' : 'none';
 
@@ -156,69 +201,71 @@ export function useChatAgent() {
           currentDate: format(new Date(), 'yyyy-MM-dd'),
         });
 
-        agentServiceRef.current = agentService;
+        if (isCancelled) {
+          return;
+        }
+
         remindersServiceRef.current = remindersService;
         voiceServiceRef.current = voiceService;
 
-        // Gérer l'historique (GeminiConversationalAgent gère son historique en interne)
-        // Pour l'instant, on démarre avec un message de bienvenue
         if (savedMessages.length > 0) {
-          // Si on a un historique sauvegardé, on l'affiche
-          // Note: GeminiConversationalAgent gère son historique en interne, mais on ne peut pas le restaurer
-          // L'historique sera reconstruit au fur et à mesure des messages
-          setMessages(savedMessages);
+          if (!isCancelled) {
+            setMessages(savedMessages);
+          }
         } else {
-          // Générer les rappels proactifs
           const proactiveReminders = await remindersService.generateProactiveReminders();
-          setReminders(proactiveReminders);
-
-          // Message de bienvenue avec rappels
-          const userPrenom = user.prenom || user.nom || 'éleveur';
-          let welcomeMessage: ChatMessage;
-
-          if (proactiveReminders.length > 0) {
-            // Récupérer le message proactif et remplacer "Bonjour !" par le message personnalisé
-            const proactiveMsg = remindersService.generateProactiveMessage(proactiveReminders);
-            welcomeMessage = {
-              id: 'welcome',
-              role: 'assistant',
-              content: `Bonjour ${userPrenom}, je suis Kouakou ton assistant pour la reussite de ton projet. ${proactiveMsg.replace(/^Bonjour !\s*/, '')}`,
-              timestamp: new Date().toISOString(),
-            };
-          } else {
-            welcomeMessage = {
-              id: 'welcome',
-              role: 'assistant',
-              content: `Bonjour ${userPrenom}, je suis Kouakou ton assistant pour la reussite de ton projet. Dis moi en quoi je peux t'aider aujourd'hui ?`,
-              timestamp: new Date().toISOString(),
-            };
+          if (!isCancelled) {
+            setReminders(proactiveReminders);
           }
 
-          setMessages([welcomeMessage]);
-          // Les endpoints de messages ne sont pas encore implémentés dans le backend
-          // Les messages sont gérés localement pour l'instant
+          const userPrenom = user.prenom || user.nom || 'éleveur';
+          const welcomeContent =
+            proactiveReminders.length > 0
+              ? (() => {
+                  const proactiveMsg = remindersService.generateProactiveMessage(proactiveReminders);
+                  return `Bonjour ${userPrenom}, je suis Kouakou ton assistant pour la reussite de ton projet. ${proactiveMsg.replace(
+                    /^Bonjour !\s*/,
+                    '',
+                  )}`;
+                })()
+              : `Bonjour ${userPrenom}, je suis Kouakou ton assistant pour la reussite de ton projet. Dis moi en quoi je peux t'aider aujourd'hui ?`;
+
+          const welcomeMessage: ChatMessage = {
+            id: 'welcome',
+            role: 'assistant',
+            content: welcomeContent,
+            timestamp: new Date().toISOString(),
+          };
+
+          if (!isCancelled) {
+            setMessages([welcomeMessage]);
+          }
         }
 
-        setIsInitialized(true);
+        if (!isCancelled) {
+          setIsInitialized(true);
+        }
       } catch (error) {
-        // Si l'erreur est 500 et concerne l'historique, c'est probablement que la table n'existe pas encore
-        // Dans ce cas, on log en debug au lieu d'error pour ne pas alarmer l'utilisateur
         const errorMessage = error instanceof Error ? error.message : String(error);
         if ((error as any)?.status === 500 && errorMessage.includes('Internal server error')) {
-          logger.debug("Erreur 500 lors de l'initialisation de l'agent (probablement table non créée) - continuation en mode dégradé");
+          logger.debug(
+            "Erreur 500 lors de l'initialisation de l'agent (probablement table non créée) - continuation en mode dégradé",
+          );
         } else {
           logger.error("Erreur lors de l'initialisation de l'agent:", error);
         }
-        // Même en cas d'erreur, permettre à l'agent de fonctionner avec des capacités limitées
-        // L'erreur peut venir de l'API mais l'agent local peut quand même fonctionner
-        if (agentServiceRef.current) {
+
+        if (!isCancelled) {
           setIsInitialized(true);
-          logger.warn('Agent initialisé en mode dégradé');
         }
       }
     };
 
     initializeAgent();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [projetActif?.id, user?.id, voiceEnabled]);
 
   /**
@@ -226,7 +273,12 @@ export function useChatAgent() {
    */
   const sendMessage = useCallback(
     async (content: string) => {
-      if (!agentServiceRef.current || isLoading || isThinking) {
+      if (!projetActif?.id || isLoading || isThinking) {
+        return;
+      }
+
+      const trimmedContent = content.trim();
+      if (!trimmedContent) {
         return;
       }
 
@@ -234,7 +286,7 @@ export function useChatAgent() {
       const userMessage: ChatMessage = {
         id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         role: 'user',
-        content: content,
+        content: trimmedContent,
         timestamp: new Date().toISOString(),
       };
 
@@ -242,7 +294,7 @@ export function useChatAgent() {
       setMessages((prev) => [...prev, userMessage]);
 
       // Phase 1: Kouakou "réfléchit" (délai variable selon complexité)
-      const thinkingTime = calculateThinkingTime(content);
+      const thinkingTime = calculateThinkingTime(trimmedContent);
       logger.debug(`[useChatAgent] Temps de réflexion calculé: ${thinkingTime}ms pour "${content.substring(0, 50)}..."`);
       
       setIsThinking(true);
@@ -255,20 +307,32 @@ export function useChatAgent() {
       setIsLoading(true);
 
       try {
-        // GeminiConversationalAgent.sendMessage retourne une string (pas ChatMessage)
-        const responseText = await agentServiceRef.current.sendMessage(content);
+        pushHistory('user', trimmedContent);
+
+        // Appel au backend Kouakou - toute l'IA est gérée côté serveur
+        const backendResponse = await apiClient.post<KouakouBackendResponse>('/kouakou/chat', {
+          message: trimmedContent,
+          projectId: projetActif.id,
+          conversationId: conversationIdRef.current,
+          history: conversationHistoryRef.current,
+        });
+        const responseText = backendResponse?.response;
+        if (!responseText) {
+          throw new Error('Réponse vide de Kouakou');
+        }
+        pushHistory('model', responseText);
 
         // Convertir la réponse en ChatMessage
-        const response: ChatMessage = {
+        const assistantMessage: ChatMessage = {
           id: `assistant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           role: 'assistant',
           content: responseText,
           timestamp: new Date().toISOString(),
         };
 
-        // Rafraîchir les données (on détecte les actions via mots-clés dans la réponse)
-        // Note: Avec Gemini, on ne peut pas détecter directement l'action exécutée
-        // On pourrait améliorer cela plus tard si nécessaire
+        // Rafraîchir les données si une action a été exécutée
+        // Le backend retourne les actions exécutées dans metadata.executedActions
+        // Fallback: détection via mots-clés dans la réponse
         try {
           const projetId = projetActif?.id;
           if (projetId && /(enregistré|créé|ajouté).*(vente|dépense|pesée|revenu)/i.test(responseText)) {
@@ -282,11 +346,11 @@ export function useChatAgent() {
           // Ne pas bloquer l'UI si le refresh échoue
         }
 
-        setMessages((prev) => [...prev, response]);
+        setMessages((prev) => [...prev, assistantMessage]);
 
         // Si la voix est activée, lire la réponse
         if (voiceServiceRef.current && voiceEnabled) {
-          await voiceServiceRef.current.speak(response.content);
+          await voiceServiceRef.current.speak(assistantMessage.content);
         }
       } catch (error) {
         logger.error("Erreur lors de l'envoi du message:", error);
@@ -301,7 +365,7 @@ export function useChatAgent() {
         setIsLoading(false);
       }
     },
-    [isLoading, isThinking, voiceEnabled]
+    [dispatch, isLoading, isThinking, projetActif?.id, pushHistory, voiceEnabled]
   );
 
   /**
@@ -325,10 +389,8 @@ export function useChatAgent() {
    * Réinitialise la conversation
    */
   const clearConversation = useCallback(async () => {
-    if (agentServiceRef.current) {
-      agentServiceRef.current.clearHistory();
-      setMessages([]);
-    }
+    conversationHistoryRef.current = [];
+    setMessages([]);
 
     // Supprimer le conversationId pour créer une nouvelle conversation au prochain démarrage
     if (projetActif?.id && conversationIdRef.current) {

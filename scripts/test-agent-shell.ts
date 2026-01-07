@@ -15,7 +15,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ChatAgentService } from '../src/services/chatAgent/ChatAgentService';
 import { AgentConfig, AgentContext } from '../src/types/chatAgent';
-import { OPENAI_CONFIG } from '../src/config/openaiConfig';
+// Migration vers Gemini: plus besoin d'OPENAI_CONFIG, le backend gère tout
+// const GEMINI_API_KEY = process.env.GEMINI_API_KEY; // Non utilisé côté frontend
 import { generateValidationReportHTML } from '../src/services/chatAgent/tests/ValidationReportPDF';
 import {
   PerformanceMonitor,
@@ -283,9 +284,11 @@ async function main() {
   try {
     // 1. Initialiser l'agent
     console.log(`📦 Initialisation de ${AGENT_NAME}...`);
+    // Migration vers Gemini: utiliser le backend au lieu d'OpenAI
+    // Note: Ce script devrait être mis à jour pour appeler le backend /api/kouakou/chat
     const config: AgentConfig = {
-      apiKey: OPENAI_CONFIG.apiKey,
-      model: OPENAI_CONFIG.model,
+      geminiApiKey: undefined, // Le backend gère la clé Gemini
+      model: 'gemini-2.5-flash', // Modèle Gemini
       language: 'fr-CI',
       enableVoice: false,
       enableProactiveAlerts: false,

@@ -36,7 +36,7 @@ interface MarketplaceRequestsTabProps {
 
 type SectionType = 'sent' | 'received';
 
-export default function MarketplaceRequestsTab({
+function MarketplaceRequestsTab({
   userId,
   onRequestPress,
   onEditRequest,
@@ -327,4 +327,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(MarketplaceRequestsTab);
 

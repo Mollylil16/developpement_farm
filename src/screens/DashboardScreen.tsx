@@ -48,7 +48,7 @@ type RootStackParamList = {
   Main: { screen?: string };
 };
 
-export default function DashboardScreen() {
+function DashboardScreen() {
   const { colors } = useTheme();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const isFocused = useIsFocused();
@@ -359,3 +359,6 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(DashboardScreen);

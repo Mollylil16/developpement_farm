@@ -29,6 +29,11 @@ expo-env.d.ts
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+.cursor/debug.log
+--clear/
+
+# Cursor debug logs
+*.log
 
 # macOS
 .DS_Store

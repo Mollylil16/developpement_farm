@@ -17,7 +17,7 @@ Créez le fichier `.env` à la racine du projet (`C:\Users\HP\developpement_farm
 ```env
 # Configuration Gemini pour l'agent conversationnel
 # Obtenez votre clé API sur https://makersuite.google.com/app/apikey
-EXPO_PUBLIC_GEMINI_API_KEY=AIzaSyDyHsxNriGf0EHGTjdH8d_nBQ5pbpyg0KU
+EXPO_PUBLIC_GEMINI_API_KEY=your_gemini_api_key_here
 
 # Ancienne clé OpenAI (commentée - n'est plus utilisée)
 # EXPO_PUBLIC_OPENAI_API_KEY=
@@ -42,7 +42,7 @@ Expo/React Native n'expose que les variables d'environnement qui commencent par 
 # Depuis la racine du projet
 @"
 # Configuration Gemini pour l'agent conversationnel
-EXPO_PUBLIC_GEMINI_API_KEY=AIzaSyDyHsxNriGf0EHGTjdH8d_nBQ5pbpyg0KU
+EXPO_PUBLIC_GEMINI_API_KEY=your_gemini_api_key_here
 "@ | Out-File -FilePath .env -Encoding utf8
 ```
 

@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { useAppSelector } from '../store/hooks';
-import apiClient, { isRefreshInProgress, waitForActiveRefresh } from '../services/api/apiClient';
+import apiClient, { isRefreshInProgress, waitForActiveRefresh, APIError } from '../services/api/apiClient';
 import type { Notification } from '../types/marketplace';
 import { logger } from '../utils/logger';
 
@@ -69,7 +69,11 @@ export function useMarketplaceNotifications(
         }
 
         // Charger les notifications de l'utilisateur depuis l'API backend
-        const allNotifications = await apiClient.get<any[]>('/marketplace/notifications');
+        // Timeout réduit pour les notifications (non-critique, en arrière-plan)
+        const allNotifications = await apiClient.get<any[]>('/marketplace/notifications', {
+          timeout: 10000, // 10 secondes au lieu du timeout par défaut
+          retry: false, // Pas de retry automatique pour les notifications (polling périodique)
+        });
 
         // Trier par date (plus récent en premier)
         const sortedNotifications = allNotifications.sort(
@@ -82,8 +86,22 @@ export function useMarketplaceNotifications(
         const unread = sortedNotifications.filter((n) => !n.read).length;
         setUnreadCount(unread);
       } catch (err: unknown) {
-        logger.error('Erreur chargement notifications:', err);
-        if (!silent) {
+        // Ne pas logger les timeouts comme des erreurs critiques (opération en arrière-plan)
+        const isTimeout = 
+          (err instanceof APIError && err.status === 408) ||
+          (err instanceof Error && err.message.includes('timeout')) ||
+          (err instanceof Error && err.message.includes('Network request timed out')) ||
+          (err instanceof Error && err.name === 'AbortError') ||
+          (err as any)?.status === 408;
+        
+        if (isTimeout) {
+          // Timeout silencieux pour les notifications (polling périodique)
+          logger.debug('Timeout lors du chargement des notifications (non critique, retry au prochain polling)');
+        } else {
+          logger.error('Erreur chargement notifications:', err);
+        }
+        
+        if (!silent && !isTimeout) {
           const errorMessage =
             err instanceof Error ? err.message : 'Impossible de charger les notifications';
           setError(errorMessage);

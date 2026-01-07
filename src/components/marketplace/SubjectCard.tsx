@@ -24,7 +24,7 @@ interface SubjectCardProps {
   onSelect?: () => void;
 }
 
-export default function SubjectCard({
+function SubjectCard({
   subject,
   onPress,
   selected = false,
@@ -314,3 +314,6 @@ const styles = StyleSheet.create({
     fontWeight: MarketplaceTheme.typography.fontWeights.medium,
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles dans les FlatList
+export default React.memo(SubjectCard);

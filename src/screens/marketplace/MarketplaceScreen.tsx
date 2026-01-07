@@ -3,7 +3,7 @@
  * Permet de rechercher, filtrer et consulter les annonces de vente
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -62,6 +62,7 @@ import MarketplaceOffersTab from '../../components/marketplace/tabs/MarketplaceO
 // Hooks
 import { useGeolocation } from '../../hooks/useGeolocation';
 import { useMarketplaceNotifications } from '../../hooks/useMarketplaceNotifications';
+import { useScreenPreloader } from '../../hooks/useScreenPreloader';
 
 // Services
 import apiClient from '../../services/api/apiClient';
@@ -87,7 +88,7 @@ import type {
 import type { ProductionAnimal, UpdateProductionAnimalInput } from '../../types/production';
 import { createAppError, getErrorMessage, ErrorCode } from '../../types/errors';
 
-export default function MarketplaceScreen() {
+function MarketplaceScreen() {
   const { colors } = useTheme();
   const marketplaceColors = MarketplaceTheme.colors;
   const navigation = useNavigation();
@@ -407,9 +408,27 @@ export default function MarketplaceScreen() {
     }
   }, [marketplaceNotifications, user?.id, markAsRead]);
 
-  // Grouper les listings par ferme après chargement
+  // Optimisation: Debounce le groupement des listings pour éviter les recalculs trop fréquents
+  const groupingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastListingsRef = useRef<string>('');
+
+  // Grouper les listings par ferme après chargement (avec debouncing)
   useEffect(() => {
-    const groupListings = async () => {
+    // Créer une clé unique pour les listings (éviter de regrouper si rien n'a changé)
+    const listingsKey = JSON.stringify(listings.map(l => l.id).sort());
+    
+    if (listingsKey === lastListingsRef.current) {
+      return; // Pas de changement, ne pas regrouper
+    }
+    
+    lastListingsRef.current = listingsKey;
+
+    // Debounce le groupement pour éviter les recalculs trop fréquents
+    if (groupingTimeoutRef.current) {
+      clearTimeout(groupingTimeoutRef.current);
+    }
+
+    groupingTimeoutRef.current = setTimeout(async () => {
       if (listings.length === 0 || listingsLoading) {
         setFarmCards([]);
         return;
@@ -448,10 +467,14 @@ export default function MarketplaceScreen() {
       } finally {
         setGroupingListings(false);
       }
-    };
+    }, 300); // Debounce de 300ms
 
-    groupListings();
-  }, [listings, listingsLoading, user?.id]);
+    return () => {
+      if (groupingTimeoutRef.current) {
+        clearTimeout(groupingTimeoutRef.current);
+      }
+    };
+  }, [listings, listingsLoading, user?.id, getCurrentLocation]);
 
   const handleLoadMore = useCallback(() => {
     if (!listingsLoading && hasMore) {
@@ -859,10 +882,15 @@ export default function MarketplaceScreen() {
     [user, loadListings]
   );
 
-  const filterCount = Object.keys(filters).filter(
-    (key) =>
-      filters[key as keyof FiltersType] !== undefined && filters[key as keyof FiltersType] !== ''
-  ).length;
+  // Mémoïser le calcul du nombre de filtres actifs
+  const filterCount = useMemo(
+    () =>
+      Object.keys(filters).filter(
+        (key) =>
+          filters[key as keyof FiltersType] !== undefined && filters[key as keyof FiltersType] !== ''
+      ).length,
+    [filters]
+  );
 
   // Handler pour le changement de favori
   const handleFavoriteChange = useCallback(
@@ -1956,3 +1984,6 @@ const styles = StyleSheet.create({
     fontSize: MarketplaceTheme.typography.fontSizes.xs,
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(MarketplaceScreen);

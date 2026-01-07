@@ -30,6 +30,7 @@ import Button from './Button';
 import ProductionAnimalFormModal from './ProductionAnimalFormModal';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { Ionicons } from '@expo/vector-icons';
 import Card from './Card';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
@@ -54,6 +55,16 @@ export default function ProductionHistoriqueComponent() {
   const animaux = useAppSelector(selectAllAnimaux);
   const loading = useAppSelector(selectProductionLoading);
   const mortalites = useAppSelector(selectAllMortalites);
+  
+  // Enrichir les animaux avec leur statut marketplace
+  const { animauxEnrichis } = useMarketplaceStatusForAnimals();
+  const animauxEnrichisMap = React.useMemo(() => {
+    const map = new Map<string, typeof animauxEnrichis[0]>();
+    animauxEnrichis.forEach((animal) => {
+      map.set(animal.id, animal);
+    });
+    return map;
+  }, [animauxEnrichis]);
 
   const [showAnimalModal, setShowAnimalModal] = useState(false);
   const [selectedAnimal, setSelectedAnimal] = useState<ProductionAnimal | null>(null);
@@ -211,6 +222,10 @@ export default function ProductionHistoriqueComponent() {
   const renderAnimal = ({ item }: { item: ProductionAnimal }) => {
     const age = calculerAge(item.date_naissance);
     const statutColor = getStatutColor(item.statut, colors);
+    
+    // Enrichir avec les données marketplace
+    const animalEnrichi = animauxEnrichisMap.get(item.id) || item;
+    const marketplaceStatus = (animalEnrichi as any).marketplace_status;
 
     return (
       <Card elevation="small" padding="medium" style={styles.animalCard}>
@@ -229,6 +244,32 @@ export default function ProductionHistoriqueComponent() {
               <View style={[styles.reproducteurBadge, { backgroundColor: colors.success + '18' }]}>
                 <Text style={[styles.reproducteurText, { color: colors.success }]}>
                   Reproducteur
+                </Text>
+              </View>
+            )}
+            {marketplaceStatus === 'available' && (
+              <View
+                style={[
+                  styles.marketplaceBadge,
+                  { backgroundColor: '#FF8C42' + '25', borderColor: '#FF8C42', borderWidth: 1.5 },
+                ]}
+              >
+                <Ionicons name="storefront" size={12} color="#FF8C42" />
+                <Text style={[styles.marketplaceText, { color: '#FF8C42', fontWeight: '700' }]}>
+                  En vente
+                </Text>
+              </View>
+            )}
+            {marketplaceStatus === 'reserved' && (
+              <View
+                style={[
+                  styles.marketplaceBadge,
+                  { backgroundColor: '#F39C12' + '25', borderColor: '#F39C12', borderWidth: 1.5 },
+                ]}
+              >
+                <Ionicons name="lock-closed" size={12} color="#F39C12" />
+                <Text style={[styles.marketplaceText, { color: '#F39C12', fontWeight: '700' }]}>
+                  Réservé
                 </Text>
               </View>
             )}
@@ -565,6 +606,25 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xs,
   },
   reproducteurText: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '600',
+  },
+  marketplaceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 3,
+    borderRadius: BORDER_RADIUS.xs,
+    marginTop: SPACING.xs,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  marketplaceText: {
     fontSize: FONT_SIZES.xs,
     fontWeight: '600',
   },

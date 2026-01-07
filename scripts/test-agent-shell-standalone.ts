@@ -14,8 +14,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { IntentRAG } from '../src/services/chatAgent/core/IntentRAG';
 import { ParameterExtractor } from '../src/services/chatAgent/core/ParameterExtractor';
-import { OpenAIIntentService } from '../src/services/chatAgent/core/OpenAIIntentService';
-import { OpenAIParameterExtractor } from '../src/services/chatAgent/core/OpenAIParameterExtractor';
+// Services OpenAI supprimés - tout passe par le backend maintenant
 // Types pour le rapport
 interface ValidationPDFData {
   validationReport: ValidationReport;
@@ -39,7 +38,8 @@ import {
   TestResult,
   AgentValidationTest,
 } from '../src/services/chatAgent/tests/AgentValidationTest';
-import { OPENAI_CONFIG } from '../src/config/openaiConfig';
+// Migration vers Gemini: plus besoin d'OPENAI_CONFIG
+// const GEMINI_API_KEY = process.env.GEMINI_API_KEY; // Géré par le backend
 
 // Configuration de test
 const TEST_CONTEXT = {
@@ -203,11 +203,14 @@ async function runRealTests(): Promise<ValidationReport> {
   console.log('🧪 Exécution des tests réels de validation...\n');
 
   const results: ExtendedTestResult[] = [];
-  const openAIService = new OpenAIIntentService(OPENAI_CONFIG.apiKey);
+  // Note: Les services IA frontend ont été supprimés
+  // Tout passe maintenant par le backend (/kouakou/chat)
+  // Ce script utilise uniquement les détecteurs locaux (IntentRAG, ParameterExtractor)
 
   // ✅ UTILISATION RÉELLE : IntentRAG avec la base de connaissances complète
   // Le constructeur utilise INTENT_KNOWLEDGE_BASE_COMPLETE par défaut (440+ manuels + 5000+ générés = ~5500+ exemples)
-  const intentRAG = new IntentRAG(undefined, openAIService);
+  // Migration vers Gemini: IntentRAG peut fonctionner sans service externe (utilise Jaccard)
+  const intentRAG = new IntentRAG(undefined, undefined);
 
   // Afficher le nombre d'exemples d'entraînement chargés
   const knowledgeBaseSize = intentRAG.getKnowledgeBase().length;

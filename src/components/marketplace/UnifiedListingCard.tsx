@@ -18,7 +18,7 @@ interface UnifiedListingCardProps {
   onSelect?: () => void;
 }
 
-export default function UnifiedListingCard({
+function UnifiedListingCard({
   listing,
   onPress,
   selected = false,
@@ -148,6 +148,19 @@ function BatchListingContent({
               <Ionicons name="people" size={14} color={colors.primary} />
               <Text style={[styles.badgeText, { color: colors.primary }]}>Bande</Text>
             </View>
+            {/* Badge "Nouveau" si le listing a été créé dans les 7 derniers jours */}
+            {(() => {
+              const now = Date.now();
+              const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+              const listedAt = new Date(listing.listedAt || listing.updatedAt || 0).getTime();
+              const isNew = listedAt >= sevenDaysAgo;
+              return isNew ? (
+                <View style={[badgeStyle('new'), { marginLeft: 8 }]}>
+                  <Ionicons name="sparkles" size={12} color={colors.success} />
+                  <Text style={[styles.badgeText, { color: colors.success }]}>Nouveau</Text>
+                </View>
+              ) : null;
+            })()}
             {!isAvailable && (
               <View style={[badgeStyle('warning')]}>
                 <Text style={[styles.badgeText, { color: colors.warning }]}>
@@ -298,6 +311,19 @@ function IndividualListingContent({
               <Ionicons name="paw" size={14} color={colors.secondary} />
               <Text style={[styles.badgeText, { color: colors.secondary }]}>Individuel</Text>
             </View>
+            {/* Badge "Nouveau" si le listing a été créé dans les 7 derniers jours */}
+            {(() => {
+              const now = Date.now();
+              const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+              const listedAt = new Date(listing.listedAt || listing.updatedAt || 0).getTime();
+              const isNew = listedAt >= sevenDaysAgo;
+              return isNew ? (
+                <View style={[badgeStyle('new'), { marginLeft: 8 }]}>
+                  <Ionicons name="sparkles" size={12} color={colors.success} />
+                  <Text style={[styles.badgeText, { color: colors.success }]}>Nouveau</Text>
+                </View>
+              ) : null;
+            })()}
             {!isAvailable && (
               <View style={[badgeStyle('warning')]}>
                 <Text style={[styles.badgeText, { color: colors.warning }]}>
@@ -472,4 +498,7 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles dans les FlatList
+export default React.memo(UnifiedListingCard);
 

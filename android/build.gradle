@@ -1,13 +1,6 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
 buildscript {
-  ext {
-    compileSdkVersion = 35
-    targetSdkVersion = 35
-    minSdkVersion = 24
-    // buildToolsVersion is automatically managed by Android Gradle Plugin
-    ndkVersion = "27.0.12077973"
-  }
   repositories {
     google()
     mavenCentral()
@@ -24,17 +17,8 @@ allprojects {
     google()
     mavenCentral()
     maven { url 'https://www.jitpack.io' }
-    maven {
-      url 'https://maven.google.com'
-    }
   }
 }
 
 apply plugin: "expo-root-project"
 apply plugin: "com.facebook.react.rootproject"
-
-// Force compileSdk and targetSdk after Expo plugin is applied
-afterEvaluate {
-  rootProject.ext.compileSdkVersion = 35
-  rootProject.ext.targetSdkVersion = 35
-}
