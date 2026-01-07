@@ -13,8 +13,10 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { Logger } from '@nestjs/common';
 import { MarketplaceService } from './marketplace.service';
 import { MarketplaceUnifiedService } from './marketplace-unified.service';
+import { DatabaseService } from '../database/database.service';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 import { CreateOfferDto } from './dto/create-offer.dto';
@@ -25,6 +27,7 @@ import { CreatePurchaseRequestDto } from './dto/create-purchase-request.dto';
 import { UpdatePurchaseRequestDto } from './dto/update-purchase-request.dto';
 import { CreatePurchaseRequestOfferDto } from './dto/create-purchase-request-offer.dto';
 import { CreateBatchListingDto } from './dto/create-batch-listing.dto';
+import { CompleteSaleDto } from './dto/complete-sale.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
@@ -33,9 +36,12 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 @UseGuards(JwtAuthGuard)
 @Controller('marketplace')
 export class MarketplaceController {
+  private readonly logger = new Logger(MarketplaceController.name);
+
   constructor(
     private readonly marketplaceService: MarketplaceService,
-    private readonly marketplaceUnifiedService: MarketplaceUnifiedService
+    private readonly marketplaceUnifiedService: MarketplaceUnifiedService,
+    private readonly databaseService: DatabaseService
   ) {}
 
   // ========================================
@@ -51,15 +57,9 @@ export class MarketplaceController {
     @Body() createListingDto: CreateListingDto,
     @CurrentUser('id') userId: string
   ) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace.controller.ts:50',message:'Controller createListing appelé',data:{userId,producerId_from_body:createListingDto.producerId,farmId:createListingDto.farmId,subjectId:createListingDto.subjectId,userId_type:typeof userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
+    // ✅ DEBUG: Logger les valeurs reçues du frontend
     // Utiliser le nouveau service unifié
-    const result = await this.marketplaceUnifiedService.createUnifiedListing(createListingDto, userId, 'individual');
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace.controller.ts:58',message:'Controller createListing terminé',data:{result_id:result?.id,result_producerId:result?.producerId,result_farmId:result?.farmId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-    return result;
+    return await this.marketplaceUnifiedService.createUnifiedListing(createListingDto, userId, 'individual');
   }
 
   @Post('listings/batch')
@@ -132,6 +132,60 @@ export class MarketplaceController {
   async deleteListing(@Param('id') id: string, @CurrentUser('id') userId: string) {
     // Utiliser le nouveau service unifié
     await this.marketplaceUnifiedService.deleteUnifiedListing(id, userId);
+  }
+
+  @Post('listings/:listingId/complete-sale')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ 
+    summary: 'Compléter une vente directe',
+    description: `
+      Permet de finaliser une vente directe sans passer par le workflow d'offres.
+      
+      RÈGLES IMPLÉMENTÉES:
+      - Le listing est marqué comme 'sold'
+      - Tous les autres listings contenant les mêmes sujets sont nettoyés
+      - Le statut des animaux est mis à jour (vendu/supprimé)
+      - Un revenu est créé en finance
+      - Une transaction marketplace est créée
+    `
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Vente complétée avec succès.',
+    schema: {
+      example: {
+        success: true,
+        transaction: {
+          id: 'transaction_xxx',
+          amount: 150000,
+          seller: { id: 'user_xxx', name: 'Jean Dupont' },
+          buyer: { id: 'user_yyy', name: 'Marie Martin' },
+          listing: { id: 'listing_xxx', type: 'individual', subjectIds: ['animal_xxx'] }
+        },
+        cleanup: {
+          listingsRemoved: 2,
+          listingsUpdated: 1,
+          animalsUpdated: 1
+        },
+        finance: {
+          revenueId: 'revenu_xxx',
+          amount: 150000,
+          venteId: 'vente_xxx'
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 400, description: 'Données invalides ou listing non disponible.' })
+  @ApiResponse({ status: 403, description: 'Non autorisé à vendre ce listing.' })
+  @ApiResponse({ status: 404, description: 'Listing ou acheteur introuvable.' })
+  async completeSale(
+    @Param('listingId') listingId: string,
+    @Body() dto: CompleteSaleDto,
+    @CurrentUser('id') userId: string
+  ) {
+    // S'assurer que le listingId dans l'URL correspond à celui du DTO
+    dto.listingId = listingId;
+    return this.marketplaceService.completeSale(dto, userId);
   }
 
   // ========================================
@@ -426,5 +480,139 @@ export class MarketplaceController {
   @ApiResponse({ status: 200, description: 'Liste des matches.' })
   async findPurchaseRequestMatches(@CurrentUser('id') userId: string) {
     return this.marketplaceService.findPurchaseRequestMatches(userId);
+  }
+
+  // ========================================
+  // DEBUG ENDPOINTS
+  // ========================================
+
+  @Get('debug/test-insert')
+  @ApiOperation({ summary: 'Endpoint de test pour diagnostiquer le problème d\'insertion' })
+  @ApiResponse({ status: 200, description: 'Résultat du test d\'insertion.' })
+  async testInsert() {
+    const testId = `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    this.logger.log(`[TEST] Début test insertion avec ID: ${testId}`);
+    
+    // Test 1: INSERT direct sans transaction
+    try {
+      const directInsert = await this.databaseService.query(
+        `INSERT INTO marketplace_listings (
+          id, listing_type, subject_id, producer_id, farm_id,
+          price_per_kg, calculated_price, weight, status, listed_at, updated_at,
+          last_weight_date, location_latitude, location_longitude, location_address,
+          location_city, location_region, sale_terms, views, inquiries,
+          date_creation, derniere_modification
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+        RETURNING *`,
+        [
+          testId,
+          'individual',
+          'test_subject',
+          'user_1767600180501_h6go0mq84',
+          'projet_1767633845447_4ynljhhok',
+          2000,
+          42000,
+          21,
+          'available',
+          new Date().toISOString(),
+          new Date().toISOString(),
+          new Date().toISOString(),
+          0.0, // latitude
+          0.0, // longitude
+          'Test Address',
+          'Test City',
+          'Test Region',
+          JSON.stringify({ transport: 'buyer_responsibility' }),
+          0, // views
+          0, // inquiries
+          new Date().toISOString(),
+          new Date().toISOString(),
+        ]
+      );
+      
+      this.logger.log(`[TEST] INSERT direct réussi:`, {
+        id: directInsert.rows[0]?.id,
+        farm_id: directInsert.rows[0]?.farm_id,
+        producer_id: directInsert.rows[0]?.producer_id,
+        status: directInsert.rows[0]?.status,
+      });
+      
+      // Vérification immédiate
+      const check1 = await this.databaseService.query(
+        'SELECT id, farm_id, producer_id, status FROM marketplace_listings WHERE id = $1',
+        [testId]
+      );
+      
+      this.logger.log(`[TEST] Vérification immédiate (après INSERT):`, {
+        found: check1.rows.length > 0,
+        listing: check1.rows[0] || null,
+      });
+      
+      // Attendre 1 seconde
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Vérification après 1 seconde
+      const check2 = await this.databaseService.query(
+        'SELECT id, farm_id, producer_id, status FROM marketplace_listings WHERE id = $1',
+        [testId]
+      );
+      
+      this.logger.log(`[TEST] Vérification après 1s:`, {
+        found: check2.rows.length > 0,
+        listing: check2.rows[0] || null,
+      });
+      
+      // Compter tous les listings
+      const count = await this.databaseService.query(
+        'SELECT COUNT(*) as total FROM marketplace_listings WHERE status != $1',
+        ['removed']
+      );
+      
+      this.logger.log(`[TEST] Total listings dans la base: ${count.rows[0]?.total || 0}`);
+      
+      // Lister tous les IDs
+      const allIds = await this.databaseService.query(
+        'SELECT id, farm_id, producer_id, status, listed_at FROM marketplace_listings WHERE status != $1 ORDER BY listed_at DESC LIMIT 5',
+        ['removed']
+      );
+      
+      this.logger.log(`[TEST] 5 derniers listings:`, allIds.rows);
+      
+      // Vérifier spécifiquement les listings du projet
+      const projectListings = await this.databaseService.query(
+        `SELECT id, farm_id, producer_id, status 
+         FROM marketplace_listings 
+         WHERE CAST(farm_id AS TEXT) = CAST($1 AS TEXT) AND status != $2`,
+        ['projet_1767633845447_4ynljhhok', 'removed']
+      );
+      
+      this.logger.log(`[TEST] Listings du projet projet_1767633845447_4ynljhhok:`, projectListings.rows);
+      
+      return {
+        success: true,
+        testId,
+        immediateCheck: check1.rows[0] || null,
+        delayedCheck: check2.rows[0] || null,
+        totalListings: count.rows[0]?.total || 0,
+        recentListings: allIds.rows,
+        projectListings: projectListings.rows,
+      };
+      
+    } catch (error: any) {
+      this.logger.error(`[TEST] Erreur:`, {
+        message: error?.message,
+        stack: error?.stack,
+        code: error?.code,
+        detail: error?.detail,
+      });
+      return {
+        success: false,
+        error: error?.message || 'Erreur inconnue',
+        stack: error?.stack,
+        code: error?.code,
+        detail: error?.detail,
+      };
+    }
   }
 }

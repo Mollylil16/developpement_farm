@@ -170,9 +170,9 @@ JWT_REFRESH_EXPIRES_IN=7d
 # CLOUDINARY_API_SECRET=
 
 # ============================================
-# OPENAI (Optionnel - pour agent conversationnel)
+# GEMINI (Obligatoire - pour agent conversationnel Kouakou)
 # ============================================
-# OPENAI_API_KEY=sk-...
+GEMINI_API_KEY=votre_cle_api_gemini_ici
 
 # ============================================
 # NOTIFICATIONS PUSH (Optionnel - pour plus tard)

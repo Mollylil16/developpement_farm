@@ -47,9 +47,6 @@ export class MarketplaceUnifiedService {
     userId: string,
     listingType: 'individual' | 'batch'
   ) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace-unified.service.ts:45',message:'createUnifiedListing appelé',data:{userId,listingType,farmId:dto.farmId,producerId_from_dto:(dto as any).producerId,userId_type:typeof userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     try {
       // Vérification de propriété
       await this.checkProjetOwnership(dto.farmId, userId);
@@ -74,11 +71,42 @@ export class MarketplaceUnifiedService {
         return await this.createBatchListingUnified(dto as CreateBatchListingDto, userId);
       }
     } catch (error: any) {
-      this.logger.error(`[createUnifiedListing] Erreur: ${error.message}`, {
+      // Logger l'erreur complète avec tous les détails
+      const errorDetails = {
+        message: error?.message,
+        code: error?.code,
+        detail: error?.detail,
+        hint: error?.hint,
+        constraint: error?.constraint,
+        table: error?.table,
+        column: error?.column,
+        stack: error?.stack,
+      };
+      
+      this.logger.error(`[createUnifiedListing] Erreur lors de la création du listing:`, {
         listingType,
-        dto,
-        stack: error.stack,
+        userId,
+        subjectId: (dto as any).subjectId,
+        farmId: dto.farmId,
+        error: errorDetails,
       });
+      
+      // Si c'est une erreur de transaction (ROLLBACK), améliorer le message
+      if (error?.message?.includes('ROLLBACK') || error?.code === '25P02') {
+        throw new BadRequestException(
+          `Erreur lors de la création du listing: ${error?.detail || error?.message || 'Transaction annulée'}. ` +
+          `Vérifiez que toutes les données sont valides et que l'animal existe.`
+        );
+      }
+      
+      // Si c'est une erreur de contrainte, améliorer le message
+      if (error?.code === '23505') { // Unique violation
+        throw new BadRequestException(
+          `Cet animal est déjà en vente ou une contrainte d'unicité a été violée.`
+        );
+      }
+      
+      // Sinon, propager l'erreur telle quelle (BadRequestException, NotFoundException, etc.)
       throw error;
     }
   }
@@ -97,7 +125,9 @@ export class MarketplaceUnifiedService {
       throw new NotFoundException('Animal introuvable, inactif ou ne vous appartient pas');
     }
 
-    // Vérifier qu'il n'y a pas déjà un listing actif
+    // NOUVELLE RÈGLE: Un sujet PEUT être dans plusieurs listings simultanément
+    // Le nettoyage des autres listings se fera automatiquement lors de la vente (completeSale)
+    // On log juste un warning si l'animal est déjà dans d'autres listings pour info
     const existingListing = await this.databaseService.query(
       `SELECT id FROM marketplace_listings 
        WHERE subject_id = $1 AND status IN ('available', 'reserved')`,
@@ -105,7 +135,10 @@ export class MarketplaceUnifiedService {
     );
 
     if (existingListing.rows.length > 0) {
-      throw new BadRequestException('Cet animal est déjà en vente sur le marketplace');
+      this.logger.warn(
+        `[createIndividualListing] Animal ${dto.subjectId} déjà présent dans ${existingListing.rows.length} listing(s) actif(s). ` +
+        `Un nouveau listing sera créé. Les anciens seront automatiquement nettoyés lors de la vente.`
+      );
     }
 
     const listingId = this.generateId('listing');
@@ -162,11 +195,17 @@ export class MarketplaceUnifiedService {
         'date_creation',
         'derniere_modification',
       ];
+      // S'assurer que farmId est bien une chaîne et qu'il n'y a pas d'espaces
+      const farmIdToInsert = String(dto.farmId || '').trim();
+      if (!farmIdToInsert) {
+        throw new BadRequestException('farmId est requis et ne peut pas être vide');
+      }
+      
       let insertValues: any[] = [
         id,
         dto.subjectId,
         userId,
-        dto.farmId,
+        farmIdToInsert,
         pricePerKg,
         calculatedPrice,
         'available',
@@ -207,110 +246,108 @@ export class MarketplaceUnifiedService {
       const columnsStr = insertColumns.join(', ');
 
       // Insertion du listing
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace-unified.service.ts:207',message:'Avant INSERT',data:{id,columnsStr,placeholdersCount:insertValues.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'G'})}).catch(()=>{});
-      // #endregion
-      let result;
-      try {
-        result = await client.query(
-          `INSERT INTO marketplace_listings (${columnsStr}) VALUES (${placeholders}) RETURNING *`,
-          insertValues
-        );
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace-unified.service.ts:211',message:'INSERT réussi',data:{id,rowCount:result.rows.length,insertedId:result.rows[0]?.id,insertedProducerId:result.rows[0]?.producer_id,insertedFarmId:result.rows[0]?.farm_id},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'G'})}).catch(()=>{});
-        // #endregion
-      } catch (insertError: any) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace-unified.service.ts:216',message:'INSERT échoué',data:{id,error:insertError?.message,errorCode:insertError?.code,errorDetail:insertError?.detail},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'G'})}).catch(()=>{});
-        // #endregion
-        throw insertError;
-      }
-
-      // Vérifier l'état de la transaction après l'INSERT
-      try {
-        const txStatus = await client.query('SELECT txid_current() as xid');
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace-unified.service.ts:219',message:'Transaction XID après INSERT',data:{id,xid:txStatus.rows[0]?.xid},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H'})}).catch(()=>{});
-        // #endregion
-      } catch (statusError: any) {
-        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace-unified.service.ts:223',message:'Erreur récupération XID',data:{id,error:statusError?.message,errorCode:statusError?.code},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H'})}).catch(()=>{});
-      }
+      const result = await client.query(
+        `INSERT INTO marketplace_listings (${columnsStr}) VALUES (${placeholders}) RETURNING *`,
+        insertValues
+      );
 
       const createdListing = result.rows[0];
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace-unified.service.ts:209',message:'Listing créé - valeurs stockées AVANT commit',data:{id,subjectId:dto.subjectId,producerId:userId,farmId:dto.farmId,producer_id_db:createdListing?.producer_id,farm_id_db:createdListing?.farm_id,producer_id_type:typeof createdListing?.producer_id,farm_id_type:typeof createdListing?.farm_id,status:createdListing?.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
-      // Vérifier immédiatement après l'INSERT dans la même transaction
-      try {
-        const checkInTransaction = await client.query(
-          'SELECT id, producer_id, farm_id FROM marketplace_listings WHERE id = $1',
-          [id]
-        );
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace-unified.service.ts:225',message:'Vérification dans transaction (après INSERT, avant COMMIT)',data:{id,found:checkInTransaction.rows.length>0,producer_id:checkInTransaction.rows[0]?.producer_id,farm_id:checkInTransaction.rows[0]?.farm_id},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H'})}).catch(()=>{});
-        // #endregion
-      } catch (e) {
-        // Ignorer
-      }
-      this.logger.log(`[createIndividualListing] Listing créé avec succès: ${id}`, {
-        id,
-        subjectId: dto.subjectId,
-        producerId: userId,
-        farmId: dto.farmId,
-        status: createdListing?.status || 'available',
-        weight: weight,
-        producer_id: createdListing?.producer_id,
-        farm_id: createdListing?.farm_id,
-        listed_at: createdListing?.listed_at,
-        producer_id_type: typeof createdListing?.producer_id,
-        farm_id_type: typeof createdListing?.farm_id,
-      });
 
       // Vérifier les colonnes disponibles sur production_animaux pour éviter d'aborter la transaction
-      const productionColumnsCheck = await client.query(
-        `SELECT column_name 
-         FROM information_schema.columns 
-         WHERE table_name = 'production_animaux'
-         AND column_name IN ('marketplace_status', 'marketplace_listing_id')`
-      );
-      const productionColumns = productionColumnsCheck.rows.map((r) => r.column_name);
-      const hasMarketplaceStatusColumn = productionColumns.includes('marketplace_status');
-      const hasMarketplaceListingIdColumn = productionColumns.includes('marketplace_listing_id');
-
-      // Préparer (éventuellement) la mise à jour du statut marketplace de l'animal
-      if (hasMarketplaceStatusColumn || hasMarketplaceListingIdColumn) {
-        const updateFragments: string[] = [];
-        const updateValues: any[] = [];
-
-        if (hasMarketplaceStatusColumn) {
-          updateFragments.push(`marketplace_status = $${updateValues.length + 1}`);
-          updateValues.push('available');
-        }
-        if (hasMarketplaceListingIdColumn) {
-          updateFragments.push(`marketplace_listing_id = $${updateValues.length + 1}`);
-          updateValues.push(id);
-        }
-        updateValues.push(dto.subjectId);
-
-        const updateSql = `
-          UPDATE production_animaux
-          SET ${updateFragments.join(', ')}
-          WHERE id = $${updateValues.length}
-        `;
-
-        pendingAnimalUpdate = { sql: updateSql, values: updateValues };
-      } else {
-        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace-unified.service.ts:262',message:'Skip UPDATE production_animaux - colonnes indisponibles',data:{id,subjectId:dto.subjectId},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'I'})}).catch(()=>{});
-        this.logger.warn(
-          `[createIndividualListing] Colonnes marketplace_status/marketplace_listing_id non disponibles dans production_animaux, mise à jour ignorée`
+      // Cette vérification est faite DANS la transaction mais l'UPDATE sera fait HORS transaction
+      // pour éviter qu'une erreur sur production_animaux ne fasse ROLLBACK du listing
+      try {
+        const productionColumnsCheck = await client.query(
+          `SELECT column_name 
+           FROM information_schema.columns 
+           WHERE table_name = 'production_animaux'
+           AND column_name IN ('marketplace_status', 'marketplace_listing_id')`
         );
+        const productionColumns = productionColumnsCheck.rows.map((r) => r.column_name);
+        const hasMarketplaceStatusColumn = productionColumns.includes('marketplace_status');
+        const hasMarketplaceListingIdColumn = productionColumns.includes('marketplace_listing_id');
+
+        // Préparer (éventuellement) la mise à jour du statut marketplace de l'animal
+        // Cette mise à jour sera faite HORS transaction pour ne pas bloquer le commit
+        if (hasMarketplaceStatusColumn || hasMarketplaceListingIdColumn) {
+          const updateFragments: string[] = [];
+          const updateValues: any[] = [];
+
+          if (hasMarketplaceStatusColumn) {
+            updateFragments.push(`marketplace_status = $${updateValues.length + 1}`);
+            updateValues.push('available');
+          }
+          if (hasMarketplaceListingIdColumn) {
+            updateFragments.push(`marketplace_listing_id = $${updateValues.length + 1}`);
+            updateValues.push(id);
+          }
+          updateValues.push(dto.subjectId);
+
+          const updateSql = `
+            UPDATE production_animaux
+            SET ${updateFragments.join(', ')}
+            WHERE id = $${updateValues.length}
+          `;
+
+          pendingAnimalUpdate = { sql: updateSql, values: updateValues };
+          this.logger.debug(
+            `[createIndividualListing] Mise à jour production_animaux préparée pour ${dto.subjectId} (sera exécutée après commit)`
+          );
+        } else {
+          this.logger.warn(
+            `[createIndividualListing] Colonnes marketplace_status/marketplace_listing_id non disponibles dans production_animaux, mise à jour ignorée`
+          );
+        }
+      } catch (columnsCheckError: any) {
+        // Si la vérification des colonnes échoue, on log mais on continue
+        // Le listing a déjà été créé, on ne veut pas faire ROLLBACK pour ça
+        this.logger.warn(
+          `[createIndividualListing] Erreur lors de la vérification des colonnes production_animaux: ${columnsCheckError?.message}. Continuation sans mise à jour.`
+        );
+        // Ne pas throw - le listing est déjà créé, on continue
       }
 
       this.logger.log(`[createIndividualListing] Listing créé: ${id} pour animal ${dto.subjectId}`);
-      const mappedListing = this.mapRowToListing(result.rows[0]);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace-unified.service.ts:254',message:'Transaction terminée - listing retourné',data:{id,producerId:mappedListing?.producerId,farmId:mappedListing?.farmId},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
+      
+      // Vérifier que le résultat de l'INSERT est valide
+      if (!result || !result.rows || result.rows.length === 0) {
+        const error = new Error(`INSERT réussi mais aucune ligne retournée pour le listing ${id}`);
+        this.logger.error(`[createIndividualListing] ${error.message}`);
+        throw error;
+      }
+      
+      const createdListingRow = result.rows[0];
+      
+      // Mapper le listing avec gestion d'erreur robuste
+      let mappedListing;
+      try {
+        mappedListing = this.mapRowToListing(createdListingRow);
+        this.logger.debug(`[createIndividualListing] Listing mappé avec succès: ${id}`);
+      } catch (mappingError: any) {
+        this.logger.error(
+          `[createIndividualListing] Erreur lors du mapping du listing ${id}:`,
+          mappingError
+        );
+        // Même en cas d'erreur de mapping, on retourne les données brutes plutôt que de faire ROLLBACK
+        // Le listing a été créé avec succès, c'est juste le mapping qui a échoué
+        mappedListing = {
+          id: createdListingRow.id,
+          listingType: createdListingRow.listing_type || 'individual',
+          producerId: createdListingRow.producer_id,
+          farmId: createdListingRow.farm_id,
+          status: createdListingRow.status,
+          subjectId: dto.subjectId,
+          // Données brutes pour debug
+          _raw: createdListingRow,
+          _mappingError: mappingError?.message,
+        };
+      }
+      
+      // Vérifier que mappedListing est défini avant de retourner
+      if (!mappedListing) {
+        throw new Error(`Impossible de mapper le listing ${id}`);
+      }
+      
       return mappedListing;
     });
     // Exécuter la mise à jour (non bloquante) hors transaction si nécessaire
@@ -318,28 +355,13 @@ export class MarketplaceUnifiedService {
       this.databaseService
         .query(pendingAnimalUpdate.sql, pendingAnimalUpdate.values)
         .catch((error: any) => {
-          fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace-unified.service.ts:273',message:'Erreur UPDATE production_animaux post-transaction',data:{listingId,subjectId:dto.subjectId,error:error?.message,errorCode:error?.code,errorDetail:error?.detail},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'I'})}).catch(()=>{});
           this.logger.warn(
-            `[createIndividualListing] Mise à jour production_animaux post-transaction ignorée pour ${dto.subjectId}: ${error?.message}`
+            `[createIndividualListing] Mise à jour production_animaux ignorée pour ${dto.subjectId}: ${error?.message}`
           );
         });
     }
-
-    // Vérifier que le listing est bien dans la base après le commit (en dehors de la transaction)
-    // Note: setTimeout pour éviter de bloquer la réponse
-    setTimeout(async () => {
-      try {
-        const verifyQuery = await this.databaseService.query(
-          'SELECT id, producer_id, farm_id FROM marketplace_listings WHERE id = $1',
-          [listingId]
-        );
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace-unified.service.ts:262',message:'Vérification après commit',data:{id:listingId,found:verifyQuery.rows.length>0,producer_id:verifyQuery.rows[0]?.producer_id,farm_id:verifyQuery.rows[0]?.farm_id},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'E'})}).catch(()=>{});
-        // #endregion
-      } catch (e) {
-        // Ignorer les erreurs de vérification
-      }
-    }, 2000);
+    
+    this.logger.log(`[createIndividualListing] Listing ${listingId} créé pour animal ${dto.subjectId}`);
     return result;
   }
 
@@ -512,10 +534,16 @@ export class MarketplaceUnifiedService {
         'date_creation',
         'derniere_modification',
       ];
+      // S'assurer que farmId est bien une chaîne et qu'il n'y a pas d'espaces
+      const farmIdToInsertBatch = String(dto.farmId || '').trim();
+      if (!farmIdToInsertBatch) {
+        throw new BadRequestException('farmId est requis et ne peut pas être vide');
+      }
+      
       let insertValues: any[] = [
         id,
         userId,
-        dto.farmId,
+        farmIdToInsertBatch,
         pricePerKg,
         calculatedPrice,
         'available',

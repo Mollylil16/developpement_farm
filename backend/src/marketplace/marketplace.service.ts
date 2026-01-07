@@ -18,6 +18,13 @@ import { UpdatePurchaseRequestDto } from './dto/update-purchase-request.dto';
 import { CreatePurchaseRequestOfferDto } from './dto/create-purchase-request-offer.dto';
 import { CreateBatchListingDto } from './dto/create-batch-listing.dto';
 import { SaleAutomationService } from './sale-automation.service';
+import { 
+  CompleteSaleDto, 
+  CompleteSaleResponseDto,
+  SaleCleanupResult,
+  SaleTransactionInfo,
+  SaleFinanceInfo
+} from './dto/complete-sale.dto';
 
 @Injectable()
 export class MarketplaceService {
@@ -51,14 +58,18 @@ export class MarketplaceService {
       throw new NotFoundException('Sujet introuvable ou ne vous appartient pas');
     }
 
-    // Vérifier qu'il n'y a pas déjà un listing actif pour ce sujet
+    // NOUVELLE RÈGLE: Un sujet PEUT être dans plusieurs listings simultanément
+    // Le nettoyage se fera automatiquement lors de la vente (completeSale)
     const existingListing = await this.databaseService.query(
       'SELECT id FROM marketplace_listings WHERE subject_id = $1 AND status = $2',
       [createListingDto.subjectId, 'available']
     );
 
     if (existingListing.rows.length > 0) {
-      throw new BadRequestException('Ce sujet est déjà en vente sur le marketplace');
+      this.logger.warn(
+        `[createListing] Sujet ${createListingDto.subjectId} déjà dans ${existingListing.rows.length} listing(s). ` +
+        `Un nouveau listing sera créé, les anciens seront nettoyés lors de la vente.`
+      );
     }
 
     // Utiliser une transaction pour garantir la cohérence des données
@@ -462,18 +473,17 @@ export class MarketplaceService {
       params.push('removed');
 
       if (projetId) {
-        query += ` AND farm_id = $${params.length + 1}`;
-        params.push(projetId);
-        this.logger.debug(`[findAllListings] Filtre par projet: farm_id = ${projetId}`);
+        // ✅ CORRECTION: Utiliser CAST pour garantir la comparaison de types TEXT
+        // Cela évite les problèmes de comparaison entre TEXT et VARCHAR
+        query += ` AND CAST(farm_id AS TEXT) = CAST($${params.length + 1} AS TEXT)`;
+        params.push(projetId.trim()); // Trim pour éviter les espaces
+        this.logger.debug(`[findAllListings] Filtre par projet: farm_id = ${projetId} (type: ${typeof projetId})`);
       }
 
       if (userId) {
         query += ` AND producer_id = $${params.length + 1}`;
         params.push(userId);
         this.logger.debug(`[findAllListings] Filtre par producteur: producer_id = ${userId}`);
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace.service.ts:472',message:'Paramètres de recherche findAllListings',data:{userId,projetId,userId_type:typeof userId,projetId_type:typeof projetId,params_count:params.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-        // #endregion
       }
 
       query += ` ORDER BY listed_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
@@ -503,18 +513,12 @@ export class MarketplaceService {
           FROM marketplace_listings WHERE status != 'removed'`;
         const checkResult = await this.databaseService.query(checkQuery, [userId || '', projetId || '']);
         this.logger.warn(`[findAllListings] Aucun listing trouvé. Statistiques:`, checkResult.rows[0]);
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace.service.ts:502',message:'Statistiques listings - valeurs recherchées',data:{userId,projetId,userId_type:typeof userId,projetId_type:typeof projetId,stats:checkResult.rows[0]},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
         // Récupérer les valeurs réelles dans la base pour comparaison
         const actualValuesQuery = `SELECT id, producer_id, farm_id, status, 
           pg_typeof(producer_id) as producer_id_type, 
           pg_typeof(farm_id) as farm_id_type
           FROM marketplace_listings WHERE status != 'removed' LIMIT 5`;
         const actualValues = await this.databaseService.query(actualValuesQuery);
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'marketplace.service.ts:510',message:'Valeurs réelles dans la base',data:{actualListings:actualValues.rows.map(r=>({id:r.id,producer_id:r.producer_id,farm_id:r.farm_id,producer_id_type:r.producer_id_type,farm_id_type:r.farm_id_type}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
         this.logger.warn(`[findAllListings] Valeurs réelles dans la base:`, actualValues.rows);
       }
       
@@ -557,8 +561,9 @@ export class MarketplaceService {
             const minimalParams: any[] = ['removed'];
             
             if (projetId) {
-              minimalQuery += ` AND farm_id = $${minimalParams.length + 1}`;
-              minimalParams.push(projetId);
+              // ✅ CORRECTION: Utiliser CAST pour garantir la comparaison de types TEXT
+              minimalQuery += ` AND CAST(farm_id AS TEXT) = CAST($${minimalParams.length + 1} AS TEXT)`;
+              minimalParams.push(projetId.trim()); // Trim pour éviter les espaces
             }
             
             if (userId) {
@@ -2303,5 +2308,645 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
         : undefined,
       createdAt: row.created_at ? new Date(row.created_at).toISOString() : undefined,
     };
+  }
+
+  // ========================================
+  // COMPLETE SALE - NOUVELLE LOGIQUE DE VENTE
+  // ========================================
+
+  /**
+   * Complète une vente directe sans passer par le workflow d'offres
+   * 
+   * RÈGLES IMPLÉMENTÉES:
+   * 1. Un sujet PEUT être dans plusieurs listings (NOUVELLE règle)
+   * 2. Quand vendu: nettoyer TOUS les autres listings contenant ce sujet
+   * 3. Créer la transaction marketplace
+   * 4. Mettre à jour le statut des animaux
+   * 5. Créer le revenu en finance
+   */
+  async completeSale(
+    dto: CompleteSaleDto,
+    sellerId: string
+  ): Promise<CompleteSaleResponseDto> {
+    this.logger.log(`[completeSale] Début de la vente - Listing: ${dto.listingId}, Vendeur: ${sellerId}`);
+
+    return await this.databaseService.transaction(async (client) => {
+      const now = new Date().toISOString();
+
+      // 1. VÉRIFIER QUE LE LISTING EXISTE ET APPARTIENT AU VENDEUR
+      const listingResult = await client.query(
+        'SELECT * FROM marketplace_listings WHERE id = $1',
+        [dto.listingId]
+      );
+
+      if (listingResult.rows.length === 0) {
+        throw new NotFoundException('Listing introuvable');
+      }
+
+      const listing = listingResult.rows[0];
+
+      if (listing.producer_id !== sellerId) {
+        throw new ForbiddenException('Vous n\'êtes pas autorisé à vendre ce listing');
+      }
+
+      if (listing.status !== 'available' && listing.status !== 'reserved') {
+        throw new BadRequestException(`Ce listing n'est pas disponible pour la vente (statut: ${listing.status})`);
+      }
+
+      // 2. RÉCUPÉRER LE/LES SUBJECT_ID DU LISTING
+      const listingType = listing.listing_type || 'individual';
+      let subjectIds: string[] = [];
+
+      if (listingType === 'individual') {
+        if (!listing.subject_id) {
+          throw new BadRequestException('Listing individuel sans subject_id');
+        }
+        subjectIds = [listing.subject_id];
+      } else if (listingType === 'batch') {
+        const pigIds = Array.isArray(listing.pig_ids)
+          ? listing.pig_ids
+          : typeof listing.pig_ids === 'string'
+          ? JSON.parse(listing.pig_ids)
+          : [];
+        
+        if (pigIds.length === 0) {
+          throw new BadRequestException('Listing batch sans pig_ids');
+        }
+        subjectIds = pigIds;
+      }
+
+      this.logger.debug(`[completeSale] Sujets à vendre: ${subjectIds.length}`);
+
+      // 3. RÉCUPÉRER LES INFOS DE L'ACHETEUR ET DU VENDEUR
+      const [buyerResult, sellerResult] = await Promise.all([
+        client.query('SELECT id, prenom, nom FROM users WHERE id = $1', [dto.buyerId]),
+        client.query('SELECT id, prenom, nom FROM users WHERE id = $1', [sellerId]),
+      ]);
+
+      if (buyerResult.rows.length === 0) {
+        throw new NotFoundException('Acheteur introuvable');
+      }
+
+      const buyerName = buyerResult.rows[0].prenom && buyerResult.rows[0].nom
+        ? `${buyerResult.rows[0].prenom} ${buyerResult.rows[0].nom}`.trim()
+        : 'Acheteur';
+      const sellerName = sellerResult.rows[0]?.prenom && sellerResult.rows[0]?.nom
+        ? `${sellerResult.rows[0].prenom} ${sellerResult.rows[0].nom}`.trim()
+        : 'Vendeur';
+
+      // 4. MARQUER LE LISTING COMME 'SOLD'
+      await client.query(
+        `UPDATE marketplace_listings 
+         SET status = 'sold', updated_at = $1, derniere_modification = $1 
+         WHERE id = $2`,
+        [now, dto.listingId]
+      );
+
+      this.logger.debug(`[completeSale] Listing ${dto.listingId} marqué comme 'sold'`);
+
+      // 5. CRÉER UNE OFFRE PLACEHOLDER POUR LA VENTE DIRECTE (offer_id est NOT NULL)
+      const offerId = this.generateId('offer');
+      await client.query(
+        `INSERT INTO marketplace_offers (
+          id, listing_id, subject_ids, buyer_id, producer_id,
+          proposed_price, original_price, message, status,
+          terms_accepted, created_at, expires_at, prix_total_final,
+          date_creation, derniere_modification
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+        [
+          offerId,
+          dto.listingId,
+          subjectIds,
+          dto.buyerId,
+          sellerId,
+          dto.finalPrice,
+          listing.calculated_price || dto.finalPrice,
+          'Vente directe via completeSale',
+          'accepted',
+          true,
+          now,
+          now,
+          dto.finalPrice,
+          now,
+          now,
+        ]
+      );
+
+      // 6. CRÉER LA TRANSACTION MARKETPLACE
+      const transactionId = this.generateId('transaction');
+      await client.query(
+        `INSERT INTO marketplace_transactions (
+          id, offer_id, listing_id, subject_ids, buyer_id, producer_id,
+          final_price, status, delivery_details, documents, 
+          created_at, date_creation, derniere_modification
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+        [
+          transactionId,
+          offerId, // Offre placeholder pour vente directe
+          dto.listingId,
+          subjectIds,
+          dto.buyerId,
+          sellerId,
+          dto.finalPrice,
+          'completed',
+          JSON.stringify({
+            paymentMethod: dto.paymentMethod || 'cash',
+            dateRecuperation: dto.dateRecuperation || null,
+            notes: dto.notes || null,
+            directSale: true,
+          }),
+          JSON.stringify({}),
+          now,
+          now,
+          now,
+        ]
+      );
+
+      this.logger.debug(`[completeSale] Offre placeholder créée: ${offerId}, Transaction créée: ${transactionId}`);
+
+      // 7. NETTOYER LES AUTRES LISTINGS CONTENANT CES SUJETS
+      const cleanupResult = await this.removeSubjectFromOtherListings(
+        client,
+        subjectIds,
+        dto.listingId,
+        listingType
+      );
+
+      this.logger.debug(`[completeSale] Nettoyage: ${cleanupResult.listingsRemoved} supprimés, ${cleanupResult.listingsUpdated} mis à jour`);
+
+      // 8. METTRE À JOUR LE STATUT DES ANIMAUX
+      const animalsUpdated = await this.updateAnimalsSoldStatus(
+        client,
+        subjectIds,
+        listingType,
+        now
+      );
+      cleanupResult.animalsUpdated = animalsUpdated;
+
+      this.logger.debug(`[completeSale] ${animalsUpdated} animaux mis à jour`);
+
+      // 9. CRÉER LE REVENU EN FINANCE
+      const financeResult = await this.createRevenueFromSale(client, {
+        farmId: listing.farm_id,
+        amount: dto.finalPrice,
+        description: `Vente marketplace - ${subjectIds.length} sujet(s)${listingType === 'batch' ? ' (batch)' : ''}`,
+        transactionId,
+        buyerName,
+        subjectIds,
+        poidsTotalKg: await this.calculateTotalWeight(client, subjectIds, listingType),
+      });
+
+      this.logger.debug(`[completeSale] Revenu créé: ${financeResult.revenueId}`);
+
+      // 10. METTRE À JOUR LA TRANSACTION AVEC LES RÉFÉRENCES
+      await client.query(
+        `UPDATE marketplace_transactions 
+         SET vente_id = $1, revenu_id = $2, poids_total = $3, nombre_sujets = $4, date_vente = $5
+         WHERE id = $6`,
+        [
+          financeResult.venteId,
+          financeResult.revenueId,
+          financeResult.poidsTotalKg,
+          subjectIds.length,
+          now,
+          transactionId,
+        ]
+      );
+
+      // 11. CRÉER LES NOTIFICATIONS
+      await this.createNotification({
+        userId: sellerId,
+        type: 'vente_confirmee',
+        title: 'Vente confirmée',
+        message: `${subjectIds.length} sujet(s) vendu(s) pour ${dto.finalPrice.toLocaleString('fr-FR')} FCFA`,
+        relatedId: transactionId,
+        relatedType: 'transaction',
+      });
+
+      await this.createNotification({
+        userId: dto.buyerId,
+        type: 'achat_confirme',
+        title: 'Achat confirmé',
+        message: `Achat de ${subjectIds.length} sujet(s) pour ${dto.finalPrice.toLocaleString('fr-FR')} FCFA`,
+        relatedId: transactionId,
+        relatedType: 'transaction',
+      });
+
+      this.logger.log(`[completeSale] Vente complétée avec succès - Transaction: ${transactionId}`);
+
+      // 12. RETOURNER LE RÉSUMÉ
+      return {
+        success: true,
+        transaction: {
+          id: transactionId,
+          amount: dto.finalPrice,
+          seller: { id: sellerId, name: sellerName },
+          buyer: { id: dto.buyerId, name: buyerName },
+          listing: {
+            id: dto.listingId,
+            type: listingType as 'individual' | 'batch',
+            subjectIds,
+          },
+        },
+        cleanup: cleanupResult,
+        finance: {
+          revenueId: financeResult.revenueId,
+          amount: dto.finalPrice,
+          venteId: financeResult.venteId,
+        },
+        message: `Vente de ${subjectIds.length} sujet(s) complétée avec succès`,
+      };
+    });
+  }
+
+  /**
+   * HELPER: Retire un sujet de tous les autres listings
+   * 
+   * RÈGLES:
+   * - Si listing individual (1 seul sujet) : status='removed', removed_reason='sold_elsewhere'
+   * - Si listing batch : retirer le sujet de pig_ids et décrémenter pig_count
+   * - Si listing batch devient vide : status='removed', removed_reason='all_pigs_sold'
+   */
+  private async removeSubjectFromOtherListings(
+    client: any,
+    subjectIds: string[],
+    excludeListingId: string,
+    sourceListingType: string
+  ): Promise<SaleCleanupResult> {
+    const result: SaleCleanupResult = {
+      listingsRemoved: 0,
+      listingsUpdated: 0,
+      animalsUpdated: 0,
+    };
+
+    const now = new Date().toISOString();
+
+    // Trouver tous les listings contenant ces sujets (sauf le listing vendu)
+    const affectedListingsQuery = `
+      SELECT id, listing_type, subject_id, pig_ids, pig_count, status
+      FROM marketplace_listings
+      WHERE status IN ('available', 'reserved', 'pending_delivery')
+      AND id != $1
+      AND (
+        subject_id = ANY($2)
+        OR pig_ids ?| $2
+      )
+    `;
+
+    try {
+      const affectedListings = await client.query(affectedListingsQuery, [
+        excludeListingId,
+        subjectIds,
+      ]);
+
+      this.logger.debug(`[removeSubjectFromOtherListings] ${affectedListings.rows.length} listings affectés trouvés`);
+
+      for (const listing of affectedListings.rows) {
+        const listingType = listing.listing_type || 'individual';
+
+        if (listingType === 'individual') {
+          // Listing individuel : le sujet est vendu, donc supprimer le listing
+          await client.query(
+            `UPDATE marketplace_listings
+             SET status = 'removed', 
+                 updated_at = $1,
+                 derniere_modification = $1
+             WHERE id = $2`,
+            [now, listing.id]
+          );
+          result.listingsRemoved++;
+          this.logger.debug(`[removeSubjectFromOtherListings] Listing individuel ${listing.id} supprimé (sold_elsewhere)`);
+
+        } else if (listingType === 'batch') {
+          // Listing batch : retirer les sujets vendus du batch
+          const currentPigIds: string[] = Array.isArray(listing.pig_ids)
+            ? listing.pig_ids
+            : typeof listing.pig_ids === 'string'
+            ? JSON.parse(listing.pig_ids)
+            : [];
+
+          const remainingPigIds = currentPigIds.filter(
+            (pigId) => !subjectIds.includes(pigId)
+          );
+
+          if (remainingPigIds.length === 0) {
+            // Batch vide après retrait
+            await client.query(
+              `UPDATE marketplace_listings
+               SET status = 'removed',
+                   pig_ids = '[]'::jsonb,
+                   pig_count = 0,
+                   updated_at = $1,
+                   derniere_modification = $1
+               WHERE id = $2`,
+              [now, listing.id]
+            );
+            result.listingsRemoved++;
+            this.logger.debug(`[removeSubjectFromOtherListings] Listing batch ${listing.id} supprimé (all_pigs_sold)`);
+
+          } else {
+            // Mettre à jour le batch avec les porcs restants
+            await client.query(
+              `UPDATE marketplace_listings
+               SET pig_ids = $1::jsonb,
+                   pig_count = $2,
+                   updated_at = $3,
+                   derniere_modification = $3
+               WHERE id = $4`,
+              [JSON.stringify(remainingPigIds), remainingPigIds.length, now, listing.id]
+            );
+            result.listingsUpdated++;
+            this.logger.debug(`[removeSubjectFromOtherListings] Listing batch ${listing.id} mis à jour: ${currentPigIds.length} → ${remainingPigIds.length} porcs`);
+          }
+        }
+      }
+    } catch (error: any) {
+      // Si l'opérateur JSONB ?| n'existe pas (ancienne version), utiliser une approche alternative
+      if (error.message?.includes('operator does not exist')) {
+        this.logger.warn('[removeSubjectFromOtherListings] Opérateur JSONB non supporté, utilisation de la méthode alternative');
+        
+        // Méthode alternative : chercher séparément pour individual et batch
+        for (const subjectId of subjectIds) {
+          // Individual listings
+          const individualListings = await client.query(
+            `SELECT id FROM marketplace_listings
+             WHERE status IN ('available', 'reserved', 'pending_delivery')
+             AND id != $1
+             AND listing_type = 'individual'
+             AND subject_id = $2`,
+            [excludeListingId, subjectId]
+          );
+
+          for (const listing of individualListings.rows) {
+            await client.query(
+              `UPDATE marketplace_listings SET status = 'removed', updated_at = $1 WHERE id = $2`,
+              [now, listing.id]
+            );
+            result.listingsRemoved++;
+          }
+        }
+      } else {
+        throw error;
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * HELPER: Met à jour le statut des animaux vendus
+   */
+  private async updateAnimalsSoldStatus(
+    client: any,
+    subjectIds: string[],
+    listingType: string,
+    now: string
+  ): Promise<number> {
+    let updatedCount = 0;
+
+    if (listingType === 'individual') {
+      // Mode individuel : production_animaux
+      for (const subjectId of subjectIds) {
+        try {
+          const result = await client.query(
+            `UPDATE production_animaux 
+             SET statut = 'vendu', 
+                 actif = false, 
+                 derniere_modification = $1,
+                 marketplace_status = 'sold'
+             WHERE id = $2
+             RETURNING id`,
+            [now, subjectId]
+          );
+          if (result.rowCount > 0) {
+            updatedCount++;
+          }
+        } catch (error: any) {
+          // Si marketplace_status n'existe pas, réessayer sans
+          if (error.message?.includes('marketplace_status')) {
+            await client.query(
+              `UPDATE production_animaux 
+               SET statut = 'vendu', actif = false, derniere_modification = $1
+               WHERE id = $2`,
+              [now, subjectId]
+            );
+            updatedCount++;
+          } else {
+            throw error;
+          }
+        }
+      }
+    } else if (listingType === 'batch') {
+      // Mode batch : batch_pigs - créer un mouvement et supprimer
+      for (const subjectId of subjectIds) {
+        try {
+          // Récupérer les infos du batch_pig
+          const pigResult = await client.query(
+            'SELECT batch_id, current_weight_kg FROM batch_pigs WHERE id = $1',
+            [subjectId]
+          );
+
+          if (pigResult.rows.length > 0) {
+            const pig = pigResult.rows[0];
+            const movementId = this.generateId('movement');
+
+            // Créer le mouvement de retrait
+            try {
+              await client.query(
+                `INSERT INTO batch_pig_movements (
+                  id, pig_id, movement_type, removal_reason,
+                  sale_weight_kg, movement_date, notes, created_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                [
+                  movementId,
+                  subjectId,
+                  'removal',
+                  'sale',
+                  pig.current_weight_kg || 0,
+                  now.split('T')[0],
+                  'Vente via marketplace - completeSale',
+                  now,
+                ]
+              );
+            } catch (movementError) {
+              this.logger.warn(`[updateAnimalsSoldStatus] Erreur création mouvement pour ${subjectId}: ${movementError}`);
+            }
+
+            // Supprimer le batch_pig
+            await client.query('DELETE FROM batch_pigs WHERE id = $1', [subjectId]);
+            updatedCount++;
+          }
+        } catch (error: any) {
+          this.logger.error(`[updateAnimalsSoldStatus] Erreur pour batch_pig ${subjectId}:`, error.message);
+        }
+      }
+    }
+
+    return updatedCount;
+  }
+
+  /**
+   * HELPER: Crée le revenu et la vente en finance
+   */
+  private async createRevenueFromSale(
+    client: any,
+    saleData: {
+      farmId: string;
+      amount: number;
+      description: string;
+      transactionId: string;
+      buyerName: string;
+      subjectIds: string[];
+      poidsTotalKg: number;
+    }
+  ): Promise<SaleFinanceInfo & { poidsTotalKg: number; venteId: string }> {
+    const now = new Date().toISOString();
+    const venteId = this.generateId('vente');
+    const revenueId = this.generateId('revenu');
+
+    // Récupérer le producteur du projet
+    const projetResult = await client.query(
+      'SELECT proprietaire_id FROM projets WHERE id = $1',
+      [saleData.farmId]
+    );
+    const producteurId = projetResult.rows[0]?.proprietaire_id;
+
+    // 1. Créer l'entrée dans la table ventes (si elle existe)
+    try {
+      await client.query(
+        `INSERT INTO ventes (
+          id, transaction_id, projet_id, producteur_id, acheteur_id,
+          prix_total, nombre_sujets, poids_total, statut,
+          date_vente, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        [
+          venteId,
+          saleData.transactionId,
+          saleData.farmId,
+          producteurId,
+          null, // acheteur_id sera récupéré si nécessaire
+          saleData.amount,
+          saleData.subjectIds.length,
+          Math.round(saleData.poidsTotalKg),
+          'confirmee',
+          now,
+          now,
+          now,
+        ]
+      );
+    } catch (venteError: any) {
+      // Table ventes peut ne pas exister
+      if (!venteError.message?.includes('does not exist')) {
+        this.logger.warn(`[createRevenueFromSale] Erreur création vente: ${venteError.message}`);
+      }
+    }
+
+    // 2. Créer l'entrée de revenu
+    try {
+      await client.query(
+        `INSERT INTO revenus (
+          id, projet_id, montant, date, categorie, description,
+          acheteur, poids_total, nombre_animaux, vente_id, animal_ids, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        [
+          revenueId,
+          saleData.farmId,
+          saleData.amount,
+          now.split('T')[0],
+          'vente_porc',
+          saleData.description,
+          saleData.buyerName,
+          Math.round(saleData.poidsTotalKg),
+          saleData.subjectIds.length,
+          venteId,
+          JSON.stringify(saleData.subjectIds),
+          now,
+        ]
+      );
+    } catch (revenusError: any) {
+      // Si la table revenus n'existe pas, essayer finance_revenus_ponctuels
+      if (revenusError.message?.includes('does not exist')) {
+        try {
+          await client.query(
+            `INSERT INTO finance_revenus_ponctuels (
+              id, projet_id, montant, categorie, description,
+              date_transaction, source_marketplace_transaction_id,
+              date_creation, derniere_modification
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+            [
+              revenueId,
+              saleData.farmId,
+              saleData.amount,
+              'vente_animaux',
+              saleData.description,
+              now,
+              saleData.transactionId,
+              now,
+              now,
+            ]
+          );
+        } catch (fallbackError) {
+          this.logger.error('[createRevenueFromSale] Erreur création revenu fallback:', fallbackError);
+        }
+      } else {
+        this.logger.error('[createRevenueFromSale] Erreur création revenu:', revenusError.message);
+      }
+    }
+
+    return {
+      revenueId,
+      amount: saleData.amount,
+      venteId,
+      poidsTotalKg: saleData.poidsTotalKg,
+    };
+  }
+
+  /**
+   * HELPER: Calcule le poids total des animaux
+   */
+  private async calculateTotalWeight(
+    client: any,
+    subjectIds: string[],
+    listingType: string
+  ): Promise<number> {
+    let totalWeight = 0;
+
+    if (listingType === 'individual') {
+      for (const subjectId of subjectIds) {
+        // Récupérer le poids depuis la dernière pesée
+        const peseeResult = await client.query(
+          `SELECT poids_kg FROM production_pesees 
+           WHERE animal_id = $1 
+           ORDER BY date DESC 
+           LIMIT 1`,
+          [subjectId]
+        );
+
+        if (peseeResult.rows.length > 0) {
+          totalWeight += parseFloat(peseeResult.rows[0].poids_kg) || 0;
+        } else {
+          // Fallback : poids initial
+          const animalResult = await client.query(
+            'SELECT poids_initial FROM production_animaux WHERE id = $1',
+            [subjectId]
+          );
+          if (animalResult.rows.length > 0) {
+            totalWeight += parseFloat(animalResult.rows[0].poids_initial) || 0;
+          }
+        }
+      }
+    } else if (listingType === 'batch') {
+      for (const subjectId of subjectIds) {
+        const result = await client.query(
+          'SELECT current_weight_kg FROM batch_pigs WHERE id = $1',
+          [subjectId]
+        );
+        if (result.rows.length > 0) {
+          totalWeight += parseFloat(result.rows[0].current_weight_kg) || 0;
+        }
+      }
+    }
+
+    return totalWeight;
   }
 }

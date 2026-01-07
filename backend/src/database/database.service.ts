@@ -1,8 +1,9 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { Pool } from 'pg';
 
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(DatabaseService.name);
   private pool: Pool;
 
   constructor() {
@@ -198,56 +199,28 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
   async transaction<T>(callback: (client: any) => Promise<T>): Promise<T> {
     const client = await this.pool.connect();
-    const transactionId = `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'database.service.ts:199',message:'Transaction démarrée',data:{transactionId},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'F'})}).catch(()=>{});
-    // #endregion
+    
     try {
       await client.query('BEGIN');
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'database.service.ts:203',message:'BEGIN exécuté',data:{transactionId},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'F'})}).catch(()=>{});
-      // #endregion
+      
       const result = await callback(client);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'database.service.ts:206',message:'Callback terminé - avant COMMIT',data:{transactionId,hasResult:!!result},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'F'})}).catch(()=>{});
-      // #endregion
-      // Vérifier l'état de la transaction avant COMMIT
-      try {
-        const txStatusBefore = await client.query('SELECT pg_transaction_status() as status');
-        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'database.service.ts:210',message:'Statut transaction avant COMMIT',data:{transactionId,status:txStatusBefore.rows[0]?.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'F'})}).catch(()=>{});
-      } catch (_) {}
-      const commitResult = await client.query('COMMIT');
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'database.service.ts:207',message:'COMMIT exécuté',data:{transactionId,commitSuccess:!!commitResult,command:commitResult?.command,rowCount:commitResult?.rowCount},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'F'})}).catch(()=>{});
-      // #endregion
-      if (commitResult?.command !== 'COMMIT') {
-        const commitError = new Error(`Transaction ${transactionId} terminée avec ${commitResult?.command || 'unknown'}`);
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'database.service.ts:210',message:'COMMIT inattendu',data:{transactionId,command:commitResult?.command},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'F'})}).catch(()=>{});
-        // #endregion
-        throw commitError;
-      }
-      // Vérifier immédiatement après le commit avec la même connexion (avant release)
-      try {
-        const immediateCheck = await client.query('SELECT COUNT(*) as total FROM marketplace_listings WHERE status != $1', ['removed']);
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'database.service.ts:212',message:'Vérification immédiate après COMMIT (même connexion)',data:{transactionId,total:immediateCheck.rows[0]?.total},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'F'})}).catch(()=>{});
-        // #endregion
-      } catch (e) {
-        // Ignorer - juste pour debug
-      }
+      
+      // NOTE: La vérification pg_transaction_status() a été supprimée car elle n'est pas supportée
+      // par CockroachDB/Neon et causait la corruption de la transaction (COMMIT converti en ROLLBACK).
+      
+      await client.query('COMMIT');
+      
       return result;
     } catch (error: any) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'database.service.ts:209',message:'Erreur dans transaction - ROLLBACK',data:{transactionId,error:error?.message,errorCode:error?.code},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'F'})}).catch(()=>{});
-      // #endregion
-      await client.query('ROLLBACK');
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackError: any) {
+        // Ne pas throw ici pour éviter de masquer l'erreur originale
+      }
+      
       throw error;
     } finally {
       client.release();
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'database.service.ts:214',message:'Transaction terminée - client libéré',data:{transactionId},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'F'})}).catch(()=>{});
-      // #endregion
     }
   }
 

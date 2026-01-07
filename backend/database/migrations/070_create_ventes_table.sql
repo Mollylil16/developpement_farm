@@ -32,18 +32,70 @@ COMMENT ON COLUMN ventes.transaction_id IS 'Lien vers marketplace_transactions';
 COMMENT ON COLUMN ventes.poids_total IS 'Poids total vendu en kg (nombre entier)';
 COMMENT ON COLUMN ventes.statut IS 'Statut de la vente: confirmee, annulee, etc.';
 
--- Ajouter la contrainte de clé étrangère pour marketplace_transactions.vente_id
-ALTER TABLE marketplace_transactions
-  ADD CONSTRAINT fk_marketplace_transactions_vente_id 
-  FOREIGN KEY (vente_id) REFERENCES ventes(id) ON DELETE SET NULL;
+-- Ajouter les contraintes de clé étrangère (seulement si elles n'existent pas déjà)
+-- Note: Ces contraintes nécessitent que les colonnes existent (ajoutées dans migrations 068 et 069)
 
--- Ajouter la contrainte de clé étrangère pour revenus.vente_id
-ALTER TABLE revenus
-  ADD CONSTRAINT fk_revenus_vente_id 
-  FOREIGN KEY (vente_id) REFERENCES ventes(id) ON DELETE SET NULL;
+-- Contrainte FK pour marketplace_transactions.vente_id
+DO $$
+BEGIN
+    -- Vérifier que la colonne vente_id existe dans marketplace_transactions
+    IF EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_name = 'marketplace_transactions' 
+        AND column_name = 'vente_id'
+    ) AND NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.table_constraints 
+        WHERE table_name = 'marketplace_transactions' 
+        AND constraint_name = 'fk_marketplace_transactions_vente_id'
+    ) THEN
+        ALTER TABLE marketplace_transactions
+        ADD CONSTRAINT fk_marketplace_transactions_vente_id 
+        FOREIGN KEY (vente_id) REFERENCES ventes(id) ON DELETE SET NULL;
+    END IF;
+END $$;
 
--- Ajouter la contrainte de clé étrangère pour marketplace_transactions.revenu_id
-ALTER TABLE marketplace_transactions
-  ADD CONSTRAINT fk_marketplace_transactions_revenu_id 
-  FOREIGN KEY (revenu_id) REFERENCES revenus(id) ON DELETE SET NULL;
+-- Contrainte FK pour revenus.vente_id
+DO $$
+BEGIN
+    -- Vérifier que la colonne vente_id existe dans revenus
+    IF EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_name = 'revenus' 
+        AND column_name = 'vente_id'
+    ) AND NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.table_constraints 
+        WHERE table_name = 'revenus' 
+        AND constraint_name = 'fk_revenus_vente_id'
+    ) THEN
+        ALTER TABLE revenus
+        ADD CONSTRAINT fk_revenus_vente_id 
+        FOREIGN KEY (vente_id) REFERENCES ventes(id) ON DELETE SET NULL;
+    END IF;
+END $$;
+
+-- Contrainte FK pour marketplace_transactions.revenu_id
+-- Note: Cette contrainte devrait normalement être dans la migration 069, mais elle est ici pour compatibilité
+DO $$
+BEGIN
+    -- Vérifier que la colonne revenu_id existe dans marketplace_transactions
+    IF EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_name = 'marketplace_transactions' 
+        AND column_name = 'revenu_id'
+    ) AND NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.table_constraints 
+        WHERE table_name = 'marketplace_transactions' 
+        AND constraint_name = 'fk_marketplace_transactions_revenu_id'
+    ) THEN
+        ALTER TABLE marketplace_transactions
+        ADD CONSTRAINT fk_marketplace_transactions_revenu_id 
+        FOREIGN KEY (revenu_id) REFERENCES revenus(id) ON DELETE SET NULL;
+    END IF;
+END $$;
 
