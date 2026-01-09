@@ -1,12 +1,15 @@
 {
   "cli": {
-    "version": ">= 16.28.0",
+    "version": ">= 5.2.0",
     "appVersionSource": "remote"
   },
   "build": {
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "ios": {
+        "simulator": true
+      },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://fermier-pro-backend.onrender.com",
         "EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID": "1003563003040-onlnflbpuhg715u3ba3n8vcp56d3dr9e.apps.googleusercontent.com"
@@ -14,17 +17,26 @@
     },
     "preview": {
       "distribution": "internal",
+      "ios": {
+        "simulator": false
+      },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://fermier-pro-backend.onrender.com",
         "EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID": "1003563003040-onlnflbpuhg715u3ba3n8vcp56d3dr9e.apps.googleusercontent.com"
       }
     },
     "production": {
+      "ios": {
+        "simulator": false
+      },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://fermier-pro-backend.onrender.com",
         "EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID": "1003563003040-onlnflbpuhg715u3ba3n8vcp56d3dr9e.apps.googleusercontent.com"
       }
     }
+  },
+  "submit": {
+    "production": {}
   }
 }
 

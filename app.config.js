@@ -25,8 +25,6 @@ module.exports = {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#ffffff"
       },
-      edgeToEdgeEnabled: true,
-      predictiveBackGestureEnabled: false,
       package: "com.brunell663.fermierpro",
       permissions: [
         "android.permission.RECORD_AUDIO",
@@ -38,10 +36,9 @@ module.exports = {
     },
     scheme: "fermierpro",
     plugins: [
-      "expo-sqlite",
       "expo-localization",
       "expo-apple-authentication",
-      "./app.plugin.js",
+      // "./app.plugin.js",  // Désactivé temporairement - incompatible avec Expo SDK 51 (AndroidX déjà géré nativement)
       "expo-font"
     ],
     extra: {

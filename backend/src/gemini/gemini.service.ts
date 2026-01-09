@@ -85,4 +85,3 @@ Ton style :
 - Demande confirmation avant toute modification ou suppression`;
   }
 }
-

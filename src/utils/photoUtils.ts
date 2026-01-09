@@ -3,8 +3,8 @@
  * Version simplifiée et fonctionnelle
  */
 
-// Utiliser l'API legacy pour éviter les avertissements de dépréciation
-import * as FileSystem from 'expo-file-system/legacy';
+// Import standard d'expo-file-system
+import * as FileSystem from 'expo-file-system';
 import { logger } from './logger';
 
 // Dossier de stockage des photos d'animaux

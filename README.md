@@ -76,12 +76,14 @@ src/
 
 ## 🔧 Stack Technique
 
-- **Framework:** React Native 0.81.5 + Expo 54
-- **Langage:** TypeScript 5.9
+- **Framework:** React Native 0.74.5 + Expo SDK 51
+- **React:** 18.2.0
+- **Langage:** TypeScript 5.3.3
 - **State:** Redux Toolkit (normalized)
 - **Database:** SQLite
-- **Navigation:** React Navigation 7
+- **Navigation:** React Navigation 6
 - **Tests:** Jest + React Testing Library
+- **Node.js:** 18.17.0 (voir `.nvmrc`)
 
 ## 📊 Modules
 
@@ -130,6 +132,78 @@ src/
 - ⚠️ `database.ts` est trop grand (7500 lignes) - refactoring en cours
 - ⚠️ Toujours tester sur device/émulateur
 - ⚠️ Respecter les règles métier (gestation = 114 jours, etc.)
+
+## 🆘 Troubleshooting
+
+### L'app crash après une mise à jour de dépendances
+
+**Solution immédiate :**
+```bash
+npm run restore-stable
+```
+
+Cela restaure la version stable de `package.json` et réinstalle les dépendances.
+
+### Règles d'Or pour les Mises à Jour
+
+⚠️ **NE JAMAIS faire ces commandes sans précaution :**
+
+1. **`npm update`** - Peut casser la compatibilité
+   - ✅ **À faire :** Toujours tester sur un environnement de dev d'abord
+   - ✅ **Avant :** `npm run save-stable` pour sauvegarder la version qui marche
+
+2. **`npm audit fix --force`** - ⚠️ **INTERDIT**
+   - Peut mettre à jour des versions critiques (React, React Native, etc.)
+   - ✅ **À faire :** Utiliser `npm audit fix` (sans --force) et vérifier les changements
+   - ✅ **Alternative :** Corriger manuellement les vulnérabilités critiques uniquement
+
+3. **Mise à jour manuelle de versions critiques**
+   - ⚠️ Ne jamais mettre à jour React, React Native, ou Expo SDK sans validation
+   - ✅ Consulter [VERSIONS.md](./VERSIONS.md) pour les versions testées
+
+### Vérifier la Version de Node.js
+
+```bash
+node --version
+```
+
+**Version requise :** `18.17.0` (fixée dans `.nvmrc`)
+
+Si vous utilisez `nvm` :
+```bash
+nvm use
+```
+
+### Problèmes de Compilation
+
+1. **Erreurs liées à React/React Native**
+   - Vérifier que React est en `18.2.0` (pas 19.x)
+   - Vérifier que React Native est en `0.74.5`
+   - Vérifier `package.json.stable` pour les versions qui fonctionnaient
+
+2. **Erreurs liées à Expo**
+   - Vérifier que Expo SDK est en `~51.0.32` (pas 54 beta)
+   - Vérifier que toutes les dépendances Expo sont alignées sur SDK 51
+
+3. **Erreurs de modules natifs**
+   - Vérifier que Node.js est en version 18.17.0
+   - Nettoyer et réinstaller : `rm -rf node_modules && npm install`
+
+### Système de Protection des Versions
+
+**Sauvegarder la version stable :**
+```bash
+npm run save-stable
+```
+Crée une copie de `package.json` dans `package.json.stable`
+
+**Restaurer la version stable :**
+```bash
+npm run restore-stable
+```
+Restaure `package.json.stable` et réinstalle les dépendances
+
+📚 **Documentation complète :** [VERSIONS.md](./VERSIONS.md)
 
 ## 🤝 Contribution
 

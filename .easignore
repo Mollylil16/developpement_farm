@@ -1,47 +1,47 @@
-# EAS Build ignore file
-# Files and directories excluded from the build archive
+# Fichiers et dossiers ignorés par EAS Build
 
-# Scripts and tests
-scripts/
-*.test.ts
-*.test.tsx
-*.spec.ts
-*.spec.tsx
-test-*.ts
-*-test.ts
+# Backend (projet séparé)
+backend/
 
 # Documentation
-*.md
 docs/
-README*.md
+*.md
 
-# Logs
-*.log
-_logs/
-logs/
+# Archives
+archive/
 
-# Build artifacts
-dist/
-build/
-.expo/
-node_modules/.cache/
+# Tests
+**/__tests__/
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+# Scripts de développement
+scripts/
 
-# OS
-.DS_Store
-Thumbs.db
-
-# Environment files (should use EAS secrets instead)
+# Fichiers de configuration locaux
+.env
 .env.local
 .env.*.local
 
-# Archive and old code
-archive/
-developpement_farm/
---clear/
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Fichiers temporaires
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# Fichiers de sauvegarde
+*.backup
+*.bak
+package.json.stable
+
+# Fichiers de versioning
+.nvmrc
+VERSIONS.md

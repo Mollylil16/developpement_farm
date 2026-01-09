@@ -53,15 +53,9 @@ config.resolver.blockList = [
 
 // Configurer le watcher pour ignorer le dossier backend et node_modules
 // Metro utilise watchman ou un fallback watcher qui lit tous les fichiers
-// On configure le watcher pour exclure backend/ et node_modules explicitement
-if (!config.watcher) {
-  config.watcher = {};
-}
-config.watcher.watchman = {
-  ...config.watcher.watchman,
-  // Ignorer le dossier backend, node_modules et android/ios (générés par prebuild) dans watchman (si disponible)
-  ignore_dirs: ['backend', 'node_modules', 'android', 'ios'],
-};
+// Note: watchman.ignore_dirs est obsolète dans les versions récentes de Metro
+// On s'appuie sur blockList pour exclure ces dossiers de la résolution
+// Le watcher utilisera automatiquement les exclusions via blockList
 
 // Configuration supplémentaire pour le FallbackWatcher (utilisé si Watchman n'est pas disponible)
 // Le FallbackWatcher utilise fileMap pour déterminer quels fichiers surveiller

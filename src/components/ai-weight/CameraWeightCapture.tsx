@@ -1,19 +1,21 @@
 /**
  * Composant React Native pour capturer des images/vidéos pour la pesée IA
  * Selon spécifications README
+ * 
+ * ⚠️ DÉSACTIVÉ : Ce composant nécessite expo-camera qui n'est plus installé.
+ * Si vous souhaitez utiliser ce composant, installez expo-camera et décommentez le code ci-dessous.
+ * Alternative : Utiliser expo-image-picker (déjà installé) via ImagePicker.launchCameraAsync()
  */
 
-import React, { useState, useRef } from 'react';
+import React from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   Alert,
-  ScrollView,
 } from 'react-native';
-import { Camera, CameraType } from 'expo-camera';
+// import { Camera, CameraType } from 'expo-camera'; // DÉSACTIVÉ - expo-camera non installé
 import aiWeightService, {
   WeightEstimationResponse,
   BatchWeightEstimationResponse,
@@ -27,6 +29,13 @@ interface CameraWeightCaptureProps {
   onCancel: () => void;
 }
 
+/**
+ * Composant désactivé - nécessite expo-camera
+ * Pour utiliser ce composant, installez expo-camera :
+ * npm install expo-camera
+ * 
+ * Ou utilisez expo-image-picker à la place (déjà installé)
+ */
 export const CameraWeightCapture: React.FC<CameraWeightCaptureProps> = ({
   mode,
   pigId,
@@ -34,6 +43,22 @@ export const CameraWeightCapture: React.FC<CameraWeightCaptureProps> = ({
   onResult,
   onCancel,
 }) => {
+  // Composant désactivé - retourne un message d'erreur
+  return (
+    <View style={styles.container}>
+      <Text style={styles.errorText}>
+        Ce composant nécessite expo-camera qui n'est pas installé.
+      </Text>
+      <Text style={styles.errorText}>
+        Utilisez expo-image-picker à la place (déjà installé) via ImagePicker.launchCameraAsync()
+      </Text>
+      <TouchableOpacity style={styles.button} onPress={onCancel}>
+        <Text style={styles.buttonText}>Retour</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  /* CODE ORIGINAL DÉSACTIVÉ - Nécessite expo-camera
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [cameraType, setCameraType] = useState(CameraType.back);
@@ -159,13 +184,35 @@ export const CameraWeightCapture: React.FC<CameraWeightCaptureProps> = ({
       </Camera>
     </View>
   );
+  */
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
+  errorText: {
+    color: '#fff',
+    textAlign: 'center',
+    padding: 20,
+    fontSize: 16,
+  },
+  button: {
+    backgroundColor: '#007AFF',
+    padding: 15,
+    borderRadius: 8,
+    margin: 20,
+  },
+  buttonText: {
+    color: '#fff',
+    textAlign: 'center',
+    fontWeight: 'bold',
+  },
+  /* STYLES ORIGINAUX DÉSACTIVÉS
   camera: {
     flex: 1,
   },
@@ -242,21 +289,5 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     backgroundColor: '#fff',
   },
-  errorText: {
-    color: '#fff',
-    textAlign: 'center',
-    padding: 20,
-  },
-  button: {
-    backgroundColor: '#007AFF',
-    padding: 15,
-    borderRadius: 8,
-    margin: 20,
-  },
-  buttonText: {
-    color: '#fff',
-    textAlign: 'center',
-    fontWeight: 'bold',
-  },
+  */
 });
-
