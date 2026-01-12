@@ -16,8 +16,8 @@ import { useAnimauxActifs } from '../../hooks/useAnimauxActifs';
 import apiClient from '../../services/api/apiClient';
 import type { Batch } from '../../types/batch';
 import { logger } from '../../utils/logger';
+import { TAUX_CARCASSE } from '../../config/finance.config';
 
-const TAUX_CARCASSE = 0.75; // 75% du poids vif
 const PRIX_KG_VIF_DEFAUT = 1000;
 const PRIX_KG_CARCASSE_DEFAUT = 1300;
 

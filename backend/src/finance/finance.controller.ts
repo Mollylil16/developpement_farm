@@ -21,6 +21,8 @@ import { CreateVentePorcDto } from './dto/create-vente-porc.dto';
 import { CoutsProductionDto } from './dto/couts-production.dto';
 import { CreateDetteDto } from './dto/create-dette.dto';
 import { UpdateDetteDto } from './dto/update-dette.dto';
+import { CalculerMargesDto } from './dto/calculer-marges.dto';
+import { RecalculerMargesDto } from './dto/recalculer-marges.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
@@ -160,13 +162,37 @@ export class FinanceController {
   // ==================== CALCUL DES MARGES ====================
 
   @Post('revenus/:id/calculer-marges')
-  @ApiOperation({ summary: 'Calculer les marges pour une vente' })
+  @ApiOperation({
+    summary: 'Calculer les marges pour une vente',
+    description:
+      'Calcule les marges OPEX et complètes pour une vente de porc en utilisant les coûts de production calculés sur une période glissante de 30 jours avant la vente.',
+  })
   calculerMargesVente(
     @Param('id') id: string,
-    @Body() body: { poids_kg: number },
+    @Body() calculerMargesDto: CalculerMargesDto,
     @CurrentUser() user: any
   ) {
-    return this.financeService.calculerMargesVente(id, body.poids_kg, user.id);
+    return this.financeService.calculerMargesVente(id, calculerMargesDto.poids_kg, user.id);
+  }
+
+  @Post('revenus/recalculer-marges')
+  @ApiOperation({
+    summary: 'Recalculer les marges pour toutes les ventes d\'une période',
+    description:
+      'Recalcule les marges OPEX et complètes pour toutes les ventes de porcs d\'une période donnée. Utilise les coûts moyens de la période pour tous les calculs.',
+  })
+  @ApiQuery({ name: 'projet_id', required: true, description: 'ID du projet' })
+  recalculerMargesPeriode(
+    @Query('projet_id') projetId: string,
+    @Body() recalculerMargesDto: RecalculerMargesDto,
+    @CurrentUser() user: any
+  ) {
+    return this.financeService.recalculerMargesPeriode(
+      projetId,
+      recalculerMargesDto.date_debut,
+      recalculerMargesDto.date_fin,
+      user.id
+    );
   }
 
   // ==================== STATISTIQUES ====================

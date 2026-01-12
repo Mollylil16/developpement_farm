@@ -79,7 +79,8 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Token invalide ou expiré' })
   async refresh(@Body() refreshTokenDto: RefreshTokenDto, @Request() req: any) {
     const ipAddress = req.ip || req.connection.remoteAddress;
-    return this.authService.refreshToken(refreshTokenDto, ipAddress);
+    const userAgent = req.get('user-agent');
+    return this.authService.refreshToken(refreshTokenDto, ipAddress, userAgent);
   }
 
   @UseGuards(JwtAuthGuard)

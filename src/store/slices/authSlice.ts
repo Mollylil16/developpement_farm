@@ -16,35 +16,20 @@ const logger = createLoggerWithPrefix('AuthSlice');
 
 const AUTH_STORAGE_KEY = '@fermier_pro:auth';
 
-// Fonction pour sauvegarder l'utilisateur
-const saveUserToStorage = async (user: User) => {
-  try {
-    await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
-  } catch (error) {
-    logger.error("Erreur lors de la sauvegarde de l'utilisateur:", error);
-  }
-};
+// SÉCURITÉ : Ne plus stocker l'utilisateur dans AsyncStorage
+// L'utilisateur est maintenant stocké uniquement dans Redux (via Redux Persist si configuré)
+// Cette fonction est gardée uniquement pour nettoyer les anciennes données (migration)
 
-// Fonction pour charger l'utilisateur depuis le stockage
-const loadUserFromStorage = async (): Promise<User | null> => {
-  try {
-    const userData = await AsyncStorage.getItem(AUTH_STORAGE_KEY);
-    if (userData) {
-      return JSON.parse(userData);
-    }
-    return null;
-  } catch (error) {
-    logger.error("Erreur lors du chargement de l'utilisateur:", error);
-    return null;
-  }
-};
-
-// Fonction pour supprimer l'utilisateur du stockage
+// Fonction pour supprimer l'utilisateur du stockage (migration uniquement)
+// Utilisée pour nettoyer les anciennes données d'AsyncStorage après migration vers Redux uniquement
 const removeUserFromStorage = async () => {
   try {
     await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
   } catch (error) {
-    logger.error("Erreur lors de la suppression de l'utilisateur:", error);
+    // Ignorer les erreurs de suppression (peut ne pas exister)
+    if (__DEV__) {
+      logger.debug("Suppression de l'utilisateur AsyncStorage (migration):", error);
+    }
   }
 };
 
@@ -61,12 +46,9 @@ export const loadUserFromStorageThunk = createAsyncThunk('auth/loadUserFromStora
     // Vérifier si on a un token d'accès
     const token = await apiClient.tokens.getAccess();
     if (!token) {
-      // Pas de token, vérifier AsyncStorage pour compatibilité
-      const storedUser = await loadUserFromStorage();
-      if (storedUser) {
-        // Utilisateur stocké mais pas de token, nettoyer
-        await removeUserFromStorage();
-      }
+      // Pas de token, nettoyer tout stockage utilisateur obsolète (AsyncStorage)
+      // SÉCURITÉ : Ne plus stocker l'utilisateur dans AsyncStorage, uniquement dans Redux
+      await removeUserFromStorage();
       return null;
     }
 
@@ -74,8 +56,8 @@ export const loadUserFromStorageThunk = createAsyncThunk('auth/loadUserFromStora
     try {
       const user = await apiClient.get<User>('/auth/me');
 
-      // Sauvegarder dans AsyncStorage pour compatibilité
-      await saveUserToStorage(user);
+      // SÉCURITÉ : Ne plus stocker l'utilisateur dans AsyncStorage
+      // L'utilisateur est maintenant stocké uniquement dans Redux (via Redux Persist si configuré)
 
       // Vérifier si l'utilisateur est un collaborateur et le lier si nécessaire (SQLite local)
       if (user.email) {
@@ -115,6 +97,20 @@ export const signUp = createAsyncThunk(
   'auth/signUp',
   async (input: SignUpInput, { rejectWithValue, dispatch }) => {
     try {
+      // SÉCURITÉ : Rate limiting pour éviter les abus d'inscription
+      const { checkRateLimit, resetRateLimit } = await import('../../utils/rateLimiter');
+      // Utiliser l'identifiant dans la clé pour limiter par utilisateur
+      const identifier = input.email || input.telephone || '';
+      const rateLimitKey = `auth:signUp:${identifier}`;
+      const rateLimit = checkRateLimit(rateLimitKey, 3, 600000); // 3 tentatives par 10 minutes
+      
+      if (!rateLimit.allowed) {
+        const waitSeconds = Math.ceil((rateLimit.resetAt - Date.now()) / 1000);
+        return rejectWithValue(
+          `Trop de tentatives d'inscription. Veuillez patienter ${waitSeconds} seconde(s) avant de réessayer.`
+        );
+      }
+      
       // Validation complète avec les utilitaires de validation
       const validation = validateRegisterData({
         email: input.email,
@@ -176,12 +172,15 @@ export const signUp = createAsyncThunk(
         }
       }
 
-      // Sauvegarder aussi dans AsyncStorage pour compatibilité
-      await saveUserToStorage(user);
+      // SÉCURITÉ : Ne plus stocker l'utilisateur dans AsyncStorage
+      // L'utilisateur est maintenant stocké uniquement dans Redux
 
       // Réinitialiser le projet actif pour le nouvel utilisateur
       // (sera rechargé automatiquement si c'est un collaborateur)
       dispatch(setProjetActif(null));
+
+      // Réinitialiser le rate limiting en cas de succès
+      resetRateLimit(rateLimitKey);
 
       return user;
     } catch (error: unknown) {
@@ -204,12 +203,26 @@ export const signIn = createAsyncThunk(
   'auth/signIn',
   async (input: SignInInput, { rejectWithValue, dispatch }) => {
     try {
+      // SÉCURITÉ : Rate limiting pour éviter les attaques par force brute
+      const { checkRateLimit, resetRateLimit } = await import('../../utils/rateLimiter');
+      // Utiliser l'identifiant dans la clé pour limiter par utilisateur (garder original pour le rate limit)
+      const identifierForRateLimit = input.identifier || '';
+      const rateLimitKey = `auth:signIn:${identifierForRateLimit}`;
+      const rateLimit = checkRateLimit(rateLimitKey, 5, 300000); // 5 tentatives par 5 minutes
+      
+      if (!rateLimit.allowed) {
+        const waitSeconds = Math.ceil((rateLimit.resetAt - Date.now()) / 1000);
+        return rejectWithValue(
+          `Trop de tentatives de connexion. Veuillez patienter ${waitSeconds} seconde(s) avant de réessayer.`
+        );
+      }
+      
       // Validation
       if (!input.identifier || !input.identifier.trim()) {
         return rejectWithValue('Veuillez entrer votre email ou numéro de téléphone');
       }
 
-      // Déterminer si c'est un email ou un téléphone
+      // Déterminer si c'est un email ou un téléphone (utiliser version trimée pour les API)
       const identifier = input.identifier.trim();
       const isEmail = identifier.includes('@');
 
@@ -291,15 +304,19 @@ export const signIn = createAsyncThunk(
         }
       }
 
-      // Sauvegarder aussi dans AsyncStorage pour compatibilité
-      await saveUserToStorage(user);
+      // SÉCURITÉ : Ne plus stocker l'utilisateur dans AsyncStorage
+      // L'utilisateur est maintenant stocké uniquement dans Redux
 
+      // Réinitialiser le rate limiting en cas de succès
+      resetRateLimit(rateLimitKey);
+      
       return user;
     } catch (error: unknown) {
       // Gérer les erreurs API
       if (error && typeof error === 'object' && 'status' in error && error.status === 401) {
         // Pour les erreurs 401 (identifiants incorrects), utiliser un message générique
         // qui ne révèle pas si l'utilisateur existe ou non (sécurité)
+        // Note: Le rate limiting reste actif même en cas d'erreur
         return rejectWithValue(
           'Identifiant ou mot de passe incorrect. Si ceci est votre première connexion, veuillez créer un compte.'
         );
@@ -316,9 +333,24 @@ export const signInWithGoogle = createAsyncThunk(
   'auth/signInWithGoogle',
   async (_, { rejectWithValue, dispatch }) => {
     try {
+      // SÉCURITÉ : Rate limiting pour éviter les abus
+      const { checkRateLimit, resetRateLimit } = await import('../../utils/rateLimiter');
+      const rateLimitKey = 'auth:signInWithGoogle';
+      const rateLimit = checkRateLimit(rateLimitKey, 5, 60000); // 5 tentatives par minute
+      
+      if (!rateLimit.allowed) {
+        const waitSeconds = Math.ceil((rateLimit.resetAt - Date.now()) / 1000);
+        return rejectWithValue(
+          `Trop de tentatives de connexion. Veuillez patienter ${waitSeconds} seconde(s) avant de réessayer.`
+        );
+      }
+      
       // Utiliser le service OAuth
       const { signInWithGoogle: oauthSignIn } = await import('../../services/auth/oauthService');
       const { access_token, refresh_token, user } = await oauthSignIn();
+      
+      // Réinitialiser le rate limiting en cas de succès
+      resetRateLimit(rateLimitKey);
 
       // Stocker les tokens
       await apiClient.tokens.set(access_token, refresh_token);
@@ -344,8 +376,8 @@ export const signInWithGoogle = createAsyncThunk(
         }
       }
 
-      // Sauvegarder dans AsyncStorage pour compatibilité
-      await saveUserToStorage(user);
+      // SÉCURITÉ : Ne plus stocker l'utilisateur dans AsyncStorage
+      // L'utilisateur est maintenant stocké uniquement dans Redux
 
       // Réinitialiser le projet actif
       dispatch(setProjetActif(null));
@@ -362,9 +394,24 @@ export const signInWithApple = createAsyncThunk(
   'auth/signInWithApple',
   async (_, { rejectWithValue, dispatch }) => {
     try {
+      // SÉCURITÉ : Rate limiting pour éviter les abus
+      const { checkRateLimit, resetRateLimit } = await import('../../utils/rateLimiter');
+      const rateLimitKey = 'auth:signInWithApple';
+      const rateLimit = checkRateLimit(rateLimitKey, 5, 60000); // 5 tentatives par minute
+      
+      if (!rateLimit.allowed) {
+        const waitSeconds = Math.ceil((rateLimit.resetAt - Date.now()) / 1000);
+        return rejectWithValue(
+          `Trop de tentatives de connexion. Veuillez patienter ${waitSeconds} seconde(s) avant de réessayer.`
+        );
+      }
+      
       // Utiliser le service OAuth
       const { signInWithApple: oauthSignIn } = await import('../../services/auth/oauthService');
       const { access_token, refresh_token, user } = await oauthSignIn();
+      
+      // Réinitialiser le rate limiting en cas de succès
+      resetRateLimit(rateLimitKey);
 
       // Stocker les tokens
       await apiClient.tokens.set(access_token, refresh_token);
@@ -390,8 +437,8 @@ export const signInWithApple = createAsyncThunk(
         }
       }
 
-      // Sauvegarder dans AsyncStorage pour compatibilité
-      await saveUserToStorage(user);
+      // SÉCURITÉ : Ne plus stocker l'utilisateur dans AsyncStorage
+      // L'utilisateur est maintenant stocké uniquement dans Redux
 
       // Réinitialiser le projet actif
       dispatch(setProjetActif(null));
@@ -476,10 +523,8 @@ const authSlice = createSlice({
     },
     updateUser: (state, action: PayloadAction<User>) => {
       state.user = action.payload;
-      // Sauvegarder aussi dans AsyncStorage
-      saveUserToStorage(action.payload).catch((error) => {
-        logger.error("Erreur lors de la sauvegarde de l'utilisateur:", error);
-      });
+      // SÉCURITÉ : Ne plus stocker l'utilisateur dans AsyncStorage
+      // L'utilisateur est maintenant stocké uniquement dans Redux (via Redux Persist si configuré)
     },
   },
   extraReducers: (builder) => {

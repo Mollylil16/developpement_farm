@@ -73,7 +73,8 @@ export class MarketplaceService {
       try {
         const { AnimalRepository } = await import('../database/repositories');
         const animalRepo = new AnimalRepository();
-        const animal = await animalRepo.findById(data.subjectId);
+        // Utiliser la méthode marketplace qui ne vérifie pas l'appartenance
+        const animal = await animalRepo.findMarketplaceAnimal(data.subjectId);
 
         const subjectName = animal?.nom || animal?.code || 'sujet';
         const subjectCode = animal?.code || data.subjectId;
@@ -119,9 +120,9 @@ export class MarketplaceService {
       const animalRepo = new AnimalRepository();
 
       // Vérifier que l'animal existe avant de mettre à jour
-      const animal = await animalRepo.findById(data.subjectId);
+      const animal = await animalRepo.findMarketplaceAnimal(data.subjectId);
       if (!animal) {
-        throw new Error(`Animal ${data.subjectId} introuvable`);
+        throw new Error(`Animal ${data.subjectId} introuvable ou non accessible`);
       }
 
       // Mettre à jour le statut de l'animal via le repository
@@ -201,13 +202,7 @@ export class MarketplaceService {
     }
 
     // Enrichir les listings avec les données des animaux
-    const { AnimalRepository } = await import('../database/repositories');
-    const { PeseeRepository } = await import('../database/repositories');
-    const { VaccinationRepository } = await import('../database/repositories');
-    const animalRepo = new AnimalRepository();
-      const peseeRepo = new PeseeRepository();
-    const vaccinationRepo = new VaccinationRepository();
-
+    // ✅ Utiliser l'endpoint marketplace public qui ne vérifie pas l'appartenance
     const enrichedListings = await Promise.all(
       filteredListings.map(async (listing) => {
         try {
@@ -229,42 +224,50 @@ export class MarketplaceService {
             };
           }
 
-          // Pour les listings individuels, récupérer les données de l'animal
+          // Pour les listings individuels, utiliser l'endpoint marketplace public
           if (!listing.subjectId) {
             return null; // Ignorer les listings sans subjectId ni batchId
           }
 
-          const animal = await animalRepo.findById(listing.subjectId);
-          if (!animal) {
-            return null; // Ignorer les listings avec animaux introuvables
+          // ✅ Utiliser l'endpoint marketplace public qui retourne toutes les données nécessaires
+          // (y compris la dernière pesée) sans vérifier l'appartenance
+          const listingWithSubjects = await this.getListingWithSubjects(listing.id);
+          if (!listingWithSubjects || !listingWithSubjects.subjects || listingWithSubjects.subjects.length === 0) {
+            // Si pas de sujets trouvés, utiliser les données de base du listing
+            return {
+              ...listing,
+              type: 'subject' as const,
+              code: listing.subjectId ? `#${listing.subjectId.slice(0, 8)}` : 'N/A',
+              race: 'Non spécifiée',
+              weight: listing.weight || 0,
+              weightDate: listing.lastWeightDate,
+              age: 0,
+              totalPrice: listing.calculatedPrice,
+              healthStatus: 'good' as const,
+              vaccinations: false,
+              available: listing.status === 'available',
+            };
           }
 
-          // Récupérer la dernière pesée pour le poids actuel
-          const dernierePesee = await peseeRepo.findLastByAnimal(animal.id);
-          const poidsActuel = dernierePesee?.poids_kg || animal.poids_initial || 0;
-
-          // Calculer l'âge en mois
-          const ageEnMois = animal.date_naissance
+          // Utiliser le premier sujet (pour listings individuels, il n'y en a qu'un)
+          const subject = listingWithSubjects.subjects[0];
+          
+          // Calculer l'âge en mois si date_naissance disponible
+          const ageEnMois = subject.date_naissance
             ? Math.floor(
-                (new Date().getTime() - new Date(animal.date_naissance).getTime()) /
+                (new Date().getTime() - new Date(subject.date_naissance).getTime()) /
                   (1000 * 60 * 60 * 24 * 30)
               )
             : 0;
 
-          // Vérifier le statut des vaccinations
-          const vaccinations = await vaccinationRepo.findByAnimal(animal.id);
-          const vaccinationsAJour =
-            vaccinations.length > 0 &&
-            vaccinations.every(
-              (v) => v.date_rappel === null || new Date(v.date_rappel) > new Date()
-            );
+          // Utiliser la dernière pesée du sujet (déjà disponible dans les données publiques)
+          const poidsActuel = subject.derniere_pesee?.poids_kg || subject.poids_initial || listing.weight || 0;
+          const datePesee = subject.derniere_pesee?.date || listing.lastWeightDate;
 
-          // Déterminer le statut de santé (simplifié)
+          // Déterminer le statut de santé (simplifié - pas d'accès aux vaccinations pour les acheteurs)
           let healthStatus: 'good' | 'attention' | 'critical' = 'good';
-          if (animal.statut === 'mort' || animal.statut === 'malade') {
+          if (subject.statut === 'mort' || subject.statut === 'malade') {
             healthStatus = 'critical';
-          } else if (!vaccinationsAJour) {
-            healthStatus = 'attention';
           }
 
           // Créer un objet enrichi qui peut être utilisé comme SubjectCard ou MarketplaceListing
@@ -272,19 +275,32 @@ export class MarketplaceService {
             ...listing,
             type: 'subject' as const,
             // Propriétés pour SubjectCard
-            code: animal.code || animal.numero_identification || (animal.id ? `#${animal.id.slice(0, 8)}` : listing.subjectId || 'N/A'),
-            race: animal.race || 'Non spécifiée',
+            code: subject.code || (subject.id ? `#${subject.id.slice(0, 8)}` : listing.subjectId || 'N/A'),
+            race: subject.race || 'Non spécifiée',
             weight: poidsActuel,
-            weightDate: dernierePesee?.date_pesee || listing.lastWeightDate,
+            weightDate: datePesee,
             age: ageEnMois,
             totalPrice: listing.calculatedPrice,
             healthStatus,
-            vaccinations: vaccinationsAJour,
+            vaccinations: false, // Pas d'accès aux vaccinations pour les acheteurs (données privées)
             available: listing.status === 'available',
           };
         } catch (error) {
           logger.error(`Erreur lors de l'enrichissement du listing ${listing.id}:`, error);
-          return null;
+          // En cas d'erreur, retourner le listing de base sans enrichissement
+          return {
+            ...listing,
+            type: (listing.listingType === 'batch' ? 'batch' : 'subject') as const,
+            code: listing.subjectId ? `#${listing.subjectId.slice(0, 8)}` : 'N/A',
+            race: 'Non spécifiée',
+            weight: listing.weight || 0,
+            weightDate: listing.lastWeightDate,
+            age: 0,
+            totalPrice: listing.calculatedPrice,
+            healthStatus: 'good' as const,
+            vaccinations: false,
+            available: listing.status === 'available',
+          };
         }
       })
     );
@@ -507,7 +523,8 @@ export class MarketplaceService {
             }
             
             // Seulement récupérer l'animal si on a besoin de la photo
-            const animal = await animalRepo.findById(subjectId).catch(() => null);
+            // ✅ Utiliser l'endpoint marketplace public qui ne vérifie pas l'appartenance
+            const animal = await animalRepo.findMarketplaceAnimal(subjectId).catch(() => null);
             if (animal) {
               if (animal.race && animal.race !== 'Non spécifiée') races.add(animal.race);
               if (animal.photo_uri) photos.push(animal.photo_uri);
@@ -740,6 +757,67 @@ export class MarketplaceService {
   }
 
   /**
+   * Récupérer un listing avec ses sujets (détails complets)
+   * Utilise l'endpoint marketplace qui ne vérifie pas l'appartenance
+   */
+  async getListingWithSubjects(listingId: string): Promise<{
+    listing: MarketplaceListing;
+    subjects: Array<{
+      id: string;
+      code: string;
+      nom?: string;
+      race?: string;
+      sexe?: string;
+      date_naissance?: string;
+      poids_initial?: number;
+      categorie_poids?: string;
+      statut?: string;
+      photo_uri?: string;
+      derniere_pesee?: { poids_kg: number; date: string };
+    }>;
+  } | null> {
+    try {
+      const apiClient = (await import('../services/api/apiClient')).default;
+      const response = await apiClient.get(`/marketplace/listings/${listingId}/subjects`);
+      return response;
+    } catch (error) {
+      logger.error('[MarketplaceService] Erreur chargement sujets listing:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Récupérer plusieurs listings avec leurs sujets en une seule requête
+   */
+  async getMultipleListingsWithSubjects(listingIds: string[]): Promise<Array<{
+    listing: MarketplaceListing;
+    subjects: Array<{
+      id: string;
+      code: string;
+      nom?: string;
+      race?: string;
+      sexe?: string;
+      date_naissance?: string;
+      poids_initial?: number;
+      categorie_poids?: string;
+      statut?: string;
+      photo_uri?: string;
+      derniere_pesee?: { poids_kg: number; date: string };
+    }>;
+  }>> {
+    try {
+      const apiClient = (await import('../services/api/apiClient')).default;
+      const response = await apiClient.post('/marketplace/listings/details', {
+        listingIds,
+      });
+      return response || [];
+    } catch (error) {
+      logger.error('[MarketplaceService] Erreur chargement listings:', error);
+      return [];
+    }
+  }
+
+  /**
    * Retirer une annonce du marketplace
    */
   async removeListing(listingId: string, producerId: string): Promise<void> {
@@ -927,217 +1005,254 @@ export class MarketplaceService {
       expiresAt: expiresAt.toISOString(),
     });
 
-    // Incrémenter le compteur d'enquêtes
-    await this.listingRepo.incrementInquiries(data.listingId);
-
-    // Notifier le producteur
-    await this.notificationRepo.create({
-      userId: listing.producerId,
-      type: 'offer_received',
-      title: 'Nouvelle offre reçue',
-      message: `Vous avez reçu une offre de ${data.proposedPrice.toLocaleString()} FCFA`,
-      relatedId: offer.id,
-      relatedType: 'offer',
-    });
+    // NOTE: Le backend gère automatiquement:
+    // - L'incrémentation du compteur 'inquiries' 
+    // - L'envoi de la notification au producteur
 
     return offer;
   }
 
+  // ========================================
+  // RÉCUPÉRATION DES OFFRES
+  // ========================================
+
+  /**
+   * Récupérer mes offres envoyées (acheteur)
+   */
+  async getMyOffers(): Promise<any[]> {
+    try {
+      logger.info('[marketplace] Récupération de mes offres...');
+      const apiClient = (await import('./api/apiClient')).default;
+      // NOTE: apiClient.get retourne directement les données (pas { data: ... })
+      const offers = await apiClient.get<any[]>('/marketplace/my-offers');
+      logger.info('[marketplace] Offres reçues:', offers?.length || 0, 'offres');
+
+      // Log détaillé de la première offre pour debug
+      if (offers && offers.length > 0) {
+        logger.info('[marketplace] Première offre:', {
+          id: offers[0].id,
+          offeredAmount: offers[0].offeredAmount,
+          proposedPrice: offers[0].proposedPrice,
+          pig_count: offers[0].pig_count,
+          createdAt: offers[0].createdAt,
+          status: offers[0].status,
+          seller_nom: offers[0].seller_nom,
+        });
+      }
+
+      return offers || [];
+    } catch (error) {
+      logger.error('[marketplace] Erreur récupération mes offres:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Récupérer les offres reçues (vendeur)
+   */
+  async getReceivedOffers(): Promise<any[]> {
+    try {
+      const apiClient = (await import('./api/apiClient')).default;
+      // NOTE: apiClient.get retourne directement les données (pas { data: ... })
+      const offers = await apiClient.get<any[]>('/marketplace/my-received-offers');
+      return offers || [];
+    } catch (error) {
+      logger.error('[marketplace] Erreur récupération offres reçues:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Retirer/annuler une offre (acheteur)
+   */
+  async withdrawOffer(offerId: string): Promise<any> {
+    try {
+      logger.info('[marketplace] Retrait offre:', offerId);
+      const apiClient = (await import('./api/apiClient')).default;
+      // NOTE: apiClient.delete retourne directement les données (pas { data: ... })
+      const result = await apiClient.delete(`/marketplace/offers/${offerId}`);
+      logger.info('[marketplace] Offre retirée avec succès:', result);
+      return result;
+    } catch (error) {
+      logger.error('[marketplace] Erreur retrait offre:', error);
+      throw error;
+    }
+  }
+
+  // ========================================
+  // PHOTOS DES LISTINGS
+  // ========================================
+
+  /**
+   * Uploader une photo pour un listing
+   */
+  async uploadListingPhoto(
+    listingId: string,
+    photoUri: string,
+    caption?: string
+  ): Promise<any> {
+    try {
+      const apiClient = (await import('./api/apiClient')).default;
+      const formData = new FormData();
+      
+      // Créer l'objet fichier depuis l'URI
+      const filename = photoUri.split('/').pop() || 'photo.jpg';
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : 'image/jpeg';
+
+      formData.append('photo', {
+        uri: photoUri,
+        name: filename,
+        type,
+      } as any);
+
+      if (caption) {
+        formData.append('caption', caption);
+      }
+
+      const response = await apiClient.post(
+        `/marketplace/listings/${listingId}/photos`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+
+      return response.data;
+    } catch (error) {
+      logger.error('[marketplace] Erreur upload photo:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Uploader plusieurs photos pour un listing
+   */
+  async uploadMultiplePhotos(
+    listingId: string,
+    photoUris: string[]
+  ): Promise<any> {
+    try {
+      const apiClient = (await import('./api/apiClient')).default;
+      const formData = new FormData();
+
+      photoUris.forEach((uri, index) => {
+        const filename = uri.split('/').pop() || `photo${index}.jpg`;
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : 'image/jpeg';
+
+        formData.append('photos', {
+          uri,
+          name: filename,
+          type,
+        } as any);
+      });
+
+      const response = await apiClient.post(
+        `/marketplace/listings/${listingId}/photos/bulk`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+
+      return response.data;
+    } catch (error) {
+      logger.error('[marketplace] Erreur upload photos multiples:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Supprimer une photo d'un listing
+   */
+  async deleteListingPhoto(listingId: string, photoIndex: number): Promise<any> {
+    try {
+      const apiClient = (await import('./api/apiClient')).default;
+      const response = await apiClient.delete(
+        `/marketplace/listings/${listingId}/photos/${photoIndex}`
+      );
+      return response.data;
+    } catch (error) {
+      logger.error('[marketplace] Erreur suppression photo:', error);
+      throw error;
+    }
+  }
+
   /**
    * Créer une contre-proposition (producteur propose un nouveau prix)
+   * NOTE: Le backend gère les notifications automatiquement
    */
   async counterOffer(
     offerId: string,
-    producerId: string,
+    _producerId: string, // Non utilisé - vérification faite côté backend
     nouveauPrixTotal: number,
     message?: string
   ): Promise<Offer> {
-    const offer = await this.offerRepo.findById(offerId);
-
-    if (!offer) {
-      throw new Error('Offre introuvable');
+    try {
+      // Appeler l'API backend (PATCH, pas PUT)
+      const apiClient = (await import('./api/apiClient')).default;
+      const result = await apiClient.patch<Offer>(`/marketplace/offers/${offerId}/counter`, {
+        nouveau_prix_total: nouveauPrixTotal,
+        message: message || undefined,
+      });
+      
+      logger.info('[marketplace] Contre-proposition créée:', offerId);
+      return result;
+    } catch (error) {
+      logger.error('[marketplace] Erreur contre-proposition:', error);
+      throw error;
     }
-
-    if (offer.producerId !== producerId) {
-      throw new Error("Vous n'êtes pas autorisé à faire une contre-proposition sur cette offre");
-    }
-
-    if (offer.status !== 'pending') {
-      throw new Error('Vous ne pouvez faire une contre-proposition que sur une offre en attente');
-    }
-
-    // Appeler l'API backend
-    const { apiClient } = await import('../services/api/apiClient');
-    const counterOffer = await apiClient.put<Offer>(`/marketplace/offers/${offerId}/counter`, {
-      nouveau_prix_total: nouveauPrixTotal,
-      message: message || undefined,
-    });
-
-    // Notifier l'acheteur via le repository
-    await this.notificationRepo.create({
-      userId: offer.buyerId,
-      type: 'counter_offer_received',
-      title: 'Contre-proposition reçue',
-      message: `Le producteur vous propose un nouveau prix de ${nouveauPrixTotal.toLocaleString('fr-FR')} FCFA`,
-      relatedId: counterOffer.id,
-      relatedType: 'offer',
-    });
-
-    return counterOffer;
   }
 
   /**
    * Accepter une offre (producteur ou acheteur pour contre-proposition)
+   * NOTE: Le backend gère tout automatiquement (transaction, notifications, expiration autres offres)
    */
   async acceptOffer(
     offerId: string,
-    userId: string,
+    _userId: string, // Non utilisé - vérification faite côté backend
     role: 'producer' | 'buyer' = 'producer'
   ): Promise<Transaction> {
-    const offer = await this.offerRepo.findById(offerId);
+    try {
+      // Appeler l'API backend avec le rôle - Le backend gère:
+      // - Création de la transaction
+      // - Mise à jour du statut du listing
+      // - Notifications (acheteur + autres acheteurs)
+      // - Expiration des autres offres
+      const apiClient = (await import('./api/apiClient')).default;
+      const transaction = await apiClient.patch<Transaction>(
+        `/marketplace/offers/${offerId}/accept?role=${role}`,
+        {}
+      );
 
-    if (!offer) {
-      throw new Error('Offre introuvable');
+      logger.info('[marketplace] Offre acceptée:', offerId);
+      return transaction;
+    } catch (error) {
+      logger.error('[marketplace] Erreur acceptation offre:', error);
+      throw error;
     }
-
-    // Vérifier les permissions selon le rôle
-    if (role === 'producer') {
-      if (offer.producerId !== userId) {
-        throw new Error("Vous n'êtes pas autorisé à accepter cette offre");
-      }
-      if (offer.status !== 'pending') {
-        throw new Error("Cette offre n'est plus en attente");
-      }
-    } else if (role === 'buyer') {
-      // L'acheteur ne peut accepter que les contre-propositions
-      if (offer.buyerId !== userId) {
-        throw new Error("Vous n'êtes pas autorisé à accepter cette offre");
-      }
-      if (offer.status !== 'countered') {
-        throw new Error('Vous ne pouvez accepter que les contre-propositions');
-      }
-    }
-
-    // Appeler l'API backend avec le rôle
-    const { apiClient } = await import('../services/api/apiClient');
-    const transaction = await apiClient.patch<Transaction>(
-      `/marketplace/offers/${offerId}/accept?role=${role}`,
-      {}
-    );
-
-    // La transaction a été créée par le backend, on la synchronise localement
-    await this.transactionRepo.create({
-      offerId: offer.id,
-      listingId: offer.listingId,
-      subjectIds: offer.subjectIds,
-      buyerId: offer.buyerId,
-      producerId: offer.producerId,
-      finalPrice: offer.proposedPrice,
-      status: 'confirmed',
-      documents: {},
-    });
-
-    // Mettre à jour le statut du listing
-    await this.listingRepo.updateStatus(offer.listingId, 'reserved');
-
-    // Notifier l'acheteur qui a fait l'offre acceptée
-    await this.notificationRepo.create({
-      userId: offer.buyerId,
-      type: 'offer_accepted',
-      title: 'Offre acceptée !',
-      message: 'Votre offre a été acceptée par le producteur',
-      relatedId: transaction.id,
-      relatedType: 'transaction',
-    });
-
-    // Notifier les autres acheteurs qui ont fait des offres pour les mêmes sujets
-    // que ces sujets ne sont plus disponibles
-    const allOffersForListing = await this.offerRepo.findByListingId(offer.listingId);
-    const otherPendingOffers = allOffersForListing.filter(
-      (o) => o.id !== offer.id && o.status === 'pending' && o.buyerId !== offer.buyerId
-    );
-
-    // Vérifier si les autres offres concernent les mêmes sujets
-    for (const otherOffer of otherPendingOffers) {
-      // Vérifier si au moins un sujet est en commun
-      const commonSubjects = otherOffer.subjectIds.filter((id) => offer.subjectIds.includes(id));
-      if (commonSubjects.length > 0) {
-        // Marquer l'offre comme expirée/invalide
-        await this.offerRepo.updateStatus(otherOffer.id, 'expired');
-
-        // Notifier l'acheteur que son offre n'est plus valable
-        await this.notificationRepo.create({
-          userId: otherOffer.buyerId,
-          type: 'offer_expired',
-          title: 'Sujet non disponible',
-          message:
-            "Un sujet pour lequel vous avez fait une offre a été acheté par un autre acheteur. Votre offre n'est plus valable.",
-          relatedId: otherOffer.id,
-          relatedType: 'offer',
-        });
-      }
-    }
-
-    return transaction;
   }
 
   /**
    * Rejeter une offre
+   * NOTE: Le backend gère les notifications automatiquement
    */
-  async rejectOffer(offerId: string, producerId: string): Promise<void> {
-    const offer = await this.offerRepo.findById(offerId);
+  async rejectOffer(offerId: string, _producerId: string): Promise<void> {
+    try {
+      // Appeler l'API backend (PATCH /offers/:id/reject)
+      const apiClient = (await import('./api/apiClient')).default;
+      await apiClient.patch(`/marketplace/offers/${offerId}/reject`, {});
 
-    if (!offer) {
-      throw new Error('Offre introuvable');
+      logger.info('[marketplace] Offre rejetée:', offerId);
+    } catch (error) {
+      logger.error('[marketplace] Erreur rejet offre:', error);
+      throw error;
     }
-
-    if (offer.producerId !== producerId) {
-      throw new Error("Vous n'êtes pas autorisé à rejeter cette offre");
-    }
-
-    await this.offerRepo.updateStatus(offerId, 'rejected');
-
-    // Notifier l'acheteur
-    await this.notificationRepo.create({
-      userId: offer.buyerId,
-      type: 'offer_rejected',
-      title: 'Offre refusée',
-      message: 'Votre offre a été refusée par le producteur',
-      relatedId: offerId,
-      relatedType: 'offer',
-    });
-  }
-
-  /**
-   * Retirer une offre (par l'acheteur)
-   */
-  async withdrawOffer(offerId: string, buyerId: string): Promise<void> {
-    const offer = await this.offerRepo.findById(offerId);
-
-    if (!offer) {
-      throw new Error('Offre introuvable');
-    }
-
-    if (offer.buyerId !== buyerId) {
-      throw new Error("Vous n'êtes pas autorisé à retirer cette offre");
-    }
-
-    if (offer.status !== 'pending') {
-      throw new Error('Vous ne pouvez retirer que les offres en attente');
-    }
-
-    // Mettre à jour le statut de l'offre à 'withdrawn' pour indiquer qu'elle a été retirée par l'acheteur
-    await this.offerRepo.updateStatus(offerId, 'withdrawn');
-
-    // Notifier le producteur
-    await this.notificationRepo.create({
-      userId: offer.producerId,
-      type: 'offer_withdrawn',
-      title: 'Offre retirée',
-      message: 'Un acheteur a retiré son offre',
-      relatedId: offerId,
-      relatedType: 'offer',
-    });
   }
 
   // ========================================
@@ -1146,89 +1261,58 @@ export class MarketplaceService {
 
   /**
    * Confirmer la livraison (producteur ou acheteur)
+   * NOTE: Le backend gère automatiquement (via saleAutomationService) :
+   * - La mise à jour du statut du listing
+   * - La mise à jour du statut des animaux
+   * - Les notifications de vente complétée
+   * Le frontend gère seulement les notifications intermédiaires
    */
   async confirmDelivery(
     transactionId: string,
-    userId: string,
+    _userId: string, // Non utilisé - vérification faite côté backend
     role: 'producer' | 'buyer'
   ): Promise<void> {
-    const transaction = await this.transactionRepo.findById(transactionId);
-
-    if (!transaction) {
-      throw new Error('Transaction introuvable');
-    }
-
-    // Vérifier l'autorisation
-    if (role === 'producer' && transaction.producerId !== userId) {
-      throw new Error("Vous n'êtes pas autorisé à confirmer cette livraison");
-    }
-    if (role === 'buyer' && transaction.buyerId !== userId) {
-      throw new Error("Vous n'êtes pas autorisé à confirmer cette livraison");
-    }
-
-    // Confirmer la livraison
-    await this.transactionRepo.confirmDelivery(transactionId, role);
-
-    // Vérifier si les deux ont confirmé
-    const updatedTransaction = await this.transactionRepo.findById(transactionId);
-
-    if (
-      updatedTransaction?.deliveryDetails?.producerConfirmed &&
-      updatedTransaction?.deliveryDetails?.buyerConfirmed
-    ) {
-      // Transaction complétée !
-      // Mettre à jour le listing
-      await this.listingRepo.updateStatus(transaction.listingId, 'sold');
-
-      // Retirer les sujets du cheptel et mettre à jour leur statut
-      const { AnimalRepository } = await import('../database/repositories');
-      const animalRepo = new AnimalRepository();
-
-      for (const subjectId of transaction.subjectIds) {
-        try {
-          // Utiliser animalRepo pour mettre à jour le statut de l'animal
-          const animal = await animalRepo.findById(subjectId);
-          if (animal) {
-            // Mettre à jour le statut de l'animal via le repository
-            await animalRepo.update(subjectId, {
-              statut: 'vendu',
-            });
-          }
-        } catch (error) {
-          logger.warn(`Erreur mise à jour sujet ${subjectId} après vente:`, error);
-        }
+    try {
+      // Récupérer la transaction avant confirmation pour les notifications intermédiaires
+      const transaction = await this.transactionRepo.findById(transactionId);
+      
+      if (!transaction) {
+        throw new Error('Transaction introuvable');
       }
 
-      // Notifier les deux parties
-      await this.notificationRepo.create({
-        userId: transaction.producerId,
-        type: 'delivery_confirmed',
-        title: 'Livraison confirmée',
-        message: "La transaction est terminée. N'oubliez pas de noter l'acheteur !",
-        relatedId: transactionId,
-        relatedType: 'transaction',
-      });
+      // Appeler l'API backend - Le backend gère :
+      // - La mise à jour des delivery_details
+      // - Le changement de statut (delivered -> completed)
+      // - L'appel à saleAutomationService si les deux ont confirmé
+      await this.transactionRepo.confirmDelivery(transactionId, role);
 
-      await this.notificationRepo.create({
-        userId: transaction.buyerId,
-        type: 'delivery_confirmed',
-        title: 'Livraison confirmée',
-        message: "La transaction est terminée. N'oubliez pas de noter le producteur !",
-        relatedId: transactionId,
-        relatedType: 'transaction',
-      });
-    } else {
-      // Notifier l'autre partie qu'une confirmation est en attente
-      const otherUserId = role === 'producer' ? transaction.buyerId : transaction.producerId;
+      // Récupérer la transaction mise à jour pour savoir si on doit envoyer une notification intermédiaire
+      const updatedTransaction = await this.transactionRepo.findById(transactionId);
 
-      await this.notificationRepo.create({
-        userId: otherUserId,
-        type: 'delivery_confirmed',
-        title: 'Confirmation de livraison',
-        message: `${role === 'producer' ? 'Le producteur' : "L'acheteur"} a confirmé la livraison. Veuillez confirmer de votre côté.`,
-        relatedId: transactionId,
-        relatedType: 'transaction',
-      });
+      // Si UNE SEULE partie a confirmé (pas les deux), envoyer une notification intermédiaire
+      // Note: Si les deux ont confirmé, le backend envoie les notifications via saleAutomationService
+      const bothConfirmed =
+        updatedTransaction?.deliveryDetails?.producerConfirmed &&
+        updatedTransaction?.deliveryDetails?.buyerConfirmed;
+
+      if (!bothConfirmed) {
+        // Notifier l'autre partie qu'une confirmation est en attente
+        const otherUserId = role === 'producer' ? transaction.buyerId : transaction.producerId;
+
+        await this.notificationRepo.create({
+          userId: otherUserId,
+          type: 'delivery_confirmed',
+          title: 'Confirmation de livraison',
+          message: `${role === 'producer' ? 'Le producteur' : "L'acheteur"} a confirmé la livraison. Veuillez confirmer de votre côté.`,
+          relatedId: transactionId,
+          relatedType: 'transaction',
+        });
+      }
+
+      logger.info('[marketplace] Livraison confirmée:', { transactionId, role, bothConfirmed });
+    } catch (error) {
+      logger.error('[marketplace] Erreur confirmation livraison:', error);
+      throw error;
     }
   }
 
@@ -1368,11 +1452,14 @@ export class MarketplaceService {
 /**
  * Instance singleton du service
  */
-let marketplaceServiceInstance: MarketplaceService | null = null;
+const marketplaceServiceInstance = new MarketplaceService();
 
-export function getMarketplaceService(): MarketplaceService {
-  if (!marketplaceServiceInstance) {
-    marketplaceServiceInstance = new MarketplaceService();
-  }
-  return marketplaceServiceInstance;
-}
+/**
+ * Export par défaut de l'instance singleton
+ */
+export default marketplaceServiceInstance;
+
+/**
+ * Export nommé aussi disponible
+ */
+export { marketplaceServiceInstance as marketplaceService };

@@ -35,7 +35,10 @@ export function useSaleStatus(subjectId: string) {
       setError(null);
 
       // Charger l'animal depuis l'API backend
-      const animal = await apiClient.get<any>(`/production/animaux/${subjectId}`);
+      // ✅ Utiliser la route marketplace dédiée qui ne vérifie pas l'appartenance
+      const { AnimalRepository } = await import('../database/repositories');
+      const animalRepo = new AnimalRepository();
+      const animal = await animalRepo.findMarketplaceAnimal(subjectId);
 
       if (animal) {
         // Les champs marketplace_status et marketplace_listing_id peuvent être dans les données supplémentaires
@@ -147,8 +150,12 @@ export function useBulkSaleStatus(subjectIds: string[]) {
       setError(null);
 
       // Récupérer tous les animaux depuis l'API backend
+      // Utiliser le repository avec silent403 pour gérer gracieusement les 403
+      // ✅ Utiliser la route marketplace dédiée qui ne vérifie pas l'appartenance
+      const { AnimalRepository } = await import('../database/repositories');
+      const animalRepo = new AnimalRepository();
       const animals = await Promise.all(
-        subjectIds.map((id) => apiClient.get<any>(`/production/animaux/${id}`))
+        subjectIds.map((id) => animalRepo.findMarketplaceAnimal(id))
       );
 
       const statusMap = new Map<string, SubjectSaleStatus>();

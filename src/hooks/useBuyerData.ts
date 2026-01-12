@@ -54,10 +54,27 @@ export function useBuyerData() {
       );
 
       // Charger les nouvelles annonces depuis l'API backend
-      const allListings = await apiClient.get<any[]>('/marketplace/listings');
+      // Le backend retourne maintenant un objet avec pagination
+      // Utiliser exclude_own_listings pour exclure automatiquement les listings de l'utilisateur
+      // Utiliser sort=newest pour prioriser les nouveaux listings
+      const listingsResponse = await apiClient.get<{
+        listings: any[];
+        total: number;
+      }>('/marketplace/listings', {
+        params: {
+          exclude_own_listings: 'true', // Exclure les listings de l'utilisateur connecté
+          sort: 'newest', // Prioriser les nouveaux listings
+          limit: 5, // Limiter à 5 pour les nouvelles annonces
+        },
+      });
+      const allListings = listingsResponse.listings || [];
+      // Trier par date de création (les plus récents en premier) et limiter à 5
       const recentListings = allListings
-        .filter((listing) => listing.producerId !== user.id)
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .sort((a, b) => {
+          const aDate = new Date(a.listedAt || a.createdAt || 0).getTime();
+          const bDate = new Date(b.listedAt || b.createdAt || 0).getTime();
+          return bDate - aDate;
+        })
         .slice(0, 5);
 
       setData({

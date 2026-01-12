@@ -3,11 +3,12 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useAppSelector } from '../../store/hooks';
 import { useTheme } from '../../contexts/ThemeContext';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS } from '../../constants/theme';
 import { useProfilData } from '../../hooks/useProfilData';
+import ProfilePhoto from '../ProfilePhoto';
 
 export default function UserSummary() {
   const { colors } = useTheme();
@@ -22,15 +23,18 @@ export default function UserSummary() {
 
   return (
     <View style={[styles.userInfo, { borderBottomColor: colors.border }]}>
-      {displayPhoto ? (
-        <Image source={{ uri: displayPhoto }} style={styles.userPhoto} />
-      ) : (
-        <View style={[styles.userPhotoPlaceholder, { backgroundColor: colors.primary + '15' }]}>
-          <Text style={[styles.userInitials, { color: colors.primary }]}>
-            {user?.prenom?.[0] || user?.nom?.[0] || 'U'}
-          </Text>
-        </View>
-      )}
+      <ProfilePhoto
+        uri={displayPhoto || null}
+        size={64}
+        style={styles.userPhoto}
+        placeholder={
+          <View style={[styles.userPhotoPlaceholder, { backgroundColor: colors.primary + '15' }]}>
+            <Text style={[styles.userInitials, { color: colors.primary }]}>
+              {user?.prenom?.[0] || user?.nom?.[0] || 'U'}
+            </Text>
+          </View>
+        }
+      />
       <View style={styles.userInfoText}>
         <Text style={[styles.userName, { color: colors.text }]}>
           {user?.prenom || user?.nom || 'Utilisateur'}

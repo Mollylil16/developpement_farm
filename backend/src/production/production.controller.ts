@@ -178,8 +178,19 @@ export class ProductionController {
 
   @Get('animaux/:id/evolution-poids')
   @ApiOperation({ summary: "Obtenir l'évolution du poids d'un animal" })
-  getAnimalEvolutionPoids(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.productionService.getAnimalEvolutionPoids(id, user.id);
+  @ApiQuery({
+    name: 'periode_jours',
+    required: false,
+    description: 'Nombre de jours pour calculer l\'évolution (défaut: 7)',
+    type: Number,
+  })
+  getAnimalEvolutionPoids(
+    @Param('id') id: string,
+    @Query('periode_jours') periodeJours: string | undefined,
+    @CurrentUser() user: any
+  ) {
+    const periode = periodeJours ? parseInt(periodeJours, 10) : 7;
+    return this.productionService.getAnimalEvolutionPoids(id, user.id, periode);
   }
 
   @Get('animaux/:id/poids-estime')

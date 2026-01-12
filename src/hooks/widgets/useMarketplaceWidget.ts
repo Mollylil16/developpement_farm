@@ -35,16 +35,35 @@ export function useMarketplaceWidget(projetId?: string): MarketplaceWidgetData |
         const apiClient = (await import('../../services/api/apiClient')).default;
 
         // Charger les listings depuis l'API backend
-        const myListings = await apiClient.get<any[]>('/marketplace/listings', {
-          params: { projet_id: projetId },
+        // Le backend retourne maintenant un objet avec pagination
+        const myListingsResponse = await apiClient.get<{
+          listings: any[];
+          total: number;
+        }>('/marketplace/listings', {
+          params: { 
+            projet_id: projetId,
+            limit: 500, // Récupérer tous les listings du projet (limite max)
+          },
         });
+        const myListings = myListingsResponse.listings || [];
         const myActiveListings = myListings.filter(
           (l) => l.status === 'available' || l.status === 'reserved'
         ).length;
 
-        const allListings = await apiClient.get<any[]>('/marketplace/listings');
+        // Charger les listings disponibles (excluant ceux de l'utilisateur)
+        // Utiliser exclude_own_listings pour exclure automatiquement
+        const allListingsResponse = await apiClient.get<{
+          listings: any[];
+          total: number;
+        }>('/marketplace/listings', {
+          params: {
+            exclude_own_listings: 'true', // Exclure les listings de l'utilisateur connecté
+            limit: 500, // Récupérer tous les listings disponibles (limite max)
+          },
+        });
+        const allListings = allListingsResponse.listings || [];
         const availableListings = allListings.filter(
-          (l) => (l.status === 'available' || l.status === 'reserved') && l.farmId !== projetId
+          (l) => l.status === 'available' || l.status === 'reserved'
         ).length;
 
         setMarketplaceStats({

@@ -102,17 +102,73 @@ export async function signInWithGoogle(): Promise<OAuthResult> {
   } catch (error: unknown) {
     logger.error('[Google OAuth] Erreur:', error);
     
-    if (error instanceof APIError && error.status === 404) {
-      throw new Error(
-        "L'authentification Google n'est pas encore configurée sur le serveur. Veuillez utiliser email/téléphone."
-      );
+    // Gestion spécifique des erreurs selon le type
+    if (error instanceof APIError) {
+      switch (error.status) {
+        case 400:
+          throw new Error(
+            'Token Google invalide. Veuillez réessayer ou utiliser une autre méthode de connexion.'
+          );
+        case 401:
+          throw new Error(
+            'Authentification Google refusée. Vérifiez vos paramètres de compte Google.'
+          );
+        case 404:
+          throw new Error(
+            "L'authentification Google n'est pas encore configurée sur le serveur. Veuillez utiliser email/téléphone."
+          );
+        case 429:
+          throw new Error(
+            'Trop de tentatives de connexion. Veuillez patienter quelques instants avant de réessayer.'
+          );
+        case 500:
+        case 502:
+        case 503:
+          throw new Error(
+            'Le serveur rencontre des difficultés. Veuillez réessayer dans quelques instants.'
+          );
+        default:
+          throw new Error(
+            `Erreur serveur (${error.status}). Veuillez réessayer ou utiliser une autre méthode de connexion.`
+          );
+      }
     }
     
+    // Gestion des erreurs spécifiques à AuthSession
     if (error instanceof Error) {
+      const errorMessage = error.message.toLowerCase();
+      
+      // Erreurs de configuration
+      if (errorMessage.includes('client id') || errorMessage.includes('client_id')) {
+        throw new Error(
+          `Configuration Google manquante pour ${Platform.OS}. Veuillez contacter le support.`
+        );
+      }
+      
+      // Erreurs de réseau
+      if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
+        throw new Error(
+          'Problème de connexion réseau. Vérifiez votre connexion Internet et réessayez.'
+        );
+      }
+      
+      // Erreurs d'annulation utilisateur
+      if (errorMessage.includes('cancel') || errorMessage.includes('annulé')) {
+        throw new Error('Authentification annulée. Vous pouvez réessayer à tout moment.');
+      }
+      
+      // Erreurs de token
+      if (errorMessage.includes('token') || errorMessage.includes('id_token')) {
+        throw new Error(
+          'Erreur lors de la récupération du token Google. Veuillez réessayer.'
+        );
+      }
+      
+      // Autres erreurs - propager le message original
       throw error;
     }
     
-    throw new Error('Erreur inconnue lors de l\'authentification Google');
+    throw new Error('Erreur inconnue lors de l\'authentification Google. Veuillez réessayer.');
   }
 }
 
@@ -185,16 +241,79 @@ export async function signInWithApple(): Promise<OAuthResult> {
   } catch (error: unknown) {
     logger.error('[Apple OAuth] Erreur:', error);
 
-    if (error instanceof APIError && error.status === 404) {
-      throw new Error(
-        "L'authentification Apple n'est pas encore configurée sur le serveur. Veuillez utiliser email/téléphone."
-      );
+    // Gestion spécifique des erreurs selon le type
+    if (error instanceof APIError) {
+      switch (error.status) {
+        case 400:
+          throw new Error(
+            'Token Apple invalide. Veuillez réessayer ou utiliser une autre méthode de connexion.'
+          );
+        case 401:
+          throw new Error(
+            'Authentification Apple refusée. Vérifiez vos paramètres de compte Apple.'
+          );
+        case 404:
+          throw new Error(
+            "L'authentification Apple n'est pas encore configurée sur le serveur. Veuillez utiliser email/téléphone."
+          );
+        case 429:
+          throw new Error(
+            'Trop de tentatives de connexion. Veuillez patienter quelques instants avant de réessayer.'
+          );
+        case 500:
+        case 502:
+        case 503:
+          throw new Error(
+            'Le serveur rencontre des difficultés. Veuillez réessayer dans quelques instants.'
+          );
+        default:
+          throw new Error(
+            `Erreur serveur (${error.status}). Veuillez réessayer ou utiliser une autre méthode de connexion.`
+          );
+      }
     }
 
+    // Gestion des erreurs spécifiques à Apple Authentication
     if (error instanceof Error) {
+      const errorMessage = error.message.toLowerCase();
+      
+      // Erreurs de disponibilité
+      if (errorMessage.includes('not available') || errorMessage.includes('disponible')) {
+        throw new Error(
+          'Apple Sign In n\'est pas disponible sur cet appareil. Disponible uniquement sur iOS 13+ et appareils physiques.'
+        );
+      }
+      
+      // Erreurs d'installation
+      if (errorMessage.includes('not installed') || errorMessage.includes('installé')) {
+        throw new Error(
+          'expo-apple-authentication n\'est pas installé. Veuillez contacter le support technique.'
+        );
+      }
+      
+      // Erreurs de réseau
+      if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
+        throw new Error(
+          'Problème de connexion réseau. Vérifiez votre connexion Internet et réessayez.'
+        );
+      }
+      
+      // Erreurs d'annulation utilisateur
+      if (errorMessage.includes('cancel') || errorMessage.includes('annulé')) {
+        throw new Error('Authentification annulée. Vous pouvez réessayer à tout moment.');
+      }
+      
+      // Erreurs de token
+      if (errorMessage.includes('token') || errorMessage.includes('identity')) {
+        throw new Error(
+          'Erreur lors de la récupération du token Apple. Veuillez réessayer.'
+        );
+      }
+      
+      // Autres erreurs - propager le message original
       throw error;
     }
 
-    throw new Error('Erreur inconnue lors de l\'authentification Apple');
+    throw new Error('Erreur inconnue lors de l\'authentification Apple. Veuillez réessayer.');
   }
 }

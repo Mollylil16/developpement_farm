@@ -147,6 +147,13 @@ export default function App() {
         <PersistGate
           loading={<LoadingScreen message="Chargement de l'application..." />}
           persistor={persistor}
+          onBeforeLift={() => {
+            // Callback appelé après la réhydratation
+            // Peut être utilisé pour nettoyer ou initialiser des données
+            if (__DEV__) {
+              console.log('[PersistGate] Réhydratation terminée');
+            }
+          }}
         >
           <LanguageProvider>
             <ThemeProvider>

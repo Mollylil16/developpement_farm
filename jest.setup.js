@@ -82,9 +82,26 @@ jest.mock('./src/contexts/ThemeContext', () => ({
 
 // Mock immer pour éviter les problèmes ESM
 jest.mock('immer', () => ({
-  produce: jest.fn((state, fn) => fn(state)),
+  produce: jest.fn((state, fn) => {
+    const draft = typeof state === 'object' && state !== null ? { ...state } : state;
+    const result = fn(draft);
+    return result !== undefined ? result : draft;
+  }),
+  isDraftable: jest.fn(() => true),
+  isDraft: jest.fn(() => false),
+  current: jest.fn((value) => value),
+  original: jest.fn((value) => value),
+  enableMapSet: jest.fn(),
+  enableAllPlugins: jest.fn(),
+  setAutoFreeze: jest.fn(),
+  setUseProxies: jest.fn(),
   default: {
-    produce: jest.fn((state, fn) => fn(state)),
+    produce: jest.fn((state, fn) => {
+      const draft = typeof state === 'object' && state !== null ? { ...state } : state;
+      const result = fn(draft);
+      return result !== undefined ? result : draft;
+    }),
+    isDraftable: jest.fn(() => true),
   },
 }));
 

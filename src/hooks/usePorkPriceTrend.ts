@@ -32,12 +32,38 @@ export function usePorkPriceTrend() {
 
       const trendService = getPorkPriceTrendService();
 
-      // Récupérer les tendances des 26 dernières semaines + semaine en cours
-      const trends = await trendService.getLast26WeeksTrends();
+      // Récupérer les tendances depuis le backend
+      // On récupère 8 semaines pour avoir 4 semaines + 4 semaines de comparaison
+      const trends = await trendService.getLastWeeksTrends(8);
 
-      // Si aucune tendance disponible (endpoint backend non implémenté), ne pas calculer
-      // pour éviter des appels API supplémentaires inutiles
-      if (trends.length === 0) {
+      // Calculer les métriques si des données sont disponibles
+      if (trends.length > 0) {
+        const currentTrend = trends[trends.length - 1];
+        const previousTrend = trends.length > 1 ? trends[trends.length - 2] : undefined;
+
+        const currentPrice = currentTrend?.avgPricePlatform;
+        const previousPrice = previousTrend?.avgPricePlatform;
+
+        const priceChange = currentPrice && previousPrice 
+          ? currentPrice - previousPrice 
+          : undefined;
+
+        const priceChangePercent = currentPrice && previousPrice && previousPrice > 0
+          ? ((currentPrice - previousPrice) / previousPrice) * 100
+          : undefined;
+
+        setData({
+          trends,
+          currentWeekPrice: currentPrice,
+          previousWeekPrice: previousPrice,
+          priceChange,
+          priceChangePercent,
+          loading: false,
+          error: null,
+          lastUpdated: currentTrend?.updatedAt,
+        });
+      } else {
+        // Pas de données disponibles
         setData({
           trends: [],
           currentWeekPrice: undefined,
@@ -45,61 +71,8 @@ export function usePorkPriceTrend() {
           priceChange: undefined,
           priceChangePercent: undefined,
           loading: false,
-          error: null, // Ne pas afficher d'erreur si l'endpoint n'existe pas encore
+          error: null,
           lastUpdated: undefined,
-        });
-        return;
-      }
-
-      // Calculer les tendances manquantes si nécessaire
-      if (trends.length < 27) {
-        // Calculer les tendances manquantes
-        await trendService.calculateLast26Weeks();
-        const updatedTrends = await trendService.getLast26WeeksTrends();
-        setData({
-          trends: updatedTrends,
-          currentWeekPrice: updatedTrends[updatedTrends.length - 1]?.avgPricePlatform,
-          previousWeekPrice: updatedTrends[updatedTrends.length - 2]?.avgPricePlatform,
-          priceChange:
-            updatedTrends[updatedTrends.length - 1]?.avgPricePlatform &&
-            updatedTrends[updatedTrends.length - 2]?.avgPricePlatform
-              ? updatedTrends[updatedTrends.length - 1].avgPricePlatform! -
-                updatedTrends[updatedTrends.length - 2].avgPricePlatform!
-              : undefined,
-          priceChangePercent:
-            updatedTrends[updatedTrends.length - 1]?.avgPricePlatform &&
-            updatedTrends[updatedTrends.length - 2]?.avgPricePlatform
-              ? ((updatedTrends[updatedTrends.length - 1].avgPricePlatform! -
-                  updatedTrends[updatedTrends.length - 2].avgPricePlatform!) /
-                  updatedTrends[updatedTrends.length - 2].avgPricePlatform!) *
-                100
-              : undefined,
-          loading: false,
-          error: null,
-          lastUpdated: updatedTrends[updatedTrends.length - 1]?.updatedAt,
-        });
-      } else {
-        setData({
-          trends,
-          currentWeekPrice: trends[trends.length - 1]?.avgPricePlatform,
-          previousWeekPrice: trends[trends.length - 2]?.avgPricePlatform,
-          priceChange:
-            trends[trends.length - 1]?.avgPricePlatform &&
-            trends[trends.length - 2]?.avgPricePlatform
-              ? trends[trends.length - 1].avgPricePlatform! -
-                trends[trends.length - 2].avgPricePlatform!
-              : undefined,
-          priceChangePercent:
-            trends[trends.length - 1]?.avgPricePlatform &&
-            trends[trends.length - 2]?.avgPricePlatform
-              ? ((trends[trends.length - 1].avgPricePlatform! -
-                  trends[trends.length - 2].avgPricePlatform!) /
-                  trends[trends.length - 2].avgPricePlatform!) *
-                100
-              : undefined,
-          loading: false,
-          error: null,
-          lastUpdated: trends[trends.length - 1]?.updatedAt,
         });
       }
     } catch (error: unknown) {

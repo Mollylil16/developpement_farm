@@ -612,26 +612,80 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
 
   // ==================== CALCUL DES MARGES ====================
 
+  /**
+   * Calcule les coûts par kg pour une date de vente donnée
+   * Utilise une période glissante de 30 jours avant la vente pour calculer les coûts
+   */
+  private async calculerCoutsParKgPourVente(
+    projetId: string,
+    dateVente: string
+  ): Promise<{ cout_kg_opex: number; cout_kg_complet: number }> {
+    // Utiliser une période de 30 jours avant la vente pour calculer les coûts moyens
+    const dateVenteObj = new Date(dateVente);
+    const dateDebut = new Date(dateVenteObj);
+    dateDebut.setDate(dateDebut.getDate() - 30);
+    const dateFin = dateVenteObj.toISOString();
+
+    // Calculer les coûts de production pour cette période
+    // Note: userId non nécessaire ici car la propriété du projet a déjà été vérifiée dans calculerMargesVente
+    const couts = await this.calculerCoutsProduction(
+      projetId,
+      dateDebut.toISOString(),
+      dateFin,
+      undefined // userId optionnel - la vérification de propriété sera sautée
+    );
+
+    // Si pas de kg vendus dans la période, utiliser les coûts moyens du projet
+    if (couts.total_kg_vendus === 0 || (couts.cout_kg_opex === 0 && couts.cout_kg_complet === 0)) {
+      // Récupérer le projet pour obtenir les coûts moyens si disponibles
+      const projetResult = await this.databaseService.query(
+        `SELECT cout_kg_opex_moyen, cout_kg_complet_moyen FROM projets WHERE id = $1`,
+        [projetId]
+      );
+      const projet = projetResult.rows[0];
+      
+      if (projet?.cout_kg_opex_moyen && projet?.cout_kg_complet_moyen) {
+        return {
+          cout_kg_opex: parseFloat(projet.cout_kg_opex_moyen),
+          cout_kg_complet: parseFloat(projet.cout_kg_complet_moyen),
+        };
+      }
+      
+      // Par défaut, utiliser les coûts calculés même s'ils sont 0
+      return {
+        cout_kg_opex: couts.cout_kg_opex,
+        cout_kg_complet: couts.cout_kg_complet,
+      };
+    }
+
+    return {
+      cout_kg_opex: couts.cout_kg_opex,
+      cout_kg_complet: couts.cout_kg_complet,
+    };
+  }
+
+  /**
+   * Calcule les marges pour une vente spécifique
+   */
   async calculerMargesVente(venteId: string, poidsKg: number, userId: string) {
     const vente = await this.findOneRevenu(venteId, userId);
     if (!vente) {
       throw new NotFoundException('Vente introuvable');
     }
 
-    // Récupérer les coûts OPEX et complets depuis le projet
-    const projetResult = await this.databaseService.query(
-      `SELECT prix_kg_vif, prix_kg_carcasse FROM projets WHERE id = $1`,
-      [vente.projet_id]
-    );
-    const projet = projetResult.rows[0];
+    if (!vente.projet_id) {
+      throw new BadRequestException('La vente doit être associée à un projet');
+    }
 
-    // Calculer les prix par kg
-    const prixKgVif = vente.montant / poidsKg;
-    const prixKgCarcasse = projet?.prix_kg_carcasse || prixKgVif * 0.75;
+    // Vérifier la propriété du projet
+    await this.checkProjetOwnership(vente.projet_id, userId);
 
-    // Calculer les coûts
-    const coutReelOpex = (vente.cout_kg_opex || 0) * poidsKg;
-    const coutReelComplet = (vente.cout_kg_complet || 0) * poidsKg;
+    // Calculer les coûts par kg pour cette vente (période de 30 jours avant la vente)
+    const coutsParKg = await this.calculerCoutsParKgPourVente(vente.projet_id, vente.date);
+
+    // Calculer les coûts réels pour cette vente
+    const coutReelOpex = coutsParKg.cout_kg_opex * poidsKg;
+    const coutReelComplet = coutsParKg.cout_kg_complet * poidsKg;
 
     // Calculer les marges
     const margeOpex = vente.montant - coutReelOpex;
@@ -639,21 +693,25 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
     const margeOpexPourcent = vente.montant > 0 ? (margeOpex / vente.montant) * 100 : 0;
     const margeCompletePourcent = vente.montant > 0 ? (margeComplete / vente.montant) * 100 : 0;
 
-    // Mettre à jour le revenu avec le poids et les marges calculées
+    // Mettre à jour le revenu avec le poids, les coûts par kg et les marges calculées
     const result = await this.databaseService.query(
       `UPDATE revenus 
        SET poids_kg = $1, 
-           cout_reel_opex = $2,
-           cout_reel_complet = $3,
-           marge_opex = $4,
-           marge_complete = $5,
-           marge_opex_pourcent = $6,
-           marge_complete_pourcent = $7,
-           derniere_modification = $8
-       WHERE id = $9
+           cout_kg_opex = $2,
+           cout_kg_complet = $3,
+           cout_reel_opex = $4,
+           cout_reel_complet = $5,
+           marge_opex = $6,
+           marge_complete = $7,
+           marge_opex_pourcent = $8,
+           marge_complete_pourcent = $9,
+           derniere_modification = $10
+       WHERE id = $11
        RETURNING *`,
       [
         poidsKg,
+        coutsParKg.cout_kg_opex,
+        coutsParKg.cout_kg_complet,
         coutReelOpex,
         coutReelComplet,
         margeOpex,
@@ -666,6 +724,119 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
     );
 
     return this.mapRowToRevenu(result.rows[0]);
+  }
+
+  /**
+   * Recalcule les marges pour toutes les ventes d'une période donnée
+   */
+  async recalculerMargesPeriode(
+    projetId: string,
+    dateDebut: string,
+    dateFin: string,
+    userId: string
+  ) {
+    await this.checkProjetOwnership(projetId, userId);
+
+    // Récupérer toutes les ventes de porcs de la période qui ont un poids
+    const ventesResult = await this.databaseService.query(
+      `SELECT id, date, montant, poids_kg
+       FROM revenus
+       WHERE projet_id = $1
+       AND categorie = 'vente_porc'
+       AND date >= $2
+       AND date <= $3
+       AND poids_kg IS NOT NULL
+       AND poids_kg > 0
+       ORDER BY date ASC`,
+      [projetId, dateDebut, dateFin]
+    );
+
+    const ventes = ventesResult.rows;
+    let nombreVentesRecalculees = 0;
+    const ventesMisesAJour = [];
+
+    // Calculer les coûts moyens pour la période complète
+    const coutsPeriod = await this.calculerCoutsProduction(projetId, dateDebut, dateFin, userId);
+
+    for (const vente of ventes) {
+      try {
+        // Pour chaque vente, calculer les marges en utilisant les coûts de la période
+        const poidsKg = parseFloat(vente.poids_kg);
+        const montant = parseFloat(vente.montant);
+
+        // Utiliser les coûts moyens de la période si disponibles, sinon recalculer pour la date spécifique
+        let coutKgOpex = coutsPeriod.cout_kg_opex;
+        let coutKgComplet = coutsPeriod.cout_kg_complet;
+
+        if (coutKgOpex === 0 && coutKgComplet === 0) {
+          // Si pas de coûts dans la période, utiliser une période glissante pour cette vente
+          const coutsVente = await this.calculerCoutsParKgPourVente(projetId, vente.date);
+          coutKgOpex = coutsVente.cout_kg_opex;
+          coutKgComplet = coutsVente.cout_kg_complet;
+        }
+
+        // Calculer les coûts réels et marges
+        const coutReelOpex = coutKgOpex * poidsKg;
+        const coutReelComplet = coutKgComplet * poidsKg;
+        const margeOpex = montant - coutReelOpex;
+        const margeComplete = montant - coutReelComplet;
+        const margeOpexPourcent = montant > 0 ? (margeOpex / montant) * 100 : 0;
+        const margeCompletePourcent = montant > 0 ? (margeComplete / montant) * 100 : 0;
+
+        // Mettre à jour la vente
+        await this.databaseService.query(
+          `UPDATE revenus 
+           SET cout_kg_opex = $1,
+               cout_kg_complet = $2,
+               cout_reel_opex = $3,
+               cout_reel_complet = $4,
+               marge_opex = $5,
+               marge_complete = $6,
+               marge_opex_pourcent = $7,
+               marge_complete_pourcent = $8,
+               derniere_modification = $9
+           WHERE id = $10`,
+          [
+            coutKgOpex,
+            coutKgComplet,
+            coutReelOpex,
+            coutReelComplet,
+            margeOpex,
+            margeComplete,
+            margeOpexPourcent,
+            margeCompletePourcent,
+            new Date().toISOString(),
+            vente.id,
+          ]
+        );
+
+        nombreVentesRecalculees++;
+        ventesMisesAJour.push({
+          id: vente.id,
+          date: vente.date,
+          poids_kg: poidsKg,
+          montant: montant,
+          marge_opex: margeOpex,
+          marge_complete: margeComplete,
+        });
+      } catch (error) {
+        // Logger l'erreur mais continuer avec les autres ventes
+        console.error(`Erreur lors du recalcul des marges pour la vente ${vente.id}:`, error);
+      }
+    }
+
+    return {
+      nombre_ventes_recalculees: nombreVentesRecalculees,
+      periode: {
+        date_debut: dateDebut,
+        date_fin: dateFin,
+      },
+      couts_periode: {
+        cout_kg_opex: coutsPeriod.cout_kg_opex,
+        cout_kg_complet: coutsPeriod.cout_kg_complet,
+      },
+      ventes: ventesMisesAJour,
+    };
   }
 
   // ==================== STATISTIQUES ====================
@@ -748,9 +919,12 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
     projetId: string,
     dateDebut: string,
     dateFin: string,
-    userId: string
+    userId?: string
   ) {
-    await this.checkProjetOwnership(projetId, userId);
+    // Vérifier la propriété du projet seulement si userId est fourni
+    if (userId) {
+      await this.checkProjetOwnership(projetId, userId);
+    }
 
     // 1. Récupérer le projet pour obtenir la durée d'amortissement
     const projetResult = await this.databaseService.query(
@@ -788,19 +962,60 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
         : null,
     }));
 
-    // 3. Calculer le total OPEX de la période
+    // 3. Calculer le total OPEX de la période (dépenses OPEX + charges fixes actives)
     const dateDebutObj = new Date(dateDebut);
     const dateFinObj = new Date(dateFin);
 
     const depensesOpex = depenses.filter(
       (d) => !d.type_opex_capex || d.type_opex_capex.toLowerCase() === 'opex'
     );
-    const totalOpex = depensesOpex
+    const totalOpexDepenses = depensesOpex
       .filter((d) => {
         const dateDepense = new Date(d.date);
         return dateDepense >= dateDebutObj && dateDepense <= dateFinObj;
       })
       .reduce((sum, d) => sum + d.montant, 0);
+
+    // Ajouter les charges fixes actives de la période
+    const chargesFixesResult = await this.databaseService.query(
+      `SELECT montant, frequence, date_debut
+       FROM charges_fixes
+       WHERE projet_id = $1
+       AND statut = 'actif'`,
+      [projetId]
+    );
+
+    let totalChargesFixes = 0;
+    for (const charge of chargesFixesResult.rows) {
+      const dateDebutCharge = new Date(charge.date_debut);
+      const montant = parseFloat(charge.montant);
+      const frequence = charge.frequence;
+
+      // Calculer la période effective de la charge fixe
+      if (dateDebutCharge > dateFinObj) {
+        continue; // Charge fixe commencée après la période
+      }
+
+      const debutEffective = dateDebutCharge > dateDebutObj ? dateDebutCharge : dateDebutObj;
+      const nombreMois = Math.max(
+        1,
+        Math.floor((dateFinObj.getTime() - debutEffective.getTime()) / (1000 * 60 * 60 * 24 * 30)) + 1
+      );
+
+      // Calculer le montant selon la fréquence
+      let montantPeriode = 0;
+      if (frequence === 'mensuel') {
+        montantPeriode = montant * nombreMois;
+      } else if (frequence === 'trimestriel') {
+        montantPeriode = montant * Math.ceil(nombreMois / 3);
+      } else if (frequence === 'annuel') {
+        montantPeriode = montant * Math.ceil(nombreMois / 12);
+      }
+
+      totalChargesFixes += montantPeriode;
+    }
+
+    const totalOpex = totalOpexDepenses + totalChargesFixes;
 
     // 4. Calculer le total des amortissements CAPEX de la période
     const depensesCapex = depenses.filter(

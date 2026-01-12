@@ -86,9 +86,17 @@ export function useProductionCheptelLogic() {
         setTogglingMarketplace(animal.id);
 
         // Charger les listings depuis l'API backend
-        const existingListings = await apiClient.get<any[]>('/marketplace/listings', {
-          params: { projet_id: projetActif.id },
+        // Le backend retourne maintenant un objet avec pagination
+        const response = await apiClient.get<{
+          listings: any[];
+          total: number;
+        }>('/marketplace/listings', {
+          params: { 
+            projet_id: projetActif.id,
+            limit: 500, // Récupérer tous les listings du projet (limite max)
+          },
         });
+        const existingListings = response.listings || [];
         const existingListing = existingListings.find(
           (l) => l.subjectId === animal.id && (l.status === 'available' || l.status === 'reserved')
         );

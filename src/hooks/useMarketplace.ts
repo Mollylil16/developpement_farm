@@ -12,7 +12,7 @@ import type {
   Offer,
   Transaction,
 } from '../types/marketplace';
-import { getMarketplaceService } from '../services/MarketplaceService';
+import marketplaceService from '../services/MarketplaceService';
 import { logger } from '../utils/logger';
 
 export function useMarketplace() {
@@ -36,7 +36,7 @@ export function useMarketplace() {
         setLoading(true);
         setError(null);
 
-        const service = getMarketplaceService();
+        const service = marketplaceService;
 
         const result: MarketplaceSearchResult = await service.searchListings(
           filters,

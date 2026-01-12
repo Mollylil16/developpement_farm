@@ -4,11 +4,12 @@
  */
 
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constants/theme';
 import RoleIndicator from '../RoleIndicator';
+import ProfilePhoto from '../ProfilePhoto';
 
 interface DashboardHeaderProps {
   greeting: string;
@@ -70,21 +71,24 @@ export default function DashboardHeader({
             onPress={onPressPhoto}
             activeOpacity={0.8}
           >
-            {profilPhotoUri ? (
-              <Image source={{ uri: profilPhotoUri }} style={styles.profilPhoto} />
-            ) : (
-              <View
-                style={[styles.profilPhotoPlaceholder, { backgroundColor: colors.primary + '15' }]}
-              >
-                {profilInitiales ? (
-                  <Text style={[styles.initialesText, { color: colors.primary }]}>
-                    {profilInitiales}
-                  </Text>
-                ) : (
-                  <Ionicons name="person" size={28} color={colors.primary} />
-                )}
-              </View>
-            )}
+            <ProfilePhoto
+              uri={profilPhotoUri}
+              size={64}
+              style={styles.profilPhoto}
+              placeholder={
+                <View
+                  style={[styles.profilPhotoPlaceholder, { backgroundColor: colors.primary + '15' }]}
+                >
+                  {profilInitiales ? (
+                    <Text style={[styles.initialesText, { color: colors.primary }]}>
+                      {profilInitiales}
+                    </Text>
+                  ) : (
+                    <Ionicons name="person" size={28} color={colors.primary} />
+                  )}
+                </View>
+              }
+            />
             <View style={[styles.profilPhotoBadge, { backgroundColor: colors.primary }]}>
               <Ionicons name="camera" size={10} color="#FFF" />
             </View>

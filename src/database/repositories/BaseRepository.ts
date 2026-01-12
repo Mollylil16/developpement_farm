@@ -8,7 +8,7 @@
  * - Logging standardisé
  */
 
-import apiClient from '../../services/api/apiClient';
+import apiClient, { APIError } from '../../services/api/apiClient';
 
 export abstract class BaseRepository<T> {
   protected tableName: string;
@@ -36,15 +36,33 @@ export abstract class BaseRepository<T> {
 
   /**
    * Exécuter une requête GET et retourner un seul résultat
+   * @param silent403 Si true, les erreurs 403 sont gérées silencieusement (retourne null)
+   * Utile dans le contexte du marketplace où on peut essayer d'accéder à des ressources d'autres utilisateurs
    */
-  protected async queryOne<R = T>(endpoint: string, params?: Record<string, unknown>): Promise<R | null> {
+  protected async queryOne<R = T>(
+    endpoint: string,
+    params?: Record<string, unknown>,
+    options?: { silent403?: boolean }
+  ): Promise<R | null> {
     try {
       const result = await apiClient.get<R>(endpoint, { params });
       return result || null;
     } catch (error) {
-      console.error(`[${this.tableName}] QueryOne error:`, error);
-      console.error('Endpoint:', endpoint);
-      console.error('Params:', params);
+      // Si silent403 est activé et que c'est une erreur 403, retourner null silencieusement
+      // C'est normal dans le contexte du marketplace où on peut voir des animaux d'autres producteurs
+      if (options?.silent403 && error instanceof APIError && error.status === 403) {
+        if (__DEV__) {
+          console.warn(`[${this.tableName}] QueryOne 403 (silencieux):`, endpoint, 'Cet animal/ressource n\'appartient pas à l\'utilisateur');
+        }
+        return null;
+      }
+
+      // Pour les autres erreurs, logger et relancer
+      if (__DEV__) {
+        console.error(`[${this.tableName}] QueryOne error:`, error);
+        console.error('Endpoint:', endpoint);
+        console.error('Params:', params);
+      }
       throw error;
     }
   }
@@ -157,9 +175,10 @@ export abstract class BaseRepository<T> {
 
   /**
    * Récupérer un enregistrement par ID
+   * @param silent403 Si true, les erreurs 403 sont gérées silencieusement (retourne null)
    */
-  async findById(id: string): Promise<T | null> {
-    return this.queryOne<T>(`${this.apiBasePath}/${id}`);
+  async findById(id: string, options?: { silent403?: boolean }): Promise<T | null> {
+    return this.queryOne<T>(`${this.apiBasePath}/${id}`, undefined, options);
   }
 
   /**

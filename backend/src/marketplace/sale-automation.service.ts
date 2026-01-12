@@ -5,6 +5,8 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { NotificationsService } from './notifications.service';
+import { NotificationType } from './dto/notification.dto';
 
 /**
  * Service pour automatiser les opérations post-vente
@@ -14,7 +16,10 @@ import { DatabaseService } from '../database/database.service';
 export class SaleAutomationService {
   private readonly logger = new Logger(SaleAutomationService.name);
 
-  constructor(private databaseService: DatabaseService) {}
+  constructor(
+    private databaseService: DatabaseService,
+    private notificationsService: NotificationsService
+  ) {}
 
   /**
    * Traite la vente complète après confirmation de livraison
@@ -263,27 +268,50 @@ export class SaleAutomationService {
       );
 
       // 10. NOTIFICATIONS
-      await this.createNotification({
-        userId: transaction.producer_id,
-        type: 'vente_confirmee',
-        title: 'Vente confirmée',
-        message: `${subjectIds.length} sujet(s) vendu(s) pour ${transaction.final_price.toLocaleString('fr-FR')} FCFA`,
-        relatedId: venteId,
-        relatedType: 'vente',
-      });
+      try {
+        // Récupérer le listing pour le titre
+        const listingResult = await client.query(
+          'SELECT id, code FROM marketplace_listings WHERE id = $1',
+          [transaction.listing_id]
+        );
+        const listingTitle = listingResult.rows[0]?.code || `Annonce ${transaction.listing_id}`;
+
+        await this.notificationsService.notifyListingSold(
+          transaction.producer_id,
+          transaction.listing_id,
+          listingTitle,
+          transaction.final_price
+        );
+      } catch (error) {
+        this.logger.warn(`[processSaleFromTransaction] Erreur notification vendeur: ${error.message}`);
+        // Créer la notification de base si notifyListingSold échoue
+        await this.notificationsService.createNotification({
+          userId: transaction.producer_id,
+          type: NotificationType.LISTING_SOLD,
+          title: 'Vente confirmée',
+          message: `${subjectIds.length} sujet(s) vendu(s) pour ${transaction.final_price.toLocaleString('fr-FR')} FCFA`,
+          relatedId: venteId,
+          relatedType: 'transaction',
+        });
+      }
 
       const dateRecuperationStr = dateRecuperation
         ? `Récupération prévue le ${dateRecuperation.toLocaleDateString('fr-FR')}`
         : 'Récupération à convenir';
 
-      await this.createNotification({
-        userId: transaction.buyer_id,
-        type: 'achat_confirme',
-        title: 'Achat confirmé',
-        message: `${dateRecuperationStr}`,
-        relatedId: venteId,
-        relatedType: 'vente',
-      });
+      try {
+        // Notifier l'acheteur (pas de helper method pour achat, utiliser createNotification)
+        await this.notificationsService.createNotification({
+          userId: transaction.buyer_id,
+          type: NotificationType.LISTING_SOLD, // Utiliser LISTING_SOLD car c'est une vente
+          title: 'Achat confirmé',
+          message: dateRecuperationStr,
+          relatedId: venteId,
+          relatedType: 'transaction',
+        });
+      } catch (error) {
+        this.logger.warn(`[processSaleFromTransaction] Erreur notification acheteur: ${error.message}`);
+      }
 
       this.logger.log(
         `Vente ${venteId} traitée avec succès pour ${subjectIds.length} sujet(s)`
@@ -438,47 +466,6 @@ export class SaleAutomationService {
         return [listing.subject_id];
       }
       return [];
-    }
-  }
-
-  /**
-   * Crée une notification (copie de la méthode dans MarketplaceService pour éviter dépendance circulaire)
-   */
-  private async createNotification(data: {
-    userId: string;
-    type: string;
-    title: string;
-    message: string;
-    relatedId?: string;
-    relatedType?: string;
-  }): Promise<void> {
-    try {
-      const id = this.generateId('notif');
-      const now = new Date().toISOString();
-
-      await this.databaseService.query(
-        `INSERT INTO marketplace_notifications (
-          id, user_id, type, title, message, related_id, related_type, read, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [
-          id,
-          data.userId,
-          data.type,
-          data.title,
-          data.message,
-          data.relatedId || null,
-          data.relatedType || null,
-          false,
-          now,
-        ]
-      );
-    } catch (error: any) {
-      // Si la table n'existe pas encore, logger un warning mais ne pas faire échouer
-      if (error.message?.includes('does not exist') || error.message?.includes('n\'existe pas')) {
-        this.logger.warn('Table marketplace_notifications n\'existe pas encore, notification non créée');
-        return;
-      }
-      throw error;
     }
   }
 

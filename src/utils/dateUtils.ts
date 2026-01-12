@@ -1,174 +1,98 @@
-/**
- * Utilitaires pour la gestion des dates
- */
-
-import { logger } from './logger';
+import { format, parseISO, isValid, formatDistanceToNow } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 /**
- * Formate une date ISO en format local (YYYY-MM-DD)
- * @param isoDate Date au format ISO (ex: "2024-01-15T10:30:00.000Z")
- * @returns Date au format local (ex: "2024-01-15")
+ * Formate une date de manière sécurisée
+ * Gère les cas où la date est null, undefined ou invalide
  */
-export function formatLocalDate(isoDate: string): string {
+export const formatSafeDate = (
+  dateValue: any,
+  formatStr: string = 'dd/MM/yyyy',
+  fallback: string = 'Date inconnue'
+): string => {
   try {
-    const date = new Date(isoDate);
-    if (isNaN(date.getTime())) {
-      return '';
+    if (!dateValue) {
+      return fallback;
     }
 
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
+    // Si c'est une string ISO, parser d'abord
+    const date = typeof dateValue === 'string'
+      ? parseISO(dateValue)
+      : new Date(dateValue);
 
-    return `${year}-${month}-${day}`;
+    // Vérifier que la date est valide
+    if (!isValid(date)) {
+      console.warn('[DateUtils] Date invalide:', dateValue);
+      return fallback;
+    }
+
+    return format(date, formatStr, { locale: fr });
   } catch (error) {
-    logger.error('Erreur lors du formatage de la date:', error);
-    return '';
+    console.error('[DateUtils] Erreur formatage:', error, dateValue);
+    return fallback;
   }
-}
+};
 
 /**
- * Parse une date locale (YYYY-MM-DD) en objet Date
- * @param localDate Date au format local (ex: "2024-01-15")
- * @returns Objet Date
+ * Formate une date relative (il y a 2 heures, etc.)
  */
-export function parseLocalDate(localDate: string): Date {
+export const formatRelativeTime = (
+  dateValue: any,
+  addSuffix: boolean = true
+): string => {
   try {
-    if (!localDate) {
-      return new Date();
+    if (!dateValue) {
+      return 'Récemment';
     }
 
-    // Ajouter l'heure midi pour éviter les problèmes de timezone
-    const date = new Date(`${localDate}T12:00:00.000Z`);
+    const date = typeof dateValue === 'string'
+      ? parseISO(dateValue)
+      : new Date(dateValue);
 
-    if (isNaN(date.getTime())) {
-      return new Date();
+    if (!isValid(date)) {
+      return 'Récemment';
     }
 
-    return date;
-  } catch (error) {
-    logger.error('Erreur lors du parsing de la date:', error);
-    return new Date();
-  }
-}
-
-/**
- * Obtient la date actuelle au format local (YYYY-MM-DD)
- * @returns Date actuelle au format local
- */
-export function getCurrentLocalDate(): string {
-  return formatLocalDate(new Date().toISOString());
-}
-
-/**
- * Formate une date pour l'affichage (ex: "15 janvier 2024")
- * @param isoDate Date au format ISO
- * @param locale Locale à utiliser (par défaut 'fr-FR')
- * @returns Date formatée pour l'affichage
- */
-export function formatDisplayDate(isoDate: string, locale: string = 'fr-FR'): string {
-  try {
-    const date = new Date(isoDate);
-    if (isNaN(date.getTime())) {
-      return '';
-    }
-
-    return date.toLocaleDateString(locale, {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
+    return formatDistanceToNow(date, {
+      addSuffix,
+      locale: fr
     });
   } catch (error) {
-    logger.error('Erreur lors du formatage de la date:', error);
-    return '';
+    console.error('[DateUtils] Erreur formatage relatif:', error);
+    return 'Récemment';
   }
-}
+};
 
 /**
- * Calcule la différence en jours entre deux dates
- * @param date1 Première date (ISO)
- * @param date2 Deuxième date (ISO)
- * @returns Nombre de jours entre les deux dates
+ * Vérifie si une date est valide
  */
-export function getDaysDifference(date1: string, date2: string): number {
+export const isValidDate = (dateValue: any): boolean => {
   try {
-    const d1 = new Date(date1);
-    const d2 = new Date(date2);
+    if (!dateValue) return false;
 
-    if (isNaN(d1.getTime()) || isNaN(d2.getTime())) {
-      return 0;
-    }
+    const date = typeof dateValue === 'string'
+      ? parseISO(dateValue)
+      : new Date(dateValue);
 
-    const diffTime = Math.abs(d2.getTime() - d1.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    return diffDays;
-  } catch (error) {
-    logger.error('Erreur lors du calcul de la différence:', error);
-    return 0;
-  }
-}
-
-/**
- * Vérifie si une date est dans le passé
- * @param isoDate Date au format ISO
- * @returns True si la date est dans le passé
- */
-export function isDateInPast(isoDate: string): boolean {
-  try {
-    const date = new Date(isoDate);
-    const now = new Date();
-
-    if (isNaN(date.getTime())) {
-      return false;
-    }
-
-    return date < now;
-  } catch (error) {
-    logger.error('Erreur lors de la vérification de la date:', error);
+    return isValid(date);
+  } catch {
     return false;
   }
-}
+};
 
 /**
- * Vérifie si une date est dans le futur
- * @param isoDate Date au format ISO
- * @returns True si la date est dans le futur
+ * Convertit une date en objet Date valide ou null
  */
-export function isDateInFuture(isoDate: string): boolean {
+export const toValidDate = (dateValue: any): Date | null => {
   try {
-    const date = new Date(isoDate);
-    const now = new Date();
+    if (!dateValue) return null;
 
-    if (isNaN(date.getTime())) {
-      return false;
-    }
+    const date = typeof dateValue === 'string'
+      ? parseISO(dateValue)
+      : new Date(dateValue);
 
-    return date > now;
-  } catch (error) {
-    logger.error('Erreur lors de la vérification de la date:', error);
-    return false;
+    return isValid(date) ? date : null;
+  } catch {
+    return null;
   }
-}
-
-/**
- * Ajoute des jours à une date
- * @param isoDate Date au format ISO
- * @param days Nombre de jours à ajouter (peut être négatif)
- * @returns Nouvelle date au format ISO
- */
-export function addDays(isoDate: string, days: number): string {
-  try {
-    const date = new Date(isoDate);
-
-    if (isNaN(date.getTime())) {
-      return new Date().toISOString();
-    }
-
-    date.setDate(date.getDate() + days);
-    return date.toISOString();
-  } catch (error) {
-    logger.error("Erreur lors de l'ajout de jours:", error);
-    return new Date().toISOString();
-  }
-}
+};

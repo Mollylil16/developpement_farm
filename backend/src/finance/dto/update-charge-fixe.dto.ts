@@ -1,5 +1,6 @@
 import { IsString, IsNumber, IsOptional, IsEnum, IsInt, Min, Max } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { FINANCE_LIMITS } from '../config/finance-validation.config';
 
 export class UpdateChargeFixeDto {
   @ApiPropertyOptional({ description: 'Catégorie de la charge fixe' })
@@ -12,10 +13,19 @@ export class UpdateChargeFixeDto {
   @IsString()
   libelle?: string;
 
-  @ApiPropertyOptional({ description: 'Montant de la charge fixe' })
+  @ApiPropertyOptional({
+    description: `Montant de la charge fixe (${FINANCE_LIMITS.MIN_MONTANT} - ${FINANCE_LIMITS.MAX_MONTANT.toLocaleString('fr-FR')} FCFA)`,
+    minimum: FINANCE_LIMITS.MIN_MONTANT,
+    maximum: FINANCE_LIMITS.MAX_MONTANT,
+  })
   @IsOptional()
   @IsNumber()
-  @Min(0)
+  @Min(FINANCE_LIMITS.MIN_MONTANT, {
+    message: `Le montant doit être supérieur ou égal à ${FINANCE_LIMITS.MIN_MONTANT} FCFA`,
+  })
+  @Max(FINANCE_LIMITS.MAX_MONTANT, {
+    message: `Le montant ne peut pas dépasser ${FINANCE_LIMITS.MAX_MONTANT.toLocaleString('fr-FR')} FCFA (1 milliard)`,
+  })
   montant?: number;
 
   @ApiPropertyOptional({ description: 'Date de début (ISO string)' })

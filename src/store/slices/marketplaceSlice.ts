@@ -93,81 +93,125 @@ export const searchListings = createAsyncThunk(
     },
     { rejectWithValue, getState }
   ) => {
+    // Pagination backend : utiliser limit et offset (défini avant le try pour être accessible dans le catch)
+    const page = params.page || 1;
+    const limit = 20; // Taille de page standard
+    const offset = (page - 1) * limit;
+    
     try {
       const state = getState() as RootState;
-      const userId = params.userId || state?.auth?.user?.id;
+      const currentUserId = state?.auth?.user?.id;
       const excludeUserId = params.excludeUserId !== false; // Par défaut, exclure les listings du producteur
 
-      // Récupérer tous les listings (sans filtrer par user_id pour éviter d'inclure ceux du producteur)
-      const listings = await apiClient.get<MarketplaceListing[]>('/marketplace/listings', {
-        params: {
-          // Ne pas passer user_id pour l'onglet "Acheter" (on veut tous les listings sauf ceux du producteur)
-          // projet_id: params.projetId, // Optionnel : filtrer par projet si nécessaire
-        },
-      });
-
-      // Filtrer les listings pour exclure ceux du producteur si nécessaire
-      let filteredListings = listings;
-      if (excludeUserId && userId) {
-        try {
-          // Récupérer les IDs des projets de l'utilisateur pour filtrer par farmId aussi
-          const projets = await apiClient.get<any[]>('/projets');
-          const userProjets = projets.filter((p) => p.proprietaire_id === userId);
-          const userFarmIds = userProjets.map((p) => p.id);
-
-          // Filtrer les listings qui n'appartiennent pas à l'utilisateur
-          filteredListings = listings.filter((listing) => {
-            // Exclure si producerId correspond à userId
-            if (listing.producerId === userId) {
-              return false;
-            }
-            // Exclure si farmId correspond à un projet de l'utilisateur
-            if (listing.farmId && userFarmIds.includes(listing.farmId)) {
-              return false;
-            }
-            return true;
-          });
-        } catch (error) {
-          // En cas d'erreur, filtrer uniquement par producerId
-          filteredListings = listings.filter((listing) => listing.producerId !== userId);
+      // Mapper les options de tri du frontend vers le backend
+      // Le frontend utilise: 'distance', 'price_asc', 'price_desc', 'weight_asc', 'weight_desc', 'rating', 'recent'
+      // Le backend attend: 'newest', 'oldest', 'price_asc', 'price_desc'
+      let sortOption: string = 'newest'; // Par défaut : prioriser les "Nouveau"
+      if (params.sort) {
+        if (params.sort === 'recent') {
+          sortOption = 'newest'; // 'recent' du frontend = 'newest' du backend
+        } else if (params.sort === 'price_asc') {
+          sortOption = 'price_asc';
+        } else if (params.sort === 'price_desc') {
+          sortOption = 'price_desc';
+        } else if (params.sort === 'distance' || params.sort === 'rating' || params.sort === 'weight_asc' || params.sort === 'weight_desc') {
+          // Pour les autres options non supportées par le backend, utiliser 'newest' par défaut
+          sortOption = 'newest';
         }
       }
 
-      // Trier les listings pour prioriser les "Nouveau" (créés dans les 7 derniers jours)
-      const now = Date.now();
-      const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000; // 7 jours en millisecondes
-      
-      const sortedListings = [...filteredListings].sort((a, b) => {
-        // Déterminer si un listing est "Nouveau" (créé dans les 7 derniers jours)
-        const aListedAt = new Date(a.listedAt || a.updatedAt || 0).getTime();
-        const bListedAt = new Date(b.listedAt || b.updatedAt || 0).getTime();
-        const aIsNew = aListedAt >= sevenDaysAgo;
-        const bIsNew = bListedAt >= sevenDaysAgo;
-        
-        // Prioriser les listings "Nouveau"
-        if (aIsNew && !bIsNew) return -1; // a est nouveau, b ne l'est pas → a en premier
-        if (!aIsNew && bIsNew) return 1;  // b est nouveau, a ne l'est pas → b en premier
-        
-        // Si les deux sont nouveaux ou aucun n'est nouveau, trier par listed_at DESC (plus récent en premier)
-        return bListedAt - aListedAt;
+      // OPTIMISATION : Utiliser la pagination backend au lieu de la pagination côté client
+      // Le backend gère maintenant le filtrage, le tri et la pagination
+      const response = await apiClient.get<{
+        listings: MarketplaceListing[];
+        total: number;
+        page: number;
+        totalPages: number;
+        hasMore: boolean;
+        limit: number;
+        offset: number;
+      }>('/marketplace/listings', {
+        params: {
+          limit,
+          offset,
+          sort: sortOption,
+          // Si excludeUserId est true, exclure les listings de l'utilisateur connecté (pour "Acheter")
+          exclude_own_listings: excludeUserId && currentUserId ? 'true' : undefined,
+          // Si userId est fourni (sans excludeUserId), filtrer pour cet utilisateur (pour "Mes annonces")
+          user_id: !excludeUserId && params.userId ? params.userId : undefined,
+          // Filtrer par projet si nécessaire
+          projet_id: params.projetId,
+        },
       });
 
-      // Simuler la pagination côté client pour l'instant
-      const page = params.page || 1;
-      const limit = 20;
-      const start = (page - 1) * limit;
-      const end = start + limit;
-      const paginatedListings = sortedListings.slice(start, end);
-      const totalPages = Math.ceil(sortedListings.length / limit);
+      // OPTIMISATION : Mettre en cache les résultats pour la page 1 uniquement
+      if (page === 1 && response.listings.length > 0) {
+        try {
+          const { setCachedListings } = await import('../../services/marketplaceCache');
+          // Ne pas attendre le cache (opération asynchrone non bloquante)
+          setCachedListings(response.listings, params.filters, sortOption, page).catch((cacheError) => {
+            if (__DEV__) {
+              console.warn('[marketplaceSlice] Erreur lors du stockage du cache:', cacheError);
+            }
+          });
+        } catch (cacheError) {
+          // Ignorer les erreurs de cache
+          if (__DEV__) {
+            console.warn('[marketplaceSlice] Erreur lors de l\'import du cache:', cacheError);
+          }
+        }
+      }
 
+      // Log pour debug (en dev seulement)
+      if (__DEV__) {
+        console.log('[marketplaceSlice] Réponse backend:', {
+          listings: response.listings.length,
+          total: response.total,
+          page: response.page,
+          totalPages: response.totalPages,
+          hasMore: response.hasMore,
+          excludeUserId,
+          currentUserId,
+        });
+      }
+
+      // Retourner directement les informations de pagination du backend
       return {
-        listings: paginatedListings,
-        total: filteredListings.length,
-        page,
-        totalPages,
-        hasMore: page < totalPages,
+        listings: response.listings,
+        total: response.total,
+        page: response.page,
+        totalPages: response.totalPages,
+        hasMore: response.hasMore,
       };
     } catch (error: unknown) {
+      // OPTIMISATION : En cas d'erreur réseau, essayer d'utiliser le cache comme fallback
+      if (page === 1) {
+        try {
+          const { getCachedListings } = await import('../../services/marketplaceCache');
+          const cachedListings = await getCachedListings(params.filters, params.sort, page);
+          
+          if (cachedListings && cachedListings.length > 0) {
+            if (__DEV__) {
+              console.log('[marketplaceSlice] Utilisation du cache en cas d\'erreur:', {
+                listings: cachedListings.length,
+                error: getErrorMessage(error),
+              });
+            }
+            
+            // Retourner les listings du cache avec une structure approximative
+            return {
+              listings: cachedListings,
+              total: cachedListings.length,
+              page: 1,
+              totalPages: 1,
+              hasMore: false,
+            };
+          }
+        } catch (cacheError) {
+          // Ignorer les erreurs de cache
+        }
+      }
+      
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la recherche');
     }
   }

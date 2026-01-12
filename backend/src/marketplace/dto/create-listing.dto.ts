@@ -6,9 +6,11 @@ import {
   IsObject,
   ValidateNested,
   IsOptional,
+  IsArray,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ListingPhotoDto } from './listing-photo.dto';
 
 class LocationDto {
   @ApiProperty({ description: 'Latitude', example: 48.8566 })
@@ -105,4 +107,15 @@ export class CreateListingDto {
   @ValidateNested()
   @Type(() => SaleTermsDto)
   saleTerms?: SaleTermsDto;
+
+  @ApiPropertyOptional({ 
+    description: 'Photos du listing', 
+    type: [ListingPhotoDto],
+    example: [{ url: '/uploads/marketplace/photo1.jpg', order: 1 }]
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ListingPhotoDto)
+  @IsOptional()
+  photos?: ListingPhotoDto[];
 }

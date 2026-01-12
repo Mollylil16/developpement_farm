@@ -505,7 +505,208 @@ export class IntentDetector {
       };
     }
 
+    // ========================================
+    // MARKETPLACE - Vente automatisée
+    // ========================================
+
+    // Vendre un animal / Mettre en vente
+    if (
+      this.matchesKeywords(normalized, [
+        'vendre',
+        'vends',
+        'vend',
+        'mettre en vente',
+        'mets en vente',
+        'met en vente',
+        'mise en vente',
+        'publier annonce',
+        'publier une annonce',
+        'marketplace',
+        'vendre sur le marche',
+        'vendre au marche',
+        'proposer a la vente',
+        'je veux vendre',
+        'vendre un porc',
+        'vendre le porc',
+        'vendre mon porc',
+        'vendre mes porcs',
+        'vendre un sujet',
+        'vendre le sujet',
+      ])
+    ) {
+      return {
+        action: 'marketplace_sell_animal',
+        confidence: 0.9,
+        params: this.extractMarketplaceParams(original),
+      };
+    }
+
+    // Tendance des prix
+    if (
+      this.matchesKeywords(normalized, [
+        'prix du marche',
+        'tendance prix',
+        'tendance des prix',
+        'prix actuel',
+        'prix moyen',
+        'combien se vend',
+        'combien vendre',
+        'a combien vendre',
+        'a quel prix',
+        'quel prix',
+        'cours du porc',
+        'prix du porc',
+        'prix du kg',
+        'prix au kg',
+        'marche porcin',
+        'prix porcin',
+      ])
+    ) {
+      return {
+        action: 'marketplace_get_price_trends',
+        confidence: 0.9,
+        params: {},
+      };
+    }
+
+    // Vérifier les offres
+    if (
+      this.matchesKeywords(normalized, [
+        'offres',
+        'offre',
+        'mes offres',
+        'offres recues',
+        'offres en attente',
+        'nouvelles offres',
+        'nouvelle offre',
+        'propositions',
+        'proposition',
+        'quelqu un interesse',
+        'acheteur interesse',
+        'acheteurs interesses',
+        'y a t il des offres',
+        'ai je des offres',
+        'j ai des offres',
+        'verifie les offres',
+        'verifie mes offres',
+        'check offres',
+      ])
+    ) {
+      return {
+        action: 'marketplace_check_offers',
+        confidence: 0.85,
+        params: {},
+      };
+    }
+
+    // Mes annonces
+    if (
+      this.matchesKeywords(normalized, [
+        'mes annonces',
+        'mon annonce',
+        'annonces en cours',
+        'annonces actives',
+        'mes ventes',
+        'mes ventes en cours',
+        'qu est ce que je vends',
+        'que je vends',
+        'ce que je vends',
+        'animaux en vente',
+        'porcs en vente',
+        'sujets en vente',
+      ])
+    ) {
+      return {
+        action: 'marketplace_get_my_listings',
+        confidence: 0.85,
+        params: {},
+      };
+    }
+
+    // Accepter/Refuser/Contre-proposer une offre
+    if (
+      this.matchesKeywords(normalized, [
+        'accepter offre',
+        'accepte offre',
+        'accepter l offre',
+        'accepte l offre',
+        'j accepte',
+        'je refuse',
+        'refuser offre',
+        'refuse offre',
+        'contre proposition',
+        'contre proposer',
+        'contreproposition',
+        'contre-proposition',
+        'negocier',
+        'negocie',
+      ])
+    ) {
+      return {
+        action: 'marketplace_respond_offer',
+        confidence: 0.85,
+        params: this.extractOfferResponseParams(original),
+      };
+    }
+
     return null;
+  }
+
+  /**
+   * Extrait les paramètres pour la vente marketplace
+   */
+  private static extractMarketplaceParams(text: string): Record<string, unknown> {
+    const params: Record<string, unknown> = {};
+
+    // Extraire le code de l'animal (P123, A456, etc.)
+    const codeMatch = text.match(/\b([A-Z]{1,3}[\s-]?\d{2,5})\b/i);
+    if (codeMatch) {
+      params.animalCode = codeMatch[1].toUpperCase().replace(/[\s-]/g, '');
+    }
+
+    // Extraire le nom de la loge
+    const logeMatch = text.match(/loge\s*(\d+|[A-Z])/i);
+    if (logeMatch) {
+      params.logeName = `Loge ${logeMatch[1]}`;
+    }
+
+    // Extraire le poids
+    const poidsMatch = text.match(/(\d+)\s*(?:kg|kilo)/i);
+    if (poidsMatch) {
+      params.weight = parseInt(poidsMatch[1]);
+    }
+
+    // Extraire le prix si mentionné
+    const prixMatch = text.match(/(\d[\d\s]*)\s*(?:fcfa|f\s*c\s*f\s*a|francs?)/i);
+    if (prixMatch) {
+      params.pricePerKg = parseInt(prixMatch[1].replace(/\s/g, ''));
+    }
+
+    return params;
+  }
+
+  /**
+   * Extrait les paramètres pour répondre à une offre
+   */
+  private static extractOfferResponseParams(text: string): Record<string, unknown> {
+    const params: Record<string, unknown> = {};
+
+    // Détecter l'action
+    if (text.match(/accepte|accepter|oui|d'accord|ok/i)) {
+      params.action = 'accept';
+    } else if (text.match(/refuse|refuser|non|rejette|rejeter/i)) {
+      params.action = 'reject';
+    } else if (text.match(/contre|proposition|negocie|negocier/i)) {
+      params.action = 'counter';
+      
+      // Extraire le prix de contre-proposition
+      const prixMatch = text.match(/(\d[\d\s]*)\s*(?:fcfa|f\s*c\s*f\s*a|francs?)/i);
+      if (prixMatch) {
+        params.counterPrice = parseInt(prixMatch[1].replace(/\s/g, ''));
+      }
+    }
+
+    return params;
   }
 
   /**

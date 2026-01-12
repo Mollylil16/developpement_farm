@@ -202,7 +202,7 @@ export class AuthService {
     };
   }
 
-  async refreshToken(refreshTokenDto: RefreshTokenDto, ipAddress?: string) {
+  async refreshToken(refreshTokenDto: RefreshTokenDto, ipAddress?: string, userAgent?: string) {
     const refreshTokenRecord = await this.findRefreshToken(refreshTokenDto.refresh_token);
 
     if (!refreshTokenRecord) {
@@ -232,10 +232,15 @@ export class AuthService {
     };
 
     const accessToken = this.jwtService.sign(payload);
-    await this.updateRefreshTokenUsage(refreshTokenRecord.id, ipAddress);
-
+    
+    // SÉCURITÉ : Rotation des refresh tokens (révoquer l'ancien et créer un nouveau)
+    // Cela limite la fenêtre d'exposition si un refresh token est compromis
+    await this.revokeRefreshToken(refreshTokenDto.refresh_token);
+    const newRefreshToken = await this.createRefreshToken(user.id, ipAddress, userAgent);
+    
     return {
       access_token: accessToken,
+      refresh_token: newRefreshToken.token,
       expires_in: 3600,
     };
   }

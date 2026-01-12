@@ -26,6 +26,8 @@ import apiClient from '../../services/api/apiClient';
 import { useGeolocation } from '../../hooks/useGeolocation';
 import { getErrorMessage } from '../../types/common';
 import { logger } from '../../utils/logger';
+import { PhotoPicker } from './PhotoPicker';
+import marketplaceService from '../../services/MarketplaceService';
 
 interface AddListingModalProps {
   visible: boolean;
@@ -71,6 +73,7 @@ export default function AddListingModal({
   const [quantity, setQuantity] = useState<number>(batchCount || 1);
   const [loading, setLoading] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [photos, setPhotos] = useState<Array<{ uri: string }>>([]);
 
   // Réinitialiser quand le modal s'ouvre
   useEffect(() => {
@@ -78,6 +81,7 @@ export default function AddListingModal({
       setPricePerKg('');
       setQuantity(batchCount || 1);
       setTermsAccepted(false);
+      setPhotos([]);
     }
   }, [visible, batchCount]);
 
@@ -124,10 +128,12 @@ export default function AddListingModal({
 
       const now = new Date().toISOString();
 
+      let listingId: string;
+
       // Créer le listing selon le mode
       if (isBatchMode) {
         // Mode bande
-        await apiClient.post('/marketplace/listings/batch', {
+        const response = await apiClient.post('/marketplace/listings/batch', {
           batchId,
           farmId: projetId,
           pricePerKg: parseFloat(pricePerKg),
@@ -151,10 +157,11 @@ export default function AddListingModal({
           },
         });
 
-        logger.info(`[AddListingModal] Listing de bande créé: ${batchId}`);
+        listingId = response.id || response.listingId;
+        logger.info(`[AddListingModal] Listing de bande créé: ${listingId}`);
       } else {
         // Mode individuel
-        await apiClient.post('/marketplace/listings', {
+        const response = await apiClient.post('/marketplace/listings', {
           subjectId,
           farmId: projetId,
           pricePerKg: parseFloat(pricePerKg),
@@ -176,7 +183,30 @@ export default function AddListingModal({
           },
         });
 
-        logger.info(`[AddListingModal] Listing individuel créé: ${subjectId}`);
+        listingId = response.id || response.listingId;
+        logger.info(`[AddListingModal] Listing individuel créé: ${listingId}`);
+      }
+
+      // Uploader les photos si présentes
+      if (photos.length > 0 && listingId) {
+        try {
+          // Utiliser le service marketplace importé (ligne 30)
+          await marketplaceService.uploadMultiplePhotos(
+            listingId,
+            photos.map(p => p.uri)
+          );
+          logger.info(`[AddListingModal] ${photos.length} photo(s) uploadée(s) pour le listing ${listingId}`);
+        } catch (photoError: any) {
+          logger.warn(`[AddListingModal] Erreur upload photos: ${getErrorMessage(photoError)}`);
+          // Ne pas bloquer la création du listing si l'upload de photos échoue
+          Alert.alert(
+            'Annonce créée',
+            'Votre annonce a été publiée, mais l\'upload des photos a échoué. Vous pourrez les ajouter plus tard.'
+          );
+          onSuccess();
+          onClose();
+          return;
+        }
       }
 
       Alert.alert('Succès', 'Votre annonce a été publiée avec succès.');
@@ -315,6 +345,13 @@ export default function AddListingModal({
                 : `${weight.toFixed(1)} kg × ${pricePerKg || '0'} FCFA/kg`}
             </Text>
           </View>
+
+          {/* Photos */}
+          <PhotoPicker
+            photos={photos}
+            onPhotosChange={setPhotos}
+            maxPhotos={isBatchMode ? 10 : 5}
+          />
 
           {/* Conditions de vente */}
           <View style={styles.termsSection}>

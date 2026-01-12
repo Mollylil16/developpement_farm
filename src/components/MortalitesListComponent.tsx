@@ -39,6 +39,8 @@ import MortalitesFormModal from './MortalitesFormModal';
 import StatCard from './StatCard';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import Card from './Card';
+import MortaliteDashboard from './mortalites/MortaliteDashboard';
+import { selectAllAnimaux } from '../store/selectors/productionSelectors';
 
 interface Props {
   refreshControl?: React.ReactElement<RefreshControlProps>;
@@ -54,6 +56,15 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
   const mortalites = useAppSelector(selectAllMortalites);
   const statistiques = useAppSelector(selectStatistiquesMortalite);
   const loading = useAppSelector(selectMortalitesLoading);
+  const animaux = useAppSelector(selectAllAnimaux);
+  
+  // Calculer le nombre total d'animaux actifs pour le taux de mortalité
+  const totalAnimauxActifs = useMemo(() => {
+    if (!projetActif?.id || !Array.isArray(animaux)) return 0;
+    return animaux.filter(
+      (a) => a.projet_id === projetActif.id && a.statut?.toLowerCase() === 'actif'
+    ).length;
+  }, [animaux, projetActif?.id]);
   const [selectedMortalite, setSelectedMortalite] = useState<Mortalite | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -370,75 +381,13 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
     return <LoadingSpinner message="Chargement des mortalités..." />;
   }
 
-  // Rendre les cartes statistiques
+  // Rendre le dashboard des statistiques (design cohérent avec Production > Suivi pesées)
   const renderStatistiques = () => {
-    if (!statistiques) return null;
-
     return (
-      <View
-        style={[
-          styles.section,
-          {
-            backgroundColor: colors.surface,
-            borderColor: colors.borderLight,
-          },
-        ]}
-      >
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>📊 Statistiques</Text>
-        </View>
-
-        {/* Cartes statistiques détaillées */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.statsScrollView}
-          contentContainerStyle={styles.statsScrollContent}
-        >
-          <StatCard
-            value={statistiques.total_morts || 0}
-            label="Total morts"
-            icon="💀"
-            valueColor={colors.error}
-          />
-
-          <StatCard
-            value={(statistiques.taux_mortalite ?? 0).toFixed(1)}
-            label="Taux de mortalité"
-            unit="%"
-            icon="📊"
-            valueColor={(statistiques.taux_mortalite ?? 0) > 5 ? colors.error : colors.success}
-          />
-
-          <StatCard
-            value={statistiques.mortalites_par_categorie?.porcelet || 0}
-            label="Porcelets"
-            icon="🐷"
-            valueColor={colors.warning}
-          />
-
-          <StatCard
-            value={statistiques.mortalites_par_categorie?.truie || 0}
-            label="Truies"
-            icon="🐷"
-            valueColor={colors.error}
-          />
-
-          <StatCard
-            value={statistiques.mortalites_par_categorie?.verrat || 0}
-            label="Verrats"
-            icon="🐷"
-            valueColor={colors.error}
-          />
-
-          <StatCard
-            value={Object.keys(mortalitesParCause).length}
-            label="Causes différentes"
-            icon="📋"
-            valueColor={colors.primary}
-          />
-        </ScrollView>
-      </View>
+      <MortaliteDashboard
+        projetId={projetActif?.id}
+        totalAnimaux={totalAnimauxActifs}
+      />
     );
   };
 

@@ -27,10 +27,28 @@ const selectAnimauxEntities = createSelector(
 export const selectAllAnimaux = createSelector(
   [selectAnimauxIds, selectAnimauxEntities],
   (animauxIds, animauxEntities): ProductionAnimal[] => {
-    if (!animauxIds || !animauxEntities) return [];
+    // Vérifications robustes pour éviter les erreurs de conversion
+    if (!animauxIds || !Array.isArray(animauxIds)) return [];
+    if (!animauxEntities || typeof animauxEntities !== 'object') return [];
     if (animauxIds.length === 0) return [];
-    const result = denormalize(animauxIds, animauxSchema, { animaux: animauxEntities });
-    return Array.isArray(result) ? result : [];
+    
+    try {
+      const result = denormalize(animauxIds, animauxSchema, { animaux: animauxEntities });
+      // Vérifier que le résultat est un tableau valide
+      if (Array.isArray(result)) {
+        // Filtrer les valeurs null/undefined qui pourraient être retournées par denormalize
+        return result.filter((animal): animal is ProductionAnimal => 
+          animal !== null && animal !== undefined && typeof animal === 'object'
+        );
+      }
+      return [];
+    } catch (error) {
+      // En cas d'erreur lors de la dénormalisation (données corrompues), retourner un tableau vide
+      if (__DEV__) {
+        console.warn('[selectAllAnimaux] Erreur lors de la dénormalisation:', error);
+      }
+      return [];
+    }
   }
 );
 

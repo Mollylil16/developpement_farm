@@ -1021,6 +1021,15 @@ export class MarketplaceUnifiedService {
       listing.pigIds = [];
     }
 
+    // ✅ Photos du listing (si disponibles)
+    if (row.photos) {
+      listing.photos = Array.isArray(row.photos)
+        ? row.photos
+        : safeJsonParse(row.photos, []);
+    } else {
+      listing.photos = [];
+    }
+
     return listing;
   }
 }

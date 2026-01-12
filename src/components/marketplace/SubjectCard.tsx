@@ -10,6 +10,8 @@ import type { SubjectCard as SubjectCardType } from '../../types/marketplace';
 import { MarketplaceTheme, glassmorphismStyle, badgeStyle } from '../../styles/marketplace.theme';
 import { formatPrice } from '../../services/PricingService';
 import { createLoggerWithPrefix } from '../../utils/logger';
+import { PhotoGallery } from './PhotoGallery';
+import apiClient from '../../services/api/apiClient';
 
 const logger = createLoggerWithPrefix('SubjectCard');
 
@@ -134,6 +136,16 @@ function SubjectCard({
             >
               {selected && <Ionicons name="checkmark" size={16} color={colors.textInverse} />}
             </View>
+          </View>
+        )}
+
+        {/* Photos - Afficher la première photo en miniature si disponible */}
+        {(subject as any).photos && Array.isArray((subject as any).photos) && (subject as any).photos.length > 0 && (
+          <View style={styles.photoContainer}>
+            <PhotoGallery
+              photos={(subject as any).photos}
+              baseUrl={apiClient.defaults?.baseURL || ''}
+            />
           </View>
         )}
 

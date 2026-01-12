@@ -98,16 +98,15 @@ export interface Revenu {
   commentaire?: string;
   photos?: string[]; // URLs des photos de factures/reçus
   date_creation: string;
-  // Nouveaux champs pour ventes marketplace
-  poids_kg?: number; // Ancien champ (pour compatibilité)
-  poids_total?: number; // Poids total en kg (nombre entier)
-  nombre_animaux?: number; // Nombre d'animaux vendus
-  acheteur?: string; // Nom complet de l'acheteur
-  vente_id?: string; // ID de la vente liée
+  // Champs pour ventes marketplace et ventes de porcs
+  poids_kg?: number; // Poids du porc vendu (unifié - utilisé pour marketplace et OPEX/CAPEX)
+  poids_total?: number; // Poids total en kg pour ventes multiples (marketplace uniquement)
+  nombre_animaux?: number; // Nombre d'animaux vendus (marketplace uniquement)
+  acheteur?: string; // Nom complet de l'acheteur (marketplace uniquement)
+  vente_id?: string; // ID de la vente liée (marketplace uniquement)
   animal_id?: string; // ID de l'animal vendu (si applicable)
 
-  // ✨ Nouveaux champs pour ventes de porcs (OPEX/CAPEX)
-  poids_kg?: number; // Poids du porc vendu
+  // ✨ Champs pour calcul des marges (OPEX/CAPEX)
   cout_kg_opex?: number; // Coût OPEX par kg au moment de la vente
   cout_kg_complet?: number; // Coût complet par kg au moment de la vente
   cout_reel_opex?: number; // Coût réel OPEX du porc

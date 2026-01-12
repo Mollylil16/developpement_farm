@@ -454,8 +454,93 @@ export class VoiceService {
   /**
    * Demande les permissions pour la reconnaissance vocale
    */
+  /**
+   * Vérifie si la synthèse vocale (Text-to-Speech) est disponible
+   */
+  async isTextToSpeechAvailable(): Promise<boolean> {
+    if (!this.config.enableTextToSpeech) {
+      return false;
+    }
+
+    try {
+      // Vérifier si on est sur web
+      if (Platform.OS === 'web') {
+        // Sur le web, vérifier si l'API SpeechSynthesis est disponible
+        const globalWindow = getWindow();
+        return globalWindow !== undefined && 'speechSynthesis' in globalWindow;
+      }
+
+      // Sur mobile, vérifier si expo-speech est disponible (TODO: une fois installé)
+      // Pour l'instant, considérer comme non disponible si pas implémenté
+      return false;
+    } catch (error) {
+      logger.warn('[VoiceService] Erreur lors de la vérification de disponibilité TTS:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Vérifie si la reconnaissance vocale (Speech-to-Text) est disponible
+   */
+  async isSpeechToTextAvailable(): Promise<boolean> {
+    if (!this.config.enableSpeechToText) {
+      return false;
+    }
+
+    try {
+      // Vérifier si on est sur web
+      if (Platform.OS === 'web') {
+        const globalWindow = getWindow();
+        return (
+          globalWindow !== undefined &&
+          ('webkitSpeechRecognition' in globalWindow || 'SpeechRecognition' in globalWindow)
+        );
+      }
+
+      // Sur mobile, vérifier les permissions audio
+      await loadExpoModules();
+      if (!Audio) {
+        return false;
+      }
+
+      const { status } = await Audio.getPermissionsAsync();
+      return status === 'granted';
+    } catch (error) {
+      logger.warn('[VoiceService] Erreur lors de la vérification de disponibilité STT:', error);
+      return false;
+    }
+  }
+
   async requestPermissions(): Promise<boolean> {
-    // TODO: Demander les permissions selon la plateforme
-    return true;
+    try {
+      // Vérifier d'abord la disponibilité
+      const isSTTAvailable = await this.isSpeechToTextAvailable();
+      const isTTSAvailable = await this.isTextToSpeechAvailable();
+
+      if (!isSTTAvailable && !isTTSAvailable) {
+        logger.warn('[VoiceService] Aucune fonctionnalité vocale disponible');
+        return false;
+      }
+
+      // Demander les permissions pour Speech-to-Text si nécessaire
+      if (this.config.enableSpeechToText && Platform.OS !== 'web') {
+        await loadExpoModules();
+        if (!Audio) {
+          logger.warn('[VoiceService] expo-av non disponible pour les permissions');
+          return false;
+        }
+
+        const { status } = await Audio.requestPermissionsAsync();
+        if (status !== 'granted') {
+          logger.warn('[VoiceService] Permissions audio refusées');
+          return false;
+        }
+      }
+
+      return true;
+    } catch (error) {
+      logger.error('[VoiceService] Erreur lors de la demande de permissions:', error);
+      return false;
+    }
   }
 }

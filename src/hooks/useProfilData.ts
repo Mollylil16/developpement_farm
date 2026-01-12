@@ -15,6 +15,16 @@ import apiClient from '../services/api/apiClient';
 import { logger } from '../utils/logger';
 import { profileSyncService } from '../services/profileSyncService';
 
+/**
+ * Nettoie l'URI de la photo pour retirer les paramètres de cache busting
+ * Utile pour la comparaison et le stockage
+ */
+function normalizePhotoUri(uri: string | null): string | null {
+  if (!uri) return null;
+  // Retirer les paramètres de cache busting (_t, timestamp, etc.)
+  return uri.split('?')[0];
+}
+
 interface UseProfilDataReturn {
   profilPhotoUri: string | null;
   profilInitiales: string;
@@ -47,8 +57,8 @@ export function useProfilData(): UseProfilDataReturn {
       const apiUser = await apiClient.get<any>(`/users/${user.id}`);
 
       if (apiUser) {
-        // Mettre à jour les états avec les données de l'API
-        setProfilPhotoUri(apiUser.photo || null);
+        // Mettre à jour les états avec les données de l'API (normaliser l'URI)
+        setProfilPhotoUri(normalizePhotoUri(apiUser.photo || null));
         setProfilPrenom(apiUser.prenom || '');
 
         // Générer les initiales (Prénom + Nom)
@@ -112,8 +122,8 @@ export function useProfilData(): UseProfilDataReturn {
       {
         checkInterval: 30000, // Vérifier toutes les 30 secondes
         onProfileChanged: (updatedUser) => {
-          // Mettre à jour les états locaux quand un changement est détecté
-          setProfilPhotoUri(updatedUser.photo || null);
+          // Mettre à jour les états locaux quand un changement est détecté (normaliser l'URI)
+          setProfilPhotoUri(normalizePhotoUri(updatedUser.photo || null));
           setProfilPrenom(updatedUser.prenom || '');
           if (updatedUser.prenom && updatedUser.nom) {
             const initiales = `${updatedUser.prenom.charAt(0).toUpperCase()}${updatedUser.nom.charAt(0).toUpperCase()}`;
@@ -141,7 +151,8 @@ export function useProfilData(): UseProfilDataReturn {
    */
   useEffect(() => {
     if (user) {
-      setProfilPhotoUri(user.photo || null);
+      // Normaliser l'URI pour éviter les problèmes de cache
+      setProfilPhotoUri(normalizePhotoUri(user.photo || null));
       setProfilPrenom(user.prenom || '');
       if (user.prenom && user.nom) {
         const initiales = `${user.prenom.charAt(0).toUpperCase()}${user.nom.charAt(0).toUpperCase()}`;

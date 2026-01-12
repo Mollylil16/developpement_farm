@@ -19,8 +19,7 @@ import { useLoadAnimauxOnMount } from '../../hooks/useLoadAnimauxOnMount';
 import apiClient from '../../services/api/apiClient';
 import type { Batch } from '../../types/batch';
 import { logger } from '../../utils/logger';
-
-const TAUX_CARCASSE = 0.75; // 75% du poids vif
+import { TAUX_CARCASSE } from '../../config/finance.config';
 
 function LivestockStatsCard() {
   const { colors } = useTheme();

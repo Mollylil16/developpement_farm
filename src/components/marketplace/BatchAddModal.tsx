@@ -529,7 +529,10 @@ export default function BatchAddModal({
           if (!subject) continue;
 
           // Récupérer les informations nécessaires pour créer le listing depuis l'API backend
-          const animal = await apiClient.get<any>(`/production/animaux/${subjectId}`);
+          // ✅ Utiliser la route marketplace dédiée qui ne vérifie pas l'appartenance
+          const { AnimalRepository } = await import('../../database/repositories');
+          const animalRepo = new AnimalRepository();
+          const animal = await animalRepo.findMarketplaceAnimal(subjectId);
 
           if (!animal) continue;
 

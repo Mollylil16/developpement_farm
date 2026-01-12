@@ -75,7 +75,7 @@ function TransitionPorceletCroissanceWidget({ onPress }: TransitionPorceletCrois
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.emoji}>📈</Text>
-          <Text style={[styles.title, { color: colors.text }]}>Passage porcelets → croissance</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Passage porcelets en croissance</Text>
         </View>
 
         <View style={[styles.divider, { backgroundColor: colors.divider }]} />

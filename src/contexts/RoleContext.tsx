@@ -9,6 +9,7 @@ import type { User } from '../types/auth';
 import type { RoleType } from '../types/roles';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { updateUser } from '../store/slices/authSlice';
+import apiClient from '../services/api/apiClient';
 
 const AUTH_STORAGE_KEY = '@fermier_pro:auth';
 
@@ -115,26 +116,57 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error('Aucun utilisateur connecté');
       }
 
-      // Mettre à jour le rôle actif
+      // Mettre à jour le rôle actif localement (optimistic update)
       setActiveRole(role);
 
-      // Mettre à jour l'utilisateur dans Redux
-      const updatedUser: User = {
+      // Mettre à jour l'utilisateur dans Redux (optimistic update)
+      const optimisticUser: User = {
         ...userFromRedux,
         activeRole: role,
       };
 
-      dispatch(updateUser(updatedUser));
+      dispatch(updateUser(optimisticUser));
 
-      // Persister dans AsyncStorage
+      // Persister dans AsyncStorage (optimistic update)
       try {
-        await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
+        await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(optimisticUser));
       } catch (error) {
-        console.error('Erreur lors de la sauvegarde du rôle:', error);
+        console.error('Erreur lors de la sauvegarde du rôle dans AsyncStorage:', error);
       }
 
-      // TODO: Persister dans la base de données SQLite
-      // await updateUserActiveRole(userFromRedux.id, role);
+      // Persister dans le backend
+      try {
+        const updatedUser = await apiClient.patch<User>(`/users/${userFromRedux.id}`, {
+          activeRole: role,
+        });
+
+        // Mettre à jour Redux avec la réponse du backend (source de vérité)
+        if (updatedUser) {
+          dispatch(updateUser(updatedUser));
+          // Persister également dans AsyncStorage avec les données du backend
+          try {
+            await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
+          } catch (error) {
+            console.error('Erreur lors de la sauvegarde du rôle mis à jour dans AsyncStorage:', error);
+          }
+        }
+      } catch (error) {
+        // En cas d'erreur, annuler l'optimistic update
+        console.error('Erreur lors de la sauvegarde du rôle dans le backend:', error);
+        // Revenir au rôle précédent (userFromRedux contient l'ancien état)
+        if (userFromRedux.activeRole) {
+          setActiveRole(userFromRedux.activeRole);
+        }
+        dispatch(updateUser(userFromRedux));
+        // Persister également dans AsyncStorage avec l'ancien état
+        try {
+          await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(userFromRedux));
+        } catch (storageError) {
+          console.error('Erreur lors de la restauration du rôle dans AsyncStorage:', storageError);
+        }
+        // Relancer l'erreur pour que l'appelant puisse la gérer
+        throw error;
+      }
     },
     [hasRole, userFromRedux, dispatch]
   );

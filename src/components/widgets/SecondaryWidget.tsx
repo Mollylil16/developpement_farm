@@ -96,18 +96,35 @@ function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
             const apiClient = (await import('../../services/api/apiClient')).default;
 
             // Compter mes annonces actives
-            const myListings = await apiClient.get<any[]>('/marketplace/listings', {
-              params: { projet_id: projetActif.id },
+            // Le backend retourne maintenant un objet avec pagination
+            const myListingsResponse = await apiClient.get<{
+              listings: any[];
+              total: number;
+            }>('/marketplace/listings', {
+              params: { 
+                projet_id: projetActif.id,
+                limit: 500, // Récupérer tous les listings du projet (limite max)
+              },
             });
+            const myListings = myListingsResponse.listings || [];
             const myActiveListings = myListings.filter(
               (l) => l.status === 'available' || l.status === 'reserved'
             ).length;
 
             // Compter les annonces disponibles (toutes sauf celles de l'utilisateur)
-            const allListings = await apiClient.get<any[]>('/marketplace/listings');
+            // Utiliser exclude_own_listings pour exclure automatiquement les listings de l'utilisateur
+            const allListingsResponse = await apiClient.get<{
+              listings: any[];
+              total: number;
+            }>('/marketplace/listings', {
+              params: {
+                exclude_own_listings: 'true', // Exclure les listings de l'utilisateur connecté
+                limit: 500, // Récupérer tous les listings disponibles (limite max)
+              },
+            });
+            const allListings = allListingsResponse.listings || [];
             const availableListings = allListings.filter(
-              (l) =>
-                (l.status === 'available' || l.status === 'reserved') && l.farmId !== projetActif.id
+              (l) => l.status === 'available' || l.status === 'reserved'
             ).length;
 
             setMarketplaceStats({

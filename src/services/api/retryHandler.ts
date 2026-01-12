@@ -17,7 +17,20 @@ const DEFAULT_RETRY_OPTIONS: Required<RetryOptions> = {
   maxRetries: 3,
   retryDelay: 1000, // 1 seconde
   retryableStatuses: [408, 429, 500, 502, 503, 504], // Timeout, Rate Limit, Server Errors
-  retryableErrors: ['Network error', 'Request timeout', 'Failed to fetch'],
+  retryableErrors: [
+    'Network error',
+    'Request timeout',
+    'Failed to fetch',
+    'Network request failed',
+    'TypeError: Failed to fetch',
+    'NetworkError',
+    'TIMEOUT',
+    'timeout',
+    'ECONNREFUSED',
+    'ENOTFOUND',
+    'ETIMEDOUT',
+    'ECONNRESET',
+  ],
 };
 
 /**
@@ -39,23 +52,49 @@ function calculateRetryDelay(attempt: number, baseDelay: number, statusCode?: nu
  * Vérifie si une erreur est retryable
  */
 function isRetryableError(error: unknown, options: Required<RetryOptions>): boolean {
-  // Erreur réseau
+  // Erreur API (notre type d'erreur personnalisé)
   if (error instanceof APIError) {
-    // Erreurs réseau (status 0)
+    // Erreurs réseau (status 0) - toujours retryables
     if (error.status === 0) {
-      return options.retryableErrors.some((msg) =>
-        error.message.toLowerCase().includes(msg.toLowerCase())
-      );
+      return true;
     }
 
     // Erreurs HTTP retryables
     return options.retryableStatuses.includes(error.status);
   }
 
-  // Erreurs génériques
+  // Erreurs génériques (Error, TypeError, etc.)
   if (error instanceof Error) {
+    const errorMessage = error.message.toLowerCase();
+    const errorName = error.name.toLowerCase();
+    
+    // Vérifier le message d'erreur
+    const matchesMessage = options.retryableErrors.some((msg) =>
+      errorMessage.includes(msg.toLowerCase())
+    );
+    
+    // Vérifier le nom de l'erreur (pour les erreurs spécifiques React Native/Expo)
+    const matchesName = [
+      'networkerror',
+      'timeout',
+      'connection',
+      'fetch',
+      'network',
+    ].some((name) => errorName.includes(name));
+    
+    // Erreurs TypeError avec "fetch" sont généralement des erreurs réseau
+    if (errorName === 'typeerror' && errorMessage.includes('fetch')) {
+      return true;
+    }
+    
+    return matchesMessage || matchesName;
+  }
+
+  // Erreurs sous forme de chaîne (peu courant mais possible)
+  if (typeof error === 'string') {
+    const errorString = error.toLowerCase();
     return options.retryableErrors.some((msg) =>
-      error.message.toLowerCase().includes(msg.toLowerCase())
+      errorString.includes(msg.toLowerCase())
     );
   }
 

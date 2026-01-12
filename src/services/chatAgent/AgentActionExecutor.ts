@@ -23,6 +23,7 @@ import { MortaliteActions } from './actions/mortalite/MortaliteActions';
 import { FinanceGraphActions } from './actions/finance/FinanceGraphActions';
 import { BilanActions } from './actions/finance/BilanActions';
 import { BatchActions } from './actions/batch/BatchActions';
+import { MarketplaceActions } from './actions/marketplace/MarketplaceActions';
 import apiClient from '../api/apiClient';
 import { format } from 'date-fns';
 import { logger } from '../../utils/logger';
@@ -198,6 +199,27 @@ export class AgentActionExecutor {
         
         case 'analyze_causes_mortalite':
           return await MortaliteActions.analyzeCausesMortalite(action.params, context);
+
+        // ============================================
+        // MARKETPLACE - Vente automatisée par Kouakou
+        // ============================================
+        case 'marketplace_sell_animal':
+          return await MarketplaceActions.sellAnimal(action.params, context);
+
+        case 'marketplace_set_price':
+          return await MarketplaceActions.setPrice(action.params, context);
+
+        case 'marketplace_get_price_trends':
+          return await MarketplaceActions.getPriceTrends(action.params, context);
+
+        case 'marketplace_check_offers':
+          return await MarketplaceActions.checkOffers(action.params, context);
+
+        case 'marketplace_respond_offer':
+          return await MarketplaceActions.respondToOffer(action.params, context);
+
+        case 'marketplace_get_my_listings':
+          return await MarketplaceActions.getMyListings(action.params, context);
         
         // Action générique (questions d'identité, salutations, etc.)
         case 'other':

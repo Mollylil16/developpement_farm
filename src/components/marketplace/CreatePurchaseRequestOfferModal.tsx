@@ -72,7 +72,10 @@ export default function CreatePurchaseRequestOfferModal({
       }
 
       // Récupérer le poids actuel de l'animal depuis l'API backend
-      const animal = await apiClient.get<any>(`/production/animaux/${listingData.subjectId}`);
+      // ✅ Utiliser la route marketplace dédiée qui ne vérifie pas l'appartenance
+      const { AnimalRepository } = await import('../../database/repositories');
+      const animalRepo = new AnimalRepository();
+      const animal = await animalRepo.findMarketplaceAnimal(listingData.subjectId);
       const pesees = await apiClient.get<any[]>(`/production/pesees`, {
         params: { animal_id: listingData.subjectId, limit: 1 },
       });

@@ -63,11 +63,19 @@ export function useMarketplaceStatusForAnimals() {
     setError(null);
 
     try {
-      const listings = await apiClient.get<MarketplaceListing[]>('/marketplace/listings', {
+      // Le backend retourne maintenant un objet avec pagination
+      // Utiliser une limite élevée pour récupérer tous les listings du projet
+      const response = await apiClient.get<{
+        listings: MarketplaceListing[];
+        total: number;
+      }>('/marketplace/listings', {
         params: {
           projet_id: projetActif.id,
+          limit: 500, // Récupérer tous les listings du projet (limite max)
         },
       });
+
+      const listings = response.listings || [];
 
       // Filtrer uniquement les listings actifs (available, reserved)
       const activeListings = listings.filter(

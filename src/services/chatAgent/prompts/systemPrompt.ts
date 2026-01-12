@@ -426,6 +426,101 @@ export const ACTIONS_SCHEMA = {
     ],
     requiresConfirmation: false,
   },
+
+  // ============================================
+  // MARKETPLACE - Vente automatisée par Kouakou
+  // ============================================
+  marketplace_sell_animal: {
+    description: 'Mettre un animal ou groupe d\'animaux en vente sur le marketplace avec gestion automatique des offres',
+    params: {
+      animalCode: 'string (optionnel: code de l\'animal, ex: P123)',
+      animalId: 'string (optionnel: ID de l\'animal)',
+      batchId: 'string (optionnel: ID de la loge/bande)',
+      logeName: 'string (optionnel: nom de la loge, ex: Loge 2)',
+      weight: 'number (optionnel: poids en kg)',
+      weightRange: 'object (optionnel: {min, max} poids en kg)',
+      pricePerKg: 'number (optionnel: prix au kg en FCFA)',
+      minPricePerKg: 'number (optionnel: prix minimum au kg)',
+      autoManage: 'boolean (optionnel: gestion auto des offres, défaut: true)',
+    },
+    keywords: [
+      'vendre',
+      'mettre en vente',
+      'publier annonce',
+      'marketplace',
+      'vendre porc',
+      'vendre au marché',
+      'proposer à la vente',
+    ],
+    requiresConfirmation: false,
+  },
+  marketplace_set_price: {
+    description: 'Configurer le prix de vente et les seuils de gestion automatique',
+    params: {
+      listingId: 'string (optionnel: ID de l\'annonce)',
+      pricePerKg: 'number (obligatoire: prix demandé par kg)',
+      minPricePerKg: 'number (optionnel: prix minimum acceptable)',
+      autoAcceptThreshold: 'number (optionnel: % sous le target pour acceptation auto)',
+      confirmThreshold: 'number (optionnel: % sous le min pour confirmation, défaut: 5)',
+      autoRejectThreshold: 'number (optionnel: % sous le min pour rejet auto, défaut: 5)',
+    },
+    keywords: ['prix', 'fixer prix', 'configurer prix', 'prix minimum'],
+    requiresConfirmation: false,
+  },
+  marketplace_get_price_trends: {
+    description: 'Obtenir les tendances actuelles du prix du porc sur le marché',
+    params: {},
+    keywords: [
+      'prix du marché',
+      'tendance prix',
+      'prix actuel',
+      'prix moyen',
+      'cours du porc',
+      'à combien vendre',
+      'quel prix',
+    ],
+    requiresConfirmation: false,
+  },
+  marketplace_check_offers: {
+    description: 'Vérifier les offres reçues sur mes annonces',
+    params: {},
+    keywords: [
+      'offres',
+      'mes offres',
+      'offres reçues',
+      'nouvelles offres',
+      'propositions',
+      'acheteurs intéressés',
+    ],
+    requiresConfirmation: false,
+  },
+  marketplace_respond_offer: {
+    description: 'Répondre à une offre (accepter, refuser ou contre-proposer)',
+    params: {
+      offerId: 'string (optionnel: ID de l\'offre)',
+      action: 'string (accept|reject|counter)',
+      counterPrice: 'number (optionnel: prix de contre-proposition)',
+    },
+    keywords: [
+      'accepter offre',
+      'refuser offre',
+      'contre-proposition',
+      'négocier',
+    ],
+    requiresConfirmation: true,
+  },
+  marketplace_get_my_listings: {
+    description: 'Voir mes annonces en cours sur le marketplace',
+    params: {},
+    keywords: [
+      'mes annonces',
+      'annonces en cours',
+      'mes ventes',
+      'ce que je vends',
+      'animaux en vente',
+    ],
+    requiresConfirmation: false,
+  },
 };
 
 /**

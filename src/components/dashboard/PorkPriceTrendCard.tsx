@@ -85,73 +85,31 @@ export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
     return startOfMonth(weekStart);
   };
 
-  // Préparer les données pour le graphique (groupées par mois)
+  // Préparer les données pour le graphique (4 dernières semaines)
   const chartData = useMemo(() => {
     if (trends.length === 0) return null;
 
-    // Grouper les tendances hebdomadaires par mois
-    const monthlyData = new Map<string, { prices: number[]; regionalPrices: number[] }>();
+    // Prendre les 4 dernières semaines
+    const last4Weeks = trends.slice(-4);
 
-    trends.forEach((t) => {
-      const monthDate = getMonthFromTrend(t);
-      const monthKey = format(monthDate, 'yyyy-MM');
+    // Créer les labels (Semaine N)
+    const labels = last4Weeks.map((t) => `S${t.weekNumber}`);
 
-      if (!monthlyData.has(monthKey)) {
-        monthlyData.set(monthKey, { prices: [], regionalPrices: [] });
-      }
-
-      const monthData = monthlyData.get(monthKey)!;
-      const price = t.avgPricePlatform || t.avgPriceRegional || 0;
-      const regionalPrice = t.avgPriceRegional || 0;
-
-      if (price > 0) {
-        monthData.prices.push(price);
-      }
-      if (regionalPrice > 0) {
-        monthData.regionalPrices.push(regionalPrice);
-      }
-    });
-
-    // Convertir en tableau et trier par date
-    const sortedMonths = Array.from(monthlyData.entries())
-      .map(([key, data]) => ({
-        monthKey: key,
-        monthDate: parseISO(key + '-01'),
-        avgPrice:
-          data.prices.length > 0
-            ? Math.round(data.prices.reduce((a, b) => a + b, 0) / data.prices.length)
-            : 0,
-        avgRegionalPrice:
-          data.regionalPrices.length > 0
-            ? Math.round(
-                data.regionalPrices.reduce((a, b) => a + b, 0) / data.regionalPrices.length
-              )
-            : 0,
-      }))
-      .sort((a, b) => a.monthDate.getTime() - b.monthDate.getTime())
-      .slice(-6); // Prendre les 6 derniers mois
-
-    // Créer les labels (MMM yyyy)
-    const labels = sortedMonths.map((m) => format(m.monthDate, 'MMM yyyy', { locale: fr }));
-
-    // Créer les données de prix (plateforme)
-    const platformData = sortedMonths.map((m) => m.avgPrice);
-
-    // Créer les données de prix régional
-    const regionalData = sortedMonths.map((m) => m.avgRegionalPrice);
+    // Créer les données de prix
+    const priceData = last4Weeks.map((t) => t.avgPricePlatform || t.avgPriceRegional || 0);
 
     // Calculer min et max pour l'échelle
-    const allPrices = [...platformData, ...regionalData].filter((p) => p > 0);
+    const allPrices = priceData.filter((p) => p > 0);
     const minPrice = allPrices.length > 0 ? Math.min(...allPrices) : 500;
     const maxPrice = allPrices.length > 0 ? Math.max(...allPrices) : 2000;
-    const range = maxPrice - minPrice;
-    const padding = range * 0.1; // 10% de padding
+    const range = maxPrice - minPrice || 500;
+    const padding = range * 0.1;
 
     return {
-      labels: labels, // Afficher tous les labels pour 6 mois
+      labels,
       datasets: [
         {
-          data: platformData,
+          data: priceData.map(p => p || minPrice), // Éviter les 0 pour le graphique
         },
       ],
       yAxisMin: Math.max(0, minPrice - padding),
@@ -159,92 +117,89 @@ export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
     };
   }, [trends]);
 
-  // Calculer le prix du mois en cours et du mois précédent
-  const { currentMonthPrice, previousMonthPrice, monthPriceChange, monthPriceChangePercent } =
+  // Calculer le prix moyen des 4 dernières semaines
+  const { avgPrice4Weeks, previousAvgPrice, weekPriceChange, weekPriceChangePercent } =
     useMemo(() => {
       if (trends.length === 0) {
         return {
-          currentMonthPrice: undefined,
-          previousMonthPrice: undefined,
-          monthPriceChange: undefined,
-          monthPriceChangePercent: undefined,
+          avgPrice4Weeks: undefined,
+          previousAvgPrice: undefined,
+          weekPriceChange: undefined,
+          weekPriceChangePercent: undefined,
         };
       }
 
-      // Grouper par mois
-      const monthlyData = new Map<string, number[]>();
+      // Prendre les 4 dernières semaines
+      const last4Weeks = trends.slice(-4);
+      const prices = last4Weeks
+        .map((t) => t.avgPricePlatform || t.avgPriceRegional || 0)
+        .filter((p) => p > 0);
 
-      trends.forEach((t) => {
-        const monthDate = getMonthFromTrend(t);
-        const monthKey = format(monthDate, 'yyyy-MM');
-
-        if (!monthlyData.has(monthKey)) {
-          monthlyData.set(monthKey, []);
-        }
-
-        const price = t.avgPricePlatform || t.avgPriceRegional || 0;
-        if (price > 0) {
-          monthlyData.get(monthKey)!.push(price);
-        }
-      });
-
-      // Trier par date
-      const sortedMonths = Array.from(monthlyData.entries())
-        .map(([key, prices]) => ({
-          monthKey: key,
-          monthDate: parseISO(key + '-01'),
-          avgPrice: prices.length > 0 ? prices.reduce((a, b) => a + b, 0) / prices.length : 0,
-        }))
-        .sort((a, b) => a.monthDate.getTime() - b.monthDate.getTime())
-        .filter((m) => m.avgPrice > 0);
-
-      if (sortedMonths.length === 0) {
+      if (prices.length === 0) {
         return {
-          currentMonthPrice: undefined,
-          previousMonthPrice: undefined,
-          monthPriceChange: undefined,
-          monthPriceChangePercent: undefined,
+          avgPrice4Weeks: undefined,
+          previousAvgPrice: undefined,
+          weekPriceChange: undefined,
+          weekPriceChangePercent: undefined,
         };
       }
 
-      const currentMonth = sortedMonths[sortedMonths.length - 1];
-      const previousMonth =
-        sortedMonths.length > 1 ? sortedMonths[sortedMonths.length - 2] : undefined;
+      // Prix moyen des 4 dernières semaines
+      const avgPrice = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length);
 
-      const currentPrice = currentMonth.avgPrice;
-      const previousPrice = previousMonth?.avgPrice;
-      const change = previousPrice ? currentPrice - previousPrice : undefined;
-      const changePercent = previousPrice ? (change! / previousPrice) * 100 : undefined;
+      // Comparer avec les 4 semaines précédentes (si disponibles)
+      let previousAvg: number | undefined;
+      let change: number | undefined;
+      let changePercent: number | undefined;
+
+      if (trends.length >= 8) {
+        const previous4Weeks = trends.slice(-8, -4);
+        const previousPrices = previous4Weeks
+          .map((t) => t.avgPricePlatform || t.avgPriceRegional || 0)
+          .filter((p) => p > 0);
+        
+        if (previousPrices.length > 0) {
+          previousAvg = Math.round(previousPrices.reduce((a, b) => a + b, 0) / previousPrices.length);
+          change = avgPrice - previousAvg;
+          changePercent = (change / previousAvg) * 100;
+        }
+      }
 
       return {
-        currentMonthPrice: currentPrice,
-        previousMonthPrice: previousPrice,
-        monthPriceChange: change,
-        monthPriceChangePercent: changePercent,
+        avgPrice4Weeks: avgPrice,
+        previousAvgPrice: previousAvg,
+        weekPriceChange: change,
+        weekPriceChangePercent: changePercent,
       };
     }, [trends]);
 
-  // Formatage du sous-titre avec variation
-  const subtitle = useMemo(() => {
-    if (!currentMonthPrice) return 'Mois en cours : Calcul en cours...';
-
-    const priceFormatted = Math.round(currentMonthPrice).toLocaleString('fr-FR');
-    let changeText = '';
-    let changeColor = colors.textSecondary;
-
-    if (
-      monthPriceChange !== undefined &&
-      monthPriceChangePercent !== undefined &&
-      previousMonthPrice
-    ) {
-      const changeFormatted = Math.abs(monthPriceChangePercent).toFixed(1);
-      const arrow = monthPriceChange >= 0 ? '↑' : '↓';
-      changeText = ` (${arrow} ${changeFormatted}% vs M-1)`;
-      changeColor = monthPriceChange >= 0 ? colors.success : colors.error;
+  // Formatage du sous-titre avec variation (prix moyen 4 dernières semaines)
+  const { priceText, changeText, changeColor } = useMemo(() => {
+    if (!avgPrice4Weeks) {
+      return { priceText: 'Calcul en cours...', changeText: '', changeColor: colors.textSecondary };
     }
 
-    return `Mois en cours : ${priceFormatted} FCFA/kg${changeText}`;
-  }, [currentMonthPrice, monthPriceChange, monthPriceChangePercent, previousMonthPrice, colors]);
+    const priceFormatted = avgPrice4Weeks.toLocaleString('fr-FR');
+    let change = '';
+    let color = colors.textSecondary;
+
+    if (
+      weekPriceChange !== undefined &&
+      weekPriceChangePercent !== undefined &&
+      previousAvgPrice
+    ) {
+      const changeFormatted = Math.abs(weekPriceChangePercent).toFixed(1);
+      const arrow = weekPriceChange >= 0 ? '↑' : '↓';
+      change = ` (${arrow} ${changeFormatted}%)`;
+      color = weekPriceChange >= 0 ? colors.success : colors.error;
+    }
+
+    return { 
+      priceText: `${priceFormatted} FCFA/kg`, 
+      changeText: change, 
+      changeColor: color 
+    };
+  }, [avgPrice4Weeks, weekPriceChange, weekPriceChangePercent, previousAvgPrice, colors]);
 
   if (loading) {
     return (
@@ -311,11 +266,14 @@ export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
       </View>
 
       <View style={styles.subtitleContainer}>
-        <Text style={[styles.subtitle, { color: colors.text }]}>
-          {subtitle.split('(')[0]}
-          {priceChange !== undefined && priceChangePercent !== undefined && (
-            <Text style={{ color: priceChange >= 0 ? colors.success : colors.error }}>
-              {subtitle.split('(')[1] ? `(${subtitle.split('(')[1]}` : ''}
+        <Text style={styles.subtitleLabel}>
+          Prix moyen (4 dernières semaines) :{' '}
+          <Text style={[styles.subtitlePrice, { color: '#2196F3' }]}>
+            {priceText}
+          </Text>
+          {changeText && (
+            <Text style={{ color: changeColor, fontWeight: '600' }}>
+              {changeText}
             </Text>
           )}
         </Text>
@@ -379,9 +337,13 @@ const styles = StyleSheet.create({
   subtitleContainer: {
     marginBottom: SPACING.md,
   },
-  subtitle: {
+  subtitleLabel: {
     fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.medium,
+    color: '#666',
+  },
+  subtitlePrice: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
   },
   chartContainer: {
     alignItems: 'center',

@@ -274,3 +274,120 @@ export function countAnimalsByPoidsCategory(
 
   return { porcelets, croissance, finition };
 }
+
+/**
+ * Calcule l'évolution du poids d'un animal sur une période
+ * @param pesees Liste des pesées de l'animal (triées par date)
+ * @param periodeJours Nombre de jours pour calculer l'évolution (défaut: 7)
+ * @returns Objet contenant l'évolution du poids en kg et le pourcentage d'évolution
+ */
+export function getEvolutionPoids(
+  pesees: ProductionPesee[],
+  periodeJours: number = 7
+): { poidsGagne: number; pourcentageEvolution: number; evolutions: Array<{ date: string; poids_kg: number }> } {
+  if (pesees.length === 0) {
+    return { poidsGagne: 0, pourcentageEvolution: 0, evolutions: [] };
+  }
+
+  // Trier les pesées par date (plus ancienne en premier)
+  const peseesTriees = [...pesees].sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
+
+  const maintenant = new Date();
+  const dateLimite = new Date(maintenant.getTime() - periodeJours * 24 * 60 * 60 * 1000);
+
+  // Filtrer les pesées dans la période
+  const peseesPeriode = peseesTriees.filter(
+    (pesee) => new Date(pesee.date).getTime() >= dateLimite.getTime()
+  );
+
+  if (peseesPeriode.length < 2) {
+    // Pas assez de pesées pour calculer une évolution
+    return { poidsGagne: 0, pourcentageEvolution: 0, evolutions: peseesTriees.map(p => ({ date: p.date, poids_kg: p.poids_kg })) };
+  }
+
+  const poidsInitial = peseesPeriode[0].poids_kg;
+  const poidsFinal = peseesPeriode[peseesPeriode.length - 1].poids_kg;
+  const poidsGagne = poidsFinal - poidsInitial;
+  const pourcentageEvolution = poidsInitial > 0 ? (poidsGagne / poidsInitial) * 100 : 0;
+
+  return {
+    poidsGagne,
+    pourcentageEvolution,
+    evolutions: peseesTriees.map(p => ({ date: p.date, poids_kg: p.poids_kg })),
+  };
+}
+
+/**
+ * Estime le poids actuel d'un animal en se basant sur la dernière pesée et le GMQ
+ * @param animal L'animal
+ * @param pesees Liste des pesées de l'animal
+ * @param gmqJour GMQ en kg/jour (optionnel, calculé automatiquement si non fourni)
+ * @returns Poids estimé en kg et date de dernière pesée
+ */
+export function getPoidsActuelEstime(
+  animal: ProductionAnimal,
+  pesees: ProductionPesee[],
+  gmqJour?: number
+): { poidsEstime: number; dateDernierePesee: string | null; source: 'pesee' | 'estimation' | 'initial' } {
+  if (pesees.length > 0) {
+    // Trier les pesées par date (la plus récente en premier)
+    const peseesTriees = [...pesees].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+
+    const dernierePesee = peseesTriees[0];
+    const dateDernierePesee = new Date(dernierePesee.date);
+    const maintenant = new Date();
+    const joursDepuisDernierePesee = Math.floor(
+      (maintenant.getTime() - dateDernierePesee.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    // Si la dernière pesée date de moins de 3 jours, utiliser directement le poids
+    if (joursDepuisDernierePesee < 3) {
+      return {
+        poidsEstime: dernierePesee.poids_kg,
+        dateDernierePesee: dernierePesee.date,
+        source: 'pesee',
+      };
+    }
+
+    // Calculer le GMQ si non fourni
+    let gmq = gmqJour;
+    if (!gmq && peseesTriees.length >= 2) {
+      const premierePesee = peseesTriees[peseesTriees.length - 1];
+      const differencePoids = dernierePesee.poids_kg - premierePesee.poids_kg;
+      const differenceJours =
+        (new Date(dernierePesee.date).getTime() - new Date(premierePesee.date).getTime()) /
+        (1000 * 60 * 60 * 24);
+
+      if (differenceJours > 0) {
+        gmq = differencePoids / differenceJours;
+      }
+    }
+
+    // Utiliser le GMQ moyen si disponible, sinon utiliser une valeur par défaut selon la catégorie
+    if (!gmq || gmq <= 0) {
+      const categorie = getCategoriePoids(dernierePesee.poids_kg);
+      // Valeurs moyennes de GMQ par catégorie (kg/jour)
+      gmq = categorie === 'porcelet' ? 0.3 : categorie === 'croissance' ? 0.6 : 0.4;
+    }
+
+    // Estimer le poids en ajoutant le GMQ multiplié par le nombre de jours
+    const poidsEstime = dernierePesee.poids_kg + gmq * joursDepuisDernierePesee;
+
+    return {
+      poidsEstime: Math.max(poidsEstime, dernierePesee.poids_kg), // Ne pas estimer moins que la dernière pesée
+      dateDernierePesee: dernierePesee.date,
+      source: 'estimation',
+    };
+  }
+
+  // Pas de pesées, utiliser le poids initial
+  return {
+    poidsEstime: animal.poids_initial || 0,
+    dateDernierePesee: null,
+    source: 'initial',
+  };
+}

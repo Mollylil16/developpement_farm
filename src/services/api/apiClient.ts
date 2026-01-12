@@ -4,12 +4,13 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { API_CONFIG } from '../../config/api.config';
 import { isLoggingEnabled } from '../../config/env';
 import { withRetry, RetryOptions } from './retryHandler';
 import { checkNetworkConnectivity } from '../network/networkService';
 import { createLoggerWithPrefix } from '../../utils/logger';
-import { requestQueue } from './requestQueue';
+import { requestQueue, getRequestPriority, RequestPriority } from './requestQueue';
 import { APIError } from './apiError';
 
 const logger = createLoggerWithPrefix('apiClient');
@@ -18,14 +19,120 @@ const logger = createLoggerWithPrefix('apiClient');
 const API_BASE_URL = API_CONFIG.baseURL;
 const API_TIMEOUT = API_CONFIG.timeout;
 
-// Clés de stockage
-const ACCESS_TOKEN_KEY = '@fermier_pro:access_token';
-const REFRESH_TOKEN_KEY = '@fermier_pro:refresh_token';
+/**
+ * Timeouts configurés par type d'endpoint
+ * Permet d'optimiser les timeouts selon la nature de la requête
+ */
+const ENDPOINT_TIMEOUTS: Record<string, number> = {
+  // Auth - rapide
+  '/auth/login': 10000,
+  '/auth/refresh': 5000,
+  '/auth/me': 5000,
+  
+  // Production - peut être lourd avec beaucoup d'animaux
+  '/production/animaux': 20000,
+  '/production/pesees': 15000,
+  
+  // Finance - données souvent nombreuses
+  '/finance/revenus': 15000,
+  '/finance/depenses': 15000,
+  '/finance/charges-fixes': 15000,
+  
+  // Marketplace - peut avoir beaucoup de listings
+  '/marketplace/listings': 20000,
+  
+  // Kouakou - IA peut prendre du temps
+  '/kouakou/chat': 30000,
+  
+  // Uploads/Downloads - toujours longs
+  '/upload': 60000,
+  '/download': 60000,
+};
+
+/**
+ * Détermine le timeout approprié pour un endpoint donné
+ */
+function getEndpointTimeout(endpoint: string, defaultTimeout: number): number {
+  // Chercher un timeout spécifique pour cet endpoint
+  for (const [pattern, timeout] of Object.entries(ENDPOINT_TIMEOUTS)) {
+    if (endpoint.includes(pattern)) {
+      return timeout;
+    }
+  }
+  
+  // Utiliser le timeout par défaut
+  return defaultTimeout;
+}
+
+// Clés de stockage - DOIVENT respecter les règles SecureStore (alphanumérique + . - _)
+const ACCESS_TOKEN_KEY = 'fermier_pro.access_token';
+const REFRESH_TOKEN_KEY = 'fermier_pro.refresh_token';
+
+// Anciennes clés pour migration (avec @ et :) - plus utilisées mais gardées pour référence
+const LEGACY_ACCESS_TOKEN_KEY = '@fermier_pro:access_token';
+const LEGACY_REFRESH_TOKEN_KEY = '@fermier_pro:refresh_token';
+
+// Fonction de validation des clés SecureStore
+function validateSecureStoreKey(key: string): boolean {
+  // SecureStore n'accepte que : alphanumérique + . - _
+  return /^[a-zA-Z0-9._-]+$/.test(key) && key.length > 0;
+}
+
+/**
+ * Contrôle des logs SecureStore pour éviter le spam
+ * On ne log qu'une fois par type d'opération toutes les 5 secondes
+ */
+const secureStoreLogTimestamps: Record<string, number> = {};
+const SECURE_STORE_LOG_THROTTLE_MS = 5000; // 5 secondes entre chaque log du même type
+
+/**
+ * Fonction de debug sécurisée pour les clés SecureStore
+ * ⚠️ SÉCURITÉ : Ne log JAMAIS le contenu réel des tokens ou les noms de clés complets
+ * Seulement des métadonnées non sensibles pour le débogage
+ * 
+ * ⚡ PERFORMANCE : Les logs sont throttlés (1 log par opération toutes les 5 secondes)
+ * pour éviter le spam de logs répétitifs
+ */
+function debugSecureStoreKey(key: string, operation: string) {
+  if (__DEV__) {
+    // Throttling : éviter les logs répétitifs pour la même opération
+    const now = Date.now();
+    const lastLog = secureStoreLogTimestamps[operation] || 0;
+    
+    if (now - lastLog < SECURE_STORE_LOG_THROTTLE_MS) {
+      // Ignorer ce log car un log similaire a été émis récemment
+      return;
+    }
+    
+    // Mettre à jour le timestamp de dernier log
+    secureStoreLogTimestamps[operation] = now;
+    
+    // Logger uniquement des informations non sensibles :
+    // - Type de clé (access_token/refresh_token) au lieu du nom complet
+    // - Validation de la clé (pour détecter les erreurs de format)
+    // NE JAMAIS logger : la clé complète, les caractères individuels, ou le contenu des tokens
+    const isValid = validateSecureStoreKey(key);
+    
+    // Déterminer le type de clé sans exposer le nom complet
+    let keyType = 'unknown';
+    if (operation.includes('access') || key.includes('access')) {
+      keyType = 'access_token';
+    } else if (operation.includes('refresh') || key.includes('refresh')) {
+      keyType = 'refresh_token';
+    }
+    
+    logger.debug(`[SecureStore] ${operation}`, {
+      keyType, // Type de clé sans exposer le nom complet
+      isValid,
+      // ⚠️ SÉCURITÉ : Ne pas logger la clé complète ou son contenu
+    });
+  }
+}
 
 // Système simplifié de gestion des refresh simultanés
 const activeRefreshPromises = new Map<string, Promise<string | null>>();
 let lastRefreshAttempt = 0;
-const REFRESH_COOLDOWN = 2000; // 2 secondes entre les tentatives de refresh (réduit)
+const REFRESH_COOLDOWN = 500; // 500ms entre les tentatives de refresh (optimisé - le verrouillage par activeRefreshPromises devrait suffire)
 const MAX_REFRESH_ATTEMPTS = 3;
 const DEFAULT_RATE_LIMIT_BACKOFF = 4000; // 4 secondes si le backend renvoie 429 sans header
 
@@ -101,42 +208,204 @@ function parseRetryAfter(headerValue: string | null): number | undefined {
 }
 
 /**
- * Récupère le token d'accès depuis AsyncStorage
+ * Migre les tokens d'AsyncStorage vers SecureStore (une seule fois)
+ * SÉCURITÉ : Cette fonction migre les tokens existants pour ne pas perdre les sessions
+ */
+async function migrateTokensToSecureStore(): Promise<void> {
+  try {
+    // Vérifier si on a déjà des tokens dans SecureStore avec les nouvelles clés
+    const existingToken = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+    if (existingToken) {
+      // Migration déjà faite, supprimer les anciens tokens de AsyncStorage
+      await AsyncStorage.multiRemove([LEGACY_ACCESS_TOKEN_KEY, LEGACY_REFRESH_TOKEN_KEY]);
+      return;
+    }
+
+    // Vérifier d'abord les nouvelles clés dans AsyncStorage (au cas où)
+    let oldAccessToken = await AsyncStorage.getItem(ACCESS_TOKEN_KEY);
+    let oldRefreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
+
+    // Si pas trouvé, essayer les anciennes clés (legacy)
+    if (!oldAccessToken) {
+      oldAccessToken = await AsyncStorage.getItem(LEGACY_ACCESS_TOKEN_KEY);
+    }
+    if (!oldRefreshToken) {
+      oldRefreshToken = await AsyncStorage.getItem(LEGACY_REFRESH_TOKEN_KEY);
+    }
+
+    if (oldAccessToken || oldRefreshToken) {
+      // Migrer vers SecureStore avec les nouvelles clés valides
+      if (oldAccessToken) {
+        debugSecureStoreKey(ACCESS_TOKEN_KEY, 'migration access_token');
+        await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, oldAccessToken);
+      }
+      if (oldRefreshToken) {
+        debugSecureStoreKey(REFRESH_TOKEN_KEY, 'migration refresh_token');
+        await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, oldRefreshToken);
+      }
+
+      // Supprimer les anciens tokens d'AsyncStorage après migration réussie
+      await AsyncStorage.multiRemove([ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, LEGACY_ACCESS_TOKEN_KEY, LEGACY_REFRESH_TOKEN_KEY]);
+
+      if (__DEV__) {
+        logger.log('[SECURITY] Migration des tokens vers SecureStore réussie (nouvelles clés)');
+      }
+    }
+  } catch (error) {
+    if (__DEV__) {
+      logger.warn('Erreur lors de la migration des tokens vers SecureStore:', {
+        message: (error as any)?.message || 'Message d\'erreur non disponible',
+        name: (error as any)?.name || 'Type d\'erreur inconnu',
+      });
+    }
+    // Ne pas bloquer l'application en cas d'erreur de migration
+  }
+}
+
+/**
+ * Récupère le token d'accès depuis SecureStore (chiffré)
+ * SÉCURITÉ : Utilise SecureStore au lieu d'AsyncStorage pour stocker les tokens de manière sécurisée
  */
 async function getAccessToken(): Promise<string | null> {
   try {
-    const token = await AsyncStorage.getItem(ACCESS_TOKEN_KEY);
-    // Ne logger le token que si le logging très détaillé est activé (évite les logs excessifs)
-    // Le token est récupéré à chaque requête API, donc pas besoin de logger systématiquement
+    // Valider la clé avant utilisation
+    if (!validateSecureStoreKey(ACCESS_TOKEN_KEY)) {
+      throw new Error(`Clé SecureStore invalide: ${ACCESS_TOKEN_KEY}`);
+    }
+
+    debugSecureStoreKey(ACCESS_TOKEN_KEY, 'get access_token');
+
+    // SÉCURITÉ : Utiliser SecureStore pour stocker les tokens de manière chiffrée
+    // SecureStore utilise le Keychain iOS / Keystore Android
+    let token = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+
+    // Si pas de token dans SecureStore, essayer la migration depuis AsyncStorage (une fois)
+    if (!token) {
+      await migrateTokensToSecureStore();
+      token = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+    }
+
+    // ⚠️ IMPORTANT : Ne JAMAIS logger le token, même en mode développement
     return token;
   } catch (error) {
-    logger.error('Erreur lors de la récupération du token:', error);
-    return null;
+    // Si l'erreur indique que SecureStore n'est pas disponible ou autre problème technique,
+    // logger seulement en développement avec plus de détails
+    if (__DEV__) {
+      logger.warn('Erreur lors de la récupération du token depuis SecureStore:', {
+        message: (error as any)?.message || 'Message d\'erreur non disponible',
+        name: (error as any)?.name || 'Type d\'erreur inconnu',
+        stack: (error as any)?.stack || 'Stack trace non disponible',
+        errorObject: error || 'Objet error vide',
+      });
+    }
+
+    // Fallback vers AsyncStorage pour compatibilité (migration)
+    try {
+      // Essayer d'abord la nouvelle clé, puis l'ancienne
+      let fallbackToken = await AsyncStorage.getItem(ACCESS_TOKEN_KEY);
+      if (!fallbackToken) {
+        fallbackToken = await AsyncStorage.getItem(LEGACY_ACCESS_TOKEN_KEY);
+      }
+
+      if (!fallbackToken) {
+        // Pas de token du tout - c'est normal si l'utilisateur n'est pas connecté
+        if (__DEV__) {
+          logger.debug('Aucun token trouvé (utilisateur non connecté ou première utilisation)');
+        }
+        return null;
+      }
+      return fallbackToken;
+    } catch (fallbackError) {
+      if (__DEV__) {
+        logger.warn('Erreur lors du fallback AsyncStorage:', {
+          message: (fallbackError as any)?.message || 'Message d\'erreur non disponible',
+          name: (fallbackError as any)?.name || 'Type d\'erreur inconnu',
+        });
+      }
+      return null;
+    }
   }
 }
 
 /**
- * Stocke les tokens dans AsyncStorage
+ * Stocke les tokens dans SecureStore (chiffré)
+ * SÉCURITÉ : Utilise SecureStore au lieu d'AsyncStorage pour stocker les tokens de manière sécurisée
  */
 async function setTokens(accessToken: string, refreshToken?: string): Promise<void> {
   try {
-    await AsyncStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+    // Valider les clés avant utilisation
+    if (!validateSecureStoreKey(ACCESS_TOKEN_KEY)) {
+      throw new Error(`Clé SecureStore invalide: ${ACCESS_TOKEN_KEY}`);
+    }
+    if (refreshToken && !validateSecureStoreKey(REFRESH_TOKEN_KEY)) {
+      throw new Error(`Clé SecureStore invalide: ${REFRESH_TOKEN_KEY}`);
+    }
+
+    debugSecureStoreKey(ACCESS_TOKEN_KEY, 'set access_token');
+
+    // SÉCURITÉ : Utiliser SecureStore pour stocker les tokens de manière chiffrée
+    // SecureStore utilise le Keychain iOS / Keystore Android
+    await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken);
+
     if (refreshToken) {
-      await AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+      debugSecureStoreKey(REFRESH_TOKEN_KEY, 'set refresh_token');
+      await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
     }
   } catch (error) {
-    logger.error('Erreur lors du stockage des tokens:', error);
+    if (__DEV__) {
+      logger.error('Erreur lors du stockage des tokens:', {
+        message: (error as any)?.message || 'Message d\'erreur non disponible',
+        name: (error as any)?.name || 'Type d\'erreur inconnu',
+      });
+    }
+    // En cas d'erreur, essayer un fallback vers AsyncStorage pour compatibilité (déprécié)
+    // TODO: Retirer ce fallback après migration complète
+    if (__DEV__) {
+      logger.warn('[SECURITY] Fallback vers AsyncStorage - à retirer après migration complète');
+      try {
+        await AsyncStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+        if (refreshToken) {
+          await AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+        }
+      } catch (fallbackError) {
+        logger.error('Erreur lors du fallback vers AsyncStorage:', fallbackError);
+      }
+    }
   }
 }
 
 /**
- * Supprime les tokens d'AsyncStorage
+ * Supprime les tokens de SecureStore
+ * SÉCURITÉ : Supprime également les tokens du fallback AsyncStorage si présents
  */
 async function clearTokens(): Promise<void> {
   try {
-    await AsyncStorage.multiRemove([ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY]);
+    // Valider les clés avant utilisation
+    if (validateSecureStoreKey(ACCESS_TOKEN_KEY) && validateSecureStoreKey(REFRESH_TOKEN_KEY)) {
+      debugSecureStoreKey(ACCESS_TOKEN_KEY, 'delete access_token');
+      debugSecureStoreKey(REFRESH_TOKEN_KEY, 'delete refresh_token');
+
+      // Supprimer de SecureStore (méthode principale)
+      await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
+      await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+    }
   } catch (error) {
-    logger.error('Erreur lors de la suppression des tokens:', error);
+    if (__DEV__) {
+      logger.warn('Erreur lors de la suppression des tokens de SecureStore:', {
+        message: (error as any)?.message || 'Message d\'erreur non disponible',
+        name: (error as any)?.name || 'Type d\'erreur inconnu',
+      });
+    }
+  }
+
+  // Supprimer également du fallback AsyncStorage pour compatibilité (migration)
+  try {
+    await AsyncStorage.multiRemove([ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, LEGACY_ACCESS_TOKEN_KEY, LEGACY_REFRESH_TOKEN_KEY]);
+  } catch (error) {
+    // Ignorer les erreurs du fallback
+    if (__DEV__) {
+      logger.debug('Erreur lors de la suppression du fallback AsyncStorage (ignorée):', error);
+    }
   }
 }
 
@@ -154,7 +423,59 @@ async function refreshAccessToken(): Promise<string | null> {
  * @param forceRefresh Si true, ignore le cooldown (utile après un 401)
  */
 async function refreshAccessTokenWithReason(forceRefresh = false): Promise<RefreshResult> {
-  const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
+  // SÉCURITÉ : Utiliser SecureStore pour récupérer le refresh token
+  let refreshToken: string | null = null;
+  try {
+    // Valider la clé avant utilisation
+    if (!validateSecureStoreKey(REFRESH_TOKEN_KEY)) {
+      throw new Error(`Clé SecureStore invalide: ${REFRESH_TOKEN_KEY}`);
+    }
+
+    debugSecureStoreKey(REFRESH_TOKEN_KEY, 'refresh get');
+
+    refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+
+    // Si pas de token dans SecureStore, essayer la migration depuis AsyncStorage (une fois)
+    if (!refreshToken) {
+      await migrateTokensToSecureStore();
+      refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+    }
+  } catch (error) {
+    if (__DEV__) {
+      logger.warn('Erreur lors de la récupération du refresh token depuis SecureStore:', {
+        message: (error as any)?.message || 'Message d\'erreur non disponible',
+        name: (error as any)?.name || 'Type d\'erreur inconnu',
+        errorObject: error || 'Objet error vide',
+      });
+    }
+
+    // Fallback vers AsyncStorage pour compatibilité (migration)
+    try {
+      // Essayer d'abord la nouvelle clé, puis l'ancienne
+      let fallbackToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
+      if (!fallbackToken) {
+        fallbackToken = await AsyncStorage.getItem(LEGACY_REFRESH_TOKEN_KEY);
+      }
+
+      // Si trouvé dans AsyncStorage, migrer vers SecureStore
+      if (fallbackToken) {
+        if (validateSecureStoreKey(REFRESH_TOKEN_KEY)) {
+          debugSecureStoreKey(REFRESH_TOKEN_KEY, 'refresh migrate');
+          await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, fallbackToken);
+          await AsyncStorage.removeItem(REFRESH_TOKEN_KEY);
+          await AsyncStorage.removeItem(LEGACY_REFRESH_TOKEN_KEY);
+        }
+        refreshToken = fallbackToken;
+      }
+    } catch (fallbackError) {
+      if (__DEV__) {
+        logger.warn('Erreur lors du fallback vers AsyncStorage:', {
+          message: (fallbackError as any)?.message || 'Message d\'erreur non disponible',
+          name: (fallbackError as any)?.name || 'Type d\'erreur inconnu',
+        });
+      }
+    }
+  }
 
   if (!refreshToken) {
     logger.warn('No refresh token available');
@@ -215,7 +536,18 @@ async function refreshAccessTokenWithReason(forceRefresh = false): Promise<Refre
           }
 
           const data = await response.json();
-          await setTokens(data.access_token, data.refresh_token);
+          
+          // SÉCURITÉ : Stocker le nouveau refresh_token si fourni (rotation des tokens)
+          // Le backend doit maintenant retourner un nouveau refresh_token lors du refresh
+          // L'ancien refresh_token est révoqué côté backend
+          if (data.refresh_token) {
+            await setTokens(data.access_token, data.refresh_token);
+          } else {
+            // Fallback : stocker uniquement le nouveau access_token si pas de nouveau refresh_token
+            // (pour compatibilité avec anciennes versions du backend)
+            await setTokens(data.access_token);
+          }
+          
           logger.debug('Token rafraîchi avec succès');
           return data.access_token;
         } catch (error) {
@@ -251,7 +583,12 @@ async function refreshAccessTokenWithReason(forceRefresh = false): Promise<Refre
             throw new Error('NETWORK_ERROR');
           }
 
-          logger.error('Erreur lors du rafraîchissement du token:', error);
+          if (__DEV__) {
+            logger.error('Erreur lors du rafraîchissement du token:', {
+              message: (error as any)?.message || 'Message d\'erreur non disponible',
+              name: (error as any)?.name || 'Type d\'erreur inconnu',
+            });
+          }
           throw error;
         }
       }
@@ -303,13 +640,16 @@ async function refreshAccessTokenWithReason(forceRefresh = false): Promise<Refre
  */
 async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const {
-    timeout = API_TIMEOUT,
+    timeout: customTimeout,
     skipAuth = false,
     retry = true,
     offlineFallback = false,
     skipQueue = false,
     ...fetchOptions
   } = options;
+  
+  // Utiliser le timeout personnalisé, ou celui de l'endpoint, ou le défaut
+  const timeout = customTimeout ?? getEndpointTimeout(endpoint, API_TIMEOUT);
 
   // Vérifier la connectivité réseau
   const networkState = await checkNetworkConnectivity();
@@ -336,15 +676,19 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     return executeRequest();
   };
 
-  // Les requêtes auth sont prioritaires et contournent la queue
-  const isAuthRequest = endpoint.includes('/auth/') || skipQueue;
+  // Les requêtes auth critiques contournent complètement la queue
+  const isCriticalAuthRequest = (endpoint.includes('/auth/refresh') || endpoint.includes('/auth/login')) && skipQueue !== false;
   
-  if (isAuthRequest) {
+  if (isCriticalAuthRequest) {
     return executeWithRetry();
   }
 
-  // Les autres requêtes passent par la queue pour éviter le thundering herd
-  return requestQueue.enqueue(executeWithRetry);
+  // Déterminer la priorité de la requête
+  const method = (fetchOptions.method || 'GET').toUpperCase();
+  const priority = skipQueue ? RequestPriority.HIGH : getRequestPriority(endpoint, method);
+
+  // Toutes les requêtes passent par la queue (sauf auth critique) avec priorités
+  return requestQueue.enqueue(executeWithRetry, priority);
 }
 
 /**
@@ -406,6 +750,11 @@ async function executeHttpRequest<T>(
     const token = await getAccessToken();
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
+    } else {
+      // Pas de token disponible - c'est normal pour les utilisateurs non connectés
+      if (__DEV__) {
+        logger.debug(`[${endpoint}] Aucun token d'authentification (utilisateur non connecté)`);
+      }
     }
   }
 
@@ -610,32 +959,49 @@ async function executeHttpRequest<T>(
 /**
  * Gère les requêtes en mode hors ligne (fallback SQLite)
  */
+/**
+ * Gère une requête en mode hors ligne avec fallback depuis AsyncStorage
+ * Pour une implémentation complète avec SQLite, voir les services de cache dédiés
+ */
 async function handleOfflineRequest<T>(endpoint: string, fetchOptions: RequestInit): Promise<T> {
-  // Pour l'instant, on lance une erreur
-  // TODO: Implémenter le fallback SQLite selon le type de requête
-  // Exemple: pour GET /auth/me, utiliser AsyncStorage
-  // Pour POST /auth/register, mettre en file d'attente pour sync plus tard
+  const method = (fetchOptions.method || 'GET').toUpperCase();
 
-  // Utiliser fetchOptions pour déterminer la méthode HTTP et logger si nécessaire
-  const method = fetchOptions.method || 'GET';
-  if (isLoggingEnabled()) {
+  if (__DEV__) {
     logger.debug(`Mode hors ligne: ${method} ${endpoint}`);
   }
 
-  if (endpoint === '/auth/me' && method === 'GET') {
-    // Fallback: récupérer l'utilisateur depuis AsyncStorage
+  // Seules les requêtes GET peuvent être servies depuis le cache
+  if (method !== 'GET') {
+    throw new APIError(
+      'Mode hors ligne. Les actions de modification nécessitent une connexion Internet. ' +
+      'Votre requête sera synchronisée automatiquement lors de la reconnexion.',
+      0
+    );
+  }
+
+  // Fallback pour /auth/me
+  if (endpoint === '/auth/me' || endpoint.includes('/auth/me')) {
     try {
-      const AsyncStorage = await import('@react-native-async-storage/async-storage');
-      const userData = await AsyncStorage.default.getItem('@fermier_pro:auth');
+      const userData = await AsyncStorage.getItem('@fermier_pro:auth');
       if (userData) {
-        return JSON.parse(userData) as T;
+        const parsed = JSON.parse(userData);
+        logger.debug('[handleOfflineRequest] Utilisateur récupéré depuis AsyncStorage');
+        return parsed as T;
       }
     } catch (error) {
-      logger.warn('Erreur lors du fallback hors ligne:', error);
+      logger.warn('[handleOfflineRequest] Erreur lors du fallback /auth/me:', error);
     }
   }
 
-  throw new APIError('Mode hors ligne. Cette action nécessite une connexion Internet.', 0);
+  // Pour les autres endpoints GET, essayer de récupérer depuis le cache si disponible
+  // Note: Les services de cache dédiés (productionCache, etc.) gèrent déjà ce cas
+  // Ici on indique simplement que le mode hors ligne est actif
+  
+  throw new APIError(
+    'Mode hors ligne. Cette donnée n\'est pas disponible en cache local. ' +
+    'Veuillez vous connecter à Internet pour accéder à cette ressource.',
+    0
+  );
 }
 const apiClient = {
   /**

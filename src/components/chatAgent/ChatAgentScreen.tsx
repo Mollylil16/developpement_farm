@@ -25,8 +25,8 @@ import { ChatMessage } from '../../types/chatAgent';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useAppSelector } from '../../store/hooks';
-import { Image } from 'react-native';
 import { VoiceService } from '../../services/chatAgent';
+import ProfilePhoto from '../ProfilePhoto';
 import { VoiceInputButton } from '../chat/VoiceInputButton';
 import { VoiceServiceV2 } from '../../services/chatAgent/VoiceServiceV2';
 import { logger } from '../../utils/logger';
@@ -420,13 +420,16 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
               </Text>
             </View>
             <View style={styles.avatarContainer}>
-              {user?.photo ? (
-                <Image source={{ uri: user.photo }} style={styles.userAvatar} />
-              ) : (
-                <View style={[styles.userAvatar, styles.userAvatarPlaceholder]}>
-                  <Text style={styles.userAvatarInitials}>{userInitials}</Text>
-                </View>
-              )}
+              <ProfilePhoto
+                uri={user?.photo || null}
+                size={32}
+                style={styles.userAvatar}
+                placeholder={
+                  <View style={[styles.userAvatar, styles.userAvatarPlaceholder]}>
+                    <Text style={styles.userAvatarInitials}>{userInitials}</Text>
+                  </View>
+                }
+              />
             </View>
           </>
         )}
@@ -682,7 +685,7 @@ const styles = StyleSheet.create({
   },
   messagesList: {
     padding: 12,
-    paddingBottom: 8,
+    paddingBottom: 100, // ✅ Espace pour voir le dernier message
   },
   messageContainer: {
     flexDirection: 'row',

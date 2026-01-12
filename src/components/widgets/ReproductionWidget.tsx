@@ -153,14 +153,14 @@ function ReproductionWidget({ onPress }: ReproductionWidgetProps) {
                 style={[
                   styles.progressFill,
                   {
-                    width: `${Math.round(reproductionData.progressionMoyenne)}%`,
+                    width: `${Math.round(reproductionData.progressionMoyenne || 0)}%`,
                     backgroundColor: colors.primary,
                   },
                 ]}
               />
             </View>
             <Text style={[styles.progressText, { color: colors.textSecondary }]}>
-              {Math.round(reproductionData.progressionMoyenne)}% de progression moyenne
+              {Math.round(reproductionData.progressionMoyenne || 0)}% de progression moyenne
             </Text>
           </View>
         )}

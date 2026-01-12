@@ -41,6 +41,7 @@ import { parseISO, differenceInMonths, differenceInDays, isAfter, isBefore, subM
 import { fr } from 'date-fns/locale';
 import { calculatePoidsTotalAnimauxActifs } from '../utils/animalUtils';
 import { exportRapportCompletPDF } from '../services/pdf/rapportCompletPDF';
+import { TAUX_CARCASSE } from '../config/finance.config';
 import PerformanceGlobaleService, {
   PerformanceGlobale,
 } from '../services/PerformanceGlobaleService';
@@ -829,7 +830,7 @@ export default function PerformanceIndicatorsComponent() {
           coutProduction: indicateursAffiches.cout_production_kg || 0,
           efficaciteAlimentaire: indicateursAffiches.efficacite_alimentaire,
           poidsVifTotal: indicateursAffiches.poids_total,
-          poidsCarcasseTotal: indicateursAffiches.poids_total * 0.75,
+          poidsCarcasseTotal: indicateursAffiches.poids_total * TAUX_CARCASSE,
           valeurEstimee: indicateursAffiches.poids_total * (projetActif.prix_kg_vif || 0),
         },
         production: {

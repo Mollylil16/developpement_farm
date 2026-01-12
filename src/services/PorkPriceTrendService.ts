@@ -388,7 +388,17 @@ export class PorkPriceTrendService {
     year: number,
     weekNumber: number
   ): Promise<MarketplaceListing[]> {
-    const allListings = await apiClient.get<any[]>('/marketplace/listings');
+    // Le backend retourne maintenant un objet avec pagination
+    // Utiliser une limite élevée pour récupérer tous les listings actifs
+    const response = await apiClient.get<{
+      listings: MarketplaceListing[];
+      total: number;
+    }>('/marketplace/listings', {
+      params: {
+        limit: 500, // Récupérer tous les listings (limite max)
+      },
+    });
+    const allListings = response.listings || [];
     return allListings.filter((l) => {
       if (l.status !== 'available') return false;
       const listedDate = new Date(l.listedAt);
@@ -414,9 +424,20 @@ export class PorkPriceTrendService {
         totalWeight += lastPesee.poids_kg;
       } else {
         // Fallback: utiliser le poids initial de l'animal
-        const animal = await apiClient.get<any>(`/production/animaux/${subjectId}`);
-        if (animal && animal.poids_initial) {
-          totalWeight += animal.poids_initial;
+        // Utiliser le repository avec silent403 car on peut avoir des animaux d'autres producteurs dans le marketplace
+        try {
+          // ✅ Utiliser la route marketplace dédiée qui ne vérifie pas l'appartenance
+          const { AnimalRepository } = await import('../database/repositories');
+          const animalRepo = new AnimalRepository();
+          const animal = await animalRepo.findMarketplaceAnimal(subjectId);
+          if (animal && animal.poids_initial) {
+            totalWeight += animal.poids_initial;
+          }
+        } catch (error) {
+          // Ignorer silencieusement les erreurs (animal peut ne pas appartenir à l'utilisateur)
+          if (__DEV__) {
+            console.warn(`[PorkPriceTrendService] Impossible de charger le poids de l'animal ${subjectId}`);
+          }
         }
       }
     }
@@ -425,30 +446,46 @@ export class PorkPriceTrendService {
   }
 
   /**
-   * Récupère les tendances des 26 dernières semaines + semaine en cours
+   * Récupère les tendances des N dernières semaines
+   * Le backend calcule les tendances depuis les listings du marketplace
+   */
+  async getLastWeeksTrends(weeks: number = 8): Promise<WeeklyPorkPriceTrend[]> {
+    try {
+      // Le backend calcule automatiquement les tendances depuis les listings
+      const trends = await apiClient.get<any[]>('/marketplace/price-trends', {
+        params: { weeks },
+      });
+      
+      // Mapper les noms de propriétés snake_case vers camelCase
+      return (trends || []).map(t => ({
+        id: t.id,
+        year: t.year,
+        weekNumber: t.weekNumber || t.week_number,
+        avgPricePlatform: t.avgPricePlatform || t.avg_price_platform,
+        avgPriceRegional: t.avgPriceRegional || t.avg_price_regional,
+        transactionsCount: t.transactionsCount || t.transactions_count || 0,
+        offersCount: t.offersCount || t.offers_count || 0,
+        listingsCount: t.listingsCount || t.listings_count || 0,
+        sourcePriority: t.sourcePriority || t.source_priority || 'regional',
+        totalWeightKg: t.totalWeightKg || t.total_weight_kg,
+        totalPriceFcfa: t.totalPriceFcfa || t.total_price_fcfa,
+        updatedAt: t.updatedAt || t.updated_at || new Date().toISOString(),
+      }));
+    } catch (error: unknown) {
+      if (error instanceof APIError && error.status === 404) {
+        logger.debug('[PorkPriceTrendService] Endpoint non disponible, retour tableau vide');
+        return [];
+      }
+      logger.error('[PorkPriceTrendService] Erreur récupération tendances:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Récupère les tendances des 26 dernières semaines (alias pour compatibilité)
    */
   async getLast26WeeksTrends(): Promise<WeeklyPorkPriceTrend[]> {
-    // Récupérer les tendances depuis l'API backend
-    try {
-      return await apiClient.get<any[]>('/marketplace/price-trends', {
-        params: { weeks: 27 },
-      });
-    } catch (error: unknown) {
-      // Si l'endpoint n'existe pas encore (404), retourner un tableau vide silencieusement
-      // L'erreur est attendue tant que l'endpoint backend n'est pas implémenté
-      if (error instanceof APIError && error.status === 404) {
-        logger.debug('[PorkPriceTrendService] Endpoint /marketplace/price-trends non disponible (404), retour tableau vide');
-        return [];
-      }
-      // Pour les autres erreurs, essayer le repository (qui échouera probablement aussi)
-      try {
-        return await this.trendRepo.findLastWeeks(27);
-      } catch {
-        // Si le repository échoue aussi, retourner un tableau vide
-        logger.warn('[PorkPriceTrendService] Impossible de récupérer les tendances, retour tableau vide');
-        return [];
-      }
-    }
+    return this.getLastWeeksTrends(27);
   }
 }
 

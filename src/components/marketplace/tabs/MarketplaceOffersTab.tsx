@@ -13,11 +13,12 @@ import {
   Alert,
   StyleSheet,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { formatSafeDate } from '../../../utils/dateUtils';
 import { useAppSelector, useAppDispatch } from '../../../store/hooks';
 import apiClient from '../../../services/api/apiClient';
+import marketplaceService from '../../../services/MarketplaceService';
 import { acceptOffer, rejectOffer } from '../../../store/slices/marketplaceSlice';
 import { MarketplaceTheme } from '../../../styles/marketplace.theme';
 import EmptyState from '../../EmptyState';
@@ -41,6 +42,41 @@ function MarketplaceOffersTab({
   const { user } = useAppSelector((state) => state.auth);
   const dispatch = useAppDispatch();
   const [offersTab, setOffersTab] = useState<'received' | 'sent'>('received');
+
+  // Logs sécurisés (aucune donnée sensible)
+  React.useEffect(() => {
+    if (__DEV__) {
+      console.log('[MarketplaceOffersTab] Props reçues:', {
+        receivedOffersCount: receivedOffers?.length || 0,
+        sentOffersCount: sentOffers?.length || 0,
+        loading,
+      });
+
+      if (sentOffers && sentOffers.length > 0) {
+        const firstOffer = sentOffers[0];
+        console.log('[MarketplaceOffersTab] Première offre envoyée (sécurisé):', {
+          status: firstOffer?.status,
+          hasListingId: !!firstOffer?.listingId,
+          hasBuyerId: !!firstOffer?.buyerId,
+          hasSellerId: !!firstOffer?.sellerId,
+          hasPrice: !!(firstOffer?.offeredAmount || firstOffer?.proposedPrice),
+          hasMessage: !!firstOffer?.message,
+        });
+      }
+
+      if (receivedOffers && receivedOffers.length > 0) {
+        const firstOffer = receivedOffers[0];
+        console.log('[MarketplaceOffersTab] Première offre reçue (sécurisé):', {
+          status: firstOffer?.status,
+          hasListingId: !!firstOffer?.listingId,
+          hasBuyerId: !!firstOffer?.buyerId,
+          hasSellerId: !!firstOffer?.sellerId,
+          hasPrice: !!(firstOffer?.offeredAmount || firstOffer?.proposedPrice),
+          hasMessage: !!firstOffer?.message,
+        });
+      }
+    }
+  }, [receivedOffers, sentOffers, loading]);
 
   const handleAcceptOffer = async (offerId: string, role: 'producer' | 'buyer' = 'producer') => {
     try {
@@ -72,13 +108,15 @@ function MarketplaceOffersTab({
         style: 'destructive',
         onPress: async () => {
           try {
-            // TODO: Implémenter l'endpoint pour retirer une offre
-            // Pour l'instant, on peut utiliser PATCH pour mettre à jour le statut
-            await apiClient.patch(`/marketplace/offers/${offerId}`, { status: 'withdrawn' });
-            Alert.alert('Succès', 'Offre retirée');
-            onRefresh();
+            // ✅ Utilisation du nouveau service avec endpoint DELETE
+            await marketplaceService.withdrawOffer(offerId);
+            Alert.alert('Succès', 'Offre retirée avec succès');
+            onRefresh(); // Recharger les offres
           } catch (error) {
-            Alert.alert('Erreur', getErrorMessage(error));
+            Alert.alert(
+              'Erreur',
+              getErrorMessage(error) || 'Impossible de retirer l\'offre. Elle a peut-être déjà été traitée.'
+            );
           }
         },
       },
@@ -88,6 +126,35 @@ function MarketplaceOffersTab({
   const currentOffers = offersTab === 'received' ? receivedOffers : sentOffers;
 
   const renderItem = ({ item }: { item: Offer }) => {
+    // ✅ LOGS SÉCURISÉS - Aucune donnée sensible exposée
+    if (__DEV__) {
+      console.log('[MarketplaceOffersTab] Debug sécurisé:', {
+        hasItem: !!item,
+        itemId: item?.id ? '[REDACTED]' : 'undefined',
+        status: item?.status,
+        subjectCount: item?.subjectIds?.length || 0,
+        hasPrices: !!(item?.proposedPrice || item?.originalPrice),
+        hasMessage: !!item?.message,
+      });
+    }
+
+    // Fonction helper pour obtenir les valeurs avec fallbacks
+    const getOfferAmount = () => {
+      return item.offered_amount || item.offeredAmount || item.proposedPrice || item.amount || item.price || 0;
+    };
+
+    const getSubjectCount = () => {
+      return item.pig_count || (item.subject_id ? 1 : 0) || item.subjectIds?.length || 1;
+    };
+
+    const getListingPrice = () => {
+      return item.listing_price || item.listing?.price || item.originalPrice || 0;
+    };
+
+    const getCreatedDate = () => {
+      return item.created_at_iso || item.createdAt || item.created_at || item.created || null;
+    };
+
     const isPending = item.status === 'pending';
     const statusColor =
       item.status === 'accepted'
@@ -128,33 +195,33 @@ function MarketplaceOffersTab({
             )}
           </View>
           <Text style={[styles.date, { color: marketplaceColors.textSecondary }]}>
-            {format(new Date(item.createdAt), 'd MMM yyyy à HH:mm', { locale: fr })}
+            {formatSafeDate(getCreatedDate(), 'd MMM yyyy à HH:mm')}
           </Text>
         </View>
 
         <View style={styles.content}>
           <Text style={[styles.subjectCount, { color: marketplaceColors.text }]}>
-            {item.subjectIds?.length || 0} sujet{item.subjectIds?.length > 1 ? 's' : ''}
+            {getSubjectCount()} sujet{getSubjectCount() > 1 ? 's' : ''}
           </Text>
           <Text style={[styles.price, { color: marketplaceColors.primary }]}>
             {item.status === 'countered' && offersTab === 'sent'
               ? 'Prix proposé par le producteur: '
               : 'Offre: '}
-            {item.proposedPrice.toLocaleString()} FCFA
+            {getOfferAmount().toLocaleString()} FCFA
           </Text>
-          {item.prixTotalFinal && (
+          {item.prixTotalFinal && typeof item.prixTotalFinal === 'number' && (
             <Text style={[styles.finalPrice, { color: marketplaceColors.success }]}>
               Prix final accepté: {item.prixTotalFinal.toLocaleString()} FCFA
             </Text>
           )}
-          {item.originalPrice && (
+          {getListingPrice() > 0 && (
             <Text style={[styles.originalPrice, { color: marketplaceColors.textSecondary }]}>
-              Prix suggéré: {item.originalPrice.toLocaleString()} FCFA
+              Prix de l'annonce: {getListingPrice().toLocaleString()} FCFA
             </Text>
           )}
           {item.dateRecuperationSouhaitee && (
             <Text style={[styles.dateRecuperation, { color: marketplaceColors.textSecondary }]}>
-              📅 Récupération souhaitée: {format(new Date(item.dateRecuperationSouhaitee), 'd MMM yyyy', { locale: fr })}
+              📅 Récupération souhaitée: {formatSafeDate(item.dateRecuperationSouhaitee, 'd MMM yyyy')}
             </Text>
           )}
           {item.message && (
@@ -234,7 +301,7 @@ function MarketplaceOffersTab({
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       {/* Sous-onglets */}
       <View style={[styles.tabs, { backgroundColor: marketplaceColors.surface }]}>
         <TouchableOpacity
@@ -331,8 +398,10 @@ function MarketplaceOffersTab({
         maxToRenderPerBatch={10}
         windowSize={5}
         initialNumToRender={10}
+        ListFooterComponent={<View style={{ height: 20 }} />} // ✅ Espace supplémentaire en bas
+        showsVerticalScrollIndicator={true}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -375,6 +444,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 16,
+    paddingBottom: 100, // ✅ Espace pour voir la dernière carte
   },
   card: {
     borderRadius: 12,

@@ -1,14 +1,28 @@
-import { IsString, IsNumber, IsOptional, IsEnum, Min, IsArray } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsEnum, Min, Max, IsInt, IsArray } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  FINANCE_LIMITS,
+  FINANCE_WEIGHT_LIMITS,
+  FINANCE_ANIMAL_LIMITS,
+} from '../config/finance-validation.config';
 
 export class CreateRevenuDto {
   @ApiProperty({ description: 'ID du projet' })
   @IsString()
   projet_id: string;
 
-  @ApiProperty({ description: 'Montant du revenu' })
+  @ApiProperty({
+    description: 'Montant du revenu (0 - 1 milliard FCFA)',
+    minimum: FINANCE_LIMITS.MIN_MONTANT,
+    maximum: FINANCE_LIMITS.MAX_MONTANT,
+  })
   @IsNumber()
-  @Min(0)
+  @Min(FINANCE_LIMITS.MIN_MONTANT, {
+    message: `Le montant doit être supérieur ou égal à ${FINANCE_LIMITS.MIN_MONTANT} FCFA`,
+  })
+  @Max(FINANCE_LIMITS.MAX_MONTANT, {
+    message: `Le montant ne peut pas dépasser ${FINANCE_LIMITS.MAX_MONTANT.toLocaleString('fr-FR')} FCFA (1 milliard)`,
+  })
   montant: number;
 
   @ApiProperty({
@@ -43,10 +57,19 @@ export class CreateRevenuDto {
   @IsString({ each: true })
   photos?: string[];
 
-  @ApiPropertyOptional({ description: 'Poids en kg (pour ventes de porcs)' })
+  @ApiPropertyOptional({
+    description: `Poids en kg (pour ventes de porcs) (${FINANCE_WEIGHT_LIMITS.MIN_POIDS_KG} - ${FINANCE_WEIGHT_LIMITS.MAX_POIDS_KG} kg)`,
+    minimum: FINANCE_WEIGHT_LIMITS.MIN_POIDS_KG,
+    maximum: FINANCE_WEIGHT_LIMITS.MAX_POIDS_KG,
+  })
   @IsOptional()
-  @IsNumber()
-  @Min(0)
+  @IsInt()
+  @Min(FINANCE_WEIGHT_LIMITS.MIN_POIDS_KG, {
+    message: `Le poids doit être d'au moins ${FINANCE_WEIGHT_LIMITS.MIN_POIDS_KG} kg`,
+  })
+  @Max(FINANCE_WEIGHT_LIMITS.MAX_POIDS_KG, {
+    message: `Le poids ne peut pas dépasser ${FINANCE_WEIGHT_LIMITS.MAX_POIDS_KG} kg`,
+  })
   poids_kg?: number;
 
   @ApiPropertyOptional({ description: "ID de l'animal vendu" })

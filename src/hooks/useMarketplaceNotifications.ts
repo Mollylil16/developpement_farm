@@ -142,14 +142,8 @@ export function useMarketplaceNotifications(
     if (!currentUserId) return;
 
     try {
-      // Marquer toutes les notifications comme lues via l'API backend
-      // Note: Si l'endpoint n'existe pas, on peut marquer chaque notification individuellement
-      const allNotifications = await apiClient.get<any[]>('/marketplace/notifications');
-      await Promise.all(
-        allNotifications
-          .filter((n) => !n.read)
-          .map((n) => apiClient.patch(`/marketplace/notifications/${n.id}/read`))
-      );
+      // Utiliser l'endpoint dédié pour marquer toutes les notifications comme lues
+      await apiClient.patch('/marketplace/notifications/mark-all-read');
 
       // Mettre à jour l'état local
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));

@@ -238,7 +238,9 @@ export default function ProductionCheptelComponent() {
       // Charger les animaux immédiatement (critique pour l'affichage)
       // Inclure les inactifs pour avoir tous les animaux du cheptel (actif et autre)
       dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: true })).catch((error) => {
-        logger.error('Erreur lors du chargement des animaux:', error);
+        // Logger l'erreur de manière informative (éviter {} vide)
+        const errorMessage = error?.message || error?.toString() || 'Erreur inconnue';
+        logger.error('Erreur lors du chargement des animaux:', errorMessage);
       });
       
       // Recharger aussi les statuts marketplace
@@ -252,7 +254,8 @@ export default function ProductionCheptelComponent() {
           dispatch(loadMaladies(projetActif.id)),
           dispatch(loadTraitements(projetActif.id)),
         ]).catch((error) => {
-          logger.error('Erreur lors du chargement des données associées:', error);
+          const errorMessage = error?.message || error?.toString() || 'Erreur inconnue';
+          logger.error('Erreur lors du chargement des données associées:', errorMessage);
         });
       }, 500); // Délai de 500ms pour laisser le temps au rendu initial
     }, [dispatch, projetActif?.id])
@@ -270,7 +273,8 @@ export default function ProductionCheptelComponent() {
       // Recharger aussi les statuts marketplace
       await refreshMarketplace();
     } catch (error) {
-      logger.error('Erreur lors du rafraîchissement:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error('Erreur lors du rafraîchissement:', errorMessage);
     } finally {
       setRefreshing(false);
     }
@@ -347,7 +351,8 @@ export default function ProductionCheptelComponent() {
         Alert.alert('Cheptel initialisé', `${result?.created ?? 0} animal(aux) ont été créés.`);
       }
     } catch (error) {
-      logger.error('[ProductionCheptel] Erreur initialisation cheptel:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error('[ProductionCheptel] Erreur initialisation cheptel:', errorMessage);
       Alert.alert('Erreur', getErrorMessage(error) || "Impossible d'initialiser le cheptel");
     } finally {
       setInitializingCheptel(false);

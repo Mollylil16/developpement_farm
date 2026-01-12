@@ -43,6 +43,7 @@ import { fr } from 'date-fns/locale';
 import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { Picker } from '@react-native-picker/picker';
+import MortaliteDashboard from '../components/mortalites/MortaliteDashboard';
 
 // Type pour les paramètres de route (mode batch)
 type MortalityRouteParams = {
@@ -435,30 +436,11 @@ export default function MortalityScreen() {
           </Card>
         ) : (
           <>
-            {/* Carte de statistiques */}
-            <Card elevation="small" padding="medium" style={styles.statsCard}>
-              <View style={styles.statsRow}>
-                <View style={styles.statItem}>
-                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-                    Total mortalités
-                  </Text>
-                  <Text style={[styles.statValue, { color: colors.error }]}>
-                    {mortalities.length}
-                  </Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-                    Taux de mortalité
-                  </Text>
-                  <Text style={[styles.statValue, { color: colors.error }]}>
-                    {batch.total_count > 0
-                      ? ((mortalities.length / batch.total_count) * 100).toFixed(1)
-                      : 0}
-                    %
-                  </Text>
-                </View>
-              </View>
-            </Card>
+            {/* Dashboard de statistiques - Design cohérent avec Production > Suivi pesées */}
+            <MortaliteDashboard
+              projetId={projetActif?.id}
+              totalAnimaux={batch.total_count}
+            />
 
             {/* Liste des mortalités */}
             {mortalities.map((mortality) => (

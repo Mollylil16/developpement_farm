@@ -1485,39 +1485,37 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
     const animauxCalendrier = calculerAnimauxCalendrier(type, animauxActifs);
     const animauxEnRetard = animauxCalendrier.filter((item) => item.enRetard);
 
+    // ✅ CORRECTION: Supprimer useMemo car on est dans une fonction de rendu
+    // Les hooks ne peuvent pas être appelés dans des fonctions de rendu régulières
     // Grouper par batch_id
-    const animauxParBande = useMemo(() => {
-      const grouped: { [batchId: string]: AnimalCalendrier[] } = {};
-      const sansBande: AnimalCalendrier[] = [];
+    const grouped: { [batchId: string]: AnimalCalendrier[] } = {};
+    const sansBande: AnimalCalendrier[] = [];
 
-      animauxEnRetard.forEach((item) => {
-        const batchId = animalBatchMap.get(item.animal.id);
-        if (!batchId) {
-          sansBande.push(item);
-          return;
-        }
+    animauxEnRetard.forEach((item) => {
+      const batchId = animalBatchMap.get(item.animal.id);
+      if (!batchId) {
+        sansBande.push(item);
+        return;
+      }
 
-        if (!grouped[batchId]) {
-          grouped[batchId] = [];
-        }
-        grouped[batchId].push(item);
-      });
+      if (!grouped[batchId]) {
+        grouped[batchId] = [];
+      }
+      grouped[batchId].push(item);
+    });
 
-      return { grouped, sansBande };
-    }, [animauxEnRetard, animalBatchMap]);
+    const animauxParBande = { grouped, sansBande };
 
     // Récupérer les informations des bandes
-    const bandesAvecRetards = useMemo(() => {
-      return Object.entries(animauxParBande.grouped).map(([batchId, animaux]) => {
-        const batch = batches.find((b) => b.id === batchId);
-        return {
-          batchId,
-          batch: batch || null,
-          animaux,
-          nombreEnRetard: animaux.length,
-        };
-      });
-    }, [animauxParBande.grouped, batches]);
+    const bandesAvecRetards = Object.entries(animauxParBande.grouped).map(([batchId, animauxGroupe]) => {
+      const batch = batches.find((b) => b.id === batchId);
+      return {
+        batchId,
+        batch: batch || null,
+        animaux: animauxGroupe,
+        nombreEnRetard: animauxGroupe.length,
+      };
+    });
 
     // Trier : bandes avec le plus de retards en premier
     bandesAvecRetards.sort((a, b) => b.nombreEnRetard - a.nombreEnRetard);

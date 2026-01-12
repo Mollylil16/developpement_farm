@@ -193,22 +193,16 @@ const hasAnimauxActifs = animauxActifsProjet.length > 0;
         <View style={styles.statsGrid}>
           <View style={styles.statItem}>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Truies</Text>
-            <View style={styles.statValueRow}>
-              <Text style={[styles.statValue, { color: colors.primary }]}>
-                {stats.truies ?? 0}
-              </Text>
-              <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
-            </View>
+            <Text style={[styles.statValue, { color: colors.primary }]}>
+              {stats.truies ?? 0}
+            </Text>
           </View>
 
           <View style={styles.statItem}>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Verrats</Text>
-            <View style={styles.statValueRow}>
-              <Text style={[styles.statValue, { color: colors.secondary }]}>
-                {stats.verrats ?? 0}
-              </Text>
-              <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
-            </View>
+            <Text style={[styles.statValue, { color: colors.secondary }]}>
+              {stats.verrats ?? 0}
+            </Text>
           </View>
         </View>
       </View>
@@ -219,32 +213,23 @@ const hasAnimauxActifs = animauxActifsProjet.length > 0;
         <View style={styles.statsGrid}>
           <View style={styles.statItem}>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Porcelets</Text>
-            <View style={styles.statValueRow}>
-              <Text style={[styles.statValue, { color: colors.accent }]}>
-                {stats.porcelets ?? 0}
-              </Text>
-              <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
-            </View>
+            <Text style={[styles.statValue, { color: colors.accent }]}>
+              {stats.porcelets ?? 0}
+            </Text>
           </View>
 
           <View style={styles.statItem}>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Croissance</Text>
-            <View style={styles.statValueRow}>
-              <Text style={[styles.statValue, { color: colors.primary }]}>
-                {stats.croissance ?? 0}
-              </Text>
-              <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
-            </View>
+            <Text style={[styles.statValue, { color: colors.primary }]}>
+              {stats.croissance ?? 0}
+            </Text>
           </View>
 
           <View style={styles.statItem}>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Finition</Text>
-            <View style={styles.statValueRow}>
-              <Text style={[styles.statValue, { color: colors.secondary }]}>
-                {stats.finition ?? 0}
-              </Text>
-              <Text style={[styles.trend, { color: colors.textSecondary }]}>→</Text>
-            </View>
+            <Text style={[styles.statValue, { color: colors.secondary }]}>
+              {stats.finition ?? 0}
+            </Text>
           </View>
         </View>
       </View>
@@ -313,17 +298,9 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
     fontWeight: FONT_WEIGHTS.medium,
   },
-  statValueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   statValue: {
     fontSize: FONT_SIZES.xxl,
     fontWeight: FONT_WEIGHTS.bold,
-  },
-  trend: {
-    fontSize: FONT_SIZES.md,
-    marginLeft: SPACING.xs,
   },
 });
 

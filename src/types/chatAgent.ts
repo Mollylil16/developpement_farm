@@ -87,6 +87,13 @@ export type AgentActionType =
   | 'creer_loge'
   | 'deplacer_animaux'
   | 'get_animaux_par_loge'
+  // Marketplace - Vente automatisée par Kouakou
+  | 'marketplace_sell_animal'
+  | 'marketplace_set_price'
+  | 'marketplace_get_price_trends'
+  | 'marketplace_check_offers'
+  | 'marketplace_respond_offer'
+  | 'marketplace_get_my_listings'
   | 'other';
 
 export interface AgentAction {

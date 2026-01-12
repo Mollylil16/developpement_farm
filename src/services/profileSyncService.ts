@@ -24,6 +24,7 @@ class ProfileSyncService {
   private checkInterval: number = 30000; // 30 secondes par défaut
   private intervalId: NodeJS.Timeout | null = null;
   private lastPhotoUri: string | null = null;
+  private lastDataHash: string | null = null; // Hash des autres données utilisateur
   private lastCheckTimestamp: number = 0;
   private isRunning: boolean = false;
   private userId: string | null = null;
@@ -74,6 +75,7 @@ class ProfileSyncService {
     this.userId = null;
     this.dispatch = null;
     this.lastPhotoUri = null;
+    this.lastDataHash = null;
     this.lastCheckTimestamp = 0;
     logger.log('[ProfileSyncService] Synchronisation arrêtée');
   }
@@ -117,10 +119,27 @@ class ProfileSyncService {
       if (this.lastPhotoUri === null) {
         this.lastPhotoUri = currentPhotoUri;
         this.lastCheckTimestamp = Date.now();
+        // Initialiser aussi le hash des données
+        this.lastDataHash = JSON.stringify({
+          nom: apiUser.nom,
+          prenom: apiUser.prenom,
+          email: apiUser.email,
+        });
+        // Mettre quand même à jour le Redux store pour s'assurer que les données sont à jour
+        this.dispatch(updateUser(apiUser));
         return false; // Pas de changement, juste initialisation
       }
       
-      const photoChanged = this.lastPhotoUri !== currentPhotoUri;
+      // Comparer les URIs sans les paramètres de cache busting pour détecter les vrais changements
+      const normalizeUri = (uri: string | null): string | null => {
+        if (!uri) return null;
+        // Retirer les paramètres de cache busting (_t, timestamp, etc.)
+        return uri.split('?')[0].split('&')[0];
+      };
+      
+      const normalizedCurrent = normalizeUri(currentPhotoUri);
+      const normalizedLast = normalizeUri(this.lastPhotoUri);
+      const photoChanged = normalizedCurrent !== normalizedLast;
 
       // Vérifier si d'autres données ont changé (nom, prénom, etc.)
       // Pour l'instant, on se concentre sur la photo
@@ -145,7 +164,22 @@ class ProfileSyncService {
         return true;
       }
 
-      // Même si la photo n'a pas changé, mettre à jour le timestamp
+      // Même si la photo n'a pas changé, vérifier si d'autres données ont changé
+      // et mettre à jour le Redux store pour s'assurer de la synchronisation
+      const currentDataHash = JSON.stringify({
+        nom: apiUser.nom,
+        prenom: apiUser.prenom,
+        email: apiUser.email,
+      });
+      const lastDataHash = this.lastDataHash || '';
+      
+      if (currentDataHash !== lastDataHash) {
+        // Données utilisateur changées (nom, prénom, etc.)
+        this.dispatch(updateUser(apiUser));
+        this.lastDataHash = currentDataHash;
+      }
+      
+      // Mettre à jour le timestamp même si rien n'a changé
       this.lastCheckTimestamp = Date.now();
 
       return false;

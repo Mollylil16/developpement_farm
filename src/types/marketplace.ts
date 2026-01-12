@@ -94,6 +94,14 @@ export interface MarketplaceListing {
   healthStatus?: 'good' | 'attention' | 'critical';
   vaccinations?: boolean;
   available?: boolean;
+  // Photos du listing
+  photos?: Array<{
+    url: string;
+    thumbnailUrl?: string;
+    order?: number;
+    caption?: string;
+    uploadedAt?: string;
+  }>;
 }
 
 /**

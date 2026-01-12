@@ -73,6 +73,12 @@ const persistConfig = {
   storage: AsyncStorage,
   whitelist: ['projet', 'auth'], // Projet actif et authentification sont persistés
   transforms: [authTransform, projetTransform], // Transforms sélectifs pour réduire la taille
+  throttle: 1000, // Throttle les écritures pour éviter les performances lentes
+  // timeout: Le timeout par défaut de redux-persist est de 5s. 
+  // Le message "rehydrate called after timeout" n'est PAS une erreur critique.
+  // L'app continue de fonctionner normalement, les données sont chargées même après le timeout.
+  // Pour les appareils lents, ce message peut apparaître mais n'affecte pas le fonctionnement.
+  timeout: 15000, // Augmenter le timeout à 15 secondes pour les appareils plus lents
 };
 
 // Combiner les reducers
@@ -107,7 +113,15 @@ export const store = configureStore({
     }).concat(authMiddleware),
 });
 
-export const persistor = persistStore(store);
+// Créer le persistor avec un timeout étendu
+// Le timeout par défaut (5s) peut être insuffisant sur les appareils lents
+export const persistor = persistStore(store, null, () => {
+  // Callback appelé une fois la réhydratation terminée (succès ou timeout)
+  // Aucune action spéciale nécessaire - l'app continue de fonctionner
+  if (__DEV__) {
+    console.log('[Redux Persist] Réhydratation terminée');
+  }
+});
 
 // Types pour TypeScript
 export type RootState = ReturnType<typeof store.getState>;

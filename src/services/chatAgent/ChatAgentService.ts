@@ -2,8 +2,21 @@
  * Service principal pour l'agent conversationnel
  * V4.1 - Sans appels directs à Gemini (tout passe par le backend)
  * 
- * @deprecated Ce service est utilisé uniquement pour les tests.
- * En production, utilisez le hook useChatAgent qui appelle le backend.
+ * ⚠️ DEPRECATED - NE PAS UTILISER EN PRODUCTION ⚠️
+ * 
+ * Ce service est utilisé UNIQUEMENT pour les tests et le développement.
+ * En production, utilisez le hook `useChatAgent` qui communique directement avec le backend.
+ * 
+ * Raisons du dépôt :
+ * - L'intelligence IA est maintenant gérée côté serveur
+ * - Le hook `useChatAgent` est plus simple et mieux adapté à React
+ * - Ce service est trop complexe (879 lignes) et difficile à maintenir
+ * 
+ * Migration :
+ * - Remplacer `new ChatAgentService(config)` par `useChatAgent()` dans les composants React
+ * - Pour les tests, ce service peut rester dans `src/services/chatAgent/tests/`
+ * 
+ * @deprecated Depuis V4.1 - Utiliser useChatAgent à la place
  */
 
 import {

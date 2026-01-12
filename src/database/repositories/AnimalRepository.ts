@@ -11,10 +11,29 @@
 
 import { BaseRepository } from './BaseRepository';
 import { ProductionAnimal } from '../../types/production';
+import apiClient from '../../services/api/apiClient';
 
 export class AnimalRepository extends BaseRepository<ProductionAnimal> {
   constructor() {
     super('production_animaux', '/production/animaux');
+  }
+
+  /**
+   * Récupérer les informations d'un animal listé sur le marketplace
+   * Cette méthode ne vérifie pas l'appartenance - utilisée pour les acheteurs
+   * qui consultent des animaux d'autres producteurs
+   */
+  async findMarketplaceAnimal(animalId: string): Promise<Partial<ProductionAnimal> | null> {
+    try {
+      const result = await apiClient.get<Partial<ProductionAnimal>>(`/marketplace/animals/${animalId}`);
+      return result || null;
+    } catch (error) {
+      // Si l'animal n'est pas trouvé ou n'est pas sur le marketplace, retourner null
+      if (__DEV__) {
+        console.warn(`[AnimalRepository] Animal ${animalId} non trouvé sur le marketplace`);
+      }
+      return null;
+    }
   }
 
   /**

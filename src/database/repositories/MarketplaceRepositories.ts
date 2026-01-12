@@ -23,18 +23,16 @@ export class MarketplaceOfferRepository extends BaseRepository<Offer> {
   }
 
   async create(data: Omit<Offer, 'id' | 'createdAt' | 'status'>): Promise<Offer> {
+    // ✅ Le backend NestJS attend uniquement les propriétés du CreateOfferDto
+    // Les autres propriétés (producerId, originalPrice, termsAccepted) sont ajoutées automatiquement par le backend
     const offerData = {
-      listing_id: data.listingId,
-      subject_ids: data.subjectIds,
-      buyer_id: data.buyerId,
-      producer_id: data.producerId,
-      proposed_price: data.proposedPrice,
-      original_price: data.originalPrice,
+      listingId: data.listingId,
+      subjectIds: data.subjectIds,
+      buyerId: data.buyerId,
+      proposedPrice: data.proposedPrice,
       message: data.message || null,
-      terms_accepted: data.termsAccepted,
-      terms_accepted_at: data.termsAcceptedAt || null,
-      expires_at: data.expiresAt,
-      status: 'pending',
+      expiresAt: data.expiresAt || null,
+      dateRecuperationSouhaitee: data.dateRecuperationSouhaitee || null,
     };
     return this.executePost<Offer>(this.apiBasePath, offerData);
   }
@@ -71,14 +69,26 @@ export class MarketplaceOfferRepository extends BaseRepository<Offer> {
     return rows.map((r) => this.mapRow(r));
   }
 
+  /**
+   * @deprecated Cette méthode est obsolète. Utiliser les endpoints spécifiques:
+   * - PATCH /marketplace/offers/:id/accept
+   * - PATCH /marketplace/offers/:id/reject
+   * - PATCH /marketplace/offers/:id/counter
+   * - DELETE /marketplace/offers/:id (pour retirer)
+   * Voir MarketplaceService.acceptOffer(), rejectOffer(), counterOffer(), withdrawOffer()
+   */
   async updateStatus(
     id: string,
     status: 'accepted' | 'rejected' | 'countered' | 'expired' | 'withdrawn'
   ): Promise<void> {
-    await this.executePatch(`${this.apiBasePath}/${id}`, {
-      status,
-      responded_at: new Date().toISOString(),
-    });
+    console.warn(
+      '[MarketplaceOfferRepository] updateStatus() est obsolète. Utiliser les endpoints spécifiques.'
+    );
+    // Cette méthode ne fonctionne pas car l'endpoint PATCH /marketplace/offers/:id n'existe pas
+    // Elle est gardée pour compatibilité mais ne devrait plus être utilisée
+    throw new Error(
+      'MarketplaceOfferRepository.updateStatus() est obsolète. Utiliser MarketplaceService.acceptOffer(), rejectOffer(), counterOffer() ou withdrawOffer().'
+    );
   }
 
   private mapRow(row: unknown): Offer {

@@ -588,9 +588,10 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
     return { gmq: gmq || null };
   }
 
-  async getAnimalEvolutionPoids(animalId: string, userId: string) {
+  async getAnimalEvolutionPoids(animalId: string, userId: string, periodeJours: number = 7) {
     await this.checkAnimalOwnership(animalId, userId);
 
+    // Récupérer toutes les pesées de l'animal
     const result = await this.databaseService.query(
       `SELECT date, poids_kg, gmq
        FROM production_pesees
@@ -599,34 +600,76 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       [animalId]
     );
 
-    return result.rows.map((row) => ({
-      date: row.date,
-      poids_kg: parseFloat(row.poids_kg),
-      gmq: row.gmq ? parseFloat(row.gmq) : null,
-    }));
+    if (result.rows.length === 0) {
+      return {
+        poidsGagne: 0,
+        pourcentageEvolution: 0,
+        evolutions: [],
+      };
+    }
+
+    // Filtrer les pesées dans la période
+    const maintenant = new Date();
+    const dateLimite = new Date(maintenant.getTime() - periodeJours * 24 * 60 * 60 * 1000);
+    
+    const peseesPeriode = result.rows.filter(
+      (row) => new Date(row.date).getTime() >= dateLimite.getTime()
+    );
+
+    if (peseesPeriode.length < 2) {
+      // Pas assez de pesées pour calculer une évolution
+      return {
+        poidsGagne: 0,
+        pourcentageEvolution: 0,
+        evolutions: result.rows.map((row) => ({
+          date: row.date,
+          poids_kg: parseFloat(row.poids_kg),
+        })),
+      };
+    }
+
+    const poidsInitial = parseFloat(peseesPeriode[0].poids_kg);
+    const poidsFinal = parseFloat(peseesPeriode[peseesPeriode.length - 1].poids_kg);
+    const poidsGagne = poidsFinal - poidsInitial;
+    const pourcentageEvolution = poidsInitial > 0 ? (poidsGagne / poidsInitial) * 100 : 0;
+
+    return {
+      poidsGagne,
+      pourcentageEvolution,
+      evolutions: result.rows.map((row) => ({
+        date: row.date,
+        poids_kg: parseFloat(row.poids_kg),
+      })),
+    };
   }
 
   async getAnimalPoidsActuelEstime(animalId: string, userId: string) {
     await this.checkAnimalOwnership(animalId, userId);
 
-    // Récupérer les deux dernières pesées
+    // Récupérer l'animal pour obtenir le poids initial et la catégorie
+    const animalResult = await this.databaseService.query(
+      `SELECT poids_initial, categorie_poids FROM production_animaux WHERE id = $1`,
+      [animalId]
+    );
+    const animal = animalResult.rows[0];
+
+    // Récupérer toutes les pesées triées par date décroissante
     const result = await this.databaseService.query(
       `SELECT poids_kg, date, gmq
        FROM production_pesees
        WHERE animal_id = $1
-       ORDER BY date DESC
-       LIMIT 2`,
+       ORDER BY date DESC`,
       [animalId]
     );
 
     if (result.rows.length === 0) {
       // Si aucune pesée, retourner le poids initial
-      const animalResult = await this.databaseService.query(
-        `SELECT poids_initial FROM production_animaux WHERE id = $1`,
-        [animalId]
-      );
-      const poidsInitial = animalResult.rows[0]?.poids_initial || 0;
-      return { poids: poidsInitial };
+      const poidsInitial = animal?.poids_initial || 0;
+      return {
+        poidsEstime: poidsInitial,
+        dateDernierePesee: null,
+        source: 'initial',
+      };
     }
 
     const latest = result.rows[0];
@@ -638,16 +681,52 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       Math.floor((now.getTime() - latestDate.getTime()) / (1000 * 60 * 60 * 24))
     );
 
-    if (result.rows.length === 1 || !latest.gmq) {
-      // Si une seule pesée ou pas de GMQ, retourner le poids de la dernière pesée
-      return { poids: latestPoids };
+    // Si la dernière pesée date de moins de 3 jours, utiliser directement le poids
+    if (joursDepuisDernierePesee < 3) {
+      return {
+        poidsEstime: latestPoids,
+        dateDernierePesee: latest.date,
+        source: 'pesee',
+      };
     }
 
-    // Estimer le poids actuel en utilisant le GMQ
-    const gmq = parseFloat(latest.gmq);
+    // Calculer le GMQ si non disponible
+    let gmq = latest.gmq ? parseFloat(latest.gmq) : null;
+    
+    if (!gmq && result.rows.length >= 2) {
+      // Calculer le GMQ à partir des deux dernières pesées
+      const premierePesee = result.rows[result.rows.length - 1];
+      const differencePoids = latestPoids - parseFloat(premierePesee.poids_kg);
+      const differenceJours =
+        (latestDate.getTime() - new Date(premierePesee.date).getTime()) /
+        (1000 * 60 * 60 * 24);
+
+      if (differenceJours > 0) {
+        gmq = differencePoids / differenceJours;
+      }
+    }
+
+    // Utiliser des valeurs moyennes par catégorie si pas de GMQ
+    if (!gmq || gmq <= 0) {
+      const categorie = animal?.categorie_poids;
+      // Valeurs moyennes de GMQ par catégorie (kg/jour)
+      if (categorie === 'porcelet') {
+        gmq = 0.3;
+      } else if (categorie === 'croissance') {
+        gmq = 0.6;
+      } else {
+        gmq = 0.4; // Finition ou défaut
+      }
+    }
+
+    // Estimer le poids en ajoutant le GMQ multiplié par le nombre de jours
     const poidsEstime = latestPoids + gmq * joursDepuisDernierePesee;
 
-    return { poids: Math.max(latestPoids, poidsEstime) };
+    return {
+      poidsEstime: Math.max(poidsEstime, latestPoids), // Ne pas estimer moins que la dernière pesée
+      dateDernierePesee: latest.date,
+      source: 'estimation',
+    };
   }
 
   /**

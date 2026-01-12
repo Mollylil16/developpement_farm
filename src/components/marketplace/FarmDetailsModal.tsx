@@ -28,6 +28,7 @@ import apiClient from '../../services/api/apiClient';
 import { TYPE_PROPHYLAXIE_LABELS } from '../../types/sante';
 import SubjectCard from './SubjectCard';
 import { logger } from '../../utils/logger';
+import { PhotoGallery } from './PhotoGallery';
 
 // Structure pour passer les sélections avec les IDs réels
 export interface SelectedSubject {
@@ -167,9 +168,11 @@ export default function FarmDetailsModal({
           const pricePerPig = initialListing.pigCount > 0 ? (initialListing.calculatedPrice / initialListing.pigCount) : 0;
           const validPigIds = initialListing.pigIds.filter((id) => id && typeof id === 'string' && id.trim().length > 0);
           
-          if (validPigIds.length > 0) {
+            if (validPigIds.length > 0) {
             initialListings = validPigIds.map((pigId) => {
-              const pigIdShort = pigId && typeof pigId === 'string' ? pigId.slice(0, 8) : 'N/A';
+              // ✅ Nettoyer l'ID pour éviter les doubles ##
+              const cleanId = pigId && typeof pigId === 'string' ? pigId.replace(/^#+/, '') : '';
+              const pigIdShort = cleanId.slice(0, 8) || 'N/A';
               return {
                 ...initialListing,
                 id: pigId,
@@ -196,9 +199,18 @@ export default function FarmDetailsModal({
       }
       
       // Récupérer tous les listings de la ferme depuis l'API backend
-      const farmListings = await apiClient.get<any[]>(`/marketplace/listings`, {
-        params: { farm_id: farmId },
+      // Le backend retourne maintenant un objet avec pagination
+      // Note: le backend utilise 'projet_id' pas 'farm_id', donc on utilise projet_id
+      const response = await apiClient.get<{
+        listings: any[];
+        total: number;
+      }>(`/marketplace/listings`, {
+        params: { 
+          projet_id: farmId, // Le backend filtre par projet_id (farm_id dans le modèle)
+          limit: 500, // Récupérer tous les listings de la ferme (limite max)
+        },
       });
+      const farmListings = response.listings || [];
 
       // Filtrer seulement les disponibles
       // ✅ Exclure le listing initial s'il est déjà chargé (éviter les doublons)
@@ -246,7 +258,9 @@ export default function FarmDetailsModal({
             // Utiliser UNIQUEMENT les données déjà disponibles dans le listing du marketplace
             // Éviter les appels API protégés qui échouent avec 403 pour les acheteurs
             const individualListings = validPigIds.map((pigId) => {
-              const pigIdShort = pigId && typeof pigId === 'string' ? pigId.slice(0, 8) : 'N/A';
+              // ✅ Nettoyer l'ID pour éviter les doubles ##
+              const cleanId = pigId && typeof pigId === 'string' ? pigId.replace(/^#+/, '') : '';
+              const pigIdShort = cleanId.slice(0, 8) || 'N/A';
               
               // Utiliser les données agrégées du listing batch
               // Les informations détaillées (poids individuel, vaccinations, etc.) ne sont disponibles
@@ -255,7 +269,7 @@ export default function FarmDetailsModal({
                 ...listing,
                 id: pigId, // ✅ Utiliser directement le pigId comme ID (ID réel)
                 subjectId: pigId, // Utiliser pigId comme subjectId
-                code: `#${pigIdShort}`, // Code basé sur l'ID
+                code: `#${pigIdShort}`, // Code basé sur l'ID (nettoyé)
                 race: listing.race || 'Non spécifiée',
                 weight: averageWeight, // Poids moyen du batch
                 weightDate: listing.lastWeightDate || listing.weightDate || new Date().toISOString(),
@@ -378,21 +392,40 @@ export default function FarmDetailsModal({
         const historique = await SanteHistoriqueService.getHistorique(subjectId);
 
         // Filtrer les visites pour ne garder que celles qui concernent cet animal
-        const visitesFiltrees = historique.visites.filter(
+        const visitesFiltrees = (historique.visites || []).filter(
           (v) => v.animaux_examines?.includes(subjectId)
         );
 
+        // Toujours sauvegarder l'historique, même s'il est vide (cas 403)
         setHealthDetails((prev) => ({
           ...prev,
           [subjectId]: {
-            vaccinations: historique.vaccinations,
-            maladies: historique.maladies,
-            traitements: historique.traitements,
+            vaccinations: historique.vaccinations || [],
+            maladies: historique.maladies || [],
+            traitements: historique.traitements || [],
             visites: visitesFiltrees,
           },
         }));
       } catch (error) {
-        logger.error('Erreur chargement détails sanitaires:', error);
+        // Les erreurs 403 sont déjà gérées par SanteHistoriqueService
+        // Ne logger que les autres erreurs (réseau, serveur, etc.)
+        if (__DEV__) {
+          const { APIError } = await import('../../services/api/apiError');
+          if (!(error instanceof APIError) || error.status !== 403) {
+            logger.warn('Erreur chargement détails sanitaires (hors 403):', error);
+          }
+        }
+        
+        // Mettre un historique vide en cas d'erreur autre que 403
+        setHealthDetails((prev) => ({
+          ...prev,
+          [subjectId]: {
+            vaccinations: [],
+            maladies: [],
+            traitements: [],
+            visites: [],
+          },
+        }));
       }
     },
     [healthDetails]
@@ -912,6 +945,16 @@ function SubjectCardWithSelection({
         </View>
       </View>
 
+      {/* Photos du listing - Afficher si disponibles */}
+      {listing.photos && Array.isArray(listing.photos) && listing.photos.length > 0 && (
+        <View style={styles.photosSection}>
+          <PhotoGallery
+            photos={listing.photos}
+            baseUrl={apiClient.defaults?.baseURL || ''}
+          />
+        </View>
+      )}
+
       {/* Bouton détails sanitaires */}
       <TouchableOpacity
         style={[styles.healthDetailsButton, { backgroundColor: colors.surfaceLight }]}
@@ -1156,6 +1199,10 @@ const styles = StyleSheet.create({
   },
   subjectCardContent: {
     flex: 1,
+  },
+  photosSection: {
+    marginTop: MarketplaceTheme.spacing.md,
+    marginHorizontal: MarketplaceTheme.spacing.md,
   },
   healthDetailsButton: {
     flexDirection: 'row',

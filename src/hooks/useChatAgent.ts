@@ -10,8 +10,13 @@ import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { ProactiveRemindersService, VoiceService } from '../services/chatAgent';
 import { ChatMessage, Reminder } from '../types/chatAgent';
 import { format } from 'date-fns';
-import apiClient from '../services/api/apiClient';
+import apiClient, { APIError } from '../services/api/apiClient';
 import { createLoggerWithPrefix } from '../utils/logger';
+import {
+  getCachedResponse,
+  setCachedResponse,
+  invalidateProjetCache,
+} from '../services/chatAgent/kouakouCache';
 import {
   getOrCreateConversationId,
   loadConversationHistory,
@@ -101,6 +106,19 @@ function convertMessagesToHistory(messages: ChatMessage[]): ConversationHistoryE
       role: message.role === 'user' ? 'user' : 'model',
       parts: [{ text: message.content }],
     }));
+}
+
+/**
+ * Limite l'historique de conversation pour optimiser les requêtes
+ * Garde les 50 derniers messages au maximum
+ */
+function limitHistory(history: ConversationHistoryEntry[]): ConversationHistoryEntry[] {
+  const MAX_HISTORY_LENGTH = 50;
+  if (history.length <= MAX_HISTORY_LENGTH) {
+    return history;
+  }
+  // Garder les N derniers messages
+  return history.slice(-MAX_HISTORY_LENGTH);
 }
 
 export function useChatAgent() {
@@ -193,6 +211,18 @@ export function useChatAgent() {
           transcriptionProvider,
           transcriptionApiKey,
         });
+
+        // Vérifier la disponibilité de la voix
+        const isTTSAvailable = await voiceService.isTextToSpeechAvailable();
+        const isSTTAvailable = await voiceService.isSpeechToTextAvailable();
+        
+        if (voiceEnabled && !isTTSAvailable && !isSTTAvailable) {
+          logger.warn('[useChatAgent] La voix est activée mais n\'est pas disponible sur cet appareil');
+          // Désactiver automatiquement si non disponible
+          if (!isCancelled) {
+            setVoiceEnabled(false);
+          }
+        }
 
         await remindersService.initialize({
           projetId: projetActif.id,
@@ -293,13 +323,14 @@ export function useChatAgent() {
       // Ajouter le message utilisateur à l'état immédiatement
       setMessages((prev) => [...prev, userMessage]);
 
-      // Phase 1: Kouakou "réfléchit" (délai variable selon complexité)
-      const thinkingTime = calculateThinkingTime(trimmedContent);
+      // Phase 1: Kouakou "réfléchit" (délai minimal pour UX)
+      // Utiliser un temps de réflexion minimal si le backend répond rapidement
+      const thinkingTime = Math.min(calculateThinkingTime(trimmedContent), 800); // Maximum 800ms pour éviter les délais trop longs
       logger.debug(`[useChatAgent] Temps de réflexion calculé: ${thinkingTime}ms pour "${content.substring(0, 50)}..."`);
       
       setIsThinking(true);
       
-      // Attendre le délai de réflexion
+      // Attendre le délai de réflexion minimal
       await new Promise(resolve => setTimeout(resolve, thinkingTime));
       
       // Phase 2: Kouakou répond (appel API)
@@ -309,17 +340,49 @@ export function useChatAgent() {
       try {
         pushHistory('user', trimmedContent);
 
-        // Appel au backend Kouakou - toute l'IA est gérée côté serveur
-        const backendResponse = await apiClient.post<KouakouBackendResponse>('/kouakou/chat', {
-          message: trimmedContent,
-          projectId: projetActif.id,
-          conversationId: conversationIdRef.current,
-          history: conversationHistoryRef.current,
-        });
-        const responseText = backendResponse?.response;
-        if (!responseText) {
-          throw new Error('Réponse vide de Kouakou');
+        // Vérifier d'abord le cache
+        const cachedResponse = await getCachedResponse(trimmedContent, projetActif.id);
+        let responseText: string;
+        let backendResponse: KouakouBackendResponse | null = null;
+
+        if (cachedResponse) {
+          // Utiliser la réponse du cache
+          logger.debug('[useChatAgent] Réponse trouvée dans le cache');
+          responseText = cachedResponse;
+        } else {
+          // Appel au backend Kouakou - toute l'IA est gérée côté serveur
+          // Limiter l'historique pour optimiser les requêtes
+          const limitedHistory = limitHistory(conversationHistoryRef.current);
+          
+          backendResponse = await apiClient.post<KouakouBackendResponse>(
+            '/kouakou/chat',
+            {
+              message: trimmedContent,
+              projectId: projetActif.id,
+              conversationId: conversationIdRef.current,
+              history: limitedHistory,
+            },
+            {
+              timeout: 30000, // 30 secondes de timeout
+            }
+          );
+          responseText = backendResponse?.response;
+          if (!responseText) {
+            throw new Error('Réponse vide de Kouakou');
+          }
+          
+          // Mettre en cache la réponse (seulement si pas d'actions exécutées pour éviter le cache de réponses obsolètes)
+          const hasExecutedActions = backendResponse?.metadata?.executedActions && backendResponse.metadata.executedActions.length > 0;
+          if (!hasExecutedActions) {
+            await setCachedResponse(
+              trimmedContent,
+              responseText,
+              projetActif.id,
+              backendResponse?.metadata?.executedActions
+            );
+          }
         }
+        
         pushHistory('model', responseText);
 
         // Convertir la réponse en ChatMessage
@@ -331,33 +394,107 @@ export function useChatAgent() {
         };
 
         // Rafraîchir les données si une action a été exécutée
-        // Le backend retourne les actions exécutées dans metadata.executedActions
-        // Fallback: détection via mots-clés dans la réponse
+        // Utiliser metadata.executedActions retourné par le backend (plus fiable que regex)
+        // Note: Si la réponse vient du cache, backendResponse est null, donc pas de rechargement nécessaire
         try {
           const projetId = projetActif?.id;
-          if (projetId && /(enregistré|créé|ajouté).*(vente|dépense|pesée|revenu)/i.test(responseText)) {
-            // Rafraîchir toutes les données pour être sûr
-            dispatch(loadDepensesPonctuelles(projetId));
-            dispatch(loadRevenus(projetId));
-            dispatch(loadChargesFixes(projetId));
-            dispatch(loadProductionAnimaux({ projetId, inclureInactifs: true }));
+          
+          // Seulement si on a une réponse du backend (pas du cache)
+          if (backendResponse && projetId) {
+            const executedActions = backendResponse.metadata?.executedActions || [];
+            
+            if (executedActions.length > 0) {
+            // Déterminer quelles données recharger selon les actions exécutées
+            const needsFinance = executedActions.some((a) =>
+              ['create_revenu', 'create_depense', 'create_charge_fixe'].includes(a.name)
+            );
+            const needsProduction = executedActions.some((a) =>
+              ['create_animal', 'create_pesee', 'update_animal', 'delete_animal'].includes(a.name)
+            );
+
+            if (needsFinance) {
+              dispatch(loadDepensesPonctuelles(projetId));
+              dispatch(loadRevenus(projetId));
+              dispatch(loadChargesFixes(projetId));
+            }
+            if (needsProduction) {
+              dispatch(loadProductionAnimaux({ projetId, inclureInactifs: true }));
+            }
+            
+              // Invalider le cache après des actions pour éviter des réponses obsolètes
+              if (needsFinance || needsProduction) {
+                invalidateProjetCache(projetId).catch((error) => {
+                  logger.warn('Erreur lors de l\'invalidation du cache:', error);
+                });
+              }
+            }
           }
-        } catch {
+        } catch (refreshError) {
           // Ne pas bloquer l'UI si le refresh échoue
+          logger.warn('Erreur lors du rafraîchissement des données:', refreshError);
         }
 
         setMessages((prev) => [...prev, assistantMessage]);
 
-        // Si la voix est activée, lire la réponse
+        // Si la voix est activée, lire la réponse (avec vérification de disponibilité)
         if (voiceServiceRef.current && voiceEnabled) {
-          await voiceServiceRef.current.speak(assistantMessage.content);
+          try {
+            const isAvailable = await voiceServiceRef.current.isTextToSpeechAvailable();
+            if (isAvailable) {
+              await voiceServiceRef.current.speak(assistantMessage.content);
+            } else {
+              logger.debug('[useChatAgent] Text-to-Speech non disponible, réponse non lue');
+            }
+          } catch (voiceError) {
+            logger.warn('[useChatAgent] Erreur lors de la lecture vocale:', voiceError);
+            // Ne pas bloquer l'UI si la voix échoue
+          }
         }
       } catch (error) {
         logger.error("Erreur lors de l'envoi du message:", error);
+        
+        // Messages d'erreur spécifiques selon le type d'erreur
+        let errorContent = "Désolé, j'ai rencontré une erreur. Peux-tu réessayer ?";
+        
+        if (error instanceof APIError) {
+          switch (error.status) {
+            case 0:
+              errorContent = "Problème de connexion. Vérifiez votre connexion Internet et réessayez.";
+              break;
+            case 408:
+              errorContent = "La requête a pris trop de temps. Réessayez dans quelques instants.";
+              break;
+            case 429:
+              errorContent = "Trop de requêtes. Patientez quelques secondes avant de réessayer.";
+              break;
+            case 500:
+            case 502:
+            case 503:
+              errorContent = "Le serveur rencontre des difficultés. Réessayez dans quelques instants.";
+              break;
+            case 400:
+              errorContent = "Erreur dans votre demande. Pouvez-vous reformuler votre question ?";
+              break;
+            case 401:
+            case 403:
+              errorContent = "Problème d'authentification. Veuillez vous reconnecter.";
+              break;
+            default:
+              errorContent = `Erreur serveur (${error.status}). Réessayez plus tard.`;
+          }
+        } else if (error instanceof Error) {
+          // Vérifier si c'est une erreur de timeout
+          if (error.message.includes('timeout') || error.message.includes('Timeout')) {
+            errorContent = "La requête a pris trop de temps. Réessayez dans quelques instants.";
+          } else if (error.message.includes('Network request failed') || error.message.includes('fetch')) {
+            errorContent = "Problème de connexion. Vérifiez votre connexion Internet et réessayez.";
+          }
+        }
+        
         const errorMessage: ChatMessage = {
           id: `error_${Date.now()}`,
           role: 'assistant',
-          content: "Désolé, j'ai rencontré une erreur. Peux-tu réessayer ?",
+          content: errorContent,
           timestamp: new Date().toISOString(),
         };
         setMessages((prev) => [...prev, errorMessage]);
@@ -369,19 +506,37 @@ export function useChatAgent() {
   );
 
   /**
-   * Active/désactive la voix
+   * Active/désactive la voix avec vérification de disponibilité
    */
   const toggleVoice = useCallback(async () => {
     const newVoiceEnabled = !voiceEnabled;
-    setVoiceEnabled(newVoiceEnabled);
 
     if (voiceServiceRef.current) {
       if (newVoiceEnabled) {
+        // Vérifier d'abord la disponibilité
+        const isTTSAvailable = await voiceServiceRef.current.isTextToSpeechAvailable();
+        const isSTTAvailable = await voiceServiceRef.current.isSpeechToTextAvailable();
+
+        if (!isTTSAvailable && !isSTTAvailable) {
+          logger.warn('[useChatAgent] La voix n\'est pas disponible sur cet appareil');
+          // Ne pas activer si aucune fonctionnalité vocale n'est disponible
+          return;
+        }
+
+        // Demander les permissions si nécessaire
         const hasPermission = await voiceServiceRef.current.requestPermissions();
         if (!hasPermission) {
-          setVoiceEnabled(false);
+          logger.warn('[useChatAgent] Permissions vocales refusées');
+          return;
         }
+
+        setVoiceEnabled(true);
+      } else {
+        setVoiceEnabled(false);
       }
+    } else {
+      // Si le service n'est pas encore initialisé, juste changer l'état
+      setVoiceEnabled(newVoiceEnabled);
     }
   }, [voiceEnabled]);
 

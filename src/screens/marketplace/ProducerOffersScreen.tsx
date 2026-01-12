@@ -24,7 +24,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import EmptyState from '../../components/EmptyState';
 import { OfferResponseModal } from '../../components/marketplace';
 import apiClient from '../../services/api/apiClient';
-import { getMarketplaceService } from '../../services/MarketplaceService';
+import marketplaceService from '../../services/MarketplaceService';
 import type { Offer, MarketplaceListing } from '../../types/marketplace';
 import type { ProductionAnimal } from '../../types/production';
 import { format } from 'date-fns';
@@ -71,7 +71,10 @@ export default function ProducerOffersScreen() {
             const firstSubjectId = offer.subjectIds?.[0];
             let subject: ProductionAnimal | undefined;
             if (firstSubjectId) {
-              subject = await apiClient.get<ProductionAnimal>(`/production/animaux/${firstSubjectId}`);
+              // ✅ Utiliser la route marketplace dédiée qui ne vérifie pas l'appartenance
+              const { AnimalRepository } = await import('../../../database/repositories');
+              const animalRepo = new AnimalRepository();
+              subject = await animalRepo.findMarketplaceAnimal(firstSubjectId) as any || undefined;
             }
 
             return {
@@ -122,7 +125,7 @@ export default function ProducerOffersScreen() {
     counterMessage?: string
   ) => {
     try {
-      const service = getMarketplaceService();
+      const service = marketplaceService;
 
       if (!user?.id) {
         throw new Error('Utilisateur non connecté');

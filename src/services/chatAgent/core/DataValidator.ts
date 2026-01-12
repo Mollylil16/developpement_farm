@@ -245,9 +245,13 @@ export class DataValidator {
           });
           animal = animaux.find((a) => a.code === animalIdentifier);
         } catch (apiError) {
-          // En cas d'erreur API (permissions, réseau, etc.), on ne bloque pas
+          // En cas d'erreur API, ajouter un avertissement mais ne pas bloquer
+          // Cependant, on n'accepte pas l'animal par défaut - on indique qu'on ne peut pas vérifier
           logger.warn('[DataValidator] Erreur lors de la vérification de l\'animal:', apiError);
-          // On accepte l'animal par défaut plutôt que de bloquer
+          result.warnings.push(
+            `Impossible de vérifier l'animal "${animalIdentifier}" (erreur API). Veuillez vérifier manuellement.`
+          );
+          // Ne pas bloquer, mais indiquer qu'une vérification manuelle est nécessaire
           return;
         }
       } else {
@@ -255,8 +259,11 @@ export class DataValidator {
         try {
           animal = await apiClient.get<any>(`/production/animaux/${animalIdentifier}`);
         } catch (apiError) {
-          // En cas d'erreur API, on ne bloque pas
+          // En cas d'erreur API, ajouter un avertissement
           logger.warn('[DataValidator] Erreur lors de la vérification de l\'animal:', apiError);
+          result.warnings.push(
+            `Impossible de vérifier l'animal "${animalIdentifier}" (erreur API). Veuillez vérifier manuellement.`
+          );
           return;
         }
       }
@@ -269,10 +276,13 @@ export class DataValidator {
         result.warnings.push(`L'animal "${animalIdentifier}" est décédé`);
       }
     } catch (error) {
-      // Erreur générale - ne pas bloquer pour permettre le fonctionnement de l'agent
+      // Erreur générale - ajouter un avertissement mais ne pas bloquer
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
       logger.warn('[DataValidator] Erreur lors de la validation de l\'animal:', errorMessage);
-      // On accepte l'animal par défaut plutôt que de bloquer
+      result.warnings.push(
+        `Impossible de vérifier l'animal "${animalIdentifier}" (erreur: ${errorMessage}). Veuillez vérifier manuellement.`
+      );
+      // Ne pas bloquer, mais indiquer qu'une vérification manuelle est nécessaire
     }
   }
 
