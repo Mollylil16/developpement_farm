@@ -84,7 +84,7 @@
     "expo-web-browser": "~13.0.3",
     "i18n-js": "^4.4.3",
     "lodash": "^4.17.21",
-    "lucide-react-native": "^0.446.0",
+    "lucide-react-native": "^0.562.0",
     "make-plural": "^6.2.2",
     "normalizr": "^3.6.2",
     "react": "18.2.0",
