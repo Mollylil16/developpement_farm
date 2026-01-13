@@ -23,7 +23,7 @@ import { TAUX_CARCASSE } from '../../config/finance.config';
 
 function LivestockStatsCard() {
   const { colors } = useTheme();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const peseesParAnimal = useAppSelector(selectPeseesParAnimal);
   const updateCounter = useAppSelector(selectProductionUpdateCounter);
   const { animauxActifs } = useAnimauxActifs({ projetId: projetActif?.id });

@@ -21,7 +21,7 @@ interface ChangeEmailModalProps {
 export default function ChangeEmailModal({ visible, onClose }: ChangeEmailModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const user = useAppSelector((state) => state.auth.user);
+  const user = useAppSelector((state) => state.auth?.user);
   const [newEmail, setNewEmail] = useState('');
   const [loading, setLoading] = useState(false);
 

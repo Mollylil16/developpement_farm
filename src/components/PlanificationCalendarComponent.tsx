@@ -16,7 +16,7 @@ import { fr } from 'date-fns/locale';
 export default function PlanificationCalendarComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const { planifications } = useAppSelector((state) => state.planification);
   const [currentMonth, setCurrentMonth] = useState(new Date());
 

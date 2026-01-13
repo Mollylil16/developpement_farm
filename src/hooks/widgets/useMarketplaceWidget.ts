@@ -1,5 +1,6 @@
 /**
  * Hook spécialisé pour le widget Marketplace
+ * Optimisé pour ne charger que les compteurs (pas tous les listings)
  */
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -14,9 +15,14 @@ export interface MarketplaceWidgetData {
   labelSecondary: string;
 }
 
+// Cache des stats pour éviter les requêtes répétées
+const statsCache = new Map<string, { stats: { myListings: number; available: number }; timestamp: number }>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 export function useMarketplaceWidget(projetId?: string): MarketplaceWidgetData | null {
   const [marketplaceStats, setMarketplaceStats] = useState({ myListings: 0, available: 0 });
   const dataChargeesRef = useRef<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Charger les stats du marketplace
   useEffect(() => {
@@ -30,50 +36,62 @@ export function useMarketplaceWidget(projetId?: string): MarketplaceWidgetData |
 
     dataChargeesRef.current = cle;
 
+    // Vérifier le cache
+    const cached = statsCache.get(cle);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      setMarketplaceStats(cached.stats);
+      return;
+    }
+
+    // Annuler les requêtes précédentes
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     (async () => {
       try {
         const apiClient = (await import('../../services/api/apiClient')).default;
 
-        // Charger les listings depuis l'API backend
-        // Le backend retourne maintenant un objet avec pagination
-        const myListingsResponse = await apiClient.get<{
-          listings: any[];
-          total: number;
-        }>('/marketplace/listings', {
-          params: { 
-            projet_id: projetId,
-            limit: 500, // Récupérer tous les listings du projet (limite max)
-          },
-        });
-        const myListings = myListingsResponse.listings || [];
-        const myActiveListings = myListings.filter(
-          (l) => l.status === 'available' || l.status === 'reserved'
-        ).length;
+        // Utiliser des requêtes légères avec limit=1 et récupérer uniquement le total
+        // Le backend retourne {listings, total} - on n'a besoin que du total
+        const [myListingsResponse, allListingsResponse] = await Promise.all([
+          // Mes annonces actives
+          apiClient.get<{ listings: any[]; total: number }>('/marketplace/listings', {
+            params: { 
+              projet_id: projetId,
+              limit: 1, // On ne veut que le compteur total
+            },
+          }),
+          // Annonces disponibles (excluant les miennes)
+          apiClient.get<{ listings: any[]; total: number }>('/marketplace/listings', {
+            params: {
+              exclude_own_listings: 'true',
+              limit: 1, // On ne veut que le compteur total
+            },
+          }),
+        ]);
 
-        // Charger les listings disponibles (excluant ceux de l'utilisateur)
-        // Utiliser exclude_own_listings pour exclure automatiquement
-        const allListingsResponse = await apiClient.get<{
-          listings: any[];
-          total: number;
-        }>('/marketplace/listings', {
-          params: {
-            exclude_own_listings: 'true', // Exclure les listings de l'utilisateur connecté
-            limit: 500, // Récupérer tous les listings disponibles (limite max)
-          },
-        });
-        const allListings = allListingsResponse.listings || [];
-        const availableListings = allListings.filter(
-          (l) => l.status === 'available' || l.status === 'reserved'
-        ).length;
+        const stats = {
+          myListings: myListingsResponse.total || 0,
+          available: allListingsResponse.total || 0,
+        };
 
-        setMarketplaceStats({
-          myListings: myActiveListings,
-          available: availableListings,
-        });
-      } catch (error) {
+        // Mettre en cache
+        statsCache.set(cle, { stats, timestamp: Date.now() });
+
+        setMarketplaceStats(stats);
+      } catch (error: any) {
+        if (error.name === 'AbortError') return;
         logger.error('Erreur chargement stats marketplace:', error);
       }
     })();
+
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [projetId]);
 
   return useMemo(() => {
@@ -88,4 +106,13 @@ export function useMarketplaceWidget(projetId?: string): MarketplaceWidgetData |
       labelSecondary: 'Disponibles',
     };
   }, [projetId, marketplaceStats]);
+}
+
+// Fonction pour invalider le cache du widget
+export function invalidateMarketplaceWidgetCache(projetId?: string): void {
+  if (projetId) {
+    statsCache.delete(`marketplace-${projetId}`);
+  } else {
+    statsCache.clear();
+  }
 }

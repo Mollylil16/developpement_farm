@@ -4,6 +4,17 @@
 
 export type ChatMessageRole = 'user' | 'assistant' | 'system';
 
+export interface SujetDisponible {
+  id: string;
+  code?: string;
+  nom?: string;
+  race?: string;
+  poids_kg?: number;
+  date_derniere_pesee?: string;
+  loge?: string;
+  batch_id?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: ChatMessageRole;
@@ -20,6 +31,10 @@ export interface ChatMessage {
       action: string;
       params: Record<string, unknown>;
     };
+    // Signal pour rafraîchir les données côté frontend
+    refreshHint?: 'finance' | 'production' | 'sante' | 'marketplace' | 'all';
+    // Liste des sujets disponibles pour sélection (ventes, etc.)
+    sujetsDisponibles?: SujetDisponible[];
   };
 }
 
@@ -94,6 +109,11 @@ export type AgentActionType =
   | 'marketplace_check_offers'
   | 'marketplace_respond_offer'
   | 'marketplace_get_my_listings'
+  // Suppressions
+  | 'delete_revenu'
+  | 'delete_depense'
+  // Capacités / Aide
+  | 'describe_capabilities'
   | 'other';
 
 export interface AgentAction {
@@ -113,6 +133,10 @@ export interface AgentActionResult {
   clarificationType?: string;
   missingParams?: string[];
   actionType?: string; // Type d'action pour la boucle de clarification
+  // Signal pour rafraîchir les données côté frontend
+  refreshHint?: 'finance' | 'production' | 'sante' | 'marketplace' | 'all';
+  // Demande de confirmation avant traitement
+  requiresConfirmation?: boolean;
 }
 
 export interface AgentContext {

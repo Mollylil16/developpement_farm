@@ -20,6 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { MarketplaceTheme } from '../../styles/marketplace.theme';
 import { SPACING } from '../../constants/theme';
+import DatePickerField from '../DatePickerField';
 import { RACES_LIST } from '../../constants/races';
 import { useGeolocation } from '../../hooks/useGeolocation';
 import apiClient from '../../services/api/apiClient';
@@ -637,16 +638,11 @@ export default function CreatePurchaseRequestModal({
 
           {/* Date de livraison */}
           <View style={styles.field}>
-            <Text style={[styles.label, { color: colors.text }]}>Date souhaitée de livraison</Text>
-            <TextInput
-              style={[
-                styles.input,
-                { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border },
-              ]}
+            <DatePickerField
+              label="Date souhaitée de livraison"
               value={deliveryDate}
-              onChangeText={setDeliveryDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={colors.textSecondary}
+              onChange={setDeliveryDate}
+              minimumDate={new Date()}
             />
           </View>
 

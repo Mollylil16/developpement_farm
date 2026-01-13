@@ -38,7 +38,7 @@ interface Props {
 export default function MaladieFormModal({ visible, onClose, maladie, animalId }: Props) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
 
   const isEditing = !!maladie;
 

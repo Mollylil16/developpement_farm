@@ -51,7 +51,7 @@ export default function ProductionHistoriqueComponent() {
   const dispatch = useAppDispatch();
   const { canUpdate, canDelete } = useActionPermissions();
   const navigation = useNavigation<NavigationProp<any>>();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const animaux = useAppSelector(selectAllAnimaux);
   const loading = useAppSelector(selectProductionLoading);
   const mortalites = useAppSelector(selectAllMortalites);

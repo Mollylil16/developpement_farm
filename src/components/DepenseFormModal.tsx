@@ -11,6 +11,7 @@ import type { DepensePonctuelle, CreateDepensePonctuelleInput, CategorieDepense 
 import { getTypeDepense, CATEGORIE_DEPENSE_LABELS } from '../types/finance';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
+import DatePickerField from './DatePickerField';
 import { SPACING, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useActionPermissions } from '../hooks/useActionPermissions';
@@ -32,7 +33,7 @@ export default function DepenseFormModal({
 }: DepenseFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const { canCreate, canUpdate } = useActionPermissions();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateDepensePonctuelleInput & { photos: string[] }>({
@@ -340,11 +341,11 @@ export default function DepenseFormModal({
           />
         )}
 
-        <FormField
+        <DatePickerField
           label="Date"
           value={formData.date}
-          onChangeText={(text) => setFormData({ ...formData, date: text })}
-          placeholder="YYYY-MM-DD"
+          onChange={(date) => setFormData({ ...formData, date })}
+          maximumDate={new Date()}
         />
 
         <FormField

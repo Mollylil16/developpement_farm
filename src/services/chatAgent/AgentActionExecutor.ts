@@ -220,6 +220,12 @@ export class AgentActionExecutor {
 
         case 'marketplace_get_my_listings':
           return await MarketplaceActions.getMyListings(action.params, context);
+
+        // ============================================
+        // CAPACITÉS / AIDE
+        // ============================================
+        case 'describe_capabilities':
+          return this.describeCapabilities(action.params, context);
         
         // Action générique (questions d'identité, salutations, etc.)
         case 'other':
@@ -499,6 +505,90 @@ export class AgentActionExecutor {
       success: true,
       data: maladie,
       message,
+    };
+  }
+
+  /**
+   * Décrit les capacités de Kouakou
+   * Répond aux questions du type "tu peux faire quoi?", "qu'est-ce que tu sais faire?"
+   */
+  private describeCapabilities(params: unknown, context: AgentContext): AgentActionResult {
+    const paramsTyped = params as Record<string, unknown>;
+    const focus = paramsTyped.focus as string | undefined;
+    const userName = context.userName || 'ami';
+
+    // Si focus sur le marketplace
+    if (focus === 'marketplace') {
+      return {
+        success: true,
+        message: `Oui ${userName}, je peux t'aider à vendre tes porcs sur le marketplace ! 🐷💰
+
+**Voici ce que je peux faire pour toi :**
+
+🔹 **Mettre un animal en vente** - Dis-moi par exemple :
+   • "Vends le porc P123 à 2500 FCFA/kg"
+   • "Mets en vente un porc de 90kg"
+   • "Publie une annonce pour la loge A"
+
+🔹 **Consulter le prix du marché** - Demande-moi :
+   • "Quel est le prix du porc actuellement ?"
+   • "À combien vendre mes porcs ?"
+
+🔹 **Gérer les offres automatiquement** - Je peux :
+   • Accepter les offres au-dessus de ton prix
+   • Te demander ton avis pour les offres négociables
+   • Refuser automatiquement les offres trop basses
+
+🔹 **Suivre tes annonces** - Demande-moi :
+   • "Mes annonces en cours"
+   • "Ai-je reçu des offres ?"
+
+**Essaie maintenant !** Par exemple : *"Vends mon porc P001 au prix du marché"* 🚀`,
+      };
+    }
+
+    // Description générale des capacités
+    return {
+      success: true,
+      message: `Salut ${userName} ! Je suis Kouakou, ton assistant intelligent pour l'élevage porcin. 🐷
+
+**Voici tout ce que je peux faire pour toi :**
+
+📊 **Statistiques & Suivi**
+   • Nombre de porcs actifs, répartition par catégorie
+   • Évolution des poids, historique des pesées
+   • Taux de mortalité, causes
+
+💰 **Finances**
+   • Enregistrer ventes et dépenses
+   • Bilan financier, revenus vs coûts
+   • Charges fixes, dettes en cours
+
+🏥 **Santé**
+   • Vaccinations et rappels
+   • Traitements et visites vétérinaires
+   • Alertes maladies
+
+🍽️ **Alimentation**
+   • Suivi des stocks
+   • Compositions alimentaires personnalisées
+   • Consommation moyenne
+
+🏠 **Gestion des loges** (mode bande)
+   • Créer et organiser les loges
+   • Déplacer des animaux
+   • Suivre par groupe
+
+🛒 **Marketplace** ⭐ NOUVEAU
+   • **Mettre des porcs en vente**
+   • Consulter les prix du marché
+   • Gérer automatiquement les offres
+
+📚 **Formation**
+   • Conseils d'élevage
+   • Réponses à tes questions
+
+**Exemple :** Dis-moi *"Vends mon porc au prix du marché"* ou *"Combien de porcs j'ai ?"* 🚀`,
     };
   }
 

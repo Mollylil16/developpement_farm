@@ -75,8 +75,9 @@ export class FastPathDetector {
       }
     }
 
-    // 2. VENTE - Mots-clés forts : "vendu", "vente", "j'ai vendu"
-    if (normalized.match(/\b(?:vendu|vente|j'ai vendu|vendre|enregistrer vente|nouvelle vente)\b/i)) {
+    // 2. VENTE ENREGISTRÉE - Mots-clés forts : "vendu", "j'ai vendu" (passé)
+    // Priorité donnée aux ventes déjà effectuées (avec montant)
+    if (normalized.match(/\b(?:vendu|j'ai vendu|enregistrer vente|nouvelle vente)\b/i)) {
       const montant = MontantExtractor.extract(message);
       // Chercher nombre de porcs
       const nombreMatch = message.match(/(\d+)\s*(?:porc|porcs|tete|tetes)/i);
@@ -96,6 +97,62 @@ export class FastPathDetector {
           confidence: 0.97,
         };
       }
+    }
+
+    // 2b. MARKETPLACE - Mettre en vente (futur/impératif)
+    // Mots-clés : "vends", "mets en vente", "mettre en vente", "vendre au marché", "marketplace"
+    // Exclure les ventes passées (vendu, j'ai vendu)
+    const isPastSale = normalized.match(/\b(?:vendu|j'?ai vendu|on a vendu|jai vendu)\b/i);
+    if (
+      !isPastSale && (
+        normalized.match(/\b(?:vends|mets en vente|mettre en vente|met en vente|publie.*annonce|publier.*annonce)\b/i) ||
+        normalized.match(/\b(?:en vente)\b/i) && normalized.match(/\b(?:marketplace|marche|marché|sujet|porc)\b/i) ||
+        (normalized.match(/\b(?:vendre)\b/i) && normalized.match(/\b(?:marketplace|marche|marché)\b/i)) ||
+        (normalized.match(/\b(?:vendre|vends|met|mets)\b/i) && normalized.match(/\b(?:porc|le porc|mon porc|sujet|le sujet|un sujet)\b/i)) ||
+        (normalized.match(/\b(?:liste|lister)\b/i) && normalized.match(/\b(?:sujet|porc|marketplace|vente)\b/i))
+      )
+    ) {
+      // Chercher code animal (P001, etc.)
+      const codeMatch = message.match(/\b(p\d+)\b/i);
+      const animalCode = codeMatch ? codeMatch[1].toUpperCase() : undefined;
+      
+      // Chercher prix au kg
+      const prixKgMatch = message.match(/(\d+[.,]?\d*)\s*(?:fcfa|f|francs?)(?:\s*(?:\/|par|le))?\s*(?:kg|kilo)/i);
+      const pricePerKg = prixKgMatch ? parseFloat(prixKgMatch[1].replace(/[\s,]/g, '').replace('.', '')) : undefined;
+      
+      // Chercher poids
+      const poidsMatch = message.match(/(\d+[.,]?\d*)\s*(?:kg|kilo)/i);
+      const weight = poidsMatch ? parseFloat(poidsMatch[1].replace(',', '.')) : undefined;
+      
+      // Chercher loge
+      const logeMatch = message.match(/(?:loge|bande|enclos)\s*([A-Z0-9]+)/i);
+      const logeName = logeMatch ? logeMatch[1] : undefined;
+
+      return {
+        intent: {
+          action: 'marketplace_sell_animal' as AgentActionType,
+          confidence: animalCode ? 0.97 : 0.93,
+          params: {
+            animalCode,
+            pricePerKg,
+            weight,
+            logeName,
+          },
+        },
+        confidence: animalCode ? 0.97 : 0.93,
+      };
+    }
+
+    // 2c. PRIX DU MARCHÉ
+    if (normalized.match(/\b(?:prix du marche|prix du marché|tendance.*prix|prix.*actuel|a combien vendre|quel prix)\b/i)) {
+      return {
+        intent: {
+          action: 'marketplace_get_price_trends' as AgentActionType,
+          confidence: 0.96,
+          params: {},
+        },
+        confidence: 0.96,
+      };
     }
 
     // 3. PESÉE - Mots-clés forts : "peser", "pesée", "pèse", "fait X kg"

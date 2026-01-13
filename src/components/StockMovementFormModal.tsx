@@ -10,6 +10,7 @@ import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
+import DatePickerField from './DatePickerField';
 import Button from './Button';
 import type { StockAliment, TypeMouvementStock, UniteStock } from '../types/nutrition';
 import { useActionPermissions } from '../hooks/useActionPermissions';
@@ -236,11 +237,11 @@ export default function StockMovementFormModal({
           placeholder={aliment.unite}
         />
 
-        <FormField
+        <DatePickerField
           label="Date"
           value={date}
-          onChangeText={(text) => setDate(text)}
-          placeholder="YYYY-MM-DD"
+          onChange={(newDate) => setDate(newDate)}
+          maximumDate={new Date()}
         />
 
         <FormField

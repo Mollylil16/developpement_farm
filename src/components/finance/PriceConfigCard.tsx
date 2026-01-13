@@ -20,7 +20,7 @@ interface PriceConfigCardProps {
 export default function PriceConfigCard({ onPriceUpdate }: PriceConfigCardProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
 
   const [isEditingPrix, setIsEditingPrix] = useState(false);
   const [prixVif, setPrixVif] = useState<string>('');

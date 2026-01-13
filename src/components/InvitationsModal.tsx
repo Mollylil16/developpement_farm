@@ -26,8 +26,8 @@ interface InvitationsModalProps {
 export default function InvitationsModal({ visible, onClose }: InvitationsModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { invitationsEnAttente, loading } = useAppSelector((state) => state.collaboration);
-  const { user } = useAppSelector((state) => state.auth);
+  const { invitationsEnAttente = [], loading = false } = useAppSelector((state) => state.collaboration ?? { invitationsEnAttente: [], loading: false });
+  const { user } = useAppSelector((state) => state.auth ?? { user: null });
   const [projetNoms, setProjetNoms] = React.useState<Record<string, string>>({});
   const [loadingProjets, setLoadingProjets] = React.useState(false);
 

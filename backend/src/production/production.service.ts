@@ -198,7 +198,10 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
     userId: string,
     inclureInactifs: boolean = true,
     limit?: number,
-    offset?: number
+    offset?: number,
+    code?: string,
+    poidsMin?: number,
+    poidsMax?: number
   ) {
     await this.checkProjetOwnership(projetId, userId);
 
@@ -218,6 +221,22 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
 
     if (!inclureInactifs) {
       query += ` AND statut = 'actif'`;
+    }
+
+    // Filtrage par code (recherche exacte ou partielle, insensible à la casse)
+    if (code) {
+      params.push(`%${code}%`);
+      query += ` AND code ILIKE $${params.length}`;
+    }
+
+    // Filtrage par plage de poids (basé sur poids_initial)
+    if (poidsMin !== undefined) {
+      params.push(poidsMin);
+      query += ` AND poids_initial >= $${params.length}`;
+    }
+    if (poidsMax !== undefined) {
+      params.push(poidsMax);
+      query += ` AND poids_initial <= $${params.length}`;
     }
 
     query += ` ORDER BY date_creation DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;

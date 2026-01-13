@@ -22,6 +22,12 @@ export class IntentDetector {
     // Normaliser le message (supprimer accents, caractères spéciaux)
     const normalized = this.normalizeText(lowerMessage);
 
+    // Détecter les questions sur les capacités de Kouakou (priorité très haute)
+    const capabilitiesIntent = this.detectCapabilitiesQuestion(normalized, lowerMessage);
+    if (capabilitiesIntent) {
+      return capabilitiesIntent;
+    }
+
     // Détecter les requêtes d'information (priorité haute)
     const infoIntent = this.detectInfoRequest(normalized, lowerMessage);
     if (infoIntent) {
@@ -41,6 +47,53 @@ export class IntentDetector {
     // Détecter les recherches
     const searchIntent = this.detectSearchRequest(normalized, lowerMessage);
     if (searchIntent) return searchIntent;
+
+    return null;
+  }
+
+  /**
+   * Détecte les questions sur les capacités de Kouakou
+   * Ex: "tu peux faire quoi?", "qu'est-ce que tu sais faire?", "je pense que tu peux..."
+   */
+  private static detectCapabilitiesQuestion(normalized: string, original: string): DetectedIntent | null {
+    const capabilityPatterns = [
+      /tu peux (faire )?quoi/i,
+      /qu.?est.ce que tu (peux|sais) faire/i,
+      /que (peux|sais).tu faire/i,
+      /tu sais faire quoi/i,
+      /tes capacites/i,
+      /tes fonctionnalites/i,
+      /aide.moi/i,
+      /comment tu (peux )?(m.?)?aider/i,
+      /je pense que tu peux/i,
+      /maintenant.*tu peux/i,
+      /est.ce que tu peux.*vendre/i,
+      /peux.tu.*marketplace/i,
+      /peux.tu.*vente/i,
+      /tu geres.*vente/i,
+    ];
+
+    for (const pattern of capabilityPatterns) {
+      if (pattern.test(original) || pattern.test(normalized)) {
+        return {
+          action: 'describe_capabilities',
+          confidence: 0.95,
+          params: {},
+        };
+      }
+    }
+
+    // Patterns pour la vente marketplace (quand l'utilisateur mentionne la capacité)
+    if (
+      (normalized.includes('tu peux') || normalized.includes('je pense')) &&
+      (normalized.includes('vendre') || normalized.includes('vente') || normalized.includes('marketplace'))
+    ) {
+      return {
+        action: 'describe_capabilities',
+        confidence: 0.92,
+        params: { focus: 'marketplace' },
+      };
+    }
 
     return null;
   }

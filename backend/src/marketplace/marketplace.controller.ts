@@ -180,6 +180,17 @@ export class MarketplaceController {
     return this.marketplaceService.findOneListing(id);
   }
 
+  @Get('listings/subject/:subjectId')
+  @ApiOperation({ 
+    summary: 'Récupérer le listing actif d\'un sujet',
+    description: 'Retourne le listing actif (available ou reserved) pour un sujet donné. Retourne 404 si aucun listing actif.'
+  })
+  @ApiResponse({ status: 200, description: 'Listing actif du sujet.' })
+  @ApiResponse({ status: 404, description: 'Aucun listing actif pour ce sujet.' })
+  async findListingBySubject(@Param('subjectId') subjectId: string) {
+    return this.marketplaceService.findActiveListingBySubject(subjectId);
+  }
+
   @Get('animals/:animalId')
   @ApiOperation({ 
     summary: 'Récupérer les informations publiques d\'un animal listé sur le marketplace',

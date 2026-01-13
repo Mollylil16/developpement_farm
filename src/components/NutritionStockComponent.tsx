@@ -38,7 +38,7 @@ export default function NutritionStockComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const { stocks, mouvementsParAliment, loading } = useAppSelector((state) => state.stocks);
   const [selectedStock, setSelectedStock] = useState<StockAliment | null>(null);
   const [showAlimentModal, setShowAlimentModal] = useState(false);

@@ -31,7 +31,7 @@ type PeriodeType = '7j' | '30j' | '3m' | '6m' | '12m';
 export default function TendancesChartsComponent() {
   const { colors, isDark } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const peseesRecents: ProductionPesee[] = useAppSelector(selectPeseesRecents);
   const mortalites: Mortalite[] = useAppSelector(selectAllMortalites);
   const chargesFixes: ChargeFixe[] = useAppSelector(selectAllChargesFixes);

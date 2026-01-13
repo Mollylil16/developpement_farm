@@ -79,7 +79,7 @@ export default function GestationFormModal({
 }: GestationFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const animaux: ProductionAnimal[] = useAppSelector(selectAllAnimaux);
   const mortalites: Mortalite[] = useAppSelector(selectAllMortalites);
   const { canCreate, canUpdate } = useActionPermissions();

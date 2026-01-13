@@ -46,7 +46,7 @@ export default function TraitementFormModal({
 }: Props) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const maladies = useAppSelector(selectAllMaladies);
 
   const isEditing = !!traitement;

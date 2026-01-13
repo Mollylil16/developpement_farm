@@ -96,3 +96,39 @@ export const toValidDate = (dateValue: any): Date | null => {
     return null;
   }
 };
+
+/**
+ * Formate une date locale au format YYYY-MM-DD
+ */
+export const formatLocalDate = (date: Date | string | null | undefined): string => {
+  if (!date) return '';
+  
+  try {
+    const d = typeof date === 'string' ? parseISO(date) : date;
+    if (!isValid(d)) return '';
+    return format(d, 'yyyy-MM-dd');
+  } catch {
+    return '';
+  }
+};
+
+/**
+ * Parse une date locale au format YYYY-MM-DD vers un objet Date
+ */
+export const parseLocalDate = (dateString: string | null | undefined): Date | null => {
+  if (!dateString) return null;
+  
+  try {
+    const date = parseISO(dateString);
+    return isValid(date) ? date : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Retourne la date locale actuelle au format YYYY-MM-DD
+ */
+export const getCurrentLocalDate = (): string => {
+  return format(new Date(), 'yyyy-MM-dd');
+};

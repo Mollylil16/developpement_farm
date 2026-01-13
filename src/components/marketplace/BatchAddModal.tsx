@@ -23,7 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { MarketplaceTheme } from '../../styles/marketplace.theme';
 import { SPACING } from '../../constants/theme';
 import SaleTermsDisplay from './SaleTermsDisplay';
-import type { ProductionAnimal } from '../../types/production';
+import type { ProductionAnimal, SexeAnimal, StatutAnimal } from '../../types/production';
 import type { Batch } from '../../types/batch';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { selectAllAnimaux, selectPeseesParAnimal } from '../../store/selectors/productionSelectors';
@@ -65,7 +65,7 @@ export default function BatchAddModal({
   // Charger les animaux depuis Redux si non fournis (mode individuel)
   const allAnimaux = useAppSelector(selectAllAnimaux);
   const peseesParAnimalRedux = useAppSelector(selectPeseesParAnimal);
-  const { user } = useAppSelector((state) => state.auth);
+  const { user } = useAppSelector((state) => state.auth ?? { user: null });
   const { getCurrentLocation } = useGeolocation();
   const [localSubjects, setLocalSubjects] = useState<ProductionAnimal[]>([]);
   const [loadingSubjects, setLoadingSubjects] = useState(false);
@@ -163,18 +163,20 @@ export default function BatchAddModal({
           id: pig.id,
           projet_id: projetId,
           code: pig.pig_code || pig.code || `BP-${pig.id.slice(0, 8)}`,
-          nom: pig.nom || null,
+          nom: pig.nom || undefined,
           race: pig.race || pig.batch_category || 'Non spécifiée',
-          sexe: pig.sex || pig.sexe || 'non_specifie',
-          date_naissance: pig.birth_date || pig.date_naissance || null,
+          sexe: (pig.sex || pig.sexe || 'non_specifie') as SexeAnimal,
+          date_naissance: pig.birth_date || pig.date_naissance || undefined,
           poids_initial: pig.current_weight_kg || pig.initial_weight_kg || 0,
-          statut: 'actif',
+          actif: true,
+          reproducteur: false,
+          statut: 'actif' as StatutAnimal,
           date_creation: pig.created_at || new Date().toISOString(),
           derniere_modification: pig.updated_at || new Date().toISOString(),
           // Métadonnées batch
           batch_id: pig.batch_id,
           batch_name: pig.batch_name,
-        }));
+        } as ProductionAnimal));
         
         setLocalSubjects(subjectsAsAnimals);
         
@@ -554,6 +556,10 @@ export default function BatchAddModal({
           try {
             // ✅ CORRECTION: Utiliser projetActif.id au lieu de projetId (prop)
             const farmIdToUse = projetActif?.id || projetId;
+            if (!farmIdToUse) {
+              logger.error('[BatchAddModal] Erreur: farmId non disponible');
+              continue;
+            }
             if (projetActif && projetId !== projetActif.id) {
               logger.warn(`[BatchAddModal] Attention: projetId prop (${projetId}) différent de projetActif.id (${projetActif.id}). Utilisation de projetActif.id.`);
             }
@@ -565,9 +571,14 @@ export default function BatchAddModal({
               projetActifId: projetActif?.id,
               weight: poidsArrondi,
             });
+            const animalId = animal.id;
+            if (!animalId) {
+              logger.error('[BatchAddModal] Erreur: animalId non disponible');
+              continue;
+            }
             await dispatch(
               createListing({
-                subjectId: animal.id,
+                subjectId: animalId,
                 producerId: user.id,
                 farmId: farmIdToUse, // ✅ CORRECTION: Utiliser projetActif.id
                 pricePerKg: price,
@@ -1046,7 +1057,7 @@ const styles = StyleSheet.create({
   },
   batchName: {
     fontSize: MarketplaceTheme.typography.fontSizes.sm,
-    fontWeight: MarketplaceTheme.typography.fontWeights.normal,
+    fontWeight: MarketplaceTheme.typography.fontWeights.regular,
   },
   subjectDetails: {
     fontSize: MarketplaceTheme.typography.fontSizes.sm,

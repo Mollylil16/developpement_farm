@@ -4,7 +4,27 @@
 
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Calendar, DateData, MarkedDates } from 'react-native-calendars';
+import { Calendar, DateData } from 'react-native-calendars';
+
+// Type pour les dots du calendrier
+interface CalendarDot {
+  key: string;
+  color: string;
+  selectedDotColor?: string;
+}
+
+// Type pour les dates marquées du calendrier
+type MarkedDates = Record<string, {
+  marked?: boolean;
+  dotColor?: string;
+  selected?: boolean;
+  selectedColor?: string;
+  disabled?: boolean;
+  disableTouchEvent?: boolean;
+  activeOpacity?: number;
+  customStyles?: object;
+  dots?: CalendarDot[];
+}>;
 import { useAppSelector } from '../store/hooks';
 import type { Gestation } from '../types/reproduction';
 import { doitGenererAlerte } from '../types/reproduction';
@@ -17,7 +37,7 @@ import { selectAllGestations } from '../store/selectors/reproductionSelectors';
 export default function GestationsCalendarComponent() {
   const { colors } = useTheme();
   const gestations: Gestation[] = useAppSelector(selectAllGestations);
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   // ✅ MÉMOÏSER la length pour éviter les boucles infinies
@@ -49,16 +69,22 @@ export default function GestationsCalendarComponent() {
             selected: false,
           };
         }
+        // S'assurer que dots existe
+        if (!marked[dateMiseBas].dots) {
+          marked[dateMiseBas].dots = [];
+        }
 
         try {
           const isAlerte = doitGenererAlerte(gestation.date_mise_bas_prevue);
-          marked[dateMiseBas].dots.push({
+          marked[dateMiseBas].dots!.push({
+            key: `mb-${gestation.id || dateMiseBas}`,
             color: isAlerte ? colors.error : colors.primary,
             selectedDotColor: colors.background,
           });
         } catch (error) {
           console.error("Erreur lors de la vérification de l'alerte:", error);
-          marked[dateMiseBas].dots.push({
+          marked[dateMiseBas].dots!.push({
+            key: `mb-${gestation.id || dateMiseBas}-fallback`,
             color: colors.primary,
             selectedDotColor: colors.background,
           });
@@ -71,7 +97,12 @@ export default function GestationsCalendarComponent() {
             selected: false,
           };
         }
-        marked[dateSautage].dots.push({
+        // S'assurer que dots existe
+        if (!marked[dateSautage].dots) {
+          marked[dateSautage].dots = [];
+        }
+        marked[dateSautage].dots!.push({
+          key: `saut-${gestation.id || dateSautage}`,
           color: colors.secondary,
           selectedDotColor: colors.background,
         });

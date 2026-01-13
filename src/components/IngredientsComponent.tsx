@@ -33,8 +33,8 @@ export default function IngredientsComponent() {
   const { colors, isDark } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canDelete, canUpdate } = useActionPermissions();
-  const { projetActif } = useAppSelector((state) => state.projet);
-  const { ingredients, loading } = useAppSelector((state) => state.nutrition);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  const { ingredients = [], loading = false } = useAppSelector((state) => state.nutrition ?? { ingredients: [], loading: false });
   const [showIngredientModal, setShowIngredientModal] = useState(false);
   const [selectedIngredient, setSelectedIngredient] = useState<Ingredient | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -73,7 +73,7 @@ export default function IngredientsComponent() {
       });
 
       // Vérifier quels ingrédients manquent (même si la liste actuelle est vide)
-      const ingredientsExistants = new Set(ingredients.map((ing) => ing.nom.toLowerCase().trim()));
+      const ingredientsExistants = new Set(ingredients.map((ing: Ingredient) => ing.nom.toLowerCase().trim()));
       const ingredientsManquants = Array.from(ingredientsFormulations).filter(
         (nom) => !ingredientsExistants.has(nom.toLowerCase().trim())
       );
@@ -139,14 +139,14 @@ export default function IngredientsComponent() {
   const filteredIngredients = useMemo(() => {
     if (!searchQuery.trim()) return ingredients;
     const query = searchQuery.toLowerCase();
-    return ingredients.filter((ing) => ing.nom.toLowerCase().includes(query));
+    return ingredients.filter((ing: Ingredient) => ing.nom.toLowerCase().includes(query));
   }, [ingredients, searchQuery]);
 
   // Statistiques
   const stats = useMemo(() => {
     const total = ingredients.length;
     const prixMoyen =
-      total > 0 ? ingredients.reduce((sum, ing) => sum + ing.prix_unitaire, 0) / total : 0;
+      total > 0 ? ingredients.reduce((sum: number, ing: Ingredient) => sum + ing.prix_unitaire, 0) / total : 0;
     return { total, prixMoyen };
   }, [ingredients]);
 

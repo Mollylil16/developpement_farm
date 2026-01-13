@@ -57,7 +57,7 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
   const modeElevage = useModeElevage();
   const isModeBatch = modeElevage === 'bande';
 
-  const projetActif = useAppSelector((state) => state.projet.projetActif);
+  const projetActif = useAppSelector((state) => state.projet?.projetActif);
   const maladies = useAppSelector((state) => selectAllMaladies(state));
   const animaux = useAppSelector((state) => selectAllAnimaux(state));
 

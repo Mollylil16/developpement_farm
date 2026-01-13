@@ -42,7 +42,7 @@ function MarketplaceMyListingsTab({
   onViewDetails,
 }: MarketplaceMyListingsTabProps) {
   const marketplaceColors = MarketplaceTheme.colors;
-  const { user } = useAppSelector((state) => state.auth);
+  const { user } = useAppSelector((state) => state.auth ?? { user: null });
   const allAnimaux = useAppSelector(selectAllAnimaux);
 
   const handleRemove = async (listing: MarketplaceListing) => {

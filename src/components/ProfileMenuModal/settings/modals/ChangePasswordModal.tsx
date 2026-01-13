@@ -19,7 +19,7 @@ interface ChangePasswordModalProps {
 
 export default function ChangePasswordModal({ visible, onClose }: ChangePasswordModalProps) {
   const { colors } = useTheme();
-  const user = useAppSelector((state) => state.auth.user);
+  const user = useAppSelector((state) => state.auth?.user);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');

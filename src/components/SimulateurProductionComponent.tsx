@@ -40,7 +40,7 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
 
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const { objectifProduction, simulationResultat, recommendations, loading } = useAppSelector(
     (state) => state.planningProduction
   );

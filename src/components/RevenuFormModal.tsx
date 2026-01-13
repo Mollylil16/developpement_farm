@@ -29,6 +29,7 @@ import apiClient from '../services/api/apiClient';
 import type { Batch } from '../types/batch';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
+import DatePickerField from './DatePickerField';
 import { SPACING, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { logger } from '../utils/logger';
@@ -56,7 +57,7 @@ export default function RevenuFormModal({
 }: RevenuFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const animaux = useAppSelector(selectAllAnimaux);
   const peseesRecents = useAppSelector(selectPeseesRecents);
   const { canCreate, canUpdate } = useActionPermissions();
@@ -818,11 +819,11 @@ export default function RevenuFormModal({
           </View>
         )}
 
-        <FormField
+        <DatePickerField
           label="Date"
           value={formData.date}
-          onChangeText={(text) => setFormData({ ...formData, date: text })}
-          placeholder="YYYY-MM-DD"
+          onChange={(date) => setFormData({ ...formData, date })}
+          maximumDate={new Date()}
         />
 
         <FormField

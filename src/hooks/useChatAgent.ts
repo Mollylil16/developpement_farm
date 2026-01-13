@@ -1,20 +1,18 @@
 /**
  * Hook React pour utiliser l'agent conversationnel Kouakou
  * 
- * Ce hook communique UNIQUEMENT avec le backend - aucun appel direct à Gemini.
- * Toute l'intelligence IA est gérée côté serveur.
+ * V5.0 - Utilise ChatAgentService local pour la détection d'intention et l'exécution
+ * Le backend n'est plus utilisé pour la logique IA - uniquement pour la persistance
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { ProactiveRemindersService, VoiceService } from '../services/chatAgent';
-import { ChatMessage, Reminder } from '../types/chatAgent';
+import { ProactiveRemindersService, VoiceService, ChatAgentService } from '../services/chatAgent';
+import { ChatMessage, Reminder, AgentContext } from '../types/chatAgent';
 import { format } from 'date-fns';
-import apiClient, { APIError } from '../services/api/apiClient';
+import { APIError } from '../services/api/apiClient';
 import { createLoggerWithPrefix } from '../utils/logger';
 import {
-  getCachedResponse,
-  setCachedResponse,
   invalidateProjetCache,
 } from '../services/chatAgent/kouakouCache';
 import {
@@ -137,6 +135,7 @@ export function useChatAgent() {
   const voiceServiceRef = useRef<VoiceService | null>(null);
   const conversationIdRef = useRef<string | null>(null);
   const conversationHistoryRef = useRef<ConversationHistoryEntry[]>([]);
+  const chatAgentServiceRef = useRef<ChatAgentService | null>(null);
 
   const pushHistory = useCallback((role: 'user' | 'model', text: string) => {
     if (!text) {
@@ -237,6 +236,24 @@ export function useChatAgent() {
 
         remindersServiceRef.current = remindersService;
         voiceServiceRef.current = voiceService;
+
+        // Initialiser ChatAgentService pour la détection d'intention et l'exécution
+        const agentContext: AgentContext = {
+          projetId: projetActif.id,
+          userId: user.id,
+          userName: user.prenom || user.nom || user.email,
+          currentDate: format(new Date(), 'yyyy-MM-dd'),
+        };
+        
+        const chatAgentService = new ChatAgentService();
+        await chatAgentService.initializeContext(agentContext, conversationId || undefined);
+        
+        // Charger les messages existants dans le ChatAgentService
+        if (savedMessages.length > 0) {
+          chatAgentService.loadHistory(savedMessages);
+        }
+        
+        chatAgentServiceRef.current = chatAgentService;
 
         if (savedMessages.length > 0) {
           if (!isCancelled) {
@@ -340,98 +357,37 @@ export function useChatAgent() {
       try {
         pushHistory('user', trimmedContent);
 
-        // Vérifier d'abord le cache
-        const cachedResponse = await getCachedResponse(trimmedContent, projetActif.id);
-        let responseText: string;
-        let backendResponse: KouakouBackendResponse | null = null;
-
-        if (cachedResponse) {
-          // Utiliser la réponse du cache
-          logger.debug('[useChatAgent] Réponse trouvée dans le cache');
-          responseText = cachedResponse;
-        } else {
-          // Appel au backend Kouakou - toute l'IA est gérée côté serveur
-          // Limiter l'historique pour optimiser les requêtes
-          const limitedHistory = limitHistory(conversationHistoryRef.current);
-          
-          backendResponse = await apiClient.post<KouakouBackendResponse>(
-            '/kouakou/chat',
-            {
-              message: trimmedContent,
-              projectId: projetActif.id,
-              conversationId: conversationIdRef.current,
-              history: limitedHistory,
-            },
-            {
-              timeout: 30000, // 30 secondes de timeout
-            }
-          );
-          responseText = backendResponse?.response;
-          if (!responseText) {
-            throw new Error('Réponse vide de Kouakou');
-          }
-          
-          // Mettre en cache la réponse (seulement si pas d'actions exécutées pour éviter le cache de réponses obsolètes)
-          const hasExecutedActions = backendResponse?.metadata?.executedActions && backendResponse.metadata.executedActions.length > 0;
-          if (!hasExecutedActions) {
-            await setCachedResponse(
-              trimmedContent,
-              responseText,
-              projetActif.id,
-              backendResponse?.metadata?.executedActions
-            );
-          }
+        // Utiliser ChatAgentService pour la détection d'intention et l'exécution
+        if (!chatAgentServiceRef.current) {
+          throw new Error('ChatAgentService non initialisé');
         }
+
+        const assistantMessage = await chatAgentServiceRef.current.sendMessage(trimmedContent);
         
-        pushHistory('model', responseText);
+        pushHistory('model', assistantMessage.content);
 
-        // Convertir la réponse en ChatMessage
-        const assistantMessage: ChatMessage = {
-          id: `assistant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          role: 'assistant',
-          content: responseText,
-          timestamp: new Date().toISOString(),
-        };
-
-        // Rafraîchir les données si une action a été exécutée
-        // Utiliser metadata.executedActions retourné par le backend (plus fiable que regex)
-        // Note: Si la réponse vient du cache, backendResponse est null, donc pas de rechargement nécessaire
-        try {
-          const projetId = projetActif?.id;
-          
-          // Seulement si on a une réponse du backend (pas du cache)
-          if (backendResponse && projetId) {
-            const executedActions = backendResponse.metadata?.executedActions || [];
-            
-            if (executedActions.length > 0) {
-            // Déterminer quelles données recharger selon les actions exécutées
-            const needsFinance = executedActions.some((a) =>
-              ['create_revenu', 'create_depense', 'create_charge_fixe'].includes(a.name)
-            );
-            const needsProduction = executedActions.some((a) =>
-              ['create_animal', 'create_pesee', 'update_animal', 'delete_animal'].includes(a.name)
-            );
-
-            if (needsFinance) {
+        // Rafraîchir les données si une action a été exécutée avec refreshHint
+        const refreshHint = assistantMessage.metadata?.refreshHint;
+        const projetId = projetActif?.id;
+        
+        if (refreshHint && projetId) {
+          try {
+            if (refreshHint === 'finance' || refreshHint === 'all') {
               dispatch(loadDepensesPonctuelles(projetId));
               dispatch(loadRevenus(projetId));
               dispatch(loadChargesFixes(projetId));
             }
-            if (needsProduction) {
+            if (refreshHint === 'production' || refreshHint === 'all') {
               dispatch(loadProductionAnimaux({ projetId, inclureInactifs: true }));
             }
-            
-              // Invalider le cache après des actions pour éviter des réponses obsolètes
-              if (needsFinance || needsProduction) {
-                invalidateProjetCache(projetId).catch((error) => {
-                  logger.warn('Erreur lors de l\'invalidation du cache:', error);
-                });
-              }
-            }
+            // Invalider le cache après des actions pour éviter des réponses obsolètes
+            invalidateProjetCache(projetId).catch((error) => {
+              logger.warn('Erreur lors de l\'invalidation du cache:', error);
+            });
+          } catch (refreshError) {
+            // Ne pas bloquer l'UI si le refresh échoue
+            logger.warn('Erreur lors du rafraîchissement des données:', refreshError);
           }
-        } catch (refreshError) {
-          // Ne pas bloquer l'UI si le refresh échoue
-          logger.warn('Erreur lors du rafraîchissement des données:', refreshError);
         }
 
         setMessages((prev) => [...prev, assistantMessage]);

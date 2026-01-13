@@ -63,8 +63,8 @@ export default function ProductionPeseeFormModal({
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate } = useActionPermissions();
-  const { projetActif } = useAppSelector((state) => state.projet);
-  const currentUser = useAppSelector((state) => state.auth.user);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  const currentUser = useAppSelector((state) => state.auth?.user);
   const mode = useModeElevage();
   const isBatchMode = mode === 'bande' || !!batchId;
   const [loading, setLoading] = useState(false);

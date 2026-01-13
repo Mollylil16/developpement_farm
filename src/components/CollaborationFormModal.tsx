@@ -37,9 +37,9 @@ export default function CollaborationFormModal({
 }: CollaborationFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const { activeRole } = useRole();
-  const currentUser = useAppSelector((state) => state.auth.user);
+  const currentUser = useAppSelector((state) => state.auth?.user);
 
   // Vérifier si l'utilisateur est propriétaire du projet actif
   const isProprietaire =

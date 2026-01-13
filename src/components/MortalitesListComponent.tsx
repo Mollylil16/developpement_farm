@@ -52,7 +52,7 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
   const { colors, isDark } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const mortalites = useAppSelector(selectAllMortalites);
   const statistiques = useAppSelector(selectStatistiquesMortalite);
   const loading = useAppSelector(selectMortalitesLoading);

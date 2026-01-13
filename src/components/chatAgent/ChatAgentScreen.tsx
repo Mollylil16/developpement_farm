@@ -21,7 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../constants/theme';
 import { useChatAgent } from '../../hooks/useChatAgent';
-import { ChatMessage } from '../../types/chatAgent';
+import { ChatMessage, SujetDisponible } from '../../types/chatAgent';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useAppSelector } from '../../store/hooks';
@@ -50,7 +50,7 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
     voiceService,
   } = useChatAgent();
 
-  const { user } = useAppSelector((state) => state.auth);
+  const { user } = useAppSelector((state) => state.auth ?? { user: null });
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -249,14 +249,7 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
   const renderMessage = ({ item }: { item: ChatMessage }) => {
     const isUser = item.role === 'user';
     const isSystem = item.role === 'system';
-    const sujetsDisponibles = item.metadata?.sujetsDisponibles as Array<{
-      id: string;
-      code?: string;
-      nom?: string;
-      race?: string;
-      poids_kg?: number;
-      date_derniere_pesee?: string;
-    }> | undefined;
+    const sujetsDisponibles = item.metadata?.sujetsDisponibles as SujetDisponible[] | undefined;
 
     if (isSystem) {
       return (
@@ -326,7 +319,7 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
                 key={`text-${index}`}
                 style={[styles.messageText, { color: isUser ? COLORS.textOnPrimary : COLORS.text }]}
               >
-                {part}
+                {typeof part === 'string' ? part : ''}
               </Text>
             );
           })}

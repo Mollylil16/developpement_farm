@@ -12,12 +12,37 @@
 import { BaseRepository } from './BaseRepository';
 import { Collaborateur, UpdateCollaborateurInput } from '../../types/collaboration';
 
+// Type pour les données brutes de la base de données
+interface CollaborateurRow {
+  id: string;
+  projet_id: string;
+  user_id?: string | null;
+  nom: string;
+  prenom: string;
+  email: string;
+  telephone?: string | null;
+  role: string;
+  statut?: string | null;
+  permission_reproduction?: boolean | number | null;
+  permission_nutrition?: boolean | number | null;
+  permission_finance?: boolean | number | null;
+  permission_rapports?: boolean | number | null;
+  permission_planification?: boolean | number | null;
+  permission_mortalites?: boolean | number | null;
+  permission_sante?: boolean | number | null;
+  date_invitation: string;
+  date_acceptation?: string | null;
+  notes?: string | null;
+  date_creation: string;
+  derniere_modification: string;
+}
+
 export class CollaborateurRepository extends BaseRepository<Collaborateur> {
   constructor() {
     super('collaborations', '/collaborations');
   }
 
-  private mapRowToCollaborateur(row: unknown): Collaborateur {
+  private mapRowToCollaborateur(row: CollaborateurRow): Collaborateur {
     return {
       id: row.id,
       projet_id: row.projet_id,
@@ -72,7 +97,7 @@ export class CollaborateurRepository extends BaseRepository<Collaborateur> {
       notes: data.notes || null,
     };
 
-    const created = await this.executePost<unknown>('/collaborations', collaborateurData);
+    const created = await this.executePost<CollaborateurRow>('/collaborations', collaborateurData);
     return this.mapRowToCollaborateur(created);
   }
 
@@ -81,7 +106,7 @@ export class CollaborateurRepository extends BaseRepository<Collaborateur> {
    */
   async findById(id: string): Promise<Collaborateur | null> {
     try {
-      const row = await this.queryOne<unknown>(`/collaborations/${id}`);
+      const row = await this.queryOne<CollaborateurRow>(`/collaborations/${id}`);
       return row ? this.mapRowToCollaborateur(row) : null;
     } catch (error) {
       console.error('Error finding collaborateur by id:', error);
@@ -94,8 +119,8 @@ export class CollaborateurRepository extends BaseRepository<Collaborateur> {
    */
   async findByProjet(projetId: string): Promise<Collaborateur[]> {
     try {
-      const rows = await this.query<unknown>('/collaborations', { projet_id: projetId });
-      return rows.map(this.mapRowToCollaborateur);
+      const rows = await this.query<CollaborateurRow>('/collaborations', { projet_id: projetId });
+      return rows.map((row) => this.mapRowToCollaborateur(row));
     } catch (error) {
       console.error('Error finding collaborateurs by projet:', error);
       return [];
@@ -107,8 +132,8 @@ export class CollaborateurRepository extends BaseRepository<Collaborateur> {
    */
   async findByStatut(statut: string): Promise<Collaborateur[]> {
     try {
-      const rows = await this.query<unknown>('/collaborations', { statut });
-      return rows.map(this.mapRowToCollaborateur);
+      const rows = await this.query<CollaborateurRow>('/collaborations', { statut });
+      return rows.map((row) => this.mapRowToCollaborateur(row));
     } catch (error) {
       console.error('Error finding collaborateurs by statut:', error);
       return [];
@@ -120,8 +145,8 @@ export class CollaborateurRepository extends BaseRepository<Collaborateur> {
    */
   async findByRole(role: string): Promise<Collaborateur[]> {
     try {
-      const rows = await this.query<unknown>('/collaborations', { role });
-      return rows.map(this.mapRowToCollaborateur);
+      const rows = await this.query<CollaborateurRow>('/collaborations', { role });
+      return rows.map((row) => this.mapRowToCollaborateur(row));
     } catch (error) {
       console.error('Error finding collaborateurs by role:', error);
       return [];
@@ -134,10 +159,10 @@ export class CollaborateurRepository extends BaseRepository<Collaborateur> {
   async findByEmail(email: string): Promise<Collaborateur[]> {
     try {
       const emailNormalized = email.trim().toLowerCase();
-      const rows = await this.query<unknown>('/collaborations', {});
+      const rows = await this.query<CollaborateurRow>('/collaborations', {});
       return rows
-        .filter((row: unknown) => (row.email || '').toLowerCase().trim() === emailNormalized)
-        .map(this.mapRowToCollaborateur);
+        .filter((row) => (row.email || '').toLowerCase().trim() === emailNormalized)
+        .map((row) => this.mapRowToCollaborateur(row));
     } catch (error) {
       console.error('Error finding collaborateurs by email:', error);
       return [];
@@ -162,10 +187,10 @@ export class CollaborateurRepository extends BaseRepository<Collaborateur> {
    */
   async findActifsByUserId(userId: string): Promise<Collaborateur[]> {
     try {
-      const rows = await this.query<unknown>('/collaborations', {});
+      const rows = await this.query<CollaborateurRow>('/collaborations', {});
       return rows
-        .filter((row: unknown) => row.user_id === userId && row.statut === 'actif')
-        .map(this.mapRowToCollaborateur);
+        .filter((row) => row.user_id === userId && row.statut === 'actif')
+        .map((row) => this.mapRowToCollaborateur(row));
     } catch (error) {
       console.error('Error finding collaborateurs actifs by user id:', error);
       return [];
@@ -177,10 +202,10 @@ export class CollaborateurRepository extends BaseRepository<Collaborateur> {
    */
   async findInvitationsEnAttenteByUserId(userId: string): Promise<Collaborateur[]> {
     try {
-      const rows = await this.query<unknown>('/collaborations/invitations', {});
+      const rows = await this.query<CollaborateurRow>('/collaborations/invitations', {});
       return rows
-        .filter((row: unknown) => row.user_id === userId && row.statut === 'en_attente')
-        .map(this.mapRowToCollaborateur);
+        .filter((row) => row.user_id === userId && row.statut === 'en_attente')
+        .map((row) => this.mapRowToCollaborateur(row));
     } catch (error) {
       console.error('Error finding invitations en attente:', error);
       return [];
@@ -193,13 +218,13 @@ export class CollaborateurRepository extends BaseRepository<Collaborateur> {
   async findInvitationsEnAttenteByEmail(email: string): Promise<Collaborateur[]> {
     try {
       const emailNormalized = email.trim().toLowerCase();
-      const rows = await this.query<unknown>('/collaborations/invitations', {});
+      const rows = await this.query<CollaborateurRow>('/collaborations/invitations', {});
       return rows
         .filter(
-          (row: unknown) =>
+          (row) =>
             (row.email || '').toLowerCase().trim() === emailNormalized && row.statut === 'en_attente'
         )
-        .map(this.mapRowToCollaborateur);
+        .map((row) => this.mapRowToCollaborateur(row));
     } catch (error) {
       console.error('Error finding invitations en attente by email:', error);
       return [];
@@ -251,7 +276,7 @@ export class CollaborateurRepository extends BaseRepository<Collaborateur> {
       return currentCollaborateur;
     }
 
-    const updated = await this.executePatch<unknown>(`/collaborations/${id}`, updateData);
+    const updated = await this.executePatch<CollaborateurRow>(`/collaborations/${id}`, updateData);
     return this.mapRowToCollaborateur(updated);
   }
 
@@ -273,9 +298,9 @@ export class CollaborateurRepository extends BaseRepository<Collaborateur> {
   async lierCollaborateurAUtilisateur(userId: string, email: string): Promise<Collaborateur | null> {
     try {
       const emailNormalized = email.trim().toLowerCase();
-      const rows = await this.query<unknown>('/collaborations', {});
+      const rows = await this.query<CollaborateurRow>('/collaborations', {});
       const collaborateur = rows.find(
-        (row: unknown) =>
+        (row) =>
           (row.email || '').toLowerCase().trim() === emailNormalized &&
           (!row.user_id || row.user_id === userId)
       );

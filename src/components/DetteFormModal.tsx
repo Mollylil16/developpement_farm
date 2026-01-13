@@ -8,6 +8,7 @@ import { useAppSelector } from '../store/hooks';
 import type { Dette, CreateDetteInput, TypeDette, StatutDette, FrequenceRemboursement } from '../types/finance';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
+import DatePickerField from './DatePickerField';
 import { SPACING } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useActionPermissions } from '../hooks/useActionPermissions';
@@ -32,7 +33,7 @@ export default function DetteFormModal({
 }: DetteFormModalProps) {
   const { colors } = useTheme();
   const { canCreate, canUpdate } = useActionPermissions();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateDetteInput>({
     projet_id: projetActif?.id || '',
@@ -233,24 +234,22 @@ export default function DetteFormModal({
           keyboardType="numeric"
         />
 
-        <FormField
+        <DatePickerField
           label="Date de début"
           value={formData.date_debut}
-          onChangeText={(text) => setFormData({ ...formData, date_debut: text })}
-          placeholder="YYYY-MM-DD"
+          onChange={(date) => setFormData({ ...formData, date_debut: date })}
           required
         />
 
-        <FormField
+        <DatePickerField
           label="Date d'échéance (optionnel)"
           value={formData.date_echeance || ''}
-          onChangeText={(text) =>
+          onChange={(date) =>
             setFormData({
               ...formData,
-              date_echeance: text || undefined,
+              date_echeance: date || undefined,
             })
           }
-          placeholder="YYYY-MM-DD"
         />
 
         <View style={styles.section}>

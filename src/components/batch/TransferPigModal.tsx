@@ -54,7 +54,7 @@ export default function TransferPigModal({
     setLoadingData(true);
     try {
       // Charger les porcs de la bande actuelle
-      const pigsData = await apiClient.get(`/batch-pigs/batch/${batch.id}`);
+      const pigsData = await apiClient.get<BatchPig[]>(`/batch-pigs/batch/${batch.id}`);
       setPigs(pigsData);
 
       // Charger toutes les bandes du projet (exclure la bande actuelle)

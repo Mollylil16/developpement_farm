@@ -20,7 +20,7 @@ interface TransitionPorceletCroissanceWidgetProps {
 function TransitionPorceletCroissanceWidget({ onPress }: TransitionPorceletCroissanceWidgetProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const animaux = useAppSelector(selectAllAnimaux);
 
   // Utiliser useRef pour éviter les chargements multiples

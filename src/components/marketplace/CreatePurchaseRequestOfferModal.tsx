@@ -19,6 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { MarketplaceTheme } from '../../styles/marketplace.theme';
 import { SPACING } from '../../constants/theme';
+import DatePickerField from '../DatePickerField';
 import type {
   PurchaseRequest,
   PurchaseRequestMatch,
@@ -312,20 +313,11 @@ export default function CreatePurchaseRequestOfferModal({
 
               {/* Date de disponibilité */}
               <View style={styles.field}>
-                <Text style={[styles.label, { color: colors.text }]}>Date de disponibilité</Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: colors.background,
-                      color: colors.text,
-                      borderColor: colors.border,
-                    },
-                  ]}
+                <DatePickerField
+                  label="Date de disponibilité"
                   value={availableDate}
-                  onChangeText={setAvailableDate}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={colors.textSecondary}
+                  onChange={setAvailableDate}
+                  minimumDate={new Date()}
                 />
               </View>
 

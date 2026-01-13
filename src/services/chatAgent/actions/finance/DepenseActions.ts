@@ -127,6 +127,7 @@ export class DepenseActions {
         success: true,
         data: depense,
         message: `${message} Tu peux la voir dans le menu Dépenses.`,
+        refreshHint: 'finance', // Signal pour rafraîchir les données finance
       };
     } catch (error: any) {
       // Extraire le message d'erreur

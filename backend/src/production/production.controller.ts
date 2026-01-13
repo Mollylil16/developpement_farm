@@ -36,8 +36,13 @@ export class ProductionController {
   }
 
   @Get('animaux')
-  @ApiOperation({ summary: "Récupérer tous les animaux d'un projet (avec pagination optionnelle)" })
+  @ApiOperation({ summary: "Récupérer tous les animaux d'un projet (avec pagination et filtres optionnels)" })
   @ApiQuery({ name: 'projet_id', required: true, description: 'ID du projet' })
+  @ApiQuery({
+    name: 'code',
+    required: false,
+    description: 'Code de l\'animal à rechercher (recherche exacte ou partielle)',
+  })
   @ApiQuery({
     name: 'inclure_inactifs',
     required: false,
@@ -56,22 +61,43 @@ export class ProductionController {
     description: 'Nombre d\'éléments à ignorer pour la pagination',
     type: Number,
   })
+  @ApiQuery({
+    name: 'poids_min',
+    required: false,
+    description: 'Poids minimum en kg',
+    type: Number,
+  })
+  @ApiQuery({
+    name: 'poids_max',
+    required: false,
+    description: 'Poids maximum en kg',
+    type: Number,
+  })
   findAllAnimals(
     @Query('projet_id') projetId: string,
     @Query('inclure_inactifs') inclureInactifs: string,
     @CurrentUser() user: any,
     @Query('limit') limit?: string,
-    @Query('offset') offset?: string
+    @Query('offset') offset?: string,
+    @Query('code') code?: string,
+    @Query('poids_min') poidsMin?: string,
+    @Query('poids_max') poidsMax?: string
   ) {
     const inclureInactifsBool = inclureInactifs !== 'false';
     const limitNum = limit ? parseInt(limit, 10) : undefined;
     const offsetNum = offset ? parseInt(offset, 10) : undefined;
+    const poidsMinNum = poidsMin ? parseFloat(poidsMin) : undefined;
+    const poidsMaxNum = poidsMax ? parseFloat(poidsMax) : undefined;
+    
     return this.productionService.findAllAnimals(
       projetId,
       user.id,
       inclureInactifsBool,
       limitNum,
-      offsetNum
+      offsetNum,
+      code,
+      poidsMinNum,
+      poidsMaxNum
     );
   }
 

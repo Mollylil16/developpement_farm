@@ -24,7 +24,7 @@ const screenWidth = Dimensions.get('window').width;
 export default function OpexCapexChart() {
   const { colors, isDark } = useTheme();
   const depensesPonctuelles = useAppSelector(selectAllDepensesPonctuelles);
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
 
   const chartData = useMemo(() => {
     const maintenant = new Date();

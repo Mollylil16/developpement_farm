@@ -30,14 +30,14 @@ export const TEST_USERS = {
 
 export const TEST_PROJECT = {
   nom: 'Ferme Test E2E',
-  type: 'porc' as const,
-  localisation: {
-    latitude: 6.5,
-    longitude: 2.6,
-    adresse: 'Cotonou, Bénin',
-  },
-  nombre_animaux: 50,
-  race_principale: 'Large White',
+  localisation: 'Cotonou, Bénin',
+  nombre_truies: 5,
+  nombre_verrats: 2,
+  nombre_porcelets: 20,
+  nombre_croissance: 23,
+  poids_moyen_actuel: 30,
+  age_moyen_actuel: 120,
+  management_method: 'individual' as const,
 };
 
 export const TEST_ANIMAL = {

@@ -85,7 +85,7 @@ export default function PerformanceIndicatorsComponent() {
   const dispatch = useAppDispatch();
   const [exportingPDF, setExportingPDF] = useState(false);
   const [performanceGlobale, setPerformanceGlobale] = useState<PerformanceGlobale | null>(null);
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const chargesFixes: ChargeFixe[] = useAppSelector(selectAllChargesFixes);
   const depensesPonctuelles: DepensePonctuelle[] = useAppSelector(selectAllDepensesPonctuelles);
   const revenus = useAppSelector(selectAllRevenus);

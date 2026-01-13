@@ -1,12 +1,37 @@
 /**
  * Actions liées aux revenus (ventes)
+ * Gère la vente de porcs avec identification des sujets et retrait du cheptel
  */
 
-import { AgentActionResult, AgentContext } from '../../../types/chatAgent';
+import { AgentActionResult, AgentContext, SujetDisponible } from '../../../../types/chatAgent';
 import { format } from 'date-fns';
 import { parseMontant, extractMontantFromText } from '../../../../utils/formatters';
 import { MontantExtractor } from '../../core/extractors/MontantExtractor';
 import apiClient from '../../../api/apiClient';
+
+// Type pour l'état de vente
+type VenteState = 
+  | 'initial'
+  | 'demande_details'
+  | 'demande_loges' 
+  | 'affichage_sujets'
+  | 'selection_sujets'
+  | 'demande_poids'
+  | 'demande_prix'
+  | 'confirmation';
+
+interface VenteContext {
+  state: VenteState;
+  managementMethod: 'individual' | 'batch';
+  sujetsDisponibles?: SujetDisponible[];
+  sujetsSelectionnes?: string[];
+  loges?: string[];
+  poids?: number;
+  prixParKg?: number;
+  montant?: number;
+  acheteur?: string;
+  date?: string;
+}
 
 export class RevenuActions {
   /**
@@ -78,7 +103,7 @@ export class RevenuActions {
     // ========== VALIDATION STRICTE POUR VENTES DE PORCS ==========
     if (categorie === 'vente_porc') {
       // Récupérer le mode de gestion du projet
-      let managementMethod = 'individual';
+      let managementMethod: 'individual' | 'batch' = 'individual';
       try {
         const projet = await apiClient.get<any>(`/projets/${context.projetId}`);
         managementMethod = projet.management_method || 'individual';
@@ -87,12 +112,7 @@ export class RevenuActions {
       }
 
       // Vérifier l'état de vente dans les params (passé depuis ChatAgentService)
-      const venteState = paramsTyped.venteState as
-        | 'demande_loges'
-        | 'affichage_sujets'
-        | 'selection_sujets'
-        | 'demande_montant'
-        | undefined;
+      const venteState = paramsTyped.venteState as VenteState | undefined;
 
       // Vérifier si les sujets sont identifiés
       const animalIds = paramsTyped.animal_ids as string[] | undefined;
@@ -297,6 +317,7 @@ export class RevenuActions {
         success: true,
         data: revenu,
         message,
+        refreshHint: 'finance', // Signal pour rafraîchir les données finance
       };
     }
 
@@ -331,6 +352,7 @@ export class RevenuActions {
       success: true,
       data: revenu,
       message,
+      refreshHint: 'finance', // Signal pour rafraîchir les données finance
     };
   }
 

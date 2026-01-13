@@ -50,7 +50,7 @@ export default function ProductionAnimalsListComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const animaux = useAppSelector(selectAllAnimaux);
   const peseesParAnimal = useAppSelector(selectPeseesParAnimal);
   const peseesRecents = useAppSelector(selectPeseesRecents);

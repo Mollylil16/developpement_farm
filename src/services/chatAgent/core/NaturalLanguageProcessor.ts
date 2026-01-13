@@ -91,7 +91,6 @@ const SPELLING_CORRECTIONS: Record<string, string> = {
   'medicamen': 'medicament',
   'provande': 'provende',
   'provendes': 'provende',
-  'provande': 'provende',
   'alimant': 'aliment',
   'alliment': 'aliment',
   'statistique': 'statistique',
@@ -120,7 +119,7 @@ const SPELLING_CORRECTIONS: Record<string, string> = {
   'kgs': 'kilogrammes',
   'kilo': 'kilogramme',
   'kilos': 'kilogrammes',
-  'g': 'gramme',
+  'gr': 'gramme',
   'fcfa': 'francs',
   'cfa': 'francs',
   'f': 'francs',
@@ -315,12 +314,41 @@ export class NaturalLanguageProcessor {
   private static detectIntentHints(keywords: string[]): IntentHint[] {
     const hints: IntentHint[] = [];
     const keywordSet = new Set(keywords);
+    const keywordsText = keywords.join(' ');
     
-    // Patterns d'intention
-    const intentPatterns: { intent: string; required: string[]; optional: string[]; weight: number }[] = [
-      // Ventes
-      { intent: 'create_revenu', required: ['vendre'], optional: ['porc', 'argent', 'francs'], weight: 0.8 },
-      { intent: 'create_revenu', required: ['vendu'], optional: ['porc', 'argent', 'francs'], weight: 0.85 },
+    // Vérifier si c'est une vente marketplace vs enregistrement de revenu
+    // "mettre en vente", "vendre sur le marché", "marketplace" → marketplace_sell_animal
+    // "j'ai vendu", "vendu" (passé) → create_revenu
+    const isMarketplaceSell = keywordsText.includes('marketplace') ||
+                              keywordsText.includes('marche') ||
+                              keywordsText.includes('vente') && !keywordsText.includes('vendu') ||
+                              keywordsText.includes('mettre') && keywordsText.includes('vente') ||
+                              keywordsText.includes('mets') && keywordsText.includes('vente') ||
+                              keywordsText.includes('liste') && (keywordsText.includes('sujet') || keywordsText.includes('porc'));
+    
+    const isPastSale = keywordsText.includes('vendu') || keywordsText.includes('jai vendu');
+    
+    // Patterns d'intention (ORDRE IMPORTANT - marketplace avant revenu)
+    const intentPatterns: { intent: string; required: string[]; optional: string[]; weight: number; exclude?: string[] }[] = [
+      // MARKETPLACE - Vente automatisée (PRIORITÉ HAUTE - vérifier AVANT create_revenu)
+      { intent: 'marketplace_sell_animal', required: ['marketplace'], optional: ['porc', 'sujet', 'vendre'], weight: 0.95 },
+      { intent: 'marketplace_sell_animal', required: ['vente', 'marche'], optional: ['porc', 'sujet'], weight: 0.92 },
+      { intent: 'marketplace_sell_animal', required: ['mettre', 'vente'], optional: ['porc', 'sujet', 'marketplace'], weight: 0.92, exclude: ['vendu'] },
+      { intent: 'marketplace_sell_animal', required: ['mets', 'vente'], optional: ['porc', 'sujet', 'marketplace'], weight: 0.92, exclude: ['vendu'] },
+      { intent: 'marketplace_sell_animal', required: ['liste', 'vente'], optional: ['porc', 'sujet'], weight: 0.90, exclude: ['vendu'] },
+      { intent: 'marketplace_sell_animal', required: ['vendre', 'sujet'], optional: ['marketplace', 'marche'], weight: 0.88, exclude: ['vendu'] },
+      { intent: 'marketplace_sell_animal', required: ['vendre', 'porc'], optional: ['marketplace', 'marche'], weight: 0.85, exclude: ['vendu'] },
+      
+      // Tendances prix marketplace
+      { intent: 'marketplace_get_price_trends', required: ['prix', 'marche'], optional: ['tendance', 'actuel'], weight: 0.9 },
+      { intent: 'marketplace_get_price_trends', required: ['tendance', 'prix'], optional: ['porc', 'marche'], weight: 0.88 },
+      
+      // Offres marketplace
+      { intent: 'marketplace_check_offers', required: ['offres'], optional: ['recues', 'attente'], weight: 0.85 },
+      { intent: 'marketplace_get_my_listings', required: ['annonces'], optional: ['mes', 'cours'], weight: 0.85 },
+      
+      // Ventes PASSÉES (enregistrement de revenu) - seulement si "vendu" est présent
+      { intent: 'create_revenu', required: ['vendu'], optional: ['porc', 'argent', 'francs'], weight: 0.88 },
       
       // Dépenses
       { intent: 'create_depense', required: ['acheter'], optional: ['nourriture', 'aliment', 'medicament'], weight: 0.8 },
@@ -355,13 +383,22 @@ export class NaturalLanguageProcessor {
     ];
     
     for (const pattern of intentPatterns) {
-      const hasRequired = pattern.required.some(r => keywordSet.has(r));
-      if (hasRequired) {
+      // Vérifier les exclusions d'abord
+      if (pattern.exclude && pattern.exclude.some(e => keywordSet.has(e))) {
+        continue; // Skip si un mot exclu est présent
+      }
+      
+      // Pour les patterns avec plusieurs required, tous doivent matcher
+      const hasAllRequired = pattern.required.length > 1 
+        ? pattern.required.every(r => keywordSet.has(r))
+        : pattern.required.some(r => keywordSet.has(r));
+        
+      if (hasAllRequired) {
         const optionalCount = pattern.optional.filter(o => keywordSet.has(o)).length;
         const confidence = pattern.weight + (optionalCount * 0.05);
         hints.push({
           intent: pattern.intent,
-          confidence: Math.min(confidence, 0.95),
+          confidence: Math.min(confidence, 0.98),
           matchedKeywords: [...pattern.required.filter(r => keywordSet.has(r)), 
                            ...pattern.optional.filter(o => keywordSet.has(o))],
         });

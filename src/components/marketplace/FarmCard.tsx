@@ -39,7 +39,7 @@ function FarmCard({
   onFavoriteChange,
 }: FarmCardProps) {
   const { colors, spacing, typography, borderRadius, shadows, animations } = MarketplaceTheme;
-  const { user } = useAppSelector((state) => state.auth);
+  const { user } = useAppSelector((state) => state.auth ?? { user: null });
   const dispatch = useAppDispatch();
   const [isFavorite, setIsFavorite] = useState(false);
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);

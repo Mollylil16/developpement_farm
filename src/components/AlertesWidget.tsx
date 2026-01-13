@@ -18,6 +18,8 @@ import { loadSevrages } from '../store/slices/reproductionSlice';
 import type { Gestation, Sevrage } from '../types/reproduction';
 import { selectAllGestations, selectAllSevrages } from '../store/selectors/reproductionSelectors';
 import { AlertePlanningProduction } from '../types/planningProduction';
+import type { StockAliment } from '../types/nutrition';
+import type { Planification } from '../types/planification';
 
 export interface Alerte {
   id: string;
@@ -32,16 +34,14 @@ export default function AlertesWidget() {
   const { colors } = useTheme();
   const navigation = useNavigation();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const projetActif = useAppSelector((state) => state.projet?.projetActif);
   const gestations: Gestation[] = useAppSelector(selectAllGestations);
   const sevrages: Sevrage[] = useAppSelector(selectAllSevrages);
-  const { stocks } = useAppSelector((state) => state.stocks);
-  const { planifications } = useAppSelector((state) => state.planification);
-  const {
-    alertes: alertesPlanning,
-    simulationResultat,
-    sailliesPlanifiees,
-  } = useAppSelector((state) => state.planningProduction);
+  const stocks = useAppSelector((state) => state.stocks?.stocks ?? []);
+  const planifications = useAppSelector((state) => state.planification?.planifications ?? []);
+  const alertesPlanning = useAppSelector((state) => state.planningProduction?.alertes);
+  const simulationResultat = useAppSelector((state) => state.planningProduction?.simulationResultat);
+  const sailliesPlanifiees = useAppSelector((state) => state.planningProduction?.sailliesPlanifiees);
   const alertesPlanningTyped: AlertePlanningProduction[] = alertesPlanning || [];
 
   // Charger les données nécessaires
@@ -69,7 +69,7 @@ export default function AlertesWidget() {
 
   // Filtrer les stocks en alerte
   const stocksEnAlerte = useMemo(() => {
-    return stocks.filter((stock) => stock.alerte_active);
+    return stocks.filter((stock: StockAliment) => stock.alerte_active);
   }, [stocksLength, stocks]);
 
   const alertes = useMemo(() => {
@@ -99,7 +99,7 @@ export default function AlertesWidget() {
       });
 
     // 2. Stocks faibles (déjà calculé dans la base de données)
-    stocksEnAlerte.forEach((stock) => {
+    stocksEnAlerte.forEach((stock: StockAliment) => {
       const nomStock = stock.nom || 'Stock';
       const quantiteActuelle = stock.quantite_actuelle?.toFixed(1) || '0';
       const unite = stock.unite || '';
@@ -161,8 +161,8 @@ export default function AlertesWidget() {
 
     // 4. Tâches en retard (calcul local)
     planifications
-      .filter((p) => p.statut === 'a_faire' && p.date_echeance && isPast(parseISO(p.date_echeance)))
-      .forEach((p) => {
+      .filter((p: Planification) => p.statut === 'a_faire' && p.date_echeance && isPast(parseISO(p.date_echeance)))
+      .forEach((p: Planification) => {
         if (!p.date_echeance) return;
         const daysOverdue = differenceInDays(new Date(), parseISO(p.date_echeance));
 
@@ -188,12 +188,12 @@ export default function AlertesWidget() {
     demain.setDate(demain.getDate() + 1);
 
     planifications
-      .filter((p) => {
+      .filter((p: Planification) => {
         if (p.statut !== 'a_faire' || !p.date_echeance) return false;
         const dateEcheance = parseISO(p.date_echeance);
         return dateEcheance >= aujourdhui && dateEcheance < demain;
       })
-      .forEach((p) => {
+      .forEach((p: Planification) => {
         const titreTache = p.titre || 'Tâche sans titre';
         alerts.push({
           id: `planification_today_${p.id}`,

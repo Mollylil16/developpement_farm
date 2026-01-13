@@ -31,6 +31,7 @@ import type {
   RationBudget,
   CreateRationBudgetInput,
   FormuleAlimentaire,
+  Ingredient,
 } from '../types/nutrition';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -44,8 +45,10 @@ import { logger } from '../utils/logger';
 export default function BudgetisationAlimentComponent() {
   const { colors, isDark } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
-  const { ingredients, rationsBudget, loading } = useAppSelector((state) => state.nutrition);
+  const projetActif = useAppSelector((state) => state.projet?.projetActif);
+  const ingredients = useAppSelector((state) => state.nutrition?.ingredients ?? []);
+  const rationsBudget = useAppSelector((state) => state.nutrition?.rationsBudget ?? []);
+  const loading = useAppSelector((state) => state.nutrition?.loading ?? false);
 
   // États pour le modal de création/édition
   const [showModal, setShowModal] = useState(false);
@@ -90,18 +93,18 @@ export default function BudgetisationAlimentComponent() {
     }
 
     const nombreRations = rationsBudget.length;
-    const coutTotal = rationsBudget.reduce((sum, r) => sum + r.cout_total, 0);
+    const coutTotal = rationsBudget.reduce((sum: number, r: RationBudget) => sum + r.cout_total, 0);
 
     // Coût moyen par ration
     const coutMoyenRation = coutTotal / nombreRations;
 
     // Coût moyen par kg (moyenne pondérée)
-    const quantiteTotale = rationsBudget.reduce((sum, r) => sum + r.quantite_totale_kg, 0);
+    const quantiteTotale = rationsBudget.reduce((sum: number, r: RationBudget) => sum + r.quantite_totale_kg, 0);
     const coutMoyenParKg = quantiteTotale > 0 ? coutTotal / quantiteTotale : 0;
 
     // Coût moyen par porc (moyenne des coûts par porc)
     const coutMoyenParPorc =
-      rationsBudget.reduce((sum, r) => sum + r.cout_par_porc, 0) / nombreRations;
+      rationsBudget.reduce((sum: number, r: RationBudget) => sum + r.cout_par_porc, 0) / nombreRations;
 
     return {
       nombreRations,
@@ -120,7 +123,7 @@ export default function BudgetisationAlimentComponent() {
     const formuleAvecPrix = { ...formule };
     formuleAvecPrix.composition = formule.composition.map((comp) => {
       const ingredientTrouve = ingredients.find(
-        (ing) =>
+        (ing: Ingredient) =>
           ing.nom.toLowerCase().includes(comp.nom.toLowerCase()) ||
           comp.nom.toLowerCase().includes(ing.nom.toLowerCase())
       );
@@ -233,7 +236,7 @@ export default function BudgetisationAlimentComponent() {
           Alert.alert('✅ Succès', 'Ration modifiée avec succès');
         } catch (error: unknown) {
           logger.error('Erreur lors de la modification de la ration:', error);
-          const errorMessage = error?.message || error || 'Impossible de modifier la ration';
+          const errorMessage = error instanceof Error ? error.message : 'Impossible de modifier la ration';
           Alert.alert('Erreur', errorMessage);
           // Ne pas fermer le modal en cas d'erreur pour permettre à l'utilisateur de réessayer
           return;
@@ -254,10 +257,9 @@ export default function BudgetisationAlimentComponent() {
       setShowModal(false);
     } catch (error: unknown) {
       logger.error('Erreur lors de la création/modification de la ration:', error);
-      const errorMessage =
-        error?.message ||
-        error ||
-        (isEditing ? 'Impossible de modifier la ration' : 'Impossible de créer la ration');
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : (isEditing ? 'Impossible de modifier la ration' : 'Impossible de créer la ration');
       Alert.alert('Erreur', errorMessage);
     }
   };
@@ -288,7 +290,13 @@ export default function BudgetisationAlimentComponent() {
     setShowModifierIngredientsModal(true);
   };
 
-  const handleSauvegarderIngredientsModifies = async (ingredientsModifies: unknown[]) => {
+  const handleSauvegarderIngredientsModifies = async (ingredientsModifies: Array<{
+    nom: string;
+    pourcentage: number;
+    prix_unitaire: number;
+    quantite_kg?: number;
+    cout_total?: number;
+  }>) => {
     if (!rationAModifier) return;
 
     try {
@@ -335,7 +343,7 @@ export default function BudgetisationAlimentComponent() {
       Alert.alert('✅ Succès', 'Ingrédients de la ration modifiés avec succès');
       setRationAModifier(null);
     } catch (error: unknown) {
-      Alert.alert('Erreur', error || 'Impossible de modifier les ingrédients');
+      Alert.alert('Erreur', error instanceof Error ? error.message : 'Impossible de modifier les ingrédients');
     }
   };
 
@@ -394,7 +402,7 @@ export default function BudgetisationAlimentComponent() {
 
               Alert.alert('✅ Succès', 'Ration recalculée avec les prix actuels');
             } catch (error: unknown) {
-              Alert.alert('Erreur', error || 'Impossible de recalculer la ration');
+              Alert.alert('Erreur', error instanceof Error ? error.message : 'Impossible de recalculer la ration');
             }
           },
         },
@@ -416,7 +424,7 @@ export default function BudgetisationAlimentComponent() {
               await dispatch(deleteRationBudget(ration.id)).unwrap();
               Alert.alert('✅ Succès', 'Ration supprimée');
             } catch (error: unknown) {
-              Alert.alert('Erreur', error || 'Impossible de supprimer la ration');
+              Alert.alert('Erreur', error instanceof Error ? error.message : 'Impossible de supprimer la ration');
             }
           },
         },
@@ -646,7 +654,7 @@ export default function BudgetisationAlimentComponent() {
           />
         ) : (
           <View style={styles.listContainer}>
-            {rationsBudget.map((item) => (
+            {rationsBudget.map((item: RationBudget) => (
               <View key={item.id}>{renderRationCard({ item })}</View>
             ))}
           </View>

@@ -85,21 +85,19 @@ export function useProductionCheptelLogic() {
       try {
         setTogglingMarketplace(animal.id);
 
-        // Charger les listings depuis l'API backend
-        // Le backend retourne maintenant un objet avec pagination
-        const response = await apiClient.get<{
-          listings: any[];
-          total: number;
-        }>('/marketplace/listings', {
-          params: { 
-            projet_id: projetActif.id,
-            limit: 500, // Récupérer tous les listings du projet (limite max)
-          },
-        });
-        const existingListings = response.listings || [];
-        const existingListing = existingListings.find(
-          (l) => l.subjectId === animal.id && (l.status === 'available' || l.status === 'reserved')
-        );
+        // Vérifier si l'animal a déjà un listing actif
+        // Optimisation : rechercher directement via l'endpoint par sujet
+        let existingListing: any = null;
+        try {
+          // Essayer de récupérer le listing via l'endpoint dédié
+          const listingResponse = await apiClient.get<any>(`/marketplace/listings/subject/${animal.id}`);
+          if (listingResponse && (listingResponse.status === 'available' || listingResponse.status === 'reserved')) {
+            existingListing = listingResponse;
+          }
+        } catch {
+          // Si 404, pas de listing existant
+          existingListing = null;
+        }
 
         if (existingListing) {
           Alert.alert(

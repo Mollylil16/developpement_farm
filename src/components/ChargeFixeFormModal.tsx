@@ -9,6 +9,7 @@ import { createChargeFixe, updateChargeFixe } from '../store/slices/financeSlice
 import type { ChargeFixe, CreateChargeFixeInput, CategorieChargeFixe, FrequenceCharge } from '../types/finance';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
+import DatePickerField from './DatePickerField';
 import { SPACING } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useActionPermissions } from '../hooks/useActionPermissions';
@@ -33,7 +34,7 @@ export default function ChargeFixeFormModal({
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate } = useActionPermissions();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateChargeFixeInput>({
     categorie: 'autre',
@@ -219,11 +220,10 @@ export default function ChargeFixeFormModal({
           required
         />
 
-        <FormField
+        <DatePickerField
           label="Date de début"
           value={formData.date_debut}
-          onChangeText={(text) => setFormData({ ...formData, date_debut: text })}
-          placeholder="YYYY-MM-DD"
+          onChange={(date) => setFormData({ ...formData, date_debut: date })}
         />
 
         <View style={styles.section}>

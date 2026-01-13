@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { View, Text, Modal, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import type { NavigationProp } from '@react-navigation/native';
+import type { NavigationProp, ParamListBase } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useRole } from '../contexts/RoleContext';
@@ -164,13 +164,10 @@ const AddRoleModal: React.FC<AddRoleModalProps> = ({ visible, onClose, onSuccess
           // Maintenant naviguer vers l'écran de création de projet
           setLoadingRole(null);
           onClose();
-          navigation.navigate(
-            SCREENS.CREATE_PROJECT as never,
-            {
-              userId: currentUser.id,
-              profileType: 'producer',
-            } as never
-          );
+          (navigation as any).navigate(SCREENS.CREATE_PROJECT, {
+            userId: currentUser.id,
+            profileType: 'producer',
+          });
           onSuccess?.();
           return;
         } catch (error: unknown) {
@@ -187,32 +184,23 @@ const AddRoleModal: React.FC<AddRoleModalProps> = ({ visible, onClose, onSuccess
 
       switch (role) {
         case 'buyer':
-          navigation.navigate(
-            SCREENS.BUYER_INFO_COMPLETION as never,
-            {
-              userId: currentUser.id,
-              profileType: 'buyer',
-            } as never
-          );
+          (navigation as any).navigate(SCREENS.BUYER_INFO_COMPLETION, {
+            userId: currentUser.id,
+            profileType: 'buyer',
+          });
           break;
         case 'veterinarian':
-          navigation.navigate(
-            SCREENS.VETERINARIAN_INFO_COMPLETION as never,
-            {
-              userId: currentUser.id,
-              profileType: 'veterinarian',
-            } as never
-          );
+          (navigation as any).navigate(SCREENS.VETERINARIAN_INFO_COMPLETION, {
+            userId: currentUser.id,
+            profileType: 'veterinarian',
+          });
           break;
         case 'technician':
           // Pour le technicien, utiliser le même écran que l'acheteur pour l'instant
-          navigation.navigate(
-            SCREENS.BUYER_INFO_COMPLETION as never,
-            {
-              userId: currentUser.id,
-              profileType: 'technician',
-            } as never
-          );
+          (navigation as any).navigate(SCREENS.BUYER_INFO_COMPLETION, {
+            userId: currentUser.id,
+            profileType: 'technician',
+          });
           break;
       }
 

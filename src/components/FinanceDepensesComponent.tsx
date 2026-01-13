@@ -35,7 +35,7 @@ export default function FinanceDepensesComponent() {
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const depensesPonctuelles = useAppSelector(selectAllDepensesPonctuelles);
-  const loading = useAppSelector((state) => state.finance.loading);
+  const loading = useAppSelector((state) => state.finance?.loading ?? false);
   const [selectedDepense, setSelectedDepense] = useState<DepensePonctuelle | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -46,7 +46,7 @@ export default function FinanceDepensesComponent() {
   const ITEMS_PER_PAGE = 50;
   const [refreshing, setRefreshing] = useState(false);
 
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
 
   useEffect(() => {
     if (projetActif) {

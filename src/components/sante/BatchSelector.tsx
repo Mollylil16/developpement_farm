@@ -60,7 +60,7 @@ export default function BatchSelector({
   label = 'Sélectionner une loge',
 }: BatchSelectorProps) {
   const { colors } = useTheme();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
 
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loading, setLoading] = useState(false);

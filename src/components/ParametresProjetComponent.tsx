@@ -43,7 +43,7 @@ export default function ParametresProjetComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const navigation = useNavigation<NavigationProp<any>>();
-  const { projetActif, projets, loading } = useAppSelector((state) => state.projet);
+  const { projetActif, projets, loading } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const mortalites = useAppSelector(selectAllMortalites);
   const animaux = useAppSelector(selectAllAnimaux);
   const [isEditing, setIsEditing] = useState(false);

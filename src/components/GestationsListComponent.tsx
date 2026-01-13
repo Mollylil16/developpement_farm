@@ -34,6 +34,7 @@ import GestationFormModal from './GestationFormModal';
 import StatCard from './StatCard';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
+import DatePickerField from './DatePickerField';
 import Button from './Button';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 
@@ -43,7 +44,7 @@ export default function GestationsListComponent() {
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const gestations = useAppSelector(selectAllGestations);
   const animaux = useAppSelector(selectAllAnimaux);
-  const { loading } = useAppSelector((state) => state.reproduction);
+  const { loading = false } = useAppSelector((state) => state.reproduction ?? { loading: false });
   const [selectedGestation, setSelectedGestation] = useState<Gestation | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -58,7 +59,7 @@ export default function GestationsListComponent() {
   );
   const [refreshing, setRefreshing] = useState(false);
 
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   
   // Détecter le mode de gestion (individuel ou bande)
   const isModeBatch = projetActif?.management_method === 'batch';
@@ -687,11 +688,11 @@ export default function GestationsListComponent() {
                 required
               />
 
-              <FormField
+              <DatePickerField
                 label="Date de mise bas réelle"
                 value={dateMiseBasReelle}
-                onChangeText={setDateMiseBasReelle}
-                placeholder="YYYY-MM-DD"
+                onChange={setDateMiseBasReelle}
+                maximumDate={new Date()}
               />
 
               <Button

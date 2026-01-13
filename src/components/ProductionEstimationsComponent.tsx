@@ -27,7 +27,7 @@ type EstimationMode = 'date' | 'animaux';
 export default function ProductionEstimationsComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const animaux = useAppSelector(selectAllAnimaux);
   const peseesParAnimal = useAppSelector(selectPeseesParAnimal);
   const loading = useAppSelector((state) => state.production.loading);

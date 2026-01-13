@@ -20,7 +20,7 @@ interface WidgetVueEnsembleProps {
 
 function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
   const { colors } = useTheme();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const { gestations } = useAppSelector((state) => state.reproduction);
   const { chargesFixes, depensesPonctuelles } = useAppSelector((state) => state.finance);
   const { indicateursPerformance } = useAppSelector((state) => state.reports);

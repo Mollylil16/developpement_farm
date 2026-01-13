@@ -54,7 +54,7 @@ export default function PlanificationFormModal({
 }: PlanificationFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const gestations = useAppSelector(selectAllGestations);
   const sevrages = useAppSelector(selectAllSevrages);
   const { canCreate, canUpdate } = useActionPermissions();

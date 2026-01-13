@@ -111,6 +111,17 @@ export class ChatAgentService {
   }
 
   /**
+   * Charge l'historique de conversation existant
+   */
+  loadHistory(messages: ChatMessage[]): void {
+    this.conversationHistory = messages;
+    // Mettre à jour le contexte conversationnel avec l'historique
+    for (const msg of messages) {
+      this.conversationContext.updateFromMessage(msg);
+    }
+  }
+
+  /**
    * Envoie un message à l'agent et reçoit une réponse
    */
   async sendMessage(userMessage: string): Promise<ChatMessage> {
@@ -240,8 +251,20 @@ export class ChatAgentService {
         };
         logger.debug(`Apprentissage réutilisé: ${detectedIntent.action}, score: ${similarLearning.total_score}`);
       } else {
-        // V4.1 - Utiliser les indices NLP si haute confiance
-        if (nlpResult.intentHints.length > 0 && nlpResult.intentHints[0].confidence >= 0.85) {
+        // FAST PATH EN PREMIER : Détection rapide pour les cas courants (plus fiable pour marketplace)
+        const fastPathStartTime = Date.now();
+        const fastPathResult = FastPathDetector.detectFastPath(processedMessage);
+        fastPathTime = Date.now() - fastPathStartTime;
+
+        // FastPath prioritaire si haute confiance (>= 0.90) ou si c'est une intention marketplace
+        const isMarketplaceIntent = fastPathResult.intent?.action?.toString().startsWith('marketplace_');
+        if (fastPathResult.intent && (fastPathResult.confidence >= 0.90 || isMarketplaceIntent)) {
+          detectedIntent = fastPathResult.intent;
+          logger.debug(`Fast path activé: ${detectedIntent.action}, confiance: ${fastPathResult.confidence}`);
+          this.performanceMonitor.recordStepTiming({ fastPathTime });
+        } 
+        // V4.1 - Utiliser les indices NLP si pas de fast path
+        else if (nlpResult.intentHints.length > 0 && nlpResult.intentHints[0].confidence >= 0.85) {
           const topHint = nlpResult.intentHints[0];
           detectedIntent = {
             action: topHint.intent as AgentActionType,
@@ -250,17 +273,8 @@ export class ChatAgentService {
           };
           logger.debug(`NLP hint utilisé: ${topHint.intent}, confiance: ${topHint.confidence}`);
         }
-        
-        // FAST PATH : Détection rapide pour les cas courants (sur message traité)
-        const fastPathStartTime = Date.now();
-        const fastPathResult = FastPathDetector.detectFastPath(processedMessage);
-        fastPathTime = Date.now() - fastPathStartTime;
 
-        if (fastPathResult.intent && fastPathResult.confidence >= 0.95) {
-          detectedIntent = fastPathResult.intent;
-          logger.debug(`Fast path activé: ${detectedIntent.action}, confiance: ${fastPathResult.confidence}`);
-          this.performanceMonitor.recordStepTiming({ fastPathTime });
-        } else {
+        if (!detectedIntent || detectedIntent.confidence < 0.85) {
           // DÉTECTION D'INTENTION : Utiliser RAG (intent) sur le message traité
           const ragStartTime = Date.now();
           detectedIntent = await this.intentRAG.detectIntent(processedMessage);
@@ -569,6 +583,7 @@ export class ChatAgentService {
                 actionResult: actionResult.data,
                 requiresConfirmation: false,
                 pendingAction: { action: action.type, params: action.params },
+                refreshHint: actionResult.refreshHint, // Signal pour rafraîchir les données
               },
             };
             

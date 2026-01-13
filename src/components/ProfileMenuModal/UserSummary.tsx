@@ -13,7 +13,7 @@ import ProfilePhoto from '../ProfilePhoto';
 export default function UserSummary() {
   const { colors } = useTheme();
   const { user } = useAppSelector((state) => state.auth);
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   
   // Utiliser useProfilData pour avoir la photo synchronisée
   const { profilPhotoUri } = useProfilData();

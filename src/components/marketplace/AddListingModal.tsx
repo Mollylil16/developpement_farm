@@ -61,7 +61,7 @@ export default function AddListingModal({
   batchPigIds,
 }: AddListingModalProps) {
   const { colors, spacing, typography, borderRadius } = MarketplaceTheme;
-  const { user } = useAppSelector((state) => state.auth);
+  const { user } = useAppSelector((state) => state.auth ?? { user: null });
   const { getCurrentLocation } = useGeolocation();
 
   // Déterminer le mode
@@ -130,10 +130,16 @@ export default function AddListingModal({
 
       let listingId: string;
 
+      // Type pour la réponse de création de listing
+      interface ListingResponse {
+        id?: string;
+        listingId?: string;
+      }
+
       // Créer le listing selon le mode
       if (isBatchMode) {
         // Mode bande
-        const response = await apiClient.post('/marketplace/listings/batch', {
+        const response = await apiClient.post<ListingResponse>('/marketplace/listings/batch', {
           batchId,
           farmId: projetId,
           pricePerKg: parseFloat(pricePerKg),
@@ -157,11 +163,15 @@ export default function AddListingModal({
           },
         });
 
-        listingId = response.id || response.listingId;
+        const respId = response.id || response.listingId;
+        if (!respId) {
+          throw new Error('Erreur lors de la création du listing: ID manquant');
+        }
+        listingId = respId;
         logger.info(`[AddListingModal] Listing de bande créé: ${listingId}`);
       } else {
         // Mode individuel
-        const response = await apiClient.post('/marketplace/listings', {
+        const response = await apiClient.post<ListingResponse>('/marketplace/listings', {
           subjectId,
           farmId: projetId,
           pricePerKg: parseFloat(pricePerKg),
@@ -183,7 +193,11 @@ export default function AddListingModal({
           },
         });
 
-        listingId = response.id || response.listingId;
+        const respId = response.id || response.listingId;
+        if (!respId) {
+          throw new Error('Erreur lors de la création du listing: ID manquant');
+        }
+        listingId = respId;
         logger.info(`[AddListingModal] Listing individuel créé: ${listingId}`);
       }
 
@@ -405,7 +419,7 @@ export default function AddListingModal({
           <TouchableOpacity
             style={[
               styles.submitButton,
-              { backgroundColor: termsAccepted && !loading ? colors.primary : colors.disabled },
+              { backgroundColor: termsAccepted && !loading ? colors.primary : colors.textSecondary },
             ]}
             onPress={handleSubmit}
             disabled={!termsAccepted || loading}

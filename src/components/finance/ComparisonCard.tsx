@@ -22,7 +22,7 @@ const PRIX_KG_CARCASSE_DEFAUT = 1300;
 
 export default function ComparisonCard() {
   const { colors } = useTheme();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const peseesParAnimal = useAppSelector(selectPeseesParAnimal);
   const { animauxActifs } = useAnimauxActifs({ projetId: projetActif?.id });
   

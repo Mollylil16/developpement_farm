@@ -388,14 +388,14 @@ export class PorkPriceTrendService {
     year: number,
     weekNumber: number
   ): Promise<MarketplaceListing[]> {
-    // Le backend retourne maintenant un objet avec pagination
-    // Utiliser une limite élevée pour récupérer tous les listings actifs
+    // Optimisation : utiliser une limite raisonnable avec pagination
+    // Le calcul des tendances devrait être fait côté backend idéalement
     const response = await apiClient.get<{
       listings: MarketplaceListing[];
       total: number;
     }>('/marketplace/listings', {
       params: {
-        limit: 500, // Récupérer tous les listings (limite max)
+        limit: 100, // Limite raisonnable pour les performances
       },
     });
     const allListings = response.listings || [];

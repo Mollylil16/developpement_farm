@@ -50,8 +50,8 @@ export default function FinanceGraphiquesComponent() {
   const chargesFixes = useAppSelector(selectAllChargesFixes);
   const depensesPonctuelles = useAppSelector(selectAllDepensesPonctuelles);
   const revenus = useAppSelector(selectAllRevenus);
-  const financeLoading = useAppSelector((state) => state.finance.loading);
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const financeLoading = useAppSelector((state) => state.finance?.loading ?? false);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   
   // Logs pour déboguer
   useEffect(() => {
@@ -499,19 +499,19 @@ export default function FinanceGraphiquesComponent() {
     return data;
   }, [depensesPonctuellesProjet, revenusProjet, projetActif?.id]);
 
-  const formatAmount = (amount: number) => {
+  const formatAmount = (amount: number | undefined) => {
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
       currency: 'XOF',
       minimumFractionDigits: 0,
-    }).format(amount);
+    }).format(amount ?? 0);
   };
 
-  const formatAmountParts = (amount: number) => {
+  const formatAmountParts = (amount: number | undefined) => {
     const formatted = new Intl.NumberFormat('fr-FR', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(amount);
+    }).format(amount ?? 0);
     return { number: formatted, currency: 'F' };
   };
 
@@ -560,7 +560,7 @@ export default function FinanceGraphiquesComponent() {
             <View
               style={styles.column}
               accessible={true}
-              accessibilityLabel={`Revenus: ${formatAmount(graphData.revenusMois)}${graphData.revenusTrend !== null ? `, ${graphData.revenusTrend >= 0 ? 'augmentation' : 'diminution'} de ${Math.abs(graphData.revenusTrend).toFixed(1)}%` : ''}`}
+              accessibilityLabel={`Revenus: ${formatAmount(graphData.revenusMois)}${graphData.revenusTrend != null ? `, ${graphData.revenusTrend >= 0 ? 'augmentation' : 'diminution'} de ${Math.abs(graphData.revenusTrend).toFixed(1)}%` : ''}`}
               accessibilityRole="text"
             >
               <Text style={styles.columnIcon}>💰</Text>
@@ -577,7 +577,7 @@ export default function FinanceGraphiquesComponent() {
                   {formatAmountParts(graphData.revenusMois).currency}
                 </Text>
               </View>
-              {graphData.revenusTrend !== null && (
+              {graphData.revenusTrend != null && (
                 <Text
                   style={[
                     styles.columnTrend,
@@ -602,7 +602,7 @@ export default function FinanceGraphiquesComponent() {
             <View
               style={styles.column}
               accessible={true}
-              accessibilityLabel={`Dépenses: ${formatAmount(graphData.depensesReelles)}${graphData.depensesTrend !== null ? `, ${graphData.depensesTrend >= 0 ? 'augmentation' : 'diminution'} de ${Math.abs(graphData.depensesTrend).toFixed(1)}%` : ''}`}
+              accessibilityLabel={`Dépenses: ${formatAmount(graphData.depensesReelles)}${graphData.depensesTrend != null ? `, ${graphData.depensesTrend >= 0 ? 'augmentation' : 'diminution'} de ${Math.abs(graphData.depensesTrend).toFixed(1)}%` : ''}`}
               accessibilityRole="text"
             >
               <Text style={styles.columnIcon}>💸</Text>
@@ -619,7 +619,7 @@ export default function FinanceGraphiquesComponent() {
                   {formatAmountParts(graphData.depensesReelles).currency}
                 </Text>
               </View>
-              {graphData.depensesTrend !== null && (
+              {graphData.depensesTrend != null && (
                 <Text
                   style={[
                     styles.columnTrend,
@@ -644,7 +644,7 @@ export default function FinanceGraphiquesComponent() {
             <View
               style={styles.column}
               accessible={true}
-              accessibilityLabel={`Solde: ${formatAmount(graphData.solde)}, ${graphData.solde >= 0 ? 'positif' : 'négatif'}`}
+              accessibilityLabel={`Solde: ${formatAmount(graphData.solde)}, ${(graphData.solde ?? 0) >= 0 ? 'positif' : 'négatif'}`}
               accessibilityRole="text"
             >
               <Text style={styles.columnIcon}>💳</Text>
@@ -655,7 +655,7 @@ export default function FinanceGraphiquesComponent() {
                     styles.columnAmount,
                     {
                       color:
-                        graphData.solde >= 0
+                        (graphData.solde ?? 0) >= 0
                           ? colors.primary || '#3B82F6'
                           : colors.error || '#EF4444',
                     },
@@ -670,7 +670,7 @@ export default function FinanceGraphiquesComponent() {
                     styles.columnCurrency,
                     {
                       color:
-                        graphData.solde >= 0
+                        (graphData.solde ?? 0) >= 0
                           ? colors.primary || '#3B82F6'
                           : colors.error || '#EF4444',
                     },
@@ -684,13 +684,13 @@ export default function FinanceGraphiquesComponent() {
                   styles.columnStatus,
                   {
                     color:
-                      graphData.solde >= 0
+                      (graphData.solde ?? 0) >= 0
                         ? colors.success || '#10B981'
                         : colors.error || '#EF4444',
                   },
                 ]}
               >
-                {graphData.solde >= 0 ? 'Positif' : 'Négatif'}
+                {(graphData.solde ?? 0) >= 0 ? 'Positif' : 'Négatif'}
               </Text>
             </View>
           </View>
@@ -698,20 +698,20 @@ export default function FinanceGraphiquesComponent() {
           {/* Recommandation */}
           {(() => {
             const pourcentageDepenses =
-              graphData.revenusMois > 0
-                ? (graphData.depensesReelles / graphData.revenusMois) * 100
+              (graphData.revenusMois ?? 0) > 0
+                ? ((graphData.depensesReelles ?? 0) / (graphData.revenusMois ?? 1)) * 100
                 : 0;
 
             let recommandation = '';
             let icon = '';
             let color = colors.primary;
 
-            if (graphData.solde < 0) {
+            if ((graphData.solde ?? 0) < 0) {
               icon = '⚠️';
               color = colors.error;
               recommandation =
                 'Attention : Vos dépenses dépassent vos revenus. Réduisez les dépenses ou augmentez vos revenus.';
-            } else if (graphData.solde === 0) {
+            } else if ((graphData.solde ?? 0) === 0) {
               icon = '⚖️';
               color = colors.warning;
               recommandation =
@@ -904,7 +904,7 @@ export default function FinanceGraphiquesComponent() {
               style={[
                 styles.summaryValue,
                 {
-                  color: graphData.soldeTotal >= 0 ? colors.success : colors.error,
+                  color: (graphData.soldeTotal ?? 0) >= 0 ? colors.success : colors.error,
                   fontWeight: 'bold',
                 },
               ]}

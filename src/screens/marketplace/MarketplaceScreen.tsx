@@ -223,7 +223,7 @@ function MarketplaceScreen() {
         params: { 
           projet_id: projetActif.id,
           user_id: user.id, // Filtrer par producteur pour n'afficher que les annonces de l'utilisateur
-          limit: 500, // Récupérer tous les listings de l'utilisateur (limite max)
+          limit: 50, // Limite raisonnable - pagination avec FlatList onEndReached
         },
       });
       

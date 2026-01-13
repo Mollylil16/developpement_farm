@@ -38,7 +38,7 @@ export default function PlanificationListComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const { planifications, planificationsAVenir, loading } = useAppSelector(
     (state) => state.planification
   );

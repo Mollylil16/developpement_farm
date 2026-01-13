@@ -33,9 +33,9 @@ import OpexCapexChart from './finance/OpexCapexChart';
 export default function FinanceBilanComptableComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const depensesPonctuelles = useAppSelector(selectAllDepensesPonctuelles);
-  const loading = useAppSelector((state) => state.finance.loading);
+  const loading = useAppSelector((state) => state.finance?.loading ?? false);
 
   const [refreshing, setRefreshing] = useState(false);
 

@@ -29,7 +29,7 @@ const ITEMS_PER_PAGE = 50;
 export default function StockMouvementsHistoryComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const { stocks, mouvementsParAliment, loading } = useAppSelector((state) => state.stocks);
 
   const [searchQuery, setSearchQuery] = useState('');

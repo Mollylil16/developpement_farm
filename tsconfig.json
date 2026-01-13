@@ -7,6 +7,7 @@
     "jsx": "react-native",
     "skipLibCheck": true,
     "lib": ["ES2020"],
+    "module": "esnext",
     "types": ["jest", "node"]
   },
   "include": ["App.tsx", "index.ts", "src/**/*.ts", "src/**/*.tsx", "e2e/**/*.ts"],

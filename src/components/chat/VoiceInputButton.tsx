@@ -33,7 +33,7 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
     return () => {
       pulseAnim.current?.stop();
       if (isListening) {
-        service.stopListening().catch((error) => logger.error('[VoiceInputButton] Stop error:', error));
+        service.stopListening().catch((error: Error) => logger.error('[VoiceInputButton] Stop error:', error));
       }
     };
   }, [isListening, service]);
@@ -73,15 +73,15 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
     startPulseAnimation();
 
     try {
-      await service.startListening({
-        onResult: (text) => {
+        await service.startListening({
+        onResult: (text: string) => {
           setIsListening(false);
           stopPulseAnimation();
           if (text && text.trim()) {
             onTranscription(text.trim());
           }
         },
-        onError: (message) => {
+        onError: (message: string) => {
           setIsListening(false);
           stopPulseAnimation();
           logger.warn('[VoiceInputButton] Error:', message);

@@ -30,7 +30,7 @@ interface Props {
 export default function VisiteVeterinaireFormModal({ visible, onClose, visite }: Props) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
 
   const isEditing = !!visite;
 

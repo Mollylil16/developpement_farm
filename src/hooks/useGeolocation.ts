@@ -11,6 +11,7 @@ import type { Location } from '../types/marketplace';
 export interface UserLocation {
   latitude: number;
   longitude: number;
+  address?: string;
   city?: string;
   region?: string;
 }

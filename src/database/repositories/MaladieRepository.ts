@@ -7,12 +7,36 @@
 import { BaseRepository } from './BaseRepository';
 import { Maladie, CreateMaladieInput } from '../../types/sante';
 
+// Type pour les données brutes de la base de données
+interface MaladieRow {
+  id: string;
+  projet_id: string;
+  animal_id?: string | null;
+  lot_id?: string | null;
+  type: string;
+  nom_maladie: string;
+  gravite: string;
+  date_debut: string;
+  date_fin?: string | null;
+  symptomes: string;
+  diagnostic?: string | null;
+  contagieux?: boolean | number | null;
+  nombre_animaux_affectes?: number | null;
+  nombre_deces?: number | null;
+  veterinaire?: string | null;
+  cout_traitement?: number | null;
+  gueri?: boolean | number | null;
+  notes?: string | null;
+  date_creation: string;
+  derniere_modification: string;
+}
+
 export class MaladieRepository extends BaseRepository<Maladie> {
   constructor() {
     super('maladies', '/sante/maladies');
   }
 
-  private mapRow(row: unknown): Maladie {
+  private mapRow(row: MaladieRow): Maladie {
     return {
       id: row.id,
       projet_id: row.projet_id,
@@ -58,13 +82,13 @@ export class MaladieRepository extends BaseRepository<Maladie> {
       notes: input.notes || null,
     };
 
-    const created = await this.executePost<unknown>('/sante/maladies', maladieData);
+    const created = await this.executePost<MaladieRow>('/sante/maladies', maladieData);
     return this.mapRow(created);
   }
 
   async findById(id: string): Promise<Maladie | null> {
     try {
-      const row = await this.queryOne<unknown>(`/sante/maladies/${id}`);
+      const row = await this.queryOne<MaladieRow>(`/sante/maladies/${id}`);
       return row ? this.mapRow(row) : null;
     } catch (error) {
       console.error('Error finding maladie by id:', error);
@@ -74,8 +98,8 @@ export class MaladieRepository extends BaseRepository<Maladie> {
 
   async findByProjet(projetId: string): Promise<Maladie[]> {
     try {
-      const rows = await this.query<unknown>('/sante/maladies', { projet_id: projetId });
-      return rows.map(this.mapRow);
+      const rows = await this.query<MaladieRow>('/sante/maladies', { projet_id: projetId });
+      return rows.map((row) => this.mapRow(row));
     } catch (error) {
       console.error('Error finding maladies by projet:', error);
       return [];
@@ -84,8 +108,8 @@ export class MaladieRepository extends BaseRepository<Maladie> {
 
   async findByAnimal(animalId: string): Promise<Maladie[]> {
     try {
-      const rows = await this.query<unknown>('/sante/maladies', { animal_id: animalId });
-      return rows.map(this.mapRow);
+      const rows = await this.query<MaladieRow>('/sante/maladies', { animal_id: animalId });
+      return rows.map((row) => this.mapRow(row));
     } catch (error) {
       console.error('Error finding maladies by animal:', error);
       return [];
@@ -130,7 +154,7 @@ export class MaladieRepository extends BaseRepository<Maladie> {
       return existing;
     }
 
-    const updated = await this.executePatch<unknown>(`/sante/maladies/${id}`, updateData);
+    const updated = await this.executePatch<MaladieRow>(`/sante/maladies/${id}`, updateData);
     return this.mapRow(updated);
   }
 

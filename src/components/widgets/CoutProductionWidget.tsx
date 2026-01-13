@@ -21,7 +21,7 @@ interface CoutProductionWidgetProps {
 function CoutProductionWidget({ projetId, onPress }: CoutProductionWidgetProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
 
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<{

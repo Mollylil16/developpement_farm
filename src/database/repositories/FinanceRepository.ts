@@ -32,7 +32,7 @@ export class RevenuRepository extends BaseRepository<Revenu> {
       const rows = await this.query<Revenu>('/finance/revenus', params);
       return rows.map((row) => ({
         ...row,
-        photos: this.parsePhotos((row as unknown).photos),
+        photos: this.parsePhotos(row.photos as string | string[] | null | undefined),
       }));
     } catch (error) {
       console.error('Error finding revenus:', error);
@@ -49,7 +49,7 @@ export class RevenuRepository extends BaseRepository<Revenu> {
       if (!row) return null;
       return {
         ...row,
-        photos: this.parsePhotos((row as unknown).photos),
+        photos: this.parsePhotos(row.photos as string | string[] | null | undefined),
       };
     } catch (error) {
       console.error('Error finding revenu by id:', error);
@@ -81,7 +81,7 @@ export class RevenuRepository extends BaseRepository<Revenu> {
     const created = await this.executePost<Revenu>('/finance/revenus', revenuData);
     return {
       ...created,
-      photos: this.parsePhotos((created as unknown).photos),
+      photos: this.parsePhotos(created.photos as string | string[] | null | undefined),
     };
   }
 
@@ -101,7 +101,7 @@ export class RevenuRepository extends BaseRepository<Revenu> {
     const updated = await this.executePatch<Revenu>(`/finance/revenus/${id}`, updateData);
     return {
       ...updated,
-      photos: this.parsePhotos((updated as unknown).photos),
+      photos: this.parsePhotos(updated.photos as string | string[] | null | undefined),
     };
   }
 
@@ -117,7 +117,7 @@ export class RevenuRepository extends BaseRepository<Revenu> {
       });
       return rows.map((row) => ({
         ...row,
-        photos: this.parsePhotos((row as unknown).photos),
+        photos: this.parsePhotos(row.photos as string | string[] | null | undefined),
       }));
     } catch (error) {
       console.error('Error finding revenus by period:', error);
@@ -156,7 +156,7 @@ export class RevenuRepository extends BaseRepository<Revenu> {
 
       const data = rows.map((row) => ({
         ...row,
-        photos: this.parsePhotos((row as unknown).photos),
+        photos: this.parsePhotos(row.photos as string | string[] | null | undefined),
       }));
 
       return {
@@ -244,7 +244,7 @@ export class DepensePonctuelleRepository extends BaseRepository<DepensePonctuell
       const rows = await this.query<DepensePonctuelle>('/finance/depenses-ponctuelles', params);
       return rows.map((row) => ({
         ...row,
-        photos: this.parsePhotos((row as unknown).photos),
+        photos: this.parsePhotos(row.photos as string | string[] | null | undefined),
       }));
     } catch (error) {
       console.error('Error finding depenses:', error);
@@ -261,7 +261,7 @@ export class DepensePonctuelleRepository extends BaseRepository<DepensePonctuell
       if (!row) return null;
       return {
         ...row,
-        photos: this.parsePhotos((row as unknown).photos),
+        photos: this.parsePhotos(row.photos as string | string[] | null | undefined),
       };
     } catch (error) {
       console.error('Error finding depense by id:', error);
@@ -290,7 +290,7 @@ export class DepensePonctuelleRepository extends BaseRepository<DepensePonctuell
     const created = await this.executePost<DepensePonctuelle>('/finance/depenses-ponctuelles', depenseData);
     return {
       ...created,
-      photos: this.parsePhotos((created as unknown).photos),
+      photos: this.parsePhotos(created.photos as string | string[] | null | undefined),
     };
   }
 
@@ -307,7 +307,7 @@ export class DepensePonctuelleRepository extends BaseRepository<DepensePonctuell
     const updated = await this.executePatch<DepensePonctuelle>(`/finance/depenses-ponctuelles/${id}`, updateData);
     return {
       ...updated,
-      photos: this.parsePhotos((updated as unknown).photos),
+      photos: this.parsePhotos(updated.photos as string | string[] | null | undefined),
     };
   }
 
@@ -327,7 +327,7 @@ export class DepensePonctuelleRepository extends BaseRepository<DepensePonctuell
       });
       return rows.map((row) => ({
         ...row,
-        photos: this.parsePhotos((row as unknown).photos),
+        photos: this.parsePhotos(row.photos as string | string[] | null | undefined),
       }));
     } catch (error) {
       console.error('Error finding depenses by period:', error);
@@ -366,7 +366,7 @@ export class DepensePonctuelleRepository extends BaseRepository<DepensePonctuell
 
       const data = rows.map((row) => ({
         ...row,
-        photos: this.parsePhotos((row as unknown).photos),
+        photos: this.parsePhotos(row.photos as string | string[] | null | undefined),
       }));
 
       return {

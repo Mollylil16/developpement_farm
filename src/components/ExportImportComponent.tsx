@@ -31,7 +31,7 @@ import Card from './Card';
 
 export default function ExportImportComponent() {
   const { colors } = useTheme();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
 

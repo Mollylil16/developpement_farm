@@ -22,7 +22,7 @@ function ReproductionWidget({ onPress }: ReproductionWidgetProps) {
   const dispatch = useAppDispatch();
   const gestations = useAppSelector(selectAllGestations);
 
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
 
   // Utiliser useRef pour éviter les chargements multiples (boucle infinie)
   // ❌ CORRECTION CRITIQUE: Ne PAS charger les gestations dans le widget !

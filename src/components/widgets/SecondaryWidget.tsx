@@ -41,7 +41,7 @@ interface SecondaryWidgetProps {
 function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const [marketplaceStats, setMarketplaceStats] = useState({ myListings: 0, available: 0 });
   const { rations, rationsBudget } = useAppSelector((state) => state.nutrition);
   const { planifications } = useAppSelector((state) => state.planification);
@@ -95,41 +95,34 @@ function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
           try {
             const apiClient = (await import('../../services/api/apiClient')).default;
 
-            // Compter mes annonces actives
-            // Le backend retourne maintenant un objet avec pagination
-            const myListingsResponse = await apiClient.get<{
-              listings: any[];
-              total: number;
-            }>('/marketplace/listings', {
-              params: { 
-                projet_id: projetActif.id,
-                limit: 500, // Récupérer tous les listings du projet (limite max)
-              },
-            });
-            const myListings = myListingsResponse.listings || [];
-            const myActiveListings = myListings.filter(
-              (l) => l.status === 'available' || l.status === 'reserved'
-            ).length;
-
-            // Compter les annonces disponibles (toutes sauf celles de l'utilisateur)
-            // Utiliser exclude_own_listings pour exclure automatiquement les listings de l'utilisateur
-            const allListingsResponse = await apiClient.get<{
-              listings: any[];
-              total: number;
-            }>('/marketplace/listings', {
-              params: {
-                exclude_own_listings: 'true', // Exclure les listings de l'utilisateur connecté
-                limit: 500, // Récupérer tous les listings disponibles (limite max)
-              },
-            });
-            const allListings = allListingsResponse.listings || [];
-            const availableListings = allListings.filter(
-              (l) => l.status === 'available' || l.status === 'reserved'
-            ).length;
+            // Optimisation : utiliser limit=1 pour récupérer uniquement le compteur total
+            // Le backend retourne {listings, total} - on n'a besoin que du total
+            const [myListingsResponse, allListingsResponse] = await Promise.all([
+              // Mes annonces actives
+              apiClient.get<{
+                listings: any[];
+                total: number;
+              }>('/marketplace/listings', {
+                params: { 
+                  projet_id: projetActif.id,
+                  limit: 1, // On ne veut que le compteur total
+                },
+              }),
+              // Annonces disponibles (excluant les miennes)
+              apiClient.get<{
+                listings: any[];
+                total: number;
+              }>('/marketplace/listings', {
+                params: {
+                  exclude_own_listings: 'true',
+                  limit: 1, // On ne veut que le compteur total
+                },
+              }),
+            ]);
 
             setMarketplaceStats({
-              myListings: myActiveListings,
-              available: availableListings,
+              myListings: myListingsResponse.total || 0,
+              available: allListingsResponse.total || 0,
             });
           } catch (error) {
             logger.error('Erreur chargement stats marketplace:', error);

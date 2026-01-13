@@ -18,7 +18,7 @@ interface WidgetPerformanceProps {
 export default function WidgetPerformance({ onPress }: WidgetPerformanceProps) {
   const { colors } = useTheme();
   const { indicateursPerformance } = useAppSelector((state) => state.reports);
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const gestations: Gestation[] = useAppSelector((state) => {
     const { entities, ids } = state.reproduction;
     const result = denormalize(ids.gestations, gestationsSchema, {

@@ -112,6 +112,67 @@ ${trends.slice(-4).map(t =>
   }
 
   /**
+   * Recherche un animal par code dans le projet
+   * Gère les deux modes: individuel et batch
+   */
+  private static async findAnimalByCode(
+    code: string,
+    projetId: string
+  ): Promise<{ id: string; code: string; weight?: number; race?: string; statut?: string } | null> {
+    try {
+      // Recherche dans les animaux individuels
+      const animals = await apiClient.get<any[]>('/production/animaux', {
+        params: { 
+          code: code, 
+          projet_id: projetId,
+          limit: 10 // Limiter pour performance
+        }
+      });
+
+      if (animals && Array.isArray(animals) && animals.length > 0) {
+        // Trouver l'animal dont le code correspond exactement ou partiellement
+        const exactMatch = animals.find(a => a.code?.toUpperCase() === code.toUpperCase());
+        const animal = exactMatch || animals[0];
+        
+        return {
+          id: animal.id,
+          code: animal.code,
+          weight: animal.poids_actuel || animal.poids_initial,
+          race: animal.race,
+          statut: animal.statut,
+        };
+      }
+
+      // Si pas trouvé en mode individuel, chercher dans les batches
+      try {
+        const batches = await apiClient.get<any[]>(`/batch-pigs/projet/${projetId}`);
+        if (batches && Array.isArray(batches)) {
+          // Chercher une loge dont le nom ressemble au code
+          const batch = batches.find(b => 
+            b.pen_name?.toUpperCase().includes(code.toUpperCase()) ||
+            b.id?.includes(code)
+          );
+          if (batch) {
+            return {
+              id: batch.id,
+              code: batch.pen_name || batch.id,
+              weight: batch.average_weight_kg,
+              statut: 'actif',
+            };
+          }
+        }
+      } catch (e) {
+        logger.debug('[MarketplaceActions] Pas de batch trouvé:', e);
+      }
+
+      return null;
+    } catch (error) {
+      logger.error('[MarketplaceActions] Erreur findAnimalByCode:', error);
+      return null;
+    }
+  }
+
+  /**
    * Mettre un animal en vente
    */
   static async sellAnimal(
@@ -136,27 +197,67 @@ ${trends.slice(-4).map(t =>
         let animalInfo = '';
         let animalId = params.animalId;
         let weight = params.weight;
+        let animalCode = params.animalCode;
 
         if (params.animalCode) {
-          try {
-            const animals = await apiClient.get<any[]>('/production/animaux', {
-              params: { code: params.animalCode, projet_id: context.projetId }
-            });
-            if (animals && animals.length > 0) {
-              const animal = animals[0];
-              animalId = animal.id;
-              weight = animal.poids_actuel || animal.poids_initial;
-              animalInfo = `🐷 **${animal.code}** (${animal.race || 'Race inconnue'})
-• Poids actuel : ${weight ? `${weight} kg` : 'Non renseigné'}
+          const animal = await this.findAnimalByCode(params.animalCode, context.projetId);
+          if (animal) {
+            animalId = animal.id;
+            animalCode = animal.code;
+            weight = animal.weight;
+            animalInfo = `🐷 **${animal.code}** (${animal.race || 'Race inconnue'})
+• Poids : ${weight ? `${weight} kg` : 'Non renseigné'}
 • Statut : ${animal.statut || 'Actif'}`;
-            }
-          } catch (e) {
-            logger.warn('[MarketplaceActions] Erreur recherche animal:', e);
+          } else {
+            return {
+              success: false,
+              message: `❌ Je n'ai pas trouvé d'animal avec le code **"${params.animalCode}"** dans ton cheptel.
+
+💡 Vérifie le code exact de l'animal ou dis-moi :
+• Le nom de la **loge** (ex: "Loge 2")
+• Une **plage de poids** (ex: "un porc de 80kg")
+
+Tu peux aussi consulter ton cheptel pour voir les codes disponibles.`,
+            };
           }
         } else if (params.logeName) {
-          animalInfo = `🏠 Animaux de la loge **${params.logeName}**`;
+          // Chercher les animaux de la loge
+          try {
+            const logeAnimals = await apiClient.get<any[]>('/production/animaux/by-loges', {
+              params: { projet_id: context.projetId, loges: params.logeName }
+            });
+            if (logeAnimals && logeAnimals.length > 0) {
+              const totalWeight = logeAnimals.reduce((sum, a) => sum + (a.poids_actuel || a.poids_initial || 0), 0);
+              weight = Math.round(totalWeight / logeAnimals.length);
+              animalInfo = `🏠 **${logeAnimals.length} animaux** de la loge **${params.logeName}**
+• Poids moyen : ${weight} kg`;
+            }
+          } catch (e) {
+            logger.warn('[MarketplaceActions] Erreur recherche loge:', e);
+          }
+          if (!animalInfo) {
+            animalInfo = `🏠 Animaux de la loge **${params.logeName}**`;
+          }
         } else if (params.weightRange) {
-          animalInfo = `🐷 Animaux entre **${params.weightRange.min}** et **${params.weightRange.max} kg**`;
+          // Chercher les animaux dans la plage de poids
+          try {
+            const weightAnimals = await apiClient.get<any[]>('/production/animaux', {
+              params: { 
+                projet_id: context.projetId,
+                poids_min: params.weightRange.min,
+                poids_max: params.weightRange.max,
+                limit: 20
+              }
+            });
+            if (weightAnimals && weightAnimals.length > 0) {
+              animalInfo = `🐷 **${weightAnimals.length} animaux** entre **${params.weightRange.min}** et **${params.weightRange.max} kg**`;
+            }
+          } catch (e) {
+            logger.warn('[MarketplaceActions] Erreur recherche par poids:', e);
+          }
+          if (!animalInfo) {
+            animalInfo = `🐷 Animaux entre **${params.weightRange.min}** et **${params.weightRange.max} kg**`;
+          }
         }
 
         return {
@@ -177,7 +278,7 @@ Ou dis-moi simplement *"au prix du marché"* et je fixerai le prix à ${marketAv
           data: { 
             pendingAction: 'marketplace_set_price',
             animalId,
-            animalCode: params.animalCode,
+            animalCode,
             weight,
             marketAvgPrice,
           },
@@ -194,22 +295,20 @@ Ou dis-moi simplement *"au prix du marché"* et je fixerai le prix à ${marketAv
       // Trouver l'animal
       let animalId = params.animalId;
       if (!animalId && params.animalCode) {
-        try {
-          const animals = await apiClient.get<any[]>('/production/animaux', {
-            params: { code: params.animalCode, projet_id: context.projetId }
-          });
-          if (animals && animals.length > 0) {
-            animalId = animals[0].id;
-          }
-        } catch (e) {
-          logger.warn('[MarketplaceActions] Erreur recherche animal:', e);
+        const animal = await this.findAnimalByCode(params.animalCode, context.projetId);
+        if (animal) {
+          animalId = animal.id;
         }
       }
 
       if (!animalId) {
         return {
           success: false,
-          message: "Je n'ai pas trouvé l'animal que tu veux vendre. Peux-tu me donner son code exact ?",
+          message: `❌ Je n'ai pas trouvé l'animal que tu veux vendre.
+
+💡 Peux-tu me donner :
+• Le **code exact** de l'animal (ex: P001, A123)
+• Ou le nom de la **loge** (ex: Loge 2)`,
         };
       }
 

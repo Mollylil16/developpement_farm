@@ -20,7 +20,7 @@ interface PerformanceWidgetProps {
 
 function PerformanceWidget({ projetId, onPress }: PerformanceWidgetProps) {
   const { colors } = useTheme();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const revenus = useAppSelector(selectAllRevenus);
 
   const [loading, setLoading] = useState(true);

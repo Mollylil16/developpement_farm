@@ -36,8 +36,8 @@ export default function CollaborationListComponent() {
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
   const { activeRole } = useRole();
-  const { projetActif } = useAppSelector((state) => state.projet);
-  const currentUser = useAppSelector((state) => state.auth.user);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  const currentUser = useAppSelector((state) => state.auth?.user);
 
   // Vérifier si l'utilisateur est propriétaire du projet actif
   const isProprietaire =
@@ -45,7 +45,7 @@ export default function CollaborationListComponent() {
     projetActif &&
     currentUser &&
     projetActif.proprietaire_id === currentUser.id;
-  const { collaborateurs, loading } = useAppSelector((state) => state.collaboration);
+  const { collaborateurs = [], loading = false } = useAppSelector((state) => state.collaboration ?? { collaborateurs: [], loading: false });
   const [selectedCollaborateur, setSelectedCollaborateur] = useState<Collaborateur | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);

@@ -39,7 +39,7 @@ export default function RationCalculatorComponent() {
     }>;
   } | null>(null);
 
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
 
   useEffect(() => {
     if (projetActif) {

@@ -28,7 +28,7 @@ interface OverviewWidgetProps {
 function OverviewWidget({ onPress }: OverviewWidgetProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   const animaux = useAppSelector(selectAllAnimaux);
   const mortalites = useAppSelector(selectAllMortalites);
   const peseesParAnimal = useAppSelector(selectPeseesParAnimal);

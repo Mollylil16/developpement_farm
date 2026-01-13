@@ -102,6 +102,63 @@ setBatches(batchesData);
     setShowCreateModal(true);
   };
 
+  // Helper functions for formatting - defined before renderBatchCard
+  const formatNumber = useCallback((value?: number | null, decimals = 1) => {
+    if (value === undefined || value === null || isNaN(value)) {
+      return '—';
+    }
+    return value.toFixed(decimals).replace('.', ',');
+  }, []);
+
+  const formatAge = useCallback(
+    (months?: number | null) => {
+      if (months === undefined || months === null || isNaN(months)) {
+        return '—';
+      }
+      return `${formatNumber(months, 1)} mois`;
+    },
+    [formatNumber],
+  );
+
+  const formatWeight = useCallback(
+    (kg?: number | null) => {
+      if (kg === undefined || kg === null || isNaN(kg)) {
+        return '—';
+      }
+      return `${formatNumber(kg, 1)} kg`;
+    },
+    [formatNumber],
+  );
+
+  const formatGmq = useCallback(
+    (gmq?: number | null) => {
+      if (gmq === undefined || gmq === null || isNaN(gmq)) {
+        return '—';
+      }
+      return `${formatNumber(gmq, 2)} kg/j`;
+    },
+    [formatNumber],
+  );
+
+  const renderSexBadge = useCallback((label: string, count: number, color: string) => {
+    if (!count) return null;
+    return (
+      <View
+        style={[
+          styles.sexChip,
+          {
+            borderColor: `${color}80`,
+            backgroundColor: `${color}15`,
+          },
+        ]}
+      >
+        <Text style={[styles.sexChipText, { color }]} numberOfLines={1}>
+          {label} {count}
+        </Text>
+      </View>
+    );
+  }, []);
+
   const renderBatchCard = useCallback(
     ({ item }: { item: Batch }) => (
       <TouchableOpacity
@@ -272,62 +329,6 @@ setBatches(batchesData);
       setInitializingBatches(false);
     }
   }, [projetActif?.id, initializingBatches, loadBatches]);
-
-  const formatNumber = useCallback((value?: number | null, decimals = 1) => {
-    if (value === undefined || value === null || isNaN(value)) {
-      return '—';
-    }
-    return value.toFixed(decimals).replace('.', ',');
-  }, []);
-
-  const formatAge = useCallback(
-    (months?: number | null) => {
-      if (months === undefined || months === null || isNaN(months)) {
-        return '—';
-      }
-      return `${formatNumber(months, 1)} mois`;
-    },
-    [formatNumber],
-  );
-
-  const formatWeight = useCallback(
-    (kg?: number | null) => {
-      if (kg === undefined || kg === null || isNaN(kg)) {
-        return '—';
-      }
-      return `${formatNumber(kg, 1)} kg`;
-    },
-    [formatNumber],
-  );
-
-  const formatGmq = useCallback(
-    (gmq?: number | null) => {
-      if (gmq === undefined || gmq === null || isNaN(gmq)) {
-        return '—';
-      }
-      return `${formatNumber(gmq, 2)} kg/j`;
-    },
-    [formatNumber],
-  );
-
-  const renderSexBadge = useCallback((label: string, count: number, color: string) => {
-    if (!count) return null;
-    return (
-      <View
-        style={[
-          styles.sexChip,
-          {
-            borderColor: `${color}80`,
-            backgroundColor: `${color}15`,
-          },
-        ]}
-      >
-        <Text style={[styles.sexChipText, { color }]} numberOfLines={1}>
-          {label} {count}
-        </Text>
-      </View>
-    );
-  }, []);
 
   if (loading) {
     return (

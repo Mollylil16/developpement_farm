@@ -732,6 +732,34 @@ export class MarketplaceService {
   }
 
   /**
+   * Récupérer le listing actif d'un sujet
+   * Optimisé pour éviter de charger tous les listings
+   */
+  async findActiveListingBySubject(subjectId: string) {
+    const listingColumns = `id, listing_type, subject_id, batch_id, pig_ids, pig_count, 
+      producer_id, farm_id, price_per_kg, calculated_price, 
+      status, listed_at, updated_at, last_weight_date, 
+      location_latitude, location_longitude, location_address, location_city, location_region,
+      sale_terms, views, inquiries, photos, date_creation, derniere_modification`;
+    
+    // Rechercher un listing actif pour ce sujet (individual ou batch)
+    const result = await this.databaseService.query(
+      `SELECT ${listingColumns} FROM marketplace_listings 
+       WHERE (subject_id = $1 OR (pig_ids IS NOT NULL AND pig_ids @> to_jsonb(ARRAY[$1])))
+       AND status IN ('available', 'reserved')
+       ORDER BY listed_at DESC
+       LIMIT 1`,
+      [subjectId]
+    );
+
+    if (result.rows.length === 0) {
+      throw new NotFoundException('Aucun listing actif pour ce sujet');
+    }
+
+    return this.mapRowToListing(result.rows[0]);
+  }
+
+  /**
    * Récupérer les informations publiques d'un animal listé sur le marketplace
    * Cette méthode permet aux acheteurs de voir les animaux d'autres producteurs
    * sans vérifier l'appartenance de l'animal

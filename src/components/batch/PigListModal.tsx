@@ -93,7 +93,7 @@ export default function PigListModal({
   async function loadPigs() {
     setLoading(true);
     try {
-      const data = await apiClient.get(`/batch-pigs/batch/${batch.id}`);
+      const data = await apiClient.get<BatchPig[]>(`/batch-pigs/batch/${batch.id}`);
       setPigs(data);
     } catch (error: any) {
       Alert.alert('Erreur', "Impossible de charger la liste");

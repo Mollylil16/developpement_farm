@@ -34,7 +34,7 @@ export default function FinanceRevenusComponent() {
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const revenus = useAppSelector(selectAllRevenus);
-  const loading = useAppSelector((state) => state.finance.loading);
+  const loading = useAppSelector((state) => state.finance?.loading ?? false);
   const [selectedRevenu, setSelectedRevenu] = useState<Revenu | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -47,7 +47,7 @@ export default function FinanceRevenusComponent() {
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedVenteDetail, setSelectedVenteDetail] = useState<Revenu | null>(null);
 
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
 
   // Charger les données à chaque fois que l'écran est focus
   useFocusEffect(

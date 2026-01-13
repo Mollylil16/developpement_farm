@@ -83,6 +83,7 @@ jest.mock('../../src/database/repositories/AnimalRepository', () => {
         const animal = {
           id: `animal-${Date.now()}-${Math.random()}`,
           ...data,
+          actif: true,
           dateCreation: new Date().toISOString(),
           derniereModification: new Date().toISOString(),
         };
@@ -95,7 +96,7 @@ jest.mock('../../src/database/repositories/AnimalRepository', () => {
       findByCode: jest.fn().mockImplementation(async (projetId: string, code: string) => {
         return mockAnimaux.find((a) => a.projetId === projetId && a.code === code) || null;
       }),
-      findActiveByProjet: jest.fn().mockImplementation(async (projetId: string) => {
+      findActifsByProjet: jest.fn().mockImplementation(async (projetId: string) => {
         return mockAnimaux.filter((a) => a.projetId === projetId && a.actif === true);
       }),
       findById: jest.fn().mockImplementation(async (id: string) => {
@@ -109,9 +110,16 @@ jest.mock('../../src/database/repositories/AnimalRepository', () => {
         }
         throw new Error('Animal not found');
       }),
+      delete: jest.fn().mockImplementation(async (id: string) => {
+        const index = mockAnimaux.findIndex((a) => a.id === id);
+        if (index >= 0) mockAnimaux.splice(index, 1);
+      }),
       deleteById: jest.fn().mockImplementation(async (id: string) => {
         const index = mockAnimaux.findIndex((a) => a.id === id);
         if (index >= 0) mockAnimaux.splice(index, 1);
+      }),
+      findReproducteursActifs: jest.fn().mockImplementation(async (projetId: string) => {
+        return mockAnimaux.filter((a) => a.projetId === projetId && a.actif === true && a.reproducteur === true);
       }),
     })),
   };
@@ -135,8 +143,9 @@ describe('E2E: Flux Production', () => {
     userRepository = new UserRepository();
     projetRepository = new ProjetRepository();
     animalRepository = new AnimalRepository();
-    createAnimalUseCase = new CreateAnimalUseCase(animalRepository);
-    updateAnimalUseCase = new UpdateAnimalUseCase(animalRepository);
+    // Cast to any pour compatibilité avec le mock
+    createAnimalUseCase = new CreateAnimalUseCase(animalRepository as any);
+    updateAnimalUseCase = new UpdateAnimalUseCase(animalRepository as any);
   });
 
   afterEach(async () => {
@@ -177,22 +186,22 @@ describe('E2E: Flux Production', () => {
       nom: 'Test',
       prenom: 'Producer',
       provider: 'email',
-      providerId: `test-${Date.now()}`,
+      provider_id: `test-${Date.now()}`,
     });
 
     createdUserId = user.id;
 
     const projet = await projetRepository.create({
-      userId: user.id,
+      proprietaire_id: user.id,
       nom: 'Ferme Test Production',
-      type: 'porc',
-      localisation: {
-        latitude: 6.5,
-        longitude: 2.6,
-        adresse: 'Cotonou, Bénin',
-      },
-      nombreAnimaux: 10,
-      racePrincipale: 'Large White',
+      localisation: 'Cotonou, Bénin',
+      nombre_truies: 3,
+      nombre_verrats: 1,
+      nombre_porcelets: 10,
+      nombre_croissance: 5,
+      poids_moyen_actuel: 25,
+      age_moyen_actuel: 90,
+      management_method: 'individual',
     });
 
     createdProjetId = projet.id;
@@ -211,7 +220,6 @@ describe('E2E: Flux Production', () => {
         dateNaissance: TEST_ANIMAL.date_naissance,
         poidsInitial: TEST_ANIMAL.poids_naissance,
         race: TEST_ANIMAL.race,
-        statut: TEST_ANIMAL.statut,
       });
 
       createdAnimalIds.push(animal.id);

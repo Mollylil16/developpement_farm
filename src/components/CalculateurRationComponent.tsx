@@ -22,8 +22,8 @@ import LoadingSpinner from './LoadingSpinner';
 export default function CalculateurRationComponent() {
   const { colors, isDark } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
-  const { ingredients, loading } = useAppSelector((state) => state.nutrition);
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  const { ingredients = [], loading = false } = useAppSelector((state) => state.nutrition ?? { ingredients: [], loading: false });
 
   // États du formulaire
   const [typePorc, setTypePorc] = useState<TypePorc>('porc_croissance');

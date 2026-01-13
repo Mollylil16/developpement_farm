@@ -25,15 +25,43 @@ import { formatDate } from '../../utils/formatters';
 import { formatPrice } from '../../services/PricingService';
 import { useAppSelector } from '../../store/hooks';
 import apiClient from '../../services/api/apiClient';
+import { API_CONFIG } from '../../config/api.config';
 import { TYPE_PROPHYLAXIE_LABELS } from '../../types/sante';
 import SubjectCard from './SubjectCard';
 import { logger } from '../../utils/logger';
 import { PhotoGallery } from './PhotoGallery';
+// Note: Pas de MarketplaceListingRepository - utiliser apiClient directement pour les listings
 
 // Structure pour passer les sélections avec les IDs réels
 export interface SelectedSubject {
   listingId: string; // ID réel du listing
   subjectId: string; // ID réel du sujet (pigId pour batch, subjectId pour individuel)
+}
+
+// Interface pour les détails sanitaires
+interface VaccinationDetail {
+  date_vaccination?: string;
+  date_rappel?: string;
+  type_prophylaxie?: string;
+  type_vaccin?: string;
+}
+
+interface MaladieDetail {
+  type?: string;
+  gueri?: boolean;
+}
+
+interface VisiteDetail {
+  date?: string;
+  date_visite?: string;
+  motif?: string;
+  veterinaire?: string;
+}
+
+interface HealthDetails {
+  vaccinations?: VaccinationDetail[];
+  maladies?: MaladieDetail[];
+  visites?: VisiteDetail[];
 }
 
 interface FarmDetailsModalProps {
@@ -61,8 +89,8 @@ export default function FarmDetailsModal({
   onMakeOffer,
 }: FarmDetailsModalProps) {
   const { colors, spacing, typography, borderRadius } = MarketplaceTheme;
-  const { user } = useAppSelector((state) => state.auth);
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { user } = useAppSelector((state) => state.auth ?? { user: null });
+  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
 
   // ✅ Déterminer le farmId : soit depuis farm, soit depuis initialListing
   const farmId = farm?.farmId || initialListing?.farmId;
@@ -135,7 +163,7 @@ export default function FarmDetailsModal({
   const [sortBy, setSortBy] = useState<SortOption>('price_asc');
   const [filterRace, setFilterRace] = useState<FilterRace>('all');
   const [expandedSubjectId, setExpandedSubjectId] = useState<string | null>(null);
-  const [healthDetails, setHealthDetails] = useState<Record<string, unknown>>({});
+  const [healthDetails, setHealthDetails] = useState<Record<string, HealthDetails>>({});
 
   // Charger les listings de la ferme
   const loadListings = useCallback(async () => {
@@ -165,11 +193,12 @@ export default function FarmDetailsModal({
         if (initialListing.listingType === 'batch' && initialListing.batchId && initialListing.pigIds && initialListing.pigIds.length > 0) {
           const pricePerKg = initialListing.pricePerKg;
           const averageWeight = initialListing.weight || 0;
-          const pricePerPig = initialListing.pigCount > 0 ? (initialListing.calculatedPrice / initialListing.pigCount) : 0;
-          const validPigIds = initialListing.pigIds.filter((id) => id && typeof id === 'string' && id.trim().length > 0);
+          const pigCount = initialListing.pigCount || 1;
+          const pricePerPig = pigCount > 0 ? (initialListing.calculatedPrice / pigCount) : 0;
+          const validPigIds = initialListing.pigIds.filter((id: string | null | undefined) => id && typeof id === 'string' && id.trim().length > 0);
           
             if (validPigIds.length > 0) {
-            initialListings = validPigIds.map((pigId) => {
+            initialListings = validPigIds.map((pigId: string) => {
               // ✅ Nettoyer l'ID pour éviter les doubles ##
               const cleanId = pigId && typeof pigId === 'string' ? pigId.replace(/^#+/, '') : '';
               const pigIdShort = cleanId.slice(0, 8) || 'N/A';
@@ -207,7 +236,7 @@ export default function FarmDetailsModal({
       }>(`/marketplace/listings`, {
         params: { 
           projet_id: farmId, // Le backend filtre par projet_id (farm_id dans le modèle)
-          limit: 500, // Récupérer tous les listings de la ferme (limite max)
+          limit: 50, // Limité à 50 pour les performances - pagination à implémenter si nécessaire
         },
       });
       const farmListings = response.listings || [];
@@ -232,7 +261,7 @@ export default function FarmDetailsModal({
             const pricePerPig = listing.pigCount > 0 ? (listing.calculatedPrice / listing.pigCount) : 0;
             
             // Filtrer les pigIds valides
-            const validPigIds = listing.pigIds.filter((id) => id && typeof id === 'string' && id.trim().length > 0);
+            const validPigIds = listing.pigIds.filter((id: string | null | undefined) => id && typeof id === 'string' && id.trim().length > 0);
             
             if (validPigIds.length === 0) {
               // Pas de pigIds valides, retourner le listing batch tel quel
@@ -257,7 +286,7 @@ export default function FarmDetailsModal({
             // ✅ Créer un listing virtuel pour chaque animal du batch
             // Utiliser UNIQUEMENT les données déjà disponibles dans le listing du marketplace
             // Éviter les appels API protégés qui échouent avec 403 pour les acheteurs
-            const individualListings = validPigIds.map((pigId) => {
+            const individualListings = validPigIds.map((pigId: string) => {
               // ✅ Nettoyer l'ID pour éviter les doubles ##
               const cleanId = pigId && typeof pigId === 'string' ? pigId.replace(/^#+/, '') : '';
               const pigIdShort = cleanId.slice(0, 8) || 'N/A';
@@ -331,10 +360,10 @@ export default function FarmDetailsModal({
       
       // Aplatir les résultats (car chaque promesse retourne un array de listings)
       const enrichedListings = enrichedListingsArrays
-        .reduce((acc, listingsArray) => {
+        .reduce((acc: MarketplaceListing[], listingsArray: MarketplaceListing[]) => {
           return acc.concat(listingsArray);
         }, [] as MarketplaceListing[])
-        .filter((l): l is MarketplaceListing => l !== null);
+        .filter((l: MarketplaceListing | null): l is MarketplaceListing => l !== null);
 
       // ✅ Combiner les listings initiaux avec les listings enrichis de la ferme
       // Les listings initiaux sont déjà affichés, on les combine avec les autres
@@ -342,7 +371,7 @@ export default function FarmDetailsModal({
       
       // Supprimer les doublons (au cas où initialListing serait aussi dans enrichedListings)
       const uniqueListings = allListings.filter((listing, index, self) => 
-        index === self.findIndex((l) => l.id === listing.id)
+        index === self.findIndex((l: MarketplaceListing) => l.id === listing.id)
       );
       
       setListings(uniqueListings);
@@ -590,21 +619,20 @@ export default function FarmDetailsModal({
           onPress: async () => {
             try {
               setLoading(true);
-              const listingRepo = new MarketplaceListingRepository();
 
               // ✅ Extraire les IDs réels des listings (utiliser originalListingId si disponible)
               const realListingIds = new Set<string>();
               for (const selectedId of selectedIds) {
-                const listing = listings.find((l) => l.id === selectedId);
+                const listing = listings.find((l: MarketplaceListing) => l.id === selectedId);
                 if (listing) {
-                  const listingId = (listing as any).originalListingId || listing.id;
+                  const listingId = (listing as MarketplaceListing & { originalListingId?: string }).originalListingId || listing.id;
                   realListingIds.add(listingId);
                 }
               }
 
-              // Mettre à jour le statut de chaque listing à 'removed'
+              // Mettre à jour le statut de chaque listing à 'removed' via API
               const updatePromises = Array.from(realListingIds).map((listingId) =>
-                listingRepo.updateStatus(listingId, 'removed')
+                apiClient.patch(`/marketplace/listings/${listingId}/status`, { status: 'removed' })
               );
 
               await Promise.all(updatePromises);
@@ -821,17 +849,20 @@ export default function FarmDetailsModal({
               </Text>
             </View>
           ) : (
-            filteredAndSortedListings.map((listing) => (
-              <SubjectCardWithSelection
-                key={listing.id}
-                listing={listing}
-                isSelected={selectedIds.has(listing.id)}
-                onToggleSelection={() => toggleSelection(listing.id)}
-                isExpanded={expandedSubjectId === listing.subjectId}
-                onToggleHealthDetails={() => toggleHealthDetails(listing.subjectId)}
-                healthDetails={healthDetails[listing.subjectId]}
-              />
-            ))
+            filteredAndSortedListings.map((listing) => {
+              const effectiveSubjectId = listing.subjectId || listing.id;
+              return (
+                <SubjectCardWithSelection
+                  key={listing.id}
+                  listing={listing}
+                  isSelected={selectedIds.has(listing.id)}
+                  onToggleSelection={() => toggleSelection(listing.id)}
+                  isExpanded={expandedSubjectId === effectiveSubjectId}
+                  onToggleHealthDetails={() => toggleHealthDetails(effectiveSubjectId)}
+                  healthDetails={healthDetails[effectiveSubjectId]}
+                />
+              );
+            })
           )}
         </ScrollView>
 
@@ -893,7 +924,7 @@ interface SubjectCardWithSelectionProps {
   onToggleSelection: () => void;
   isExpanded: boolean;
   onToggleHealthDetails: () => void;
-  healthDetails?: unknown;
+  healthDetails?: HealthDetails;
 }
 
 function SubjectCardWithSelection({
@@ -929,14 +960,14 @@ function SubjectCardWithSelection({
           <SubjectCard
             subject={{
               id: listing.id,
-              code: listing.code || listing.subjectId,
+              code: listing.code || listing.subjectId || `#${listing.id.slice(0, 8)}`,
               race: listing.race || 'Non spécifiée',
               weight: listing.weight || 0,
-              weightDate: listing.weightDate || listing.lastWeightDate,
+              weightDate: listing.weightDate || listing.lastWeightDate || new Date().toISOString(),
               age: listing.age || 0,
               pricePerKg: listing.pricePerKg,
               totalPrice: listing.totalPrice || listing.calculatedPrice,
-              healthStatus: listing.healthStatus || 'good',
+              healthStatus: (listing.healthStatus || 'good') as 'good' | 'attention' | 'critical',
               vaccinations: listing.vaccinations || false,
               available: listing.available !== false,
             }}
@@ -946,14 +977,14 @@ function SubjectCardWithSelection({
       </View>
 
       {/* Photos du listing - Afficher si disponibles */}
-      {listing.photos && Array.isArray(listing.photos) && listing.photos.length > 0 && (
+      {listing.photos && Array.isArray(listing.photos) && listing.photos.length > 0 ? (
         <View style={styles.photosSection}>
           <PhotoGallery
-            photos={listing.photos}
-            baseUrl={apiClient.defaults?.baseURL || ''}
+            photos={listing.photos as Array<{ url: string; thumbnailUrl?: string }>}
+            baseUrl={API_CONFIG.baseURL || ''}
           />
         </View>
-      )}
+      ) : null}
 
       {/* Bouton détails sanitaires */}
       <TouchableOpacity
@@ -981,7 +1012,7 @@ function SubjectCardWithSelection({
 }
 
 // Composant pour afficher les détails sanitaires
-function HealthDetailsContent({ details }: { details: unknown }) {
+function HealthDetailsContent({ details }: { details: HealthDetails }) {
   const { colors, spacing, typography } = MarketplaceTheme;
 
   return (
@@ -990,7 +1021,7 @@ function HealthDetailsContent({ details }: { details: unknown }) {
       {details.vaccinations && details.vaccinations.length > 0 && (
         <View style={styles.healthSection}>
           <Text style={[styles.healthSectionTitle, { color: colors.text }]}>💉 Vaccinations</Text>
-          {details.vaccinations.slice(0, 5).map((v: unknown, idx: number) => (
+          {details.vaccinations.slice(0, 5).map((v: VaccinationDetail, idx: number) => (
             <View key={idx} style={styles.healthItem}>
               <Ionicons
                 name={
@@ -1007,7 +1038,7 @@ function HealthDetailsContent({ details }: { details: unknown }) {
               />
               <Text style={[styles.healthItemText, { color: colors.text }]}>
                 {v.type_prophylaxie
-                  ? TYPE_PROPHYLAXIE_LABELS[v.type_prophylaxie] || v.type_prophylaxie
+                  ? TYPE_PROPHYLAXIE_LABELS[v.type_prophylaxie as keyof typeof TYPE_PROPHYLAXIE_LABELS] || v.type_prophylaxie
                   : v.type_vaccin || 'Vaccination'}{' '}
                 - {formatDate(v.date_vaccination)}
               </Text>
@@ -1020,7 +1051,7 @@ function HealthDetailsContent({ details }: { details: unknown }) {
       {details.maladies && details.maladies.length > 0 && (
         <View style={styles.healthSection}>
           <Text style={[styles.healthSectionTitle, { color: colors.text }]}>🦠 Maladies</Text>
-          {details.maladies.map((m: unknown, idx: number) => (
+          {details.maladies.map((m: MaladieDetail, idx: number) => (
             <View key={idx} style={styles.healthItem}>
               <Ionicons
                 name={m.gueri ? 'checkmark-circle' : 'close-circle'}
@@ -1028,7 +1059,7 @@ function HealthDetailsContent({ details }: { details: unknown }) {
                 color={m.gueri ? colors.success : colors.error}
               />
               <Text style={[styles.healthItemText, { color: colors.text }]}>
-                {m.type} - {m.gueri ? 'Guéri' : 'En cours'}
+                {m.type || 'Maladie'} - {m.gueri ? 'Guéri' : 'En cours'}
               </Text>
             </View>
           ))}
