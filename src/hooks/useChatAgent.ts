@@ -414,7 +414,20 @@ export function useChatAgent() {
           }
         }
       } catch (error) {
+        // Log détaillé de l'erreur pour diagnostic
         logger.error("Erreur lors de l'envoi du message:", error);
+        
+        if (error instanceof Error) {
+          logger.error(`[useChatAgent] Type d'erreur: ${error.constructor.name}`);
+          logger.error(`[useChatAgent] Message: ${error.message}`);
+          logger.error(`[useChatAgent] Stack: ${error.stack?.substring(0, 500)}`);
+          if ('status' in error) {
+            logger.error(`[useChatAgent] Status: ${(error as any).status}`);
+          }
+        } else {
+          logger.error(`[useChatAgent] Erreur non-Error: ${JSON.stringify(error)}`);
+          logger.error(`[useChatAgent] Type: ${typeof error}`);
+        }
         
         // Messages d'erreur spécifiques selon le type d'erreur
         let errorContent = "Désolé, j'ai rencontré une erreur. Peux-tu réessayer ?";

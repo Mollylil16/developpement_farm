@@ -718,9 +718,25 @@ export class ChatAgentService {
 
       return assistantMessage;
     } catch (error: unknown) {
+      // Log détaillé de l'erreur pour diagnostic
       logger.error("Erreur lors de l'envoi du message:", error);
+      
+      if (error instanceof Error) {
+        logger.error(`[ChatAgentService] Type d'erreur: ${error.constructor.name}`);
+        logger.error(`[ChatAgentService] Message: ${error.message}`);
+        logger.error(`[ChatAgentService] Stack: ${error.stack?.substring(0, 500)}`);
+        if ('status' in error) {
+          logger.error(`[ChatAgentService] Status: ${(error as any).status}`);
+        }
+        if ('response' in error) {
+          logger.error(`[ChatAgentService] Response: ${JSON.stringify((error as any).response)}`);
+        }
+      } else {
+        logger.error(`[ChatAgentService] Erreur non-Error: ${JSON.stringify(error)}`);
+        logger.error(`[ChatAgentService] Type: ${typeof error}`);
+      }
 
-      const errorMsg = error instanceof Error ? error.message : 'Erreur inconnue';
+      const errorMsg = error instanceof Error ? error.message : String(error) || 'Erreur inconnue';
       this.learningService.recordFailure(userMessage, undefined, errorMsg);
 
       // V4.0 - Utiliser la clarification avec mots-clés même en cas d'erreur

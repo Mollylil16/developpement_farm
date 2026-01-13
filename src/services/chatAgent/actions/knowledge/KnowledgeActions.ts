@@ -75,7 +75,27 @@ export class KnowledgeActions {
     } catch (error) {
       // En cas d'erreur API, utiliser la base statique
       logger.warn('[KnowledgeActions] Erreur API, fallback sur base statique:', error);
-      return this.searchLocalKnowledge(topic, question);
+      
+      // Log détaillé de l'erreur
+      if (error instanceof Error) {
+        logger.error(`[KnowledgeActions] Type: ${error.constructor.name}, Message: ${error.message}`);
+        if (error.stack) {
+          logger.error(`[KnowledgeActions] Stack: ${error.stack.substring(0, 300)}`);
+        }
+      } else {
+        logger.error(`[KnowledgeActions] Erreur non-Error: ${JSON.stringify(error)}`);
+      }
+      
+      try {
+        return this.searchLocalKnowledge(topic, question);
+      } catch (localError) {
+        logger.error('[KnowledgeActions] Erreur même avec base locale:', localError);
+        return {
+          success: false,
+          message: "Désolé, je n'ai pas pu récupérer les informations. Peux-tu reformuler ta question ?",
+          data: { error: 'Erreur lors de la recherche de connaissances' },
+        };
+      }
     }
   }
   
@@ -83,6 +103,7 @@ export class KnowledgeActions {
    * Recherche dans la base de connaissances locale (statique)
    */
   private static searchLocalKnowledge(topic: string | undefined, question: string): AgentActionResult {
+    try {
     // Si un topic spécifique est fourni
     if (topic) {
       const topicData = TRAINING_KNOWLEDGE_BASE.find(t => t.id === topic);
