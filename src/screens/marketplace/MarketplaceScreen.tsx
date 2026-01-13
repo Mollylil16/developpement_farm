@@ -892,9 +892,31 @@ function MarketplaceScreen() {
     [loadListings]
   );
 
+  // Référence pour le dernier chargement par onglet (éviter les appels excessifs)
+  const lastTabLoadRef = useRef<Record<string, number>>({});
+  const MIN_RELOAD_INTERVAL = 60000; // 1 minute minimum entre rechargements automatiques
+
   // Recharger les listings automatiquement quand l'écran revient au premier plan
+  // AVEC condition de temps pour éviter les appels excessifs
   useFocusEffect(
     useCallback(() => {
+      const now = Date.now();
+      const lastLoad = lastTabLoadRef.current[activeTab] || 0;
+      
+      // Ne recharger que si > 60 secondes depuis le dernier chargement de cet onglet
+      if (now - lastLoad < MIN_RELOAD_INTERVAL) {
+        if (__DEV__) {
+          console.log(`[MarketplaceScreen] Skip reload ${activeTab} - données récentes (${Math.round((now - lastLoad) / 1000)}s)`);
+        }
+        return;
+      }
+
+      lastTabLoadRef.current[activeTab] = now;
+      
+      if (__DEV__) {
+        console.log(`[MarketplaceScreen] Chargement ${activeTab}`);
+      }
+
       // Recharger les listings de l'onglet actif quand l'écran est focus
       if (activeTab === 'acheter') {
         loadListings();

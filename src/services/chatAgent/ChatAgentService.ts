@@ -235,64 +235,102 @@ export class ChatAgentService {
         }
       }
 
-      // V4.0 - Chercher un apprentissage similaire d'abord
-      const similarLearning = await this.learningService.findSimilarLearning(processedMessage);
       let detectedIntent: DetectedIntent | null = null;
       let action: AgentAction | null = null;
       let ragTime: number | undefined;
       let fastPathTime: number | undefined;
 
-      // Si un apprentissage avec haute confiance existe, l'utiliser
-      if (similarLearning && similarLearning.total_score >= 3.0 && similarLearning.correct_intent) {
+      // ======================================================================
+      // ÉTAPE 1: FAST PATH EN PRIORITÉ ABSOLUE
+      // Le FastPath est le plus fiable pour les intentions bien définies
+      // ======================================================================
+      const fastPathStartTime = Date.now();
+      const fastPathResult = FastPathDetector.detectFastPath(processedMessage);
+      fastPathTime = Date.now() - fastPathStartTime;
+      
+      logger.debug(`[Intent] FastPath résultat: action=${fastPathResult.intent?.action}, confiance=${fastPathResult.confidence}`);
+
+      // FastPath prioritaire si haute confiance (>= 0.85) ou si c'est une intention marketplace/santé/rappels
+      const isHighPriorityIntent = fastPathResult.intent?.action?.toString().startsWith('marketplace_') ||
+        fastPathResult.intent?.action?.toString().startsWith('get_') ||
+        fastPathResult.intent?.action === 'get_reminders' ||
+        fastPathResult.intent?.action === 'answer_knowledge_question';
+
+      if (fastPathResult.intent && (fastPathResult.confidence >= 0.85 || isHighPriorityIntent)) {
+        detectedIntent = fastPathResult.intent;
+        logger.info(`[Intent] ✅ Fast path activé: ${detectedIntent.action}, confiance: ${fastPathResult.confidence}`);
+        this.performanceMonitor.recordStepTiming({ fastPathTime });
+      }
+      
+      // ======================================================================
+      // ÉTAPE 2: NLP HINTS si FastPath n'a pas trouvé
+      // ======================================================================
+      if (!detectedIntent && nlpResult.intentHints.length > 0 && nlpResult.intentHints[0].confidence >= 0.85) {
+        const topHint = nlpResult.intentHints[0];
         detectedIntent = {
-          action: similarLearning.correct_intent as AgentActionType,
-          confidence: 0.95,
+          action: topHint.intent as AgentActionType,
+          confidence: topHint.confidence,
           params: {},
         };
-        logger.debug(`Apprentissage réutilisé: ${detectedIntent.action}, score: ${similarLearning.total_score}`);
+        logger.info(`[Intent] ✅ NLP hint utilisé: ${topHint.intent}, confiance: ${topHint.confidence}`);
+      }
+
+      // ======================================================================
+      // ÉTAPE 3: LEARNING SERVICE (seulement si FastPath ET NLP ont échoué)
+      // Note: Le LearningService ne doit PAS écraser une intention déjà détectée
+      // ======================================================================
+      if (!detectedIntent || detectedIntent.confidence < 0.80) {
+        const similarLearning = await this.learningService.findSimilarLearning(processedMessage);
+        
+        if (similarLearning && similarLearning.total_score >= 4.0 && similarLearning.correct_intent) {
+          // Ne pas utiliser le learning si FastPath a déjà détecté quelque chose avec confiance > 0.7
+          if (!detectedIntent || detectedIntent.confidence < 0.70) {
+            detectedIntent = {
+              action: similarLearning.correct_intent as AgentActionType,
+              confidence: 0.90,
+              params: {},
+            };
+            logger.info(`[Intent] ✅ Apprentissage réutilisé: ${detectedIntent.action}, score: ${similarLearning.total_score}`);
+          } else {
+            logger.debug(`[Intent] Learning ignoré car FastPath a confiance ${detectedIntent.confidence}`);
+          }
+        }
+      }
+
+      // ======================================================================
+      // ÉTAPE 4: IntentRAG si aucune intention n'est détectée
+      // ======================================================================
+      if (!detectedIntent || detectedIntent.confidence < 0.80) {
+        const ragStartTime = Date.now();
+        const ragIntent = await this.intentRAG.detectIntent(processedMessage);
+        ragTime = Date.now() - ragStartTime;
+
+        if (ragIntent && ragIntent.confidence >= 0.80) {
+          detectedIntent = ragIntent;
+          logger.info(`[Intent] ✅ IntentRAG: ${detectedIntent.action}, confiance: ${detectedIntent.confidence}`);
+        }
+
+        if (ragTime !== undefined) {
+          this.performanceMonitor.recordStepTiming({ ragTime });
+        }
+      }
+
+      // ======================================================================
+      // ÉTAPE 5: IntentDetector (fallback final)
+      // ======================================================================
+      if (!detectedIntent || detectedIntent.confidence < 0.75) {
+        const fallbackIntent = IntentDetector.detectIntent(processedMessage);
+        if (fallbackIntent && fallbackIntent.confidence >= 0.70) {
+          detectedIntent = fallbackIntent;
+          logger.info(`[Intent] ✅ IntentDetector fallback: ${detectedIntent.action}, confiance: ${detectedIntent.confidence}`);
+        }
+      }
+      
+      // Log final de l'intention détectée
+      if (detectedIntent) {
+        logger.info(`[Intent] 🎯 Intention finale: ${detectedIntent.action} (confiance: ${detectedIntent.confidence})`);
       } else {
-        // FAST PATH EN PREMIER : Détection rapide pour les cas courants (plus fiable pour marketplace)
-        const fastPathStartTime = Date.now();
-        const fastPathResult = FastPathDetector.detectFastPath(processedMessage);
-        fastPathTime = Date.now() - fastPathStartTime;
-
-        // FastPath prioritaire si haute confiance (>= 0.90) ou si c'est une intention marketplace
-        const isMarketplaceIntent = fastPathResult.intent?.action?.toString().startsWith('marketplace_');
-        if (fastPathResult.intent && (fastPathResult.confidence >= 0.90 || isMarketplaceIntent)) {
-          detectedIntent = fastPathResult.intent;
-          logger.debug(`Fast path activé: ${detectedIntent.action}, confiance: ${fastPathResult.confidence}`);
-          this.performanceMonitor.recordStepTiming({ fastPathTime });
-        } 
-        // V4.1 - Utiliser les indices NLP si pas de fast path
-        else if (nlpResult.intentHints.length > 0 && nlpResult.intentHints[0].confidence >= 0.85) {
-          const topHint = nlpResult.intentHints[0];
-          detectedIntent = {
-            action: topHint.intent as AgentActionType,
-            confidence: topHint.confidence,
-            params: {},
-          };
-          logger.debug(`NLP hint utilisé: ${topHint.intent}, confiance: ${topHint.confidence}`);
-        }
-
-        if (!detectedIntent || detectedIntent.confidence < 0.85) {
-          // DÉTECTION D'INTENTION : Utiliser RAG (intent) sur le message traité
-          const ragStartTime = Date.now();
-          detectedIntent = await this.intentRAG.detectIntent(processedMessage);
-          ragTime = Date.now() - ragStartTime;
-
-          // Fallback sur IntentDetector (sans Gemini - tout passe par le backend)
-          if (!detectedIntent || detectedIntent.confidence < 0.85) {
-            const fallbackIntent = IntentDetector.detectIntent(processedMessage);
-            if (fallbackIntent && fallbackIntent.confidence >= 0.75) {
-              detectedIntent = fallbackIntent;
-              logger.debug('IntentDetector fallback:', detectedIntent.action);
-            }
-          }
-
-          if (ragTime !== undefined) {
-            this.performanceMonitor.recordStepTiming({ ragTime });
-          }
-        }
+        logger.warn(`[Intent] ⚠️ Aucune intention détectée pour: "${processedMessage.substring(0, 50)}..."`);
       }
 
       // Si intention détectée avec bonne confiance

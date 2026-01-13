@@ -1278,6 +1278,72 @@ export const INTENT_KNOWLEDGE_BASE: TrainingExample[] = [
   { text: 'aide moi a comprendre', action: 'answer_knowledge_question', params: {}, confidence: 0.85 },
   { text: 'les themes de formation', action: 'list_knowledge_topics', params: {}, confidence: 0.95 },
   { text: 'quels sujets tu connais', action: 'list_knowledge_topics', params: {}, confidence: 0.9 },
+
+  // ========== MARKETPLACE - PRIX ET TENDANCES (marketplace_get_price_trends) ==========
+  { text: 'prix du marche', action: 'marketplace_get_price_trends', params: {}, confidence: 0.95 },
+  { text: 'prix du marché', action: 'marketplace_get_price_trends', params: {}, confidence: 0.95 },
+  { text: 'quel est le prix du marche', action: 'marketplace_get_price_trends', params: {}, confidence: 0.95 },
+  { text: 'quel est le prix du porc', action: 'marketplace_get_price_trends', params: {}, confidence: 0.95 },
+  { text: 'prix du porc actuellement', action: 'marketplace_get_price_trends', params: {}, confidence: 0.95 },
+  { text: 'prix porc actuel', action: 'marketplace_get_price_trends', params: {}, confidence: 0.95 },
+  { text: 'tendance des prix', action: 'marketplace_get_price_trends', params: {}, confidence: 0.95 },
+  { text: 'tendance du prix', action: 'marketplace_get_price_trends', params: {}, confidence: 0.95 },
+  { text: 'prix actuel du porc', action: 'marketplace_get_price_trends', params: {}, confidence: 0.95 },
+  { text: 'a combien vendre', action: 'marketplace_get_price_trends', params: {}, confidence: 0.95 },
+  { text: 'a combien vendre mes porcs', action: 'marketplace_get_price_trends', params: {}, confidence: 0.95 },
+  { text: 'quel prix pour mes porcs', action: 'marketplace_get_price_trends', params: {}, confidence: 0.95 },
+  { text: 'combien se vend le porc', action: 'marketplace_get_price_trends', params: {}, confidence: 0.95 },
+  { text: 'combien coute un porc', action: 'marketplace_get_price_trends', params: {}, confidence: 0.90 },
+  { text: 'prix moyen du porc', action: 'marketplace_get_price_trends', params: {}, confidence: 0.95 },
+  { text: 'prix au kg', action: 'marketplace_get_price_trends', params: {}, confidence: 0.90 },
+  { text: 'prix par kilo', action: 'marketplace_get_price_trends', params: {}, confidence: 0.90 },
+  { text: 'evolution des prix', action: 'marketplace_get_price_trends', params: {}, confidence: 0.95 },
+  { text: 'cours du porc', action: 'marketplace_get_price_trends', params: {}, confidence: 0.90 },
+
+  // ========== MARKETPLACE - VENTE (marketplace_sell_animal) ==========
+  { text: 'vendre un porc', action: 'marketplace_sell_animal', params: {}, confidence: 0.95 },
+  { text: 'vendre le porc', action: 'marketplace_sell_animal', params: {}, confidence: 0.95 },
+  { text: 'vendre mon porc', action: 'marketplace_sell_animal', params: {}, confidence: 0.95 },
+  { text: 'vendre mes porcs', action: 'marketplace_sell_animal', params: {}, confidence: 0.95 },
+  { text: 'mettre en vente', action: 'marketplace_sell_animal', params: {}, confidence: 0.95 },
+  { text: 'mets en vente', action: 'marketplace_sell_animal', params: {}, confidence: 0.95 },
+  { text: 'mise en vente', action: 'marketplace_sell_animal', params: {}, confidence: 0.95 },
+  { text: 'publier une annonce', action: 'marketplace_sell_animal', params: {}, confidence: 0.95 },
+  { text: 'vendre sur le marketplace', action: 'marketplace_sell_animal', params: {}, confidence: 0.95 },
+  { text: 'proposer a la vente', action: 'marketplace_sell_animal', params: {}, confidence: 0.95 },
+  { text: 'je veux vendre', action: 'marketplace_sell_animal', params: {}, confidence: 0.90 },
+  { text: 'je veux vendre un porc', action: 'marketplace_sell_animal', params: {}, confidence: 0.95 },
+  { text: 'vendre un sujet', action: 'marketplace_sell_animal', params: {}, confidence: 0.95 },
+  { text: 'vendre ce sujet', action: 'marketplace_sell_animal', params: {}, confidence: 0.95 },
+
+  // ========== MARKETPLACE - OFFRES (marketplace_check_offers) ==========
+  { text: 'mes offres', action: 'marketplace_check_offers', params: {}, confidence: 0.95 },
+  { text: 'voir les offres', action: 'marketplace_check_offers', params: {}, confidence: 0.95 },
+  { text: 'offres recues', action: 'marketplace_check_offers', params: {}, confidence: 0.95 },
+  { text: 'quelles offres', action: 'marketplace_check_offers', params: {}, confidence: 0.95 },
+  { text: 'propositions recues', action: 'marketplace_check_offers', params: {}, confidence: 0.90 },
+  { text: 'quelqu un veut acheter', action: 'marketplace_check_offers', params: {}, confidence: 0.90 },
+
+  // ========== MARKETPLACE - MES ANNONCES (marketplace_get_my_listings) ==========
+  { text: 'mes annonces', action: 'marketplace_get_my_listings', params: {}, confidence: 0.95 },
+  { text: 'mes ventes en cours', action: 'marketplace_get_my_listings', params: {}, confidence: 0.95 },
+  { text: 'voir mes annonces', action: 'marketplace_get_my_listings', params: {}, confidence: 0.95 },
+  { text: 'mes porcs en vente', action: 'marketplace_get_my_listings', params: {}, confidence: 0.95 },
+  { text: 'qu est ce que je vends', action: 'marketplace_get_my_listings', params: {}, confidence: 0.90 },
+
+  // ========== RAPPELS - VACCINS EN RETARD (get_reminders) ==========
+  { text: 'vaccins en retard', action: 'get_reminders', params: {}, confidence: 0.95 },
+  { text: 'quels vaccins en retard', action: 'get_reminders', params: {}, confidence: 0.95 },
+  { text: 'quels sont les vaccins en retard', action: 'get_reminders', params: {}, confidence: 0.95 },
+  { text: 'vaccinations en retard', action: 'get_reminders', params: {}, confidence: 0.95 },
+  { text: 'rappels de vaccin', action: 'get_reminders', params: {}, confidence: 0.95 },
+  { text: 'vaccins a faire', action: 'get_reminders', params: {}, confidence: 0.95 },
+  { text: 'vaccins prevus', action: 'get_reminders', params: {}, confidence: 0.95 },
+  { text: 'prochains vaccins', action: 'get_reminders', params: {}, confidence: 0.95 },
+  { text: 'traitements en retard', action: 'get_reminders', params: {}, confidence: 0.95 },
+  { text: 'quels traitements en retard', action: 'get_reminders', params: {}, confidence: 0.95 },
+  { text: 'pesees en retard', action: 'get_reminders', params: {}, confidence: 0.95 },
+  { text: 'alertes sante', action: 'get_reminders', params: {}, confidence: 0.95 },
 ];
 
 /**

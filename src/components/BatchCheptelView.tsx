@@ -3,7 +3,7 @@
  * Affiche une grille de cartes représentant les loges/bandes
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppSelector } from '../store/hooks';
@@ -22,9 +22,14 @@ import apiClient from '../services/api/apiClient';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../types/common';
 
+const MIN_RELOAD_INTERVAL = 60000; // 1 minute minimum entre rechargements
+
 export default function BatchCheptelView() {
   const { colors } = useTheme();
   const projetActif = useAppSelector(selectProjetActif);
+  
+  // Référence pour le dernier chargement (éviter les appels excessifs)
+  const lastLoadRef = useRef<{ projetId: string | null; timestamp: number }>({ projetId: null, timestamp: 0 });
   
   // Tous les hooks doivent être déclarés au début du composant
   // pour éviter "change in the order of Hooks" errors
@@ -76,12 +81,26 @@ setBatches(batchesData);
   }, [projetActif?.id, calculateStats]);
 
   // Charger les bandes uniquement quand l'écran est visible
+  // AVEC condition de temps pour éviter les appels excessifs
   useFocusEffect(
     useCallback(() => {
-      if (projetActif) {
-        loadBatches();
+      if (!projetActif?.id) return;
+      
+      const now = Date.now();
+      const sameProject = lastLoadRef.current.projetId === projetActif.id;
+      const recentLoad = sameProject && (now - lastLoadRef.current.timestamp) < MIN_RELOAD_INTERVAL;
+
+      // Ne pas recharger si données récentes (< 1 min) pour le même projet
+      if (recentLoad && batches.length > 0) {
+        if (__DEV__) {
+          logger.debug(`[BatchCheptelView] Skip reload - données récentes (${Math.round((now - lastLoadRef.current.timestamp) / 1000)}s)`);
+        }
+        return;
       }
-    }, [projetActif?.id, loadBatches])
+      
+      lastLoadRef.current = { projetId: projetActif.id, timestamp: now };
+      loadBatches();
+    }, [projetActif?.id, loadBatches, batches.length])
   );
 
   const handleBatchPress = (batch: Batch) => {

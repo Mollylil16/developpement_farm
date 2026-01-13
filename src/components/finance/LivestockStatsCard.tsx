@@ -2,7 +2,7 @@
  * Composant pour afficher les statistiques du cheptel actif
  */
 
-import React, { memo, useState, useCallback, useMemo } from 'react';
+import React, { memo, useState, useCallback, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppSelector } from '../../store/hooks';
@@ -21,6 +21,8 @@ import type { Batch } from '../../types/batch';
 import { logger } from '../../utils/logger';
 import { TAUX_CARCASSE } from '../../config/finance.config';
 
+const MIN_RELOAD_INTERVAL = 60000; // 1 minute minimum entre rechargements
+
 function LivestockStatsCard() {
   const { colors } = useTheme();
   const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
@@ -31,6 +33,9 @@ function LivestockStatsCard() {
   // État pour les batches (mode batch)
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loadingBatches, setLoadingBatches] = useState(false);
+  
+  // Référence pour le dernier chargement (éviter les appels excessifs)
+  const lastLoadRef = useRef<number>(0);
 
   // Détecter le mode batch
   const isModeBatch = projetActif?.management_method === 'batch';
@@ -54,11 +59,18 @@ function LivestockStatsCard() {
   }, [projetActif?.id, isModeBatch]);
 
   // Charger les batches quand l'écran est visible (mode batch uniquement)
+  // AVEC condition de temps pour éviter les appels excessifs
   useFocusEffect(
     useCallback(() => {
-      if (isModeBatch) {
-        loadBatches();
+      if (!isModeBatch) return;
+      
+      const now = Date.now();
+      if (now - lastLoadRef.current < MIN_RELOAD_INTERVAL) {
+        return; // Données récentes, ne pas recharger
       }
+      
+      lastLoadRef.current = now;
+      loadBatches();
     }, [isModeBatch, loadBatches])
   );
 

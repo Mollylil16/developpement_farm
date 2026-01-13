@@ -53,31 +53,35 @@ export default function FinanceGraphiquesComponent() {
   const financeLoading = useAppSelector((state) => state.finance?.loading ?? false);
   const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
   
-  // Logs pour déboguer
-  useEffect(() => {
-    console.log(`[FinanceGraphiquesComponent] État Redux - Charges fixes: ${chargesFixes.length}, Dépenses: ${depensesPonctuelles.length}, Revenus: ${revenus.length}`);
-    console.log(`[FinanceGraphiquesComponent] Projet actif: ${projetActif?.id || 'aucun'}`);
-    if (chargesFixes.length > 0) {
-      console.log(`[FinanceGraphiquesComponent] Exemple charge fixe - projet_id: ${chargesFixes[0].projet_id}, montant: ${chargesFixes[0].montant}`);
-    }
-    if (depensesPonctuelles.length > 0) {
-      console.log(`[FinanceGraphiquesComponent] Exemple dépense ponctuelle - projet_id: ${depensesPonctuelles[0].projet_id}, montant: ${depensesPonctuelles[0].montant}`);
-    }
-    if (revenus.length > 0) {
-      console.log(`[FinanceGraphiquesComponent] Exemple revenu - projet_id: ${revenus[0].projet_id}, montant: ${revenus[0].montant}`);
-    }
-  }, [chargesFixes, depensesPonctuelles, revenus, projetActif]);
+  // Référence pour le dernier chargement (éviter les appels excessifs)
+  const lastLoadRef = useRef<{ projetId: string | null; timestamp: number }>({ projetId: null, timestamp: 0 });
+  const MIN_RELOAD_INTERVAL = 120000; // 2 minutes minimum entre rechargements automatiques
   
   // Charger les données financières uniquement quand l'écran est visible (useFocusEffect)
-  // Les animaux sont chargés automatiquement par useAnimauxActifs dans LivestockStatsCard
+  // AVEC condition de temps pour éviter les appels excessifs
   useFocusEffect(
     useCallback(() => {
       if (!projetActif?.id) {
-        console.log('[FinanceGraphiquesComponent] Pas de projet actif, arrêt du chargement');
         return;
       }
 
-      console.log(`[FinanceGraphiquesComponent] Chargement des données financières pour projet: ${projetActif.id}`);
+      const now = Date.now();
+      const sameProject = lastLoadRef.current.projetId === projetActif.id;
+      const recentLoad = sameProject && (now - lastLoadRef.current.timestamp) < MIN_RELOAD_INTERVAL;
+
+      // Ne pas recharger si données récentes (< 2 min) pour le même projet
+      if (recentLoad) {
+        if (__DEV__) {
+          console.log(`[FinanceGraphiquesComponent] Skip reload - données récentes (${Math.round((now - lastLoadRef.current.timestamp) / 1000)}s)`);
+        }
+        return;
+      }
+
+      lastLoadRef.current = { projetId: projetActif.id, timestamp: now };
+      
+      if (__DEV__) {
+        console.log(`[FinanceGraphiquesComponent] Chargement des données financières pour projet: ${projetActif.id}`);
+      }
       
       // Charger les données financières uniquement quand l'écran est visible
       dispatch(loadRevenus(projetActif.id))

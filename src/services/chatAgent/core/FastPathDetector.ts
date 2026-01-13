@@ -155,6 +155,21 @@ export class FastPathDetector {
       };
     }
 
+    // 2d. RAPPELS ET ALERTES - Vaccins en retard, traitements, pesées
+    if (normalized.match(/\b(?:vaccin|vaccination|traitement|pesee|rappel|alerte)s?\s+(?:en\s+)?(?:retard|prevue?s?|a\s+faire|manque)\b/i) ||
+        normalized.match(/\b(?:quel|quels?|quelles?)\s+(?:sont\s+les?\s+)?(?:vaccin|vaccination|traitement|pesee|rappel)s?\s+(?:en\s+)?(?:retard|prevue?s?|a\s+faire)\b/i) ||
+        normalized.match(/\b(?:prochain|prochaine)s?\s+(?:vaccin|vaccination|traitement|pesee|rappel)s?\b/i) ||
+        normalized.match(/\b(?:rappel|alerte)s?\s+(?:sante|sanitaire)s?\b/i)) {
+      return {
+        intent: {
+          action: 'get_reminders' as AgentActionType,
+          confidence: 0.95,
+          params: {},
+        },
+        confidence: 0.95,
+      };
+    }
+
     // 3. PESÉE - Mots-clés forts : "peser", "pesée", "pèse", "fait X kg"
     if (normalized.match(/\b(?:peser|pesee|pese|fait|il fait|il pese)\b/i)) {
       const poidsMatch = message.match(/(\d+[.,]?\d*)\s*(?:kg|kilogramme|kilo)\b/i);

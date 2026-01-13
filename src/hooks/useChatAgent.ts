@@ -245,7 +245,14 @@ export function useChatAgent() {
           currentDate: format(new Date(), 'yyyy-MM-dd'),
         };
         
-        const chatAgentService = new ChatAgentService();
+        const chatAgentService = new ChatAgentService({
+          model: 'local',
+          temperature: 0.7,
+          maxTokens: 1000,
+          language: 'fr-CI',
+          enableVoice: voiceEnabled,
+          enableProactiveAlerts: true,
+        });
         await chatAgentService.initializeContext(agentContext, conversationId || undefined);
         
         // Charger les messages existants dans le ChatAgentService

@@ -2,7 +2,7 @@
  * Composant pour la comparaison des options de vente et recommandations
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppSelector } from '../../store/hooks';
@@ -19,6 +19,7 @@ import { TAUX_CARCASSE } from '../../config/finance.config';
 
 const PRIX_KG_VIF_DEFAUT = 1000;
 const PRIX_KG_CARCASSE_DEFAUT = 1300;
+const MIN_RELOAD_INTERVAL = 60000; // 1 minute minimum entre rechargements
 
 export default function ComparisonCard() {
   const { colors } = useTheme();
@@ -29,6 +30,9 @@ export default function ComparisonCard() {
   // État pour les batches (mode batch)
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loadingBatches, setLoadingBatches] = useState(false);
+  
+  // Référence pour le dernier chargement (éviter les appels excessifs)
+  const lastLoadRef = useRef<number>(0);
 
   // Détecter le mode batch
   const isModeBatch = projetActif?.management_method === 'batch';
@@ -52,11 +56,18 @@ export default function ComparisonCard() {
   }, [projetActif?.id, isModeBatch]);
 
   // Charger les batches quand l'écran est visible (mode batch uniquement)
+  // AVEC condition de temps pour éviter les appels excessifs
   useFocusEffect(
     useCallback(() => {
-      if (isModeBatch) {
-        loadBatches();
+      if (!isModeBatch) return;
+      
+      const now = Date.now();
+      if (now - lastLoadRef.current < MIN_RELOAD_INTERVAL) {
+        return; // Données récentes, ne pas recharger
       }
+      
+      lastLoadRef.current = now;
+      loadBatches();
     }, [isModeBatch, loadBatches])
   );
 

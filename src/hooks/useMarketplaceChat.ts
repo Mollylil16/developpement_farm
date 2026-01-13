@@ -170,13 +170,14 @@ export function useMarketplaceChat(transactionId: string) {
     loadMessages();
   }, [loadMessages]);
 
-  // Polling toutes les 5 secondes pour le chat (à remplacer par WebSocket en production)
+  // Polling toutes les 30 secondes pour le chat (à remplacer par WebSocket en production)
+  // Réduit de 5s à 30s pour éviter les appels API excessifs
   useEffect(() => {
     if (!transactionId || !currentUserId) return;
 
     const interval = setInterval(() => {
       loadMessages();
-    }, 5000); // 5 secondes
+    }, 30000); // 30 secondes (réduit de 5s)
 
     return () => clearInterval(interval);
   }, [transactionId, currentUserId, loadMessages]);
