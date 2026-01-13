@@ -319,7 +319,28 @@ export class MarketplaceController {
   @ApiResponse({ status: 201, description: 'Offre créée avec succès.' })
   @ApiResponse({ status: 400, description: 'Données invalides.' })
   async createOffer(@Body() createOfferDto: CreateOfferDto, @CurrentUser('id') userId: string) {
-    return this.marketplaceService.createOffer(createOfferDto, userId);
+    // 1. Créer l'offre
+    const offer = await this.marketplaceService.createOffer(createOfferDto, userId);
+    
+    // 2. Déclencher le traitement automatique si le vendeur a activé la gestion auto
+    try {
+      const autoSaleResult = await this.autoSaleService.processOffer(offer.id);
+      this.logger.log(`[AutoSale] Offre ${offer.id} traitée automatiquement: ${autoSaleResult.action}`);
+      
+      // Enrichir la réponse avec le résultat du traitement auto
+      return {
+        ...offer,
+        autoSaleResult: {
+          action: autoSaleResult.action,
+          message: autoSaleResult.message,
+          pendingDecisionId: autoSaleResult.pendingDecisionId,
+        },
+      };
+    } catch (autoSaleError) {
+      // Si pas de settings auto-sale ou erreur, retourner l'offre normalement
+      this.logger.debug(`[AutoSale] Pas de traitement auto pour offre ${offer.id}: ${autoSaleError.message}`);
+      return offer;
+    }
   }
 
   @Get('offers')

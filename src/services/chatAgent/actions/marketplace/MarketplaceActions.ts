@@ -289,19 +289,48 @@ Ou dis-moi simplement *"au prix du marché"* et je fixerai le prix à ${marketAv
       // 3. Prix spécifié, créer le listing
       const pricePerKg = params.pricePerKg;
       const minPricePerKg = params.minPricePerKg || Math.round(pricePerKg * 0.95);
-      const weight = params.weight || 0;
-      const calculatedPrice = pricePerKg * weight;
+      let weight = params.weight || 0;
+      let isBatchListing = false;
+      let batchInfo: { id: string; pigCount: number; avgWeight: number; penName: string } | null = null;
 
-      // Trouver l'animal
+      // Trouver l'animal ou la loge
       let animalId = params.animalId;
-      if (!animalId && params.animalCode) {
-        const animal = await this.findAnimalByCode(params.animalCode, context.projetId);
-        if (animal) {
-          animalId = animal.id;
+      
+      // Si on a un nom de loge, chercher la bande
+      if (params.logeName) {
+        try {
+          const batches = await apiClient.get<any[]>(`/batch-pigs/projet/${context.projetId}`);
+          if (batches && Array.isArray(batches)) {
+            const batch = batches.find(b => 
+              b.pen_name?.toLowerCase().includes(params.logeName!.toLowerCase()) ||
+              b.pen_name?.toLowerCase() === params.logeName!.toLowerCase()
+            );
+            if (batch) {
+              isBatchListing = true;
+              batchInfo = {
+                id: batch.id,
+                pigCount: batch.pig_count || batch.current_count || 0,
+                avgWeight: batch.average_weight_kg || 0,
+                penName: batch.pen_name,
+              };
+              weight = batchInfo.avgWeight;
+            }
+          }
+        } catch (e) {
+          logger.warn('[MarketplaceActions] Erreur recherche loge:', e);
         }
       }
 
-      if (!animalId) {
+      // Si pas de loge, chercher un animal individuel
+      if (!isBatchListing && !animalId && params.animalCode) {
+        const animal = await this.findAnimalByCode(params.animalCode, context.projetId);
+        if (animal) {
+          animalId = animal.id;
+          weight = weight || animal.weight || 0;
+        }
+      }
+
+      if (!animalId && !isBatchListing) {
         return {
           success: false,
           message: `❌ Je n'ai pas trouvé l'animal que tu veux vendre.
@@ -312,28 +341,57 @@ Ou dis-moi simplement *"au prix du marché"* et je fixerai le prix à ${marketAv
         };
       }
 
-      // Créer le listing
-      const listingData = {
-        subjectId: animalId,
-        farmId: context.projetId,
-        pricePerKg,
-        weight,
-        lastWeightDate: new Date().toISOString(),
-        location: {
-          latitude: 5.3600,
-          longitude: -4.0083,
-          address: 'Côte d\'Ivoire',
-          city: 'Abidjan',
-          region: 'Abidjan',
-        },
-        saleTerms: {
-          transport: 'buyer_responsibility',
-          slaughter: 'buyer_responsibility',
-          paymentTerms: 'on_delivery',
-        },
-      };
+      const calculatedPrice = pricePerKg * weight * (isBatchListing && batchInfo ? batchInfo.pigCount : 1);
 
-      const listing = await apiClient.post<any>('/marketplace/listings', listingData);
+      // Créer le listing (individuel ou batch)
+      let listing: any;
+      
+      if (isBatchListing && batchInfo) {
+        // Listing de bande
+        const batchListingData = {
+          batchId: batchInfo.id,
+          farmId: context.projetId,
+          pricePerKg,
+          pigCount: batchInfo.pigCount,
+          averageWeight: batchInfo.avgWeight,
+          lastWeightDate: new Date().toISOString(),
+          location: {
+            latitude: 5.3600,
+            longitude: -4.0083,
+            address: 'Côte d\'Ivoire',
+            city: 'Abidjan',
+            region: 'Abidjan',
+          },
+          saleTerms: {
+            transport: 'buyer_responsibility',
+            slaughter: 'buyer_responsibility',
+            paymentTerms: 'on_delivery',
+          },
+        };
+        listing = await apiClient.post<any>('/marketplace/listings/batch', batchListingData);
+      } else {
+        // Listing individuel
+        const listingData = {
+          subjectId: animalId,
+          farmId: context.projetId,
+          pricePerKg,
+          weight,
+          lastWeightDate: new Date().toISOString(),
+          location: {
+            latitude: 5.3600,
+            longitude: -4.0083,
+            address: 'Côte d\'Ivoire',
+            city: 'Abidjan',
+            region: 'Abidjan',
+          },
+          saleTerms: {
+            transport: 'buyer_responsibility',
+            slaughter: 'buyer_responsibility',
+            paymentTerms: 'on_delivery',
+          },
+        };
+        listing = await apiClient.post<any>('/marketplace/listings', listingData);
+      }
 
       // Activer la gestion automatique si demandé
       if (params.autoManage !== false) {
@@ -353,11 +411,16 @@ Ou dis-moi simplement *"au prix du marché"* et je fixerai le prix à ${marketAv
         }
       }
 
+      // Message de succès adapté
+      const subjectDescription = isBatchListing && batchInfo
+        ? `🏠 **${batchInfo.pigCount} porcs** de la loge **${batchInfo.penName}** (poids moyen: ${batchInfo.avgWeight}kg)`
+        : `🐷 Sujet mis en vente sur le marketplace`;
+
       return {
         success: true,
         message: `✅ **Annonce publiée avec succès !**
 
-🐷 Sujet mis en vente sur le marketplace
+${subjectDescription}
 💰 Prix : **${pricePerKg.toLocaleString('fr-FR')} FCFA/kg** (${calculatedPrice.toLocaleString('fr-FR')} FCFA total)
 ⬇️ Prix minimum : **${minPricePerKg.toLocaleString('fr-FR')} FCFA/kg**
 
@@ -368,7 +431,8 @@ Je vais surveiller les offres pour toi :
 • ❌ Je refuse automatiquement les offres < ${Math.round(minPricePerKg * 0.95).toLocaleString('fr-FR')} FCFA/kg
 
 Je t'informerai dès qu'une offre arrive ! 🔔`,
-        data: { listing },
+        data: { listing, isBatchListing },
+        refreshHint: 'marketplace',
       };
     } catch (error) {
       logger.error('[MarketplaceActions] Erreur sellAnimal:', error);
