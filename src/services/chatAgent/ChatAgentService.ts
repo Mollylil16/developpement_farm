@@ -47,8 +47,21 @@ import { NaturalLanguageProcessor } from './core/NaturalLanguageProcessor';
 import type { DetectedIntent } from './IntentDetector';
 import { createLoggerWithPrefix } from '../../utils/logger';
 import { KnowledgeBaseAPI } from './knowledge/KnowledgeBaseAPI';
+import apiClient from '../api/apiClient';
 
 const logger = createLoggerWithPrefix('ChatAgentService');
+
+/**
+ * Interface pour la réponse du backend Gemini
+ */
+interface GeminiBackendResponse {
+  success: boolean;
+  data?: {
+    response: string;
+    timestamp?: string;
+  };
+  error?: string;
+}
 
 export class ChatAgentService {
   private actionExecutor: AgentActionExecutor;
@@ -482,28 +495,50 @@ export class ChatAgentService {
           requiresConfirmation: confirmationDecision.requiresConfirmation,
         };
       } else {
-        // Fallback: appel LLM puis parser une action depuis la réponse
-        const systemPrompt = buildOptimizedSystemPrompt(this.context);
-        const messagesForAPI = [
-          { role: 'system' as const, content: systemPrompt },
-          ...this.conversationHistory.slice(-10).map((msg) => ({
+        // ======================================================================
+        // FALLBACK GEMINI: Appel au backend Gemini quand aucune intention locale
+        // ======================================================================
+        logger.info(`[Gemini] 🤖 Aucune intention locale détectée - Appel backend Gemini`);
+        
+        const apiCallStartTime = Date.now();
+        
+        try {
+          // Construire le contexte pour Gemini
+          const systemPrompt = buildOptimizedSystemPrompt(this.context);
+          const conversationContext = this.conversationHistory.slice(-10).map((msg) => ({
             role: msg.role,
             content: msg.content,
-          })),
-        ];
-
-        const apiCallStartTime = Date.now();
-        aiResponse = await this.api.sendMessage(messagesForAPI);
-        apiCallTime = Date.now() - apiCallStartTime;
-
-        action = ActionParser.parseActionFromResponse(aiResponse, userMessage);
-        if (action) {
-          const confirmationDecision = this.confirmationManager.shouldConfirmAndExecute(
-            action,
-            0.7,
-            userMessage
+          }));
+          
+          // Appeler le backend Gemini
+          const geminiResponse = await this.callBackendGemini(
+            userMessage,
+            systemPrompt,
+            conversationContext
           );
-          action.requiresConfirmation = confirmationDecision.requiresConfirmation;
+          
+          apiCallTime = Date.now() - apiCallStartTime;
+          logger.info(`[Gemini] ✅ Réponse reçue en ${apiCallTime}ms`);
+          
+          if (geminiResponse) {
+            aiResponse = geminiResponse;
+            
+            // Parser l'action depuis la réponse Gemini
+            action = ActionParser.parseActionFromResponse(aiResponse, userMessage);
+            if (action) {
+              logger.debug(`[Gemini] Action parsée: ${action.type}`);
+              const confirmationDecision = this.confirmationManager.shouldConfirmAndExecute(
+                action,
+                0.7,
+                userMessage
+              );
+              action.requiresConfirmation = confirmationDecision.requiresConfirmation;
+            }
+          }
+        } catch (geminiError) {
+          logger.error('[Gemini] ❌ Erreur appel backend:', geminiError);
+          apiCallTime = Date.now() - apiCallStartTime;
+          // Ne pas throw, laisser le code continuer vers le fallback Knowledge Base
         }
       }
 
@@ -635,37 +670,54 @@ export class ChatAgentService {
           }
         }
       } else {
-        // V4.1 - AMÉLIORATION: Chercher dans la base de connaissances avant de déclarer incompréhension
+        // ======================================================================
+        // FALLBACK FINAL: Gemini direct, KB, ou message par défaut
+        // ======================================================================
         let responseContent: string | null = null;
         let knowledgeResult = null;
         
-        // Essayer de répondre via la base de connaissances
-        try {
-          const knowledgeResults = await KnowledgeBaseAPI.search(userMessage, {
-            projetId: this.context.projetId,
-            limit: 1,
-          });
-          
-          if (knowledgeResults && knowledgeResults.length > 0) {
-            const bestMatch = knowledgeResults[0];
-            // Si pertinence suffisante, utiliser la base de connaissances
-            if (bestMatch.relevance_score >= 3) {
-              const intros = [
-                "📚 Voici ce que je sais sur ce sujet:",
-                "💡 Bonne question! Voici ma réponse:",
-                "🎓 Je peux t'expliquer ça:",
-              ];
-              const intro = intros[Math.floor(Math.random() * intros.length)];
-              responseContent = `${intro}\n\n**${bestMatch.title}**\n\n${bestMatch.summary || bestMatch.content}`;
-              knowledgeResult = bestMatch;
-            }
+        // PRIORITÉ 1: Si Gemini a répondu directement (sans action parsée)
+        if (aiResponse && typeof aiResponse === 'string' && aiResponse.length > 0) {
+          // Nettoyer la réponse Gemini (enlever les JSON actions s'il y en a)
+          const cleanedResponse = aiResponse.replace(/\{[\s\S]*?"action"[\s\S]*?\}/g, '').trim();
+          if (cleanedResponse.length > 20) {
+            responseContent = cleanedResponse;
+            logger.info('[Gemini] ✅ Utilisation réponse Gemini directe');
           }
-        } catch {
-          // Ignorer les erreurs de recherche
         }
         
-        // Si pas de résultat de la base de connaissances, utiliser le fallback
+        // PRIORITÉ 2: Chercher dans la base de connaissances
         if (!responseContent) {
+          try {
+            const knowledgeResults = await KnowledgeBaseAPI.search(userMessage, {
+              projetId: this.context.projetId,
+              limit: 1,
+            });
+            
+            if (knowledgeResults && knowledgeResults.length > 0) {
+              const bestMatch = knowledgeResults[0];
+              // Si pertinence suffisante, utiliser la base de connaissances
+              if (bestMatch.relevance_score >= 3) {
+                const intros = [
+                  "📚 Voici ce que je sais sur ce sujet:",
+                  "💡 Bonne question! Voici ma réponse:",
+                  "🎓 Je peux t'expliquer ça:",
+                ];
+                const intro = intros[Math.floor(Math.random() * intros.length)];
+                responseContent = `${intro}\n\n**${bestMatch.title}**\n\n${bestMatch.summary || bestMatch.content}`;
+                knowledgeResult = bestMatch;
+                logger.info('[KB] ✅ Réponse depuis base de connaissances');
+              }
+            }
+          } catch {
+            // Ignorer les erreurs de recherche
+          }
+        }
+        
+        // PRIORITÉ 3: Si toujours pas de réponse, utiliser le fallback éducatif
+        if (!responseContent) {
+          logger.warn(`[Fallback] ⚠️ Aucune réponse trouvée pour: "${userMessage.substring(0, 50)}..."`);
+          
           const suggestion = this.learningService.generateEducationalSuggestion(
             userMessage,
             detectedIntent?.action
@@ -694,7 +746,8 @@ export class ChatAgentService {
           timestamp: new Date().toISOString(),
           metadata: {
             knowledgeResult: knowledgeResult,
-            misunderstanding: !knowledgeResult,
+            misunderstanding: !knowledgeResult && !aiResponse,
+            geminiUsed: !!aiResponse,
           },
         };
       }
@@ -774,6 +827,64 @@ export class ChatAgentService {
       content: "Parfait, l'action a été confirmée et exécutée.",
       timestamp: new Date().toISOString(),
     };
+  }
+
+  /**
+   * Appelle le backend Gemini pour obtenir une réponse IA
+   * Cette méthode est le fallback quand la détection locale échoue
+   * 
+   * @param message - Le message utilisateur
+   * @param systemPrompt - Le prompt système pour Gemini
+   * @param conversationHistory - L'historique de conversation
+   * @returns La réponse de Gemini ou null en cas d'erreur
+   */
+  private async callBackendGemini(
+    message: string,
+    systemPrompt: string,
+    conversationHistory: Array<{ role: string; content: string }>
+  ): Promise<string | null> {
+    try {
+      logger.debug(`[Gemini] Appel backend /api/kouakou/chat avec message: "${message.substring(0, 50)}..."`);
+      
+      const response = await apiClient.post<GeminiBackendResponse>('/kouakou/chat', {
+        message,
+        userId: this.context?.userId,
+        context: {
+          farmId: this.context?.projetId,
+          systemPrompt,
+          conversationHistory,
+          recentTransactions: this.context?.recentTransactions,
+        },
+      });
+
+      if (response.success && response.data?.response) {
+        logger.debug(`[Gemini] Réponse backend: "${response.data.response.substring(0, 100)}..."`);
+        return response.data.response;
+      }
+
+      if (response.error) {
+        logger.error(`[Gemini] Erreur backend: ${response.error}`);
+        return null;
+      }
+
+      // Si la réponse n'a pas le format attendu, essayer d'extraire directement
+      if (typeof response === 'object' && 'response' in response) {
+        return (response as unknown as { response: string }).response;
+      }
+
+      logger.warn('[Gemini] Format de réponse inattendu:', response);
+      return null;
+    } catch (error) {
+      logger.error('[Gemini] Erreur lors de l\'appel backend:', error);
+      
+      // Log plus détaillé pour le debug
+      if (error instanceof Error) {
+        logger.error(`[Gemini] Message: ${error.message}`);
+        logger.error(`[Gemini] Stack: ${error.stack?.substring(0, 500)}`);
+      }
+      
+      return null;
+    }
   }
 
   /**

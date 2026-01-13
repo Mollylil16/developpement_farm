@@ -777,6 +777,12 @@ export const INTENT_KNOWLEDGE_BASE: TrainingExample[] = [
 - LearningService: < 200ms (avec cache)
 - Total: < 500ms pour la détection
 
+### 6. **Fallback Gemini**
+- Quand aucune intention locale n'est détectée avec confiance ≥ 0.85
+- Appel backend `/api/kouakou/chat` avec timeout de 30s
+- Le backend utilise `GeminiService` avec `gemini-2.0-flash-exp`
+- La réponse Gemini est utilisée directement ou parsée pour extraire une action
+
 ---
 
 ## 📊 Métriques de Performance
