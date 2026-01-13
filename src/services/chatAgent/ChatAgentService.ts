@@ -808,7 +808,7 @@ export class ChatAgentService {
         return null;
       }
 
-      logger.debug(`[Gemini] Appel backend /api/kouakou/chat avec message: "${message.substring(0, 50)}..."`);
+      logger.debug(`[Gemini] Appel backend /kouakou/chat avec message: "${message.substring(0, 50)}..."`);
       logger.debug(`[Gemini] Contexte: projetId=${this.context.projetId}, userId=${this.context.userId}`);
       
       const response = await apiClient.post<GeminiBackendResponse>('/kouakou/chat', {

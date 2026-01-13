@@ -104,7 +104,7 @@ export class KnowledgeActions {
    */
   private static searchLocalKnowledge(topic: string | undefined, question: string): AgentActionResult {
     try {
-    // Si un topic spécifique est fourni
+      // Si un topic spécifique est fourni
     if (topic) {
       const topicData = TRAINING_KNOWLEDGE_BASE.find(t => t.id === topic);
       if (topicData) {
@@ -146,6 +146,14 @@ export class KnowledgeActions {
         relatedTopics: additionalTopics,
       },
     };
+    } catch (error) {
+      logger.error('[KnowledgeActions] Erreur dans searchLocalKnowledge:', error);
+      return {
+        success: false,
+        message: "Désolé, je n'ai pas pu récupérer les informations. Peux-tu reformuler ta question ?",
+        data: { error: 'Erreur lors de la recherche locale' },
+      };
+    }
   }
   
   /**
