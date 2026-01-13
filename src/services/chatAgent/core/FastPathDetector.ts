@@ -45,6 +45,31 @@ export class FastPathDetector {
       };
     }
 
+    // 0b. REMERCIEMENTS ET ACQUITTEMENTS - "merci", "ok", "d'accord", "parfait", "super"
+    // Messages courts de politesse/confirmation qui ne nécessitent pas d'action
+    if (normalized.match(/^(?:merci|mercii*|ok|okay|d'?accord|daccord|parfait|super|genial|excellent|top|cool|bien|compris|je comprends|c'?est bon|c est bon|nickel|impeccable|ca marche|ça marche)\s*[!.?]*$/i)) {
+      return {
+        intent: {
+          action: 'other' as AgentActionType,
+          confidence: 1.0,
+          params: { isThanks: true },
+        },
+        confidence: 1.0,
+      };
+    }
+
+    // 0c. AU REVOIR - "bye", "au revoir", "à plus", "a bientot"
+    if (normalized.match(/^(?:bye|au revoir|a plus|a\+|a bientot|a bientôt|bonne journee|bonne soiree|ciao|tchao)\s*[!.?]*$/i)) {
+      return {
+        intent: {
+          action: 'other' as AgentActionType,
+          confidence: 1.0,
+          params: { isGoodbye: true },
+        },
+        confidence: 1.0,
+      };
+    }
+
     // 1. DÉPENSE - Mots-clés forts : "dépense", "dep", "j'ai dépensé", "j'ai acheté", "claqué", "bouffe", etc.
     // IMPORTANT: Exclure les REQUÊTES d'information (mots-clés de requête)
     const isQueryRequest = normalized.match(/\b(?:du mois|en cours|ce mois|total|combien|quel est|mes depenses|bilan|cout|recap|montre|affiche|liste)\b/i);

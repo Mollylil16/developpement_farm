@@ -245,6 +245,36 @@ export class AgentActionExecutor {
             };
           }
           
+          // Gestion des remerciements
+          if (paramsTyped.isThanks) {
+            const thankResponses = [
+              `De rien ! 😊 N'hésite pas si tu as d'autres questions.`,
+              `Avec plaisir ! Je suis là pour t'aider. 🐷`,
+              `Pas de quoi ! Que veux-tu faire d'autre ?`,
+              `C'est normal, je suis là pour ça ! 👍`,
+              `À ton service ! Besoin d'autre chose ?`,
+            ];
+            return {
+              success: true,
+              message: thankResponses[Math.floor(Math.random() * thankResponses.length)],
+            };
+          }
+          
+          // Gestion des au revoir
+          if (paramsTyped.isGoodbye) {
+            const userName = context.userName || 'ami';
+            const goodbyeResponses = [
+              `À bientôt ${userName} ! 👋 Bonne continuation avec ton élevage !`,
+              `Au revoir ! N'hésite pas à revenir si tu as besoin d'aide. 🐷`,
+              `À plus tard ! Je reste disponible quand tu veux.`,
+              `Bonne journée ${userName} ! 🌟`,
+            ];
+            return {
+              success: true,
+              message: goodbyeResponses[Math.floor(Math.random() * goodbyeResponses.length)],
+            };
+          }
+          
           // Si un message est fourni dans les params, l'utiliser
           if (paramsTyped.message && typeof paramsTyped.message === 'string') {
             return {
