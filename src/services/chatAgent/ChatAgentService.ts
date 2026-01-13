@@ -51,6 +51,14 @@ import apiClient from '../api/apiClient';
 
 const logger = createLoggerWithPrefix('ChatAgentService');
 
+// ═══════════════════════════════════════════════════════════════════════════
+// CONSTANTES DE SEUILS - V5.1 Optimisé
+// ═══════════════════════════════════════════════════════════════════════════
+const FASTPATH_THRESHOLD = 0.95;   // Seuil strict pour FastPath (cas évidents)
+const INTENTRAG_THRESHOLD = 0.90;  // Seuil strict pour IntentRAG (patterns connus)
+const GEMINI_CONFIDENCE = 0.95;    // Confiance attribuée aux réponses Gemini
+const MINIMUM_EXECUTION_CONFIDENCE = 0.85; // Confiance minimale pour exécuter une action
+
 /**
  * Interface pour la réponse du backend Gemini
  */
@@ -61,6 +69,15 @@ interface GeminiBackendResponse {
     timestamp?: string;
   };
   error?: string;
+}
+
+/**
+ * Interface pour une action extraite de Gemini
+ */
+interface GeminiParsedAction {
+  action: AgentActionType;
+  params: Record<string, unknown>;
+  explanation?: string;
 }
 
 export class ChatAgentService {
@@ -136,6 +153,20 @@ export class ChatAgentService {
 
   /**
    * Envoie un message à l'agent et reçoit une réponse
+   * 
+   * V5.1 - FLUX OPTIMISÉ avec Gemini en position 2
+   * 
+   * NIVEAU 1: Détection rapide (< 100ms)
+   *   - FastPath (seuil >= 0.95)
+   *   - IntentRAG (seuil >= 0.90)
+   * 
+   * NIVEAU 2: Gemini (si confiance < 0.90)
+   *   - Appel backend Gemini
+   *   - Extraction action structurée ou réponse conversationnelle
+   * 
+   * NIVEAU 3: Fallback
+   *   - Knowledge Base
+   *   - Message par défaut
    */
   async sendMessage(userMessage: string): Promise<ChatMessage> {
     if (!this.context) {
@@ -143,6 +174,7 @@ export class ChatAgentService {
     }
 
     const startTime = Date.now();
+    logger.info(`[Kouakou] 📨 Message reçu: "${userMessage.substring(0, 50)}..."`);
 
     // Ajouter le message utilisateur à l'historique
     const userMsg: ChatMessage = {
@@ -153,30 +185,30 @@ export class ChatAgentService {
     };
     this.conversationHistory.push(userMsg);
 
-    // V4.0 - Enregistrer le message utilisateur (fire-and-forget, non-bloquant)
+    // Enregistrer le message utilisateur pour l'apprentissage (fire-and-forget)
     this.learningService.recordConversationMessage('user', userMessage);
 
     try {
-      // Appel LLM (ChatAgentAPI) uniquement si nécessaire (fallback). On évite les appels inutiles.
-      let aiResponse: string | null = null;
-      let apiCallTime = 0;
-
       // Mettre à jour le contexte conversationnel
       this.conversationContext.updateFromMessage(userMsg);
 
-      // V4.1 - Prétraitement NLP pour améliorer la compréhension
+      // Prétraitement NLP
       const nlpResult = NaturalLanguageProcessor.process(userMessage);
-      const processedMessage = nlpResult.processed; // Message nettoyé et corrigé
-      logger.debug(`NLP: "${userMessage}" → "${processedMessage}", hints: ${nlpResult.intentHints.map(h => h.intent).join(', ')}`);
+      const processedMessage = nlpResult.processed;
+      logger.debug(`[NLP] "${userMessage}" → "${processedMessage}"`);
 
-      // Vérifier s'il y a une clarification en cours et si ce message y répond
+      // Variables de suivi
+      let detectedIntent: DetectedIntent | null = null;
+      let detectionSource = '';
+      let aiResponse: string | null = null;
+      let action: AgentAction | null = null;
+
+      // Vérifier s'il y a une clarification en cours
       const pendingClarification = this.conversationContext.getClarificationNeeded();
       const pendingAction = this.conversationContext.getPendingAction();
-      const venteState = this.conversationContext.getVenteState();
-      
       let isClarificationResponse = false;
+
       if (pendingClarification && pendingAction) {
-        // Extraire les paramètres manquants du message utilisateur
         const extractionContext = this.conversationContext.getExtractionContext();
         const parameterExtractor = new EnhancedParameterExtractor({
           ...extractionContext,
@@ -186,168 +218,183 @@ export class ChatAgentService {
         
         const extractedParams = parameterExtractor.extractAllEnhanced(processedMessage, pendingAction.action);
         
-        // Gestion spéciale pour les ventes : détecter les loges et les IDs
-        if (pendingAction.action === 'create_revenu' && pendingClarification.clarificationType) {
-          // Si clarificationType = demande_loges, extraire les noms de loges
-          if (pendingClarification.clarificationType === 'demande_loges') {
-            // Extraire les noms de loges du message (ex: "Loge A", "Loge B et C", "A1, A2")
-            const logesMatch = processedMessage.match(/(?:loge|bande|enclos)\s*([A-Z0-9]+(?:\s*et\s*[A-Z0-9]+)*)/gi);
-            if (logesMatch) {
-              const loges: string[] = [];
-              logesMatch.forEach((match) => {
-                const parts = match.replace(/loge|bande|enclos/gi, '').trim().split(/\s*et\s*|\s*,\s*/);
-                loges.push(...parts.map((p) => p.trim()).filter((p) => p.length > 0));
-              });
-              if (loges.length > 0) {
-                extractedParams.loges = loges;
-                isClarificationResponse = true;
-              }
-            } else {
-              // Essayer de détecter des codes de loges simples (A1, B2, etc.)
-              const simpleLogesMatch = processedMessage.match(/\b([A-Z]\d+)\b/g);
-              if (simpleLogesMatch) {
-                extractedParams.loges = simpleLogesMatch;
-                isClarificationResponse = true;
-              }
-            }
-          }
-          
-          // Si clarificationType = selection_sujets, extraire les IDs sélectionnés
-          if (pendingClarification.clarificationType === 'selection_sujets') {
-            // Les IDs peuvent être dans le message (ex: "1024, 1027" ou "ID: 1024 et 1027")
-            const idsMatch = processedMessage.match(/(?:id|code)[\s:]*(\d+)/gi);
-            if (idsMatch) {
-              const ids = idsMatch.map((m) => m.replace(/id|code/gi, '').replace(':', '').trim());
-              extractedParams.animal_ids = ids;
-              isClarificationResponse = true;
-            } else {
-              // Essayer de détecter des nombres qui pourraient être des IDs
-              const numbersMatch = processedMessage.match(/\b(\d{4,})\b/g);
-              if (numbersMatch && numbersMatch.length <= 10) {
-                // Limiter à 10 IDs pour éviter les faux positifs
-                extractedParams.animal_ids = numbersMatch;
-                isClarificationResponse = true;
-              }
-            }
-          }
-        }
-        
         // Vérifier si les paramètres manquants sont maintenant présents
         const hasMissingParams = pendingClarification.missingParams.every(
           (param) => extractedParams[param] !== undefined && extractedParams[param] !== null
         );
         
-        if (hasMissingParams || isClarificationResponse) {
+        if (hasMissingParams) {
           isClarificationResponse = true;
-          logger.debug('[ChatAgentService] Détection réponse à clarification:', {
-            action: pendingAction.action,
-            missingParams: pendingClarification.missingParams,
-            extractedParams,
-            clarificationType: pendingClarification.clarificationType,
-          });
+          logger.debug('[Kouakou] Réponse à clarification détectée');
         }
       }
 
-      let detectedIntent: DetectedIntent | null = null;
-      let action: AgentAction | null = null;
-      let ragTime: number | undefined;
-      let fastPathTime: number | undefined;
-
-      // ======================================================================
-      // ÉTAPE 1: FAST PATH EN PRIORITÉ ABSOLUE
-      // Le FastPath est le plus fiable pour les intentions bien définies
-      // ======================================================================
+      // ═══════════════════════════════════════════════════════════════════════════
+      // NIVEAU 1 : DÉTECTION RAPIDE (< 100ms)
+      // ═══════════════════════════════════════════════════════════════════════════
+      
+      // 1.1 FastPath - Seuil strict >= 0.95 pour les cas ÉVIDENTS
       const fastPathStartTime = Date.now();
       const fastPathResult = FastPathDetector.detectFastPath(processedMessage);
-      fastPathTime = Date.now() - fastPathStartTime;
+      const fastPathTime = Date.now() - fastPathStartTime;
       
-      logger.debug(`[Intent] FastPath résultat: action=${fastPathResult.intent?.action}, confiance=${fastPathResult.confidence}`);
+      logger.debug(`[FastPath] action=${fastPathResult.intent?.action}, confiance=${fastPathResult.confidence}, temps=${fastPathTime}ms`);
 
-      // FastPath prioritaire si haute confiance (>= 0.85) ou si c'est une intention marketplace/santé/rappels
-      const isHighPriorityIntent = fastPathResult.intent?.action?.toString().startsWith('marketplace_') ||
-        fastPathResult.intent?.action?.toString().startsWith('get_') ||
-        fastPathResult.intent?.action === 'get_reminders' ||
-        fastPathResult.intent?.action === 'answer_knowledge_question';
-
-      if (fastPathResult.intent && (fastPathResult.confidence >= 0.85 || isHighPriorityIntent)) {
+      if (fastPathResult.intent && fastPathResult.confidence >= FASTPATH_THRESHOLD) {
         detectedIntent = fastPathResult.intent;
-        logger.info(`[Intent] ✅ Fast path activé: ${detectedIntent.action}, confiance: ${fastPathResult.confidence}`);
+        detectionSource = 'FastPath';
+        logger.info(`[Kouakou] ✅ FastPath HAUTE CONFIANCE: ${detectedIntent.action} (${fastPathResult.confidence})`);
         this.performanceMonitor.recordStepTiming({ fastPathTime });
       }
       
-      // ======================================================================
-      // ÉTAPE 2: NLP HINTS si FastPath n'a pas trouvé
-      // ======================================================================
-      if (!detectedIntent && nlpResult.intentHints.length > 0 && nlpResult.intentHints[0].confidence >= 0.85) {
-        const topHint = nlpResult.intentHints[0];
-        detectedIntent = {
-          action: topHint.intent as AgentActionType,
-          confidence: topHint.confidence,
-          params: {},
-        };
-        logger.info(`[Intent] ✅ NLP hint utilisé: ${topHint.intent}, confiance: ${topHint.confidence}`);
-      }
-
-      // ======================================================================
-      // ÉTAPE 3: LEARNING SERVICE (seulement si FastPath ET NLP ont échoué)
-      // Note: Le LearningService ne doit PAS écraser une intention déjà détectée
-      // ======================================================================
-      if (!detectedIntent || detectedIntent.confidence < 0.80) {
-        const similarLearning = await this.learningService.findSimilarLearning(processedMessage);
-        
-        if (similarLearning && similarLearning.total_score >= 4.0 && similarLearning.correct_intent) {
-          // Ne pas utiliser le learning si FastPath a déjà détecté quelque chose avec confiance > 0.7
-          if (!detectedIntent || detectedIntent.confidence < 0.70) {
-            detectedIntent = {
-              action: similarLearning.correct_intent as AgentActionType,
-              confidence: 0.90,
-              params: {},
-            };
-            logger.info(`[Intent] ✅ Apprentissage réutilisé: ${detectedIntent.action}, score: ${similarLearning.total_score}`);
-          } else {
-            logger.debug(`[Intent] Learning ignoré car FastPath a confiance ${detectedIntent.confidence}`);
-          }
-        }
-      }
-
-      // ======================================================================
-      // ÉTAPE 4: IntentRAG si aucune intention n'est détectée
-      // ======================================================================
-      if (!detectedIntent || detectedIntent.confidence < 0.80) {
+      // 1.2 IntentRAG - Seuil strict >= 0.90 pour les patterns connus
+      if (!detectedIntent) {
         const ragStartTime = Date.now();
-        const ragIntent = await this.intentRAG.detectIntent(processedMessage);
-        ragTime = Date.now() - ragStartTime;
+        const ragResult = await this.intentRAG.detectIntent(processedMessage);
+        const ragTime = Date.now() - ragStartTime;
+        
+        logger.debug(`[IntentRAG] action=${ragResult?.action}, confiance=${ragResult?.confidence}, temps=${ragTime}ms`);
 
-        if (ragIntent && ragIntent.confidence >= 0.80) {
-          detectedIntent = ragIntent;
-          logger.info(`[Intent] ✅ IntentRAG: ${detectedIntent.action}, confiance: ${detectedIntent.confidence}`);
-        }
-
-        if (ragTime !== undefined) {
+        if (ragResult && ragResult.confidence >= INTENTRAG_THRESHOLD) {
+          detectedIntent = ragResult;
+          detectionSource = 'IntentRAG';
+          logger.info(`[Kouakou] ✅ IntentRAG HAUTE CONFIANCE: ${detectedIntent.action} (${ragResult.confidence})`);
           this.performanceMonitor.recordStepTiming({ ragTime });
         }
       }
 
-      // ======================================================================
-      // ÉTAPE 5: IntentDetector (fallback final)
-      // ======================================================================
-      if (!detectedIntent || detectedIntent.confidence < 0.75) {
-        const fallbackIntent = IntentDetector.detectIntent(processedMessage);
-        if (fallbackIntent && fallbackIntent.confidence >= 0.70) {
-          detectedIntent = fallbackIntent;
-          logger.info(`[Intent] ✅ IntentDetector fallback: ${detectedIntent.action}, confiance: ${detectedIntent.confidence}`);
+      // ═══════════════════════════════════════════════════════════════════════════
+      // NIVEAU 2 : GEMINI (si confiance < 0.90)
+      // ═══════════════════════════════════════════════════════════════════════════
+      
+      if (!detectedIntent || detectedIntent.confidence < INTENTRAG_THRESHOLD) {
+        logger.info(`[Kouakou] 🤖 Confiance insuffisante (${detectedIntent?.confidence || 0}) - Appel GEMINI`);
+        
+        try {
+          const geminiStartTime = Date.now();
+          
+          // Construire le prompt optimisé pour Gemini
+          const systemPrompt = this.buildGeminiSystemPrompt();
+          const conversationContext = this.conversationHistory.slice(-10).map((msg) => ({
+            role: msg.role,
+            content: msg.content,
+          }));
+          
+          // Appeler le backend Gemini
+          const geminiResponse = await this.callBackendGemini(
+            userMessage,
+            systemPrompt,
+            conversationContext
+          );
+          
+          const geminiTime = Date.now() - geminiStartTime;
+          logger.info(`[Gemini] ✅ Réponse reçue en ${geminiTime}ms`);
+          
+          if (geminiResponse) {
+            aiResponse = geminiResponse;
+            
+            // Essayer d'extraire une action structurée de la réponse Gemini
+            const parsedAction = this.extractActionFromGeminiResponse(geminiResponse);
+            
+            if (parsedAction) {
+              // Gemini a détecté une action
+              detectedIntent = {
+                action: parsedAction.action,
+                confidence: GEMINI_CONFIDENCE,
+                params: parsedAction.params,
+              };
+              detectionSource = 'Gemini';
+              logger.info(`[Kouakou] ✅ Gemini ACTION: ${parsedAction.action}`);
+            } else {
+              // Gemini a répondu de manière conversationnelle (pas d'action)
+              logger.info('[Kouakou] 💬 Gemini réponse conversationnelle (pas d\'action)');
+              
+              const assistantMessage: ChatMessage = {
+                id: this.generateId(),
+                role: 'assistant',
+                content: geminiResponse,
+                timestamp: new Date().toISOString(),
+                metadata: {
+                  source: 'Gemini',
+                  conversational: true,
+                },
+              };
+              
+              this.conversationHistory.push(assistantMessage);
+              this.learningService.recordConversationMessage('assistant', geminiResponse);
+              
+              const responseTime = Date.now() - startTime;
+              this.performanceMonitor.recordInteraction(userMsg, assistantMessage, responseTime);
+              
+              return assistantMessage;
+            }
+          }
+        } catch (geminiError) {
+          logger.error('[Gemini] ❌ Erreur:', geminiError);
+          // Continuer vers le fallback
         }
       }
+
+      // ═══════════════════════════════════════════════════════════════════════════
+      // NIVEAU 3 : FALLBACK (si Gemini échoue ou pas d'intention)
+      // ═══════════════════════════════════════════════════════════════════════════
       
-      // Log final de l'intention détectée
-      if (detectedIntent) {
-        logger.info(`[Intent] 🎯 Intention finale: ${detectedIntent.action} (confiance: ${detectedIntent.confidence})`);
-      } else {
-        logger.warn(`[Intent] ⚠️ Aucune intention détectée pour: "${processedMessage.substring(0, 50)}..."`);
+      if (!detectedIntent) {
+        logger.warn(`[Kouakou] ⚠️ Aucune intention détectée - Recherche Knowledge Base`);
+        
+        // Chercher dans la base de connaissances
+        try {
+          const kbResults = await KnowledgeBaseAPI.search(userMessage, {
+            projetId: this.context.projetId,
+            limit: 1,
+          });
+          
+          if (kbResults && kbResults[0]?.relevance_score >= 3) {
+            const kbContent = `📚 **${kbResults[0].title}**\n\n${kbResults[0].summary || kbResults[0].content}`;
+            
+            const assistantMessage: ChatMessage = {
+              id: this.generateId(),
+              role: 'assistant',
+              content: kbContent,
+              timestamp: new Date().toISOString(),
+              metadata: {
+                source: 'KnowledgeBase',
+                knowledgeResult: kbResults[0],
+              },
+            };
+            
+            this.conversationHistory.push(assistantMessage);
+            return assistantMessage;
+          }
+        } catch {
+          // Ignorer les erreurs KB
+        }
+        
+        // Message par défaut
+        const defaultMessage: ChatMessage = {
+          id: this.generateId(),
+          role: 'assistant',
+          content: `${STANDARD_MISUNDERSTANDING_MESSAGE}\n\n💡 Tu peux me demander:\n• Des statistiques sur ton élevage\n• D'enregistrer une vente ou dépense\n• Les prix du marché\n• Des conseils sur l'élevage porcin`,
+          timestamp: new Date().toISOString(),
+          metadata: {
+            source: 'Default',
+            misunderstanding: true,
+          },
+        };
+        
+        this.conversationHistory.push(defaultMessage);
+        this.learningService.recordFailure(userMessage, undefined, 'Aucune intention détectée');
+        return defaultMessage;
       }
 
-      // Si intention détectée avec bonne confiance
-      if (detectedIntent && detectedIntent.confidence >= 0.85) {
+      // ═══════════════════════════════════════════════════════════════════════════
+      // EXÉCUTION DE L'ACTION
+      // ═══════════════════════════════════════════════════════════════════════════
+      
+      logger.info(`[Kouakou] 🎯 Intention finale: ${detectedIntent.action} (confiance: ${detectedIntent.confidence}, source: ${detectionSource})`);
+
+      // Vérifier que la confiance est suffisante pour exécuter
+      if (detectedIntent.confidence >= MINIMUM_EXECUTION_CONFIDENCE) {
         // EXTRACTION DE PARAMÈTRES (avec extracteur amélioré)
         const extractionContext = this.conversationContext.getExtractionContext();
         const parameterExtractor = new EnhancedParameterExtractor({
@@ -494,110 +541,36 @@ export class ChatAgentService {
           params: mergedParams,
           requiresConfirmation: confirmationDecision.requiresConfirmation,
         };
-      } else {
-        // ======================================================================
-        // FALLBACK GEMINI: Appel au backend Gemini quand aucune intention locale
-        // ======================================================================
-        logger.info(`[Gemini] 🤖 Aucune intention locale détectée - Appel backend Gemini`);
-        
-        const apiCallStartTime = Date.now();
-        
-        try {
-          // Construire le contexte pour Gemini
-          const systemPrompt = buildOptimizedSystemPrompt(this.context);
-          const conversationContext = this.conversationHistory.slice(-10).map((msg) => ({
-            role: msg.role,
-            content: msg.content,
-          }));
-          
-          // Appeler le backend Gemini
-          const geminiResponse = await this.callBackendGemini(
-            userMessage,
-            systemPrompt,
-            conversationContext
-          );
-          
-          apiCallTime = Date.now() - apiCallStartTime;
-          logger.info(`[Gemini] ✅ Réponse reçue en ${apiCallTime}ms`);
-          
-          if (geminiResponse) {
-            aiResponse = geminiResponse;
-            
-            // Parser l'action depuis la réponse Gemini
-            action = ActionParser.parseActionFromResponse(aiResponse, userMessage);
-            if (action) {
-              logger.debug(`[Gemini] Action parsée: ${action.type}`);
-              const confirmationDecision = this.confirmationManager.shouldConfirmAndExecute(
-                action,
-                0.7,
-                userMessage
-              );
-              action.requiresConfirmation = confirmationDecision.requiresConfirmation;
-            }
-          }
-        } catch (geminiError) {
-          logger.error('[Gemini] ❌ Erreur appel backend:', geminiError);
-          apiCallTime = Date.now() - apiCallStartTime;
-          // Ne pas throw, laisser le code continuer vers le fallback Knowledge Base
-        }
       }
 
+      // ═══════════════════════════════════════════════════════════════════════════
+      // EXÉCUTION DE L'ACTION (si détectée)
+      // ═══════════════════════════════════════════════════════════════════════════
+      
       let assistantMessage: ChatMessage;
       let actionResult: AgentActionResult | null = null;
 
-      // IMPORTANT: we must execute "other" too (identity questions, small talk, etc.)
-      // Previously, "other" fell into the misunderstanding fallback, causing Kouakou to "forget" his name.
       if (action) {
-        const confidence = detectedIntent?.confidence || 0.7;
-        const confirmationDecision = this.confirmationManager.shouldConfirmAndExecute(
+        const confidence = detectedIntent?.confidence || GEMINI_CONFIDENCE;
+        const confirmationDecisionFinal = this.confirmationManager.shouldConfirmAndExecute(
           action,
           confidence,
           userMessage
         );
 
-        if (confirmationDecision.requiresConfirmation && !confirmationDecision.shouldExecute) {
+        if (confirmationDecisionFinal.requiresConfirmation && !confirmationDecisionFinal.shouldExecute) {
           assistantMessage = {
             id: this.generateId(),
             role: 'assistant',
-            content: confirmationDecision.message || 'Je veux confirmer avant d\'enregistrer. C\'est bon ?',
+            content: confirmationDecisionFinal.message || 'Je veux confirmer avant d\'enregistrer. C\'est bon ?',
             timestamp: new Date().toISOString(),
             metadata: {
               pendingAction: { action: action.type, params: action.params },
               requiresConfirmation: true,
+              source: detectionSource,
             },
           };
         } else {
-          // RAG enrichissement (optionnel, non bloquant) : récupérer contexte depuis la base de connaissances
-          // pour enrichir la réponse mais NE PAS bloquer l'exécution si rien n'est trouvé
-          const isMutatingAction =
-            action.type.startsWith('create_') ||
-            action.type.startsWith('update_') ||
-            action.type.startsWith('delete_') ||
-            action.type === 'creer_loge' ||
-            action.type === 'deplacer_animaux';
-
-          if (isMutatingAction) {
-            try {
-              const ragQuery = `${action.type} ${userMessage}`;
-              const ragResults = await KnowledgeBaseAPI.search(ragQuery, {
-                projetId: this.context.projetId,
-                limit: 3,
-              });
-
-              // Ajouter les preuves RAG à l'action pour audit/UX (si trouvé)
-              if (ragResults && ragResults.length > 0) {
-                (action.params as any).__ragEvidence = {
-                  query: ragQuery,
-                  top: ragResults[0],
-                };
-              }
-              // NE PLUS BLOQUER si pas de résultat RAG - exécuter directement l'action
-            } catch (ragError) {
-              // Ignorer les erreurs RAG - ne pas bloquer l'action principale
-              logger.warn('Erreur RAG (ignorée):', ragError);
-            }
-          }
-
           // Exécuter l'action
           const actionExecutionStartTime = Date.now();
           actionResult = await this.actionExecutor.execute(action, this.context);
@@ -605,7 +578,6 @@ export class ChatAgentService {
 
           // Gérer les clarifications nécessaires
           if (actionResult.needsClarification) {
-            // Enregistrer la clarification dans le contexte
             this.conversationContext.setClarificationNeeded(
               actionResult.message,
               actionResult.missingParams || [],
@@ -626,13 +598,13 @@ export class ChatAgentService {
                   action: actionResult.actionType || action.type,
                   params: action.params,
                 },
+                source: detectionSource,
               },
             };
             
-            // Enregistrer l'action en attente dans le contexte pour la prochaine réponse
             this.conversationContext.setPendingAction(actionResult.actionType || action.type, action.params);
           } else {
-            // V4.0 - Enregistrer le succès pour apprentissage (fire-and-forget, non-bloquant)
+            // Enregistrer le succès pour apprentissage
             if (detectedIntent && actionResult.success) {
               this.learningService.recordIntentSuccess(
                 detectedIntent.action,
@@ -644,7 +616,7 @@ export class ChatAgentService {
 
             this.performanceMonitor.recordStepTiming({ actionExecutionTime });
 
-            const responseMessage = confirmationDecision.message || actionResult.message;
+            const responseMessage = confirmationDecisionFinal.message || actionResult.message;
 
             assistantMessage = {
               id: this.generateId(),
@@ -656,98 +628,33 @@ export class ChatAgentService {
                 actionResult: actionResult.data,
                 requiresConfirmation: false,
                 pendingAction: { action: action.type, params: action.params },
-                refreshHint: actionResult.refreshHint, // Signal pour rafraîchir les données
+                refreshHint: actionResult.refreshHint,
+                source: detectionSource,
               },
             };
             
-            // Si succès après clarification, nettoyer le contexte de clarification
+            // Si succès après clarification, nettoyer le contexte
             if (isClarificationResponse) {
               this.conversationContext.clearClarificationNeeded();
               this.conversationContext.clearPendingAction();
               this.conversationContext.clearVenteState();
-              logger.debug('[ChatAgentService] Clarification résolue avec succès');
+              logger.debug('[Kouakou] Clarification résolue avec succès');
             }
           }
         }
       } else {
-        // ======================================================================
-        // FALLBACK FINAL: Gemini direct, KB, ou message par défaut
-        // ======================================================================
-        let responseContent: string | null = null;
-        let knowledgeResult = null;
+        // Ce cas ne devrait plus arriver avec le nouveau flux
+        // car on retourne déjà dans les fallbacks KB/default plus haut
+        logger.error('[Kouakou] ❌ Cas inattendu: action null après tous les checks');
         
-        // PRIORITÉ 1: Si Gemini a répondu directement (sans action parsée)
-        if (aiResponse && typeof aiResponse === 'string' && aiResponse.length > 0) {
-          // Nettoyer la réponse Gemini (enlever les JSON actions s'il y en a)
-          const cleanedResponse = aiResponse.replace(/\{[\s\S]*?"action"[\s\S]*?\}/g, '').trim();
-          if (cleanedResponse.length > 20) {
-            responseContent = cleanedResponse;
-            logger.info('[Gemini] ✅ Utilisation réponse Gemini directe');
-          }
-        }
-        
-        // PRIORITÉ 2: Chercher dans la base de connaissances
-        if (!responseContent) {
-          try {
-            const knowledgeResults = await KnowledgeBaseAPI.search(userMessage, {
-              projetId: this.context.projetId,
-              limit: 1,
-            });
-            
-            if (knowledgeResults && knowledgeResults.length > 0) {
-              const bestMatch = knowledgeResults[0];
-              // Si pertinence suffisante, utiliser la base de connaissances
-              if (bestMatch.relevance_score >= 3) {
-                const intros = [
-                  "📚 Voici ce que je sais sur ce sujet:",
-                  "💡 Bonne question! Voici ma réponse:",
-                  "🎓 Je peux t'expliquer ça:",
-                ];
-                const intro = intros[Math.floor(Math.random() * intros.length)];
-                responseContent = `${intro}\n\n**${bestMatch.title}**\n\n${bestMatch.summary || bestMatch.content}`;
-                knowledgeResult = bestMatch;
-                logger.info('[KB] ✅ Réponse depuis base de connaissances');
-              }
-            }
-          } catch {
-            // Ignorer les erreurs de recherche
-          }
-        }
-        
-        // PRIORITÉ 3: Si toujours pas de réponse, utiliser le fallback éducatif
-        if (!responseContent) {
-          logger.warn(`[Fallback] ⚠️ Aucune réponse trouvée pour: "${userMessage.substring(0, 50)}..."`);
-          
-          const suggestion = this.learningService.generateEducationalSuggestion(
-            userMessage,
-            detectedIntent?.action
-          );
-
-          // Enregistrer l'échec pour apprentissage
-          this.learningService.recordFailure(
-            userMessage,
-            detectedIntent?.action,
-            'Aucune intention claire détectée'
-          );
-
-          // Message unifié avec clarification basée sur mots-clés
-          if (suggestion) {
-            responseContent = suggestion.explanation;
-          } else {
-            // Message par défaut amélioré avec suggestions
-            responseContent = `${STANDARD_MISUNDERSTANDING_MESSAGE}\n\n💡 Tu peux me demander:\n• Des statistiques sur ton élevage\n• D'enregistrer une vente ou dépense\n• Des conseils sur l'élevage porcin\n• D'expliquer un terme (ex: "c'est quoi un naisseur?")`;
-          }
-        }
-
         assistantMessage = {
           id: this.generateId(),
           role: 'assistant',
-          content: responseContent,
+          content: `${STANDARD_MISUNDERSTANDING_MESSAGE}\n\n💡 Tu peux me demander:\n• Des statistiques sur ton élevage\n• D'enregistrer une vente ou dépense\n• Les prix du marché`,
           timestamp: new Date().toISOString(),
           metadata: {
-            knowledgeResult: knowledgeResult,
-            misunderstanding: !knowledgeResult && !aiResponse,
-            geminiUsed: !!aiResponse,
+            source: 'Error',
+            misunderstanding: true,
           },
         };
       }
@@ -831,7 +738,7 @@ export class ChatAgentService {
 
   /**
    * Appelle le backend Gemini pour obtenir une réponse IA
-   * Cette méthode est le fallback quand la détection locale échoue
+   * Maintenant en POSITION 2 dans le pipeline (après détection rapide)
    * 
    * @param message - Le message utilisateur
    * @param systemPrompt - Le prompt système pour Gemini
@@ -885,6 +792,164 @@ export class ChatAgentService {
       
       return null;
     }
+  }
+
+  /**
+   * Extrait une action structurée de la réponse Gemini
+   * Gemini peut retourner des JSON entre balises ```json ... ```
+   * ou des patterns comme ACTION: ... PARAMS: ...
+   */
+  private extractActionFromGeminiResponse(geminiResponse: string): GeminiParsedAction | null {
+    try {
+      // Méthode 1: Chercher un bloc JSON entre balises ```json
+      const jsonBlockMatch = geminiResponse.match(/```json\s*([\s\S]*?)\s*```/);
+      if (jsonBlockMatch) {
+        const parsed = JSON.parse(jsonBlockMatch[1]);
+        if (parsed.action) {
+          logger.debug(`[Gemini] Action extraite (JSON block): ${parsed.action}`);
+          return {
+            action: parsed.action as AgentActionType,
+            params: parsed.params || {},
+            explanation: parsed.explanation,
+          };
+        }
+      }
+
+      // Méthode 2: Chercher un objet JSON simple dans la réponse
+      const jsonMatch = geminiResponse.match(/\{[^{}]*"action"\s*:\s*"([^"]+)"[^{}]*\}/);
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (parsed.action) {
+            logger.debug(`[Gemini] Action extraite (JSON inline): ${parsed.action}`);
+            return {
+              action: parsed.action as AgentActionType,
+              params: parsed.params || {},
+              explanation: parsed.explanation,
+            };
+          }
+        } catch {
+          // JSON mal formé, essayer de parser manuellement
+        }
+      }
+
+      // Méthode 3: Chercher pattern ACTION: ... PARAMS: ...
+      const actionPatternMatch = geminiResponse.match(/ACTION:\s*(\w+)/i);
+      if (actionPatternMatch) {
+        const actionName = actionPatternMatch[1];
+        let params: Record<string, unknown> = {};
+        
+        const paramsMatch = geminiResponse.match(/PARAMS:\s*(\{[\s\S]*?\})/i);
+        if (paramsMatch) {
+          try {
+            params = JSON.parse(paramsMatch[1]);
+          } catch {
+            // Ignorer si le JSON params est mal formé
+          }
+        }
+        
+        logger.debug(`[Gemini] Action extraite (pattern): ${actionName}`);
+        return {
+          action: actionName as AgentActionType,
+          params,
+        };
+      }
+
+      // Aucune action trouvée - c'est une réponse conversationnelle
+      return null;
+    } catch (error) {
+      logger.error('[Gemini] Erreur parsing réponse:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Construit le prompt système optimisé pour Gemini
+   * Ce prompt guide Gemini à retourner des actions structurées
+   */
+  private buildGeminiSystemPrompt(): string {
+    const basePrompt = buildOptimizedSystemPrompt(this.context!);
+    
+    const structuredPrompt = `${basePrompt}
+
+═══════════════════════════════════════════════════════════════
+INSTRUCTIONS IMPORTANTES POUR LE FORMAT DE RÉPONSE
+═══════════════════════════════════════════════════════════════
+
+Si l'utilisateur demande une ACTION (créer, enregistrer, calculer, etc.), réponds avec cette structure JSON :
+
+\`\`\`json
+{
+  "action": "nom_action",
+  "params": { ... },
+  "explanation": "Explication courte de ce que tu vas faire"
+}
+\`\`\`
+
+ACTIONS DISPONIBLES:
+- create_depense : Enregistrer une dépense (params: montant, categorie, description, date)
+- create_revenu : Enregistrer un revenu/vente (params: montant, source, description, date)
+- create_charge_fixe : Enregistrer une charge fixe (params: montant, categorie, frequence)
+- marketplace_get_price_trends : Consulter les prix du marché
+- marketplace_sell_animal : Mettre un animal en vente (params: animal_id ou animal_code, price_per_kg)
+- get_statistics : Obtenir des statistiques
+- get_bilan_financier : Voir le bilan financier
+- get_reminders : Voir les rappels/vaccins en retard
+- create_vaccination : Enregistrer une vaccination (params: animal_id, vaccin, date)
+- create_pesee : Enregistrer une pesée (params: animal_id, poids_kg, date)
+- list_animals : Lister les animaux du cheptel
+- search_animal : Rechercher un animal (params: code ou critères)
+
+EXEMPLES:
+
+User: "J'ai dépensé 50000 FCFA pour l'aliment"
+\`\`\`json
+{
+  "action": "create_depense",
+  "params": {
+    "montant": 50000,
+    "categorie": "aliment",
+    "description": "Achat d'aliment"
+  },
+  "explanation": "J'enregistre ta dépense de 50 000 FCFA pour l'aliment."
+}
+\`\`\`
+
+User: "Quel est le prix du marché ?"
+\`\`\`json
+{
+  "action": "marketplace_get_price_trends",
+  "params": {},
+  "explanation": "Je consulte les tendances de prix du marché pour toi."
+}
+\`\`\`
+
+User: "J'ai vendu un porc à 300000"
+\`\`\`json
+{
+  "action": "create_revenu",
+  "params": {
+    "montant": 300000,
+    "source": "vente_porc",
+    "description": "Vente d'un porc"
+  },
+  "explanation": "J'enregistre ta vente de 300 000 FCFA."
+}
+\`\`\`
+
+SI L'UTILISATEUR POSE UNE QUESTION ou fait la CONVERSATION (salutation, remerciement, conseil général), réponds NATURELLEMENT en français, SANS JSON.
+
+User: "Bonjour Kouakou"
+→ Bonjour ! Comment puis-je t'aider avec ton élevage aujourd'hui ?
+
+User: "Merci"
+→ De rien ! N'hésite pas si tu as d'autres questions.
+
+User: "Donne-moi des conseils sur l'alimentation des porcelets"
+→ [Réponds avec tes connaissances sur l'alimentation des porcelets, sans JSON]
+`;
+
+    return structuredPrompt;
   }
 
   /**

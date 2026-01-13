@@ -485,38 +485,56 @@ backend/src/
 
 ## 🎯 Détection d'Intention
 
-### Pipeline de Détection (5 étapes)
+### Pipeline de Détection (V5.1 - 3 niveaux)
 
 ```typescript
-// ChatAgentService.ts - sendMessage()
+// ChatAgentService.ts - sendMessage() - FLUX OPTIMISÉ
 
-// ÉTAPE 1: FastPathDetector (PRIORITÉ ABSOLUE)
+// ═══════════════════════════════════════════════════════════════
+// NIVEAU 1 : DÉTECTION RAPIDE (< 100ms)
+// ═══════════════════════════════════════════════════════════════
+
+// 1.1 FastPath (seuil strict >= 0.95 pour cas ÉVIDENTS)
 const fastPathResult = FastPathDetector.detectFastPath(processedMessage);
-if (fastPathResult.intent && fastPathResult.confidence >= 0.85) {
+if (fastPathResult.intent && fastPathResult.confidence >= 0.95) {
   detectedIntent = fastPathResult.intent; // ✅ RETOUR IMMÉDIAT
 }
 
-// ÉTAPE 2: NLP Hints (si FastPath échoue)
-if (!detectedIntent && nlpResult.intentHints[0]?.confidence >= 0.85) {
-  detectedIntent = { action: nlpResult.intentHints[0].intent, ... };
-}
-
-// ÉTAPE 3: LearningService (si FastPath/NLP échouent)
-if (!detectedIntent || detectedIntent.confidence < 0.80) {
-  const similarLearning = await learningService.findSimilarLearning(processedMessage);
-  if (similarLearning && similarLearning.total_score >= 4.0) {
-    detectedIntent = { action: similarLearning.correct_intent, ... };
+// 1.2 IntentRAG (seuil strict >= 0.90 pour patterns connus)
+if (!detectedIntent) {
+  const ragResult = await intentRAG.detectIntent(processedMessage);
+  if (ragResult && ragResult.confidence >= 0.90) {
+    detectedIntent = ragResult;
   }
 }
 
-// ÉTAPE 4: IntentRAG (si aucune intention détectée)
-if (!detectedIntent || detectedIntent.confidence < 0.80) {
-  detectedIntent = await intentRAG.detectIntent(processedMessage);
+// ═══════════════════════════════════════════════════════════════
+// NIVEAU 2 : GEMINI (si confiance < 0.90)
+// ═══════════════════════════════════════════════════════════════
+
+if (!detectedIntent || detectedIntent.confidence < 0.90) {
+  const geminiResponse = await callBackendGemini(userMessage, ...);
+  
+  if (geminiResponse) {
+    // Extraire action structurée ou utiliser réponse conversationnelle
+    const parsedAction = extractActionFromGeminiResponse(geminiResponse);
+    
+    if (parsedAction) {
+      detectedIntent = { action: parsedAction.action, confidence: 0.95, ... };
+    } else {
+      // Réponse conversationnelle directe
+      return createAssistantMessage(geminiResponse);
+    }
+  }
 }
 
-// ÉTAPE 5: IntentDetector (fallback final)
-if (!detectedIntent || detectedIntent.confidence < 0.75) {
-  detectedIntent = IntentDetector.detectIntent(processedMessage);
+// ═══════════════════════════════════════════════════════════════
+// NIVEAU 3 : FALLBACK (si Gemini échoue)
+// ═══════════════════════════════════════════════════════════════
+
+if (!detectedIntent) {
+  // 3.1 Knowledge Base
+  // 3.2 Message par défaut
 }
 ```
 
