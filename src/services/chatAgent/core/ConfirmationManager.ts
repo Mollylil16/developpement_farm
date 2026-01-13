@@ -165,6 +165,16 @@ export class ConfirmationManager {
       case 'search_lot':
       case 'answer_knowledge_question':
       case 'list_knowledge_topics':
+      case 'get_cheptel_details':
+      case 'get_weighing_details':
+      case 'describe_capabilities':
+      // Marketplace - toutes les actions de lecture/consultation
+      case 'marketplace_get_price_trends':
+      case 'marketplace_check_offers':
+      case 'marketplace_get_my_listings':
+      case 'marketplace_sell_animal':
+      case 'marketplace_set_price':
+      case 'marketplace_respond_offer':
         return ''; // Retourner vide pour que actionResult.message soit utilisé
       default:
         return "C'est enregistré, bien reçu !";
@@ -193,6 +203,27 @@ export class ConfirmationManager {
           return `J'ai noté ${montant.toLocaleString('fr-FR')} FCFA pour la vente. Si c'est pas ça, corrige-moi.`;
         }
         return "J'ai enregistré la vente. Si c'est pas bon, corrige-moi.";
+      // Actions de consultation - ne pas ajouter de message de confirmation
+      case 'other':
+      case 'get_statistics':
+      case 'get_stock_status':
+      case 'calculate_costs':
+      case 'get_reminders':
+      case 'analyze_data':
+      case 'search_animal':
+      case 'search_lot':
+      case 'answer_knowledge_question':
+      case 'list_knowledge_topics':
+      case 'get_cheptel_details':
+      case 'get_weighing_details':
+      case 'describe_capabilities':
+      case 'marketplace_get_price_trends':
+      case 'marketplace_check_offers':
+      case 'marketplace_get_my_listings':
+      case 'marketplace_sell_animal':
+      case 'marketplace_set_price':
+      case 'marketplace_respond_offer':
+        return ''; // Retourner vide pour que actionResult.message soit utilisé
       default:
         return "J'ai enregistré. Si c'est pas bon, corrige-moi.";
     }
