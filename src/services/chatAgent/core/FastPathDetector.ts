@@ -134,7 +134,9 @@ export class FastPathDetector {
         normalized.match(/\b(?:en vente)\b/i) && normalized.match(/\b(?:marketplace|marche|marché|sujet|porc)\b/i) ||
         (normalized.match(/\b(?:vendre)\b/i) && normalized.match(/\b(?:marketplace|marche|marché)\b/i)) ||
         (normalized.match(/\b(?:vendre|vends|met|mets)\b/i) && normalized.match(/\b(?:porc|le porc|mon porc|sujet|le sujet|un sujet)\b/i)) ||
-        (normalized.match(/\b(?:liste|lister)\b/i) && normalized.match(/\b(?:sujet|porc|marketplace|vente)\b/i))
+        (normalized.match(/\b(?:liste|lister)\b/i) && normalized.match(/\b(?:sujet|porc|marketplace|vente)\b/i)) ||
+        // Pattern amélioré : "mets [le/le plus lourd/etc] porc [de la] loge X en vente"
+        (normalized.match(/\b(?:mets|met|mettre)\b/i) && normalized.match(/\b(?:porc|sujet)\b/i) && normalized.match(/\b(?:loge|bande|enclos|marketplace|vente)\b/i))
       )
     ) {
       // Chercher code animal (P001, etc.)
@@ -149,22 +151,39 @@ export class FastPathDetector {
       const poidsMatch = message.match(/(\d+[.,]?\d*)\s*(?:kg|kilo)/i);
       const weight = poidsMatch ? parseFloat(poidsMatch[1].replace(',', '.')) : undefined;
       
-      // Chercher loge
+      // Chercher loge (amélioré : loge A2, loge A, bande B, etc.)
       const logeMatch = message.match(/(?:loge|bande|enclos)\s*([A-Z0-9]+)/i);
       const logeName = logeMatch ? logeMatch[1] : undefined;
+      
+      // Chercher critères : "le plus lourd", "le plus léger", "le plus vieux"
+      let weightRange: { min?: number; max?: number } | undefined;
+      if (normalized.match(/\b(?:plus lourd|le plus lourd|plus gros|le plus gros)\b/i)) {
+        // Pas de limite max, juste min
+        weightRange = { min: 0 };
+      } else if (normalized.match(/\b(?:plus leger|le plus leger|plus petit|le plus petit)\b/i)) {
+        // Pas de limite min, juste max
+        weightRange = { max: 999999 };
+      }
+
+      // Confiance basée sur la présence d'indices
+      let confidence = 0.93;
+      if (animalCode) confidence = 0.97;
+      else if (logeName) confidence = 0.96; // Loge = bon indicateur
+      else if (normalized.match(/\b(?:marketplace|marche|marché)\b/i)) confidence = 0.95;
 
       return {
         intent: {
           action: 'marketplace_sell_animal' as AgentActionType,
-          confidence: animalCode ? 0.97 : 0.93,
+          confidence,
           params: {
             animalCode,
             pricePerKg,
             weight,
             logeName,
+            weightRange,
           },
         },
-        confidence: animalCode ? 0.97 : 0.93,
+        confidence,
       };
     }
 
@@ -463,6 +482,8 @@ export class FastPathDetector {
       { pattern: /\b(?:combien coute l'?alimentation|cout alimentation|provende|granule)\b/i, topic: 'alimentation' },
       { pattern: /\b(?:nourrir|manger|farine|mais|soja|tourteau|son de ble)\b/i, topic: 'alimentation' },
       { pattern: /\b(?:quantite aliment|ration journaliere|frequence repas)\b/i, topic: 'alimentation' },
+      { pattern: /\b(?:composition.*aliment|aliment.*composition|bonne.*composition|composition.*ration|formule.*aliment|formulation.*aliment)\b/i, topic: 'alimentation' },
+      { pattern: /\b(?:donne.*composition|propose.*composition|composition.*porc|composition.*croissance|composition.*porcelet)\b/i, topic: 'alimentation' },
       
       // Santé (amélioré pour capturer "gestation", "temps de gestation", etc.)
       { pattern: /\b(?:comment vacciner|calendrier vaccination|maladies? des porcs|prophylaxie|biosecurite)\b/i, topic: 'sante' },

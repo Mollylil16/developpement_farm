@@ -342,14 +342,16 @@ export class ChatAgentService {
       if (!detectedIntent) {
         logger.warn(`[Kouakou] ⚠️ Aucune intention détectée - Recherche Knowledge Base`);
         
-        // Chercher dans la base de connaissances
+        // Chercher dans la base de connaissances (seuil de pertinence plus strict)
         try {
           const kbResults = await KnowledgeBaseAPI.search(userMessage, {
             projetId: this.context.projetId,
             limit: 1,
           });
           
-          if (kbResults && kbResults[0]?.relevance_score >= 3) {
+          // Seuil de pertinence plus strict pour éviter les faux positifs
+          if (kbResults && kbResults[0]?.relevance_score >= 5) {
+            logger.info(`[KB] ✅ Résultat pertinent trouvé: ${kbResults[0].title} (score: ${kbResults[0].relevance_score})`);
             const kbContent = `📚 **${kbResults[0].title}**\n\n${kbResults[0].summary || kbResults[0].content}`;
             
             const assistantMessage: ChatMessage = {
@@ -365,8 +367,11 @@ export class ChatAgentService {
             
             this.conversationHistory.push(assistantMessage);
             return assistantMessage;
+          } else if (kbResults && kbResults[0]) {
+            logger.warn(`[KB] ⚠️ Résultat trouvé mais score trop bas: ${kbResults[0].title} (score: ${kbResults[0].relevance_score} < 5)`);
           }
-        } catch {
+        } catch (kbError) {
+          logger.error('[KB] Erreur recherche:', kbError);
           // Ignorer les erreurs KB
         }
         
