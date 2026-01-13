@@ -507,7 +507,12 @@ export class FastPathDetector {
       
       // Emplacement / Infrastructure
       { pattern: /\b(?:ou construire|emplacement|terrain pour elevage|distance habitations)\b/i, topic: 'emplacement' },
-      { pattern: /\b(?:batiment|porcherie|loge|enclos|box|abri|ventilation|eclairage)\b/i, topic: 'emplacement' },
+      // EXCLURE "loge" + code (loge A2, bande B1) car c'est une référence à une loge d'animaux, pas à l'emplacement
+      { 
+        pattern: /\b(?:batiment|porcherie|enclos|box|abri|ventilation|eclairage)\b/i, 
+        topic: 'emplacement',
+        exclude: /\b(?:loge|bande|enclos)\s*[A-Z0-9]+\b/i  // Exclure si suivi d'un code
+      },
       
       // Eau
       { pattern: /\b(?:besoin en eau|combien d'?eau|qualite de l'?eau|forage ou puits)\b/i, topic: 'eau' },
@@ -522,8 +527,23 @@ export class FastPathDetector {
       { pattern: /\b(?:mise[- ]bas|portee|porcelet|naissance|allaitement)\b/i, topic: 'sante' },
     ];
 
-    for (const { pattern, topic } of knowledgePatterns) {
+    for (const { pattern, topic, exclude } of knowledgePatterns) {
+      // Vérifier l'exclusion d'abord (ex: "loge A2" ne doit pas être détecté comme question d'emplacement)
+      if (exclude && normalized.match(exclude)) {
+        continue; // Ignorer ce pattern si l'exclusion matche
+      }
+      
+      // Vérifier si le pattern matche
       if (normalized.match(pattern)) {
+        // EXCEPTION: Si le message contient des mots-clés d'action (mets, vends, en vente, etc.)
+        // ET contient "loge" ou "bande" suivi d'un code, c'est probablement une action marketplace, pas une question
+        const hasActionKeywords = normalized.match(/\b(?:mets|met|mettre|vends|vendre|en vente|marketplace|vendre au marche)\b/i);
+        const hasLogeWithCode = normalized.match(/\b(?:loge|bande|enclos)\s*[A-Z0-9]+\b/i);
+        
+        if (hasActionKeywords && hasLogeWithCode && (pattern.toString().includes('loge') || pattern.toString().includes('enclos'))) {
+          continue; // Ignorer - c'est une action, pas une question
+        }
+        
         return {
           intent: {
             action: 'answer_knowledge_question' as AgentActionType,

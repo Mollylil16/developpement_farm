@@ -330,8 +330,39 @@ export class ChatAgentService {
             }
           }
         } catch (geminiError) {
-          logger.error('[Gemini] ❌ Erreur:', geminiError);
-          // Continuer vers le fallback
+          logger.error('[Gemini] ❌ Erreur lors de l\'appel Gemini:', geminiError);
+          
+          // Log détaillé pour diagnostic
+          if (geminiError instanceof Error) {
+            logger.error(`[Gemini] Type: ${geminiError.constructor.name}`);
+            logger.error(`[Gemini] Message: ${geminiError.message}`);
+            if (geminiError.message.includes('projectId')) {
+              logger.error(`[Gemini] ⚠️ ERREUR CRITIQUE: projectId manquant dans le contexte !`);
+              logger.error(`[Gemini] Contexte actuel: projetId=${this.context?.projetId}, userId=${this.context?.userId}`);
+            }
+          }
+          
+          // Si l'erreur est liée à projectId, ne pas continuer vers KB
+          // car c'est une erreur de configuration, pas une question
+          if (geminiError instanceof Error && geminiError.message.includes('projectId')) {
+            logger.error('[Gemini] ❌ Erreur de configuration - Gemini ne peut pas être appelé');
+            // Retourner un message d'erreur explicite au lieu de fallback KB
+            const errorMessage: ChatMessage = {
+              id: this.generateId(),
+              role: 'assistant',
+              content: '❌ Désolé, je rencontre un problème technique. Veuillez réessayer dans quelques instants.',
+              timestamp: new Date().toISOString(),
+              metadata: {
+                source: 'Error',
+                error: 'projectId manquant',
+              },
+            };
+            this.conversationHistory.push(errorMessage);
+            return errorMessage;
+          }
+          
+          // Pour les autres erreurs, continuer vers le fallback KB
+          logger.warn('[Gemini] ⚠️ Erreur non-critique - Continuation vers fallback KB');
         }
       }
 
@@ -756,16 +787,25 @@ export class ChatAgentService {
     conversationHistory: Array<{ role: string; content: string }>
   ): Promise<string | null> {
     try {
+      if (!this.context?.projetId) {
+        logger.error('[Gemini] ❌ Contexte projetId manquant - impossible d\'appeler Gemini');
+        return null;
+      }
+
       logger.debug(`[Gemini] Appel backend /api/kouakou/chat avec message: "${message.substring(0, 50)}..."`);
+      logger.debug(`[Gemini] Contexte: projetId=${this.context.projetId}, userId=${this.context.userId}`);
       
       const response = await apiClient.post<GeminiBackendResponse>('/kouakou/chat', {
         message,
-        userId: this.context?.userId,
+        userId: this.context.userId,
+        projectId: this.context.projetId, // Ajouter projectId explicitement
+        projetId: this.context.projetId,   // Et aussi projetId pour compatibilité
         context: {
-          farmId: this.context?.projetId,
+          farmId: this.context.projetId,
+          projectId: this.context.projetId, // Dans le contexte aussi
           systemPrompt,
           conversationHistory,
-          recentTransactions: this.context?.recentTransactions,
+          recentTransactions: this.context.recentTransactions,
         },
       });
 
