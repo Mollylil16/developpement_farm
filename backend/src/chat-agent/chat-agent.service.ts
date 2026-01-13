@@ -539,8 +539,34 @@ export class ChatAgentService {
     }
 
     const requestPayload: Record<string, unknown> = { ...payload };
-    if (!requestPayload.tools) {
-      delete requestPayload.tools;
+    
+    // ✅ Ajouter la recherche Google aux tools (si tools présents)
+    if (requestPayload.tools && Array.isArray(requestPayload.tools)) {
+      const tools = [...requestPayload.tools];
+      const hasGoogleSearch = tools.some((tool: any) => tool.google_search_retrieval);
+      if (!hasGoogleSearch) {
+        tools.push({
+          google_search_retrieval: {
+            dynamic_retrieval_config: {
+              mode: 'MODE_DYNAMIC',
+              dynamic_threshold: 0.7,
+            },
+          },
+        });
+        requestPayload.tools = tools;
+      }
+    } else if (!requestPayload.tools) {
+      // Si pas de tools, ajouter seulement google_search_retrieval
+      requestPayload.tools = [
+        {
+          google_search_retrieval: {
+            dynamic_retrieval_config: {
+              mode: 'MODE_DYNAMIC',
+              dynamic_threshold: 0.7,
+            },
+          },
+        },
+      ];
     }
 
     const streamUrl = `${this.geminiStreamApiUrl}&key=${this.geminiApiKey}`;
@@ -649,12 +675,40 @@ export class ChatAgentService {
 
     const { signal, clear } = this.createTimeoutController();
     try {
+      // ✅ Construire les tools avec recherche Google
+      const tools = payload.tools ? [...payload.tools] : [];
+      
+      // ✅ Ajouter la recherche Google (si pas déjà présente)
+      const hasGoogleSearch = tools.some(tool => tool.google_search_retrieval);
+      if (!hasGoogleSearch) {
+        tools.push({
+          google_search_retrieval: {
+            dynamic_retrieval_config: {
+              mode: 'MODE_DYNAMIC',
+              dynamic_threshold: 0.7,
+            },
+          },
+        });
+      }
+      
+      // Construire le payload final avec tools modifiés
+      const finalPayload = {
+        ...payload,
+        tools: tools.length > 0 ? tools : undefined,
+      };
+      
+      this.logger.debug('[ChatAgent] 🌐 Outils Gemini activés:', {
+        functionCalling: payload.tools?.length || 0,
+        googleSearch: true,
+        totalTools: tools.length,
+      });
+      
       const response = await fetch(`${this.geminiApiUrl}?key=${this.geminiApiKey}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(finalPayload),
         signal,
       });
 
