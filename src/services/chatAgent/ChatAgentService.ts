@@ -29,22 +29,17 @@ import {
 } from '../../types/chatAgent';
 import { AgentActionExecutor } from './AgentActionExecutor';
 import { ChatAgentAPI } from './ChatAgentAPI';
-import { IntentDetector } from './IntentDetector';
 import { buildOptimizedSystemPrompt } from './prompts/systemPrompt';
 import {
-  IntentRAG,
   ConversationContextManager,
   DataValidator,
   ClarificationService,
 } from './core';
-import { EnhancedParameterExtractor } from './core/EnhancedParameterExtractor';
-import { FastPathDetector } from './core/FastPathDetector';
 import { ConfirmationManager } from './core/ConfirmationManager';
-import { LearningService, STANDARD_MISUNDERSTANDING_MESSAGE } from './core/LearningService';
+import { STANDARD_MISUNDERSTANDING_MESSAGE } from './core/constants';
 import { ActionParser } from './core/ActionParser';
 import { PerformanceMonitor } from './monitoring/PerformanceMonitor';
 import { NaturalLanguageProcessor } from './core/NaturalLanguageProcessor';
-import type { DetectedIntent } from './IntentDetector';
 import { createLoggerWithPrefix } from '../../utils/logger';
 import { KnowledgeBaseAPI } from './knowledge/KnowledgeBaseAPI';
 import apiClient from '../api/apiClient';
@@ -52,12 +47,9 @@ import apiClient from '../api/apiClient';
 const logger = createLoggerWithPrefix('ChatAgentService');
 
 // ═══════════════════════════════════════════════════════════════════════════
-// CONSTANTES DE SEUILS - V5.1 Optimisé
+// CONSTANTES
 // ═══════════════════════════════════════════════════════════════════════════
-const FASTPATH_THRESHOLD = 0.95;   // Seuil strict pour FastPath (cas évidents)
-const INTENTRAG_THRESHOLD = 0.90;  // Seuil strict pour IntentRAG (patterns connus)
 const GEMINI_CONFIDENCE = 0.95;    // Confiance attribuée aux réponses Gemini
-const MINIMUM_EXECUTION_CONFIDENCE = 0.85; // Confiance minimale pour exécuter une action
 
 /**
  * Interface pour la réponse du backend Gemini
@@ -87,12 +79,10 @@ export class ChatAgentService {
   private context: AgentContext | null = null;
   private conversationHistory: ChatMessage[] = [];
 
-  // Composants core (sans Gemini - tout passe par le backend)
-  private intentRAG: IntentRAG;
+  // Composants core
   private conversationContext: ConversationContextManager;
   private dataValidator: DataValidator;
   private confirmationManager: ConfirmationManager;
-  private learningService: LearningService;
   private performanceMonitor: PerformanceMonitor;
   private clarificationService: ClarificationService;
 
@@ -109,12 +99,10 @@ export class ChatAgentService {
     this.actionExecutor = new AgentActionExecutor();
     this.api = new ChatAgentAPI(this.config);
 
-    // Initialiser les composants core (sans Gemini)
-    this.intentRAG = new IntentRAG();
+    // Initialiser les composants core
     this.conversationContext = new ConversationContextManager();
     this.dataValidator = new DataValidator();
     this.confirmationManager = new ConfirmationManager();
-    this.learningService = new LearningService();
     this.performanceMonitor = new PerformanceMonitor();
     this.clarificationService = new ClarificationService(this.conversationContext);
   }
@@ -126,11 +114,6 @@ export class ChatAgentService {
     this.context = context;
     await this.actionExecutor.initialize(context);
     await this.dataValidator.initialize(context);
-
-    // V4.0 - Initialiser le LearningService avec le projet et conversationId
-    if (context.projetId) {
-      this.learningService.initialize(context.projetId, conversationId);
-    }
 
     // Charger l'historique dans le contexte conversationnel
     if (this.conversationHistory.length > 0) {
@@ -152,21 +135,32 @@ export class ChatAgentService {
   }
 
   /**
+   * Gère les réponses rapides (cache) pour les messages simples
+   */
+  private handleQuickResponses(message: string): string | null {
+    const normalized = message.toLowerCase().trim();
+    
+    // Salutations simples
+    if (/^(bonjour|salut|hello|hi|bonsoir)$/i.test(normalized)) {
+      return "Bonjour ! Comment puis-je vous aider aujourd'hui ?";
+    }
+    
+    // Remerciements simples
+    if (/^(merci|ok|d'accord|parfait)$/i.test(normalized)) {
+      return "De rien ! N'hésitez pas si vous avez d'autres questions.";
+    }
+    
+    return null;
+  }
+
+  /**
    * Envoie un message à l'agent et reçoit une réponse
    * 
-   * V5.1 - FLUX OPTIMISÉ avec Gemini en position 2
+   * V6.0 - FLUX SIMPLIFIÉ avec Gemini en priorité
    * 
-   * NIVEAU 1: Détection rapide (< 100ms)
-   *   - FastPath (seuil >= 0.95)
-   *   - IntentRAG (seuil >= 0.90)
-   * 
-   * NIVEAU 2: Gemini (si confiance < 0.90)
-   *   - Appel backend Gemini
-   *   - Extraction action structurée ou réponse conversationnelle
-   * 
-   * NIVEAU 3: Fallback
-   *   - Knowledge Base
-   *   - Message par défaut
+   * 1. Cache rapide (5% des cas) - Salutations/remerciements
+   * 2. Gemini (95% des cas) - Appel direct avec recherche web
+   * 3. Fallback Knowledge Base (si Gemini échoue)
    */
   async sendMessage(userMessage: string): Promise<ChatMessage> {
     if (!this.context) {
@@ -185,538 +179,222 @@ export class ChatAgentService {
     };
     this.conversationHistory.push(userMsg);
 
-    // Enregistrer le message utilisateur pour l'apprentissage (fire-and-forget)
-    this.learningService.recordConversationMessage('user', userMessage);
-
     try {
       // Mettre à jour le contexte conversationnel
       this.conversationContext.updateFromMessage(userMsg);
 
-      // Prétraitement NLP
+      // Prétraitement NLP basique
       const nlpResult = NaturalLanguageProcessor.process(userMessage);
       const processedMessage = nlpResult.processed;
-      logger.debug(`[NLP] "${userMessage}" → "${processedMessage}"`);
 
-      // Variables de suivi
-      let detectedIntent: DetectedIntent | null = null;
-      let detectionSource = '';
-      let aiResponse: string | null = null;
-      let action: AgentAction | null = null;
-
-      // Vérifier s'il y a une clarification en cours
-      const pendingClarification = this.conversationContext.getClarificationNeeded();
-      const pendingAction = this.conversationContext.getPendingAction();
-      let isClarificationResponse = false;
-
-      if (pendingClarification && pendingAction) {
-        const extractionContext = this.conversationContext.getExtractionContext();
-        const parameterExtractor = new EnhancedParameterExtractor({
-          ...extractionContext,
-          currentDate: this.context.currentDate,
-          availableAnimals: this.context.availableAnimals,
-        });
-        
-        const extractedParams = parameterExtractor.extractAllEnhanced(processedMessage, pendingAction.action);
-        
-        // Vérifier si les paramètres manquants sont maintenant présents
-        const hasMissingParams = pendingClarification.missingParams.every(
-          (param) => extractedParams[param] !== undefined && extractedParams[param] !== null
-        );
-        
-        if (hasMissingParams) {
-          isClarificationResponse = true;
-          logger.debug('[Kouakou] Réponse à clarification détectée');
-        }
-      }
-
-      // ═══════════════════════════════════════════════════════════════════════════
-      // NIVEAU 1 : DÉTECTION RAPIDE (< 100ms)
-      // ═══════════════════════════════════════════════════════════════════════════
+      // ═══════════════════════════════════════════════════════════
+      // OPTION 1 : CACHE RAPIDE (salutations, remerciements simples)
+      // ═══════════════════════════════════════════════════════════
       
-      // 1.1 FastPath - Seuil strict >= 0.95 pour les cas ÉVIDENTS
-      const fastPathStartTime = Date.now();
-      const fastPathResult = FastPathDetector.detectFastPath(processedMessage);
-      const fastPathTime = Date.now() - fastPathStartTime;
-      
-      logger.debug(`[FastPath] action=${fastPathResult.intent?.action}, confiance=${fastPathResult.confidence}, temps=${fastPathTime}ms`);
-
-      if (fastPathResult.intent && fastPathResult.confidence >= FASTPATH_THRESHOLD) {
-        detectedIntent = fastPathResult.intent;
-        detectionSource = 'FastPath';
-        logger.info(`[Kouakou] ✅ FastPath HAUTE CONFIANCE: ${detectedIntent.action} (${fastPathResult.confidence})`);
-        this.performanceMonitor.recordStepTiming({ fastPathTime });
-      }
-      
-      // 1.2 IntentRAG - Seuil strict >= 0.90 pour les patterns connus
-      if (!detectedIntent) {
-        const ragStartTime = Date.now();
-        const ragResult = await this.intentRAG.detectIntent(processedMessage);
-        const ragTime = Date.now() - ragStartTime;
-        
-        logger.debug(`[IntentRAG] action=${ragResult?.action}, confiance=${ragResult?.confidence}, temps=${ragTime}ms`);
-
-        if (ragResult && ragResult.confidence >= INTENTRAG_THRESHOLD) {
-          detectedIntent = ragResult;
-          detectionSource = 'IntentRAG';
-          logger.info(`[Kouakou] ✅ IntentRAG HAUTE CONFIANCE: ${detectedIntent.action} (${ragResult.confidence})`);
-          this.performanceMonitor.recordStepTiming({ ragTime });
-        }
-      }
-
-      // ═══════════════════════════════════════════════════════════════════════════
-      // NIVEAU 2 : GEMINI (si confiance < 0.90)
-      // ═══════════════════════════════════════════════════════════════════════════
-      
-      if (!detectedIntent || detectedIntent.confidence < INTENTRAG_THRESHOLD) {
-        logger.info(`[Kouakou] 🤖 Confiance insuffisante (${detectedIntent?.confidence || 0}) - Appel GEMINI`);
-        
-        try {
-          const geminiStartTime = Date.now();
-          
-          // Construire le prompt optimisé pour Gemini
-          const systemPrompt = this.buildGeminiSystemPrompt();
-          const conversationContext = this.conversationHistory.slice(-10).map((msg) => ({
-            role: msg.role,
-            content: msg.content,
-          }));
-          
-          // Appeler le backend Gemini
-          const geminiResponse = await this.callBackendGemini(
-            userMessage,
-            systemPrompt,
-            conversationContext
-          );
-          
-          const geminiTime = Date.now() - geminiStartTime;
-          logger.info(`[Gemini] ✅ Réponse reçue en ${geminiTime}ms`);
-          
-          if (geminiResponse) {
-            aiResponse = geminiResponse;
-            
-            // Essayer d'extraire une action structurée de la réponse Gemini
-            const parsedAction = this.extractActionFromGeminiResponse(geminiResponse);
-            
-            if (parsedAction) {
-              // Gemini a détecté une action
-              detectedIntent = {
-                action: parsedAction.action,
-                confidence: GEMINI_CONFIDENCE,
-                params: parsedAction.params,
-              };
-              detectionSource = 'Gemini';
-              logger.info(`[Kouakou] ✅ Gemini ACTION: ${parsedAction.action}`);
-            } else {
-              // Gemini a répondu de manière conversationnelle (pas d'action)
-              logger.info('[Kouakou] 💬 Gemini réponse conversationnelle (pas d\'action)');
-              
-              const assistantMessage: ChatMessage = {
-                id: this.generateId(),
-                role: 'assistant',
-                content: geminiResponse,
-                timestamp: new Date().toISOString(),
-                metadata: {
-                  source: 'Gemini',
-                  conversational: true,
-                },
-              };
-              
-              this.conversationHistory.push(assistantMessage);
-              this.learningService.recordConversationMessage('assistant', geminiResponse);
-              
-              const responseTime = Date.now() - startTime;
-              this.performanceMonitor.recordInteraction(userMsg, assistantMessage, responseTime);
-              
-              return assistantMessage;
-            }
-          }
-        } catch (geminiError) {
-          logger.error('[Gemini] ❌ Erreur lors de l\'appel Gemini:', geminiError);
-          
-          // Log détaillé pour diagnostic
-          if (geminiError instanceof Error) {
-            logger.error(`[Gemini] Type: ${geminiError.constructor.name}`);
-            logger.error(`[Gemini] Message: ${geminiError.message}`);
-            if (geminiError.message.includes('projectId')) {
-              logger.error(`[Gemini] ⚠️ ERREUR CRITIQUE: projectId manquant dans le contexte !`);
-              logger.error(`[Gemini] Contexte actuel: projetId=${this.context?.projetId}, userId=${this.context?.userId}`);
-            }
-          }
-          
-          // Si l'erreur est liée à projectId, ne pas continuer vers KB
-          // car c'est une erreur de configuration, pas une question
-          if (geminiError instanceof Error && geminiError.message.includes('projectId')) {
-            logger.error('[Gemini] ❌ Erreur de configuration - Gemini ne peut pas être appelé');
-            // Retourner un message d'erreur explicite au lieu de fallback KB
-            const errorMessage: ChatMessage = {
-              id: this.generateId(),
-              role: 'assistant',
-              content: '❌ Désolé, je rencontre un problème technique. Veuillez réessayer dans quelques instants.',
-              timestamp: new Date().toISOString(),
-              metadata: {
-                source: 'Error',
-                error: 'projectId manquant',
-              },
-            };
-            this.conversationHistory.push(errorMessage);
-            return errorMessage;
-          }
-          
-          // Pour les autres erreurs, continuer vers le fallback KB
-          logger.warn('[Gemini] ⚠️ Erreur non-critique - Continuation vers fallback KB');
-        }
-      }
-
-      // ═══════════════════════════════════════════════════════════════════════════
-      // NIVEAU 3 : FALLBACK (si Gemini échoue ou pas d'intention)
-      // ═══════════════════════════════════════════════════════════════════════════
-      
-      if (!detectedIntent) {
-        logger.warn(`[Kouakou] ⚠️ Aucune intention détectée - Recherche Knowledge Base`);
-        
-        // Chercher dans la base de connaissances (seuil de pertinence plus strict)
-        try {
-          const kbResults = await KnowledgeBaseAPI.search(userMessage, {
-            projetId: this.context.projetId,
-            limit: 1,
-          });
-          
-          // Seuil de pertinence plus strict pour éviter les faux positifs
-          if (kbResults && kbResults[0]?.relevance_score >= 5) {
-            logger.info(`[KB] ✅ Résultat pertinent trouvé: ${kbResults[0].title} (score: ${kbResults[0].relevance_score})`);
-            const kbContent = `📚 **${kbResults[0].title}**\n\n${kbResults[0].summary || kbResults[0].content}`;
-            
-            const assistantMessage: ChatMessage = {
-              id: this.generateId(),
-              role: 'assistant',
-              content: kbContent,
-              timestamp: new Date().toISOString(),
-              metadata: {
-                source: 'KnowledgeBase',
-                knowledgeResult: kbResults[0],
-              },
-            };
-            
-            this.conversationHistory.push(assistantMessage);
-            return assistantMessage;
-          } else if (kbResults && kbResults[0]) {
-            logger.warn(`[KB] ⚠️ Résultat trouvé mais score trop bas: ${kbResults[0].title} (score: ${kbResults[0].relevance_score} < 5)`);
-          }
-        } catch (kbError) {
-          logger.error('[KB] Erreur recherche:', kbError);
-          // Ignorer les erreurs KB
-        }
-        
-        // Message par défaut
-        const defaultMessage: ChatMessage = {
+      const quickResponse = this.handleQuickResponses(processedMessage);
+      if (quickResponse) {
+        logger.info('[Kouakou] ⚡ Réponse rapide (cache)');
+        const assistantMessage: ChatMessage = {
           id: this.generateId(),
           role: 'assistant',
-          content: `${STANDARD_MISUNDERSTANDING_MESSAGE}\n\n💡 Tu peux me demander:\n• Des statistiques sur ton élevage\n• D'enregistrer une vente ou dépense\n• Les prix du marché\n• Des conseils sur l'élevage porcin`,
+          content: quickResponse,
           timestamp: new Date().toISOString(),
           metadata: {
-            source: 'Default',
-            misunderstanding: true,
+            source: 'QuickResponse',
           },
         };
-        
-        this.conversationHistory.push(defaultMessage);
-        this.learningService.recordFailure(userMessage, undefined, 'Aucune intention détectée');
-        return defaultMessage;
+        this.conversationHistory.push(assistantMessage);
+        const responseTime = Date.now() - startTime;
+        this.performanceMonitor.recordInteraction(userMsg, assistantMessage, responseTime);
+        return assistantMessage;
       }
 
-      // ═══════════════════════════════════════════════════════════════════════════
-      // EXÉCUTION DE L'ACTION
-      // ═══════════════════════════════════════════════════════════════════════════
+      // ═══════════════════════════════════════════════════════════
+      // OPTION 2 : GEMINI (95% des cas)
+      // ═══════════════════════════════════════════════════════════
       
-      logger.info(`[Kouakou] 🎯 Intention finale: ${detectedIntent.action} (confiance: ${detectedIntent.confidence}, source: ${detectionSource})`);
-
-      // Vérifier que la confiance est suffisante pour exécuter
-      if (detectedIntent.confidence >= MINIMUM_EXECUTION_CONFIDENCE) {
-        // EXTRACTION DE PARAMÈTRES (avec extracteur amélioré)
-        const extractionContext = this.conversationContext.getExtractionContext();
-        const parameterExtractor = new EnhancedParameterExtractor({
-          ...extractionContext,
-          currentDate: this.context.currentDate,
-          availableAnimals: this.context.availableAnimals,
-        });
-
-        let extractedParams = parameterExtractor.extractAllEnhanced(processedMessage, detectedIntent.action);
-        
-        // Si réponse à clarification, fusionner avec les paramètres de l'action en attente
-        if (isClarificationResponse && pendingAction) {
-          extractedParams = {
-            ...pendingAction.params,
-            ...extractedParams,
-          };
-          logger.debug('[ChatAgentService] Paramètres fusionnés pour clarification:', extractedParams);
-        }
-
-        // Note: L'extraction Gemini a été supprimée - tout passe par le backend
-
-        let mergedParams = {
-          ...detectedIntent.params,
-          ...extractedParams,
-          userMessage: userMessage,
-        };
-
-        // Résoudre les références avant validation
-        this.resolveReferences(mergedParams);
-        
-        // Améliorer le contexte: utiliser l'historique pour enrichir les paramètres manquants
-        mergedParams = this.enrichParamsFromHistory(mergedParams, detectedIntent.action);
-
-        // ANALYSE DE CLARIFICATION INTELLIGENTE
-        const clarificationResult = this.clarificationService.analyzeAction(
-          { type: detectedIntent.action, params: mergedParams },
-          extractionContext
-        );
-
-        // Si clarification nécessaire et qu'on peut utiliser le contexte, l'utiliser
-        if (clarificationResult.needsClarification && clarificationResult.canUseContext && clarificationResult.contextSuggestions) {
-          const resolvedAction = this.clarificationService.resolveWithContext(
-            { type: detectedIntent.action, params: mergedParams },
-            clarificationResult.contextSuggestions
-          );
-          mergedParams = resolvedAction.params;
-          
-          // Enregistrer la clarification résolue
-          if (clarificationResult.clarification) {
-            this.clarificationService.recordClarification(
-              detectedIntent.action,
-              clarificationResult.clarification.missingParams,
-              true
-            );
-          }
-        }
-
-        // Si clarification nécessaire sans contexte utilisable, demander
-        if (clarificationResult.needsClarification && !clarificationResult.canUseContext && clarificationResult.clarification) {
-          this.clarificationService.recordClarification(
-            detectedIntent.action,
-            clarificationResult.clarification.missingParams,
-            false
-          );
-
-          // Construire le message de clarification
-          let clarificationMessage = clarificationResult.clarification.question;
-          
-          if (clarificationResult.clarification.suggestions && clarificationResult.clarification.suggestions.length > 0) {
-            clarificationMessage += '\n\n💡 Suggestions :';
-            clarificationResult.clarification.suggestions.forEach(sugg => {
-              clarificationMessage += `\n• ${sugg.label}: ${sugg.value}`;
-            });
-          }
-          
-          if (clarificationResult.clarification.examples && clarificationResult.clarification.examples.length > 0) {
-            clarificationMessage += '\n\n📝 Exemples :';
-            clarificationResult.clarification.examples.forEach(example => {
-              clarificationMessage += `\n• ${example}`;
-            });
-          }
-
-          // Enregistrer dans le contexte
-          this.conversationContext.setClarificationNeeded(
-            clarificationMessage,
-            clarificationResult.clarification.missingParams,
-            undefined // clarificationType sera défini via metadata si nécessaire
-          );
-
-          return {
-            id: this.generateId(),
-            role: 'assistant',
-            content: clarificationMessage,
-            timestamp: new Date().toISOString(),
-            metadata: {
-              requiresClarification: true,
-              missingParams: clarificationResult.clarification.missingParams,
-              clarification: clarificationResult.clarification,
-              pendingAction: { action: detectedIntent.action, params: mergedParams },
-            },
-          };
-        }
-
-        // VALIDATION
-        const validationResult = await this.dataValidator.validateAction({
-          type: detectedIntent.action,
-          params: mergedParams,
-        });
-
-        if (!validationResult.valid) {
-          // Utiliser le service de clarification pour améliorer le message d'erreur
-          const clarificationAnalysis = this.clarificationService.analyzeAction(
-            { type: detectedIntent.action, params: mergedParams },
-            extractionContext
-          );
-          
-          let errorMessage = validationResult.errors.join(', ');
-          if (clarificationAnalysis.clarification) {
-            errorMessage = clarificationAnalysis.clarification.question;
-          }
-
-          return {
-            id: this.generateId(),
-            role: 'assistant',
-            content: `Désolé, ${errorMessage}. Peux-tu corriger ces informations ?`,
-            timestamp: new Date().toISOString(),
-            metadata: {
-              validationErrors: validationResult.errors,
-              suggestions: validationResult.suggestions,
-              clarification: clarificationAnalysis.clarification,
-            },
-          };
-        }
-
-        // Déterminer si confirmation nécessaire
-        const confirmationDecision = this.confirmationManager.shouldConfirmAndExecute(
-          { type: detectedIntent.action, params: mergedParams },
-          detectedIntent.confidence,
-          userMessage
-        );
-
-        action = {
-          type: detectedIntent.action,
-          params: mergedParams,
-          requiresConfirmation: confirmationDecision.requiresConfirmation,
-        };
-      }
-
-      // ═══════════════════════════════════════════════════════════════════════════
-      // EXÉCUTION DE L'ACTION (si détectée)
-      // ═══════════════════════════════════════════════════════════════════════════
+      logger.info('[Kouakou] 🤖 Appel Gemini...');
       
-      let assistantMessage: ChatMessage;
-      let actionResult: AgentActionResult | null = null;
-
-      if (action) {
-        const confidence = detectedIntent?.confidence || GEMINI_CONFIDENCE;
-        const confirmationDecisionFinal = this.confirmationManager.shouldConfirmAndExecute(
-          action,
-          confidence,
-          userMessage
+      try {
+        const geminiStartTime = Date.now();
+        
+        // Construire le prompt optimisé pour Gemini
+        const systemPrompt = this.buildGeminiSystemPrompt();
+        const conversationContext = this.conversationHistory.slice(-10).map((msg) => ({
+          role: msg.role === 'user' ? 'user' : 'model',
+          content: msg.content,
+        }));
+        
+        // Appeler le backend Gemini
+        const geminiResponse = await this.callBackendGemini(
+          userMessage,
+          systemPrompt,
+          conversationContext
         );
-
-        if (confirmationDecisionFinal.requiresConfirmation && !confirmationDecisionFinal.shouldExecute) {
-          assistantMessage = {
+        
+        const geminiTime = Date.now() - geminiStartTime;
+        logger.info(`[Gemini] ✅ Réponse reçue en ${geminiTime}ms`);
+        
+        // Vérifier que la réponse n'est pas vide
+        if (!geminiResponse || typeof geminiResponse !== 'string' || geminiResponse.trim().length === 0) {
+          throw new Error('Gemini a retourné une réponse vide');
+        }
+        
+        // Essayer d'extraire une action structurée de la réponse Gemini
+        const parsedAction = this.extractActionFromGeminiResponse(geminiResponse);
+        
+        if (parsedAction) {
+          // Gemini a détecté une action → Exécuter
+          logger.info(`[Kouakou] 🎯 Action détectée: ${parsedAction.action}`);
+          
+          const action: AgentAction = {
+            type: parsedAction.action,
+            params: parsedAction.params,
+          };
+          
+          const actionResult = await this.actionExecutor.execute(action, this.context);
+          
+          const assistantMessage: ChatMessage = {
             id: this.generateId(),
             role: 'assistant',
-            content: confirmationDecisionFinal.message || 'Je veux confirmer avant d\'enregistrer. C\'est bon ?',
+            content: actionResult.message,
             timestamp: new Date().toISOString(),
             metadata: {
-              pendingAction: { action: action.type, params: action.params },
-              requiresConfirmation: true,
-              source: detectionSource,
+              source: 'Gemini+Action',
+              actionExecuted: parsedAction.action,
+              actionResult: actionResult.data,
+              refreshHint: actionResult.refreshHint,
             },
           };
+          
+          this.conversationHistory.push(assistantMessage);
+          const responseTime = Date.now() - startTime;
+          this.performanceMonitor.recordInteraction(userMsg, assistantMessage, responseTime);
+          return assistantMessage;
         } else {
-          // Exécuter l'action
-          const actionExecutionStartTime = Date.now();
-          actionResult = await this.actionExecutor.execute(action, this.context);
-          const actionExecutionTime = Date.now() - actionExecutionStartTime;
-
-          // Gérer les clarifications nécessaires
-          if (actionResult.needsClarification) {
-            this.conversationContext.setClarificationNeeded(
-              actionResult.message,
-              actionResult.missingParams || [],
-              actionResult.clarificationType
-            );
-
-            assistantMessage = {
-              id: this.generateId(),
-              role: 'assistant',
-              content: actionResult.message,
-              timestamp: new Date().toISOString(),
-              metadata: {
-                actionExecuted: action.type,
-                requiresClarification: true,
-                missingParams: actionResult.missingParams,
-                clarificationType: actionResult.clarificationType,
-                pendingAction: {
-                  action: actionResult.actionType || action.type,
-                  params: action.params,
-                },
-                source: detectionSource,
-              },
-            };
-            
-            this.conversationContext.setPendingAction(actionResult.actionType || action.type, action.params);
-          } else {
-            // Enregistrer le succès pour apprentissage
-            if (detectedIntent && actionResult.success) {
-              this.learningService.recordIntentSuccess(
-                detectedIntent.action,
-                detectedIntent.confidence,
-                userMessage,
-                action.params
-              );
-            }
-
-            this.performanceMonitor.recordStepTiming({ actionExecutionTime });
-
-            const responseMessage = confirmationDecisionFinal.message || actionResult.message;
-
-            assistantMessage = {
-              id: this.generateId(),
-              role: 'assistant',
-              content: responseMessage,
-              timestamp: new Date().toISOString(),
-              metadata: {
-                actionExecuted: action.type,
-                actionResult: actionResult.data,
-                requiresConfirmation: false,
-                pendingAction: { action: action.type, params: action.params },
-                refreshHint: actionResult.refreshHint,
-                source: detectionSource,
-              },
-            };
-            
-            // Si succès après clarification, nettoyer le contexte
-            if (isClarificationResponse) {
-              this.conversationContext.clearClarificationNeeded();
-              this.conversationContext.clearPendingAction();
-              this.conversationContext.clearVenteState();
-              logger.debug('[Kouakou] Clarification résolue avec succès');
-            }
-          }
+          // Gemini a répondu sans action (conversationnel ou recherche)
+          logger.info('[Kouakou] 💬 Gemini réponse conversationnelle');
+          
+          const assistantMessage: ChatMessage = {
+            id: this.generateId(),
+            role: 'assistant',
+            content: geminiResponse,
+            timestamp: new Date().toISOString(),
+            metadata: {
+              source: 'Gemini',
+            },
+          };
+          
+          this.conversationHistory.push(assistantMessage);
+          const responseTime = Date.now() - startTime;
+          this.performanceMonitor.recordInteraction(userMsg, assistantMessage, responseTime);
+          return assistantMessage;
         }
-      } else {
-        // Ce cas ne devrait plus arriver avec le nouveau flux
-        // car on retourne déjà dans les fallbacks KB/default plus haut
-        logger.error('[Kouakou] ❌ Cas inattendu: action null après tous les checks');
+      } catch (error: any) {
+        // Log détaillé de l'erreur pour diagnostic
+        logger.error('[Kouakou] ❌ ERREUR GEMINI CRITIQUE:', {
+          message: error?.message || 'Erreur inconnue',
+          stack: error?.stack,
+          endpoint: '/kouakou/chat',
+          errorType: error?.constructor?.name,
+          status: error?.response?.status || error?.status,
+          responseData: error?.response?.data,
+        });
         
-        assistantMessage = {
+        // Déterminer le type d'erreur et générer un message approprié
+        let errorMessage = "Je rencontre un problème technique. ";
+        
+        const errorMsg = String(error?.message || '').toLowerCase();
+        const statusCode = error?.response?.status || error?.status;
+        
+        if (statusCode === 403 || errorMsg.includes('403') || errorMsg.includes('forbidden') || errorMsg.includes('api key')) {
+          errorMessage += "La clé API Gemini semble invalide ou expirée. Veuillez contacter le support.";
+        } else if (statusCode === 429 || errorMsg.includes('429') || errorMsg.includes('quota') || errorMsg.includes('rate limit')) {
+          errorMessage += "Le quota API est dépassé. Veuillez réessayer plus tard.";
+        } else if (statusCode === 500 || errorMsg.includes('500') || errorMsg.includes('internal server')) {
+          errorMessage += "Le serveur rencontre un problème. Veuillez réessayer dans quelques instants.";
+        } else if (statusCode === 503 || errorMsg.includes('503') || errorMsg.includes('service unavailable')) {
+          errorMessage += "Le service est temporairement indisponible. Veuillez réessayer plus tard.";
+        } else if (errorMsg.includes('network') || errorMsg.includes('fetch') || errorMsg.includes('connection') || errorMsg.includes('econnrefused')) {
+          errorMessage += "Impossible de contacter le serveur. Vérifiez votre connexion internet.";
+        } else if (errorMsg.includes('timeout') || errorMsg.includes('timed out')) {
+          errorMessage += "La requête a pris trop de temps. Veuillez réessayer.";
+        } else if (errorMsg.includes('vide') || errorMsg.includes('empty')) {
+          errorMessage += "Le serveur a retourné une réponse vide. Veuillez réessayer.";
+        } else {
+          errorMessage += "Veuillez réessayer dans quelques instants.";
+        }
+        
+        // Retourner un message d'erreur clair au lieu de continuer vers fallback
+        const errorResponse: ChatMessage = {
           id: this.generateId(),
           role: 'assistant',
-          content: `${STANDARD_MISUNDERSTANDING_MESSAGE}\n\n💡 Tu peux me demander:\n• Des statistiques sur ton élevage\n• D'enregistrer une vente ou dépense\n• Les prix du marché`,
+          content: errorMessage,
           timestamp: new Date().toISOString(),
           metadata: {
             source: 'Error',
-            misunderstanding: true,
+            error: true,
+            errorType: error?.constructor?.name || 'Unknown',
+            statusCode: statusCode,
           },
         };
+        
+        this.conversationHistory.push(errorResponse);
+        const responseTime = Date.now() - startTime;
+        this.performanceMonitor.recordInteraction(userMsg, errorResponse, responseTime);
+        return errorResponse;
       }
 
-      this.conversationHistory.push(assistantMessage);
-
-      // V4.0 - Enregistrer la réponse assistant (fire-and-forget, non-bloquant)
-      this.learningService.recordConversationMessage(
-        'assistant',
-        assistantMessage.content,
-        detectedIntent?.action,
-        action?.type,
-        actionResult?.success
-      );
-
-      // Monitoring
-      const responseTime = Date.now() - startTime;
-      // Extraire l'intention réelle pour les métriques de précision
-      const actualIntent = assistantMessage.metadata?.actionExecuted || 
-                          assistantMessage.metadata?.pendingAction?.action || 
-                          undefined;
+      // ═══════════════════════════════════════════════════════════
+      // OPTION 3 : FALLBACK (si Gemini échoue - 5% des cas)
+      // ═══════════════════════════════════════════════════════════
       
-      this.performanceMonitor.recordInteraction(userMsg, assistantMessage, responseTime, actualIntent);
-      this.performanceMonitor.recordStepTiming({ apiCallTime });
-
-      return assistantMessage;
+      logger.warn('[Kouakou] ⚠️ Gemini indisponible - Fallback Knowledge Base');
+      
+      try {
+        const kbResults = await KnowledgeBaseAPI.search(userMessage, {
+          projetId: this.context.projetId,
+          limit: 1,
+        });
+        
+        if (kbResults && kbResults[0]?.relevance_score >= 5) {
+          logger.info(`[KB] ✅ Résultat pertinent trouvé: ${kbResults[0].title}`);
+          const kbContent = `📚 ${kbResults[0].title}\n\n${kbResults[0].summary || kbResults[0].content}`;
+          
+          const assistantMessage: ChatMessage = {
+            id: this.generateId(),
+            role: 'assistant',
+            content: kbContent,
+            timestamp: new Date().toISOString(),
+            metadata: {
+              source: 'KnowledgeBase',
+            },
+          };
+          
+          this.conversationHistory.push(assistantMessage);
+          const responseTime = Date.now() - startTime;
+          this.performanceMonitor.recordInteraction(userMsg, assistantMessage, responseTime);
+          return assistantMessage;
+        }
+      } catch (kbError) {
+        logger.error('[KB] Erreur recherche:', kbError);
+      }
+      
+      // Dernier recours
+      const errorMessage: ChatMessage = {
+        id: this.generateId(),
+        role: 'assistant',
+        content: "Je rencontre un problème technique. Veuillez réessayer dans quelques instants.",
+        timestamp: new Date().toISOString(),
+        metadata: {
+          source: 'Error',
+        },
+      };
+      
+      this.conversationHistory.push(errorMessage);
+      const responseTime = Date.now() - startTime;
+      this.performanceMonitor.recordInteraction(userMsg, errorMessage, responseTime);
+      return errorMessage;
     } catch (error: unknown) {
       // Log détaillé de l'erreur pour diagnostic
       logger.error("Erreur lors de l'envoi du message:", error);
@@ -737,16 +415,13 @@ export class ChatAgentService {
       }
 
       const errorMsg = error instanceof Error ? error.message : String(error) || 'Erreur inconnue';
-      this.learningService.recordFailure(userMessage, undefined, errorMsg);
-
-      // V4.0 - Utiliser la clarification avec mots-clés même en cas d'erreur
-      const suggestion = this.learningService.generateEducationalSuggestion(userMessage);
-      let errorContent = suggestion?.explanation || STANDARD_MISUNDERSTANDING_MESSAGE;
+      
+      // Message d'erreur standard
+      let errorContent = STANDARD_MISUNDERSTANDING_MESSAGE;
 
       if (error instanceof Error && error.message) {
         if (error.message.includes('montant') || error.message.includes('Montant')) {
-          errorContent = suggestion?.explanation ||
-            `Désolé, ${error.message}. Peux-tu me donner le montant exact ?`;
+          errorContent = `Désolé, ${error.message}. Peux-tu me donner le montant exact ?`;
         } else if (error.message.includes('Contexte non initialisé')) {
           errorContent = 'Désolé, je ne suis pas encore prêt. Réessaie dans quelques instants.';
         }
@@ -801,16 +476,17 @@ export class ChatAgentService {
     message: string,
     systemPrompt: string,
     conversationHistory: Array<{ role: string; content: string }>
-  ): Promise<string | null> {
-    try {
-      if (!this.context?.projetId) {
-        logger.error('[Gemini] ❌ Contexte projetId manquant - impossible d\'appeler Gemini');
-        return null;
-      }
+  ): Promise<string> {
+    if (!this.context?.projetId) {
+      const error = new Error('Contexte projetId manquant - impossible d\'appeler Gemini');
+      logger.error('[Gemini] ❌', error.message);
+      throw error;
+    }
 
-      logger.debug(`[Gemini] Appel backend /kouakou/chat avec message: "${message.substring(0, 50)}..."`);
-      logger.debug(`[Gemini] Contexte: projetId=${this.context.projetId}, userId=${this.context.userId}`);
-      
+    logger.debug(`[Gemini] Appel backend /kouakou/chat avec message: "${message.substring(0, 50)}..."`);
+    logger.debug(`[Gemini] Contexte: projetId=${this.context.projetId}, userId=${this.context.userId}`);
+    
+    try {
       const response = await apiClient.post<GeminiBackendResponse>('/kouakou/chat', {
         message,
         userId: this.context.userId,
@@ -831,18 +507,23 @@ export class ChatAgentService {
       }
 
       if (response.error) {
-        logger.error(`[Gemini] Erreur backend: ${response.error}`);
-        return null;
+        const error = new Error(`Erreur backend: ${response.error}`);
+        logger.error('[Gemini]', error.message);
+        throw error;
       }
 
       // Si la réponse n'a pas le format attendu, essayer d'extraire directement
       if (typeof response === 'object' && 'response' in response) {
-        return (response as unknown as { response: string }).response;
+        const extractedResponse = (response as unknown as { response: string }).response;
+        if (extractedResponse && typeof extractedResponse === 'string') {
+          return extractedResponse;
+        }
       }
 
-      logger.warn('[Gemini] Format de réponse inattendu:', response);
-      return null;
-    } catch (error) {
+      const error = new Error('Format de réponse inattendu du backend Gemini');
+      logger.warn('[Gemini]', error.message, response);
+      throw error;
+    } catch (error: any) {
       logger.error('[Gemini] Erreur lors de l\'appel backend:', error);
       
       // Log plus détaillé pour le debug
@@ -851,7 +532,8 @@ export class ChatAgentService {
         logger.error(`[Gemini] Stack: ${error.stack?.substring(0, 500)}`);
       }
       
-      return null;
+      // Propager l'erreur pour qu'elle soit gérée par le catch block de sendMessage
+      throw error;
     }
   }
 
@@ -1015,6 +697,7 @@ User: "Donne-moi des conseils sur l'alimentation des porcelets"
 
   /**
    * Enregistre une correction utilisateur (V4.0)
+   * @deprecated Cette méthode n'est plus utilisée - l'apprentissage est géré par Gemini
    */
   async recordUserCorrection(
     originalMessage: string,
@@ -1022,12 +705,8 @@ User: "Donne-moi des conseils sur l'alimentation des porcelets"
     correctIntent: string,
     correctParams?: Record<string, any>
   ): Promise<void> {
-    await this.learningService.recordUserCorrection(
-      originalMessage,
-      detectedIntent,
-      correctIntent,
-      correctParams
-    );
+    // Désactivé - l'apprentissage est maintenant géré par Gemini
+    logger.warn('[recordUserCorrection] Méthode désactivée - apprentissage géré par Gemini');
   }
 
   /**
@@ -1147,7 +826,6 @@ User: "Donne-moi des conseils sur l'alimentation des porcelets"
    */
   clearHistory(): void {
     this.conversationHistory = [];
-    this.learningService.clearCache();
   }
 
   /**
@@ -1168,12 +846,6 @@ User: "Donne-moi des conseils sur l'alimentation des porcelets"
     }
   }
 
-  /**
-   * Récupère le service d'apprentissage
-   */
-  getLearningService(): LearningService {
-    return this.learningService;
-  }
 
   private generateId(): string {
     return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;

@@ -425,7 +425,7 @@ export function generateValidationReportHTML(data: ValidationPDFData): string {
         <li><strong>RAG avec OpenAI embeddings</strong> (seuil: 0.75)</li>
         <li><strong>Classification OpenAI GPT-4o</strong> (seuil: 0.85)</li>
         <li><strong>Extraction OpenAI GPT-4o</strong> (si paramètres manquants)</li>
-        <li><strong>IntentDetector fallback</strong> (seuil: 0.75)</li>
+        <li><strong>Gemini fallback</strong> (détection d'intention via LLM)</li>
       </ol>
       
       <h3 style="margin-top: 15px;">Modèles Utilisés</h3>

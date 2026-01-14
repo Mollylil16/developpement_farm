@@ -75,7 +75,7 @@ Extraction précise de :
 1. **RAG avec OpenAI embeddings** (seuil 0.75)
 2. **Classification OpenAI directe** (seuil 0.85)
 3. **Extraction OpenAI** (si paramètres manquants)
-4. **IntentDetector fallback** (seuil 0.75)
+4. **Gemini fallback** (détection d'intention via LLM)
 
 ### 4. Indicateurs de Performance
 

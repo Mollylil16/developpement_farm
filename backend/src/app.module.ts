@@ -25,7 +25,6 @@ import { CommonModule } from './common/common.module';
 import { AgentLearningsModule } from './agent-learnings/agent-learnings.module';
 import { KnowledgeBaseModule } from './knowledge-base/knowledge-base.module';
 import { ChatAgentModule } from './chat-agent/chat-agent.module';
-import { KouakouModule } from './kouakou/kouakou.module';
 import { AppController } from './app.controller';
 import { JwtAuthGlobalGuard } from './common/guards/jwt-auth.global.guard';
 
@@ -71,7 +70,6 @@ import { JwtAuthGlobalGuard } from './common/guards/jwt-auth.global.guard';
     AgentLearningsModule,
     KnowledgeBaseModule,
     ChatAgentModule,
-    KouakouModule,
   ],
   controllers: [AppController],
   providers: [

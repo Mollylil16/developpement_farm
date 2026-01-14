@@ -4,7 +4,7 @@
  */
 
 import { AgentAction } from '../../../types/chatAgent';
-import { STANDARD_MISUNDERSTANDING_MESSAGE } from './LearningService';
+import { STANDARD_MISUNDERSTANDING_MESSAGE } from './constants';
 
 export interface ConfirmationDecision {
   requiresConfirmation: boolean;

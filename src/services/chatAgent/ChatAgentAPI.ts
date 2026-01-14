@@ -4,7 +4,6 @@
  */
 
 import { AgentConfig } from '../../types/chatAgent';
-import { IntentDetector } from './IntentDetector';
 import { logger } from '../../utils/logger';
 
 interface APIMessage {
@@ -81,73 +80,10 @@ export class ChatAgentAPI {
 
   /**
    * Simule une réponse (pour développement sans API)
-   * Utilise le détecteur d'intention pour une meilleure reconnaissance
+   * Note: La détection d'intention est maintenant gérée par Gemini via le backend
    */
   private simulateResponse(messages: APIMessage[]): string {
     const lastMessage = messages[messages.length - 1]?.content || '';
-
-    // Utiliser le détecteur d'intention pour une détection plus robuste
-    const detectedIntent = IntentDetector.detectIntent(lastMessage);
-
-    if (detectedIntent && detectedIntent.confidence >= 0.75) {
-      // Requêtes d'information - retourner directement l'action JSON
-      if (
-        [
-          'get_statistics',
-          'get_stock_status',
-          'calculate_costs',
-          'get_reminders',
-          'analyze_data',
-        ].includes(detectedIntent.action)
-      ) {
-        const actionJson = JSON.stringify({
-          action: detectedIntent.action,
-          params: detectedIntent.params,
-        });
-
-        const messages: Record<string, string> = {
-          get_statistics: 'Je prépare vos statistiques du cheptel...',
-          get_stock_status: 'Vérification des stocks en cours...',
-          calculate_costs: 'Calcul des coûts en cours...',
-          get_reminders: 'Récupération de vos rappels...',
-          analyze_data: "Analyse de l'exploitation en cours...",
-        };
-
-        return `${actionJson}\n\n${messages[detectedIntent.action] || 'Traitement en cours...'}`;
-      }
-
-      // Recherche
-      if (detectedIntent.action === 'search_animal') {
-        const actionJson = JSON.stringify({
-          action: 'search_animal',
-          params: detectedIntent.params,
-        });
-        return `${actionJson}\n\nRecherche en cours...`;
-      }
-
-      // Enregistrements - exécuter directement (autonomie maximale)
-      if (detectedIntent.action.startsWith('create_')) {
-        // Retourner directement l'action JSON pour exécution immédiate
-        const actionJson = JSON.stringify({
-          action: detectedIntent.action,
-          params: detectedIntent.params,
-        });
-
-        const messages: Record<string, string> = {
-          create_revenu: "C'est noté patron ! Vente enregistrée.",
-          create_depense: "C'est noté mon frère ! Dépense enregistrée.",
-          create_vaccination: "C'est noté ! Vaccination enregistrée.",
-          create_visite_veterinaire: "C'est noté ! Rendez-vous vétérinaire enregistré.",
-          create_traitement: "C'est noté ! Traitement enregistré.",
-          create_maladie: "C'est noté ! Maladie enregistrée.",
-          create_charge_fixe: "C'est noté ! Charge fixe enregistrée.",
-          create_pesee: "C'est noté ! Pesée enregistrée.",
-          create_ingredient: "C'est noté ! Ingrédient créé.",
-          create_planification: "C'est noté ! Rappel créé dans le planning.",
-        };
-        return `${actionJson}\n\n${messages[detectedIntent.action] || "C'est déjà enregistré !"}`;
-      }
-    }
 
     // Fallback pour les salutations
     const lowerMessage = lastMessage.toLowerCase();

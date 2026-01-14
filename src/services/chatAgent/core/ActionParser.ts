@@ -4,7 +4,6 @@
  */
 
 import { AgentAction, AgentActionType } from '../../../types/chatAgent';
-import { IntentDetector } from '../IntentDetector';
 import { MontantExtractor } from './extractors/MontantExtractor';
 import { logger } from '../../../utils/logger';
 
@@ -13,20 +12,7 @@ export class ActionParser {
    * Parse une action depuis une réponse de l'IA
    */
   static parseActionFromResponse(response: string, userMessage?: string): AgentAction | null {
-    // Utiliser userMessage pour améliorer la détection d'intention si la réponse n'est pas claire
-    const hasUserMessage = userMessage && userMessage.trim().length > 0;
-
-    // Si le message utilisateur existe, l'utiliser pour améliorer le parsing
-    if (hasUserMessage && !response.includes('action')) {
-      // Essayer de détecter l'intention depuis le message utilisateur si la réponse IA est vide
-      const detectedIntent = IntentDetector.detectIntent(userMessage || '');
-      if (detectedIntent) {
-        return {
-          type: detectedIntent.action,
-          params: detectedIntent.params || {},
-        };
-      }
-    }
+    // Note: La détection d'intention est maintenant gérée par Gemini via le backend
 
     try {
       // Chercher un JSON dans la réponse (peut être sur plusieurs lignes)

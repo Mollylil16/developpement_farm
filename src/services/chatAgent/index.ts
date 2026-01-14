@@ -14,4 +14,4 @@ export { AgentActionExecutor } from './AgentActionExecutor';
 export { ChatAgentAPI } from './ChatAgentAPI';
 export { VoiceService } from './VoiceService';
 export { ProactiveRemindersService } from './ProactiveRemindersService';
-export { IntentDetector } from './IntentDetector';
+// IntentDetector supprimé - remplacé par Gemini
