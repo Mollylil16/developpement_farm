@@ -814,7 +814,7 @@ export class UsersService {
   /**
    * Upload et redimensionne une photo de profil
    */
-  async uploadProfilePhoto(userId: string, file: Express.Multer.File, req?: Request): Promise<string> {
+  async uploadProfilePhoto(userId: string, file: { fieldname: string; originalname: string; encoding: string; mimetype: string; size: number; buffer?: Buffer; path?: string; filename?: string }, req?: Request): Promise<string> {
     // Vérifier que l'utilisateur existe
     const user = await this.findOne(userId);
     if (!user) {

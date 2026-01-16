@@ -3593,7 +3593,7 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
    */
   async addPhotoToListing(
     listingId: string,
-    file: Express.Multer.File,
+    file: { fieldname: string; originalname: string; encoding: string; mimetype: string; size: number; buffer?: Buffer; path?: string; filename?: string },
     caption: string | undefined,
     userId: string
   ) {
@@ -3666,7 +3666,7 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
    */
   async addMultiplePhotos(
     listingId: string,
-    files: Express.Multer.File[],
+    files: Array<{ fieldname: string; originalname: string; encoding: string; mimetype: string; size: number; buffer?: Buffer; path?: string; filename?: string }>,
     userId: string
   ) {
     return await this.databaseService.transaction(async (client) => {

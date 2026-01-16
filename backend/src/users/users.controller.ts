@@ -161,7 +161,7 @@ export class UsersController {
   async uploadProfilePhoto(
     @Param('id') id: string,
     @CurrentUser() currentUser: any,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: { fieldname: string; originalname: string; encoding: string; mimetype: string; size: number; buffer?: Buffer; path?: string; filename?: string },
     @Req() req: Request,
   ) {
     // Vérifier que l'utilisateur modifie son propre profil

@@ -131,7 +131,7 @@ export class PermissionsService {
         return null;
       }
 
-      return collaborateur.role || null;
+      return (collaborateur?.role as string) || null;
     } catch (error) {
       this.logger.error(
         `Erreur lors de la récupération du rôle pour ${userId} sur ${projetId}:`,

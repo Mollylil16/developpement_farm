@@ -19,7 +19,7 @@ const MAX_COLLABORATEURS = 50;
 // Durée d'expiration des invitations (en jours)
 const INVITATION_EXPIRY_DAYS = 7;
 
-// Interface pour les permissions
+// Interface pour les permissions (format logique)
 interface Permissions {
   reproduction: boolean;
   nutrition: boolean;
@@ -28,6 +28,43 @@ interface Permissions {
   planification: boolean;
   mortalites: boolean;
   sante: boolean;
+}
+
+// Interface pour les colonnes de permissions (format base de données)
+interface PermissionColumns {
+  permission_reproduction: boolean;
+  permission_nutrition: boolean;
+  permission_finance: boolean;
+  permission_rapports: boolean;
+  permission_planification: boolean;
+  permission_mortalites: boolean;
+  permission_sante: boolean;
+}
+
+// Interface pour un collaborateur retourné (exportée pour le contrôleur)
+export interface Collaborateur {
+  id: string;
+  projet_id: string;
+  user_id?: string;
+  nom: string;
+  prenom: string;
+  email: string;
+  telephone?: string;
+  role: string;
+  statut: string;
+  permissions: Permissions;
+  date_invitation?: string;
+  date_acceptation?: string;
+  expiration_date?: string;
+  notes?: string;
+  date_creation: string;
+  derniere_modification?: string;
+  invitation_type?: string;
+  invited_by?: string;
+  qr_scan_data?: string;
+  rejection_reason?: string;
+  suspension_reason?: string;
+  last_activity?: string;
 }
 
 // Interface pour une ligne de base de données
@@ -62,8 +99,8 @@ interface CollaborationRow {
   derniere_modification?: string | null;
 }
 
-// Interface pour les options de findAll
-interface FindAllOptions {
+// Interface pour les options de findAll (exportée pour le contrôleur)
+export interface FindAllOptions {
   search?: string;
   role?: string;
   statut?: string;
@@ -267,7 +304,7 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
   /**
    * Convertit l'objet permissions en colonnes séparées pour la base de données
    */
-  private permissionsToColumns(permissions: Partial<Permissions>): Permissions {
+  private permissionsToColumns(permissions: Partial<Permissions>): PermissionColumns {
     const defaultPerms = permissions || {};
     return {
       permission_reproduction: defaultPerms.reproduction ?? false,
@@ -298,7 +335,7 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
   /**
    * Mappe une ligne de base de données vers un objet Collaborateur
    */
-  private mapRowToCollaborateur(row: CollaborationRow): Record<string, unknown> {
+  private mapRowToCollaborateur(row: CollaborationRow): Collaborateur {
     try {
       return {
         id: row.id,
@@ -1298,7 +1335,7 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
           return this.mapRowToCollaborateur(row);
         } catch (error: unknown) {
           this.logger.error('Erreur lors du mapping d\'une invitation:', error);
-          this.logger.error('Stack trace:', error.stack);
+          this.logger.error('Stack trace:', (error as Error)?.stack);
           this.logger.error('Données de la ligne:', JSON.stringify(row, null, 2));
           // Retourner un objet minimal pour éviter de casser l'application
           return {

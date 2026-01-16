@@ -15,10 +15,11 @@ import {
   BadRequestException,
   ConflictException,
   UseInterceptors,
+  Req,
 } from '@nestjs/common';
-import { Request } from 'express';
+import { Request as ExpressRequest } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiHeader, ApiBody } from '@nestjs/swagger';
-import { CollaborationsService } from './collaborations.service';
+import { CollaborationsService, Collaborateur, FindAllOptions } from './collaborations.service';
 import { CreateCollaborateurDto } from './dto/create-collaborateur.dto';
 import { UpdateCollaborateurDto } from './dto/update-collaborateur.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -51,7 +52,7 @@ export class CollaborationsController {
   async create(
     @Body() createCollaborateurDto: CreateCollaborateurDto,
     @CurrentUser('id') userId: string,
-    @Request() req: Request
+    @Req() req: ExpressRequest
   ) {
     const ipAddress = req.ip || req.connection?.remoteAddress;
     const userAgent = req.get('user-agent');
@@ -221,7 +222,7 @@ export class CollaborationsController {
       };
     },
     @CurrentUser('id') userId: string,
-    @Request() req: Request
+    @Req() req: ExpressRequest
   ) {
     const ipAddress = req.ip || req.connection?.remoteAddress;
     const userAgent = req.get('user-agent');
@@ -500,7 +501,7 @@ export class CollaborationsController {
     @Param('id') id: string,
     @Body() updateCollaborateurDto: UpdateCollaborateurDto,
     @CurrentUser('id') userId: string,
-    @Request() req: Request
+    @Req() req: ExpressRequest
   ) {
     const ipAddress = req.ip || req.connection?.remoteAddress;
     const userAgent = req.get('user-agent');
@@ -515,7 +516,7 @@ export class CollaborationsController {
   async accepterInvitation(
     @Param('id') id: string,
     @CurrentUser('id') userId: string,
-    @Request() req: Request
+    @Req() req: ExpressRequest
   ) {
     const ipAddress = req.ip || req.connection?.remoteAddress;
     const userAgent = req.get('user-agent');
@@ -530,7 +531,7 @@ export class CollaborationsController {
   async rejeterInvitation(
     @Param('id') id: string,
     @CurrentUser('id') userId: string,
-    @Request() req: Request,
+    @Req() req: ExpressRequest,
     @Query('rejection_reason') rejectionReason?: string
   ) {
     const ipAddress = req.ip || req.connection?.remoteAddress;
@@ -549,7 +550,7 @@ export class CollaborationsController {
   async delete(
     @Param('id') id: string,
     @CurrentUser('id') userId: string,
-    @Request() req: Request
+    @Req() req: ExpressRequest
   ) {
     const ipAddress = req.ip || req.connection?.remoteAddress;
     const userAgent = req.get('user-agent');
@@ -565,7 +566,7 @@ export class CollaborationsController {
   async linkInvitationToUser(
     @Param('id') id: string,
     @CurrentUser('id') userId: string,
-    @Request() req: Request
+    @Req() req: ExpressRequest
   ) {
     const ipAddress = req.ip || req.connection?.remoteAddress;
     const userAgent = req.get('user-agent');

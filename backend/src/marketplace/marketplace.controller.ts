@@ -687,7 +687,7 @@ export class MarketplaceController {
   @ApiResponse({ status: 404, description: 'Listing non trouvé.' })
   async uploadListingPhoto(
     @Param('listingId') listingId: string,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: { fieldname: string; originalname: string; encoding: string; mimetype: string; size: number; buffer?: Buffer; path?: string; filename?: string },
     @Body() dto: UploadPhotoDto,
     @CurrentUser('id') userId: string
   ) {
@@ -711,7 +711,7 @@ export class MarketplaceController {
   @ApiResponse({ status: 201, description: 'Photos uploadées avec succès.' })
   async uploadMultiplePhotos(
     @Param('listingId') listingId: string,
-    @UploadedFiles() files: Express.Multer.File[],
+    @UploadedFiles() files: Array<{ fieldname: string; originalname: string; encoding: string; mimetype: string; size: number; buffer?: Buffer; path?: string; filename?: string }>,
     @CurrentUser('id') userId: string
   ) {
     if (!files || files.length === 0) {
