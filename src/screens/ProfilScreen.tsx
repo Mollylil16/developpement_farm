@@ -38,10 +38,12 @@ export default function ProfilScreen() {
   const [prenom, setPrenom] = useState('');
   const [email, setEmail] = useState('');
   const [telephone, setTelephone] = useState('');
-  const [photo, setPhoto] = useState('');
+  const [photo, setPhoto] = useState(''); // URL serveur ou URI locale
+  const [localPhotoUri, setLocalPhotoUri] = useState<string | null>(null); // URI locale uniquement
 
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   // Charger les données du profil depuis la base de données
   const loadProfilData = async () => {
@@ -63,6 +65,7 @@ export default function ProfilScreen() {
         setEmail(apiUser.email || '');
         setTelephone(apiUser.telephone || '');
         setPhoto(apiUser.photo || '');
+        setLocalPhotoUri(null); // Réinitialiser l'URI locale
       } else {
         // Utiliser les données du state Redux comme fallback
         if (user) {
@@ -71,6 +74,7 @@ export default function ProfilScreen() {
           setEmail(user.email || '');
           setTelephone(user.telephone || '');
           setPhoto(user.photo || '');
+          setLocalPhotoUri(null); // Réinitialiser l'URI locale
         }
       }
     } catch (error: unknown) {
@@ -82,6 +86,7 @@ export default function ProfilScreen() {
         setEmail(user.email || '');
         setTelephone(user.telephone || '');
         setPhoto(user.photo || '');
+        setLocalPhotoUri(null); // Réinitialiser l'URI locale
       }
     } finally {
       setLoadingData(false);
@@ -111,7 +116,12 @@ export default function ProfilScreen() {
       });
 
       if (!result.canceled && result.assets[0]) {
-        setPhoto(result.assets[0].uri);
+        const selectedUri = result.assets[0].uri;
+        // Stocker l'URI locale pour l'upload ultérieur
+        setLocalPhotoUri(selectedUri);
+        // Ne PAS mettre à jour photo avec l'URI locale ici
+        // On l'affichera seulement via localPhotoUri dans le rendu
+        // Cela évite d'avoir une URI locale dans photo si l'upload échoue
       }
     } catch (error) {
       console.error('Erreur sélection image:', error);
@@ -151,15 +161,89 @@ export default function ProfilScreen() {
         return;
       }
 
-      // Mettre à jour dans la base de données
       const { UserRepository } = await import('../database/repositories');
       const userRepo = new UserRepository();
+
+      // Si une nouvelle photo locale a été sélectionnée, l'uploader d'abord
+      let finalPhotoUrl = user.photo || ''; // Utiliser la photo actuelle de l'utilisateur comme base
+      let uploadFailed = false;
+      
+      // Détecter si c'est une nouvelle photo locale (pas encore uploadée)
+      const isNewLocalPhoto = localPhotoUri && (
+        localPhotoUri.startsWith('file://') || 
+        localPhotoUri.startsWith('content://') || 
+        localPhotoUri.startsWith('ph://') ||
+        localPhotoUri.startsWith('assets-library://')
+      );
+
+      if (isNewLocalPhoto) {
+        try {
+          setUploadingPhoto(true);
+          finalPhotoUrl = await userRepo.uploadPhoto(user.id, localPhotoUri);
+          // Mettre à jour l'état avec l'URL serveur seulement si l'upload réussit
+          setPhoto(finalPhotoUrl);
+          setLocalPhotoUri(null); // Réinitialiser après upload réussi
+        } catch (uploadError: unknown) {
+          setUploadingPhoto(false);
+          uploadFailed = true;
+          
+          // Améliorer le message d'erreur selon le type d'erreur
+          let errorMessage = 'Erreur lors du téléchargement de la photo';
+          if (uploadError instanceof Error) {
+            if (uploadError.message.includes('connexion') || uploadError.message.includes('Network')) {
+              errorMessage = 'Erreur de connexion. Vérifiez votre connexion Internet.';
+            } else if (uploadError.message.includes('timeout')) {
+              errorMessage = 'Le téléchargement a pris trop de temps. Vérifiez votre connexion et réessayez.';
+            } else {
+              errorMessage = uploadError.message;
+            }
+          }
+          
+          // Demander à l'utilisateur ce qu'il veut faire
+          const userChoice = await new Promise<'continue' | 'cancel'>((resolve) => {
+            Alert.alert(
+              'Erreur d\'upload',
+              errorMessage,
+              [
+                {
+                  text: 'Continuer sans photo',
+                  style: 'cancel',
+                  onPress: () => resolve('continue'),
+                },
+                {
+                  text: 'Annuler',
+                  style: 'destructive',
+                  onPress: () => resolve('cancel'),
+                },
+              ],
+              { cancelable: false }
+            );
+          });
+
+          if (userChoice === 'cancel') {
+            setLoading(false);
+            // Réinitialiser localPhotoUri pour permettre une nouvelle tentative
+            setLocalPhotoUri(null);
+            return;
+          }
+
+          // Continuer sans mettre à jour la photo (garder l'ancienne ou vide)
+          finalPhotoUrl = user.photo || '';
+          setLocalPhotoUri(null);
+          // Ne pas mettre à jour photo avec l'URI locale - garder l'ancienne ou vide
+          setPhoto(finalPhotoUrl);
+        } finally {
+          setUploadingPhoto(false);
+        }
+      }
+
+      // Mettre à jour dans la base de données
       await userRepo.update(user.id, {
         nom: nom.trim(),
         prenom: prenom.trim(),
         email: email?.trim() || undefined,
         telephone: telephone?.trim() || undefined,
-        photo: photo || undefined,
+        photo: finalPhotoUrl || undefined,
       });
 
       // Recharger l'utilisateur dans le state Redux pour que les autres composants voient les changements
@@ -169,7 +253,15 @@ export default function ProfilScreen() {
       const { profileSyncService } = await import('../services/profileSyncService');
       profileSyncService.checkNow();
 
-      Alert.alert('Succès', 'Profil enregistré avec succès');
+      // Afficher un message différent si l'upload a échoué
+      if (uploadFailed) {
+        Alert.alert(
+          'Profil enregistré',
+          'Vos informations ont été enregistrées, mais la photo n\'a pas pu être téléchargée. Vous pourrez réessayer plus tard.'
+        );
+      } else {
+        Alert.alert('Succès', 'Profil enregistré avec succès');
+      }
 
       // Retour
       if (navigation.canGoBack()) {
@@ -247,21 +339,78 @@ export default function ProfilScreen() {
             <TouchableOpacity
               style={[styles.photoContainer, { borderColor: colors.border }]}
               onPress={pickImage}
+              disabled={uploadingPhoto}
             >
-              {photo ? (
+              {/* Afficher localPhotoUri en priorité pour l'aperçu, puis photo (URL serveur) */}
+              {localPhotoUri ? (
+                <Image source={{ uri: localPhotoUri }} style={styles.photo} resizeMode="cover" />
+              ) : photo ? (
                 <Image source={{ uri: photo }} style={styles.photo} resizeMode="cover" />
               ) : (
                 <View style={[styles.photoPlaceholder, { backgroundColor: `${COLORS.primary}20` }]}>
                   <Ionicons name="person" size={48} color={COLORS.primary} />
                 </View>
               )}
-              <View style={[styles.photoEditBadge, { backgroundColor: COLORS.primary }]}>
-                <Ionicons name="camera" size={16} color="#FFF" />
-              </View>
+              {uploadingPhoto && (
+                <View style={styles.uploadingOverlay}>
+                  <ActivityIndicator size="small" color="#FFF" />
+                  <Text style={styles.uploadingText}>Upload...</Text>
+                </View>
+              )}
+              {!uploadingPhoto && (
+                <View style={[styles.photoEditBadge, { backgroundColor: COLORS.primary }]}>
+                  <Ionicons name="camera" size={16} color="#FFF" />
+                </View>
+              )}
             </TouchableOpacity>
-            <Text style={[styles.photoHint, { color: colors.textSecondary }]}>
-              Toucher pour modifier la photo
-            </Text>
+            <View style={styles.photoActions}>
+              <Text style={[styles.photoHint, { color: colors.textSecondary }]}>
+                Toucher pour modifier la photo
+              </Text>
+              {photo && !localPhotoUri && (
+                <TouchableOpacity
+                  style={styles.deletePhotoButton}
+                  onPress={async () => {
+                    Alert.alert(
+                      'Supprimer la photo',
+                      'Êtes-vous sûr de vouloir supprimer votre photo de profil ?',
+                      [
+                        {
+                          text: 'Annuler',
+                          style: 'cancel',
+                        },
+                        {
+                          text: 'Supprimer',
+                          style: 'destructive',
+                          onPress: async () => {
+                            try {
+                              setLoading(true);
+                              const { UserRepository } = await import('../database/repositories');
+                              const userRepo = new UserRepository();
+                              await userRepo.deletePhoto(user?.id || '');
+                              setPhoto('');
+                              setLocalPhotoUri(null);
+                              await dispatch(loadUserFromStorageThunk());
+                              const { profileSyncService } = await import('../services/profileSyncService');
+                              profileSyncService.checkNow();
+                              Alert.alert('Succès', 'Photo supprimée avec succès');
+                            } catch (error) {
+                              console.error('Erreur suppression photo:', error);
+                              Alert.alert('Erreur', 'Impossible de supprimer la photo');
+                            } finally {
+                              setLoading(false);
+                            }
+                          },
+                        },
+                      ]
+                    );
+                  }}
+                >
+                  <Ionicons name="trash-outline" size={16} color={COLORS.error} />
+                  <Text style={[styles.deletePhotoText, { color: COLORS.error }]}>Supprimer</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
 
           {/* Informations personnelles */}
@@ -355,13 +504,18 @@ export default function ProfilScreen() {
             style={[
               styles.saveButton,
               { backgroundColor: COLORS.primary },
-              loading && styles.saveButtonDisabled,
+              (loading || uploadingPhoto) && styles.saveButtonDisabled,
             ]}
             onPress={validateAndSave}
-            disabled={loading}
+            disabled={loading || uploadingPhoto}
           >
-            {loading ? (
-              <ActivityIndicator color="#FFF" />
+            {loading || uploadingPhoto ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator color="#FFF" />
+                <Text style={styles.saveButtonText}>
+                  {uploadingPhoto ? 'Téléchargement de la photo...' : 'Enregistrement...'}
+                </Text>
+              </View>
             ) : (
               <>
                 <Ionicons name="checkmark-circle" size={24} color="#FFF" />
@@ -438,6 +592,21 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     ...FONTS.small,
   },
+  photoActions: {
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  deletePhotoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    paddingVertical: SPACING.xs,
+    paddingHorizontal: SPACING.sm,
+    marginTop: SPACING.xs,
+  },
+  deletePhotoText: {
+    ...FONTS.small,
+  },
   section: {
     marginBottom: SPACING.xl,
   },
@@ -482,5 +651,22 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     ...FONTS.body,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  uploadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  uploadingText: {
+    color: '#FFF',
+    marginTop: SPACING.xs,
+    fontSize: 12,
   },
 });

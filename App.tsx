@@ -30,6 +30,10 @@ import { initializeFeatureFlags } from './src/config/featureFlags';
 import { ANIMATIONS, LIGHT_COLORS } from './src/constants/theme';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { GlobalTextRenderGuard } from './src/components/GlobalTextRenderGuard';
+import Toast from 'react-native-toast-message';
+import { useAppSelector, useAppDispatch } from './src/store/hooks';
+import { loadUserFromStorageThunk } from './src/store/slices/authSlice';
+import { isLocalUri } from './src/utils/profilePhotoUtils';
 
 // Désactiver LogBox en développement pour éviter les overlays intrusifs
 if (__DEV__) {
@@ -174,11 +178,79 @@ export default function App() {
 
 function AppContent() {
   const { isDark } = useTheme();
+  const { user } = useAppSelector((state) => state.auth);
+  const dispatch = useAppDispatch();
+  const migrationDoneRef = React.useRef(false);
+
+  /**
+   * Migration côté client: Nettoie les URIs locales dans user.photo
+   * Cette migration s'exécute une seule fois au démarrage si l'utilisateur est connecté
+   * et a une URI locale dans sa photo de profil
+   */
+  useEffect(() => {
+    const migrateLocalPhotoUri = async () => {
+      // Ne pas exécuter si la migration a déjà été faite
+      if (migrationDoneRef.current) {
+        return;
+      }
+
+      // Vérifier si l'utilisateur est connecté
+      if (!user?.id) {
+        return;
+      }
+
+      // Vérifier si la photo est une URI locale
+      if (!user.photo || !isLocalUri(user.photo)) {
+        migrationDoneRef.current = true;
+        return;
+      }
+
+      try {
+        if (__DEV__) {
+          console.log(
+            `[Migration Client] Détection d'URI locale dans user.photo pour userId=${user.id}, photo=${user.photo.substring(0, 50)}...`
+          );
+        }
+
+        // Importer UserRepository dynamiquement
+        const { UserRepository } = await import('./src/database/repositories');
+        const userRepo = new UserRepository();
+
+        // Mettre à jour la photo à null pour nettoyer l'URI locale
+        await userRepo.update(user.id, { photo: null });
+
+        if (__DEV__) {
+          console.log(`[Migration Client] ✅ URI locale nettoyée pour userId=${user.id}`);
+        }
+
+        // Recharger le profil depuis le serveur pour synchroniser
+        await dispatch(loadUserFromStorageThunk());
+
+        // Marquer la migration comme terminée
+        migrationDoneRef.current = true;
+      } catch (error) {
+        // Logger l'erreur mais ne pas bloquer l'application
+        console.error('[Migration Client] ❌ Erreur lors de la migration de la photo:', error);
+        // Marquer quand même comme terminée pour éviter les boucles infinies
+        migrationDoneRef.current = true;
+      }
+    };
+
+    // Exécuter la migration après un court délai pour laisser le temps à l'app de s'initialiser
+    const timeoutId = setTimeout(() => {
+      void migrateLocalPhotoUri();
+    }, 1000);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [user?.id, user?.photo, dispatch]);
 
   return (
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <AppNavigator />
+      <Toast />
     </>
   );
 }

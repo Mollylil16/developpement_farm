@@ -185,30 +185,62 @@ export default function CollaborationFormModal({
           placeholder="Ex: Amadou"
         />
 
-        <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: SPACING.xs }]}>
-          Contact (Email ou Téléphone requis) *
+        <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: SPACING.sm }]}>
+          Contact *
+        </Text>
+        <Text style={[styles.hintText, { color: colors.textSecondary, marginBottom: SPACING.md }]}>
+          Remplissez uniquement un des deux champs ci-dessous (email OU téléphone)
         </Text>
         
         <FormField
           label="Email"
           value={formData.email || ''}
-          onChangeText={(text) => setFormData({ ...formData, email: text || undefined })}
-          placeholder="Ex: amadou@example.com (optionnel si téléphone fourni)"
+          onChangeText={(text) => {
+            const trimmedText = text.trim();
+            // Si l'utilisateur entre quelque chose dans le champ email, vider le champ téléphone
+            if (trimmedText) {
+              setFormData({ ...formData, email: text, telephone: '' });
+            } else {
+              setFormData({ ...formData, email: '' });
+            }
+          }}
+          placeholder="Ex: amadou@example.com"
           keyboardType="email-address"
           autoCapitalize="none"
+          editable={!formData.telephone || formData.telephone.trim() === ''}
         />
 
-        <Text style={[styles.infoText, { color: colors.textSecondary, marginBottom: SPACING.md }]}>
-          OU
-        </Text>
+        <View style={styles.separatorContainer}>
+          <View style={[styles.separatorLine, { backgroundColor: colors.border }]} />
+          <Text style={[styles.separatorText, { color: colors.textSecondary }]}>OU</Text>
+          <View style={[styles.separatorLine, { backgroundColor: colors.border }]} />
+        </View>
 
         <FormField
           label="Téléphone"
           value={formData.telephone || ''}
-          onChangeText={(text) => setFormData({ ...formData, telephone: text || undefined })}
-          placeholder="Ex: +225 07 12 34 56 78 (optionnel si email fourni)"
+          onChangeText={(text) => {
+            const trimmedText = text.trim();
+            // Si l'utilisateur entre quelque chose dans le champ téléphone, vider le champ email
+            if (trimmedText) {
+              setFormData({ ...formData, telephone: text, email: '' });
+            } else {
+              setFormData({ ...formData, telephone: '' });
+            }
+          }}
+          placeholder="Ex: +225 07 12 34 56 78"
           keyboardType="phone-pad"
+          editable={!formData.email || formData.email.trim() === ''}
         />
+
+        {/* Indication visuelle quand un champ est désactivé */}
+        {(formData.email?.trim() || formData.telephone?.trim()) && (
+          <View style={[styles.infoBox, { backgroundColor: colors.surfaceVariant, borderColor: colors.border }]}>
+            <Text style={[styles.infoBoxText, { color: colors.textSecondary }]}>
+              ✓ Un contact est déjà renseigné. Le champ non utilisé est désactivé.
+            </Text>
+          </View>
+        )}
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Rôle</Text>
@@ -357,9 +389,35 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.medium,
   },
-  infoText: {
+  hintText: {
     fontSize: FONT_SIZES.sm,
-    textAlign: 'center',
-    fontStyle: 'italic',
+    textAlign: 'left',
+    marginBottom: SPACING.sm,
+    lineHeight: 18,
+  },
+  separatorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: SPACING.md,
+  },
+  separatorLine: {
+    flex: 1,
+    height: 1,
+  },
+  separatorText: {
+    paddingHorizontal: SPACING.md,
+    fontSize: FONT_SIZES.sm,
+    fontWeight: FONT_WEIGHTS.medium,
+  },
+  infoBox: {
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  infoBoxText: {
+    fontSize: FONT_SIZES.xs,
+    lineHeight: 16,
   },
 });

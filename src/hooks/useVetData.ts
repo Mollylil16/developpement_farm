@@ -60,7 +60,19 @@ export function useVetData(vetUserId?: string) {
       const vetClients = vetProfile?.clients || [];
 
       // Récupérer les collaborations actives du vétérinaire depuis l'API backend
-      const allCollaborations = await apiClient.get<any[]>('/collaborations');
+      // Note: L'endpoint /collaborations nécessite un projet_id, donc on utilise /collaborations/invitations
+      // pour récupérer toutes les collaborations de l'utilisateur
+      let allCollaborations: any[] = [];
+      try {
+        const response = await apiClient.get<{ data: any[]; pagination: any } | any[]>('/collaborations/invitations', {
+          params: { userId: vetUserId },
+        });
+        allCollaborations = Array.isArray(response) ? response : (response.data || []);
+      } catch (error) {
+        // Si l'endpoint n'est pas disponible, retourner un tableau vide
+        console.warn('Impossible de charger les collaborations:', error);
+        allCollaborations = [];
+      }
       const activeCollaborations = allCollaborations.filter(
         (c) => c.user_id === vetUserId && c.role === 'veterinaire' && c.statut === 'actif'
       );

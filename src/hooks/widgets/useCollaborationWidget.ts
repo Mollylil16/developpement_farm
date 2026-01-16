@@ -38,12 +38,14 @@ export function useCollaborationWidget(projetId?: string): CollaborationWidgetDa
   return useMemo(() => {
     if (!projetId) return null;
 
-    const collaborateursActifs = collaborateurs.filter((c) => c.statut === 'actif');
+    // S'assurer que collaborateurs est un tableau
+    const collaborateursArray = Array.isArray(collaborateurs) ? collaborateurs : [];
+    const collaborateursActifs = collaborateursArray.filter((c) => c.statut === 'actif');
 
     return {
       emoji: '👥',
       title: 'Collaboration',
-      primary: collaborateurs.length,
+      primary: collaborateursArray.length,
       secondary: collaborateursActifs.length,
       labelPrimary: 'Membres',
       labelSecondary: 'Actifs',

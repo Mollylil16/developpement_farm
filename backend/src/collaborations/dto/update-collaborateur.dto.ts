@@ -35,8 +35,18 @@ export class UpdateCollaborateurDto {
 
   @ApiPropertyOptional({ description: 'Statut' })
   @IsOptional()
-  @IsEnum(['actif', 'inactif', 'en_attente'])
+  @IsEnum(['actif', 'en_attente', 'rejete', 'expire', 'suspendu'])
   statut?: string;
+
+  @ApiPropertyOptional({ description: 'Raison du rejet (si statut = rejete)' })
+  @IsOptional()
+  @IsString()
+  rejection_reason?: string;
+
+  @ApiPropertyOptional({ description: 'Raison de la suspension (si statut = suspendu)' })
+  @IsOptional()
+  @IsString()
+  suspension_reason?: string;
 
   @ApiPropertyOptional({ description: 'Permissions du collaborateur', type: PermissionsDto })
   @IsOptional()

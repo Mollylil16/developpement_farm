@@ -13,6 +13,8 @@ import { BaseRepository } from './BaseRepository';
 import { User, AuthProvider } from '../../types/auth';
 import { UserRoles, RoleType } from '../../types/roles';
 import apiClient from '../../services/api/apiClient';
+import * as FileSystem from 'expo-file-system';
+import { API_CONFIG } from '../../config/api.config';
 
 export class UserRepository extends BaseRepository<User> {
   constructor() {
@@ -324,6 +326,157 @@ export class UserRepository extends BaseRepository<User> {
     } else {
       const updated = await this.addSavedFarm(userId, farmId);
       return { user: updated, isFavorite: true };
+    }
+  }
+
+  /**
+   * Upload une photo de profil vers le backend
+   * @param userId ID de l'utilisateur
+   * @param fileUri URI locale du fichier (file://, content://, ph://, etc.)
+   * @returns URL complète de la photo uploadée
+   */
+  async uploadPhoto(userId: string, fileUri: string): Promise<string> {
+    try {
+      // Vérifier que le fichier existe
+      const fileInfo = await FileSystem.getInfoAsync(fileUri);
+      
+      if (!fileInfo.exists) {
+        throw new Error('Le fichier sélectionné n\'existe plus');
+      }
+
+      // Extraire l'extension du fichier pour déterminer le type MIME
+      const uriParts = fileUri.split('/');
+      const fileName = uriParts[uriParts.length - 1];
+      const fileExtension = fileName.split('.').pop()?.toLowerCase() || 'jpg';
+
+      // Déterminer le type MIME
+      let mimeType = 'image/jpeg';
+      if (fileExtension === 'png') {
+        mimeType = 'image/png';
+      } else if (fileExtension === 'webp') {
+        mimeType = 'image/webp';
+      }
+
+      // Récupérer le token d'authentification
+      const token = await apiClient.tokens.getAccess();
+      if (!token) {
+        throw new Error('Vous devez être connecté pour modifier votre photo de profil');
+      }
+
+      // Construire l'URL de l'API
+      const uploadUrl = `${API_CONFIG.baseURL}/users/${userId}/photo`;
+
+      // Utiliser FileSystem.uploadAsync (plus fiable dans Expo Go que fetch+FormData)
+      const uploadResult = await FileSystem.uploadAsync(uploadUrl, fileUri, {
+        httpMethod: 'POST',
+        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+        fieldName: 'photo',
+        mimeType,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      // Vérifier le statut HTTP
+      if (uploadResult.status !== 200 && uploadResult.status !== 201) {
+        let errorMessage = 'Erreur lors de l\'upload de la photo';
+        try {
+          const errorData = JSON.parse(uploadResult.body);
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          // Si le body n'est pas du JSON, utiliser le message par défaut
+        }
+        
+        if (uploadResult.status === 413) {
+          throw new Error('Le fichier est trop volumineux (maximum 5MB)');
+        }
+        if (uploadResult.status === 400) {
+          throw new Error(errorMessage);
+        }
+        if (uploadResult.status === 401) {
+          throw new Error('Votre session a expiré. Veuillez vous reconnecter.');
+        }
+        if (uploadResult.status === 403) {
+          throw new Error('Vous n\'avez pas la permission de modifier cette photo');
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      // Parser la réponse JSON
+      let response: { photoUrl: string; message: string };
+      try {
+        response = JSON.parse(uploadResult.body);
+      } catch {
+        throw new Error('Réponse du serveur invalide');
+      }
+
+      if (!response || !response.photoUrl) {
+        throw new Error('Le serveur n\'a pas retourné l\'URL de la photo');
+      }
+
+      return response.photoUrl;
+    } catch (error: any) {
+      // Gérer les erreurs spécifiques
+      if (error?.message?.includes('timeout') || error?.message?.includes('aborted')) {
+        throw new Error('Le téléchargement a pris trop de temps. Vérifiez votre connexion et réessayez.');
+      }
+      
+      // Erreur de connexion réseau (FileSystem.uploadAsync)
+      if (error?.code === 'ERR_NETWORK' || error?.message?.includes('Network request failed') || error?.message?.includes('Unable to resolve host')) {
+        throw new Error('Erreur de connexion. Vérifiez votre connexion Internet et que le serveur est accessible.');
+      }
+      
+      if (error?.status === 400) {
+        const errorMessage = error?.data?.message || error?.message || 'Fichier invalide';
+        if (errorMessage.includes('trop volumineux') || errorMessage.includes('too large')) {
+          throw new Error('Le fichier est trop volumineux (maximum 5MB)');
+        }
+        if (errorMessage.includes('format') || errorMessage.includes('Format')) {
+          throw new Error('Format de fichier non supporté. Utilisez JPG, PNG ou WEBP.');
+        }
+        throw new Error(errorMessage);
+      }
+      if (error?.status === 403) {
+        throw new Error('Vous n\'êtes pas autorisé à modifier cette photo');
+      }
+      if (error?.status === 404) {
+        throw new Error('Utilisateur introuvable');
+      }
+      // Gérer les erreurs réseau (status 0, pas de status, ou erreurs réseau)
+      if (!error?.status || error?.status === 0 || 
+          error?.message?.includes('Network request failed') || 
+          error?.message?.includes('Failed to fetch') ||
+          error?.message?.includes('connexion')) {
+        throw new Error('Erreur de connexion. Vérifiez votre connexion Internet.');
+      }
+
+      // Erreur générique
+      const errorMessage = error?.message || 'Erreur lors du téléchargement de la photo';
+      throw new Error(errorMessage);
+    }
+  }
+
+  /**
+   * Supprime la photo de profil
+   * @param userId L'ID de l'utilisateur
+   */
+  async deletePhoto(userId: string): Promise<void> {
+    if (!userId) {
+      throw new Error('User ID est requis pour supprimer une photo.');
+    }
+
+    try {
+      await apiClient.delete(`/users/${userId}/photo`, {
+        timeout: 10000,
+        retry: {
+          attempts: 2,
+          delay: 1000,
+        },
+      });
+    } catch (error) {
+      console.error('Erreur lors de la suppression de la photo de profil:', error);
+      throw new Error(`Échec de la suppression de la photo: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
     }
   }
 }

@@ -54,24 +54,29 @@ export default function CollaborationListComponent() {
   const [page, setPage] = useState(1);
   const ITEMS_PER_PAGE = 50;
 
+  // S'assurer que collaborateurs est toujours un tableau
+  const collaborateursArray = useMemo(() => {
+    return Array.isArray(collaborateurs) ? collaborateurs : [];
+  }, [collaborateurs]);
+
   useEffect(() => {
-    if (projetActif) {
+    if (projetActif?.id) {
       dispatch(loadCollaborateursParProjet(projetActif.id));
     }
-  }, [dispatch, projetActif]);
+  }, [dispatch, projetActif?.id]);
 
   const collaborateursFiltres = useMemo(() => {
     if (filterStatut === 'tous') {
-      return collaborateurs;
+      return collaborateursArray;
     }
-    return collaborateurs.filter((c) => c.statut === filterStatut);
-  }, [collaborateurs, filterStatut]);
+    return collaborateursArray.filter((c) => c.statut === filterStatut);
+  }, [collaborateursArray, filterStatut]);
 
   const statistiques = useMemo(() => {
-    const actifs = collaborateurs.filter((c) => c.statut === 'actif').length;
-    const enAttente = collaborateurs.filter((c) => c.statut === 'en_attente').length;
-    return { actifs, enAttente, total: collaborateurs.length };
-  }, [collaborateurs]);
+    const actifs = collaborateursArray.filter((c) => c.statut === 'actif').length;
+    const enAttente = collaborateursArray.filter((c) => c.statut === 'en_attente').length;
+    return { actifs, enAttente, total: collaborateursArray.length };
+  }, [collaborateursArray]);
 
   // Pagination: charger les premiers collaborateurs filtrés
   useEffect(() => {
@@ -144,9 +149,26 @@ export default function CollaborationListComponent() {
         {
           text: 'Confirmer',
           onPress: async () => {
-            await dispatch(accepterInvitation(id));
-            if (projetActif) {
-              dispatch(loadCollaborateursParProjet(projetActif.id));
+            try {
+              await dispatch(accepterInvitation(id));
+              hapticInvitationAccepted();
+              Toast.show({
+                type: 'success',
+                text1: 'Invitation acceptée ✓',
+                text2: 'Le collaborateur a été ajouté au projet',
+                visibilityTime: 3000,
+              });
+              if (projetActif) {
+                dispatch(loadCollaborateursParProjet(projetActif.id));
+              }
+            } catch (error) {
+              hapticError();
+              Toast.show({
+                type: 'error',
+                text1: 'Erreur',
+                text2: 'Impossible d\'accepter l\'invitation',
+                visibilityTime: 3000,
+              });
             }
           },
         },
@@ -197,6 +219,10 @@ export default function CollaborationListComponent() {
     }
   };
 
+  // Tous les hooks doivent être appelés avant les return anticipés
+  // handleInvite n'est plus utilisé car le bouton Inviter est dans CollaborationScreen
+  // mais on garde la structure pour la cohérence
+
   if (!projetActif) {
     return (
       <View style={styles.container}>
@@ -211,31 +237,6 @@ export default function CollaborationListComponent() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View
-        style={[
-          styles.header,
-          {
-            backgroundColor: colors.surface,
-            paddingTop: insets.top + SPACING.md,
-            ...colors.shadow.medium,
-          },
-        ]}
-      >
-        <Text style={[styles.title, { color: colors.text }]}>Collaboration</Text>
-        {isProprietaire && (
-          <TouchableOpacity
-            style={[styles.addButton, { backgroundColor: colors.primary, ...colors.shadow.small }]}
-            onPress={() => {
-              setSelectedCollaborateur(null);
-              setIsEditing(false);
-              setModalVisible(true);
-            }}
-          >
-            <Ionicons name="person-add" size={20} color={colors.textOnPrimary} />
-            <Text style={[styles.addButtonText, { color: colors.textOnPrimary }]}>Inviter</Text>
-          </TouchableOpacity>
-        )}
-      </View>
 
       {/* Statistiques */}
       {statistiques.total > 0 && (
@@ -459,7 +460,10 @@ export default function CollaborationListComponent() {
           onEndReached={loadMore}
           onEndReachedThreshold={0.5}
           style={styles.listContainer}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            displayedCollaborateurs.length === 0 && styles.listContentEmpty,
+          ]}
           showsVerticalScrollIndicator={false}
           // Optimisations de performance
           removeClippedSubviews={true}
@@ -467,6 +471,15 @@ export default function CollaborationListComponent() {
           windowSize={5}
           initialNumToRender={10}
           updateCellsBatchingPeriod={50}
+          ListEmptyComponent={
+            displayedCollaborateurs.length === 0 && collaborateursFiltres.length === 0 ? (
+              <EmptyState
+                title="Aucun collaborateur"
+                message="Ajoutez des collaborateurs pour commencer"
+                icon="👥"
+              />
+            ) : null
+          }
           ListFooterComponent={
             displayedCollaborateurs.length < collaborateursFiltres.length ? (
               <LoadingSpinner message="Chargement..." />
@@ -490,32 +503,6 @@ export default function CollaborationListComponent() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    paddingBottom: SPACING.md,
-  },
-  title: {
-    fontSize: FONT_SIZES.xxl,
-    fontWeight: FONT_WEIGHTS.bold,
-  },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg,
-    minHeight: 44,
-  },
-  addButtonText: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semiBold,
-    marginLeft: SPACING.xs,
   },
   statsContainer: {
     flexDirection: 'row',
@@ -548,6 +535,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     paddingBottom: 100,
+  },
+  listContentEmpty: {
+    flexGrow: 1,
+    justifyContent: 'center',
   },
   card: {
     borderRadius: BORDER_RADIUS.lg,

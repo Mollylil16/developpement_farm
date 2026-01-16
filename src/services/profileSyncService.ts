@@ -8,6 +8,7 @@ import { loadUserFromStorageThunk, updateUser } from '../store/slices/authSlice'
 import apiClient, { APIError } from './api/apiClient';
 import { logger } from '../utils/logger';
 import type { User } from '../types/auth';
+import { normalizePhotoUri, comparePhotoUris } from '../utils/profilePhotoUtils';
 
 interface ProfileSyncOptions {
   /**
@@ -30,6 +31,11 @@ class ProfileSyncService {
   private userId: string | null = null;
   private dispatch: AppDispatch | null = null;
   private onProfileChangedCallback: ((user: User) => void) | null = null;
+  // Circuit breaker pour éviter les tentatives répétées si le backend est inaccessible
+  private consecutiveFailures: number = 0;
+  private readonly MAX_CONSECUTIVE_FAILURES = 3; // Après 3 échecs, augmenter l'intervalle
+  private readonly BACKOFF_MULTIPLIER = 2; // Doubler l'intervalle après échecs
+  private readonly MAX_BACKOFF_INTERVAL = 300000; // 5 minutes maximum
 
   /**
    * Démarrer la synchronisation périodique
@@ -45,7 +51,14 @@ class ProfileSyncService {
 
     this.userId = userId;
     this.dispatch = dispatch;
-    this.checkInterval = options.checkInterval || 30000;
+    // Utiliser l'intervalle personnalisé ou l'intervalle actuel (si déjà augmenté par le circuit breaker)
+    // Ne pas réinitialiser si le circuit breaker a déjà augmenté l'intervalle
+    if (!this.isRunning) {
+      this.checkInterval = options.checkInterval || 30000;
+    } else {
+      // Si déjà en cours, garder l'intervalle actuel (peut être augmenté par le circuit breaker)
+      this.checkInterval = this.checkInterval || options.checkInterval || 30000;
+    }
     this.onProfileChangedCallback = options.onProfileChanged || null;
 
     // Démarrer le polling immédiatement
@@ -77,6 +90,7 @@ class ProfileSyncService {
     this.lastPhotoUri = null;
     this.lastDataHash = null;
     this.lastCheckTimestamp = 0;
+    this.consecutiveFailures = 0; // Réinitialiser le compteur d'échecs
     logger.log('[ProfileSyncService] Synchronisation arrêtée');
   }
 
@@ -102,9 +116,9 @@ class ProfileSyncService {
 
     try {
       // Récupérer le profil depuis l'API
-      // Timeout réduit pour la sync de profil (non-critique, en arrière-plan)
+      // Timeout augmenté pour éviter les timeouts prématurés si le backend est lent
       const apiUser = await apiClient.get<User>(`/users/${this.userId}`, {
-        timeout: 8000, // 8 secondes au lieu du timeout par défaut
+        timeout: 15000, // 15 secondes
         retry: false, // Pas de retry automatique (vérification périodique)
       });
 
@@ -130,23 +144,22 @@ class ProfileSyncService {
         return false; // Pas de changement, juste initialisation
       }
       
-      // Comparer les URIs sans les paramètres de cache busting pour détecter les vrais changements
-      const normalizeUri = (uri: string | null): string | null => {
-        if (!uri) return null;
-        // Retirer les paramètres de cache busting (_t, timestamp, etc.)
-        return uri.split('?')[0].split('&')[0];
-      };
-      
-      const normalizedCurrent = normalizeUri(currentPhotoUri);
-      const normalizedLast = normalizeUri(this.lastPhotoUri);
-      const photoChanged = normalizedCurrent !== normalizedLast;
+      // Comparer les URIs en utilisant la fonction utilitaire partagée
+      // Cette fonction ignore les paramètres de cache busting et ne compare que les URLs serveur
+      // Les URIs locales ne sont pas comparées (retourne false)
+      const photoChanged = !comparePhotoUris(currentPhotoUri, this.lastPhotoUri);
 
       // Vérifier si d'autres données ont changé (nom, prénom, etc.)
       // Pour l'instant, on se concentre sur la photo
       if (photoChanged) {
+        // Normaliser les URIs pour le log (retire les paramètres de cache)
+        const normalizedOld = normalizePhotoUri(this.lastPhotoUri);
+        const normalizedNew = normalizePhotoUri(currentPhotoUri);
+        
         logger.log('[ProfileSyncService] Changement de photo détecté', {
-          old: this.lastPhotoUri,
-          new: currentPhotoUri,
+          old: normalizedOld || this.lastPhotoUri,
+          new: normalizedNew || currentPhotoUri,
+          isServerUrl: normalizedNew !== null,
         });
 
         // Mettre à jour le state Redux
@@ -181,6 +194,24 @@ class ProfileSyncService {
       
       // Mettre à jour le timestamp même si rien n'a changé
       this.lastCheckTimestamp = Date.now();
+      
+      // Réinitialiser le compteur d'échecs en cas de succès
+      if (this.consecutiveFailures > 0) {
+        this.consecutiveFailures = 0;
+        // Si l'intervalle avait été augmenté, le remettre à la normale
+        if (this.checkInterval > 30000 && this.isRunning) {
+          this.checkInterval = 30000;
+          if (this.intervalId) {
+            clearInterval(this.intervalId);
+          }
+          this.intervalId = setInterval(() => {
+            this.checkForUpdates();
+          }, this.checkInterval);
+          if (__DEV__) {
+            logger.debug('[ProfileSyncService] Backend accessible. Intervalle remis à 30s');
+          }
+        }
+      }
 
       return false;
     } catch (error) {
@@ -190,17 +221,51 @@ class ProfileSyncService {
         (error instanceof Error && error.message.includes('timeout')) ||
         (error instanceof Error && error.message.includes('Network request timed out')) ||
         (error instanceof Error && error.name === 'AbortError') ||
-        (error instanceof Error && error.message.includes('aborted'));
+        (error instanceof Error && error.message.includes('aborted')) ||
+        (error instanceof Error && error.message.includes('Aborted'));
       
       if (isTimeout) {
-        // Timeout silencieux (vérification périodique, retry automatique au prochain intervalle)
-        // Ne pas logger comme erreur pour éviter le spam dans les logs
-        if (__DEV__) {
+        // Circuit breaker : compter les échecs consécutifs
+        this.consecutiveFailures += 1;
+        
+        // Si trop d'échecs consécutifs, augmenter l'intervalle (backoff exponentiel)
+        if (this.consecutiveFailures >= this.MAX_CONSECUTIVE_FAILURES && this.isRunning) {
+          const newInterval = Math.min(
+            this.checkInterval * Math.pow(this.BACKOFF_MULTIPLIER, this.consecutiveFailures - this.MAX_CONSECUTIVE_FAILURES),
+            this.MAX_BACKOFF_INTERVAL
+          );
+          
+          if (newInterval > this.checkInterval) {
+            // Redémarrer l'intervalle avec le nouveau délai
+            if (this.intervalId) {
+              clearInterval(this.intervalId);
+            }
+            this.checkInterval = newInterval;
+            this.intervalId = setInterval(() => {
+              this.checkForUpdates();
+            }, this.checkInterval);
+            
+            if (__DEV__) {
+              logger.debug(`[ProfileSyncService] Backend inaccessible. Intervalle augmenté à ${this.checkInterval}ms (${Math.round(this.checkInterval / 1000)}s)`);
+            }
+          }
+        } else if (__DEV__) {
           logger.debug('[ProfileSyncService] Timeout lors de la vérification (non critique, retry au prochain intervalle)');
         }
+        
+        // Retourner false pour indiquer qu'aucun changement n'a été détecté (mais sans erreur)
+        return false;
       } else {
-        // Logger uniquement les erreurs non-timeout
-        logger.error('[ProfileSyncService] Erreur lors de la vérification des mises à jour:', error);
+        // Logger uniquement les erreurs non-timeout avec plus de détails
+        const errorDetails = error instanceof Error 
+          ? {
+              message: error.message,
+              name: error.name,
+              stack: error.stack,
+            }
+          : { error: String(error) };
+        
+        logger.error('[ProfileSyncService] Erreur lors de la vérification des mises à jour:', errorDetails);
       }
       return false;
     }

@@ -24,7 +24,7 @@ import NotificationsManager from '../components/NotificationsManager';
 // Import direct des écrans (React.lazy() n'est pas supporté par React Native)
 import * as LazyScreens from './LazyScreens';
 
-import { COLORS } from '../constants/theme';
+import { COLORS, FONT_WEIGHTS } from '../constants/theme';
 import { logger } from '../utils/logger';
 
 const Tab = createBottomTabNavigator();
@@ -559,6 +559,34 @@ export default function AppNavigator() {
         <Stack.Screen name={SCREENS.PROFIL}>{() => <LazyScreens.ProfilScreen />}</Stack.Screen>
         <Stack.Screen name={SCREENS.MANAGE_PROFILES}>
           {() => <LazyScreens.ManageProfilesScreen />}
+        </Stack.Screen>
+        {/* Écrans Collaborations - QR Code */}
+        <Stack.Screen 
+          name={SCREENS.MY_QR_CODE} 
+          options={{ 
+            title: 'Mon QR Code Professionnel',
+            headerShown: true,
+            presentation: 'modal', // Animation modale sur iOS
+            headerStyle: {
+              backgroundColor: COLORS.primary,
+            },
+            headerTintColor: '#FFFFFF',
+            headerTitleStyle: {
+              fontWeight: FONT_WEIGHTS.bold,
+            },
+          }}
+        >
+          {() => <LazyScreens.MyQRCodeScreen />}
+        </Stack.Screen>
+        <Stack.Screen 
+          name={SCREENS.SCAN_QR_COLLABORATEUR} 
+          options={{ 
+            headerShown: false, // Fullscreen pour la caméra
+            presentation: 'fullScreenModal', // Plein écran sur iOS
+            gestureEnabled: false, // Désactiver le swipe back pour éviter de fermer la caméra
+          }}
+        >
+          {() => <LazyScreens.ScanQRCollaborateurScreen />}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.DOCUMENTS}>
           {() => <LazyScreens.DocumentsScreen />}

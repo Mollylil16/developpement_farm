@@ -40,3 +40,4 @@ tmp/
 temp/
 *.tmp
 
+config/apple-auth-key.p8

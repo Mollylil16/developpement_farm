@@ -12,7 +12,8 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://fermier-pro-backend.onrender.com",
-        "EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID": "1003563003040-onlnflbpuhg715u3ba3n8vcp56d3dr9e.apps.googleusercontent.com"
+        "EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID": "742075194736-is9po2thb8gg87lqgiq23572qbdr2p1d.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS": "742075194736-4gacvg1o6c39cppf3r4n1ki2n72s2qba.apps.googleusercontent.com"
       }
     },
     "preview": {
@@ -22,7 +23,8 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://fermier-pro-backend.onrender.com",
-        "EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID": "1003563003040-onlnflbpuhg715u3ba3n8vcp56d3dr9e.apps.googleusercontent.com"
+        "EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID": "742075194736-is9po2thb8gg87lqgiq23572qbdr2p1d.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS": "742075194736-4gacvg1o6c39cppf3r4n1ki2n72s2qba.apps.googleusercontent.com"
       }
     },
     "production": {
@@ -31,7 +33,8 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://fermier-pro-backend.onrender.com",
-        "EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID": "1003563003040-onlnflbpuhg715u3ba3n8vcp56d3dr9e.apps.googleusercontent.com"
+        "EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID": "742075194736-is9po2thb8gg87lqgiq23572qbdr2p1d.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS": "742075194736-4gacvg1o6c39cppf3r4n1ki2n72s2qba.apps.googleusercontent.com"
       }
     }
   },

@@ -44,6 +44,9 @@ Ce dossier contient toutes les migrations PostgreSQL pour créer les tables de l
 ### ✅ Tables Collaboration
 - `023_create_collaborations_table.sql` - Collaborations
 
+### ✅ Migrations de Nettoyage
+- `081_clean_local_photo_uris.sql` - Nettoie les URIs locales (file://, content://, etc.) dans la colonne photo des utilisateurs
+
 ### ✅ Tables Autres
 - `001_create_refresh_tokens_table.sql` - Tokens de rafraîchissement
 - `029_create_chat_agent_tables.sql` - Tables pour l'assistant conversationnel

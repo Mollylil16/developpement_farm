@@ -27,10 +27,9 @@ export class OAuthAppleDto {
   email?: string;
 
   @ApiProperty({
-    description: "Nom complet de l'utilisateur (optionnel)",
+    description: "Nom complet de l'utilisateur (optionnel, peut être un objet avec givenName/familyName ou une chaîne JSON)",
     required: false,
   })
   @IsOptional()
-  @IsString()
-  fullName?: string;
+  fullName?: string | { givenName?: string; familyName?: string };
 }

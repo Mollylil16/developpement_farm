@@ -7,43 +7,13 @@ import React, { useEffect, useState } from 'react';
 import { Image, ImageProps, View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { addCacheBusting } from '../utils/profilePhotoUtils';
 
 interface ProfilePhotoProps extends Omit<ImageProps, 'source'> {
   uri: string | null;
   size?: number;
   placeholder?: React.ReactNode;
   showIndicator?: boolean;
-}
-
-/**
- * Ajoute un timestamp de cache busting à l'URI pour forcer le rechargement
- * Cela permet de synchroniser l'image entre plusieurs terminaux
- * 
- * Note: Pour les URIs de fichiers locaux (file://), on ajoute aussi le cache busting
- * même si c'est moins critique car ce sont des chemins uniques
- */
-function addCacheBusting(uri: string | null): string | null {
-  if (!uri) return null;
-  
-  // Pour les URIs de fichiers locaux (file://), ne pas ajouter de cache busting
-  // car le chemin du fichier est déjà unique
-  if (uri.startsWith('file://')) {
-    return uri;
-  }
-  
-  // Si l'URI contient déjà un paramètre de cache busting, le remplacer
-  // Sinon, ajouter un nouveau paramètre avec le timestamp actuel
-  const timestamp = Date.now();
-  
-  // Extraire l'URI de base sans les anciens paramètres de cache
-  const baseUri = uri.split('?')[0];
-  const existingParams = uri.includes('?') ? uri.substring(uri.indexOf('?') + 1) : '';
-  const params = new URLSearchParams(existingParams);
-  
-  // Mettre à jour ou ajouter le paramètre _t (timestamp) pour forcer le rechargement
-  params.set('_t', timestamp.toString());
-  
-  return `${baseUri}?${params.toString()}`;
 }
 
 export default function ProfilePhoto({

@@ -68,7 +68,23 @@ export function useTechData(techUserId?: string) {
       setData((prev) => ({ ...prev, loading: true, error: null }));
 
       // Récupérer les fermes où le technicien est collaborateur depuis l'API backend
-      const allCollaborateurs = await apiClient.get<any[]>('/collaborations');
+      // Note: L'endpoint /collaborations nécessite un projet_id, donc on utilise /collaborations/invitations
+      // pour récupérer toutes les collaborations de l'utilisateur
+      let allCollaborateurs: any[] = [];
+      try {
+        const response = await apiClient.get<{ data: any[]; pagination: any } | any[]>('/collaborations/invitations', {
+          params: { 
+            userId: techUserId,
+            email: user.email,
+            telephone: user.telephone,
+          },
+        });
+        allCollaborateurs = Array.isArray(response) ? response : (response.data || []);
+      } catch (error) {
+        // Si l'endpoint n'est pas disponible, retourner un tableau vide
+        console.warn('Impossible de charger les collaborations:', error);
+        allCollaborateurs = [];
+      }
       const techCollaborations = allCollaborateurs.filter(
         (collab) => collab.email === user.email || collab.telephone === user.telephone
       );

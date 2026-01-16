@@ -138,7 +138,8 @@ function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
   const rationsLength = rations.length;
   const rationsBudgetLength = rationsBudget.length;
   const planificationsLength = planifications.length;
-  const collaborateursLength = collaborateurs.length;
+  const collaborateursArray = Array.isArray(collaborateurs) ? collaborateurs : [];
+  const collaborateursLength = collaborateursArray.length;
   const mortalitesLength = mortalites.length;
   const animauxLength = animaux.length;
   const peseesRecentsLength = (peseesRecents as unknown[]).length;
@@ -187,7 +188,7 @@ function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
         };
 
       case 'collaboration':
-        const collaborateursActifs = collaborateurs.filter((c) => c.statut === 'actif');
+        const collaborateursActifs = collaborateursArray.filter((c) => c.statut === 'actif');
         return {
           emoji: '👥',
           title: 'Collaboration',

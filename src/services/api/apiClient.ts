@@ -741,9 +741,22 @@ async function executeHttpRequest<T>(
 
   // Headers par défaut
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     ...(fetchOptions.headers as Record<string, string>),
   };
+
+  // Ne pas ajouter Content-Type pour FormData (React Native le fera automatiquement avec la boundary)
+  // Si l'utilisateur a explicitement passé 'Content-Type': 'multipart/form-data', le retirer
+  // car React Native doit générer automatiquement le Content-Type avec la boundary
+  if (fetchOptions.body instanceof FormData) {
+    // Retirer Content-Type si présent (React Native le génère automatiquement)
+    delete headers['Content-Type'];
+    delete headers['content-type'];
+  } else {
+    // Pour les autres types de body, utiliser application/json par défaut
+    if (!headers['Content-Type'] && !headers['content-type']) {
+      headers['Content-Type'] = 'application/json';
+    }
+  }
 
   // Ajouter le token d'authentification si nécessaire
   if (!skipAuth) {
@@ -760,14 +773,122 @@ async function executeHttpRequest<T>(
 
   // Créer un AbortController pour le timeout
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  const requestStartTime = Date.now();
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, timeout);
 
   try {
-    const response = await fetch(url, {
-      ...fetchOptions,
+    // Construire les options de fetch
+    // Important : le body doit être passé explicitement pour FormData
+    const fetchRequestOptions: RequestInit = {
+      method: fetchOptions.method || 'GET',
       headers,
       signal: controller.signal,
-    });
+    };
+
+    // Ajouter le body seulement s'il existe
+    // Pour FormData, il doit être passé directement (pas stringifié)
+    if (fetchOptions.body !== undefined) {
+      fetchRequestOptions.body = fetchOptions.body;
+    }
+
+    // Ajouter les autres options (credentials, mode, etc.)
+    if (fetchOptions.credentials) {
+      fetchRequestOptions.credentials = fetchOptions.credentials;
+    }
+    if (fetchOptions.mode) {
+      fetchRequestOptions.mode = fetchOptions.mode;
+    }
+
+    if (__DEV__ && fetchOptions.body instanceof FormData) {
+      logger.debug(`[executeHttpRequest] Envoi FormData vers ${endpoint}`, {
+        url,
+        method: fetchRequestOptions.method,
+        hasBody: !!fetchRequestOptions.body,
+        headers: Object.keys(headers),
+        API_BASE_URL,
+      });
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(url, fetchRequestOptions);
+    } catch (fetchError: any) {
+      // Gérer les erreurs de fetch (réseau, CORS, etc.)
+      clearTimeout(timeoutId);
+      
+      const errorMessage = fetchError?.message || 'Erreur de connexion';
+      
+      // Détecter les erreurs AbortError (timeout)
+      if (fetchError?.name === 'AbortError' || errorMessage.includes('Aborted')) {
+        // Vérifier si c'est un timeout ou une annulation manuelle
+        const elapsedMs = Date.now() - requestStartTime;
+        const isTimeout = elapsedMs >= timeout * 0.9; // 90% du timeout = probablement un timeout
+        
+        if (isTimeout) {
+          // Ne logger les timeouts qu'en mode debug pour éviter le spam
+          // Les timeouts sont normaux quand le backend n'est pas accessible
+          if (__DEV__) {
+            logger.debug(`[executeHttpRequest] Timeout pour ${endpoint}`, {
+              endpoint,
+              timeout,
+              elapsed: elapsedMs,
+              url,
+            });
+          }
+          throw new APIError(
+            `La requête a pris trop de temps (timeout: ${timeout}ms). Le backend est peut-être inaccessible sur ${API_BASE_URL}.`,
+            408,
+            { originalError: errorMessage, timeout, elapsed: elapsedMs }
+          );
+        } else {
+          // Annulation manuelle ou autre
+          throw new APIError('Requête annulée', 0, { originalError: errorMessage });
+        }
+      }
+      
+      // Détecter les types d'erreurs courants
+      if (errorMessage.includes('Network request failed') || 
+          errorMessage.includes('Failed to fetch') ||
+          errorMessage.includes('network') ||
+          fetchError?.name === 'TypeError' ||
+          errorMessage.includes('connexion')) {
+        
+        // Diagnostic amélioré pour les erreurs réseau
+        const isFormData = fetchOptions.body instanceof FormData;
+        const diagnosticInfo = {
+          url,
+          API_BASE_URL,
+          method: fetchOptions.method || 'GET',
+          isFormData,
+          endpoint,
+          errorName: fetchError?.name,
+          errorMessage,
+        };
+        
+        logger.error(`[executeHttpRequest] Erreur réseau pour ${endpoint}:`, diagnosticInfo);
+        
+        // Message d'erreur plus détaillé pour FormData
+        let userMessage = 'Erreur de connexion. Vérifiez votre connexion Internet.';
+        if (isFormData) {
+          userMessage = `Erreur lors de l'upload. Vérifiez que :
+- Le backend est démarré sur ${API_BASE_URL}
+- Votre appareil est connecté au même réseau
+- Le firewall ne bloque pas la connexion`;
+        }
+        
+        throw new APIError(userMessage, 0, { originalError: errorMessage, diagnosticInfo });
+      }
+      
+      // Autres erreurs
+      logger.error(`[executeHttpRequest] Erreur fetch pour ${endpoint}:`, fetchError);
+      throw new APIError(
+        errorMessage || 'Erreur lors de la requête',
+        0,
+        { originalError: fetchError }
+      );
+    }
 
     clearTimeout(timeoutId);
 
@@ -1015,10 +1136,12 @@ const apiClient = {
    * POST request
    */
   async post<T>(endpoint: string, data?: unknown, options?: RequestOptions): Promise<T> {
+    // Si data est un FormData, l'utiliser directement sans JSON.stringify
+    const body = data instanceof FormData ? data : data ? JSON.stringify(data) : undefined;
     return request<T>(endpoint, {
       ...options,
       method: 'POST',
-      body: data ? JSON.stringify(data) : undefined,
+      body,
     });
   },
 

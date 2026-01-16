@@ -21,6 +21,8 @@ export const SCREENS = {
   PLANIFICATION: 'Planification',
   TRAINING: 'Training',
   COLLABORATION: 'Collaboration',
+  MY_QR_CODE: 'MyQRCode',
+  SCAN_QR_COLLABORATEUR: 'ScanQRCollaborateur',
   MORTALITES: 'Mortalites',
   ADMIN: 'Admin',
   MARKETPLACE: 'Marketplace',

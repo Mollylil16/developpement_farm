@@ -14,16 +14,7 @@ import { useAppSelector, useAppDispatch } from '../store/hooks';
 import apiClient from '../services/api/apiClient';
 import { logger } from '../utils/logger';
 import { profileSyncService } from '../services/profileSyncService';
-
-/**
- * Nettoie l'URI de la photo pour retirer les paramètres de cache busting
- * Utile pour la comparaison et le stockage
- */
-function normalizePhotoUri(uri: string | null): string | null {
-  if (!uri) return null;
-  // Retirer les paramètres de cache busting (_t, timestamp, etc.)
-  return uri.split('?')[0];
-}
+import { normalizePhotoUri } from '../utils/profilePhotoUtils';
 
 interface UseProfilDataReturn {
   profilPhotoUri: string | null;

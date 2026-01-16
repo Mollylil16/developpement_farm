@@ -31,7 +31,23 @@ export const collaborateurSchema = yup
       .string()
       .nullable()
       .transform((value) => (value === '' ? null : value))
-      .email("Format d'email invalide")
+      .test(
+        'email-format-if-provided',
+        "Format d'email invalide",
+        function (value) {
+          // Si l'email est vide ou null, c'est OK (validation gérée par email-or-telephone)
+          if (!value || value.trim().length === 0) {
+            return true;
+          }
+          // Si l'email contient un @, valider le format email
+          if (value.includes('@')) {
+            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+          }
+          // Si l'email ne contient pas de @, c'est probablement un téléphone dans le mauvais champ
+          // On retourne false pour forcer l'utilisateur à utiliser le bon champ
+          return false;
+        }
+      )
       .max(100, "L'email ne peut pas dépasser 100 caractères"),
     telephone: yup
       .string()
@@ -64,18 +80,7 @@ export const collaborateurSchema = yup
       return hasEmail || hasTelephone;
     }
   )
-  .test(
-    'email-format-if-provided',
-    "Format d'email invalide",
-    function (value) {
-      const email = value?.email;
-      if (!email || email.trim().length === 0) {
-        return true; // Email vide = OK (validation gérée par email-or-telephone)
-      }
-      // Validation du format email (Yup le fait déjà, mais on s'assure)
-      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-    }
-  )
+  // Ce test est maintenant géré directement dans le schéma email ci-dessus
   .test(
     'telephone-format-if-provided',
     'Format de téléphone invalide',

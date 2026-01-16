@@ -3,6 +3,10 @@
 # Backend (projet séparé)
 backend/
 
+# Dossiers natifs (gérés par Expo via app.config.js)
+android/
+ios/
+
 # Documentation
 docs/
 *.md

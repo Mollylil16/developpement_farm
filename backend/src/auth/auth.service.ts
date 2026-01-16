@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException, ConflictException, BadRequestExcepti
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
+import { verifyIdToken } from 'apple-signin-auth';
 import { UsersService } from '../users/users.service';
 import { DatabaseService } from '../database/database.service';
 import { LoginDto } from './dto/login.dto';
@@ -321,7 +322,7 @@ export class AuthService {
       );
 
       if (!response.ok) {
-        throw new UnauthorizedException('Token Google invalide');
+        throw new UnauthorizedException('Token Google invalide ou expiré');
       }
 
       const googleUser = await response.json();
@@ -334,13 +335,28 @@ export class AuthService {
         process.env.GOOGLE_CLIENT_ID_IOS, // iOS Client ID (si configuré)
       ].filter(Boolean); // Enlever les undefined
 
+      // Vérifier qu'au moins un Client ID est configuré
+      if (validAudiences.length === 0) {
+        throw new UnauthorizedException(
+          'Aucun Google Client ID configuré. Veuillez configurer GOOGLE_CLIENT_ID dans les variables d\'environnement.'
+        );
+      }
+
+      // Vérifier que l'audience du token correspond à un de nos Client IDs
       if (!validAudiences.includes(googleUser.aud)) {
-        throw new UnauthorizedException('Token Google généré pour une autre application');
+        throw new UnauthorizedException(
+          `Token Google généré pour une autre application. Audience attendue: ${validAudiences.join(', ')}, reçue: ${googleUser.aud}`
+        );
       }
 
       // Vérifier que l'email est présent
       if (!googleUser.email) {
         throw new UnauthorizedException('Email manquant dans la réponse Google');
+      }
+
+      // Vérifier que l'email est vérifié (si disponible)
+      if (googleUser.email_verified === false) {
+        throw new UnauthorizedException('Email Google non vérifié');
       }
 
       // Chercher l'utilisateur existant par email
@@ -417,25 +433,181 @@ export class AuthService {
 
   /**
    * Authentification Apple OAuth
-   * TODO: Implémenter la vérification du token Apple avec l'API Apple
+   * Vérifie l'identity token Apple et crée/connecte l'utilisateur
    */
   async loginWithApple(oauthDto: OAuthAppleDto, ipAddress?: string, userAgent?: string) {
     try {
-      // TODO: Vérifier l'identity token Apple avec l'API Apple
-      // Pour l'instant, simulation
+      // Bundle ID iOS (doit correspondre au Client ID Apple configuré)
+      // Utiliser APPLE_CLIENT_ID, APPLE_BUNDLE_ID, ou Service ID selon la configuration
+      const appleClientId = 
+        process.env.APPLE_CLIENT_ID || 
+        process.env.APPLE_BUNDLE_ID || 
+        process.env.APPLE_SERVICE_ID || 
+        'com.misterh225.fermierpro';
+      
+      // Vérifier que la configuration Apple est présente
+      if (!process.env.APPLE_TEAM_ID) {
+        console.warn('[Apple OAuth] APPLE_TEAM_ID non configuré dans les variables d\'environnement');
+      }
 
-      // En production, vérifier l'identity token avec JWT et les clés publiques Apple
-      // const appleUser = await verifyAppleToken(oauthDto.identityToken);
+      // Vérifier l'identity token Apple avec la bibliothèque apple-signin-auth
+      let appleUser;
+      try {
+        appleUser = await verifyIdToken(oauthDto.identityToken, {
+          audience: appleClientId, // Bundle ID iOS
+          ignoreExpiration: false, // Vérifier l'expiration
+        });
+      } catch (verifyError: any) {
+        throw new UnauthorizedException(
+          `Token Apple invalide ou expiré: ${verifyError.message || 'Erreur de vérification'}`
+        );
+      }
 
-      // Pour l'instant, retourner une erreur indiquant que c'est à implémenter
-      throw new UnauthorizedException(
-        "L'authentification Apple n'est pas encore configurée. Veuillez configurer les credentials Apple OAuth."
-      );
+      // SÉCURITÉ CRITIQUE : Vérifier l'audience du token
+      // L'audience peut être soit le Bundle ID, soit le Service ID selon le contexte
+      const validAudiences = [
+        process.env.APPLE_CLIENT_ID,
+        process.env.APPLE_BUNDLE_ID,
+        process.env.APPLE_SERVICE_ID,
+        'com.misterh225.fermierpro',
+        'com.misterh225.fermierpro.signin',
+      ].filter(Boolean);
+
+      if (!validAudiences.includes(appleUser.aud)) {
+        throw new UnauthorizedException(
+          `Token Apple généré pour une autre application. Audience attendue: ${validAudiences.join(', ')}, reçue: ${appleUser.aud}`
+        );
+      }
+
+      // Vérifier que l'issuer est Apple
+      if (appleUser.iss !== 'https://appleid.apple.com') {
+        throw new UnauthorizedException('Token Apple invalide: issuer incorrect');
+      }
+
+      // Extraire l'email depuis le token ou depuis le DTO
+      // Note: Apple peut masquer l'email, donc on utilise celui du DTO si disponible
+      const email = appleUser.email || oauthDto.email;
+
+      // Vérifier qu'on a au moins un identifiant (email ou sub)
+      if (!email && !appleUser.sub) {
+        throw new UnauthorizedException('Email ou identifiant Apple manquant dans la réponse');
+      }
+
+      // Utiliser le sub (subject) comme identifiant unique Apple
+      // Le sub est stable et unique pour chaque utilisateur Apple
+      const appleUserId = appleUser.sub;
+
+      // Chercher l'utilisateur existant par email ou par provider_id (Apple sub)
+      let user;
+      if (email) {
+        user = await this.usersService.findByEmail(email);
+      }
+
+      // Si pas trouvé par email, chercher par provider_id (Apple sub)
+      if (!user && appleUserId) {
+        // Note: Vous devrez peut-être ajouter une méthode findByProviderId dans UsersService
+        // Pour l'instant, on cherche par email uniquement
+        // Si l'email est masqué par Apple, on utilisera le sub comme identifiant
+      }
+
+      if (!user) {
+        // Créer un nouvel utilisateur
+        // ❌ PAS DE VALEURS PAR DÉFAUT "Utilisateur" ou "Mobile" !
+        // Extraire le nom depuis le DTO (Apple peut fournir fullName lors de la première connexion)
+        let prenom = '';
+        let nom = '';
+
+        if (oauthDto.fullName) {
+          // Si fullName est fourni dans le DTO (format JSON string ou objet)
+          try {
+            const fullNameData = typeof oauthDto.fullName === 'string' 
+              ? JSON.parse(oauthDto.fullName) 
+              : oauthDto.fullName;
+            
+            prenom = fullNameData.givenName?.trim() || fullNameData.firstName?.trim() || '';
+            nom = fullNameData.familyName?.trim() || fullNameData.lastName?.trim() || '';
+          } catch {
+            // Si ce n'est pas du JSON, traiter comme une chaîne simple
+            const nameParts = String(oauthDto.fullName).trim().split(' ');
+            prenom = nameParts[0] || '';
+            nom = nameParts.slice(1).join(' ') || '';
+          }
+        }
+
+        // Valider : Si trop courts, on les laisse vides (ne pas mettre de valeurs par défaut)
+        prenom = prenom.length >= 2 ? prenom : '';
+        nom = nom.length >= 2 ? nom : '';
+
+        // Si pas d'email dans le token (masqué par Apple), utiliser un email temporaire basé sur le sub
+        // Le frontend devra demander l'email à l'utilisateur
+        const userEmail = email || `apple_${appleUserId.substring(0, 8)}@apple.privaterelay.app`;
+
+        const newUser = {
+          email: userEmail,
+          nom, // Peut être vide (sera complété dans UserInfoScreen)
+          prenom, // Peut être vide (sera complété dans UserInfoScreen)
+          photo: null, // Apple ne fournit pas de photo
+          provider: 'apple',
+          provider_id: appleUserId, // 'sub' est l'ID Apple unique et stable
+          password_hash: null, // Pas de mot de passe pour OAuth
+        };
+
+        // Utiliser la méthode create de UsersService
+        user = await this.usersService.create(newUser);
+      } else {
+        // Utilisateur existant trouvé
+        // Vérifier que le provider_id correspond (si l'utilisateur s'est connecté avec Apple avant)
+        if (user.provider === 'apple' && user.provider_id !== appleUserId) {
+          // Mettre à jour le provider_id si différent (peut arriver si l'utilisateur a changé de compte Apple)
+          // Note: Vous devrez peut-être ajouter une méthode updateProviderId dans UsersService
+        }
+
+        // Mettre à jour last_login
+        await this.updateLastLogin(user.id);
+      }
+
+      // Générer les tokens JWT
+      const payload: Omit<JWTPayload, 'exp'> = {
+        sub: user.id,
+        email: user.email,
+        roles: user.roles || [],
+        iat: Math.floor(Date.now() / 1000),
+        jti: uuidv4(),
+      };
+
+      const access_token = this.jwtService.sign(payload);
+      const refreshTokenData = await this.createRefreshToken(user.id, ipAddress, userAgent);
+
+      return {
+        access_token,
+        refresh_token: refreshTokenData.token,
+        user: {
+          id: user.id,
+          email: user.email,
+          telephone: user.telephone || null,
+          nom: user.nom,
+          prenom: user.prenom,
+          provider: user.provider || 'apple',
+          photo: user.photo || null,
+          saved_farms: user.saved_farms || [],
+          date_creation: user.date_creation,
+          derniere_connexion: user.derniere_connexion,
+          isOnboarded: user.is_onboarded || false,
+          onboardingCompletedAt: user.onboarding_completed_at || null,
+          roles: user.roles || {},
+        },
+      };
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error;
       }
-      throw new UnauthorizedException("Erreur lors de l'authentification Apple");
+      
+      // Logger l'erreur pour le débogage
+      console.error('[Apple OAuth] Erreur:', error);
+      
+      throw new UnauthorizedException(
+        `Erreur lors de l'authentification Apple: ${error instanceof Error ? error.message : 'Erreur inconnue'}`
+      );
     }
   }
 

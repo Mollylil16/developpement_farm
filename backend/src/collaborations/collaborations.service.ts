@@ -3,13 +3,79 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  ConflictException,
+  Inject,
+  forwardRef,
+  Logger,
 } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { CreateCollaborateurDto } from './dto/create-collaborateur.dto';
 import { UpdateCollaborateurDto } from './dto/update-collaborateur.dto';
+import { NotificationsService } from '../notifications/notifications.service';
+
+// Limite maximale de collaborateurs par projet
+const MAX_COLLABORATEURS = 50;
+
+// Durée d'expiration des invitations (en jours)
+const INVITATION_EXPIRY_DAYS = 7;
+
+// Interface pour les permissions
+interface Permissions {
+  reproduction: boolean;
+  nutrition: boolean;
+  finance: boolean;
+  rapports: boolean;
+  planification: boolean;
+  mortalites: boolean;
+  sante: boolean;
+}
+
+// Interface pour une ligne de base de données
+interface CollaborationRow {
+  id: string;
+  projet_id: string;
+  user_id?: string | null;
+  nom: string;
+  prenom: string;
+  email?: string | null;
+  telephone?: string | null;
+  role: string;
+  statut: string;
+  permission_reproduction: boolean;
+  permission_nutrition: boolean;
+  permission_finance: boolean;
+  permission_rapports: boolean;
+  permission_planification: boolean;
+  permission_mortalites: boolean;
+  permission_sante: boolean;
+  date_invitation?: string | null;
+  date_acceptation?: string | null;
+  expiration_date?: string | null;
+  invitation_type?: string | null;
+  invited_by?: string | null;
+  qr_scan_data?: string | null;
+  rejection_reason?: string | null;
+  suspension_reason?: string | null;
+  last_activity?: string | null;
+  notes?: string | null;
+  date_creation: string;
+  derniere_modification?: string | null;
+}
+
+// Interface pour les options de findAll
+interface FindAllOptions {
+  search?: string;
+  role?: string;
+  statut?: string;
+  invitation_type?: string;
+  sortBy?: string;
+  sortOrder?: 'ASC' | 'DESC';
+  page?: number;
+  limit?: number;
+}
 
 // Permissions par défaut selon le rôle
-const DEFAULT_PERMISSIONS: Record<string, any> = {
+const DEFAULT_PERMISSIONS: Record<string, Permissions> = {
   proprietaire: {
     reproduction: true,
     nutrition: true,
@@ -59,7 +125,13 @@ const DEFAULT_PERMISSIONS: Record<string, any> = {
 
 @Injectable()
 export class CollaborationsService {
-  constructor(private databaseService: DatabaseService) {}
+  private readonly logger = new Logger(CollaborationsService.name);
+
+  constructor(
+    private databaseService: DatabaseService,
+    @Inject(forwardRef(() => NotificationsService))
+    private notificationsService: NotificationsService
+  ) {}
 
   /**
    * Génère un ID comme le frontend : collaborateur_${Date.now()}_${random}
@@ -88,9 +160,114 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
   }
 
   /**
+   * Vérifie qu'un utilisateur existe et est actif
+   */
+  private async validateUserId(userId: string): Promise<void> {
+    const result = await this.databaseService.query(
+      'SELECT id, is_active FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      throw new NotFoundException('Utilisateur introuvable ou inactif');
+    }
+
+    const user = result.rows[0];
+    if (user.is_active === false) {
+      throw new NotFoundException('Utilisateur introuvable ou inactif');
+    }
+  }
+
+  /**
+   * Vérifie s'il existe déjà un collaborateur avec les mêmes identifiants sur ce projet
+   */
+  private async checkDuplicateCollaborateur(
+    projetId: string,
+    email?: string,
+    telephone?: string,
+    userId?: string
+  ): Promise<void> {
+    // Construire les conditions pour vérifier les doublons
+    const duplicateConditions: string[] = [];
+    const params: unknown[] = [projetId];
+    let paramIndex = 2;
+
+    // Vérifier par email (si fourni)
+    if (email && email.trim().length > 0) {
+      duplicateConditions.push(`(projet_id = $1 AND LOWER(email) = LOWER($${paramIndex}))`);
+      params.push(email.trim());
+      paramIndex++;
+    }
+
+    // Vérifier par téléphone (si fourni)
+    if (telephone && telephone.trim().length > 0) {
+      duplicateConditions.push(`(projet_id = $1 AND telephone = $${paramIndex})`);
+      params.push(telephone.trim());
+      paramIndex++;
+    }
+
+    // Vérifier par user_id (si fourni)
+    if (userId && userId.trim().length > 0) {
+      duplicateConditions.push(`(projet_id = $1 AND user_id = $${paramIndex})`);
+      params.push(userId.trim());
+      paramIndex++;
+    }
+
+    // Si aucune condition n'a été ajoutée, pas de vérification
+    if (duplicateConditions.length === 0) {
+      return;
+    }
+
+    const query = `
+      SELECT id, email, telephone, user_id, statut 
+      FROM collaborations 
+      WHERE ${duplicateConditions.join(' OR ')}
+      LIMIT 1
+    `;
+
+    const result = await this.databaseService.query(query, params);
+
+    if (result.rows.length > 0) {
+      const duplicate = result.rows[0];
+      let reason = 'Ce collaborateur est déjà invité sur ce projet';
+      
+      // Message d'erreur spécifique selon le type de doublon
+      if (duplicate.email && email && duplicate.email.toLowerCase() === email.trim().toLowerCase()) {
+        reason = `Un collaborateur avec l'email ${email} existe déjà sur ce projet`;
+      } else if (duplicate.telephone && telephone && duplicate.telephone === telephone.trim()) {
+        reason = `Un collaborateur avec le téléphone ${telephone} existe déjà sur ce projet`;
+      } else if (duplicate.user_id && userId && duplicate.user_id === userId.trim()) {
+        reason = `Cet utilisateur est déjà collaborateur sur ce projet`;
+      }
+
+      throw new ConflictException(reason);
+    }
+  }
+
+  /**
+   * Vérifie que le nombre de collaborateurs actifs ne dépasse pas la limite
+   */
+  private async checkCollaborateurLimit(projetId: string): Promise<void> {
+    const result = await this.databaseService.query(
+      `SELECT COUNT(*) as count 
+       FROM collaborations 
+       WHERE projet_id = $1 AND statut = 'actif'`,
+      [projetId]
+    );
+
+    const count = parseInt(result.rows[0].count, 10);
+
+    if (count >= MAX_COLLABORATEURS) {
+      throw new BadRequestException(
+        `Limite de collaborateurs atteinte (${MAX_COLLABORATEURS} max). Veuillez désactiver ou supprimer des collaborateurs existants.`
+      );
+    }
+  }
+
+  /**
    * Convertit l'objet permissions en colonnes séparées pour la base de données
    */
-  private permissionsToColumns(permissions: any): any {
+  private permissionsToColumns(permissions: Partial<Permissions>): Permissions {
     const defaultPerms = permissions || {};
     return {
       permission_reproduction: defaultPerms.reproduction ?? false,
@@ -106,7 +283,7 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
   /**
    * Convertit les colonnes de permissions en objet
    */
-  private columnsToPermissions(row: any): any {
+  private columnsToPermissions(row: Partial<CollaborationRow>): Permissions {
     return {
       reproduction: row.permission_reproduction || false,
       nutrition: row.permission_nutrition || false,
@@ -121,27 +298,255 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
   /**
    * Mappe une ligne de base de données vers un objet Collaborateur
    */
-  private mapRowToCollaborateur(row: any): any {
-    return {
-      id: row.id,
-      projet_id: row.projet_id,
-      user_id: row.user_id || undefined,
-      nom: row.nom,
-      prenom: row.prenom,
-      email: row.email,
-      telephone: row.telephone || undefined,
-      role: row.role,
-      statut: row.statut,
-      permissions: this.columnsToPermissions(row),
-      date_invitation: row.date_invitation,
-      date_acceptation: row.date_acceptation || undefined,
-      notes: row.notes || undefined,
-      date_creation: row.date_creation,
-      derniere_modification: row.derniere_modification || row.date_creation,
-    };
+  private mapRowToCollaborateur(row: CollaborationRow): Record<string, unknown> {
+    try {
+      return {
+        id: row.id,
+        projet_id: row.projet_id,
+        user_id: row.user_id || undefined,
+        nom: row.nom || '',
+        prenom: row.prenom || '',
+        email: row.email || '',
+        telephone: row.telephone || undefined,
+        role: row.role || 'observateur',
+        statut: row.statut || 'en_attente',
+        permissions: this.columnsToPermissions(row),
+        date_invitation: row.date_invitation || row.date_creation,
+        date_acceptation: row.date_acceptation || undefined,
+        expiration_date: row.expiration_date || undefined,
+        notes: row.notes || undefined,
+        date_creation: row.date_creation,
+        derniere_modification: row.derniere_modification || row.date_creation,
+        // Nouvelles colonnes optionnelles
+        invitation_type: row.invitation_type || 'manual',
+        invited_by: row.invited_by || undefined,
+        qr_scan_data: row.qr_scan_data || undefined,
+        rejection_reason: row.rejection_reason || undefined,
+        suspension_reason: row.suspension_reason || undefined,
+        last_activity: row.last_activity || undefined,
+      };
+    } catch (error) {
+      this.logger.error('Erreur lors du mapping d\'un collaborateur:', error);
+      this.logger.error('Données de la ligne:', JSON.stringify(row, null, 2));
+      throw error;
+    }
   }
 
-  async create(createCollaborateurDto: CreateCollaborateurDto, userId: string) {
+  /**
+   * Log une action dans l'historique des collaborations
+   */
+  private async logCollaborationAction(
+    collaborationId: string,
+    action: 'invited' | 'accepted' | 'rejected' | 'permission_changed' | 'removed' | 'linked' | 'updated' | 'expired',
+    performedBy: string | null,
+    oldValue?: Record<string, unknown>,
+    newValue?: Record<string, unknown>,
+    ipAddress?: string,
+    userAgent?: string
+  ): Promise<void> {
+    try {
+      await this.databaseService.query(
+        `INSERT INTO collaboration_history (
+          collaboration_id, action, performed_by, old_value, new_value, ip_address, user_agent
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          collaborationId,
+          action,
+          performedBy || null,
+          oldValue ? JSON.stringify(oldValue) : null,
+          newValue ? JSON.stringify(newValue) : null,
+          ipAddress || null,
+          userAgent || null,
+        ]
+      );
+    } catch (error) {
+      // Log l'erreur mais ne pas faire échouer l'opération principale
+      this.logger.error(`Erreur lors du logging de l'action ${action}:`, error);
+    }
+  }
+
+  /**
+   * Crée une collaboration depuis un scan de QR code
+   * Toutes les validations de sécurité sont appliquées
+   */
+  async createFromQRScan(
+    scannedUserId: string,
+    projetId: string,
+    role: string,
+    permissions: Partial<Permissions>,
+    scannedBy: string,
+    ipAddress?: string,
+    userAgent?: string
+  ) {
+    // ✅ VALIDATION 1: Vérifier ownership du projet (scannedBy doit être propriétaire)
+    await this.checkProjetOwnership(projetId, scannedBy);
+
+    // ✅ VALIDATION 2: Valider que scannedUserId existe et est actif
+    await this.validateUserId(scannedUserId);
+
+    // ✅ VALIDATION 3: Vérifier que scannedUserId !== scannedBy (pas de self-scan)
+    if (scannedUserId === scannedBy) {
+      throw new BadRequestException('Vous ne pouvez pas vous inviter vous-même');
+    }
+
+    // ✅ VALIDATION 4: Vérifier limite de collaborateurs
+    await this.checkCollaborateurLimit(projetId);
+
+    // ✅ VALIDATION 5: Vérifier doublons (avec scannedUserId)
+    await this.checkDuplicateCollaborateur(projetId, undefined, undefined, scannedUserId);
+
+    // Récupérer les infos complètes de l'utilisateur scanné
+    const userResult = await this.databaseService.query(
+      `SELECT id, nom, prenom, email, telephone, photo FROM users WHERE id = $1`,
+      [scannedUserId]
+    );
+
+    if (userResult.rows.length === 0) {
+      throw new NotFoundException('Utilisateur scanné introuvable');
+    }
+
+    const scannedUser = userResult.rows[0];
+
+    // Fusionner les permissions par défaut avec celles fournies
+    const defaultPerms = DEFAULT_PERMISSIONS[role] || {};
+    const mergedPermissions = permissions
+      ? { ...defaultPerms, ...permissions }
+      : defaultPerms;
+
+    const permColumns = this.permissionsToColumns(mergedPermissions);
+
+    // Créer la collaboration
+    const id = this.generateCollaborateurId();
+    const now = new Date().toISOString();
+
+    // Données du scan QR (pour traçabilité)
+    const qrScanData = {
+      timestamp: now,
+      ip_address: ipAddress || null,
+      user_agent: userAgent || null,
+      scanner_id: scannedBy,
+    };
+
+    const result = await this.databaseService.query(
+      `INSERT INTO collaborations (
+        id, projet_id, user_id, nom, prenom, email, telephone, role, statut,
+        permission_reproduction, permission_nutrition, permission_finance,
+        permission_rapports, permission_planification, permission_mortalites,
+        permission_sante, date_invitation, date_acceptation, expiration_date,
+        invitation_type, qr_scan_data, notes, date_creation, derniere_modification
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+      RETURNING *`,
+      [
+        id,
+        projetId,
+        scannedUserId, // user_id directement lié
+        scannedUser.nom,
+        scannedUser.prenom,
+        scannedUser.email || null,
+        scannedUser.telephone || null,
+        role,
+        'actif', // Statut actif directement (pas d'attente)
+        permColumns.permission_reproduction,
+        permColumns.permission_nutrition,
+        permColumns.permission_finance,
+        permColumns.permission_rapports,
+        permColumns.permission_planification,
+        permColumns.permission_mortalites,
+        permColumns.permission_sante,
+        now, // date_invitation
+        now, // date_acceptation (accepté automatiquement)
+        null, // expiration_date = NULL (pas d'expiration pour QR)
+        'qr_scan', // invitation_type
+        JSON.stringify(qrScanData), // qr_scan_data
+        null, // notes
+        now,
+        now,
+      ]
+    );
+
+    const createdCollaboration = this.mapRowToCollaborateur(result.rows[0]);
+
+    // Log l'action 'invited' avec type QR scan
+    await this.logCollaborationAction(
+      createdCollaboration.id,
+      'invited',
+      scannedBy,
+      undefined,
+      {
+        projet_id: createdCollaboration.projet_id,
+        nom: createdCollaboration.nom,
+        prenom: createdCollaboration.prenom,
+        email: createdCollaboration.email,
+        telephone: createdCollaboration.telephone,
+        role: createdCollaboration.role,
+        statut: createdCollaboration.statut,
+        permissions: createdCollaboration.permissions,
+        invitation_type: 'qr_scan',
+        qr_scan_data: qrScanData,
+      },
+      ipAddress,
+      userAgent
+    );
+
+    // Créer une notification pour le collaborateur ajouté
+    try {
+      const projetResult = await this.databaseService.query(
+        'SELECT nom FROM projets WHERE id = $1',
+        [projetId]
+      );
+      const projetNom = projetResult.rows[0]?.nom || 'le projet';
+
+      // Notification au collaborateur scanné
+      await this.notificationsService.createNotification(
+        scannedUserId,
+        'invitation_received',
+        'Vous avez été ajouté à un projet',
+        `Vous avez été ajouté à ${projetNom} en tant que ${role} via scan QR`,
+        {
+          projet_id: projetId,
+          collaboration_id: createdCollaboration.id,
+          projet_nom: projetNom,
+          role: role,
+          invitation_type: 'qr_scan',
+        }
+      );
+
+      // Notification au producteur qui a scanné
+      const scannerResult = await this.databaseService.query(
+        'SELECT nom, prenom FROM users WHERE id = $1',
+        [scannedBy]
+      );
+      const scannerNom = scannerResult.rows[0]?.nom || 'Un utilisateur';
+      const scannerPrenom = scannerResult.rows[0]?.prenom || '';
+
+      await this.notificationsService.createNotification(
+        scannedBy,
+        'project_shared',
+        'Collaborateur ajouté',
+        `${scannedUser.prenom} ${scannedUser.nom} a été ajouté à ${projetNom} via scan QR`,
+        {
+          projet_id: projetId,
+          collaboration_id: createdCollaboration.id,
+          projet_nom: projetNom,
+          collaborateur_nom: scannedUser.nom,
+          collaborateur_prenom: scannedUser.prenom,
+          invitation_type: 'qr_scan',
+        }
+      );
+    } catch (error) {
+      // Ne pas faire échouer l'opération si la notification échoue
+        this.logger.error('Erreur lors de l\'envoi de la notification:', error);
+    }
+
+    return createdCollaboration;
+  }
+
+  async create(
+    createCollaborateurDto: CreateCollaborateurDto,
+    userId: string,
+    ipAddress?: string,
+    userAgent?: string
+  ) {
     await this.checkProjetOwnership(createCollaborateurDto.projet_id, userId);
 
     // Validation : au moins email OU telephone doit être fourni
@@ -151,9 +556,31 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       throw new BadRequestException('Au moins un email ou un numéro de téléphone doit être fourni');
     }
 
+    // ✅ SÉCURITÉ : Vérifier que le user_id est valide si fourni
+    if (createCollaborateurDto.user_id && createCollaborateurDto.user_id.trim().length > 0) {
+      await this.validateUserId(createCollaborateurDto.user_id);
+    }
+
+    // ✅ SÉCURITÉ : Vérifier les doublons AVANT l'insertion
+    await this.checkDuplicateCollaborateur(
+      createCollaborateurDto.projet_id,
+      createCollaborateurDto.email,
+      createCollaborateurDto.telephone,
+      createCollaborateurDto.user_id
+    );
+
+    // ✅ SÉCURITÉ : Vérifier la limite de collaborateurs AVANT l'insertion
+    await this.checkCollaborateurLimit(createCollaborateurDto.projet_id);
+
     const id = this.generateCollaborateurId();
-    const now = new Date().toISOString();
+    const now = new Date();
+    const nowISO = now.toISOString();
     const statut = createCollaborateurDto.statut || 'en_attente';
+
+    // Calculer la date d'expiration (7 jours à partir de maintenant)
+    const expirationDate = new Date(now);
+    expirationDate.setDate(expirationDate.getDate() + INVITATION_EXPIRY_DAYS);
+    const expirationDateISO = expirationDate.toISOString();
 
     // Fusionner les permissions par défaut avec celles fournies
     const defaultPerms = DEFAULT_PERMISSIONS[createCollaborateurDto.role] || {};
@@ -168,8 +595,8 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
         id, projet_id, user_id, nom, prenom, email, telephone, role, statut,
         permission_reproduction, permission_nutrition, permission_finance,
         permission_rapports, permission_planification, permission_mortalites,
-        permission_sante, date_invitation, notes, date_creation, derniere_modification
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+        permission_sante, date_invitation, expiration_date, invitation_type, notes, date_creation, derniere_modification
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
       RETURNING *`,
       [
         id,
@@ -188,24 +615,184 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
         permColumns.permission_planification,
         permColumns.permission_mortalites,
         permColumns.permission_sante,
-        now, // date_invitation
+        nowISO, // date_invitation
+        expirationDateISO, // expiration_date
+        'manual', // invitation_type (défaut pour les invitations manuelles)
         createCollaborateurDto.notes || null,
-        now,
-        now,
+        nowISO,
+        nowISO,
       ]
     );
 
-    return this.mapRowToCollaborateur(result.rows[0]);
+    const createdCollaboration = this.mapRowToCollaborateur(result.rows[0]);
+
+    // Log l'action 'invited'
+    await this.logCollaborationAction(
+      createdCollaboration.id,
+      'invited',
+      userId,
+      undefined,
+      {
+        projet_id: createdCollaboration.projet_id,
+        nom: createdCollaboration.nom,
+        prenom: createdCollaboration.prenom,
+        email: createdCollaboration.email,
+        telephone: createdCollaboration.telephone,
+        role: createdCollaboration.role,
+        statut: createdCollaboration.statut,
+        permissions: createdCollaboration.permissions,
+      },
+      ipAddress,
+      userAgent
+    );
+
+    // Envoyer une notification au collaborateur invité (si user_id est fourni)
+    if (createdCollaboration.user_id) {
+      try {
+        // Récupérer le nom du projet
+        const projetResult = await this.databaseService.query(
+          'SELECT nom FROM projets WHERE id = $1',
+          [createdCollaboration.projet_id]
+        );
+        const projetNom = projetResult.rows[0]?.nom || 'le projet';
+
+        await this.notificationsService.createNotification(
+          createdCollaboration.user_id,
+          'invitation_received',
+          'Nouvelle invitation',
+          `Vous avez été invité à rejoindre ${projetNom} en tant que ${createdCollaboration.role}`,
+          {
+            projet_id: createdCollaboration.projet_id,
+            collaboration_id: createdCollaboration.id,
+            projet_nom: projetNom,
+            role: createdCollaboration.role,
+          }
+        );
+      } catch (error) {
+        // Ne pas faire échouer l'opération si la notification échoue
+        this.logger.error('Erreur lors de l\'envoi de la notification:', error);
+      }
+    }
+
+    return createdCollaboration;
   }
 
-  async findAll(projetId: string, userId: string) {
+  async findAll(
+    projetId: string,
+    userId: string,
+    options?: FindAllOptions
+  ) {
     await this.checkProjetOwnership(projetId, userId);
 
-    const result = await this.databaseService.query(
-      `SELECT * FROM collaborations WHERE projet_id = $1 ORDER BY date_creation DESC`,
-      [projetId]
-    );
-    return result.rows.map((row) => this.mapRowToCollaborateur(row));
+    // Valeurs par défaut
+    const page = options?.page || 1;
+    const limit = options?.limit || 20;
+    const offset = (page - 1) * limit;
+    const sortOrder = options?.sortOrder || 'DESC';
+
+    // Whitelist pour sortBy (sécurité contre SQL injection)
+    const allowedSortFields = ['nom', 'prenom', 'date_creation', 'role', 'statut', 'date_acceptation', 'last_activity'];
+    const sortBy = options?.sortBy && allowedSortFields.includes(options.sortBy) 
+      ? options.sortBy 
+      : 'date_creation';
+
+    // Construire la requête de base
+    let query = `SELECT * FROM collaborations WHERE projet_id = $1`;
+    const params: unknown[] = [projetId];
+    let paramIndex = 2;
+
+    // Ajouter la recherche
+    if (options?.search && options.search.trim().length > 0) {
+      const searchTerm = `%${options.search.trim()}%`;
+      query += ` AND (
+        LOWER(nom) LIKE LOWER($${paramIndex}) OR 
+        LOWER(prenom) LIKE LOWER($${paramIndex}) OR 
+        LOWER(email) LIKE LOWER($${paramIndex})
+      )`;
+      params.push(searchTerm);
+      paramIndex++;
+    }
+
+    // Ajouter les filtres
+    if (options?.role) {
+      query += ` AND role = $${paramIndex}`;
+      params.push(options.role);
+      paramIndex++;
+    }
+
+    if (options?.statut) {
+      query += ` AND statut = $${paramIndex}`;
+      params.push(options.statut);
+      paramIndex++;
+    }
+
+    // Ajouter le filtre par invitation_type
+    if (options?.invitation_type) {
+      query += ` AND invitation_type = $${paramIndex}`;
+      params.push(options.invitation_type);
+      paramIndex++;
+    }
+
+    // Ajouter le tri
+    query += ` ORDER BY ${sortBy} ${sortOrder}`;
+
+    // Ajouter la pagination
+    query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(limit, offset);
+
+    // Exécuter la requête pour récupérer les données
+    const result = await this.databaseService.query(query, params);
+    const data = result.rows.map((row) => this.mapRowToCollaborateur(row));
+
+    // Construire la requête de comptage (même conditions mais sans pagination)
+    let countQuery = `SELECT COUNT(*) as total FROM collaborations WHERE projet_id = $1`;
+    const countParams: unknown[] = [projetId];
+    let countParamIndex = 2;
+
+    // Ajouter les mêmes conditions de recherche et filtres
+    if (options?.search && options.search.trim().length > 0) {
+      const searchTerm = `%${options.search.trim()}%`;
+      countQuery += ` AND (
+        LOWER(nom) LIKE LOWER($${countParamIndex}) OR 
+        LOWER(prenom) LIKE LOWER($${countParamIndex}) OR 
+        LOWER(email) LIKE LOWER($${countParamIndex})
+      )`;
+      countParams.push(searchTerm);
+      countParamIndex++;
+    }
+
+    if (options?.role) {
+      countQuery += ` AND role = $${countParamIndex}`;
+      countParams.push(options.role);
+      countParamIndex++;
+    }
+
+    if (options?.statut) {
+      countQuery += ` AND statut = $${countParamIndex}`;
+      countParams.push(options.statut);
+      countParamIndex++;
+    }
+
+    if (options?.invitation_type) {
+      countQuery += ` AND invitation_type = $${countParamIndex}`;
+      countParams.push(options.invitation_type);
+      countParamIndex++;
+    }
+
+    // Exécuter la requête de comptage
+    const countResult = await this.databaseService.query(countQuery, countParams);
+    const total = parseInt(countResult.rows[0]?.total || '0', 10);
+
+    // Retourner avec pagination
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async findOne(id: string, userId: string) {
@@ -218,14 +805,25 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
     return result.rows[0] ? this.mapRowToCollaborateur(result.rows[0]) : null;
   }
 
-  async update(id: string, updateCollaborateurDto: UpdateCollaborateurDto, userId: string) {
+  async update(
+    id: string,
+    updateCollaborateurDto: UpdateCollaborateurDto,
+    userId: string,
+    ipAddress?: string,
+    userAgent?: string
+  ) {
     const existing = await this.findOne(id, userId);
     if (!existing) {
       throw new NotFoundException('Collaborateur introuvable');
     }
 
+    // Sauvegarder les anciennes valeurs pour le log
+    const oldPermissions = { ...existing.permissions };
+    const oldRole = existing.role;
+    const oldStatut = existing.statut;
+
     const fields: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
     let paramIndex = 1;
 
     if (updateCollaborateurDto.user_id !== undefined) {
@@ -309,57 +907,153 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
     values.push(id);
     const query = `UPDATE collaborations SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
     const result = await this.databaseService.query(query, values);
-    return this.mapRowToCollaborateur(result.rows[0]);
+    const updatedCollaboration = this.mapRowToCollaborateur(result.rows[0]);
+
+    // Vérifier si les permissions ont changé
+    const newPermissions = updatedCollaboration.permissions;
+    const permissionsChanged = JSON.stringify(oldPermissions) !== JSON.stringify(newPermissions);
+    const roleChanged = updateCollaborateurDto.role !== undefined && updateCollaborateurDto.role !== oldRole;
+    const statutChanged = updateCollaborateurDto.statut !== undefined && updateCollaborateurDto.statut !== oldStatut;
+
+    // Log l'action 'permission_changed' si les permissions ont changé
+    if (permissionsChanged) {
+      await this.logCollaborationAction(
+        id,
+        'permission_changed',
+        userId,
+        { permissions: oldPermissions },
+        { permissions: newPermissions },
+        ipAddress,
+        userAgent
+      );
+    }
+
+    // Log l'action 'updated' pour les autres changements
+    if (roleChanged || statutChanged || !permissionsChanged) {
+      const oldValue: Record<string, unknown> = {};
+      const newValue: Record<string, unknown> = {};
+      if (roleChanged) {
+        oldValue.role = oldRole;
+        newValue.role = updatedCollaboration.role;
+      }
+      if (statutChanged) {
+        oldValue.statut = oldStatut;
+        newValue.statut = updatedCollaboration.statut;
+      }
+      if (Object.keys(oldValue).length > 0 || Object.keys(newValue).length > 0) {
+        await this.logCollaborationAction(
+          id,
+          'updated',
+          userId,
+          Object.keys(oldValue).length > 0 ? oldValue : undefined,
+          Object.keys(newValue).length > 0 ? newValue : undefined,
+          ipAddress,
+          userAgent
+        );
+      }
+    }
+
+    return updatedCollaboration;
   }
 
-  async delete(id: string, userId: string) {
+  async delete(
+    id: string,
+    userId: string,
+    ipAddress?: string,
+    userAgent?: string
+  ) {
     const existing = await this.findOne(id, userId);
     if (!existing) {
       throw new NotFoundException('Collaborateur introuvable');
     }
 
+    // Log l'action 'removed' avant la suppression
+    await this.logCollaborationAction(
+      id,
+      'removed',
+      userId,
+      {
+        projet_id: existing.projet_id,
+        nom: existing.nom,
+        prenom: existing.prenom,
+        email: existing.email,
+        telephone: existing.telephone,
+        role: existing.role,
+        statut: existing.statut,
+        permissions: existing.permissions,
+      },
+      undefined,
+      ipAddress,
+      userAgent
+    );
+
     await this.databaseService.query('DELETE FROM collaborations WHERE id = $1', [id]);
     return { id };
   }
 
-  async accepterInvitation(id: string, userId: string) {
+  async accepterInvitation(
+    id: string,
+    userId: string,
+    ipAddress?: string,
+    userAgent?: string
+  ) {
     // Récupérer l'email et le téléphone de l'utilisateur connecté
     const userResult = await this.databaseService.query(
       `SELECT email, telephone FROM users WHERE id = $1`,
       [userId]
     );
     const user = userResult.rows[0];
-    const userEmail = user?.email;
-    const userTelephone = user?.telephone;
-
-    // Vérifier que l'invitation existe et appartient à l'utilisateur
-    // Par user_id OU email OU telephone
-    let query = `SELECT c.* FROM collaborations c WHERE c.id = $1 AND (c.user_id = $2`;
-    const params: any[] = [id, userId];
-
-    if (userEmail) {
-      query += ` OR c.email = $${params.length + 1}`;
-      params.push(userEmail);
+    if (!user) {
+      throw new NotFoundException('Utilisateur introuvable');
     }
+    const userEmail = user?.email?.toLowerCase().trim();
+    const userTelephone = user?.telephone?.trim();
 
-    if (userTelephone) {
-      query += ` OR c.telephone = $${params.length + 1}`;
-      params.push(userTelephone);
-    }
+    // Vérifier que l'invitation existe
+    const invitationResult = await this.databaseService.query(
+      `SELECT * FROM collaborations WHERE id = $1`,
+      [id]
+    );
 
-    query += `)`;
-
-    const result = await this.databaseService.query(query, params);
-    if (result.rows.length === 0) {
+    if (invitationResult.rows.length === 0) {
       throw new NotFoundException('Invitation introuvable');
     }
 
-    const collaboration = result.rows[0];
+    const collaboration = invitationResult.rows[0];
+    const invitationEmail = collaboration.email?.toLowerCase().trim();
+    const invitationTelephone = collaboration.telephone?.trim();
+
+    // Vérifier que l'invitation appartient à l'utilisateur
+    // Par user_id OU email OU telephone (comparaison insensible à la casse)
+    const matchByUserId = collaboration.user_id === userId;
+    const matchByEmail = userEmail && invitationEmail && userEmail === invitationEmail;
+    const matchByTelephone = userTelephone && invitationTelephone && userTelephone === invitationTelephone;
+
+    if (!matchByUserId && !matchByEmail && !matchByTelephone) {
+      throw new ForbiddenException(
+        "Cette invitation ne vous est pas destinée. Vérifiez que l'email ou le téléphone correspond à votre compte."
+      );
+    }
+
     if (collaboration.statut !== 'en_attente') {
       throw new BadRequestException("Cette invitation n'est plus en attente");
     }
 
+    // Vérifier que l'invitation n'a pas expiré
+    if (collaboration.expiration_date) {
+      const expirationDate = new Date(collaboration.expiration_date);
+      const now = new Date();
+      if (expirationDate < now) {
+        throw new BadRequestException('Cette invitation a expiré');
+      }
+    }
+
     const now = new Date().toISOString();
+    
+    // Sauvegarder l'ancien statut pour le log
+    const oldStatut = collaboration.statut;
+    const oldUserId = collaboration.user_id;
+
     const updateResult = await this.databaseService.query(
       `UPDATE collaborations 
        SET statut = 'actif', date_acceptation = $1, derniere_modification = $2,
@@ -369,48 +1063,159 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       [now, now, userId, id]
     );
 
-    return this.mapRowToCollaborateur(updateResult.rows[0]);
+    const updatedCollaboration = this.mapRowToCollaborateur(updateResult.rows[0]);
+
+    // Log l'action 'accepted'
+    await this.logCollaborationAction(
+      id,
+      'accepted',
+      userId,
+      {
+        statut: oldStatut,
+        user_id: oldUserId,
+      },
+      {
+        statut: 'actif',
+        user_id: updatedCollaboration.user_id,
+        date_acceptation: updatedCollaboration.date_acceptation,
+      },
+      ipAddress,
+      userAgent
+    );
+
+    // Envoyer une notification au propriétaire du projet
+    try {
+      // Récupérer le propriétaire du projet
+      const projetResult = await this.databaseService.query(
+        'SELECT proprietaire_id, nom FROM projets WHERE id = $1',
+        [collaboration.projet_id]
+      );
+      const proprietaireId = projetResult.rows[0]?.proprietaire_id;
+      const projetNom = projetResult.rows[0]?.nom || 'le projet';
+
+      if (proprietaireId && proprietaireId !== userId) {
+        const collaborateurNom = `${collaboration.prenom || ''} ${collaboration.nom || ''}`.trim() || 'Un collaborateur';
+        await this.notificationsService.createNotification(
+          proprietaireId,
+          'invitation_accepted',
+          'Invitation acceptée',
+          `${collaborateurNom} a accepté votre invitation sur ${projetNom}`,
+          {
+            projet_id: collaboration.projet_id,
+            collaboration_id: id,
+            projet_nom: projetNom,
+            collaborateur_nom: collaboration.nom,
+            collaborateur_prenom: collaboration.prenom,
+          }
+        );
+      }
+    } catch (error) {
+        this.logger.error('Erreur lors de l\'envoi de la notification:', error);
+    }
+
+    return updatedCollaboration;
   }
 
-  async rejeterInvitation(id: string, userId: string) {
+  async rejeterInvitation(
+    id: string,
+    userId: string,
+    rejectionReason?: string,
+    ipAddress?: string,
+    userAgent?: string
+  ) {
     // Récupérer l'email et le téléphone de l'utilisateur connecté
     const userResult = await this.databaseService.query(
       `SELECT email, telephone FROM users WHERE id = $1`,
       [userId]
     );
     const user = userResult.rows[0];
-    const userEmail = user?.email;
-    const userTelephone = user?.telephone;
-
-    // Vérifier que l'invitation existe et appartient à l'utilisateur
-    // Par user_id OU email OU telephone
-    let query = `SELECT c.* FROM collaborations c WHERE c.id = $1 AND (c.user_id = $2`;
-    const params: any[] = [id, userId];
-
-    if (userEmail) {
-      query += ` OR c.email = $${params.length + 1}`;
-      params.push(userEmail);
+    if (!user) {
+      throw new NotFoundException('Utilisateur introuvable');
     }
+    const userEmail = user?.email?.toLowerCase().trim();
+    const userTelephone = user?.telephone?.trim();
 
-    if (userTelephone) {
-      query += ` OR c.telephone = $${params.length + 1}`;
-      params.push(userTelephone);
-    }
+    // Vérifier que l'invitation existe
+    const invitationResult = await this.databaseService.query(
+      `SELECT * FROM collaborations WHERE id = $1`,
+      [id]
+    );
 
-    query += `)`;
-
-    const result = await this.databaseService.query(query, params);
-    if (result.rows.length === 0) {
+    if (invitationResult.rows.length === 0) {
       throw new NotFoundException('Invitation introuvable');
     }
+
+    const collaboration = invitationResult.rows[0];
+    const invitationEmail = collaboration.email?.toLowerCase().trim();
+    const invitationTelephone = collaboration.telephone?.trim();
+
+    // Vérifier que l'invitation appartient à l'utilisateur
+    // Par user_id OU email OU telephone (comparaison insensible à la casse)
+    const matchByUserId = collaboration.user_id === userId;
+    const matchByEmail = userEmail && invitationEmail && userEmail === invitationEmail;
+    const matchByTelephone = userTelephone && invitationTelephone && userTelephone === invitationTelephone;
+
+    if (!matchByUserId && !matchByEmail && !matchByTelephone) {
+      throw new ForbiddenException(
+        "Cette invitation ne vous est pas destinée. Vérifiez que l'email ou le téléphone correspond à votre compte."
+      );
+    }
+    const oldStatut = collaboration.statut;
 
     const now = new Date().toISOString();
     await this.databaseService.query(
       `UPDATE collaborations 
-       SET statut = 'inactif', derniere_modification = $1
-       WHERE id = $2`,
-      [now, id]
+       SET statut = 'rejete', rejection_reason = $1, derniere_modification = $2
+       WHERE id = $3`,
+      [rejectionReason || null, now, id]
     );
+
+    // Log l'action 'rejected'
+    await this.logCollaborationAction(
+      id,
+      'rejected',
+      userId,
+      {
+        statut: oldStatut,
+      },
+      {
+        statut: 'rejete',
+        rejection_reason: rejectionReason || null,
+      },
+      ipAddress,
+      userAgent
+    );
+
+    // Envoyer une notification au propriétaire du projet
+    try {
+      // Récupérer le propriétaire du projet
+      const projetResult = await this.databaseService.query(
+        'SELECT proprietaire_id, nom FROM projets WHERE id = $1',
+        [collaboration.projet_id]
+      );
+      const proprietaireId = projetResult.rows[0]?.proprietaire_id;
+      const projetNom = projetResult.rows[0]?.nom || 'le projet';
+
+      if (proprietaireId && proprietaireId !== userId) {
+        const collaborateurNom = `${collaboration.prenom || ''} ${collaboration.nom || ''}`.trim() || 'Un collaborateur';
+        await this.notificationsService.createNotification(
+          proprietaireId,
+          'invitation_rejected',
+          'Invitation rejetée',
+          `${collaborateurNom} a rejeté votre invitation sur ${projetNom}`,
+          {
+            projet_id: collaboration.projet_id,
+            collaboration_id: id,
+            projet_nom: projetNom,
+            collaborateur_nom: collaboration.nom,
+            collaborateur_prenom: collaboration.prenom,
+            rejection_reason: rejectionReason || null,
+          }
+        );
+      }
+    } catch (error) {
+        this.logger.error('Erreur lors de l\'envoi de la notification:', error);
+    }
 
     return { id };
   }
@@ -430,83 +1235,465 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
     email?: string,
     telephone?: string
   ) {
-    if (!userId && !email && !telephone) {
-      return [];
-    }
-
-    let query = `SELECT * FROM collaborations WHERE statut = 'en_attente'`;
-    const params: any[] = [];
-    let paramIndex = 1;
-
-    // Construire les conditions de recherche
-    const conditions: string[] = [];
-
-    if (userId) {
-      conditions.push(`(user_id = $${paramIndex} OR user_id IS NULL)`);
-      params.push(userId);
-      paramIndex++;
-    }
-
-    if (email) {
-      conditions.push(`email = $${paramIndex}`);
-      params.push(email);
-      paramIndex++;
-    }
-
-    if (telephone) {
-      conditions.push(`telephone = $${paramIndex}`);
-      params.push(telephone);
-      paramIndex++;
-    }
-
-    if (conditions.length > 0) {
-      query += ` AND (${conditions.join(' OR ')})`;
-    }
-
-    query += ` ORDER BY date_invitation DESC`;
-
-    const result = await this.databaseService.query(query, params);
-
-    // Liaison automatique : si on trouve des invitations par email/telephone et qu'on a un userId, les lier
-    if (userId && result.rows.length > 0) {
-      for (const row of result.rows) {
-        if (!row.user_id) {
-          const matchByEmail = email && row.email && row.email === email;
-          const matchByTelephone = telephone && row.telephone && row.telephone === telephone;
-          
-          if (matchByEmail || matchByTelephone) {
-            await this.databaseService.query(
-              `UPDATE collaborations SET user_id = $1 WHERE id = $2`,
-              [userId, row.id]
-            );
-          }
-        }
+    try {
+      if (!userId && !email && !telephone) {
+        return [];
       }
-      
-      // Recharger après liaison
-      const reloadConditions: string[] = [`user_id = $1`];
-      const reloadParams: any[] = [userId];
-      let reloadParamIndex = 2;
+
+      // Construire la requête de base sans les colonnes optionnelles
+      // On sélectionne uniquement les colonnes qui existent définitivement pour éviter les erreurs SQL
+      // Les valeurs par défaut pour invitation_type, expiration_date, etc. seront gérées dans mapRowToCollaborateur()
+      let query = `SELECT 
+        id, projet_id, user_id, nom, prenom, email, telephone, role, statut,
+        permission_reproduction, permission_nutrition, permission_finance, 
+        permission_rapports, permission_planification, permission_mortalites, permission_sante,
+        date_invitation, date_acceptation, notes, date_creation, derniere_modification
+        FROM collaborations 
+        WHERE statut = 'en_attente'`;
+      const params: unknown[] = [];
+      let paramIndex = 1;
+
+      // Construire les conditions de recherche
+      const conditions: string[] = [];
+
+      if (userId) {
+        conditions.push(`(user_id = $${paramIndex} OR user_id IS NULL)`);
+        params.push(userId);
+        paramIndex++;
+      }
 
       if (email) {
-        reloadConditions.push(`email = $${reloadParamIndex}`);
-        reloadParams.push(email);
-        reloadParamIndex++;
+        conditions.push(`email = $${paramIndex}`);
+        params.push(email);
+        paramIndex++;
       }
 
       if (telephone) {
-        reloadConditions.push(`telephone = $${reloadParamIndex}`);
-        reloadParams.push(telephone);
-        reloadParamIndex++;
+        conditions.push(`telephone = $${paramIndex}`);
+        params.push(telephone);
+        paramIndex++;
       }
 
-      const reloadQuery = `SELECT * FROM collaborations 
-         WHERE statut = 'en_attente' AND (${reloadConditions.join(' OR ')})
-         ORDER BY date_invitation DESC`;
-      
-      const reloadResult = await this.databaseService.query(reloadQuery, reloadParams);
-      return reloadResult.rows.map((row) => this.mapRowToCollaborateur(row));
+      if (conditions.length > 0) {
+        query += ` AND (${conditions.join(' OR ')})`;
+      }
+
+      // Utiliser COALESCE pour gérer les cas où date_invitation n'existe pas encore
+      // Vérifier d'abord si la colonne date_invitation existe
+      query += ` ORDER BY COALESCE(date_invitation, date_creation, derniere_modification) DESC`;
+
+      this.logger.debug(`[findInvitationsEnAttente] Exécution de la requête: ${query}`);
+      this.logger.debug(`[findInvitationsEnAttente] Paramètres: ${JSON.stringify(params)}`);
+
+      const result = await this.databaseService.query(query, params);
+
+      this.logger.debug(`[findInvitationsEnAttente] ${result.rows.length} invitation(s) trouvée(s)`);
+
+      // RETIRÉ : Liaison automatique supprimée pour des raisons de sécurité
+      // Les invitations doivent être liées manuellement via linkInvitationToUser()
+
+      // Mapper les résultats avec gestion d'erreur pour chaque ligne
+      const mappedResults = result.rows.map((row) => {
+        try {
+          return this.mapRowToCollaborateur(row);
+        } catch (error: unknown) {
+          this.logger.error('Erreur lors du mapping d\'une invitation:', error);
+          this.logger.error('Stack trace:', error.stack);
+          this.logger.error('Données de la ligne:', JSON.stringify(row, null, 2));
+          // Retourner un objet minimal pour éviter de casser l'application
+          return {
+            id: row.id || '',
+            projet_id: row.projet_id || '',
+            nom: row.nom || '',
+            prenom: row.prenom || '',
+            email: row.email || '',
+            statut: row.statut || 'en_attente',
+            role: row.role || 'observateur',
+            permissions: this.columnsToPermissions(row),
+            date_creation: row.date_creation || new Date().toISOString(),
+          };
+        }
+      });
+
+      return mappedResults;
+    } catch (error) {
+      this.logger.error('Erreur lors de la récupération des invitations en attente:', error);
+      throw error;
     }
+  }
+
+  /**
+   * Nettoie les invitations expirées en changeant leur statut en 'expire'
+   * @returns Le nombre d'invitations expirées
+   */
+  async cleanupExpiredInvitations(): Promise<number> {
+    const now = new Date().toISOString();
+
+    // Trouver toutes les invitations en attente qui ont expiré
+    const findResult = await this.databaseService.query(
+      `SELECT id, statut FROM collaborations 
+       WHERE statut = 'en_attente' 
+       AND expiration_date IS NOT NULL 
+       AND expiration_date < $1`,
+      [now]
+    );
+
+    if (findResult.rows.length === 0) {
+      return 0;
+    }
+
+    // Mettre à jour le statut de toutes les invitations expirées
+    await this.databaseService.query(
+      `UPDATE collaborations 
+       SET statut = 'expire', derniere_modification = $1
+       WHERE statut = 'en_attente' 
+       AND expiration_date IS NOT NULL 
+       AND expiration_date < $2`,
+      [now, now]
+    );
+
+    // Log l'action 'expired' pour chaque invitation
+    for (const row of findResult.rows) {
+      await this.logCollaborationAction(
+        row.id,
+        'expired',
+        null, // Action système
+        { statut: row.statut },
+        { statut: 'expire' },
+        undefined,
+        undefined
+      );
+    }
+
+    return findResult.rows.length;
+  }
+
+  /**
+   * Lie manuellement une invitation à un utilisateur
+   * Vérifie que l'email ou téléphone correspond avant de lier
+   */
+  async linkInvitationToUser(
+    invitationId: string,
+    userId: string,
+    ipAddress?: string,
+    userAgent?: string
+  ) {
+    // Récupérer l'invitation
+    const invitationResult = await this.databaseService.query(
+      'SELECT * FROM collaborations WHERE id = $1',
+      [invitationId]
+    );
+
+    if (invitationResult.rows.length === 0) {
+      throw new NotFoundException('Invitation introuvable');
+    }
+
+    const invitation = invitationResult.rows[0];
+
+    // Vérifier que l'invitation est en attente
+    if (invitation.statut !== 'en_attente') {
+      throw new BadRequestException("Cette invitation n'est plus en attente");
+    }
+
+    // Vérifier que l'invitation n'a pas expiré
+    if (invitation.expiration_date) {
+      const expirationDate = new Date(invitation.expiration_date);
+      const now = new Date();
+      if (expirationDate < now) {
+        throw new BadRequestException('Cette invitation a expiré');
+      }
+    }
+
+    // Récupérer les informations de l'utilisateur
+    const userResult = await this.databaseService.query(
+      'SELECT email, telephone FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (userResult.rows.length === 0) {
+      throw new NotFoundException('Utilisateur introuvable');
+    }
+
+    const user = userResult.rows[0];
+    const userEmail = user?.email?.toLowerCase().trim();
+    const userTelephone = user?.telephone?.trim();
+
+    // Vérifier que l'email OU téléphone correspond
+    const invitationEmail = invitation.email?.toLowerCase().trim();
+    const invitationTelephone = invitation.telephone?.trim();
+
+    const emailMatch = userEmail && invitationEmail && userEmail === invitationEmail;
+    const telephoneMatch = userTelephone && invitationTelephone && userTelephone === invitationTelephone;
+
+    if (!emailMatch && !telephoneMatch) {
+      throw new ForbiddenException(
+        "L'email ou le téléphone de l'invitation ne correspond pas à votre compte"
+      );
+    }
+
+    // Mettre à jour l'invitation
+    const now = new Date().toISOString();
+    const oldUserId = invitation.user_id;
+
+    const updateResult = await this.databaseService.query(
+      `UPDATE collaborations 
+       SET user_id = $1, derniere_modification = $2
+       WHERE id = $3
+       RETURNING *`,
+      [userId, now, invitationId]
+    );
+
+    const updatedInvitation = this.mapRowToCollaborateur(updateResult.rows[0]);
+
+    // Log l'action 'linked'
+    await this.logCollaborationAction(
+      invitationId,
+      'linked',
+      userId,
+      { user_id: oldUserId },
+      { user_id: userId },
+      ipAddress,
+      userAgent
+    );
+
+    return updatedInvitation;
+  }
+
+  /**
+   * Récupère l'historique complet d'une collaboration
+   * Accessible uniquement par le propriétaire du projet
+   */
+  async getCollaborationHistory(collaborationId: string, userId: string) {
+    // Vérifier que la collaboration existe et que l'utilisateur est propriétaire
+    const collaboration = await this.findOne(collaborationId, userId);
+    if (!collaboration) {
+      throw new NotFoundException('Collaboration introuvable');
+    }
+
+    // Récupérer l'historique
+    const result = await this.databaseService.query(
+      `SELECT 
+        h.id,
+        h.action,
+        h.performed_by,
+        h.old_value,
+        h.new_value,
+        h.ip_address,
+        h.user_agent,
+        h.created_at,
+        u.email as performed_by_email,
+        u.nom as performed_by_nom,
+        u.prenom as performed_by_prenom
+      FROM collaboration_history h
+      LEFT JOIN users u ON h.performed_by = u.id
+      WHERE h.collaboration_id = $1
+      ORDER BY h.created_at DESC`,
+      [collaborationId]
+    );
+
+    return result.rows.map((row) => ({
+      id: row.id,
+      action: row.action,
+      performed_by: row.performed_by
+        ? {
+            id: row.performed_by,
+            email: row.performed_by_email,
+            nom: row.performed_by_nom,
+            prenom: row.performed_by_prenom,
+          }
+        : null,
+      old_value: row.old_value ? JSON.parse(row.old_value) : null,
+      new_value: row.new_value ? JSON.parse(row.new_value) : null,
+      ip_address: row.ip_address || undefined,
+      user_agent: row.user_agent || undefined,
+      created_at: row.created_at,
+    }));
+  }
+
+  /**
+   * Récupère les statistiques d'un projet concernant les collaborations
+   */
+  async getProjetStatistics(projetId: string, userId: string) {
+    await this.checkProjetOwnership(projetId, userId);
+
+    // Statistiques par statut
+    const statutResult = await this.databaseService.query(
+      `SELECT 
+        COUNT(*) as total_collaborateurs,
+        COUNT(*) FILTER (WHERE statut = 'actif') as actifs,
+        COUNT(*) FILTER (WHERE statut = 'en_attente') as en_attente,
+        COUNT(*) FILTER (WHERE statut = 'rejete') as rejetes,
+        COUNT(*) FILTER (WHERE statut = 'expire') as expires
+       FROM collaborations
+       WHERE projet_id = $1`,
+      [projetId]
+    );
+
+    const stats = statutResult.rows[0];
+    const total_collaborateurs = parseInt(stats.total_collaborateurs || '0', 10);
+    const actifs = parseInt(stats.actifs || '0', 10);
+    const en_attente = parseInt(stats.en_attente || '0', 10);
+    const rejetes = parseInt(stats.rejetes || '0', 10);
+    const expires = parseInt(stats.expires || '0', 10);
+
+    // Statistiques par rôle
+    const roleResult = await this.databaseService.query(
+      `SELECT 
+        role,
+        COUNT(*) as count
+       FROM collaborations
+       WHERE projet_id = $1 AND statut = 'actif'
+       GROUP BY role`,
+      [projetId]
+    );
+
+    const par_role = {
+      veterinaire: 0,
+      gestionnaire: 0,
+      ouvrier: 0,
+      observateur: 0,
+      proprietaire: 0,
+    };
+
+    roleResult.rows.forEach((row) => {
+      if (par_role.hasOwnProperty(row.role)) {
+        par_role[row.role] = parseInt(row.count, 10);
+      }
+    });
+
+    // Dernière invitation
+    const derniereInvitationResult = await this.databaseService.query(
+      `SELECT MAX(date_invitation) as derniere_invitation
+       FROM collaborations
+       WHERE projet_id = $1`,
+      [projetId]
+    );
+    const derniere_invitation = derniereInvitationResult.rows[0]?.derniere_invitation || null;
+
+    // Dernière acceptation
+    const derniereAcceptationResult = await this.databaseService.query(
+      `SELECT MAX(date_acceptation) as derniere_acceptation
+       FROM collaborations
+       WHERE projet_id = $1 AND date_acceptation IS NOT NULL`,
+      [projetId]
+    );
+    const derniere_acceptation = derniereAcceptationResult.rows[0]?.derniere_acceptation || null;
+
+    return {
+      total_collaborateurs,
+      actifs,
+      en_attente,
+      rejetes,
+      expires,
+      par_role,
+      derniere_invitation,
+      derniere_acceptation,
+    };
+  }
+
+  /**
+   * Récupère l'activité d'un collaborateur spécifique
+   */
+  async getCollaborateurActivity(collaborationId: string, userId: string) {
+    // Vérifier que la collaboration existe et que l'utilisateur a accès
+    const collaboration = await this.findOne(collaborationId, userId);
+    if (!collaboration) {
+      throw new NotFoundException('Collaboration introuvable');
+    }
+
+    // Vérifier que l'utilisateur est soit le propriétaire, soit le collaborateur concerné
+    const projetResult = await this.databaseService.query(
+      'SELECT proprietaire_id FROM projets WHERE id = $1',
+      [collaboration.projet_id]
+    );
+    const proprietaireId = projetResult.rows[0]?.proprietaire_id;
+
+    if (proprietaireId !== userId && collaboration.user_id !== userId) {
+      throw new ForbiddenException('Vous n\'avez pas accès à cette activité');
+    }
+
+    // Récupérer la dernière connexion depuis auth_logs (si disponible)
+    let derniere_connexion: Date | null = null;
+    if (collaboration.user_id) {
+      try {
+        const connexionResult = await this.databaseService.query(
+          `SELECT MAX(timestamp) as derniere_connexion
+           FROM auth_logs
+           WHERE user_id = $1 AND success = TRUE`,
+          [collaboration.user_id]
+        );
+        derniere_connexion = connexionResult.rows[0]?.derniere_connexion || null;
+      } catch (error) {
+        // Si la table auth_logs n'existe pas ou n'est pas accessible, ignorer
+        this.logger.warn('Impossible de récupérer la dernière connexion:', error);
+      }
+    }
+
+    // Récupérer le nombre total d'actions depuis collaboration_history
+    const nombreActionsResult = await this.databaseService.query(
+      `SELECT COUNT(*) as total
+       FROM collaboration_history
+       WHERE collaboration_id = $1`,
+      [collaborationId]
+    );
+    const nombre_actions = parseInt(nombreActionsResult.rows[0]?.total || '0', 10);
+
+    // Récupérer les 10 dernières actions
+    const actionsResult = await this.databaseService.query(
+      `SELECT 
+        h.action,
+        h.created_at as date,
+        h.old_value,
+        h.new_value,
+        h.performed_by,
+        u.email as performed_by_email,
+        u.nom as performed_by_nom,
+        u.prenom as performed_by_prenom
+      FROM collaboration_history h
+      LEFT JOIN users u ON h.performed_by = u.id
+      WHERE h.collaboration_id = $1
+      ORDER BY h.created_at DESC
+      LIMIT 10`,
+      [collaborationId]
+    );
+
+    const actions_recentes = actionsResult.rows.map((row) => ({
+      action: row.action,
+      date: row.date,
+      details: {
+        old_value: row.old_value ? (typeof row.old_value === 'string' ? JSON.parse(row.old_value) : row.old_value) : null,
+        new_value: row.new_value ? (typeof row.new_value === 'string' ? JSON.parse(row.new_value) : row.new_value) : null,
+        performed_by: row.performed_by
+          ? {
+              id: row.performed_by,
+              email: row.performed_by_email,
+              nom: row.performed_by_nom,
+              prenom: row.performed_by_prenom,
+            }
+          : null,
+      },
+    }));
+
+    return {
+      derniere_connexion,
+      nombre_actions,
+      actions_recentes,
+    };
+  }
+
+  /**
+   * Récupère toutes les collaborations d'un utilisateur (tous projets confondus)
+   * Retourne uniquement les collaborations où l'utilisateur est lié (user_id correspond)
+   */
+  async findMyCollaborations(userId: string) {
+    const result = await this.databaseService.query(
+      `SELECT c.*, p.nom as projet_nom, p.proprietaire_id
+       FROM collaborations c
+       JOIN projets p ON c.projet_id = p.id
+       WHERE c.user_id = $1
+       ORDER BY c.date_creation DESC`,
+      [userId]
+    );
 
     return result.rows.map((row) => this.mapRowToCollaborateur(row));
   }

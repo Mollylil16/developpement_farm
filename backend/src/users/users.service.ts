@@ -1,5 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { Request } from 'express';
+import sharp from 'sharp';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 @Injectable()
 export class UsersService {
@@ -269,6 +273,30 @@ export class UsersService {
     const existingUser = await this.findOne(id);
     if (!existingUser) {
       throw new Error('Utilisateur introuvable');
+    }
+
+    // Validation: Rejeter les URIs locales dans la photo
+    if (updateUserDto.photo !== undefined && updateUserDto.photo !== null) {
+      const photo = String(updateUserDto.photo);
+      const localUriPatterns = [
+        'file://',
+        'content://',
+        'ph://',
+        'assets-library://',
+        'ph-asset://',
+      ];
+      
+      const isLocalUri = localUriPatterns.some(pattern => photo.toLowerCase().startsWith(pattern));
+      
+      if (isLocalUri) {
+        this.logger.warn(
+          `update: Tentative de mise à jour avec URI locale rejetée pour userId=${id}, photo=${photo.substring(0, 50)}...`
+        );
+        throw new BadRequestException(
+          'Les URIs locales (file://, content://, ph://, etc.) ne peuvent pas être stockées en base de données. ' +
+          'Veuillez uploader la photo vers le serveur en utilisant l\'endpoint /users/:id/photo'
+        );
+      }
     }
 
     const fields: string[] = [];
@@ -781,5 +809,392 @@ export class UsersService {
       onboardingCompletedAt: row.onboarding_completed_at || undefined,
       is_active: row.is_active === true || row.is_active === 1, // Important pour le guard JWT
     };
+  }
+
+  /**
+   * Upload et redimensionne une photo de profil
+   */
+  async uploadProfilePhoto(userId: string, file: Express.Multer.File, req?: Request): Promise<string> {
+    // Vérifier que l'utilisateur existe
+    const user = await this.findOne(userId);
+    if (!user) {
+      throw new NotFoundException('Utilisateur introuvable');
+    }
+
+    // Vérifier le fichier
+    if (!file) {
+      throw new BadRequestException('Aucun fichier fourni');
+    }
+
+    // Utiliser file.path qui est le chemin réel du fichier sauvegardé par Multer
+    // Multer sauvegarde déjà le fichier dans le dossier de destination
+    // Convertir en chemin absolu si nécessaire (Multer peut utiliser des chemins relatifs)
+    let filePath = file.path;
+    
+    if (!filePath) {
+      throw new BadRequestException('Chemin du fichier introuvable');
+    }
+
+    // Convertir en chemin absolu si c'est un chemin relatif
+    if (!path.isAbsolute(filePath)) {
+      filePath = path.resolve(process.cwd(), filePath);
+    }
+
+    this.logger.debug(`[uploadProfilePhoto] Chemin du fichier: ${filePath}`);
+
+    // Vérifier que le fichier existe
+    try {
+      await fs.access(filePath);
+      this.logger.debug(`[uploadProfilePhoto] Fichier trouvé: ${file.filename}`);
+    } catch (error) {
+      this.logger.error(`[uploadProfilePhoto] Fichier non trouvé: ${file.filename}`, error);
+      // SÉCURITÉ: Ne pas exposer le chemin complet dans l'erreur
+      throw new BadRequestException('Fichier non trouvé. Veuillez réessayer.');
+    }
+
+    // S'assurer que le dossier de destination existe (pour la sauvegarde finale)
+    const uploadsDir = path.join(process.cwd(), 'uploads', 'profile-photos');
+    try {
+      await fs.access(uploadsDir);
+    } catch {
+      // Le dossier n'existe pas, le créer
+      await fs.mkdir(uploadsDir, { recursive: true });
+    }
+
+    try {
+      // Lire le fichier en buffer d'abord pour garantir qu'il est complètement écrit
+      // Cela évite les problèmes de timing où sharp essaie de lire un fichier en cours d'écriture
+      const fileBuffer = await fs.readFile(filePath);
+      
+      this.logger.debug(`[uploadProfilePhoto] Fichier lu, taille: ${fileBuffer.length} bytes`);
+
+      // SÉCURITÉ: Valider le contenu réel du fichier avec sharp.metadata()
+      // Cela vérifie que c'est bien une image, pas juste l'extension
+      let imageMetadata;
+      try {
+        imageMetadata = await sharp(fileBuffer).metadata();
+      } catch (sharpError) {
+        this.logger.error(`[uploadProfilePhoto] Fichier invalide ou corrompu: ${file.filename}`, sharpError);
+        throw new BadRequestException('Le fichier n\'est pas une image valide ou est corrompu.');
+      }
+
+      // Vérifier que le format est bien une image supportée
+      if (!imageMetadata.format || !['jpeg', 'png', 'webp'].includes(imageMetadata.format)) {
+        this.logger.warn(`[uploadProfilePhoto] Format non supporté: ${imageMetadata.format} pour ${file.filename}`);
+        throw new BadRequestException(`Format d'image non supporté: ${imageMetadata.format}. Formats acceptés: JPEG, PNG, WEBP.`);
+      }
+
+      // Vérifier la taille après validation (sécurité supplémentaire)
+      if (fileBuffer.length === 0) {
+        throw new BadRequestException('Le fichier est vide.');
+      }
+
+      // Redimensionner l'image à 500x500px avec sharp depuis le buffer
+      const resizedBuffer = await sharp(fileBuffer)
+        .resize(500, 500, {
+          fit: 'cover',
+          position: 'center',
+        })
+        .jpeg({ quality: 85 }) // Convertir en JPEG pour réduire la taille
+        .toBuffer();
+
+      this.logger.debug(`[uploadProfilePhoto] Image redimensionnée, taille: ${resizedBuffer.length} bytes`);
+
+      // Vérifier que la taille après redimensionnement est raisonnable
+      if (resizedBuffer.length > 5 * 1024 * 1024) {
+        this.logger.warn(`[uploadProfilePhoto] Image trop volumineuse après traitement: ${resizedBuffer.length} bytes`);
+        throw new BadRequestException('L\'image est trop volumineuse après traitement. Veuillez utiliser une image plus petite.');
+      }
+
+      // Sauvegarder l'image redimensionnée (remplacer l'original)
+      await fs.writeFile(filePath, resizedBuffer);
+
+      // Générer l'URL de la photo
+      // Utiliser le header Host de la requête pour déterminer l'URL du serveur
+      // Cela fonctionne automatiquement quel que soit l'environnement (dev ou prod)
+      const hostHeader = req?.headers?.host;
+      const protocol = req?.headers['x-forwarded-proto'] || (req?.secure ? 'https' : 'http');
+      
+      let baseUrl = process.env.API_URL;
+      
+      // Si API_URL n'est pas configuré, utiliser le header Host de la requête
+      if (!baseUrl || !baseUrl.startsWith('http')) {
+        if (hostHeader) {
+          // Utiliser le Host header envoyé par le client (ex: 192.168.1.7:3000)
+          baseUrl = `${protocol}://${hostHeader}`;
+        } else if (process.env.NODE_ENV === 'production') {
+          baseUrl = 'https://api.fermier-pro.com';
+        } else {
+          // Fallback en développement : détecter l'IP locale
+          const networkInterfaces = require('os').networkInterfaces();
+          let localIp = 'localhost';
+          
+          for (const interfaceName of Object.keys(networkInterfaces)) {
+            for (const iface of networkInterfaces[interfaceName] || []) {
+              if (iface.family === 'IPv4' && !iface.internal) {
+                localIp = iface.address;
+                break;
+              }
+            }
+            if (localIp !== 'localhost') break;
+          }
+          
+          baseUrl = `http://${localIp}:3000`;
+        }
+      }
+      
+      const photoUrl = `${baseUrl}/uploads/profile-photos/${file.filename}`;
+
+      // ROBUSTESSE: Gérer le quota de stockage (max 3 photos par utilisateur)
+      const uploadsDir = path.join(process.cwd(), 'uploads', 'profile-photos');
+      const MAX_PHOTOS_PER_USER = 3;
+      
+      // Lister les fichiers existants pour cet utilisateur
+      try {
+        const existingFiles = await fs.readdir(uploadsDir);
+        const userFiles = existingFiles
+          .filter(f => f.startsWith(`${userId}_`) && f.endsWith('.jpg'))
+          .sort(); // Trier pour garder les plus récentes
+        
+        // Si on dépasse le quota, supprimer les plus anciennes
+        if (userFiles.length >= MAX_PHOTOS_PER_USER) {
+          const filesToDelete = userFiles.slice(0, userFiles.length - MAX_PHOTOS_PER_USER + 1);
+          for (const oldFile of filesToDelete) {
+            try {
+              await fs.unlink(path.join(uploadsDir, oldFile));
+              this.logger.debug(`[uploadProfilePhoto] Ancienne photo supprimée (quota): ${oldFile}`);
+            } catch (deleteError) {
+              this.logger.warn(`[uploadProfilePhoto] Erreur suppression ancienne photo ${oldFile}:`, deleteError);
+            }
+          }
+        }
+      } catch (dirError) {
+        // Si on ne peut pas lire le dossier, continuer quand même
+        this.logger.warn(`[uploadProfilePhoto] Impossible de vérifier le quota:`, dirError);
+      }
+
+      // Supprimer l'ancienne photo référencée dans la DB si elle existe
+      if (user.photo) {
+        await this.deleteOldProfilePhoto(user.photo);
+      }
+
+      // ROBUSTESSE: Transaction pour garantir cohérence DB/fichiers
+      // Si update() échoue, supprimer le fichier pour éviter les orphelins
+      try {
+        // Mettre à jour la photo dans la base de données
+        await this.update(userId, { photo: photoUrl });
+      } catch (updateError) {
+        // Rollback: supprimer le fichier si la mise à jour DB échoue
+        this.logger.error(`[uploadProfilePhoto] Erreur lors de la mise à jour DB, rollback du fichier:`, updateError);
+        try {
+          await fs.unlink(filePath);
+        } catch (unlinkError) {
+          this.logger.error(`[uploadProfilePhoto] Erreur lors du rollback du fichier:`, unlinkError);
+        }
+        throw updateError;
+      }
+
+      this.logger.log(`Photo de profil uploadée pour l'utilisateur ${userId}: ${file.filename}`);
+      return photoUrl;
+    } catch (error) {
+      // Supprimer le fichier en cas d'erreur
+      try {
+        if (filePath) {
+          await fs.unlink(filePath);
+        }
+      } catch (unlinkError) {
+        // SÉCURITÉ: Ne pas exposer le chemin dans les logs d'erreur
+        this.logger.error(`[uploadProfilePhoto] Erreur lors de la suppression du fichier:`, unlinkError);
+      }
+
+      // SÉCURITÉ: Ne pas exposer les détails techniques dans les logs
+      this.logger.error(`[uploadProfilePhoto] Erreur lors de l'upload pour userId=${userId}:`, {
+        filename: file.filename,
+        errorType: error instanceof Error ? error.constructor.name : 'Unknown',
+        // Ne pas logger le message d'erreur complet qui peut contenir des chemins
+      });
+      
+      // Message d'erreur utilisateur-friendly (sans détails techniques)
+      let errorMessage = 'Erreur lors du traitement de l\'image.';
+      if (error instanceof Error) {
+        // Messages d'erreur spécifiques pour l'utilisateur
+        if (error.message.includes('format') || error.message.includes('Format')) {
+          errorMessage = 'Format d\'image non supporté. Utilisez JPG, PNG ou WEBP.';
+        } else if (error.message.includes('corrompu') || error.message.includes('invalide')) {
+          errorMessage = 'Le fichier image est corrompu ou invalide.';
+        } else if (error.message.includes('vide')) {
+          errorMessage = 'Le fichier est vide.';
+        } else if (error.message.includes('volumineux') || error.message.includes('trop grand')) {
+          errorMessage = 'L\'image est trop volumineuse. Maximum 5MB.';
+        }
+      }
+      
+      throw new BadRequestException(errorMessage);
+    }
+  }
+
+  /**
+   * Supprime la photo de profil d'un utilisateur
+   */
+  async deleteProfilePhoto(userId: string): Promise<void> {
+    // Vérifier que l'utilisateur existe
+    const user = await this.findOne(userId);
+    if (!user) {
+      throw new NotFoundException('Utilisateur introuvable');
+    }
+
+    // Si l'utilisateur n'a pas de photo, rien à faire
+    if (!user.photo) {
+      this.logger.debug(`[deleteProfilePhoto] Utilisateur ${userId} n'a pas de photo à supprimer`);
+      return;
+    }
+
+    // Supprimer le fichier physique
+    await this.deleteOldProfilePhoto(user.photo);
+
+    // Mettre à jour la base de données pour retirer la référence
+    await this.update(userId, { photo: null });
+
+    this.logger.log(`Photo de profil supprimée pour l'utilisateur ${userId}`);
+  }
+
+  /**
+   * Supprime l'ancienne photo de profil (fichier physique uniquement)
+   */
+  async deleteOldProfilePhoto(photoUrl: string): Promise<void> {
+    try {
+      // Extraire le nom du fichier de l'URL
+      const urlParts = photoUrl.split('/');
+      const filename = urlParts[urlParts.length - 1];
+
+      // Vérifier que le fichier appartient bien au dossier profile-photos
+      if (!filename || filename.includes('..')) {
+        this.logger.warn(`URL de photo suspecte: ${photoUrl}`);
+        return;
+      }
+
+      const filePath = path.join(process.cwd(), 'uploads', 'profile-photos', filename);
+
+      // Vérifier si le fichier existe avant de le supprimer
+      try {
+        await fs.access(filePath);
+        await fs.unlink(filePath);
+        this.logger.log(`Ancienne photo supprimée: ${filename}`);
+      } catch (error) {
+        // Le fichier n'existe pas, ce n'est pas grave
+        this.logger.debug(`Fichier non trouvé (déjà supprimé?): ${filename}`);
+      }
+    } catch (error) {
+      // Ne pas faire échouer l'upload si la suppression de l'ancienne photo échoue
+      this.logger.error(`Erreur lors de la suppression de l'ancienne photo ${photoUrl}:`, error);
+    }
+  }
+
+  /**
+   * Nettoie les URIs locales dans la colonne photo des utilisateurs
+   * Remplace toutes les URIs locales (file://, content://, ph://, etc.) par NULL
+   * 
+   * Cette fonction doit être exécutée une seule fois lors de la migration
+   * pour nettoyer les données existantes avant l'implémentation de la validation
+   * 
+   * @returns Nombre d'utilisateurs affectés
+   */
+  async cleanLocalPhotoUris(): Promise<number> {
+    this.logger.log('[cleanLocalPhotoUris] Début du nettoyage des URIs locales...');
+
+    try {
+      // Compter d'abord le nombre d'utilisateurs avec des URIs locales
+      const countResult = await this.databaseService.query(
+        `SELECT COUNT(*) as count
+         FROM users
+         WHERE photo IS NOT NULL
+           AND (
+             photo LIKE 'file://%'
+             OR photo LIKE 'content://%'
+             OR photo LIKE 'ph://%'
+             OR photo LIKE 'assets-library://%'
+             OR photo LIKE 'ph-asset://%'
+           )`
+      );
+
+      const count = parseInt(countResult.rows[0]?.count || '0', 10);
+      this.logger.log(`[cleanLocalPhotoUris] ${count} utilisateur(s) avec URI(s) locale(s) détecté(s)`);
+
+      if (count === 0) {
+        this.logger.log('[cleanLocalPhotoUris] ✅ Aucune URI locale à nettoyer');
+        return 0;
+      }
+
+      // Récupérer les IDs des utilisateurs affectés pour les logger
+      const affectedUsersResult = await this.databaseService.query(
+        `SELECT id, photo
+         FROM users
+         WHERE photo IS NOT NULL
+           AND (
+             photo LIKE 'file://%'
+             OR photo LIKE 'content://%'
+             OR photo LIKE 'ph://%'
+             OR photo LIKE 'assets-library://%'
+             OR photo LIKE 'ph-asset://%'
+           )
+         LIMIT 10`
+      );
+
+      if (affectedUsersResult.rows.length > 0) {
+        this.logger.debug(
+          `[cleanLocalPhotoUris] Exemples d'utilisateurs affectés: ${affectedUsersResult.rows
+            .map((row: any) => `userId=${row.id}, photo=${row.photo?.substring(0, 50)}...`)
+            .join(', ')}`
+        );
+      }
+
+      // Nettoyer les URIs locales en les remplaçant par NULL
+      const updateResult = await this.databaseService.query(
+        `UPDATE users
+         SET photo = NULL
+         WHERE photo IS NOT NULL
+           AND (
+             photo LIKE 'file://%'
+             OR photo LIKE 'content://%'
+             OR photo LIKE 'ph://%'
+             OR photo LIKE 'assets-library://%'
+             OR photo LIKE 'ph-asset://%'
+           )
+         RETURNING id`
+      );
+
+      const affectedCount = updateResult.rows.length;
+      this.logger.log(
+        `[cleanLocalPhotoUris] ✅ ${affectedCount} utilisateur(s) nettoyé(s) avec succès`
+      );
+
+      // Vérification finale
+      const verificationResult = await this.databaseService.query(
+        `SELECT COUNT(*) as count
+         FROM users
+         WHERE photo IS NOT NULL
+           AND (
+             photo LIKE 'file://%'
+             OR photo LIKE 'content://%'
+             OR photo LIKE 'ph://%'
+             OR photo LIKE 'assets-library://%'
+             OR photo LIKE 'ph-asset://%'
+           )`
+      );
+
+      const remainingCount = parseInt(verificationResult.rows[0]?.count || '0', 10);
+      if (remainingCount > 0) {
+        this.logger.warn(
+          `[cleanLocalPhotoUris] ⚠️ Attention: ${remainingCount} URI(s) locale(s) restante(s) après nettoyage`
+        );
+      } else {
+        this.logger.log('[cleanLocalPhotoUris] ✅ Vérification: Aucune URI locale restante');
+      }
+
+      return affectedCount;
+    } catch (error) {
+      this.logger.error('[cleanLocalPhotoUris] ❌ Erreur lors du nettoyage:', error);
+      throw error;
+    }
   }
 }

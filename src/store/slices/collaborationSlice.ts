@@ -55,9 +55,11 @@ export const loadCollaborateurs = createAsyncThunk(
   'collaboration/loadCollaborateurs',
   async (projetId: string, { rejectWithValue }) => {
     try {
-      const collaborateurs = await apiClient.get<Collaborateur[]>('/collaborations', {
+      const response = await apiClient.get<{ data: Collaborateur[]; pagination: any } | Collaborateur[]>('/collaborations', {
         params: { projet_id: projetId },
       });
+      // Gérer la nouvelle structure avec pagination ou l'ancienne structure directe
+      const collaborateurs = Array.isArray(response) ? response : response.data || [];
       return collaborateurs;
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error));
@@ -68,13 +70,33 @@ export const loadCollaborateurs = createAsyncThunk(
 export const loadCollaborateursParProjet = createAsyncThunk(
   'collaboration/loadCollaborateursParProjet',
   async (projetId: string, { rejectWithValue }) => {
-try {
-      const collaborateurs = await apiClient.get<Collaborateur[]>('/collaborations', {
+    try {
+      if (!projetId) {
+        return [];
+      }
+      const response = await apiClient.get<{ data: Collaborateur[]; pagination: any } | Collaborateur[]>('/collaborations', {
         params: { projet_id: projetId },
       });
+      // Gérer la nouvelle structure avec pagination ou l'ancienne structure directe
+      const collaborateurs = Array.isArray(response) ? response : response.data || [];
       return collaborateurs;
     } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error));
+      // Si le projet n'existe pas (404), retourner un tableau vide sans logger d'erreur
+      const errorMessage = getErrorMessage(error);
+      const is404 = errorMessage?.includes('introuvable') || 
+                    errorMessage?.includes('Not Found') || 
+                    errorMessage?.includes('404') ||
+                    (error as any)?.response?.status === 404 ||
+                    (error as any)?.status === 404;
+      
+      if (is404) {
+        // Projet introuvable : retourner un tableau vide silencieusement
+        return [];
+      }
+      
+      // Pour les autres erreurs, logger et rejeter
+      console.warn('[CollaborationSlice] Erreur lors du chargement des collaborateurs:', errorMessage);
+      return rejectWithValue(errorMessage);
     }
   }
 );
@@ -111,24 +133,13 @@ export const accepterInvitation = createAsyncThunk(
   'collaboration/accepterInvitation',
   async (id: string, { rejectWithValue }) => {
     try {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'collaborationSlice.ts:110',message:'Appel API accepterInvitation',data:{invitationId:id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
-      // #endregion
-      
       if (!id) {
         throw new Error("L'ID de l'invitation est manquant");
       }
 
       const collaborateur = await apiClient.patch<Collaborateur>(`/collaborations/${id}/accepter`, {});
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'collaborationSlice.ts:119',message:'API accepterInvitation réussie',data:{invitationId:id,collaborateurId:collaborateur?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'J'})}).catch(()=>{});
-      // #endregion
-      // TODO: La synchronisation avec vetProfile.clients sera gérée côté backend si nécessaire
       return collaborateur;
     } catch (error: unknown) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'collaborationSlice.ts:124',message:'Erreur API accepterInvitation',data:{invitationId:id,errorType:error?.constructor?.name,errorMessage:getErrorMessage(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
-      // #endregion
       console.error(`Erreur lors de l'acceptation de l'invitation ${id}:`, error);
       return rejectWithValue(getErrorMessage(error));
     }
@@ -188,23 +199,13 @@ export const rejeterInvitation = createAsyncThunk(
   'collaboration/rejeterInvitation',
   async (id: string, { rejectWithValue }) => {
     try {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'collaborationSlice.ts:165',message:'Appel API rejeterInvitation',data:{invitationId:id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'L'})}).catch(()=>{});
-      // #endregion
-      
       if (!id) {
         throw new Error("L'ID de l'invitation est manquant");
       }
 
       await apiClient.patch(`/collaborations/${id}/rejeter`, {});
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'collaborationSlice.ts:174',message:'API rejeterInvitation réussie',data:{invitationId:id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'M'})}).catch(()=>{});
-      // #endregion
       return id;
     } catch (error: unknown) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'collaborationSlice.ts:178',message:'Erreur API rejeterInvitation',data:{invitationId:id,errorType:error?.constructor?.name,errorMessage:getErrorMessage(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'N'})}).catch(()=>{});
-      // #endregion
       console.error(`Erreur lors du rejet de l'invitation ${id}:`, error);
       return rejectWithValue(getErrorMessage(error));
     }

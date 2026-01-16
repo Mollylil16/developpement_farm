@@ -25,6 +25,8 @@ import { CalculerMargesDto } from './dto/calculer-marges.dto';
 import { RecalculerMargesDto } from './dto/recalculer-marges.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { PermissionGuard } from '../common/guards/permission.guard';
+import { RequirePermission } from '../common/decorators/require-permission.decorator';
 
 @ApiTags('finance')
 @Controller('finance')
@@ -113,8 +115,11 @@ export class FinanceController {
   // ==================== REVENUS ====================
 
   @Post('revenus')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('finance')
   @ApiOperation({ summary: 'Créer un nouveau revenu' })
   createRevenu(@Body() createRevenuDto: CreateRevenuDto, @CurrentUser() user: any) {
+    // Le projetId est extrait automatiquement depuis createRevenuDto.projet_id par le guard
     return this.financeService.createRevenu(createRevenuDto, user.id);
   }
 
@@ -227,8 +232,11 @@ export class FinanceController {
   // ==================== DETTES ====================
 
   @Post('dettes')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('finance')
   @ApiOperation({ summary: 'Créer une nouvelle dette' })
   createDette(@Body() createDetteDto: CreateDetteDto, @CurrentUser() user: any) {
+    // Le projetId est extrait automatiquement depuis createDetteDto.projet_id par le guard
     return this.financeService.createDette(createDetteDto, user.id);
   }
 

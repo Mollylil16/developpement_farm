@@ -64,6 +64,9 @@ export default function IngredientsComponent() {
     }
 
     const enrichirIngredients = async () => {
+      // Marquer immédiatement l'enrichissement comme en cours pour éviter les exécutions concurrentes
+      setEnrichmentDone(true);
+
       // Extraire tous les ingrédients uniques des formulations recommandées
       const ingredientsFormulations = new Set<string>();
       Object.values(FORMULES_RECOMMANDEES).forEach((formule) => {
@@ -72,8 +75,14 @@ export default function IngredientsComponent() {
         });
       });
 
-      // Vérifier quels ingrédients manquent (même si la liste actuelle est vide)
-      const ingredientsExistants = new Set(ingredients.map((ing: Ingredient) => ing.nom.toLowerCase().trim()));
+      // Recharger la liste actuelle pour avoir les données les plus récentes
+      // Cela évite les problèmes de race condition
+      const currentIngredients = await dispatch(loadIngredients(projetActif.id)).unwrap();
+
+      // Vérifier quels ingrédients manquent (en ignorant la casse et les espaces)
+      const ingredientsExistants = new Set(
+        currentIngredients.map((ing: Ingredient) => ing.nom.toLowerCase().trim())
+      );
       const ingredientsManquants = Array.from(ingredientsFormulations).filter(
         (nom) => !ingredientsExistants.has(nom.toLowerCase().trim())
       );
@@ -84,6 +93,16 @@ export default function IngredientsComponent() {
         let successCount = 0;
         for (const nomIngredient of ingredientsManquants) {
           try {
+            // Vérifier à nouveau si l'ingrédient n'existe pas déjà (double vérification)
+            const existeDeja = currentIngredients.some(
+              (ing: Ingredient) => ing.nom.toLowerCase().trim() === nomIngredient.toLowerCase().trim()
+            );
+            
+            if (existeDeja) {
+              console.log(`[Nutrition] L'ingrédient "${nomIngredient}" existe déjà, ignoré`);
+              continue;
+            }
+
             // Obtenir les valeurs nutritionnelles si disponibles
             const valeursNutri = getValeursNutritionnelles(nomIngredient);
 
@@ -98,7 +117,7 @@ export default function IngredientsComponent() {
             ).unwrap();
             successCount++;
           } catch (error) {
-            // Ignorer les erreurs silencieusement (peut être un doublon)
+            // Ignorer les erreurs silencieusement (peut être un doublon côté backend)
             console.warn(`Erreur lors de la création de ${nomIngredient}:`, error);
           }
         }
@@ -109,9 +128,6 @@ export default function IngredientsComponent() {
           dispatch(loadIngredients(projetActif.id));
         }
       }
-      
-      // Marquer l'enrichissement comme terminé
-      setEnrichmentDone(true);
     };
 
     // Attendre un peu pour éviter les conflits avec le chargement initial
@@ -120,7 +136,7 @@ export default function IngredientsComponent() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [projetActif?.id, loading, ingredients, canCreate, dispatch, enrichmentDone]);
+  }, [projetActif?.id, loading, canCreate, dispatch, enrichmentDone]);
 
   const onRefresh = useCallback(async () => {
     if (!projetActif?.id) return;
@@ -344,8 +360,9 @@ export default function IngredientsComponent() {
     return <LoadingSpinner message="Chargement des ingrédients..." />;
   }
 
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+  // En-tête de la liste
+  const renderHeader = () => (
+    <>
       {/* En-tête */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
@@ -397,34 +414,50 @@ export default function IngredientsComponent() {
           <Text style={styles.addButtonText}>➕ Ajouter un ingrédient</Text>
         </TouchableOpacity>
       )}
+    </>
+  );
 
+  // Footer de la liste (pour permettre de scroller jusqu'en bas)
+  const renderFooter = () => (
+    <View style={styles.listFooter} />
+  );
+
+  // Composant d'état vide
+  const renderEmpty = () => (
+    <View style={styles.emptyContainer}>
+      <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+        {searchQuery ? 'Aucun ingrédient trouvé' : 'Aucun ingrédient'}
+      </Text>
+      <Text style={[styles.emptyHint, { color: colors.textSecondary }]}>
+        Commencez par ajouter des ingrédients avec leurs prix
+      </Text>
+    </View>
+  );
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Liste des ingrédients */}
-      {filteredIngredients.length > 0 ? (
-        <FlatList
-          data={filteredIngredients}
-          renderItem={renderIngredientCard}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContainer}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[colors.primary]}
-              tintColor={colors.primary}
-            />
-          }
-        />
-      ) : (
-        <View style={styles.emptyContainer}>
-          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-            {searchQuery ? 'Aucun ingrédient trouvé' : 'Aucun ingrédient'}
-          </Text>
-          <Text style={[styles.emptyHint, { color: colors.textSecondary }]}>
-            Commencez par ajouter des ingrédients avec leurs prix
-          </Text>
-        </View>
-      )}
+      <FlatList
+        data={filteredIngredients}
+        renderItem={renderIngredientCard}
+        keyExtractor={(item) => item.id}
+        ListHeaderComponent={renderHeader}
+        ListFooterComponent={renderFooter}
+        ListEmptyComponent={renderEmpty}
+        contentContainerStyle={[
+          styles.listContainer,
+          filteredIngredients.length === 0 && styles.listContainerEmpty
+        ]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
+      />
 
       {/* Modal Ajout/Modification Ingrédient */}
       <IngredientFormModal
@@ -450,7 +483,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    padding: SPACING.lg,
+    paddingTop: SPACING.lg,
+    paddingHorizontal: SPACING.lg,
     paddingBottom: SPACING.md,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -481,7 +515,6 @@ const styles = StyleSheet.create({
   },
   statsContainer: {
     flexDirection: 'row',
-    paddingHorizontal: SPACING.lg,
     gap: SPACING.md,
     marginBottom: SPACING.md,
   },
@@ -502,7 +535,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   addButton: {
-    marginHorizontal: SPACING.lg,
     marginBottom: SPACING.md,
     padding: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
@@ -514,14 +546,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   listContainer: {
-    padding: SPACING.lg,
-    paddingTop: 0,
+    flexGrow: 1,
+    paddingHorizontal: SPACING.lg,
+    paddingBottom: 0,
+  },
+  listContainerEmpty: {
+    flexGrow: 1,
+  },
+  listFooter: {
+    height: 120,
   },
   ingredientCard: {
     padding: SPACING.md,
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
     marginBottom: SPACING.md,
+    marginHorizontal: 0,
   },
   ingredientHeader: {
     flexDirection: 'row',

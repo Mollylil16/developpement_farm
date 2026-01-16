@@ -108,6 +108,17 @@ async function bootstrap() {
 
   // Guard global JWT est configuré dans AppModule via APP_GUARD
 
+  // Servir les fichiers statiques (photos de profil, etc.)
+  app.useStaticAssets(join(__dirname, '..', 'uploads'), {
+    prefix: '/uploads/',
+    setHeaders: (res, path) => {
+      // Cache les images pendant 1 an
+      if (path.endsWith('.jpg') || path.endsWith('.jpeg') || path.endsWith('.png') || path.endsWith('.webp')) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000');
+      }
+    },
+  });
+
   const port = process.env.PORT || 3000;
   const host = process.env.HOST || '0.0.0.0';
   await app.listen(port, host);
