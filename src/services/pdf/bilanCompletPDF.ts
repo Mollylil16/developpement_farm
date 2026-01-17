@@ -15,8 +15,9 @@ import {
   type PieChartData,
 } from '../pdfService';
 import type { Projet } from '../../types/projet';
-import { parseISO, format } from 'date-fns';
+import { parseISO, format, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { generateLineChartSVG, generateBarChartSVG } from './chartGenerators';
 
 interface BilanCompletData {
   projet: Projet;
@@ -175,6 +176,36 @@ export function generateBilanCompletHTML(data: BilanCompletData): string {
           'Visualisation de la distribution des revenus selon les différentes catégories'
         );
       })() : ''}
+      
+      <!-- Graphique d'évolution temporelle des revenus et dépenses -->
+      ${(revenus.total > 0 || depenses.total > 0) && periode.nombre_mois > 1 ? (() => {
+        // Calculer les données mensuelles estimées (répartition uniforme)
+        const dateDebut = parseISO(periode.date_debut);
+        const dateFin = parseISO(periode.date_fin);
+        const mois = eachMonthOfInterval({ start: dateDebut, end: dateFin });
+        
+        const labels = mois.map(m => format(m, 'MMM yyyy', { locale: fr }));
+        const revenusMensuels = mois.map(() => revenus.total / mois.length);
+        const depensesMensuels = mois.map(() => depenses.total / mois.length);
+        
+        return `
+          <div style="margin-top: 30px; padding: 20px; background: #f9f9f9; border-radius: 8px; border: 1px solid #e0e0e0;">
+            <h3 style="margin: 0 0 15px 0; color: #333; font-size: 18px;">📈 Évolution temporelle - Revenus vs Dépenses</h3>
+            <p style="margin: 0 0 15px 0; font-size: 12px; color: #666; font-style: italic;">
+              Graphique montrant l'évolution des revenus et dépenses sur la période analysée
+            </p>
+            ${generateLineChartSVG(
+              labels,
+              [
+                { label: 'Revenus', data: revenusMensuels, color: '#2e7d32' },
+                { label: 'Dépenses', data: depensesMensuels, color: '#ef5350' },
+              ],
+              700,
+              250
+            )}
+          </div>
+        `;
+      })() : ''}
     </div>
 
     <!-- Dépenses -->
@@ -252,6 +283,35 @@ export function generateBilanCompletHTML(data: BilanCompletData): string {
           'Répartition globale Revenus vs Dépenses',
           `Répartition entre revenus (${formatNumber((revenus.total / total) * 100, 1)}%) et dépenses (${formatNumber((depenses.total / total) * 100, 1)}%)`
         );
+      })() : ''}
+      
+      <!-- Graphique en barres comparatif des revenus et dépenses par mois -->
+      ${(revenus.total > 0 || depenses.total > 0) && periode.nombre_mois > 1 ? (() => {
+        const dateDebut = parseISO(periode.date_debut);
+        const dateFin = parseISO(periode.date_fin);
+        const mois = eachMonthOfInterval({ start: dateDebut, end: dateFin });
+        
+        const labels = mois.map(m => format(m, 'MMM', { locale: fr }));
+        const revenusMensuels = mois.map(() => revenus.total / mois.length);
+        const depensesMensuels = mois.map(() => depenses.total / mois.length);
+        
+        return `
+          <div style="margin-top: 30px; padding: 20px; background: #f9f9f9; border-radius: 8px; border: 1px solid #e0e0e0;">
+            <h3 style="margin: 0 0 15px 0; color: #333; font-size: 18px;">📊 Comparaison mensuelle - Revenus vs Dépenses</h3>
+            <p style="margin: 0 0 15px 0; font-size: 12px; color: #666; font-style: italic;">
+              Comparaison visuelle des revenus et dépenses mois par mois
+            </p>
+            ${generateBarChartSVG(
+              labels,
+              [
+                { label: 'Revenus', data: revenusMensuels, color: '#2e7d32' },
+                { label: 'Dépenses', data: depensesMensuels, color: '#ef5350' },
+              ],
+              700,
+              250
+            )}
+          </div>
+        `;
       })() : ''}
     </div>
 
