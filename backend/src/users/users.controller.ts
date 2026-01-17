@@ -15,6 +15,7 @@ import {
   UploadedFile,
   BadRequestException,
   Req,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
@@ -261,6 +262,8 @@ export class UsersController {
       this.logger.error(`[addProfile] Erreur pour userId=${id}, profile=${profile}:`, {
         message: error?.message,
         stack: error?.stack?.substring(0, 500),
+        errorName: error?.name,
+        errorCode: error?.code,
       });
       if (error?.message?.includes('introuvable')) {
         throw new NotFoundException(error.message);
@@ -268,7 +271,10 @@ export class UsersController {
       if (error?.message?.includes('invalide')) {
         throw new BadRequestException(error.message);
       }
-      throw error;
+      // Convertir toute autre erreur en InternalServerErrorException avec un message explicite
+      throw new InternalServerErrorException(
+        `Erreur lors de l'ajout du profil ${profile}: ${error?.message || 'Erreur inconnue'}`
+      );
     }
   }
 
@@ -282,7 +288,25 @@ export class UsersController {
     if (user.id !== id) {
       throw new ForbiddenException('Vous ne pouvez modifier que votre propre profil');
     }
-    return this.usersService.removeProfile(id, profile);
+    try {
+      return await this.usersService.removeProfile(id, profile);
+    } catch (error: any) {
+      this.logger.error(`[removeProfile] Erreur pour userId=${id}, profile=${profile}:`, {
+        message: error?.message,
+        stack: error?.stack?.substring(0, 500),
+        errorName: error?.name,
+        errorCode: error?.code,
+      });
+      if (error?.message?.includes('introuvable')) {
+        throw new NotFoundException(error.message);
+      }
+      if (error?.message?.includes('invalide') || error?.message?.includes('au moins un profil')) {
+        throw new BadRequestException(error.message);
+      }
+      throw new InternalServerErrorException(
+        `Erreur lors de la suppression du profil ${profile}: ${error?.message || 'Erreur inconnue'}`
+      );
+    }
   }
 
   @Delete(':id')

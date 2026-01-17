@@ -52,3 +52,13 @@ src/config/openaiConfig.ts
 # generated native folders
 /ios
 /android
+
+# Backup files
+*.bak
+*.bak2
+*.bak3
+*.bak4
+*.backup
+
+# Uploaded files
+backend/uploads/

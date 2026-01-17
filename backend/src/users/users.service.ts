@@ -476,12 +476,22 @@ export class UsersService {
     roles[normalizedProfile] = newProfile;
 
     // Mettre à jour l'utilisateur
-    const updatedUser = await this.update(userId, {
-      roles: roles,
-    });
+    try {
+      this.logger.debug(`addProfile: mise à jour des rôles pour userId=${userId}, roles=${JSON.stringify(Object.keys(roles))}`);
+      const updatedUser = await this.update(userId, {
+        roles: roles,
+      });
 
-    this.logger.log(`addProfile: profil ${normalizedProfile} ajouté avec succès pour userId=${userId}`);
-    return updatedUser;
+      this.logger.log(`addProfile: profil ${normalizedProfile} ajouté avec succès pour userId=${userId}`);
+      return updatedUser;
+    } catch (error: any) {
+      this.logger.error(`addProfile: erreur lors de la mise à jour de l'utilisateur userId=${userId}:`, {
+        message: error?.message,
+        code: error?.code,
+        detail: error?.detail,
+      });
+      throw error;
+    }
   }
 
   /**
@@ -696,18 +706,38 @@ export class UsersService {
   private async deleteBuyerData(userId: string, client: any): Promise<void> {
     this.logger.debug(`deleteBuyerData: suppression des données acheteur pour userId=${userId}`);
 
-    // Supprimer les offres de l'acheteur
-    await client.query(
-      'DELETE FROM marketplace_offers WHERE acheteur_id = $1',
-      [userId]
-    );
+    // Supprimer les offres de l'acheteur (si la table existe)
+    try {
+      await client.query(
+        'DELETE FROM marketplace_offers WHERE acheteur_id = $1',
+        [userId]
+      );
+    } catch (error: any) {
+      // Si la table n'existe pas ou colonne manquante, ignorer
+      if (!error.message?.includes('does not exist') && 
+          !error.message?.includes("n'existe pas") &&
+          !error.message?.includes('column')) {
+        throw error;
+      }
+      this.logger.warn(`deleteBuyerData: table marketplace_offers ou colonne non trouvée, ignoré`);
+    }
 
     // Garder les ventes pour l'historique du producteur, mais anonymiser
     // (ou supprimer si nécessaire)
-    await client.query(
-      'UPDATE ventes SET acheteur_id = NULL WHERE acheteur_id = $1',
-      [userId]
-    );
+    try {
+      await client.query(
+        'UPDATE ventes SET acheteur_id = NULL WHERE acheteur_id = $1',
+        [userId]
+      );
+    } catch (error: any) {
+      // Si la table n'existe pas ou colonne manquante, ignorer
+      if (!error.message?.includes('does not exist') && 
+          !error.message?.includes("n'existe pas") &&
+          !error.message?.includes('column')) {
+        throw error;
+      }
+      this.logger.warn(`deleteBuyerData: table ventes ou colonne non trouvée, ignoré`);
+    }
 
     this.logger.log(`deleteBuyerData: données acheteur supprimées pour userId=${userId}`);
   }
