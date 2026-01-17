@@ -957,9 +957,10 @@ export default function GestationFormModal({
                 ]}
               >
                 <Text style={[styles.warningText, { color: colors.warning }]}>
-                  ⚠️ Aucun verrat disponible. Nombre de verrats dans le projet:{' '}
-                  {projetActif?.nombre_verrats ?? 0}. Vérifiez les paramètres du projet ou ajoutez
-                  des verrats dans le module Production.
+                  ⚠️ Aucun verrat disponible.{' '}
+                  {isModeBatch
+                    ? 'Vérifiez que vous avez créé une loge de verrats reproducteurs dans le module Production avec des verrats actifs.'
+                    : `Nombre de verrats dans le projet: ${projetActif?.nombre_verrats ?? 0}. Vérifiez les paramètres du projet ou ajoutez des verrats dans le module Production.`}
                 </Text>
               </View>
             )}
