@@ -317,6 +317,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: SPACING.lg,
+    paddingBottom: SPACING.xl * 3, // Espace supplémentaire en bas pour éviter que la dernière carte soit masquée
   },
   header: {
     marginBottom: SPACING.lg,

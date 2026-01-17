@@ -17,7 +17,7 @@ function ReportsScreenContent() {
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
-      edges={['top']}
+      edges={['top', 'bottom']}
     >
       <StandardHeader
         icon="document-text-outline"
