@@ -292,13 +292,16 @@ export class ChatAgentService {
         }
       } catch (error: any) {
         // Log détaillé de l'erreur pour diagnostic
+        const apiConfig = await import('../../config/api.config').then(m => m.API_CONFIG).catch(() => null);
         logger.error('[Kouakou] ❌ ERREUR GEMINI CRITIQUE:', {
           message: error?.message || 'Erreur inconnue',
-          stack: error?.stack,
+          stack: error?.stack?.substring(0, 1000),
           endpoint: '/kouakou/chat',
           errorType: error?.constructor?.name,
           status: error?.response?.status || error?.status,
-          responseData: error?.response?.data,
+          responseData: error?.response?.data ? JSON.stringify(error.response.data).substring(0, 500) : undefined,
+          apiBaseURL: apiConfig?.baseURL || 'non disponible',
+          isNetworkError: error?.message?.includes('fetch') || error?.message?.includes('network'),
         });
         
         // Déterminer le type d'erreur et générer un message approprié
@@ -487,7 +490,7 @@ export class ChatAgentService {
     logger.debug(`[Gemini] Contexte: projetId=${this.context.projetId}, userId=${this.context.userId}`);
     
     try {
-      const response = await apiClient.post<GeminiBackendResponse>('/kouakou/chat', {
+      const response = await apiClient.post<GeminiBackendResponse | { response: string }>('/kouakou/chat', {
         message,
         userId: this.context.userId,
         projectId: this.context.projetId, // Ajouter projectId explicitement
@@ -501,27 +504,41 @@ export class ChatAgentService {
         },
       });
 
-      if (response.success && response.data?.response) {
-        logger.debug(`[Gemini] Réponse backend: "${response.data.response.substring(0, 100)}..."`);
-        return response.data.response;
-      }
-
-      if (response.error) {
-        const error = new Error(`Erreur backend: ${response.error}`);
-        logger.error('[Gemini]', error.message);
-        throw error;
-      }
-
-      // Si la réponse n'a pas le format attendu, essayer d'extraire directement
-      if (typeof response === 'object' && 'response' in response) {
-        const extractedResponse = (response as unknown as { response: string }).response;
-        if (extractedResponse && typeof extractedResponse === 'string') {
-          return extractedResponse;
+      // Gérer les différents formats de réponse possibles
+      let geminiResponse: string | null = null;
+      
+      // Format 1: { success: true, data: { response: string } }
+      if (response && typeof response === 'object' && 'success' in response) {
+        const geminiBackendResp = response as GeminiBackendResponse;
+        if (geminiBackendResp.success && geminiBackendResp.data?.response) {
+          geminiResponse = geminiBackendResp.data.response;
+        } else if (geminiBackendResp.error) {
+          const error = new Error(`Erreur backend: ${geminiBackendResp.error}`);
+          logger.error('[Gemini]', error.message);
+          throw error;
         }
       }
+      
+      // Format 2: { response: string } (format direct)
+      if (!geminiResponse && response && typeof response === 'object' && 'response' in response) {
+        const directResp = response as { response: string };
+        if (directResp.response && typeof directResp.response === 'string') {
+          geminiResponse = directResp.response;
+        }
+      }
+      
+      // Format 3: La réponse est directement une string (cas improbable mais possible)
+      if (!geminiResponse && typeof response === 'string' && response.trim().length > 0) {
+        geminiResponse = response;
+      }
 
-      const error = new Error('Format de réponse inattendu du backend Gemini');
-      logger.warn('[Gemini]', error.message, response);
+      if (geminiResponse && geminiResponse.trim().length > 0) {
+        logger.debug(`[Gemini] Réponse backend: "${geminiResponse.substring(0, 100)}..."`);
+        return geminiResponse;
+      }
+
+      const error = new Error(`Format de réponse inattendu du backend Gemini: ${JSON.stringify(response).substring(0, 200)}`);
+      logger.error('[Gemini]', error.message);
       throw error;
     } catch (error: any) {
       logger.error('[Gemini] Erreur lors de l\'appel backend:', error);
@@ -530,6 +547,20 @@ export class ChatAgentService {
       if (error instanceof Error) {
         logger.error(`[Gemini] Message: ${error.message}`);
         logger.error(`[Gemini] Stack: ${error.stack?.substring(0, 500)}`);
+      }
+      
+      // Log de l'API config pour diagnostic
+      try {
+        const { API_CONFIG } = await import('../../config/api.config');
+        logger.error(`[Gemini] API Config: baseURL=${API_CONFIG.baseURL}`);
+      } catch (configError) {
+        logger.error(`[Gemini] Erreur lors de la récupération de la config API:`, configError);
+      }
+      
+      // Log de l'erreur complète pour diagnostic en production
+      if (error?.response) {
+        logger.error(`[Gemini] Response status: ${error.response.status}`);
+        logger.error(`[Gemini] Response data:`, JSON.stringify(error.response.data).substring(0, 500));
       }
       
       // Propager l'erreur pour qu'elle soit gérée par le catch block de sendMessage
