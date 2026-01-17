@@ -26,6 +26,7 @@ import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { selectAllVaccinations } from '../store/selectors/santeSelectors';
 import { selectAllAnimaux } from '../store/selectors/productionSelectors';
 import { selectAllDepensesPonctuelles } from '../store/selectors/financeSelectors';
+import type { ProductionAnimal } from '../types/production';
 import {
   loadVaccinations,
   createVaccination,
@@ -98,6 +99,8 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
   const [nombreSujetsVaccines, setNombreSujetsVaccines] = useState('');
   // Mapping animal_id -> batch_id pour le mode bande
   const [animalBatchMap, setAnimalBatchMap] = useState<Map<string, string>>(new Map());
+  // Batch pigs convertis en ProductionAnimal pour le calendrier
+  const [batchPigsAsAnimals, setBatchPigsAsAnimals] = useState<ProductionAnimal[]>([]);
   
   // État pour génération des rappels
   const [generatingRappels, setGeneratingRappels] = useState(false);
@@ -148,6 +151,7 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
       if (!isModeBatch || !projetActif?.id) {
         setBatches([]);
         setAnimalBatchMap(new Map());
+        setBatchPigsAsAnimals([]);
         return;
       }
 
@@ -160,13 +164,35 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
             setBatches(data || []);
             
             // Charger les batch_pigs pour créer le mapping animal_id -> batch_id
+            // ET les convertir en ProductionAnimal pour le calendrier
             const map = new Map<string, string>();
+            const allBatchPigs: ProductionAnimal[] = [];
+            
             for (const batch of data || []) {
               try {
                 const batchPigs = await apiClient.get<any[]>(`/batch-pigs/batch/${batch.id}`);
                 batchPigs.forEach((pig) => {
                   if (pig.id) {
                     map.set(pig.id, batch.id);
+                    
+                    // Convertir batch_pig en ProductionAnimal pour le calendrier
+                    const animal: ProductionAnimal = {
+                      id: pig.id,
+                      projet_id: projetActif.id,
+                      code: pig.pig_code || pig.code || `BP-${pig.id.slice(0, 8)}`,
+                      nom: pig.nom || undefined,
+                      race: pig.race || pig.batch_category || 'Non spécifiée',
+                      sexe: (pig.sex || pig.sexe || 'indetermine') as any,
+                      date_naissance: pig.birth_date || pig.date_naissance || undefined,
+                      poids_initial: pig.current_weight_kg || pig.initial_weight_kg || 0,
+                      actif: true,
+                      reproducteur: false,
+                      statut: 'actif' as any,
+                      date_creation: pig.created_at || new Date().toISOString(),
+                      derniere_modification: pig.updated_at || new Date().toISOString(),
+                      batch_id: pig.batch_id,
+                    };
+                    allBatchPigs.push(animal);
                   }
                 });
               } catch (error) {
@@ -175,6 +201,7 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
             }
             if (!cancelled) {
               setAnimalBatchMap(map);
+              setBatchPigsAsAnimals(allBatchPigs);
             }
           }
         } catch (error) {
@@ -182,6 +209,7 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
             console.error('[VaccinationsComponentAccordion] Erreur chargement bandes:', error);
             setBatches([]);
             setAnimalBatchMap(new Map());
+            setBatchPigsAsAnimals([]);
           }
         }
       };
@@ -1580,7 +1608,10 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
 
   // Fonction principale adaptative
   const renderCalendrier = (type: TypeProphylaxie, couleur: string) => {
-    const animauxActifs = (animaux || []).filter((a) => a.statut === 'actif');
+    // En mode batch, utiliser les batch_pigs convertis au lieu des production_animaux
+    const animauxActifs = isModeBatch
+      ? batchPigsAsAnimals.filter((a) => a.statut === 'actif' && a.date_naissance) // Filtrer ceux avec date_naissance
+      : (animaux || []).filter((a) => a.statut === 'actif');
 
     if (isModeBatch) {
       return renderCalendrierBande(type, couleur, animauxActifs);
