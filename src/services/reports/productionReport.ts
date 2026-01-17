@@ -2,7 +2,7 @@
  * Service de génération de rapport production (PDF et Excel)
  */
 
-import { startOfMonth, endOfMonth, format, parseISO } from 'date-fns';
+import { startOfMonth, endOfMonth, format, parseISO, eachMonthOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import {
   generatePDFHeader,
@@ -12,11 +12,8 @@ import {
   formatDate,
   generateAndSharePDF,
   formatNumber,
-  generateLineChartHTML,
-  generateBarChartHTML,
-  type LineChartData,
-  type BarChartData,
 } from '../pdfService';
+import { generateLineChartSVG, generateBarChartSVG } from '../pdf/chartGenerators';
 import apiClient from '../api/apiClient';
 import { logger } from '../../utils/logger';
 import * as FileSystem from 'expo-file-system';
@@ -360,22 +357,20 @@ function generateProductionReportHTML(
           return data.count > 0 ? data.total / data.count : 0;
         });
         
-        const lineData: LineChartData = {
-          labels: labels,
-          datasets: [{
-            label: 'Poids moyen (kg)',
-            data: poidsMoyens,
-            color: '#2e7d32',
-            lineWidth: 3,
-          }],
-        };
-        
-        return generateLineChartHTML(
-          'croissanceLineChart',
-          lineData,
-          'Courbe de croissance - Évolution du poids moyen',
-          'Tendance de la croissance du cheptel basée sur les pesées enregistrées'
-        );
+        return `
+          <div style="margin-top: 30px; padding: 20px; background: #f9f9f9; border-radius: 8px; border: 1px solid #e0e0e0;">
+            <h3 style="margin: 0 0 15px 0; color: #333; font-size: 18px;">📈 Courbe de croissance - Évolution du poids moyen</h3>
+            <p style="margin: 0 0 15px 0; font-size: 12px; color: #666; font-style: italic;">
+              Tendance de la croissance du cheptel basée sur les pesées enregistrées
+            </p>
+            ${generateLineChartSVG(
+              labels,
+              [{ label: 'Poids moyen (kg)', data: poidsMoyens, color: '#2e7d32' }],
+              700,
+              250
+            )}
+          </div>
+        `;
       })() : ''}
 
       ${peseesValides.length > 0 ? `
@@ -440,21 +435,20 @@ function generateProductionReportHTML(
         });
         const montants = labels.map(dateKey => ventesParDate[dateKey] || 0);
         
-        const barData: BarChartData = {
-          labels: labels,
-          datasets: [{
-            label: 'Montant des ventes (FCFA)',
-            data: montants,
-            color: '#2e7d32',
-          }],
-        };
-        
-        return generateBarChartHTML(
-          'ventesBarChart',
-          barData,
-          'Évolution des ventes par date',
-          'Visualisation des ventes réalisées sur la période, montrant les montants vendus par date'
-        );
+        return `
+          <div style="margin-top: 30px; padding: 20px; background: #f9f9f9; border-radius: 8px; border: 1px solid #e0e0e0;">
+            <h3 style="margin: 0 0 15px 0; color: #333; font-size: 18px;">📊 Évolution des ventes par date</h3>
+            <p style="margin: 0 0 15px 0; font-size: 12px; color: #666; font-style: italic;">
+              Visualisation des ventes réalisées sur la période, montrant les montants vendus par date
+            </p>
+            ${generateBarChartSVG(
+              labels,
+              [{ label: 'Montant des ventes (FCFA)', data: montants, color: '#2e7d32' }],
+              700,
+              250
+            )}
+          </div>
+        `;
       })() : ''}
 
       ${ventesValides.length > 0 ? `

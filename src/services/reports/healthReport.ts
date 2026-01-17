@@ -2,7 +2,7 @@
  * Service de génération de rapport santé (PDF et Excel)
  */
 
-import { startOfMonth, endOfMonth, format, parseISO } from 'date-fns';
+import { startOfMonth, endOfMonth, format, parseISO, eachMonthOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import {
   generatePDFHeader,
@@ -12,11 +12,10 @@ import {
   formatDate,
   generateAndSharePDF,
   formatNumber,
-  generateBarChartHTML,
   generatePieChartHTML,
-  type BarChartData,
   type PieChartData,
 } from '../pdfService';
+import { generateBarChartSVG, generateLineChartSVG, generatePieChartSVG } from '../pdf/chartGenerators';
 import apiClient from '../api/apiClient';
 import { logger } from '../../utils/logger';
 import * as FileSystem from 'expo-file-system';
@@ -199,6 +198,41 @@ function generateHealthReportHTML(
           'Visualisation de la distribution des vaccinations selon les différents types de vaccins'
         );
       })() : ''}
+      
+      <!-- Graphique temporel des vaccinations par mois -->
+      ${data.vaccinations.length > 0 ? (() => {
+        // Grouper les vaccinations par mois
+        const vaccinationsParMois: Record<string, number> = {};
+        data.vaccinations.forEach((v) => {
+          const dateKey = format(parseISO(v.date), 'MMM yyyy', { locale: fr });
+          vaccinationsParMois[dateKey] = (vaccinationsParMois[dateKey] || 0) + 1;
+        });
+        
+        const labels = Object.keys(vaccinationsParMois).sort((a, b) => {
+          const dateA = parseISO(data.vaccinations.find(v => format(parseISO(v.date), 'MMM yyyy', { locale: fr }) === a)?.date || '');
+          const dateB = parseISO(data.vaccinations.find(v => format(parseISO(v.date), 'MMM yyyy', { locale: fr }) === b)?.date || '');
+          return dateA.getTime() - dateB.getTime();
+        });
+        const counts = labels.map(label => vaccinationsParMois[label] || 0);
+        
+        if (labels.length > 1) {
+          return `
+            <div style="margin-top: 30px; padding: 20px; background: #f9f9f9; border-radius: 8px; border: 1px solid #e0e0e0;">
+              <h3 style="margin: 0 0 15px 0; color: #333; font-size: 18px;">📈 Évolution des vaccinations par mois</h3>
+              <p style="margin: 0 0 15px 0; font-size: 12px; color: #666; font-style: italic;">
+                Tendance du nombre de vaccinations au fil du temps
+              </p>
+              ${generateLineChartSVG(
+                labels,
+                [{ label: 'Nombre de vaccinations', data: counts, color: '#42A5F5' }],
+                700,
+                250
+              )}
+            </div>
+          `;
+        }
+        return '';
+      })() : ''}
 
       ${data.vaccinations.length > 0 ? `
       <h3>Détail des vaccinations</h3>
@@ -265,22 +299,24 @@ function generateHealthReportHTML(
       </table>
       ` : ''}
       
-      ${Object.keys(data.mortalitesParCause).length > 0 ? (() => {
-        const barData: BarChartData = {
-          labels: Object.keys(data.mortalitesParCause),
-          datasets: [{
-            label: 'Nombre de mortalités',
-            data: Object.values(data.mortalitesParCause),
-            color: '#ef5350',
-          }],
-        };
-        return generateBarChartHTML(
-          'mortalitesBarChart',
-          barData,
-          'Répartition des mortalités par cause',
-          'Visualisation du nombre de mortalités selon les différentes causes identifiées'
-        );
-      })() : ''}
+      ${Object.keys(data.mortalitesParCause).length > 0 ? `
+        <div style="margin-top: 30px; padding: 20px; background: #f9f9f9; border-radius: 8px; border: 1px solid #e0e0e0;">
+          <h3 style="margin: 0 0 15px 0; color: #333; font-size: 18px;">📊 Répartition des mortalités par cause</h3>
+          <p style="margin: 0 0 15px 0; font-size: 12px; color: #666; font-style: italic;">
+            Visualisation du nombre de mortalités selon les différentes causes identifiées
+          </p>
+          ${generateBarChartSVG(
+            Object.keys(data.mortalitesParCause),
+            [{
+              label: 'Nombre de mortalités',
+              data: Object.values(data.mortalitesParCause),
+              color: '#ef5350',
+            }],
+            700,
+            250
+          )}
+        </div>
+      ` : ''}
 
       ${Object.keys(data.mortalitesParCategorie).length > 0 ? `
       <h3>Répartition par catégorie</h3>
