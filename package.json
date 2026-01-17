@@ -65,7 +65,7 @@
     "expo-av": "~14.0.7",
     "expo-barcode-scanner": "^13.0.1",
     "expo-camera": "^15.0.16",
-    "expo-clipboard": "^8.0.8",
+    "expo-clipboard": "^6.0.3",
     "expo-crypto": "~13.0.2",
     "expo-dev-client": "~4.0.26",
     "expo-document-picker": "~12.0.2",
