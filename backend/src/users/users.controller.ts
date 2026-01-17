@@ -10,6 +10,7 @@ import {
   UseGuards,
   Logger,
   ForbiddenException,
+  NotFoundException,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
@@ -254,7 +255,21 @@ export class UsersController {
     if (user.id !== id) {
       throw new ForbiddenException('Vous ne pouvez modifier que votre propre profil');
     }
-    return this.usersService.addProfile(id, profile);
+    try {
+      return await this.usersService.addProfile(id, profile);
+    } catch (error: any) {
+      this.logger.error(`[addProfile] Erreur pour userId=${id}, profile=${profile}:`, {
+        message: error?.message,
+        stack: error?.stack?.substring(0, 500),
+      });
+      if (error?.message?.includes('introuvable')) {
+        throw new NotFoundException(error.message);
+      }
+      if (error?.message?.includes('invalide')) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
   }
 
   @Delete(':id/profiles/:profile')
