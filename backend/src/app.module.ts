@@ -20,7 +20,6 @@ import { MarketplaceModule } from './marketplace/marketplace.module';
 import { AiWeightModule } from './ai-weight/ai-weight.module';
 import { AdminModule } from './admin/admin.module';
 import { BatchesModule } from './batches/batches.module';
-import { MigrationModule } from './migration/migration.module';
 import { CommonModule } from './common/common.module';
 import { AgentLearningsModule } from './agent-learnings/agent-learnings.module';
 import { KnowledgeBaseModule } from './knowledge-base/knowledge-base.module';
@@ -67,7 +66,6 @@ import { JwtAuthGlobalGuard } from './common/guards/jwt-auth.global.guard';
     AiWeightModule,
     AdminModule,
     BatchesModule,
-    MigrationModule,
     AgentLearningsModule,
     KnowledgeBaseModule,
     ChatAgentModule,

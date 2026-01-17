@@ -52,9 +52,6 @@ export const SCREENS = {
   SERVICE_PROPOSAL_NOTIFICATIONS: 'ServiceProposalNotifications',
   // Agent conversationnel
   CHAT_AGENT: 'ChatAgent',
-  // Migration
-  MIGRATION_WIZARD: 'MigrationWizard',
-  MIGRATION_HISTORY: 'MigrationHistory',
   // Écrans unifiés (supportent les deux modes : individuel et batch)
   VACCINATION: 'Vaccination',
   WEIGHING: 'Weighing',

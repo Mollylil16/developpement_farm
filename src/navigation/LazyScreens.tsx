@@ -49,8 +49,6 @@ export { default as MyFarmsScreen } from '../screens/MyFarmsScreen';
 export { default as TasksScreen } from '../screens/TasksScreen';
 export { default as RecordsScreen } from '../screens/RecordsScreen';
 export { default as ChatAgentScreen } from '../screens/ChatAgentScreen';
-export { default as MigrationWizardScreen } from '../screens/MigrationWizardScreen';
-export { default as MigrationHistoryScreen } from '../screens/MigrationHistoryScreen';
 export { default as VaccinationScreen } from '../screens/VaccinationScreen';
 export { default as WeighingScreen } from '../screens/WeighingScreen';
 export { default as SaleScreen } from '../screens/SaleScreen';

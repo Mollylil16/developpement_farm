@@ -511,62 +511,6 @@ export default function ParametresProjetComponent() {
         </View>
       )}
 
-      {/* Actions du projet */}
-      {projetActif && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Actions</Text>
-          </View>
-
-          <TouchableOpacity
-            style={[
-              styles.actionCard,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-                ...colors.shadow.small,
-              },
-            ]}
-            onPress={() => navigation.navigate(SCREENS.MIGRATION_WIZARD)}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.actionIconContainer, { backgroundColor: colors.primaryLight + '15' }]}>
-              <Ionicons name="swap-horizontal-outline" size={24} color={colors.primary} />
-            </View>
-            <View style={styles.actionContent}>
-              <Text style={[styles.actionTitle, { color: colors.text }]}>Migration de données</Text>
-              <Text style={[styles.actionDescription, { color: colors.textSecondary }]}>
-                Convertir entre modes batch et individualisé
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.actionCard,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-                ...colors.shadow.small,
-              },
-            ]}
-            onPress={() => navigation.navigate(SCREENS.MIGRATION_HISTORY)}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.actionIconContainer, { backgroundColor: colors.successLight + '15' }]}>
-              <Ionicons name="time-outline" size={24} color={colors.success} />
-            </View>
-            <View style={styles.actionContent}>
-              <Text style={[styles.actionTitle, { color: colors.text }]}>Historique des migrations</Text>
-              <Text style={[styles.actionDescription, { color: colors.textSecondary }]}>
-                Consulter l'historique des conversions
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
-      )}
 
       {/* Liste des projets */}
       <View style={styles.section}>

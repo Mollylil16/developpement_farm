@@ -651,13 +651,6 @@ export default function AppNavigator() {
         <Stack.Screen name={SCREENS.CHAT_AGENT}>
           {() => <LazyScreens.ChatAgentScreen />}
         </Stack.Screen>
-        {/* Migration */}
-        <Stack.Screen name={SCREENS.MIGRATION_WIZARD}>
-          {() => <LazyScreens.MigrationWizardScreen />}
-        </Stack.Screen>
-        <Stack.Screen name={SCREENS.MIGRATION_HISTORY}>
-          {() => <LazyScreens.MigrationHistoryScreen />}
-        </Stack.Screen>
         {/* Écrans unifiés (supportent les deux modes : individuel et batch) */}
         <Stack.Screen name={SCREENS.VACCINATION}>
           {() => <LazyScreens.VaccinationScreen />}
