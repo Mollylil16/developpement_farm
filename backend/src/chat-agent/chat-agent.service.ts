@@ -90,9 +90,9 @@ export class ChatAgentService {
   private readonly logger = new Logger(ChatAgentService.name);
   private readonly geminiApiKey: string;
   private readonly geminiApiUrl =
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
   private readonly geminiStreamApiUrl =
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:streamGenerateContent?alt=sse';
+    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse';
   private readonly geminiRequestTimeoutMs = 30_000;
   private readonly defaultGenerationConfig = {
     temperature: 0.7,
@@ -1523,7 +1523,7 @@ export class ChatAgentService {
       return {
         response: reply,
         metadata: {
-          model: 'gemini-1.5-flash',
+          model: 'gemini-2.0-flash',
           executedActions,
         },
       };
