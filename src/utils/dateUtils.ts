@@ -1,4 +1,4 @@
-import { format, parseISO, isValid, formatDistanceToNow } from 'date-fns';
+import { format, parseISO, isValid, formatDistanceToNow, addDays as dateFnsAddDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 /**
@@ -131,4 +131,59 @@ export const parseLocalDate = (dateString: string | null | undefined): Date | nu
  */
 export const getCurrentLocalDate = (): string => {
   return format(new Date(), 'yyyy-MM-dd');
+};
+
+/**
+ * Formate une date pour l'affichage utilisateur (DD/MM/YYYY)
+ * Accepte une date ISO string (YYYY-MM-DD) ou un objet Date
+ */
+export const formatDisplayDate = (
+  dateValue: string | Date | null | undefined,
+  formatStr: string = 'dd/MM/yyyy'
+): string => {
+  if (!dateValue) return '';
+  
+  try {
+    const date = typeof dateValue === 'string'
+      ? parseISO(dateValue)
+      : dateValue;
+    
+    if (!isValid(date)) {
+      console.warn('[DateUtils] formatDisplayDate: date invalide', dateValue);
+      return '';
+    }
+    
+    return format(date, formatStr, { locale: fr });
+  } catch (error) {
+    console.error('[DateUtils] formatDisplayDate erreur:', error, dateValue);
+    return '';
+  }
+};
+
+/**
+ * Ajoute un nombre de jours à une date
+ * Retourne une nouvelle date au format YYYY-MM-DD
+ */
+export const addDays = (
+  dateValue: string | Date | null | undefined,
+  days: number
+): string => {
+  if (!dateValue) return '';
+  
+  try {
+    const date = typeof dateValue === 'string'
+      ? parseISO(dateValue)
+      : dateValue;
+    
+    if (!isValid(date)) {
+      console.warn('[DateUtils] addDays: date invalide', dateValue);
+      return '';
+    }
+    
+    const newDate = dateFnsAddDays(date, days);
+    return format(newDate, 'yyyy-MM-dd');
+  } catch (error) {
+    console.error('[DateUtils] addDays erreur:', error, dateValue);
+    return '';
+  }
 };
