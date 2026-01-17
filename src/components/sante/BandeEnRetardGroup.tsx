@@ -70,8 +70,9 @@ export default function BandeEnRetardGroup({
               {bandeData.batch?.pen_name || `Bande ${bandeData.batchId.slice(0, 6)}`}
             </Text>
             <Text style={[styles.meta, { color: colors.textSecondary }]}>
-              {bandeData.nombreEnRetard} sujet{bandeData.nombreEnRetard > 1 ? 's' : ''} en retard
-              {bandeData.batch && ` • ${bandeData.batch.total_count} sujet(s) total`}
+              {bandeData.animaux.length} sujet{bandeData.animaux.length > 1 ? 's' : ''} concerné{bandeData.animaux.length > 1 ? 's' : ''}
+              {bandeData.nombreEnRetard > 0 && ` • ${bandeData.nombreEnRetard} en retard`}
+              {bandeData.batch && ` • ${bandeData.batch.total_count} sujet(s) dans la bande`}
             </Text>
           </View>
         </View>
@@ -107,7 +108,7 @@ export default function BandeEnRetardGroup({
           >
             <Ionicons name="medical" size={16} color="#FFF" />
             <Text style={styles.boutonVaccinerBandeTexte}>
-              Vacciner cette bande ({bandeData.nombreEnRetard})
+              Vacciner cette bande ({bandeData.animaux.length} sujet{bandeData.animaux.length > 1 ? 's' : ''})
             </Text>
           </TouchableOpacity>
         </View>

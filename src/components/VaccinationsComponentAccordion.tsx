@@ -1481,17 +1481,15 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
     couleur: string,
     animauxActifs: any[]
   ) => {
-    // Calculer les animaux en retard
+    // Calculer TOUS les animaux du calendrier (en retard ET à venir)
     const animauxCalendrier = calculerAnimauxCalendrier(type, animauxActifs);
-    const animauxEnRetard = animauxCalendrier.filter((item) => item.enRetard);
 
-    // ✅ CORRECTION: Supprimer useMemo car on est dans une fonction de rendu
-    // Les hooks ne peuvent pas être appelés dans des fonctions de rendu régulières
+    // ✅ CORRECTION: Utiliser TOUS les animaux du calendrier, pas seulement ceux en retard
     // Grouper par batch_id
     const grouped: { [batchId: string]: AnimalCalendrier[] } = {};
     const sansBande: AnimalCalendrier[] = [];
 
-    animauxEnRetard.forEach((item) => {
+    animauxCalendrier.forEach((item) => {
       const batchId = animalBatchMap.get(item.animal.id);
       if (!batchId) {
         sansBande.push(item);
@@ -1509,16 +1507,23 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
     // Récupérer les informations des bandes
     const bandesAvecRetards = Object.entries(animauxParBande.grouped).map(([batchId, animauxGroupe]) => {
       const batch = batches.find((b) => b.id === batchId);
+      // Compter les animaux en retard dans ce groupe
+      const nombreEnRetard = animauxGroupe.filter((item) => item.enRetard).length;
       return {
         batchId,
         batch: batch || null,
         animaux: animauxGroupe,
-        nombreEnRetard: animauxGroupe.length,
+        nombreEnRetard,
       };
     });
 
-    // Trier : bandes avec le plus de retards en premier
-    bandesAvecRetards.sort((a, b) => b.nombreEnRetard - a.nombreEnRetard);
+    // Trier : bandes avec le plus de retards en premier, puis par nombre total d'animaux
+    bandesAvecRetards.sort((a, b) => {
+      if (b.nombreEnRetard !== a.nombreEnRetard) {
+        return b.nombreEnRetard - a.nombreEnRetard;
+      }
+      return b.animaux.length - a.animaux.length;
+    });
 
     return (
       <View
@@ -1534,7 +1539,7 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
         {bandesAvecRetards.length === 0 && animauxParBande.sansBande.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-              Aucun sujet en retard pour ce traitement
+              Aucun animal nécessitant ce traitement
             </Text>
           </View>
         ) : (
