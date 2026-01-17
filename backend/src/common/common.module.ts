@@ -5,6 +5,7 @@ import { ImageService } from './services/image.service';
 import { PermissionsService } from './services/permissions.service';
 import { PermissionGuard } from './guards/permission.guard';
 import { QRCodeService } from './services/qrcode.service';
+import { CloudinaryService } from './services/cloudinary.service';
 import { CollaborationsModule } from '../collaborations/collaborations.module';
 
 /**
@@ -14,8 +15,8 @@ import { CollaborationsModule } from '../collaborations/collaborations.module';
 @Global()
 @Module({
   imports: [CollaborationsModule],
-  providers: [EmailService, CacheService, ImageService, PermissionsService, PermissionGuard, QRCodeService],
-  exports: [EmailService, CacheService, ImageService, PermissionsService, PermissionGuard, QRCodeService],
+  providers: [EmailService, CacheService, ImageService, PermissionsService, PermissionGuard, QRCodeService, CloudinaryService],
+  exports: [EmailService, CacheService, ImageService, PermissionsService, PermissionGuard, QRCodeService, CloudinaryService],
 })
 export class CommonModule {}
 

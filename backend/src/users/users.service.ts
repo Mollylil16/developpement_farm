@@ -1,5 +1,6 @@
 import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { CloudinaryService } from '../common/services/cloudinary.service';
 import { Request } from 'express';
 import sharp from 'sharp';
 import * as fs from 'fs/promises';
@@ -9,7 +10,10 @@ import * as path from 'path';
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
 
-  constructor(private databaseService: DatabaseService) {}
+  constructor(
+    private databaseService: DatabaseService,
+    private cloudinaryService: CloudinaryService,
+  ) {}
 
   /**
    * Génère un ID comme le frontend : user_${Date.now()}_${random}
@@ -847,6 +851,7 @@ export class UsersService {
 
   /**
    * Upload et redimensionne une photo de profil
+   * Utilise Cloudinary si configuré, sinon stockage local
    */
   async uploadProfilePhoto(userId: string, file: { fieldname: string; originalname: string; encoding: string; mimetype: string; size: number; buffer?: Buffer; path?: string; filename?: string }, req?: Request): Promise<string> {
     // Vérifier que l'utilisateur existe
@@ -860,198 +865,195 @@ export class UsersService {
       throw new BadRequestException('Aucun fichier fourni');
     }
 
-    // Utiliser file.path qui est le chemin réel du fichier sauvegardé par Multer
-    // Multer sauvegarde déjà le fichier dans le dossier de destination
-    // Convertir en chemin absolu si nécessaire (Multer peut utiliser des chemins relatifs)
-    let filePath = file.path;
-    
-    if (!filePath) {
-      throw new BadRequestException('Chemin du fichier introuvable');
-    }
+    // Obtenir le buffer du fichier (soit directement, soit en le lisant depuis le disque)
+    let fileBuffer: Buffer;
+    let filePath: string | null = null;
 
-    // Convertir en chemin absolu si c'est un chemin relatif
-    if (!path.isAbsolute(filePath)) {
-      filePath = path.resolve(process.cwd(), filePath);
-    }
+    if (file.buffer) {
+      // Le fichier est déjà en mémoire (memoryStorage)
+      fileBuffer = file.buffer;
+    } else if (file.path) {
+      // Le fichier est sur le disque (diskStorage)
+      filePath = file.path;
+      if (!path.isAbsolute(filePath)) {
+        filePath = path.resolve(process.cwd(), filePath);
+      }
 
-    this.logger.debug(`[uploadProfilePhoto] Chemin du fichier: ${filePath}`);
-
-    // Vérifier que le fichier existe
-    try {
-      await fs.access(filePath);
-      this.logger.debug(`[uploadProfilePhoto] Fichier trouvé: ${file.filename}`);
-    } catch (error) {
-      this.logger.error(`[uploadProfilePhoto] Fichier non trouvé: ${file.filename}`, error);
-      // SÉCURITÉ: Ne pas exposer le chemin complet dans l'erreur
-      throw new BadRequestException('Fichier non trouvé. Veuillez réessayer.');
-    }
-
-    // S'assurer que le dossier de destination existe (pour la sauvegarde finale)
-    const uploadsDir = path.join(process.cwd(), 'uploads', 'profile-photos');
-    try {
-      await fs.access(uploadsDir);
-    } catch {
-      // Le dossier n'existe pas, le créer
-      await fs.mkdir(uploadsDir, { recursive: true });
-    }
-
-    try {
-      // Lire le fichier en buffer d'abord pour garantir qu'il est complètement écrit
-      // Cela évite les problèmes de timing où sharp essaie de lire un fichier en cours d'écriture
-      const fileBuffer = await fs.readFile(filePath);
-      
-      this.logger.debug(`[uploadProfilePhoto] Fichier lu, taille: ${fileBuffer.length} bytes`);
-
-      // SÉCURITÉ: Valider le contenu réel du fichier avec sharp.metadata()
-      // Cela vérifie que c'est bien une image, pas juste l'extension
-      let imageMetadata;
       try {
-        imageMetadata = await sharp(fileBuffer).metadata();
-      } catch (sharpError) {
-        this.logger.error(`[uploadProfilePhoto] Fichier invalide ou corrompu: ${file.filename}`, sharpError);
-        throw new BadRequestException('Le fichier n\'est pas une image valide ou est corrompu.');
+        await fs.access(filePath);
+        fileBuffer = await fs.readFile(filePath);
+      } catch (error) {
+        this.logger.error(`[uploadProfilePhoto] Fichier non trouvé: ${file.filename}`, error);
+        throw new BadRequestException('Fichier non trouvé. Veuillez réessayer.');
       }
+    } else {
+      throw new BadRequestException('Fichier invalide');
+    }
 
-      // Vérifier que le format est bien une image supportée
-      if (!imageMetadata.format || !['jpeg', 'png', 'webp'].includes(imageMetadata.format)) {
-        this.logger.warn(`[uploadProfilePhoto] Format non supporté: ${imageMetadata.format} pour ${file.filename}`);
-        throw new BadRequestException(`Format d'image non supporté: ${imageMetadata.format}. Formats acceptés: JPEG, PNG, WEBP.`);
-      }
+    this.logger.debug(`[uploadProfilePhoto] Fichier lu, taille: ${fileBuffer.length} bytes`);
 
-      // Vérifier la taille après validation (sécurité supplémentaire)
-      if (fileBuffer.length === 0) {
-        throw new BadRequestException('Le fichier est vide.');
-      }
+    // Valider le contenu du fichier avec sharp
+    let imageMetadata;
+    try {
+      imageMetadata = await sharp(fileBuffer).metadata();
+    } catch (sharpError) {
+      this.logger.error(`[uploadProfilePhoto] Fichier invalide ou corrompu: ${file.filename}`, sharpError);
+      throw new BadRequestException('Le fichier n\'est pas une image valide ou est corrompu.');
+    }
 
-      // Redimensionner l'image à 500x500px avec sharp depuis le buffer
-      const resizedBuffer = await sharp(fileBuffer)
-        .resize(500, 500, {
-          fit: 'cover',
-          position: 'center',
-        })
-        .jpeg({ quality: 85 }) // Convertir en JPEG pour réduire la taille
-        .toBuffer();
+    // Vérifier que le format est supporté
+    if (!imageMetadata.format || !['jpeg', 'png', 'webp'].includes(imageMetadata.format)) {
+      throw new BadRequestException(`Format d'image non supporté: ${imageMetadata.format}. Formats acceptés: JPEG, PNG, WEBP.`);
+    }
 
-      this.logger.debug(`[uploadProfilePhoto] Image redimensionnée, taille: ${resizedBuffer.length} bytes`);
+    if (fileBuffer.length === 0) {
+      throw new BadRequestException('Le fichier est vide.');
+    }
 
-      // Vérifier que la taille après redimensionnement est raisonnable
-      if (resizedBuffer.length > 5 * 1024 * 1024) {
-        this.logger.warn(`[uploadProfilePhoto] Image trop volumineuse après traitement: ${resizedBuffer.length} bytes`);
-        throw new BadRequestException('L\'image est trop volumineuse après traitement. Veuillez utiliser une image plus petite.');
-      }
+    try {
+      let photoUrl: string;
 
-      // Sauvegarder l'image redimensionnée (remplacer l'original)
-      await fs.writeFile(filePath, resizedBuffer);
+      // ===== CLOUDINARY (Production) =====
+      if (this.cloudinaryService.isCloudinaryConfigured()) {
+        this.logger.log(`[uploadProfilePhoto] Utilisation de Cloudinary pour userId=${userId}`);
 
-      // Générer l'URL de la photo
-      // Utiliser le header Host de la requête pour déterminer l'URL du serveur
-      // Cela fonctionne automatiquement quel que soit l'environnement (dev ou prod)
-      const hostHeader = req?.headers?.host;
-      const protocol = req?.headers['x-forwarded-proto'] || (req?.secure ? 'https' : 'http');
-      
-      let baseUrl = process.env.API_URL;
-      
-      // Si API_URL n'est pas configuré, utiliser le header Host de la requête
-      if (!baseUrl || !baseUrl.startsWith('http')) {
-        if (hostHeader) {
-          // Utiliser le Host header envoyé par le client (ex: 192.168.1.7:3000)
-          baseUrl = `${protocol}://${hostHeader}`;
-        } else if (process.env.NODE_ENV === 'production') {
-          baseUrl = 'https://api.fermier-pro.com';
-        } else {
-          // Fallback en développement : détecter l'IP locale
-          const networkInterfaces = require('os').networkInterfaces();
-          let localIp = 'localhost';
+        // Supprimer l'ancienne photo Cloudinary si elle existe
+        if (user.photo && user.photo.includes('cloudinary.com')) {
+          const oldPublicId = this.cloudinaryService.extractPublicIdFromUrl(user.photo);
+          if (oldPublicId) {
+            await this.cloudinaryService.deleteImage(oldPublicId);
+          }
+        }
+
+        // Upload vers Cloudinary (il gère le redimensionnement)
+        const cloudinaryResult = await this.cloudinaryService.uploadProfilePhoto(
+          fileBuffer,
+          userId,
+          { width: 500, height: 500 }
+        );
+
+        photoUrl = cloudinaryResult.secureUrl;
+        this.logger.log(`[uploadProfilePhoto] Photo uploadée sur Cloudinary: ${cloudinaryResult.publicId}`);
+
+        // Supprimer le fichier temporaire local si existant
+        if (filePath) {
+          try {
+            await fs.unlink(filePath);
+          } catch (unlinkError) {
+            this.logger.warn(`[uploadProfilePhoto] Impossible de supprimer le fichier temporaire:`, unlinkError);
+          }
+        }
+
+      // ===== STOCKAGE LOCAL (Développement / Fallback) =====
+      } else {
+        this.logger.log(`[uploadProfilePhoto] Utilisation du stockage local pour userId=${userId}`);
+
+        // S'assurer que le dossier de destination existe
+        const uploadsDir = path.join(process.cwd(), 'uploads', 'profile-photos');
+        try {
+          await fs.access(uploadsDir);
+        } catch {
+          await fs.mkdir(uploadsDir, { recursive: true });
+        }
+
+        // Redimensionner l'image avec sharp
+        const resizedBuffer = await sharp(fileBuffer)
+          .resize(500, 500, {
+            fit: 'cover',
+            position: 'center',
+          })
+          .jpeg({ quality: 85 })
+          .toBuffer();
+
+        // Sauvegarder l'image (remplacer si existant ou créer nouveau)
+        const targetPath = filePath || path.join(uploadsDir, `${userId}_${Date.now()}.jpg`);
+        await fs.writeFile(targetPath, resizedBuffer);
+
+        // Générer l'URL
+        const hostHeader = req?.headers?.host;
+        const protocol = req?.headers['x-forwarded-proto'] || (req?.secure ? 'https' : 'http');
+        
+        let baseUrl = process.env.API_URL;
+        
+        if (!baseUrl || !baseUrl.startsWith('http')) {
+          if (hostHeader) {
+            baseUrl = `${protocol}://${hostHeader}`;
+          } else if (process.env.NODE_ENV === 'production') {
+            baseUrl = 'https://api.fermier-pro.com';
+          } else {
+            const networkInterfaces = require('os').networkInterfaces();
+            let localIp = 'localhost';
+            
+            for (const interfaceName of Object.keys(networkInterfaces)) {
+              for (const iface of networkInterfaces[interfaceName] || []) {
+                if (iface.family === 'IPv4' && !iface.internal) {
+                  localIp = iface.address;
+                  break;
+                }
+              }
+              if (localIp !== 'localhost') break;
+            }
+            
+            baseUrl = `http://${localIp}:3000`;
+          }
+        }
+        
+        const filename = path.basename(targetPath);
+        photoUrl = `${baseUrl}/uploads/profile-photos/${filename}`;
+
+        // Gérer le quota de stockage (max 3 photos par utilisateur)
+        try {
+          const existingFiles = await fs.readdir(uploadsDir);
+          const userFiles = existingFiles
+            .filter(f => f.startsWith(`${userId}_`) && f.endsWith('.jpg'))
+            .sort();
           
-          for (const interfaceName of Object.keys(networkInterfaces)) {
-            for (const iface of networkInterfaces[interfaceName] || []) {
-              if (iface.family === 'IPv4' && !iface.internal) {
-                localIp = iface.address;
-                break;
+          const MAX_PHOTOS_PER_USER = 3;
+          if (userFiles.length >= MAX_PHOTOS_PER_USER) {
+            const filesToDelete = userFiles.slice(0, userFiles.length - MAX_PHOTOS_PER_USER + 1);
+            for (const oldFile of filesToDelete) {
+              try {
+                await fs.unlink(path.join(uploadsDir, oldFile));
+                this.logger.debug(`[uploadProfilePhoto] Ancienne photo supprimée (quota): ${oldFile}`);
+              } catch (deleteError) {
+                this.logger.warn(`[uploadProfilePhoto] Erreur suppression ancienne photo:`, deleteError);
               }
             }
-            if (localIp !== 'localhost') break;
           }
-          
-          baseUrl = `http://${localIp}:3000`;
+        } catch (dirError) {
+          this.logger.warn(`[uploadProfilePhoto] Impossible de vérifier le quota:`, dirError);
+        }
+
+        // Supprimer l'ancienne photo locale si elle existe
+        if (user.photo && !user.photo.includes('cloudinary.com')) {
+          await this.deleteOldProfilePhoto(user.photo);
         }
       }
-      
-      const photoUrl = `${baseUrl}/uploads/profile-photos/${file.filename}`;
 
-      // ROBUSTESSE: Gérer le quota de stockage (max 3 photos par utilisateur)
-      const uploadsDir = path.join(process.cwd(), 'uploads', 'profile-photos');
-      const MAX_PHOTOS_PER_USER = 3;
-      
-      // Lister les fichiers existants pour cet utilisateur
-      try {
-        const existingFiles = await fs.readdir(uploadsDir);
-        const userFiles = existingFiles
-          .filter(f => f.startsWith(`${userId}_`) && f.endsWith('.jpg'))
-          .sort(); // Trier pour garder les plus récentes
-        
-        // Si on dépasse le quota, supprimer les plus anciennes
-        if (userFiles.length >= MAX_PHOTOS_PER_USER) {
-          const filesToDelete = userFiles.slice(0, userFiles.length - MAX_PHOTOS_PER_USER + 1);
-          for (const oldFile of filesToDelete) {
-            try {
-              await fs.unlink(path.join(uploadsDir, oldFile));
-              this.logger.debug(`[uploadProfilePhoto] Ancienne photo supprimée (quota): ${oldFile}`);
-            } catch (deleteError) {
-              this.logger.warn(`[uploadProfilePhoto] Erreur suppression ancienne photo ${oldFile}:`, deleteError);
-            }
-          }
-        }
-      } catch (dirError) {
-        // Si on ne peut pas lire le dossier, continuer quand même
-        this.logger.warn(`[uploadProfilePhoto] Impossible de vérifier le quota:`, dirError);
-      }
+      // Mettre à jour la photo dans la base de données
+      await this.update(userId, { photo: photoUrl });
 
-      // Supprimer l'ancienne photo référencée dans la DB si elle existe
-      if (user.photo) {
-        await this.deleteOldProfilePhoto(user.photo);
-      }
+      this.logger.log(`Photo de profil uploadée pour l'utilisateur ${userId}: ${photoUrl}`);
+      return photoUrl;
 
-      // ROBUSTESSE: Transaction pour garantir cohérence DB/fichiers
-      // Si update() échoue, supprimer le fichier pour éviter les orphelins
-      try {
-        // Mettre à jour la photo dans la base de données
-        await this.update(userId, { photo: photoUrl });
-      } catch (updateError) {
-        // Rollback: supprimer le fichier si la mise à jour DB échoue
-        this.logger.error(`[uploadProfilePhoto] Erreur lors de la mise à jour DB, rollback du fichier:`, updateError);
+    } catch (error) {
+      // Nettoyer le fichier temporaire en cas d'erreur
+      if (filePath) {
         try {
           await fs.unlink(filePath);
         } catch (unlinkError) {
-          this.logger.error(`[uploadProfilePhoto] Erreur lors du rollback du fichier:`, unlinkError);
+          this.logger.error(`[uploadProfilePhoto] Erreur lors de la suppression du fichier:`, unlinkError);
         }
-        throw updateError;
       }
 
-      this.logger.log(`Photo de profil uploadée pour l'utilisateur ${userId}: ${file.filename}`);
-      return photoUrl;
-    } catch (error) {
-      // Supprimer le fichier en cas d'erreur
-      try {
-        if (filePath) {
-          await fs.unlink(filePath);
-        }
-      } catch (unlinkError) {
-        // SÉCURITÉ: Ne pas exposer le chemin dans les logs d'erreur
-        this.logger.error(`[uploadProfilePhoto] Erreur lors de la suppression du fichier:`, unlinkError);
-      }
-
-      // SÉCURITÉ: Ne pas exposer les détails techniques dans les logs
       this.logger.error(`[uploadProfilePhoto] Erreur lors de l'upload pour userId=${userId}:`, {
         filename: file.filename,
         errorType: error instanceof Error ? error.constructor.name : 'Unknown',
-        // Ne pas logger le message d'erreur complet qui peut contenir des chemins
       });
       
-      // Message d'erreur utilisateur-friendly (sans détails techniques)
+      // Messages d'erreur utilisateur-friendly
       let errorMessage = 'Erreur lors du traitement de l\'image.';
       if (error instanceof Error) {
-        // Messages d'erreur spécifiques pour l'utilisateur
         if (error.message.includes('format') || error.message.includes('Format')) {
           errorMessage = 'Format d\'image non supporté. Utilisez JPG, PNG ou WEBP.';
         } else if (error.message.includes('corrompu') || error.message.includes('invalide')) {
@@ -1060,6 +1062,8 @@ export class UsersService {
           errorMessage = 'Le fichier est vide.';
         } else if (error.message.includes('volumineux') || error.message.includes('trop grand')) {
           errorMessage = 'L\'image est trop volumineuse. Maximum 5MB.';
+        } else if (error.message.includes('Cloudinary')) {
+          errorMessage = error.message;
         }
       }
       
@@ -1083,7 +1087,7 @@ export class UsersService {
       return;
     }
 
-    // Supprimer le fichier physique
+    // Supprimer la photo (Cloudinary ou locale)
     await this.deleteOldProfilePhoto(user.photo);
 
     // Mettre à jour la base de données pour retirer la référence
@@ -1093,11 +1097,25 @@ export class UsersService {
   }
 
   /**
-   * Supprime l'ancienne photo de profil (fichier physique uniquement)
+   * Supprime l'ancienne photo de profil (Cloudinary ou fichier local)
    */
   async deleteOldProfilePhoto(photoUrl: string): Promise<void> {
+    if (!photoUrl) return;
+
     try {
-      // Extraire le nom du fichier de l'URL
+      // === CLOUDINARY ===
+      if (photoUrl.includes('cloudinary.com')) {
+        const publicId = this.cloudinaryService.extractPublicIdFromUrl(photoUrl);
+        if (publicId) {
+          const deleted = await this.cloudinaryService.deleteImage(publicId);
+          if (deleted) {
+            this.logger.log(`Ancienne photo Cloudinary supprimée: ${publicId}`);
+          }
+        }
+        return;
+      }
+
+      // === STOCKAGE LOCAL ===
       const urlParts = photoUrl.split('/');
       const filename = urlParts[urlParts.length - 1];
 
@@ -1113,7 +1131,7 @@ export class UsersService {
       try {
         await fs.access(filePath);
         await fs.unlink(filePath);
-        this.logger.log(`Ancienne photo supprimée: ${filename}`);
+        this.logger.log(`Ancienne photo locale supprimée: ${filename}`);
       } catch (error) {
         // Le fichier n'existe pas, ce n'est pas grave
         this.logger.debug(`Fichier non trouvé (déjà supprimé?): ${filename}`);
