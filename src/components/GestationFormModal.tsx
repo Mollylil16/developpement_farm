@@ -133,16 +133,21 @@ export default function GestationFormModal({
           try {
             const batchPigs = await apiClient.get<any[]>(`/batch-pigs/batch/${batch.id}`);
             // Convertir les batch_pigs en format VerratOption
+            // Note: batch_pigs utilise 'sex' (pas 'sexe') et 'health_status' (pas 'statut')
+            // Les batch_pigs sont actifs tant qu'ils existent (pas de champ statut actif/inactif)
             const verratsFromBatch = batchPigs
-              .filter((pig) => pig.sexe === 'male' && pig.statut === 'actif')
+              .filter((pig) => 
+                (pig.sex === 'male' || pig.sexe === 'male') && 
+                (pig.health_status !== 'dead' && pig.health_status !== 'removed')
+              )
               .map((pig) => ({
                 id: pig.id,
-                code: pig.pig_code || pig.code || `VER-${pig.id.slice(0, 8)}`,
-                nom: pig.pig_code || pig.code || `Verrat ${pig.id.slice(0, 8)}`,
+                code: pig.pig_code || pig.code || pig.name || `VER-${pig.id.slice(0, 8)}`,
+                nom: pig.name || pig.pig_code || pig.code || `Verrat ${pig.id.slice(0, 8)}`,
                 sexe: 'male' as const,
                 statut: 'actif' as const,
                 reproducteur: true,
-                numero: parseInt(pig.pig_code?.replace(/\D/g, '') || pig.id.slice(-4) || '0') || 0,
+                numero: parseInt((pig.pig_code || pig.code || pig.name || pig.id.slice(-4)).replace(/\D/g, '') || '0') || 0,
                 race: pig.race,
                 projet_id: projetActif.id,
                 batch_id: batch.id,
