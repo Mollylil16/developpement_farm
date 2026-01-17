@@ -110,7 +110,8 @@ class ProfileSyncService {
    * Vérifier les mises à jour du profil
    */
   private async checkForUpdates(): Promise<boolean> {
-    if (!this.userId || !this.dispatch) {
+    // Vérifier que le service est toujours actif et que dispatch est disponible
+    if (!this.isRunning || !this.userId || !this.dispatch) {
       return false;
     }
 
@@ -140,7 +141,9 @@ class ProfileSyncService {
           email: apiUser.email,
         });
         // Mettre quand même à jour le Redux store pour s'assurer que les données sont à jour
-        this.dispatch(updateUser(apiUser));
+        if (this.dispatch) {
+          this.dispatch(updateUser(apiUser));
+        }
         return false; // Pas de changement, juste initialisation
       }
       
@@ -163,7 +166,9 @@ class ProfileSyncService {
         });
 
         // Mettre à jour le state Redux
-        this.dispatch(updateUser(apiUser));
+        if (this.dispatch) {
+          this.dispatch(updateUser(apiUser));
+        }
 
         // Appeler le callback si fourni
         if (this.onProfileChangedCallback) {
@@ -188,7 +193,9 @@ class ProfileSyncService {
       
       if (currentDataHash !== lastDataHash) {
         // Données utilisateur changées (nom, prénom, etc.)
-        this.dispatch(updateUser(apiUser));
+        if (this.dispatch) {
+          this.dispatch(updateUser(apiUser));
+        }
         this.lastDataHash = currentDataHash;
       }
       
