@@ -706,37 +706,41 @@ export class UsersService {
   private async deleteBuyerData(userId: string, client: any): Promise<void> {
     this.logger.debug(`deleteBuyerData: suppression des données acheteur pour userId=${userId}`);
 
-    // Supprimer les offres de l'acheteur (si la table existe)
-    try {
+    // Vérifier si la table marketplace_offers existe et a la colonne acheteur_id
+    const checkOffersTable = await client.query(`
+      SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'marketplace_offers' AND column_name = 'acheteur_id'
+      ) as exists
+    `);
+    
+    if (checkOffersTable.rows[0]?.exists) {
       await client.query(
         'DELETE FROM marketplace_offers WHERE acheteur_id = $1',
         [userId]
       );
-    } catch (error: any) {
-      // Si la table n'existe pas ou colonne manquante, ignorer
-      if (!error.message?.includes('does not exist') && 
-          !error.message?.includes("n'existe pas") &&
-          !error.message?.includes('column')) {
-        throw error;
-      }
-      this.logger.warn(`deleteBuyerData: table marketplace_offers ou colonne non trouvée, ignoré`);
+      this.logger.debug(`deleteBuyerData: offres marketplace supprimées pour userId=${userId}`);
+    } else {
+      this.logger.warn(`deleteBuyerData: table marketplace_offers ou colonne acheteur_id non trouvée, ignoré`);
     }
 
-    // Garder les ventes pour l'historique du producteur, mais anonymiser
-    // (ou supprimer si nécessaire)
-    try {
+    // Vérifier si la table ventes existe et a la colonne acheteur_id
+    const checkVentesTable = await client.query(`
+      SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'ventes' AND column_name = 'acheteur_id'
+      ) as exists
+    `);
+    
+    if (checkVentesTable.rows[0]?.exists) {
+      // Garder les ventes pour l'historique du producteur, mais anonymiser
       await client.query(
         'UPDATE ventes SET acheteur_id = NULL WHERE acheteur_id = $1',
         [userId]
       );
-    } catch (error: any) {
-      // Si la table n'existe pas ou colonne manquante, ignorer
-      if (!error.message?.includes('does not exist') && 
-          !error.message?.includes("n'existe pas") &&
-          !error.message?.includes('column')) {
-        throw error;
-      }
-      this.logger.warn(`deleteBuyerData: table ventes ou colonne non trouvée, ignoré`);
+      this.logger.debug(`deleteBuyerData: ventes anonymisées pour userId=${userId}`);
+    } else {
+      this.logger.warn(`deleteBuyerData: table ventes ou colonne acheteur_id non trouvée, ignoré`);
     }
 
     this.logger.log(`deleteBuyerData: données acheteur supprimées pour userId=${userId}`);
