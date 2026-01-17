@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { GestationUtilsService } from '../common/services/gestation-utils.service';
 import { CreateGestationDto } from './dto/create-gestation.dto';
 import { UpdateGestationDto } from './dto/update-gestation.dto';
 import { CreateSevrageDto } from './dto/create-sevrage.dto';
@@ -9,29 +10,25 @@ import { UpdateSevrageDto } from './dto/update-sevrage.dto';
 export class ReproductionService {
   constructor(private databaseService: DatabaseService) {}
 
-  private readonly DUREE_GESTATION_JOURS = 114; // Durée standard d'une gestation porcine
-
   /**
-   * Génère un ID comme le frontend : gestation_${Date.now()}_${random}
+   * Génère un ID de gestation unifié (utilise le service partagé)
    */
   private generateGestationId(): string {
-    return `gestation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return GestationUtilsService.generateGestationId();
   }
 
   /**
-   * Génère un ID comme le frontend : sevrage_${Date.now()}_${random}
+   * Génère un ID de sevrage
    */
   private generateSevrageId(): string {
     return `sevrage_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
   /**
-   * Calcule la date de mise bas prévue à partir de la date de sautage
+   * Calcule la date de mise bas prévue (utilise le service partagé)
    */
   private calculerDateMiseBasPrevue(dateSautage: string): string {
-    const date = new Date(dateSautage);
-    date.setDate(date.getDate() + this.DUREE_GESTATION_JOURS);
-    return date.toISOString();
+    return GestationUtilsService.calculateExpectedDeliveryDate(dateSautage);
   }
 
   /**
@@ -402,12 +399,13 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       values.push(updateGestationDto.verrat_id || null);
       paramIndex++;
     }
+    // Note: verratNom est soit validé depuis la DB (si verrat_id fourni), soit depuis le DTO
     if (verratNom !== undefined) {
       fields.push(`verrat_nom = $${paramIndex}`);
       values.push(verratNom || null);
       paramIndex++;
-    }
-    if (updateGestationDto.verrat_nom !== undefined) {
+    } else if (updateGestationDto.verrat_nom !== undefined && updateGestationDto.verrat_id === undefined) {
+      // Mise à jour du nom seul (sans changer le verrat_id)
       fields.push(`verrat_nom = $${paramIndex}`);
       values.push(updateGestationDto.verrat_nom || null);
       paramIndex++;

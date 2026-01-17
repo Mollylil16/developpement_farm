@@ -6,6 +6,7 @@ import { PermissionsService } from './services/permissions.service';
 import { PermissionGuard } from './guards/permission.guard';
 import { QRCodeService } from './services/qrcode.service';
 import { CloudinaryService } from './services/cloudinary.service';
+import { GestationUtilsService } from './services/gestation-utils.service';
 import { CollaborationsModule } from '../collaborations/collaborations.module';
 
 /**
@@ -15,8 +16,8 @@ import { CollaborationsModule } from '../collaborations/collaborations.module';
 @Global()
 @Module({
   imports: [CollaborationsModule],
-  providers: [EmailService, CacheService, ImageService, PermissionsService, PermissionGuard, QRCodeService, CloudinaryService],
-  exports: [EmailService, CacheService, ImageService, PermissionsService, PermissionGuard, QRCodeService, CloudinaryService],
+  providers: [EmailService, CacheService, ImageService, PermissionsService, PermissionGuard, QRCodeService, CloudinaryService, GestationUtilsService],
+  exports: [EmailService, CacheService, ImageService, PermissionsService, PermissionGuard, QRCodeService, CloudinaryService, GestationUtilsService],
 })
 export class CommonModule {}
 
