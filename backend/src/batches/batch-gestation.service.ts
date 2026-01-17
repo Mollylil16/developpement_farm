@@ -180,12 +180,13 @@ export class BatchGestationService {
     const expectedDeliveryDate = GestationUtilsService.calculateExpectedDeliveryDate(dto.mating_date);
     const gestationId = GestationUtilsService.generateGestationId();
 
-    // Créer l'enregistrement de gestation
+    // Créer l'enregistrement de gestation (avec verrat_id et verrat_nom si fournis)
     await this.db.query(
       `INSERT INTO batch_gestations (
         id, batch_id, pig_id, mating_date, expected_delivery_date,
-        piglets_born_count, piglets_alive_count, piglets_dead_count, status, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        piglets_born_count, piglets_alive_count, piglets_dead_count, 
+        status, verrat_id, verrat_nom, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
       [
         gestationId,
         dto.batch_id,
@@ -196,6 +197,8 @@ export class BatchGestationService {
         0,
         0,
         'pregnant',
+        dto.verrat_id || null,
+        verratNom,
         dto.notes || null,
       ],
     );
@@ -261,6 +264,16 @@ export class BatchGestationService {
     if (dto.status !== undefined) {
       updates.push(`status = $${paramIndex}`);
       values.push(dto.status);
+      paramIndex++;
+    }
+    if (dto.verrat_id !== undefined) {
+      updates.push(`verrat_id = $${paramIndex}`);
+      values.push(dto.verrat_id || null);
+      paramIndex++;
+    }
+    if (dto.verrat_nom !== undefined) {
+      updates.push(`verrat_nom = $${paramIndex}`);
+      values.push(dto.verrat_nom || null);
       paramIndex++;
     }
     if (dto.notes !== undefined) {

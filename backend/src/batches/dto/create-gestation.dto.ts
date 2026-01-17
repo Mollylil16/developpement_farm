@@ -66,6 +66,16 @@ export class UpdateBatchGestationDto {
   @IsString()
   status?: string;
 
+  @ApiPropertyOptional({ description: 'ID du verrat utilisé' })
+  @IsOptional()
+  @IsString()
+  verrat_id?: string;
+
+  @ApiPropertyOptional({ description: 'Nom du verrat' })
+  @IsOptional()
+  @IsString()
+  verrat_nom?: string;
+
   @ApiPropertyOptional({ description: 'Notes' })
   @IsOptional()
   @IsString()
