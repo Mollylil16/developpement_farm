@@ -3,8 +3,8 @@
 
 CREATE TABLE IF NOT EXISTS schema_migrations (
   id SERIAL PRIMARY KEY,
-  migration_number INTEGER NOT NULL UNIQUE,
-  migration_name VARCHAR(255) NOT NULL,
+  migration_number INTEGER NOT NULL,
+  migration_name VARCHAR(255) NOT NULL UNIQUE,
   applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
