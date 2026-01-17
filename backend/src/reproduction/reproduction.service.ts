@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { CreateGestationDto } from './dto/create-gestation.dto';
 import { UpdateGestationDto } from './dto/update-gestation.dto';
@@ -118,6 +118,99 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
   async createGestation(createGestationDto: CreateGestationDto, userId: string) {
     await this.checkProjetOwnership(createGestationDto.projet_id, userId);
 
+    // Vérifier que la truie existe dans production_animaux
+    const truieResult = await this.databaseService.query(
+      `SELECT id, nom, sexe, statut, reproducteur, projet_id 
+       FROM production_animaux 
+       WHERE id = $1 AND projet_id = $2`,
+      [createGestationDto.truie_id, createGestationDto.projet_id]
+    );
+
+    if (truieResult.rows.length === 0) {
+      throw new NotFoundException(
+        `Truie introuvable avec l'ID "${createGestationDto.truie_id}" dans ce projet. ` +
+        `Veuillez vérifier que la truie existe et appartient au projet.`
+      );
+    }
+
+    const truie = truieResult.rows[0];
+
+    // Vérifier que c'est bien une femelle
+    if (truie.sexe !== 'femelle') {
+      throw new BadRequestException(
+        `L'animal sélectionné (${truie.nom || truie.id}) n'est pas une femelle. ` +
+        `Seules les truies (femelles) peuvent être utilisées pour une gestation.`
+      );
+    }
+
+    // Vérifier que la truie est active
+    if (truie.statut !== 'actif') {
+      throw new BadRequestException(
+        `La truie sélectionnée (${truie.nom || truie.id}) n'est pas active. ` +
+        `Statut actuel: ${truie.statut}. Seules les truies actives peuvent être utilisées.`
+      );
+    }
+
+    // Vérifier que c'est bien un reproducteur
+    if (!truie.reproducteur) {
+      throw new BadRequestException(
+        `La truie sélectionnée (${truie.nom || truie.id}) n'est pas marquée comme reproductrice. ` +
+        `Veuillez marquer la truie comme reproductrice dans le module Production.`
+      );
+    }
+
+    // Vérifier le verrat si fourni
+    let verratNom = createGestationDto.verrat_nom || null;
+    if (createGestationDto.verrat_id) {
+      const verratResult = await this.databaseService.query(
+        `SELECT id, nom, sexe, statut, reproducteur, projet_id 
+         FROM production_animaux 
+         WHERE id = $1 AND projet_id = $2`,
+        [createGestationDto.verrat_id, createGestationDto.projet_id]
+      );
+
+      if (verratResult.rows.length === 0) {
+        throw new NotFoundException(
+          `Verrat introuvable avec l'ID "${createGestationDto.verrat_id}" dans ce projet. ` +
+          `Veuillez vérifier que le verrat existe et appartient au projet.`
+        );
+      }
+
+      const verrat = verratResult.rows[0];
+
+      // Vérifier que c'est bien un mâle
+      if (verrat.sexe !== 'male') {
+        throw new BadRequestException(
+          `L'animal sélectionné comme verrat (${verrat.nom || verrat.id}) n'est pas un mâle. ` +
+          `Seuls les verrats (mâles) peuvent être utilisés pour une gestation.`
+        );
+      }
+
+      // Vérifier que le verrat est actif
+      if (verrat.statut !== 'actif') {
+        throw new BadRequestException(
+          `Le verrat sélectionné (${verrat.nom || verrat.id}) n'est pas actif. ` +
+          `Statut actuel: ${verrat.statut}. Seuls les verrats actifs peuvent être utilisés.`
+        );
+      }
+
+      // Vérifier que c'est bien un reproducteur
+      if (!verrat.reproducteur) {
+        throw new BadRequestException(
+          `Le verrat sélectionné (${verrat.nom || verrat.id}) n'est pas marqué comme reproducteur. ` +
+          `Veuillez marquer le verrat comme reproducteur dans le module Production.`
+        );
+      }
+
+      // Utiliser le nom du verrat depuis la DB si non fourni
+      if (!verratNom && verrat.nom) {
+        verratNom = verrat.nom;
+      }
+    }
+
+    // Utiliser le nom de la truie depuis la DB si non fourni
+    const truieNom = createGestationDto.truie_nom || truie.nom || null;
+
     const id = this.generateGestationId();
     const now = new Date().toISOString();
     const dateMiseBasPrevue = this.calculerDateMiseBasPrevue(createGestationDto.date_sautage);
@@ -134,9 +227,9 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
         id,
         createGestationDto.projet_id,
         createGestationDto.truie_id,
-        createGestationDto.truie_nom || null,
+        truieNom,
         createGestationDto.verrat_id || null,
-        createGestationDto.verrat_nom || null,
+        verratNom,
         createGestationDto.date_sautage,
         dateMiseBasPrevue,
         createGestationDto.nombre_porcelets_prevu,
@@ -184,6 +277,112 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
   async updateGestation(id: string, updateGestationDto: UpdateGestationDto, userId: string) {
     await this.checkGestationOwnership(id, userId);
 
+    // Récupérer la gestation existante pour obtenir le projet_id
+    const existingGestation = await this.findOneGestation(id, userId);
+    if (!existingGestation) {
+      throw new NotFoundException('Gestation introuvable');
+    }
+
+    const projetId = existingGestation.projet_id;
+
+    // Valider la truie si elle est modifiée
+    let truieNom = updateGestationDto.truie_nom;
+    if (updateGestationDto.truie_id !== undefined) {
+      const truieResult = await this.databaseService.query(
+        `SELECT id, nom, sexe, statut, reproducteur, projet_id 
+         FROM production_animaux 
+         WHERE id = $1 AND projet_id = $2`,
+        [updateGestationDto.truie_id, projetId]
+      );
+
+      if (truieResult.rows.length === 0) {
+        throw new NotFoundException(
+          `Truie introuvable avec l'ID "${updateGestationDto.truie_id}" dans ce projet. ` +
+          `Veuillez vérifier que la truie existe et appartient au projet.`
+        );
+      }
+
+      const truie = truieResult.rows[0];
+
+      // Vérifier que c'est bien une femelle
+      if (truie.sexe !== 'femelle') {
+        throw new BadRequestException(
+          `L'animal sélectionné (${truie.nom || truie.id}) n'est pas une femelle. ` +
+          `Seules les truies (femelles) peuvent être utilisées pour une gestation.`
+        );
+      }
+
+      // Vérifier que la truie est active
+      if (truie.statut !== 'actif') {
+        throw new BadRequestException(
+          `La truie sélectionnée (${truie.nom || truie.id}) n'est pas active. ` +
+          `Statut actuel: ${truie.statut}. Seules les truies actives peuvent être utilisées.`
+        );
+      }
+
+      // Vérifier que c'est bien un reproducteur
+      if (!truie.reproducteur) {
+        throw new BadRequestException(
+          `La truie sélectionnée (${truie.nom || truie.id}) n'est pas marquée comme reproductrice. ` +
+          `Veuillez marquer la truie comme reproductrice dans le module Production.`
+        );
+      }
+
+      // Utiliser le nom de la truie depuis la DB si non fourni
+      if (!truieNom && truie.nom) {
+        truieNom = truie.nom;
+      }
+    }
+
+    // Valider le verrat s'il est modifié
+    let verratNom = updateGestationDto.verrat_nom;
+    if (updateGestationDto.verrat_id !== undefined && updateGestationDto.verrat_id !== null) {
+      const verratResult = await this.databaseService.query(
+        `SELECT id, nom, sexe, statut, reproducteur, projet_id 
+         FROM production_animaux 
+         WHERE id = $1 AND projet_id = $2`,
+        [updateGestationDto.verrat_id, projetId]
+      );
+
+      if (verratResult.rows.length === 0) {
+        throw new NotFoundException(
+          `Verrat introuvable avec l'ID "${updateGestationDto.verrat_id}" dans ce projet. ` +
+          `Veuillez vérifier que le verrat existe et appartient au projet.`
+        );
+      }
+
+      const verrat = verratResult.rows[0];
+
+      // Vérifier que c'est bien un mâle
+      if (verrat.sexe !== 'male') {
+        throw new BadRequestException(
+          `L'animal sélectionné comme verrat (${verrat.nom || verrat.id}) n'est pas un mâle. ` +
+          `Seuls les verrats (mâles) peuvent être utilisés pour une gestation.`
+        );
+      }
+
+      // Vérifier que le verrat est actif
+      if (verrat.statut !== 'actif') {
+        throw new BadRequestException(
+          `Le verrat sélectionné (${verrat.nom || verrat.id}) n'est pas actif. ` +
+          `Statut actuel: ${verrat.statut}. Seuls les verrats actifs peuvent être utilisés.`
+        );
+      }
+
+      // Vérifier que c'est bien un reproducteur
+      if (!verrat.reproducteur) {
+        throw new BadRequestException(
+          `Le verrat sélectionné (${verrat.nom || verrat.id}) n'est pas marqué comme reproducteur. ` +
+          `Veuillez marquer le verrat comme reproducteur dans le module Production.`
+        );
+      }
+
+      // Utiliser le nom du verrat depuis la DB si non fourni
+      if (!verratNom && verrat.nom) {
+        verratNom = verrat.nom;
+      }
+    }
+
     const fields: string[] = [];
     const values: any[] = [];
     let paramIndex = 1;
@@ -193,14 +392,19 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       values.push(updateGestationDto.truie_id);
       paramIndex++;
     }
-    if (updateGestationDto.truie_nom !== undefined) {
+    if (truieNom !== undefined) {
       fields.push(`truie_nom = $${paramIndex}`);
-      values.push(updateGestationDto.truie_nom || null);
+      values.push(truieNom || null);
       paramIndex++;
     }
     if (updateGestationDto.verrat_id !== undefined) {
       fields.push(`verrat_id = $${paramIndex}`);
       values.push(updateGestationDto.verrat_id || null);
+      paramIndex++;
+    }
+    if (verratNom !== undefined) {
+      fields.push(`verrat_nom = $${paramIndex}`);
+      values.push(verratNom || null);
       paramIndex++;
     }
     if (updateGestationDto.verrat_nom !== undefined) {
