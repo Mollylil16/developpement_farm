@@ -91,6 +91,8 @@ export default function GestationFormModal({
   // État pour les bandes (mode bande uniquement)
   const [batches, setBatches] = useState<any[]>([]);
   const [loadingBatches, setLoadingBatches] = useState(false);
+  // État pour les verrats batch (mode bande uniquement)
+  const [verratsBatch, setVerratsBatch] = useState<any[]>([]);
   const [formData, setFormData] = useState<CreateGestationInput>({
     projet_id: projetActif?.id ?? '',
     truie_id: '',
@@ -123,9 +125,39 @@ export default function GestationFormModal({
         // Filtrer uniquement les bandes de truies reproductrices
         const truiesBatches = batchesData.filter((b) => b.category === 'truie_reproductrice');
         setBatches(truiesBatches);
+        
+        // Charger les verrats batch (catégorie 'verrat_reproducteur')
+        const verratsBatches = batchesData.filter((b) => b.category === 'verrat_reproducteur');
+        const allVerratsBatch: any[] = [];
+        for (const batch of verratsBatches) {
+          try {
+            const batchPigs = await apiClient.get<any[]>(`/batch-pigs/batch/${batch.id}`);
+            // Convertir les batch_pigs en format VerratOption
+            const verratsFromBatch = batchPigs
+              .filter((pig) => pig.sexe === 'male' && pig.statut === 'actif')
+              .map((pig) => ({
+                id: pig.id,
+                code: pig.pig_code || pig.code || `VER-${pig.id.slice(0, 8)}`,
+                nom: pig.pig_code || pig.code || `Verrat ${pig.id.slice(0, 8)}`,
+                sexe: 'male' as const,
+                statut: 'actif' as const,
+                reproducteur: true,
+                numero: parseInt(pig.pig_code?.replace(/\D/g, '') || pig.id.slice(-4) || '0') || 0,
+                race: pig.race,
+                projet_id: projetActif.id,
+                batch_id: batch.id,
+                batch_name: batch.pen_name,
+              }));
+            allVerratsBatch.push(...verratsFromBatch);
+          } catch (error) {
+            console.warn(`Erreur chargement batch_pigs pour batch verrat ${batch.id}:`, error);
+          }
+        }
+        setVerratsBatch(allVerratsBatch);
       } catch (error) {
         console.error('Erreur lors du chargement des bandes:', error);
         setBatches([]);
+        setVerratsBatch([]);
       } finally {
         setLoadingBatches(false);
       }
@@ -134,11 +166,15 @@ export default function GestationFormModal({
     loadBatches();
   }, [projetActif?.id, isModeBatch, visible]);
 
-  // Charger les animaux et mortalités au montage du composant (mode individuel uniquement)
+  // Charger les animaux et mortalités au montage du composant
+  // En mode batch, on charge aussi pour la détection de consanguinité
   useEffect(() => {
-    if (projetActif && visible && !isModeBatch) {
+    if (projetActif && visible) {
+      // Toujours charger les animaux pour la détection de consanguinité
       dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
-      dispatch(loadMortalitesParProjet(projetActif.id));
+      if (!isModeBatch) {
+        dispatch(loadMortalitesParProjet(projetActif.id));
+      }
     }
   }, [dispatch, projetActif?.id, visible, isModeBatch]);
 
@@ -190,7 +226,22 @@ export default function GestationFormModal({
       return [];
     }
 
-    // Récupérer uniquement les verrats réellement enregistrés dans le cheptel
+    // Mode batch : utiliser les verrats batch
+    if (isModeBatch) {
+      return verratsBatch.map((v) => ({
+        id: v.id,
+        code: v.code,
+        nom: v.nom,
+        sexe: v.sexe as 'male',
+        statut: v.statut as 'actif' | 'mort' | 'vendu' | 'offert',
+        reproducteur: v.reproducteur ?? true,
+        numero: v.numero,
+        race: v.race,
+        projet_id: v.projet_id,
+      }));
+    }
+
+    // Mode individuel : Récupérer uniquement les verrats réellement enregistrés dans le cheptel
     // Filtrer : mâles actifs ET reproducteurs
     const verratsEnregistres = animauxProjet.filter(
       (a: ProductionAnimal) =>
@@ -254,7 +305,7 @@ export default function GestationFormModal({
     });
 
     return verratsTries;
-  }, [animauxProjet, projetActif?.id, formData.verrat_id]);
+  }, [animauxProjet, projetActif?.id, formData.verrat_id, isModeBatch, verratsBatch]);
 
   // Filtrer les verrats selon la recherche
   const verratsFiltres = useMemo(() => {
