@@ -129,7 +129,7 @@ export default function DeleteProfileModal({
 
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
           <View style={styles.warningContainer}>
-            <Ionicons name="alert-triangle" size={64} color={colors.error} />
+            <Ionicons name="warning" size={64} color={colors.error} />
           </View>
 
           <Text style={[styles.warning, { color: colors.text }]}>
