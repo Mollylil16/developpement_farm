@@ -929,10 +929,11 @@ export class MarketplaceUnifiedService {
         // Nettoyer les références pour les listings batch
         // Note: listing_type peut être null pour les anciens listings (qui sont forcément individuels)
         if (listingData.listing_type === 'batch' && listingData.pig_ids) {
+          // Déclarer pigIds en dehors du try pour qu'il soit accessible dans le catch
+          let pigIds: string[] = [];
           try {
             // Parser pig_ids de manière sécurisée
             // PostgreSQL retourne JSONB comme objet JavaScript directement
-            let pigIds: string[] = [];
             if (Array.isArray(listingData.pig_ids)) {
               pigIds = listingData.pig_ids;
             } else if (typeof listingData.pig_ids === 'string') {
