@@ -250,9 +250,23 @@ export class MarketplaceController {
   @ApiOperation({ summary: 'Supprimer une annonce (individuelle ou bande) - Unifié' })
   @ApiResponse({ status: 204, description: 'Annonce supprimée avec succès.' })
   @ApiResponse({ status: 404, description: 'Annonce introuvable.' })
+  @ApiResponse({ status: 403, description: 'Non autorisé.' })
+  @ApiResponse({ status: 400, description: 'Impossible de supprimer (offres en attente).' })
   async deleteListing(@Param('id') id: string, @CurrentUser('id') userId: string) {
-    // Utiliser le nouveau service unifié
-    await this.marketplaceUnifiedService.deleteUnifiedListing(id, userId);
+    try {
+      this.logger.debug(`[deleteListing] Tentative de suppression du listing ${id} par l'utilisateur ${userId}`);
+      await this.marketplaceUnifiedService.deleteUnifiedListing(id, userId);
+      this.logger.debug(`[deleteListing] Listing ${id} supprimé avec succès`);
+    } catch (error: any) {
+      this.logger.error(`[deleteListing] Erreur lors de la suppression du listing ${id}:`, {
+        message: error?.message,
+        stack: error?.stack?.substring(0, 500),
+        userId,
+        listingId: id,
+        errorName: error?.constructor?.name,
+      });
+      throw error; // Re-throw pour que NestJS gère la réponse HTTP appropriée
+    }
   }
 
   @Post('listings/:listingId/complete-sale')

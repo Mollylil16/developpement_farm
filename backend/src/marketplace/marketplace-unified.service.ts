@@ -803,6 +803,8 @@ export class MarketplaceUnifiedService {
    * Supprime un listing (unifié pour les deux modes)
    */
   async deleteUnifiedListing(listingId: string, userId: string) {
+    this.logger.debug(`[deleteUnifiedListing] Début suppression listing ${listingId} par userId ${userId}`);
+    
     // Vérifier que le listing existe et appartient à l'utilisateur
     const listing = await this.databaseService.query(
       'SELECT * FROM marketplace_listings WHERE id = $1',
@@ -810,12 +812,15 @@ export class MarketplaceUnifiedService {
     );
 
     if (listing.rows.length === 0) {
+      this.logger.warn(`[deleteUnifiedListing] Listing ${listingId} introuvable`);
       throw new NotFoundException('Listing introuvable');
     }
 
     const listingData = listing.rows[0];
+    this.logger.debug(`[deleteUnifiedListing] Listing trouvé: type=${listingData.listing_type}, subject_id=${listingData.subject_id}, producer_id=${listingData.producer_id}`);
 
     if (listingData.producer_id !== userId) {
+      this.logger.warn(`[deleteUnifiedListing] Tentative de suppression non autorisée: userId=${userId}, producer_id=${listingData.producer_id}`);
       throw new ForbiddenException('Vous n\'êtes pas autorisé à supprimer ce listing');
     }
 
@@ -826,20 +831,31 @@ export class MarketplaceUnifiedService {
     );
 
     if (pendingOffers.rows.length > 0) {
+      this.logger.warn(`[deleteUnifiedListing] Impossible de supprimer: ${pendingOffers.rows.length} offre(s) en attente pour le listing ${listingId}`);
       throw new BadRequestException(
         'Impossible de supprimer ce listing : il y a des offres en attente'
       );
     }
 
+    this.logger.debug(`[deleteUnifiedListing] Début transaction pour suppression listing ${listingId}`);
+
     return await this.databaseService.transaction(async (client) => {
       try {
         // Marquer le listing comme removed
-        await client.query(
+        const updateResult = await client.query(
           `UPDATE marketplace_listings 
            SET status = 'removed', updated_at = NOW(), derniere_modification = NOW()
-           WHERE id = $1`,
+           WHERE id = $1
+           RETURNING id`,
           [listingId]
         );
+
+        if (updateResult.rows.length === 0) {
+          this.logger.error(`[deleteUnifiedListing] Échec UPDATE: Listing ${listingId} introuvable lors de la mise à jour`);
+          throw new NotFoundException('Listing introuvable lors de la mise à jour');
+        }
+
+        this.logger.debug(`[deleteUnifiedListing] Listing ${listingId} marqué comme 'removed' (${updateResult.rowCount} ligne(s) mise(s) à jour)`);
 
         // Nettoyer les références pour les listings individuels
         // Note: Si listing_type est null/undefined, c'est un ancien listing (forcément individuel)
@@ -848,12 +864,42 @@ export class MarketplaceUnifiedService {
           listingData.subject_id
         ) {
           try {
-            await client.query(
-              `UPDATE production_animaux 
-               SET marketplace_status = 'not_listed', marketplace_listing_id = NULL
-               WHERE id = $1`,
+            // Vérifier d'abord si l'animal existe avant de le mettre à jour
+            const animalCheck = await client.query(
+              'SELECT id FROM production_animaux WHERE id = $1',
               [listingData.subject_id]
             );
+
+            if (animalCheck.rows.length > 0) {
+              // Vérifier si les colonnes existent avant de les utiliser
+              const columnCheck = await client.query(
+                `SELECT column_name 
+                 FROM information_schema.columns 
+                 WHERE table_name = 'production_animaux' 
+                 AND column_name IN ('marketplace_status', 'marketplace_listing_id')`
+              );
+
+              const hasMarketplaceStatus = columnCheck.rows.some(r => r.column_name === 'marketplace_status');
+              const hasMarketplaceListingId = columnCheck.rows.some(r => r.column_name === 'marketplace_listing_id');
+
+              if (hasMarketplaceStatus && hasMarketplaceListingId) {
+                const animalUpdateResult = await client.query(
+                  `UPDATE production_animaux 
+                   SET marketplace_status = 'not_listed', marketplace_listing_id = NULL
+                   WHERE id = $1`,
+                  [listingData.subject_id]
+                );
+                this.logger.debug(`[deleteUnifiedListing] Références nettoyées pour animal ${listingData.subject_id} (${animalUpdateResult.rowCount} ligne(s) mise(s) à jour)`);
+              } else {
+                this.logger.warn(
+                  `[deleteUnifiedListing] Colonnes marketplace_status/marketplace_listing_id non disponibles dans production_animaux (hasMarketplaceStatus=${hasMarketplaceStatus}, hasMarketplaceListingId=${hasMarketplaceListingId}), ignoré`
+                );
+              }
+            } else {
+              this.logger.warn(
+                `[deleteUnifiedListing] Animal ${listingData.subject_id} introuvable dans production_animaux, ignoré`
+              );
+            }
           } catch (error: any) {
             // Si les colonnes marketplace_status ou marketplace_listing_id n'existent pas, ignorer l'erreur
             if (
@@ -863,9 +909,18 @@ export class MarketplaceUnifiedService {
               error.message?.includes('colonne')
             ) {
               this.logger.warn(
-                `[deleteUnifiedListing] Colonnes marketplace_status/marketplace_listing_id non disponibles dans production_animaux, ignoré`
+                `[deleteUnifiedListing] Erreur de colonne ignorée pour animal ${listingData.subject_id}: ${error.message}`
               );
             } else {
+              this.logger.error(
+                `[deleteUnifiedListing] Erreur lors du nettoyage des références pour animal ${listingData.subject_id}:`,
+                {
+                  message: error.message,
+                  stack: error.stack?.substring(0, 300),
+                  listingId,
+                  subjectId: listingData.subject_id,
+                }
+              );
               throw error;
             }
           }
@@ -897,12 +952,13 @@ export class MarketplaceUnifiedService {
 
             // Mettre à jour batch_pigs seulement si on a des IDs valides
             if (pigIds.length > 0 && pigIds.every(id => typeof id === 'string' && id.length > 0)) {
-              await client.query(
+              const batchUpdateResult = await client.query(
                 `UPDATE batch_pigs 
                  SET marketplace_status = 'not_listed', marketplace_listing_id = NULL
                  WHERE id = ANY($1::varchar[])`,
                 [pigIds]
               );
+              this.logger.debug(`[deleteUnifiedListing] Références nettoyées pour ${batchUpdateResult.rowCount} batch_pig(s) du listing ${listingId}`);
               // Le trigger mettra à jour le statut de la bande automatiquement
             }
           } catch (error: any) {
@@ -920,16 +976,29 @@ export class MarketplaceUnifiedService {
             } else {
               this.logger.error(
                 `[deleteUnifiedListing] Erreur lors de la mise à jour de batch_pigs pour le listing ${listingId}:`,
-                error
+                {
+                  message: error.message,
+                  stack: error.stack?.substring(0, 300),
+                  listingId,
+                  pigIdsCount: pigIds?.length || 0,
+                }
               );
               throw error;
             }
           }
         }
 
-        this.logger.log(`[deleteUnifiedListing] Listing ${listingId} supprimé`);
+        this.logger.log(`[deleteUnifiedListing] Listing ${listingId} supprimé avec succès (type=${listingData.listing_type || 'individual'})`);
+        return { success: true, message: 'Listing supprimé avec succès' };
       } catch (error: any) {
-        this.logger.error(`[deleteUnifiedListing] Erreur lors de la suppression du listing ${listingId}:`, error);
+        this.logger.error(`[deleteUnifiedListing] Erreur lors de la suppression du listing ${listingId}:`, {
+          message: error.message,
+          stack: error.stack?.substring(0, 500),
+          listingId,
+          userId,
+          listingType: listingData.listing_type,
+          subjectId: listingData.subject_id,
+        });
         throw error;
       }
     });
