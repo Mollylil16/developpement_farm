@@ -365,15 +365,6 @@ export default function ScanQRCollaborateurScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: '#000' }]} edges={['top']}>
-      {/* Scanner */}
-      {/* Composant de saisie manuelle */}
-      <ManualQRInput
-        visible={showManualInput}
-        onClose={() => setShowManualInput(false)}
-        onValidate={handleManualValidate}
-        isLoading={validating}
-      />
-
       {/* Composant de saisie manuelle */}
       <ManualQRInput
         visible={showManualInput}
@@ -465,7 +456,6 @@ export default function ScanQRCollaborateurScreen() {
             </View>
           )}
         </View>
-          )}
 
       {/* Modal de confirmation */}
       <Modal
