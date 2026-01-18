@@ -35,7 +35,7 @@ import CollaborationListComponent from '../../components/CollaborationListCompon
 import { loadInvitationsEnAttente, loadCollaborateursParProjet } from '../../store/slices/collaborationSlice';
 import { loadProjets } from '../../store/slices/projetSlice';
 import { triggerHaptic, hapticScanSuccess, hapticError } from '../../utils/haptics';
-import { requestCameraPermissionsAsync } from 'expo-camera';
+import { Camera } from 'expo-camera';
 import Toast from 'react-native-toast-message';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Collaborateur } from '../../types/collaboration';
@@ -207,15 +207,20 @@ function CollaborationsScreenContent() {
 
   // Gérer le scan QR
   const handleScanQR = useCallback(async () => {
+    console.log('[CollaborationsScreen] handleScanQR appelé');
     triggerHaptic('light');
 
     try {
-      const { status } = await requestCameraPermissionsAsync();
+      console.log('[CollaborationsScreen] Demande de permissions caméra...');
+      const { status } = await Camera.requestCameraPermissionsAsync();
+      console.log('[CollaborationsScreen] Status permissions:', status);
 
       if (status === 'granted') {
+        console.log('[CollaborationsScreen] Permissions accordées, navigation vers scanner');
         hapticScanSuccess();
         navigation.navigate(SCREENS.SCAN_QR_COLLABORATEUR as never);
       } else {
+        console.log('[CollaborationsScreen] Permissions refusées');
         hapticError();
         Alert.alert(
           'Permission caméra requise',
@@ -236,8 +241,13 @@ function CollaborationsScreenContent() {
         );
       }
     } catch (error) {
+      console.error('[CollaborationsScreen] Erreur lors de la demande de permission:', error);
       hapticError();
-      console.error('Erreur lors de la demande de permission:', error);
+      Alert.alert(
+        'Erreur',
+        'Une erreur est survenue lors de la demande de permission caméra.',
+        [{ text: 'OK' }]
+      );
     }
   }, [navigation]);
 

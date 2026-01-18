@@ -110,7 +110,11 @@ export default function ActionCard({
   };
 
   const handlePress = () => {
-    if (disabled) return;
+    if (disabled) {
+      console.log('[ActionCard] Bouton désactivé, pas d\'action');
+      return;
+    }
+    console.log('[ActionCard] Bouton pressé, variant:', variant);
     onPress();
   };
 

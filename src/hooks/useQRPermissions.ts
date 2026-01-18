@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Platform, Linking, Alert } from 'react-native';
-import { getCameraPermissionsAsync, requestCameraPermissionsAsync } from 'expo-camera';
+import { Camera } from 'expo-camera';
 
 export interface UseQRPermissionsReturn {
   hasPermission: boolean | null; // null = pas encore vérifié, true/false = résultat
@@ -24,7 +24,7 @@ export const useQRPermissions = (): UseQRPermissionsReturn => {
   const checkPermission = useCallback(async (): Promise<boolean> => {
     try {
       setIsLoading(true);
-      const { status } = await getCameraPermissionsAsync();
+      const { status } = await Camera.getCameraPermissionsAsync();
       const hasGranted = status === 'granted';
       setHasPermission(hasGranted);
       return hasGranted;
@@ -43,7 +43,7 @@ export const useQRPermissions = (): UseQRPermissionsReturn => {
   const requestPermission = useCallback(async (): Promise<boolean> => {
     try {
       setIsLoading(true);
-      const { status } = await requestCameraPermissionsAsync();
+      const { status } = await Camera.requestCameraPermissionsAsync();
       const hasGranted = status === 'granted';
       setHasPermission(hasGranted);
 
