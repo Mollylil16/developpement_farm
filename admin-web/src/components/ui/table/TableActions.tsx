@@ -76,9 +76,11 @@ export default function TableActions({
           >
             Filtres
             {filterCount > 0 && (
-              <Badge variant="solid" color="primary" size="sm" className="ml-2">
-                {filterCount}
-              </Badge>
+              <span className="ml-2">
+                <Badge variant="solid" color="primary" size="sm">
+                  {filterCount}
+                </Badge>
+              </span>
             )}
           </Button>
         )}

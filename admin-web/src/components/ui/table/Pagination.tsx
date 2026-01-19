@@ -87,7 +87,9 @@ export default function Pagination({
           startIcon={<ChevronLeft className="h-4 w-4" />}
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage === 1}
-        />
+        >
+          Précédent
+        </Button>
 
         {/* Numéros de page */}
         <div className="flex items-center gap-1">
@@ -103,7 +105,7 @@ export default function Pagination({
               <Button
                 key={page}
                 size="sm"
-                variant={currentPage === page ? 'solid' : 'outline'}
+                variant={currentPage === page ? 'primary' : 'outline'}
                 onClick={() => onPageChange(page as number)}
                 className="min-w-[40px]"
               >
@@ -120,7 +122,9 @@ export default function Pagination({
           endIcon={<ChevronRight className="h-4 w-4" />}
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages}
-        />
+        >
+          Suivant
+        </Button>
 
         {/* Dernière page */}
         <Button
