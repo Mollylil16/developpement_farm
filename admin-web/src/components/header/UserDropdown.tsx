@@ -79,11 +79,10 @@ export default function UserDropdown() {
         <ul className="flex flex-col gap-1 pt-4 pb-3 border-b border-gray-200 dark:border-gray-800">
           <li>
             <DropdownItem
-              onItemClick={() => {
+              onClick={() => {
                 navigate("/profile");
                 closeDropdown();
               }}
-              tag="button"
               className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
             >
               <User className="h-5 w-5 text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-300" />
@@ -92,11 +91,10 @@ export default function UserDropdown() {
           </li>
           <li>
             <DropdownItem
-              onItemClick={() => {
+              onClick={() => {
                 navigate("/settings");
                 closeDropdown();
               }}
-              tag="button"
               className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
             >
               <Settings className="h-5 w-5 text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-300" />
@@ -105,11 +103,10 @@ export default function UserDropdown() {
           </li>
           <li>
             <DropdownItem
-              onItemClick={() => {
+              onClick={() => {
                 navigate("/support");
                 closeDropdown();
               }}
-              tag="button"
               className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
             >
               <HelpCircle className="h-5 w-5 text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-300" />
