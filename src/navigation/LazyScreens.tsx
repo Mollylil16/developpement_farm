@@ -14,8 +14,10 @@ export { default as MarketplaceScreen } from '../screens/marketplace/Marketplace
 export { default as NutritionScreen } from '../screens/NutritionScreen';
 export { default as PlanningProductionScreen } from '../screens/PlanningProductionScreen';
 export { default as CollaborationScreen } from '../screens/Collaborations/CollaborationsScreen';
+export { default as CollaborationVetTechScreen } from '../screens/Collaborations/CollaborationVetTechScreen';
 export { default as MyQRCodeScreen } from '../screens/Collaborations/MyQRCodeScreen';
 export { default as ScanQRCollaborateurScreen } from '../screens/Collaborations/ScanQRCollaborateurScreen';
+export { default as QRInvitationConfigScreen } from '../screens/Collaborations/QRInvitationConfigScreen';
 export { default as MortalitesScreen } from '../screens/MortalitesScreen';
 export { default as ProductionScreen } from '../screens/ProductionScreen';
 export { default as SanteScreen } from '../screens/SanteScreen';

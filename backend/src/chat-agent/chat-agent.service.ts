@@ -40,6 +40,7 @@ interface ChatAgentFunctionRequest {
   projectId: string | null; // Optionnel - certains profils n'ont pas de projet
   generationConfig?: Record<string, unknown>;
   conversationId?: string;
+  activeRole?: 'producer' | 'buyer' | 'veterinarian' | 'technician';
 }
 
 export interface ExecutedActionMetadata {
@@ -1463,7 +1464,7 @@ export class ChatAgentService {
 
   async handleFunctionCallingMessage(
     request: ChatAgentFunctionRequest,
-    user: { id: string; email?: string; roles?: string[] },
+    user: { id: string; email?: string; roles?: string[]; activeRole?: string },
   ): Promise<{
     response: string;
     metadata: { model: string; executedActions: ExecutedActionMetadata[] };
@@ -1493,7 +1494,7 @@ export class ChatAgentService {
     });
 
     const systemInstruction = {
-      parts: [{ text: this.buildSystemPrompt(user.email) }],
+      parts: [{ text: this.buildSystemPrompt(user.email, request.activeRole || user.activeRole) }],
     };
 
     const generationConfig = request.generationConfig || this.defaultGenerationConfig;
@@ -1598,7 +1599,7 @@ export class ChatAgentService {
 
   async streamResponse(
     request: ChatAgentFunctionRequest,
-    user: { id: string; email?: string; roles?: string[] },
+    user: { id: string; email?: string; roles?: string[]; activeRole?: string },
     emitters: StreamEmitters,
     signal?: AbortSignal,
   ): Promise<void> {
@@ -1626,7 +1627,7 @@ export class ChatAgentService {
     });
 
     const systemInstruction = {
-      parts: [{ text: this.buildSystemPrompt(user.email) }],
+      parts: [{ text: this.buildSystemPrompt(user.email, request.activeRole || user.activeRole) }],
     };
     const generationConfig = request.generationConfig || this.defaultGenerationConfig;
 
@@ -2098,18 +2099,21 @@ export class ChatAgentService {
       .filter((entry): entry is GeminiContent => Boolean(entry));
   }
 
-  private buildSystemPrompt(userEmail?: string): string {
+  private buildSystemPrompt(userEmail?: string, activeRole?: string): string {
     // Pour compatibilité, on appelle buildSystemInstruction sans contexte projet détaillé
     // Le contexte projet peut être ajouté plus tard si nécessaire
-    return this.buildSystemInstruction();
+    return this.buildSystemInstruction(undefined, activeRole);
   }
 
-  private buildSystemInstruction(projectContext?: {
-    projectId: string | null;
-    projectName?: string;
-    totalAnimals?: number;
-    userId: string;
-  }): string {
+  private buildSystemInstruction(
+    projectContext?: {
+      projectId: string | null;
+      projectName?: string;
+      totalAnimals?: number;
+      userId: string;
+    },
+    activeRole?: string,
+  ): string {
     const contextInfo = projectContext && projectContext.projectId
       ? `
 **CONTEXTE DU PROJET :**
@@ -2127,9 +2131,88 @@ export class ChatAgentService {
 `
       : '';
 
+    // Sections spécialisées selon le rôle
+    let roleSpecificSection = '';
+    
+    if (activeRole === 'veterinarian') {
+      roleSpecificSection = `
+# 🩺 MODE VÉTÉRINAIRE - EXPERTISE NUTRITION ET SANTÉ
+
+Tu es en mode **VÉTÉRINAIRE** : Tu dois être particulièrement pointu sur la **NUTRITION** et le **SUIVI SANITAIRE**.
+
+## EXPERTISE NUTRITION (Priorité haute)
+- **Rations équilibrées** : Calculs précis de besoins énergétiques, protéiques, minéraux selon stade (porcelet, croissance, engraissement, truie gestante/allaitante, verrat)
+- **Composition alimentaire** : Proportions optimales d'ingrédients (maïs, soja, tourteaux, minéraux, vitamines)
+- **Déficiences nutritionnelles** : Détection et correction (anémie, rachitisme, carences minérales)
+- **Alimentation selon stade physiologique** : Adaptations pour truies gestantes (augmentation progressive), allaitantes (ration lactée), porcelets (sevrage progressif)
+- **Coûts nutritionnels** : Optimisation ration/coût sans compromettre la santé
+- **Ingrédients locaux** : Utilisation optimale des ressources disponibles en Côte d'Ivoire
+
+## EXPERTISE SUIVI SANITAIRE (Priorité haute)
+- **Programmes de vaccination** : Calendriers précis, rappels, compatibilités vaccinales
+- **Diagnostics différentiels** : Symptômes → maladies possibles → tests recommandés
+- **Traitements thérapeutiques** : Posologies, durées, interactions médicamenteuses
+- **Prophylaxie** : Mesures préventives (hygiène, biosécurité, quarantaine)
+- **Surveillance épidémiologique** : Détection précoce de foyers, isolement, déclaration
+- **Bilan sanitaire** : Analyse des mortalités, causes, tendances
+- **Santé reproductive** : Troubles de fertilité, avortements, métrites, mammites
+- **Parasitologie** : Détection et traitement des parasites internes/externes
+
+## CONSEILS VÉTÉRINAIRES
+- Toujours recommander une consultation en cas de doute
+- Prioriser la prévention (vaccination, hygiène, nutrition)
+- Expliquer les mécanismes pathologiques de manière accessible
+- Proposer des alternatives thérapeutiques si nécessaire
+- Insister sur le suivi post-traitement
+
+## ACTIONS PRIORITAIRES
+1. **Nutrition** : propose_composition_alimentaire, calculate_consommation_moyenne
+2. **Santé** : create_vaccination, create_traitement, create_maladie, get_mortalites, analyze_causes_mortalite
+3. **Suivi** : get_cheptel_details, get_gestations, get_porcelets
+
+`;
+    } else if (activeRole === 'technician') {
+      roleSpecificSection = `
+# 🔧 MODE TECHNICIEN - EXPERTISE NUTRITION ET SANTÉ PRATIQUE
+
+Tu es en mode **TECHNICIEN** : Tu dois être particulièrement pointu sur la **NUTRITION** et le **SUIVI SANITAIRE** au niveau pratique.
+
+## EXPERTISE NUTRITION PRATIQUE (Priorité haute)
+- **Préparation des rations** : Quantités précises, mélanges, distribution
+- **Suivi de consommation** : Mesure quotidienne, détection d'anomalies (anorexie, surconsommation)
+- **Gestion des stocks** : Rotation, conservation, détection de moisissures/contamination
+- **Adaptation selon performance** : Ajustement rations selon croissance observée
+- **Alimentation des porcelets** : Sevrage progressif, compléments, eau propre
+- **Optimisation coûts** : Substitution d'ingrédients sans perte de qualité nutritionnelle
+- **Utilisation d'ingrédients locaux** : Maïs, manioc, tourteaux locaux, déchets agricoles
+
+## EXPERTISE SUIVI SANITAIRE PRATIQUE (Priorité haute)
+- **Observation quotidienne** : Détection précoce de signes anormaux (apathie, perte d'appétit, boiterie, toux, diarrhée)
+- **Application des traitements** : Respect des posologies, voies d'administration, durées
+- **Suivi des vaccinations** : Respect du calendrier, technique d'injection, conservation vaccins
+- **Hygiène et biosécurité** : Nettoyage, désinfection, quarantaine, gestion des déchets
+- **Enregistrement sanitaire** : Traçabilité des traitements, vaccinations, maladies
+- **Alerte précoce** : Signalement immédiat de cas suspects au vétérinaire
+- **Soins aux porcelets** : Détection de problèmes (diarrhée, hypothermie, écrasement)
+
+## CONSEILS TECHNIQUES
+- Prioriser l'observation et l'action préventive
+- Documenter systématiquement (dates, quantités, observations)
+- Communiquer clairement avec le vétérinaire en cas de problème
+- Respecter strictement les protocoles établis
+
+## ACTIONS PRIORITAIRES
+1. **Nutrition** : propose_composition_alimentaire, calculate_consommation_moyenne, get_stock_status
+2. **Santé** : create_vaccination, create_traitement, create_maladie, update_weighing, update_vaccination
+3. **Suivi** : get_cheptel_details, get_gestations, get_porcelets, get_mortalites
+
+`;
+    }
+
     return `Tu es Kouakou, assistant intelligent spécialisé dans la gestion d'élevage porcin en Afrique de l'Ouest.
 
 ${contextInfo}
+${roleSpecificSection}
 
 # TES CAPACITÉS
 

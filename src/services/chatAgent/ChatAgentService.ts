@@ -520,12 +520,14 @@ export class ChatAgentService {
         userId: this.context.userId,
         projectId: this.context.projetId || null, // Peut être null pour profils sans projet
         projetId: this.context.projetId || null,   // Et aussi projetId pour compatibilité
+        activeRole: this.context.activeRole, // Rôle actif pour adapter le prompt
         context: {
           farmId: this.context.projetId || null,
           projectId: this.context.projetId || null, // Dans le contexte aussi
           systemPrompt,
           conversationHistory,
           recentTransactions: this.context.recentTransactions,
+          activeRole: this.context.activeRole,
         },
       });
 

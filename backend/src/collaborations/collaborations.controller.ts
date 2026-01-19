@@ -65,7 +65,7 @@ export class CollaborationsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ 
     summary: 'Valider un QR code et récupérer les infos du collaborateur',
-    description: 'Valide un QR code scanné, vérifie que l\'utilisateur peut être ajouté au projet, et retourne ses informations. Ne crée pas encore la collaboration.'
+    description: 'Valide un QR code scanné (basé sur userId ou profileId), vérifie que l\'utilisateur peut être ajouté au projet, et retourne ses informations. Ne crée pas encore la collaboration. Supporte les QR codes basés sur userId (anciens) et profileId (nouveaux pour vétérinaire/technicien).'
   })
   @ApiBody({
     schema: {
@@ -90,7 +90,9 @@ export class CollaborationsController {
     schema: {
       type: 'object',
       properties: {
-        userId: { type: 'string' },
+        userId: { type: 'string', nullable: true },
+        profileId: { type: 'string', nullable: true },
+        profileType: { type: 'string', nullable: true, enum: ['veterinarian', 'technician'] },
         nom: { type: 'string' },
         prenom: { type: 'string' },
         email: { type: 'string', nullable: true },
@@ -102,8 +104,8 @@ export class CollaborationsController {
     },
   })
   @ApiResponse({ status: 401, description: 'QR code invalide, expiré ou déjà utilisé.' })
-  @ApiResponse({ status: 403, description: "Vous n'êtes pas propriétaire de ce projet." })
-  @ApiResponse({ status: 409, description: 'Cet utilisateur est déjà collaborateur sur ce projet.' })
+  @ApiResponse({ status: 403, description: "Vous n'êtes pas propriétaire de ce projet ou le profil scanné n'est pas compatible." })
+  @ApiResponse({ status: 409, description: 'Cet utilisateur/profil est déjà collaborateur sur ce projet.' })
   @ApiResponse({ status: 429, description: 'Trop de requêtes. Limite: 20 validations par heure.' })
   async validateQR(
     @Body() body: { qr_data: string; projet_id: string },
@@ -121,18 +123,62 @@ export class CollaborationsController {
       throw new UnauthorizedException('Ce projet ne vous appartient pas');
     }
 
-    // Décoder le QR code
-    const { userId: scannedUserId } = await this.qrCodeService.decodeQRData(body.qr_data);
+    // Essayer de décoder comme QR code de profil (nouveau format)
+    let scannedProfileId: string | null = null;
+    let scannedProfileType: string | null = null;
+    let scannedUserId: string | null = null;
 
-    // Vérifier que l'utilisateur scanné n'est pas déjà collaborateur
-    const existingResult = await this.databaseService.query(
-      `SELECT id, statut FROM collaborations 
-       WHERE projet_id = $1 AND user_id = $2 AND statut IN ('actif', 'en_attente')`,
-      [body.projet_id, scannedUserId]
-    );
+    try {
+      const profileData = await this.qrCodeService.decodeProfileQRData(body.qr_data);
+      scannedProfileId = profileData.profileId;
+      scannedProfileType = profileData.profileType;
 
-    if (existingResult.rows.length > 0) {
-      throw new ConflictException('Cet utilisateur est déjà collaborateur sur ce projet');
+      // Vérifier que le profil est bien vétérinaire ou technicien
+      if (scannedProfileType !== 'veterinarian' && scannedProfileType !== 'technician') {
+        throw new BadRequestException('Seuls les profils vétérinaire et technicien peuvent être ajoutés via QR code');
+      }
+
+      // Extraire userId depuis profileId (format: profile_${userId}_${role})
+      const profileIdMatch = scannedProfileId.match(/^profile_(.+)_(veterinarian|technician)$/);
+      if (!profileIdMatch) {
+        throw new BadRequestException('Format de profileId invalide');
+      }
+      scannedUserId = profileIdMatch[1];
+
+      // Vérifier que ce profil n'est pas déjà collaborateur sur ce projet
+      const existingResult = await this.databaseService.query(
+        `SELECT id, statut FROM collaborations 
+         WHERE projet_id = $1 AND profile_id = $2 AND statut IN ('actif', 'en_attente')`,
+        [body.projet_id, scannedProfileId]
+      );
+
+      if (existingResult.rows.length > 0) {
+        throw new ConflictException('Ce profil est déjà collaborateur sur ce projet');
+      }
+    } catch (error) {
+      // Si ce n'est pas un QR code de profil, essayer comme QR code utilisateur (ancien format)
+      if (error instanceof UnauthorizedException || error instanceof BadRequestException) {
+        try {
+          const userData = await this.qrCodeService.decodeQRData(body.qr_data);
+          scannedUserId = userData.userId;
+
+          // Vérifier que l'utilisateur scanné n'est pas déjà collaborateur
+          const existingResult = await this.databaseService.query(
+            `SELECT id, statut FROM collaborations 
+             WHERE projet_id = $1 AND user_id = $2 AND statut IN ('actif', 'en_attente')`,
+            [body.projet_id, scannedUserId]
+          );
+
+          if (existingResult.rows.length > 0) {
+            throw new ConflictException('Cet utilisateur est déjà collaborateur sur ce projet');
+          }
+        } catch (userError) {
+          // Si les deux échouent, propager l'erreur originale
+          throw error;
+        }
+      } else {
+        throw error;
+      }
     }
 
     // Récupérer les infos complètes de l'utilisateur scanné
@@ -148,7 +194,9 @@ export class CollaborationsController {
     const user = userResult.rows[0];
 
     return {
-      userId: user.id,
+      userId: scannedUserId,
+      profileId: scannedProfileId || null,
+      profileType: scannedProfileType || null,
       nom: user.nom,
       prenom: user.prenom,
       email: user.email || null,
@@ -163,30 +211,43 @@ export class CollaborationsController {
   @RateLimit({ maxRequests: 10, windowMs: 3600000 }) // 10 créations par heure
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ 
-    summary: 'Créer une collaboration via QR scan',
-    description: 'Crée une collaboration directement active après scan d\'un QR code. Toutes les validations de sécurité sont appliquées.'
+    summary: 'Créer une invitation via QR scan',
+    description: 'Crée une invitation en attente (statut "en_attente") après scan d\'un QR code. Le collaborateur doit accepter l\'invitation pour devenir actif. Supporte les QR codes basés sur userId (anciens) et profileId (nouveaux pour vétérinaire/technicien). Les permissions sont obligatoires. Toutes les validations de sécurité sont appliquées.'
   })
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['scanned_user_id', 'projet_id', 'role'],
+      required: ['scanned_user_id', 'projet_id', 'role', 'permissions'],
       properties: {
         scanned_user_id: {
           type: 'string',
           description: 'ID de l\'utilisateur scanné (depuis validate-qr)',
         },
+        profile_id: {
+          type: 'string',
+          nullable: true,
+          description: 'ID du profil scanné (depuis validate-qr, pour QR codes de profil)',
+        },
+        profile_type: {
+          type: 'string',
+          nullable: true,
+          enum: ['veterinarian', 'technician'],
+          description: 'Type de profil scanné (depuis validate-qr, pour QR codes de profil)',
+        },
         projet_id: {
           type: 'string',
           description: 'ID du projet',
         },
-        role: {
-          type: 'string',
-          enum: ['proprietaire', 'gestionnaire', 'veterinaire', 'ouvrier', 'observateur'],
-          description: 'Rôle du collaborateur',
-        },
+          role: {
+            type: 'string',
+            nullable: true,
+            enum: ['proprietaire', 'gestionnaire', 'veterinaire', 'ouvrier', 'observateur'],
+            description: 'Rôle du collaborateur. Si profile_type est fourni, peut être omis (sera auto-mappé: veterinarian → veterinaire, technician → ouvrier).',
+          },
         permissions: {
           type: 'object',
-          description: 'Permissions personnalisées (optionnel)',
+          required: ['reproduction', 'nutrition', 'finance', 'rapports', 'planification', 'mortalites', 'sante'],
+          description: 'Permissions du collaborateur (OBLIGATOIRE pour invitations QR)',
           properties: {
             reproduction: { type: 'boolean' },
             nutrition: { type: 'boolean' },
@@ -197,10 +258,15 @@ export class CollaborationsController {
             sante: { type: 'boolean' },
           },
         },
+        notes: {
+          type: 'string',
+          nullable: true,
+          description: 'Notes optionnelles',
+        },
       },
     },
   })
-  @ApiResponse({ status: 201, description: 'Collaboration créée avec succès depuis le QR code.' })
+  @ApiResponse({ status: 201, description: 'Invitation créée avec succès depuis le QR code. En attente d\'acceptation du collaborateur.' })
   @ApiResponse({ status: 400, description: 'Données invalides ou auto-invitation.' })
   @ApiResponse({ status: 403, description: "Vous n'êtes pas propriétaire de ce projet." })
   @ApiResponse({ status: 404, description: 'Utilisateur scanné introuvable.' })
@@ -209,31 +275,41 @@ export class CollaborationsController {
   async createFromQRScan(
     @Body() body: {
       scanned_user_id: string;
+      profile_id?: string;
+      profile_type?: string;
       projet_id: string;
       role: string;
-      permissions?: {
-        reproduction?: boolean;
-        nutrition?: boolean;
-        finance?: boolean;
-        rapports?: boolean;
-        planification?: boolean;
-        mortalites?: boolean;
-        sante?: boolean;
+      permissions: {
+        reproduction: boolean;
+        nutrition: boolean;
+        finance: boolean;
+        rapports: boolean;
+        planification: boolean;
+        mortalites: boolean;
+        sante: boolean;
       };
+      notes?: string;
     },
     @CurrentUser('id') userId: string,
     @Req() req: ExpressRequest
   ) {
+    // Validation: permissions obligatoires pour invitations QR
+    if (!body.permissions || Object.keys(body.permissions).length === 0) {
+      throw new BadRequestException('Les permissions sont obligatoires pour créer une invitation via QR code');
+    }
+
     const ipAddress = req.ip || req.connection?.remoteAddress;
     const userAgent = req.get('user-agent');
     return this.collaborationsService.createFromQRScan(
       body.scanned_user_id,
       body.projet_id,
       body.role,
-      body.permissions || {},
+      body.permissions,
       userId,
       ipAddress,
-      userAgent
+      userAgent,
+      body.profile_id,
+      body.profile_type
     );
   }
 
@@ -259,11 +335,24 @@ export class CollaborationsController {
   @ApiResponse({ status: 200, description: 'Liste des invitations en attente.' })
   async findInvitationsEnAttente(
     @CurrentUser('id') userId: string,
+    @CurrentUser('activeRole') activeRole: string | undefined,
     @Query('email') email?: string,
-    @Query('telephone') telephone?: string
+    @Query('telephone') telephone?: string,
+    @Req() req?: ExpressRequest
   ) {
     try {
-      return await this.collaborationsService.findInvitationsEnAttente(userId, email, telephone);
+      const ipAddress = req?.ip || req?.connection?.remoteAddress;
+      const userAgent = req?.get('user-agent');
+      const profileId = activeRole && activeRole !== 'producer' ? `profile_${userId}_${activeRole}` : undefined;
+
+      return await this.collaborationsService.findInvitationsEnAttente(
+        userId,
+        email,
+        telephone,
+        profileId,
+        ipAddress,
+        userAgent
+      );
     } catch (error: unknown) {
       console.error('[CollaborationsController] Erreur dans findInvitationsEnAttente:', error);
       throw error;
@@ -584,6 +673,113 @@ export class CollaborationsController {
     return this.collaborationsService.getCollaborationHistory(id, userId);
   }
 
+  @Get('qr-code/profile')
+  @UseInterceptors(RateLimitInterceptor)
+  @RateLimit({ maxRequests: 10, windowMs: 3600000 }) // 10 générations par heure
+  @ApiOperation({
+    summary: 'Générer un QR code pour le profil actif (vétérinaire/technicien)',
+    description:
+      'Génère un QR code sécurisé et temporaire basé sur le profileId du profil actif (vétérinaire ou technicien). Le QR code expire après 5 minutes par défaut. Accessible uniquement aux profils vétérinaire et technicien.',
+  })
+  @ApiQuery({
+    name: 'expiry',
+    required: false,
+    type: Number,
+    description: 'Durée de validité en minutes (défaut: 5, max: 60)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'QR code généré avec succès (base64 PNG)',
+    schema: {
+      type: 'object',
+      properties: {
+        qr_code: {
+          type: 'string',
+          description: 'QR code en base64 (format data:image/png;base64,...)',
+        },
+        expires_in: {
+          type: 'number',
+          description: 'Durée de validité en secondes',
+        },
+        profileId: {
+          type: 'string',
+          description: 'ID du profil (ex: profile_user123_veterinarian)',
+        },
+        profileType: {
+          type: 'string',
+          enum: ['veterinarian', 'technician'],
+          description: 'Type de profil',
+        },
+        profileName: {
+          type: 'string',
+          description: 'Nom du profil',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Accès refusé. Seuls les profils vétérinaire et technicien peuvent générer un QR code.',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Trop de requêtes. Limite: 10 générations par heure.',
+  })
+  async generateProfileQRCode(
+    @CurrentUser('id') userId: string,
+    @CurrentUser('activeRole') activeRole: string | undefined,
+    @Query('expiry') expiry?: string
+  ) {
+    // Vérifier que l'utilisateur a un profil vétérinaire ou technicien actif
+    if (!activeRole || (activeRole !== 'veterinarian' && activeRole !== 'technician')) {
+      throw new UnauthorizedException(
+        'Seuls les profils vétérinaire et technicien peuvent générer un QR code de profil'
+      );
+    }
+
+    // Récupérer les informations de l'utilisateur pour vérifier le profil
+    const userResult = await this.databaseService.query(
+      `SELECT id, nom, prenom, roles, active_role FROM users WHERE id = $1`,
+      [userId]
+    );
+
+    if (userResult.rows.length === 0) {
+      throw new BadRequestException('Utilisateur introuvable');
+    }
+
+    const user = userResult.rows[0];
+    const roles = user.roles ? JSON.parse(user.roles) : {};
+    
+    // Vérifier que le profil actif est bien vétérinaire ou technicien
+    if (user.active_role !== activeRole) {
+      throw new BadRequestException('Le profil actif ne correspond pas au rôle demandé');
+    }
+
+    // Générer le profileId unique : profile_${userId}_${activeRole}
+    const profileId = `profile_${userId}_${activeRole}`;
+    
+    // Récupérer le nom du profil depuis roles
+    const profileName = roles[activeRole]?.name || `${user.prenom} ${user.nom} (${activeRole === 'veterinarian' ? 'Vétérinaire' : 'Technicien'})`;
+
+    const expiryMinutes = expiry
+      ? Math.min(60, Math.max(1, parseInt(expiry, 10)))
+      : 5;
+
+    const qrCode = await this.qrCodeService.generateProfileQRCode(
+      profileId,
+      activeRole,
+      expiryMinutes
+    );
+
+    return {
+      qr_code: qrCode,
+      expires_in: expiryMinutes * 60,
+      profileId,
+      profileType: activeRole,
+      profileName,
+    };
+  }
+
   @Get(':id/activity')
   @ApiOperation({ 
     summary: "Récupérer l'activité d'un collaborateur",
@@ -634,5 +830,52 @@ export class CollaborationsController {
     @CurrentUser('id') userId: string
   ) {
     return this.collaborationsService.getCollaborateurActivity(id, userId);
+  }
+
+  @Get(':id/audit-trail')
+  @ApiOperation({
+    summary: "Récupérer l'audit trail complet d'une collaboration",
+    description:
+      'Retourne l\'audit trail détaillé d\'une collaboration, incluant toutes les métadonnées enrichies pour les invitations QR (scan QR, définition des permissions, envoi de l\'invitation, visualisation, acceptation/rejet). Accessible uniquement par le producteur propriétaire du projet.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Audit trail de la collaboration.',
+    schema: {
+      type: 'object',
+      properties: {
+        collaboration_id: { type: 'string' },
+        invitation_type: { type: 'string', enum: ['qr_scan', 'manual'] },
+        timeline: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              action: { type: 'string' },
+              timestamp: { type: 'string', format: 'date-time' },
+              actor: {
+                type: 'object',
+                nullable: true,
+                properties: {
+                  user_id: { type: 'string' },
+                  profile_id: { type: 'string', nullable: true },
+                  nom: { type: 'string', nullable: true },
+                  prenom: { type: 'string', nullable: true },
+                },
+              },
+              metadata: { type: 'object' },
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Collaboration introuvable.' })
+  @ApiResponse({ status: 403, description: 'Vous n\'avez pas accès à cet audit trail.' })
+  async getAuditTrail(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string
+  ) {
+    return this.collaborationsService.getAuditTrail(id, userId);
   }
 }

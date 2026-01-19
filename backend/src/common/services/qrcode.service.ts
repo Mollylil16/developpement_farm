@@ -8,8 +8,10 @@ import { CacheService } from './cache.service';
 const scryptAsync = promisify(scrypt);
 
 interface QRData {
-  type: 'collab';
-  uid: string; // user_id chiffré
+  type: 'collab' | 'profile';
+  uid?: string; // user_id chiffré (pour compatibilité avec anciens QR codes)
+  pid?: string; // profile_id chiffré (pour nouveaux QR codes basés sur profil)
+  profileType?: string; // type de profil (veterinarian, technician)
   exp: number; // timestamp d'expiration
   nonce: string; // nonce unique pour anti-replay
 }
@@ -227,6 +229,130 @@ export class QRCodeService {
         throw error;
       }
       this.logger.error('Erreur lors du décodage du QR code:', error);
+      throw new UnauthorizedException('QR code invalide ou corrompu');
+    }
+  }
+
+  /**
+   * Génère un QR code pour un profil (vétérinaire/technicien)
+   * @param profileId ID du profil (ex: profile_user123_veterinarian)
+   * @param profileType Type de profil (veterinarian, technician)
+   * @param expiryMinutes Durée de validité en minutes (défaut: 5)
+   * @returns QR code en base64 (format PNG)
+   */
+  async generateProfileQRCode(
+    profileId: string,
+    profileType: string,
+    expiryMinutes: number = this.defaultExpiryMinutes
+  ): Promise<string> {
+    try {
+      // Générer un nonce unique
+      const nonce = uuidv4();
+
+      // Calculer l'expiration
+      const exp = Date.now() + expiryMinutes * 60 * 1000;
+
+      // Chiffrer le profile_id
+      const encryptedProfileId = await this.encryptUserId(profileId);
+
+      // Créer l'objet de données
+      const qrData: QRData = {
+        type: 'profile',
+        pid: encryptedProfileId,
+        profileType,
+        exp,
+        nonce,
+      };
+
+      // Encoder en JSON puis en base64
+      const jsonData = JSON.stringify(qrData);
+      const base64Data = Buffer.from(jsonData).toString('base64');
+
+      // Générer le QR code en base64 (PNG)
+      const qrCodeBase64 = await QRCode.toDataURL(base64Data, {
+        errorCorrectionLevel: 'M',
+        type: 'image/png',
+        width: 300,
+        margin: 1,
+      });
+
+      // Stocker le nonce en cache pour vérification anti-replay
+      const ttlSeconds = expiryMinutes * 60 + 3600;
+      this.cacheService.set(`qr:nonce:${nonce}`, false, ttlSeconds);
+
+      this.logger.debug(
+        `QR code généré pour profile ${profileId} (${profileType}), expire dans ${expiryMinutes} minutes`
+      );
+
+      return qrCodeBase64;
+    } catch (error) {
+      this.logger.error('Erreur lors de la génération du QR code profil:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Décode et valide un QR code de profil
+   * @param qrData Données du QR code (peut être base64 pur ou data URL)
+   * @returns Informations décodées (profileId, profileType, exp)
+   */
+  async decodeProfileQRData(qrData: string): Promise<{ profileId: string; profileType: string; exp: number }> {
+    try {
+      // Si c'est un data URL, extraire la partie base64
+      let base64Data = qrData;
+      if (qrData.startsWith('data:image')) {
+        const base64Match = qrData.match(/base64,(.+)/);
+        if (base64Match) {
+          base64Data = base64Match[1];
+        }
+      }
+
+      // Décoder le base64 pour obtenir les données JSON
+      const jsonData = Buffer.from(base64Data, 'base64').toString('utf8');
+      const qrDataObj: QRData = JSON.parse(jsonData);
+
+      // Vérifier le type
+      if (qrDataObj.type !== 'profile') {
+        throw new UnauthorizedException('Type de QR code invalide (attendu: profile)');
+      }
+
+      // Vérifier l'expiration
+      const now = Date.now();
+      if (qrDataObj.exp < now) {
+        throw new UnauthorizedException('QR code expiré');
+      }
+
+      // Vérifier que le nonce n'a pas déjà été utilisé (anti-replay)
+      const nonceKey = `qr:nonce:${qrDataObj.nonce}`;
+      if (this.cacheService.has(nonceKey)) {
+        const isUsed = this.cacheService.get<boolean>(nonceKey);
+        if (isUsed === true) {
+          throw new UnauthorizedException(
+            'Ce QR code a déjà été utilisé (anti-replay)'
+          );
+        }
+      } else {
+        throw new UnauthorizedException('QR code invalide ou expiré');
+      }
+
+      // Vérifier que profileId et profileType sont présents
+      if (!qrDataObj.pid || !qrDataObj.profileType) {
+        throw new UnauthorizedException('QR code invalide: données de profil manquantes');
+      }
+
+      // Déchiffrer le profile_id
+      const profileId = await this.decryptUserId(qrDataObj.pid);
+
+      return {
+        profileId,
+        profileType: qrDataObj.profileType,
+        exp: qrDataObj.exp,
+      };
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      this.logger.error('Erreur lors du décodage du QR code profil:', error);
       throw new UnauthorizedException('QR code invalide ou corrompu');
     }
   }

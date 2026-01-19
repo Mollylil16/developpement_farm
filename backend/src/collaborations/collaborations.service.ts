@@ -374,28 +374,59 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
    */
   private async logCollaborationAction(
     collaborationId: string,
-    action: 'invited' | 'accepted' | 'rejected' | 'permission_changed' | 'removed' | 'linked' | 'updated' | 'expired',
+    action: 'invited' | 'accepted' | 'rejected' | 'permission_changed' | 'removed' | 'linked' | 'updated' | 'expired' | 'qr_scanned' | 'permissions_defined' | 'invitation_sent' | 'invitation_viewed',
     performedBy: string | null,
     oldValue?: Record<string, unknown>,
     newValue?: Record<string, unknown>,
     ipAddress?: string,
-    userAgent?: string
+    userAgent?: string,
+    deviceInfo?: Record<string, unknown>,
+    actionMetadata?: Record<string, unknown>,
+    profileId?: string
   ): Promise<void> {
     try {
-      await this.databaseService.query(
-        `INSERT INTO collaboration_history (
-          collaboration_id, action, performed_by, old_value, new_value, ip_address, user_agent
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [
-          collaborationId,
-          action,
-          performedBy || null,
-          oldValue ? JSON.stringify(oldValue) : null,
-          newValue ? JSON.stringify(newValue) : null,
-          ipAddress || null,
-          userAgent || null,
-        ]
-      );
+      // Essayer d'insérer avec les nouveaux champs (device_info, action_metadata, profile_id)
+      // Si les colonnes n'existent pas encore (avant migration), on les ignore
+      try {
+        await this.databaseService.query(
+          `INSERT INTO collaboration_history (
+            collaboration_id, action, performed_by, old_value, new_value, ip_address, user_agent, device_info, action_metadata, profile_id
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          [
+            collaborationId,
+            action,
+            performedBy || null,
+            oldValue ? JSON.stringify(oldValue) : null,
+            newValue ? JSON.stringify(newValue) : null,
+            ipAddress || null,
+            userAgent || null,
+            deviceInfo ? JSON.stringify(deviceInfo) : null,
+            actionMetadata ? JSON.stringify(actionMetadata) : null,
+            profileId || null,
+          ]
+        );
+      } catch (error: any) {
+        // Si les colonnes n'existent pas encore, utiliser l'ancien format
+        if (error.message && error.message.includes('column') && error.message.includes('does not exist')) {
+          this.logger.warn(`Colonnes d'audit enrichies non disponibles, utilisation de l'ancien format`);
+          await this.databaseService.query(
+            `INSERT INTO collaboration_history (
+              collaboration_id, action, performed_by, old_value, new_value, ip_address, user_agent
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [
+              collaborationId,
+              action,
+              performedBy || null,
+              oldValue ? JSON.stringify(oldValue) : null,
+              newValue ? JSON.stringify(newValue) : null,
+              ipAddress || null,
+              userAgent || null,
+            ]
+          );
+        } else {
+          throw error;
+        }
+      }
     } catch (error) {
       // Log l'erreur mais ne pas faire échouer l'opération principale
       this.logger.error(`Erreur lors du logging de l'action ${action}:`, error);
@@ -413,7 +444,9 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
     permissions: Partial<Permissions>,
     scannedBy: string,
     ipAddress?: string,
-    userAgent?: string
+    userAgent?: string,
+    profileId?: string,
+    profileType?: string
   ) {
     // ✅ VALIDATION 1: Vérifier ownership du projet (scannedBy doit être propriétaire)
     await this.checkProjetOwnership(projetId, scannedBy);
@@ -426,10 +459,38 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       throw new BadRequestException('Vous ne pouvez pas vous inviter vous-même');
     }
 
-    // ✅ VALIDATION 4: Vérifier limite de collaborateurs
+    // ✅ VALIDATION 4: Si profileId est fourni, vérifier que le profil est compatible
+    if (profileId && profileType) {
+      if (profileType !== 'veterinarian' && profileType !== 'technician') {
+        throw new BadRequestException('Seuls les profils vétérinaire et technicien peuvent être ajoutés via QR code');
+      }
+      const profileIdMatch = profileId.match(/^profile_(.+)_(veterinarian|technician)$/);
+      if (!profileIdMatch || profileIdMatch[1] !== scannedUserId) {
+        throw new BadRequestException('Le profileId ne correspond pas à l\'utilisateur scanné');
+      }
+      if (profileType === 'veterinarian' && role !== 'veterinaire') {
+        this.logger.warn(`Role mismatch: profileType=veterinarian but role=${role}, using 'veterinaire'`);
+        role = 'veterinaire';
+      } else if (profileType === 'technician' && role !== 'ouvrier') {
+        this.logger.warn(`Role mismatch: profileType=technician but role=${role}, using 'ouvrier'`);
+        role = 'ouvrier';
+      }
+    }
+
+    // ✅ VALIDATION 5: Vérifier limite de collaborateurs
     await this.checkCollaborateurLimit(projetId);
 
-    // ✅ VALIDATION 5: Vérifier doublons (avec scannedUserId)
+    // ✅ VALIDATION 6: Vérifier doublons (avec scannedUserId ou profileId)
+    if (profileId) {
+      const existingByProfile = await this.databaseService.query(
+        `SELECT id, statut FROM collaborations 
+         WHERE projet_id = $1 AND profile_id = $2 AND statut IN ('actif', 'en_attente')`,
+        [projetId, profileId]
+      );
+      if (existingByProfile.rows.length > 0) {
+        throw new ConflictException('Ce profil a déjà une invitation en cours ou est déjà collaborateur sur ce projet');
+      }
+    }
     await this.checkDuplicateCollaborateur(projetId, undefined, undefined, scannedUserId);
 
     // Récupérer les infos complètes de l'utilisateur scanné
@@ -444,45 +505,114 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
 
     const scannedUser = userResult.rows[0];
 
-    // Fusionner les permissions par défaut avec celles fournies
-    const defaultPerms = DEFAULT_PERMISSIONS[role] || {};
-    const mergedPermissions = permissions
-      ? { ...defaultPerms, ...permissions }
-      : defaultPerms;
+    // ✅ VALIDATION 7: Vérifier que les permissions sont fournies (OBLIGATOIRES pour QR)
+    if (!permissions || Object.keys(permissions).length === 0) {
+      throw new BadRequestException(
+        'Les permissions sont obligatoires lors de l\'invitation par QR code. Veuillez spécifier les permissions accordées au collaborateur.'
+      );
+    }
 
-    const permColumns = this.permissionsToColumns(mergedPermissions);
+    // ✅ VALIDATION 8: Valider que toutes les permissions sont des booléens valides
+    const validPermissionKeys = ['reproduction', 'nutrition', 'finance', 'rapports', 'planification', 'mortalites', 'sante'];
+    for (const key of Object.keys(permissions)) {
+      if (!validPermissionKeys.includes(key)) {
+        throw new BadRequestException(`Permission invalide: ${key}`);
+      }
+      if (typeof permissions[key as keyof Permissions] !== 'boolean') {
+        throw new BadRequestException(`La permission ${key} doit être un booléen`);
+      }
+    }
 
-    // Créer la collaboration
+    // Utiliser les permissions fournies directement (pas de fusion avec les permissions par défaut)
+    const permColumns = this.permissionsToColumns(permissions);
+
+    // Créer l'invitation (statut en_attente)
     const id = this.generateCollaborateurId();
-    const now = new Date().toISOString();
+    const now = new Date();
+    const nowISO = now.toISOString();
 
-    // Données du scan QR (pour traçabilité)
+    // Calculer la date d'expiration (+7 jours)
+    const expirationDate = new Date(now);
+    expirationDate.setDate(expirationDate.getDate() + INVITATION_EXPIRY_DAYS);
+    const expirationDateISO = expirationDate.toISOString();
+
+    // Récupérer les informations du producteur qui scanne
+    const scannerResult = await this.databaseService.query(
+      `SELECT id, nom, prenom, email, active_role FROM users WHERE id = $1`,
+      [scannedBy]
+    );
+    const scannerUser = scannerResult.rows[0] || null;
+
+    // Récupérer les informations du projet
+    const projetResult = await this.databaseService.query(
+      `SELECT id, nom FROM projets WHERE id = $1`,
+      [projetId]
+    );
+    const projet = projetResult.rows[0] || null;
+
+    // Extraire les informations de device depuis userAgent si disponible
+    let deviceInfo: { platform?: string; os_version?: string; app_version?: string } = {};
+    if (userAgent) {
+      // Détecter la plateforme depuis user-agent
+      if (userAgent.includes('Android')) {
+        deviceInfo.platform = 'android';
+        const androidVersion = userAgent.match(/Android (\d+(?:\.\d+)?)/);
+        if (androidVersion) {
+          deviceInfo.os_version = androidVersion[1];
+        }
+      } else if (userAgent.includes('iPhone') || userAgent.includes('iPad') || userAgent.includes('iOS')) {
+        deviceInfo.platform = 'ios';
+        const iosVersion = userAgent.match(/OS (\d+)_(\d+)/);
+        if (iosVersion) {
+          deviceInfo.os_version = `${iosVersion[1]}.${iosVersion[2]}`;
+        }
+      } else if (userAgent.includes('Mobile')) {
+        deviceInfo.platform = 'web';
+      }
+
+      // Extraire la version de l'app depuis user-agent si disponible
+      const appVersion = userAgent.match(/FermierPro\/([^\s]+)/);
+      if (appVersion) {
+        deviceInfo.app_version = appVersion[1];
+      }
+    }
+
+    // Données du scan QR (pour traçabilité enrichie)
     const qrScanData = {
-      timestamp: now,
-      ip_address: ipAddress || null,
-      user_agent: userAgent || null,
-      scanner_id: scannedBy,
+      scanned_at: nowISO,
+      scanner_user_id: scannedBy,
+      scanner_profile_id: scannerUser?.active_role ? `profile_${scannedBy}_${scannerUser.active_role}` : null,
+      scanner_ip: ipAddress || null,
+      scanner_user_agent: userAgent || null,
+      scanner_device_info: Object.keys(deviceInfo).length > 0 ? deviceInfo : null,
+      scanned_profile_id: profileId || null,
+      scanned_user_id: scannedUserId,
+      scanned_profile_type: profileType || null,
+      qr_code_version: profileId ? 'v2_profileId' : 'v1_userId',
+      permissions_defined_at: nowISO, // Timestamp de quand les permissions ont été définies
+      invitation_sent_at: nowISO, // Timestamp de quand l'invitation a été envoyée
     };
 
     const result = await this.databaseService.query(
       `INSERT INTO collaborations (
-        id, projet_id, user_id, nom, prenom, email, telephone, role, statut,
+        id, projet_id, user_id, profile_id, nom, prenom, email, telephone, role, statut,
         permission_reproduction, permission_nutrition, permission_finance,
         permission_rapports, permission_planification, permission_mortalites,
         permission_sante, date_invitation, date_acceptation, expiration_date,
-        invitation_type, qr_scan_data, notes, date_creation, derniere_modification
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+        invitation_type, invited_by, qr_scan_data, notes, date_creation, derniere_modification
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
       RETURNING *`,
       [
         id,
         projetId,
-        scannedUserId, // user_id directement lié
+        scannedUserId,
+        profileId || null, // ✅ NOUVEAU: profile_id
         scannedUser.nom,
         scannedUser.prenom,
         scannedUser.email || null,
         scannedUser.telephone || null,
         role,
-        'actif', // Statut actif directement (pas d'attente)
+        'en_attente', // ✅ CHANGEMENT: Statut en_attente (nécessite acceptation)
         permColumns.permission_reproduction,
         permColumns.permission_nutrition,
         permColumns.permission_finance,
@@ -490,89 +620,113 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
         permColumns.permission_planification,
         permColumns.permission_mortalites,
         permColumns.permission_sante,
-        now, // date_invitation
-        now, // date_acceptation (accepté automatiquement)
-        null, // expiration_date = NULL (pas d'expiration pour QR)
-        'qr_scan', // invitation_type
-        JSON.stringify(qrScanData), // qr_scan_data
+        nowISO, // date_invitation
+        null, // ✅ CHANGEMENT: date_acceptation = NULL (sera rempli lors de l'acceptation)
+        expirationDateISO, // ✅ CHANGEMENT: expiration_date = J+7
+        'qr_scan',
+        scannedBy, // ✅ NOUVEAU: invited_by
+        JSON.stringify(qrScanData),
         null, // notes
-        now,
-        now,
+        nowISO,
+        nowISO,
       ]
     );
 
     const createdCollaboration = this.mapRowToCollaborateur(result.rows[0]);
 
-    // Log l'action 'invited' avec type QR scan
+    // Log l'action 'qr_scanned' avec métadonnées enrichies
     await this.logCollaborationAction(
       createdCollaboration.id,
-      'invited',
+      'qr_scanned',
       scannedBy,
       undefined,
       {
-        projet_id: createdCollaboration.projet_id,
-        nom: createdCollaboration.nom,
-        prenom: createdCollaboration.prenom,
-        email: createdCollaboration.email,
-        telephone: createdCollaboration.telephone,
-        role: createdCollaboration.role,
-        statut: createdCollaboration.statut,
-        permissions: createdCollaboration.permissions,
-        invitation_type: 'qr_scan',
-        qr_scan_data: qrScanData,
+        scanned_user_id: scannedUserId,
+        scanned_profile_id: profileId || null,
+        scanned_profile_type: profileType || null,
+        qr_code_version: qrScanData.qr_code_version,
       },
       ipAddress,
-      userAgent
+      userAgent,
+      Object.keys(deviceInfo).length > 0 ? deviceInfo : undefined,
+      {
+        qr_scan_data: qrScanData,
+      },
+      scannerUser?.active_role ? `profile_${scannedBy}_${scannerUser.active_role}` : undefined
     );
 
-    // Créer une notification pour le collaborateur ajouté
-    try {
-      const projetResult = await this.databaseService.query(
-        'SELECT nom FROM projets WHERE id = $1',
-        [projetId]
-      );
-      const projetNom = projetResult.rows[0]?.nom || 'le projet';
+    // Log l'action 'permissions_defined'
+    await this.logCollaborationAction(
+      createdCollaboration.id,
+      'permissions_defined',
+      scannedBy,
+      undefined,
+      {
+        permissions: createdCollaboration.permissions,
+      },
+      ipAddress,
+      userAgent,
+      Object.keys(deviceInfo).length > 0 ? deviceInfo : undefined,
+      {
+        permissions_defined_at: nowISO,
+      },
+      scannerUser?.active_role ? `profile_${scannedBy}_${scannerUser.active_role}` : undefined
+    );
 
-      // Notification au collaborateur scanné
+    // Log l'action 'invitation_sent'
+    await this.logCollaborationAction(
+      createdCollaboration.id,
+      'invitation_sent',
+      scannedBy,
+      undefined,
+      {
+        invitation_type: 'qr_scan',
+        statut: createdCollaboration.statut,
+        expiration_date: expirationDateISO,
+      },
+      ipAddress,
+      userAgent,
+      Object.keys(deviceInfo).length > 0 ? deviceInfo : undefined,
+      {
+        invitation_sent_at: nowISO,
+      },
+      scannerUser?.active_role ? `profile_${scannedBy}_${scannerUser.active_role}` : undefined
+    );
+
+    // ✅ Envoyer une notification au collaborateur invité (PAS au producteur à cette étape)
+    // La notification au producteur sera envoyée après acceptation/rejet par le collaborateur
+    try {
+      const projetNom = projet?.nom || 'le projet';
+      const scannerNom = scannerUser ? `${scannerUser.prenom || ''} ${scannerUser.nom || ''}`.trim() : 'Un producteur';
+      const roleLabel = role === 'veterinaire' ? 'vétérinaire' : 
+                       role === 'ouvrier' ? 'ouvrier' :
+                       role === 'observateur' ? 'observateur' :
+                       role === 'gestionnaire' ? 'gestionnaire' : role;
+
       await this.notificationsService.createNotification(
         scannedUserId,
         'invitation_received',
-        'Vous avez été ajouté à un projet',
-        `Vous avez été ajouté à ${projetNom} en tant que ${role} via scan QR`,
+        'Nouvelle invitation',
+        `${scannerNom} vous invite à rejoindre le projet "${projetNom}" en tant que ${roleLabel}. Veuillez accepter ou refuser cette invitation.`,
         {
           projet_id: projetId,
           collaboration_id: createdCollaboration.id,
           projet_nom: projetNom,
+          invited_by_name: scannerNom,
+          invited_by_id: scannedBy,
           role: role,
+          permissions: createdCollaboration.permissions,
           invitation_type: 'qr_scan',
+          profile_id: profileId || null,
         }
       );
 
-      // Notification au producteur qui a scanné
-      const scannerResult = await this.databaseService.query(
-        'SELECT nom, prenom FROM users WHERE id = $1',
-        [scannedBy]
-      );
-      const scannerNom = scannerResult.rows[0]?.nom || 'Un utilisateur';
-      const scannerPrenom = scannerResult.rows[0]?.prenom || '';
-
-      await this.notificationsService.createNotification(
-        scannedBy,
-        'project_shared',
-        'Collaborateur ajouté',
-        `${scannedUser.prenom} ${scannedUser.nom} a été ajouté à ${projetNom} via scan QR`,
-        {
-          projet_id: projetId,
-          collaboration_id: createdCollaboration.id,
-          projet_nom: projetNom,
-          collaborateur_nom: scannedUser.nom,
-          collaborateur_prenom: scannedUser.prenom,
-          invitation_type: 'qr_scan',
-        }
+      this.logger.log(
+        `Notification d'invitation QR envoyée à l'utilisateur ${scannedUserId} pour le projet ${projetId}`
       );
     } catch (error) {
       // Ne pas faire échouer l'opération si la notification échoue
-        this.logger.error('Erreur lors de l\'envoi de la notification:', error);
+      this.logger.error('Erreur lors de l\'envoi de la notification au collaborateur:', error);
     }
 
     return createdCollaboration;
@@ -1270,7 +1424,10 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
   async findInvitationsEnAttente(
     userId?: string,
     email?: string,
-    telephone?: string
+    telephone?: string,
+    profileId?: string,
+    ipAddress?: string,
+    userAgent?: string
   ) {
     try {
       if (!userId && !email && !telephone) {
@@ -1296,6 +1453,13 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       if (userId) {
         conditions.push(`(user_id = $${paramIndex} OR user_id IS NULL)`);
         params.push(userId);
+        paramIndex++;
+      }
+
+      if (profileId) {
+        // Ajouter la recherche par profile_id si fourni
+        conditions.push(`profile_id = $${paramIndex}`);
+        params.push(profileId);
         paramIndex++;
       }
 
@@ -1325,6 +1489,59 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       const result = await this.databaseService.query(query, params);
 
       this.logger.debug(`[findInvitationsEnAttente] ${result.rows.length} invitation(s) trouvée(s)`);
+
+      // Loguer la visualisation des invitations si un utilisateur est fourni
+      if (userId && result.rows.length > 0) {
+        // Extraire les informations de device depuis userAgent si disponible
+        let deviceInfo: { platform?: string; os_version?: string; app_version?: string } = {};
+        if (userAgent) {
+          if (userAgent.includes('Android')) {
+            deviceInfo.platform = 'android';
+            const androidVersion = userAgent.match(/Android (\d+(?:\.\d+)?)/);
+            if (androidVersion) {
+              deviceInfo.os_version = androidVersion[1];
+            }
+          } else if (userAgent.includes('iPhone') || userAgent.includes('iPad') || userAgent.includes('iOS')) {
+            deviceInfo.platform = 'ios';
+            const iosVersion = userAgent.match(/OS (\d+)_(\d+)/);
+            if (iosVersion) {
+              deviceInfo.os_version = `${iosVersion[1]}.${iosVersion[2]}`;
+            }
+          } else if (userAgent.includes('Mobile')) {
+            deviceInfo.platform = 'web';
+          }
+          const appVersion = userAgent.match(/FermierPro\/([^\s]+)/);
+          if (appVersion) {
+            deviceInfo.app_version = appVersion[1];
+          }
+        }
+
+        // Loguer la visualisation pour chaque invitation trouvée
+        for (const row of result.rows) {
+          try {
+            await this.logCollaborationAction(
+              row.id,
+              'invitation_viewed',
+              userId,
+              undefined,
+              {
+                viewed_at: new Date().toISOString(),
+              },
+              ipAddress,
+              userAgent,
+              Object.keys(deviceInfo).length > 0 ? deviceInfo : undefined,
+              {
+                viewed_at: new Date().toISOString(),
+                invitation_count: result.rows.length,
+              },
+              profileId || row.profile_id || undefined
+            );
+          } catch (error) {
+            // Ne pas faire échouer l'opération si le logging échoue
+            this.logger.warn(`Erreur lors du logging de invitation_viewed pour ${row.id}:`, error);
+          }
+        }
+      }
 
       // RETIRÉ : Liaison automatique supprimée pour des raisons de sécurité
       // Les invitations doivent être liées manuellement via linkInvitationToUser()
@@ -1734,4 +1951,204 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
 
     return result.rows.map((row) => this.mapRowToCollaborateur(row));
   }
+
+  /**
+   * Récupère l'audit trail complet d'une collaboration
+   * Accessible uniquement par le producteur propriétaire du projet ou un administrateur
+   */
+  async getAuditTrail(
+    collaborationId: string,
+    userId: string
+  ): Promise<{
+    collaboration_id: string;
+    invitation_type: 'qr_scan' | 'manual';
+    timeline: Array<{
+      action: string;
+      timestamp: string;
+      actor: { user_id?: string; profile_id?: string; nom?: string; prenom?: string } | null;
+      metadata: Record<string, unknown>;
+    }>;
+  }> {
+    // Vérifier que la collaboration existe et que l'utilisateur a le droit d'accéder à l'audit
+    const collabResult = await this.databaseService.query(
+      `SELECT c.id, c.projet_id, c.invitation_type, c.qr_scan_data, c.date_creation, p.proprietaire_id
+       FROM collaborations c
+       JOIN projets p ON c.projet_id = p.id
+       WHERE c.id = $1`,
+      [collaborationId]
+    );
+
+    if (collabResult.rows.length === 0) {
+      throw new NotFoundException('Collaboration introuvable');
+    }
+
+    const collaboration = collabResult.rows[0];
+
+    // Vérifier les permissions : seul le propriétaire du projet peut voir l'audit trail
+    if (collaboration.proprietaire_id !== userId) {
+      // TODO: Vérifier si l'utilisateur est administrateur
+      throw new ForbiddenException('Vous n\'avez pas accès à l\'audit trail de cette collaboration');
+    }
+
+    // Récupérer l'historique complet
+    const historyResult = await this.databaseService.query(
+      `SELECT 
+        ch.id,
+        ch.action,
+        ch.performed_by,
+        ch.profile_id,
+        ch.old_value,
+        ch.new_value,
+        ch.ip_address,
+        ch.user_agent,
+        ch.device_info,
+        ch.action_metadata,
+        ch.created_at,
+        u.nom,
+        u.prenom,
+        u.email
+      FROM collaboration_history ch
+      LEFT JOIN users u ON ch.performed_by = u.id
+      WHERE ch.collaboration_id = $1
+      ORDER BY ch.created_at ASC`,
+      [collaborationId]
+    );
+
+    // Construire la timeline
+    const timeline = [];
+
+    // Ajouter l'action QR scanned si c'est une invitation QR
+    if (collaboration.invitation_type === 'qr_scan' && collaboration.qr_scan_data) {
+      try {
+        const qrScanData = typeof collaboration.qr_scan_data === 'string'
+          ? JSON.parse(collaboration.qr_scan_data)
+          : collaboration.qr_scan_data;
+
+        // Récupérer les infos du scanner
+        let scannerActor = null;
+        if (qrScanData.scanner_user_id || qrScanData.scanner_id) {
+          const scannerUserId = qrScanData.scanner_user_id || qrScanData.scanner_id;
+          const scannerResult = await this.databaseService.query(
+            `SELECT id, nom, prenom FROM users WHERE id = $1`,
+            [scannerUserId]
+          );
+          if (scannerResult.rows.length > 0) {
+            const scannerUser = scannerResult.rows[0];
+            scannerActor = {
+              user_id: scannerUser.id,
+              profile_id: qrScanData.scanner_profile_id || null,
+              nom: scannerUser.nom,
+              prenom: scannerUser.prenom,
+            };
+          }
+        }
+
+        timeline.push({
+          action: 'qr_scanned',
+          timestamp: qrScanData.scanned_at || qrScanData.timestamp || collaboration.date_creation,
+          actor: scannerActor,
+          metadata: {
+            qr_code_version: qrScanData.qr_code_version || 'v1_userId',
+            scanned_profile_id: qrScanData.scanned_profile_id || qrScanData.profile_id_scanned || null,
+            scanned_user_id: qrScanData.scanned_user_id || null,
+            scanned_profile_type: qrScanData.scanned_profile_type || qrScanData.profile_type_scanned || null,
+            scanner_ip: qrScanData.scanner_ip || qrScanData.ip_address || null,
+            scanner_user_agent: qrScanData.scanner_user_agent || qrScanData.user_agent || null,
+            scanner_device_info: qrScanData.scanner_device_info || null,
+          },
+        });
+
+        // Ajouter l'action permissions_defined si disponible
+        if (qrScanData.permissions_defined_at) {
+          timeline.push({
+            action: 'permissions_defined',
+            timestamp: qrScanData.permissions_defined_at,
+            actor: scannerActor,
+            metadata: {
+              permissions_defined_at: qrScanData.permissions_defined_at,
+            },
+          });
+        }
+
+        // Ajouter l'action invitation_sent
+        if (qrScanData.invitation_sent_at) {
+          timeline.push({
+            action: 'invitation_sent',
+            timestamp: qrScanData.invitation_sent_at,
+            actor: scannerActor,
+            metadata: {},
+          });
+        }
+      } catch (error) {
+        this.logger.warn('Erreur lors de l\'analyse des métadonnées QR:', error);
+      }
+    }
+
+    // Ajouter les actions de l'historique
+    for (const row of historyResult.rows) {
+      let actor = null;
+      if (row.performed_by) {
+        actor = {
+          user_id: row.performed_by,
+          profile_id: row.profile_id || null,
+          nom: row.nom || null,
+          prenom: row.prenom || null,
+        };
+      }
+
+      const metadata: Record<string, unknown> = {};
+      if (row.device_info) {
+        try {
+          metadata.device_info = typeof row.device_info === 'string'
+            ? JSON.parse(row.device_info)
+            : row.device_info;
+        } catch (e) {
+          // Ignorer les erreurs de parsing
+        }
+      }
+      if (row.action_metadata) {
+        try {
+          metadata.action_metadata = typeof row.action_metadata === 'string'
+            ? JSON.parse(row.action_metadata)
+            : row.action_metadata;
+        } catch (e) {
+          // Ignorer les erreurs de parsing
+        }
+      }
+      if (row.ip_address) {
+        metadata.ip_address = row.ip_address;
+      }
+      if (row.user_agent) {
+        metadata.user_agent = row.user_agent;
+      }
+
+      // Ajouter les métadonnées spécifiques selon l'action
+      if (row.action === 'accepted' || row.action === 'rejected') {
+        if (row.new_value) {
+          try {
+            const newValue = typeof row.new_value === 'string' ? JSON.parse(row.new_value) : row.new_value;
+            if (newValue.rejection_reason) {
+              metadata.rejection_reason = newValue.rejection_reason;
+            }
+          } catch (e) {
+            // Ignorer les erreurs
+          }
+        }
+      }
+
+      timeline.push({
+        action: row.action,
+        timestamp: row.created_at,
+        actor,
+        metadata,
+      });
+    }
+
+    return {
+      collaboration_id: collaborationId,
+      invitation_type: collaboration.invitation_type || 'manual',
+      timeline,
+    };
+  }
+
 }

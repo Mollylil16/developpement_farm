@@ -14,6 +14,7 @@ export interface Collaborateur {
   id: string;
   projet_id: string;
   user_id?: string; // ID de l'utilisateur lié (nullable pour compatibilité avec anciens collaborateurs)
+  profile_id?: string; // ID du profil spécifique (ex: profile_user123_veterinarian) - pour différencier les profils d'un même utilisateur
   nom: string;
   prenom: string;
   email: string;

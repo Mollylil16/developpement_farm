@@ -33,6 +33,7 @@ export class ChatAgentController {
       projetId?: string;
       conversationId?: string;
       generationConfig?: Record<string, unknown>;
+      activeRole?: 'producer' | 'buyer' | 'veterinarian' | 'technician';
     },
     @Request() req: any,
   ) {
@@ -50,8 +51,9 @@ export class ChatAgentController {
         projectId,
         generationConfig: body.generationConfig,
         conversationId: body.conversationId,
+        activeRole: body.activeRole || req.user?.activeRole,
       },
-      req.user,
+      { ...req.user, activeRole: body.activeRole || req.user?.activeRole },
     );
   }
 
@@ -59,10 +61,10 @@ export class ChatAgentController {
   @ApiOperation({ summary: 'Streaming Server-Sent Events des réponses de Kouakou' })
   async streamChat(
     @Query('message') message: string,
-    @Query('projectId') projectId?: string,
-    @Query('history') historyRaw?: string,
     @Request() req: any,
     @Res() res: Response,
+    @Query('projectId') projectId?: string,
+    @Query('history') historyRaw?: string,
   ) {
     if (!message) {
       res.status(400).json({ message: 'message est requis' });

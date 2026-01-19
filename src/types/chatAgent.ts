@@ -144,6 +144,7 @@ export interface AgentContext {
   userId: string;
   userName?: string;
   currentDate: string;
+  activeRole?: 'producer' | 'buyer' | 'veterinarian' | 'technician'; // Rôle actif de l'utilisateur
   availableAnimals?: unknown[];
   availableLots?: unknown[];
   recentTransactions?: unknown[];

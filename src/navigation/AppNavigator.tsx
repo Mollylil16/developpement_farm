@@ -279,7 +279,7 @@ function MainTabs() {
         </Tab.Screen>
       )}
 
-      {/* Collaboration - Accessible seulement au propriétaire */}
+      {/* Collaboration - Accessible seulement au propriétaire (caché de la barre) */}
       {isProprietaire && (
         <Tab.Screen
           name={SCREENS.COLLABORATION}
@@ -288,6 +288,19 @@ function MainTabs() {
           }}
         >
           {() => <LazyScreens.CollaborationScreen />}
+        </Tab.Screen>
+      )}
+
+      {/* Collaboration - Accessible aux profils vétérinaire et technicien (visible dans la barre) */}
+      {(activeRole === 'veterinarian' || activeRole === 'technician') && (
+        <Tab.Screen
+          name={SCREENS.COLLABORATION_VET_TECH}
+          options={{
+            tabBarLabel: 'Collaboration',
+            tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>👥</Text>,
+          }}
+        >
+          {() => <LazyScreens.CollaborationVetTechScreen />}
         </Tab.Screen>
       )}
 
@@ -578,7 +591,7 @@ export default function AppNavigator() {
         >
           {() => <LazyScreens.MyQRCodeScreen />}
         </Stack.Screen>
-        <Stack.Screen 
+        <Stack.Screen
           name={SCREENS.SCAN_QR_COLLABORATEUR} 
           options={{ 
             headerShown: false, // Fullscreen pour la caméra
@@ -587,6 +600,15 @@ export default function AppNavigator() {
           }}
         >
           {() => <LazyScreens.ScanQRCollaborateurScreen />}
+        </Stack.Screen>
+        <Stack.Screen
+          name={SCREENS.QR_INVITATION_CONFIG}
+          options={{
+            headerShown: false,
+            presentation: 'card',
+          }}
+        >
+          {() => <LazyScreens.QRInvitationConfigScreen />}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.DOCUMENTS}>
           {() => <LazyScreens.DocumentsScreen />}

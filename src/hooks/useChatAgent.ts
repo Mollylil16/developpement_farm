@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { useRole } from '../contexts/RoleContext';
 import { ProactiveRemindersService, VoiceService, ChatAgentService } from '../services/chatAgent';
 import { ChatMessage, Reminder, AgentContext } from '../types/chatAgent';
 import { format } from 'date-fns';
@@ -123,6 +124,7 @@ export function useChatAgent() {
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   const { user } = useAppSelector((state) => state.auth);
+  const { activeRole } = useRole();
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -263,6 +265,7 @@ export function useChatAgent() {
           userId: user.id,
           userName: user.prenom || user.nom || user.email,
           currentDate: format(new Date(), 'yyyy-MM-dd'),
+          activeRole: activeRole, // Rôle actif pour adapter le prompt
         };
         
         const chatAgentService = new ChatAgentService({
