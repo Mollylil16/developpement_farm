@@ -12,6 +12,7 @@
     "migrate:check-all": "tsx scripts/check-all-migrations.ts",
     "migrate:list": "tsx scripts/list-all-migrations.ts",
     "check:migration-063": "tsx scripts/check-migration-063.ts",
+    "setup:admin": "tsx scripts/create-admin-accounts.ts",
     "test:auth": "tsx scripts/test-auth-endpoints.ts",
     "import:knowledge-base": "tsx scripts/import-knowledge-base.ts",
     "import:knowledge-procedures": "tsx scripts/import-procedures-knowledge-base.ts",

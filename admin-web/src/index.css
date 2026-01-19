@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
@@ -6,9 +7,9 @@
 
 @layer base {
   body {
-    background-color: #f8f9fa;
-    color: #1f2937;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background-color: #f9fafb;
+    color: #101828;
+    font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
     margin: 0;
     min-width: 320px;
     min-height: 100vh;

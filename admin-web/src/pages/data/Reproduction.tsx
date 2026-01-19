@@ -12,7 +12,7 @@ export default function Reproduction() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="w-8 h-8 border-2 border-teal-200 border-t-teal-500 rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-2 border-brand-200 border-t-brand-500 rounded-full animate-spin"></div>
       </div>
     )
   }
@@ -43,7 +43,7 @@ export default function Reproduction() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
           <div className="p-3 bg-pink-100 dark:bg-pink-900/30 rounded-lg mb-4 w-fit">
             <Baby className="h-6 w-6 text-pink-600 dark:text-pink-400" />
           </div>
@@ -55,7 +55,7 @@ export default function Reproduction() {
           </p>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
           <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg mb-4 w-fit">
             <Baby className="h-6 w-6 text-purple-600 dark:text-purple-400" />
           </div>

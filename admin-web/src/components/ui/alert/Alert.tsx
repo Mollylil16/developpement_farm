@@ -127,7 +127,7 @@ const Alert: React.FC<AlertProps> = ({
           {showLink && (
             <Link
               to={linkHref}
-              className="inline-block mt-3 text-sm font-medium text-teal-600 underline hover:text-teal-700"
+              className="inline-block mt-3 text-sm font-medium text-brand-600 underline hover:text-brand-700"
             >
               {linkText}
             </Link>

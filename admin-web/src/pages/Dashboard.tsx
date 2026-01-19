@@ -11,6 +11,7 @@ import {
   ArrowRight,
 } from 'lucide-react'
 import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { CHART_PRIMARY_COLOR, CHART_SECONDARY_COLOR, CHART_HEIGHT_LARGE, axisStyle, axisTickStyle, gridStyle, tooltipStyle, lineStyle, PIE_COLORS } from '../utils/chartStyles'
 
 const ROLE_COLORS: Record<string, string> = {
   producer: '#10b981',
@@ -45,7 +46,7 @@ export default function Dashboard() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="w-8 h-8 border-2 border-teal-200 border-t-teal-500 rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-2 border-brand-200 border-t-brand-500 rounded-full animate-spin"></div>
       </div>
     )
   }
@@ -85,8 +86,8 @@ export default function Dashboard() {
       name: 'Utilisateurs Actifs',
       value: users.active_users || 0,
       icon: Users,
-      iconBg: 'bg-teal-100',
-      iconColor: 'text-teal-600',
+      iconBg: 'bg-brand-100',
+      iconColor: 'text-brand-600',
       onClick: () => navigate('/users'),
     },
     {
@@ -122,7 +123,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Welcome Banner style HiveQ */}
-      <div className="bg-gradient-to-r from-teal-50 to-teal-100 rounded-xl p-6 border border-teal-200">
+      <div className="bg-gradient-to-r from-brand-50 to-brand-100 rounded-xl p-6 border border-brand-200">
         <h2 className="text-2xl font-semibold text-gray-900 mb-1">
           Bienvenue, {adminName} 👋
         </h2>
@@ -136,7 +137,7 @@ export default function Dashboard() {
         {metricCards.map((card) => (
           <div
             key={card.name}
-            className="bg-white rounded-xl p-6 border border-gray-100 shadow-soft hover:shadow-card transition-all cursor-pointer"
+            className="bg-white rounded-2xl p-6 border border-gray-100 shadow-theme-sm hover:shadow-theme-md transition-all cursor-pointer"
             onClick={card.onClick}
           >
             <div className="flex items-start justify-between mb-4">
@@ -152,7 +153,7 @@ export default function Dashboard() {
               <p className="text-sm text-gray-500 mt-1">{card.name}</p>
             </div>
             <button 
-              className="text-sm font-medium text-teal-600 hover:text-teal-700 flex items-center gap-1 mt-4"
+              className="text-sm font-medium text-brand-600 hover:text-brand-700 flex items-center gap-1 mt-4"
               onClick={(e) => {
                 e.stopPropagation()
                 card.onClick()
@@ -168,7 +169,7 @@ export default function Dashboard() {
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Revenue Chart style HiveQ - avec données réelles */}
-        <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-soft">
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-theme-sm">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold text-gray-900">Évolution des Revenus</h3>
             <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg text-sm text-gray-600">
@@ -179,38 +180,34 @@ export default function Dashboard() {
             </div>
           </div>
           {revenueData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width="100%" height={CHART_HEIGHT_LARGE}>
               <LineChart data={revenueData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <CartesianGrid strokeDasharray="3 3" stroke={gridStyle.stroke} />
                 <XAxis 
                   dataKey="date" 
-                  stroke="#94a3b8" 
-                  style={{ fontSize: '12px' }}
-                  tick={{ fill: '#64748b' }}
+                  stroke={axisTickStyle.fill}
+                  style={axisStyle}
+                  tick={axisTickStyle}
+                  axisLine={false}
                 />
                 <YAxis 
-                  stroke="#94a3b8" 
-                  style={{ fontSize: '12px' }}
-                  tick={{ fill: '#64748b' }}
+                  stroke={axisTickStyle.fill}
+                  style={axisStyle}
+                  tick={axisTickStyle}
                   tickFormatter={(value) => `${(value / 1000).toFixed(0)}K`}
+                  axisLine={false}
                 />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#ffffff',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    fontSize: '12px',
-                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-                  }}
+                  contentStyle={tooltipStyle}
                   formatter={(value: any) => formatCurrency(value)}
                 />
                 <Line
                   type="monotone"
                   dataKey="revenue"
-                  stroke="#14b8a6"
-                  strokeWidth={3}
-                  dot={{ fill: '#14b8a6', r: 4 }}
-                  activeDot={{ r: 6 }}
+                  stroke={CHART_PRIMARY_COLOR}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 6, fill: CHART_PRIMARY_COLOR }}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -222,12 +219,12 @@ export default function Dashboard() {
         </div>
 
         {/* Role Distribution style HiveQ */}
-        <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-soft">
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-theme-sm">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold text-gray-900">Répartition par Rôle</h3>
           </div>
           {rolesPieData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width="100%" height={CHART_HEIGHT_LARGE}>
               <PieChart>
                 <Pie
                   data={rolesPieData}
@@ -235,22 +232,16 @@ export default function Dashboard() {
                   cy="50%"
                   labelLine={false}
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={90}
-                  fill="#8884d8"
+                  outerRadius={100}
+                  fill={CHART_PRIMARY_COLOR}
                   dataKey="value"
                 >
                   {rolesPieData.map((entry: any, index: number) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+                    <Cell key={`cell-${index}`} fill={entry.color || PIE_COLORS[index % PIE_COLORS.length]} />
                   ))}
                 </Pie>
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#ffffff',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    fontSize: '12px',
-                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-                  }}
+                  contentStyle={tooltipStyle}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -266,7 +257,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Top Users - avec filtres fonctionnels */}
         {roles.detailed && roles.detailed.length > 0 && (
-          <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-soft">
+          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-theme-sm">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold text-gray-900">Utilisateurs par Rôle</h3>
               <div className="flex gap-2">
@@ -276,7 +267,7 @@ export default function Dashboard() {
                     onClick={() => setPeriodFilter(period)}
                     className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
                       periodFilter === period
-                        ? 'bg-teal-50 text-teal-700'
+                        ? 'bg-brand-50 text-brand-700'
                         : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                     }`}
                   >

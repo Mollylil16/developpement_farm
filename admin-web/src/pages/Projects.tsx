@@ -24,7 +24,7 @@ export default function Projects() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-teal-200 border-t-teal-500 rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-2 border-brand-200 border-t-brand-500 rounded-full animate-spin"></div>
       </div>
     )
   }
@@ -41,7 +41,7 @@ export default function Projects() {
         <p className="text-xs text-gray-400 max-w-md text-center">{errorMessage}</p>
         <button
           onClick={() => window.location.reload()}
-          className="mt-4 px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition-colors text-sm font-medium"
+          className="mt-4 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors text-sm font-medium"
         >
           Actualiser la page
         </button>
@@ -60,7 +60,7 @@ export default function Projects() {
       </div>
 
       {/* Filtres et recherche */}
-      <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-soft">
+      <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-theme-sm">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Recherche */}
           <div className="relative">
@@ -70,7 +70,7 @@ export default function Projects() {
               placeholder="Rechercher par nom, utilisateur..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm transition-all"
+              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm transition-all"
             />
           </div>
 
@@ -82,7 +82,7 @@ export default function Projects() {
                 onClick={() => setStatutFilter(undefined)}
                 className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                   statutFilter === undefined
-                    ? 'bg-teal-500 text-white shadow-sm'
+                    ? 'bg-brand-500 text-white shadow-sm'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-white'
                 }`}
               >
@@ -92,7 +92,7 @@ export default function Projects() {
                 onClick={() => setStatutFilter('actif')}
                 className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                   statutFilter === 'actif'
-                    ? 'bg-teal-500 text-white shadow-sm'
+                    ? 'bg-brand-500 text-white shadow-sm'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-white'
                 }`}
               >
@@ -102,7 +102,7 @@ export default function Projects() {
                 onClick={() => setStatutFilter('archive')}
                 className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                   statutFilter === 'archive'
-                    ? 'bg-teal-500 text-white shadow-sm'
+                    ? 'bg-brand-500 text-white shadow-sm'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-white'
                 }`}
               >
@@ -114,7 +114,7 @@ export default function Projects() {
       </div>
 
       {/* Table des projets */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-soft overflow-hidden">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-theme-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50">
@@ -151,8 +151,8 @@ export default function Projects() {
                   <tr key={project.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-teal-100 flex items-center justify-center">
-                          <FolderOpen className="h-5 w-5 text-teal-600" />
+                        <div className="w-10 h-10 rounded-lg bg-brand-100 flex items-center justify-center">
+                          <FolderOpen className="h-5 w-5 text-brand-600" />
                         </div>
                         <div>
                           <p className="text-sm font-medium text-gray-900">{project.nom || 'Sans nom'}</p>
@@ -185,7 +185,7 @@ export default function Projects() {
                       <span
                         className={`px-2.5 py-1 text-xs font-medium rounded-full border ${
                           project.statut === 'actif'
-                            ? 'bg-teal-50 text-teal-700 border-teal-200'
+                            ? 'bg-brand-50 text-brand-700 border-brand-200'
                             : 'bg-gray-50 text-gray-700 border-gray-200'
                         }`}
                       >
@@ -203,7 +203,7 @@ export default function Projects() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <button
                         onClick={() => navigate(`/users?user_id=${project.user_id}`)}
-                        className="text-sm font-medium text-teal-600 hover:text-teal-700"
+                        className="text-sm font-medium text-brand-600 hover:text-brand-700"
                       >
                         Voir utilisateur
                       </button>

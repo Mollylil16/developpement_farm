@@ -243,7 +243,7 @@ export default function Layout() {
               >
                 <div className="flex items-center gap-3">
                   <FileText className={`h-5 w-5 ${location.pathname.startsWith('/data/') ? 'text-brand-500' : 'text-gray-400'}`} />
-                  <span>Ministère Agriculture</span>
+                  <span>Data</span>
                 </div>
                 {showAgricultureMenu ? (
                   <ChevronDown className="h-4 w-4 text-gray-400" />

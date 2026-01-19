@@ -54,7 +54,7 @@ export default function Users() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-teal-200 border-t-teal-500 rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-2 border-brand-200 border-t-brand-500 rounded-full animate-spin"></div>
       </div>
     )
   }
@@ -74,7 +74,7 @@ export default function Users() {
   return (
     <div className="space-y-6">
       {/* Filtres et recherche style HiveQ */}
-      <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-soft">
+      <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-theme-sm">
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {/* Recherche */}
           <div className="relative">
@@ -84,7 +84,7 @@ export default function Users() {
               placeholder="Rechercher par nom, email, téléphone..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm transition-all"
+              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm transition-all"
             />
           </div>
 
@@ -96,7 +96,7 @@ export default function Users() {
                 onClick={() => setHasSubscription(undefined)}
                 className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                   hasSubscription === undefined
-                    ? 'bg-teal-500 text-white shadow-sm'
+                    ? 'bg-brand-500 text-white shadow-sm'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-white'
                 }`}
               >
@@ -106,7 +106,7 @@ export default function Users() {
                 onClick={() => setHasSubscription(true)}
                 className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                   hasSubscription === true
-                    ? 'bg-teal-500 text-white shadow-sm'
+                    ? 'bg-brand-500 text-white shadow-sm'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-white'
                 }`}
               >
@@ -116,7 +116,7 @@ export default function Users() {
                 onClick={() => setHasSubscription(false)}
                 className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                   hasSubscription === false
-                    ? 'bg-teal-500 text-white shadow-sm'
+                    ? 'bg-brand-500 text-white shadow-sm'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-white'
                 }`}
               >
@@ -133,7 +133,7 @@ export default function Users() {
                 onClick={() => setSelectedRole(undefined)}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                   selectedRole === undefined
-                    ? 'bg-teal-500 text-white shadow-sm'
+                    ? 'bg-brand-500 text-white shadow-sm'
                     : 'bg-gray-50 text-gray-600 hover:text-gray-900 hover:bg-white border border-gray-200'
                 }`}
               >
@@ -145,7 +145,7 @@ export default function Users() {
                   onClick={() => setSelectedRole(selectedRole === key ? undefined : key)}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                     selectedRole === key
-                      ? 'bg-teal-500 text-white shadow-sm'
+                      ? 'bg-brand-500 text-white shadow-sm'
                       : 'bg-gray-50 text-gray-600 hover:text-gray-900 hover:bg-white border border-gray-200'
                   }`}
                 >
@@ -158,7 +158,7 @@ export default function Users() {
       </div>
 
       {/* Table style HiveQ */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-soft overflow-hidden">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-theme-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50">
@@ -213,8 +213,8 @@ export default function Users() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-3">
                           {user.subscription_id ? (
-                            <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center">
-                              <UserCheck className="h-4 w-4 text-teal-600" />
+                            <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center">
+                              <UserCheck className="h-4 w-4 text-brand-600" />
                             </div>
                           ) : (
                             <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
@@ -259,7 +259,7 @@ export default function Users() {
                         <span
                           className={`px-2.5 py-1 text-xs font-medium rounded-full border ${
                             user.is_active
-                              ? 'bg-teal-50 text-teal-700 border-teal-200'
+                              ? 'bg-brand-50 text-brand-700 border-brand-200'
                               : 'bg-red-50 text-red-700 border-red-200'
                           }`}
                         >
@@ -270,7 +270,7 @@ export default function Users() {
                         <span
                           className={`px-2.5 py-1 text-xs font-medium rounded-full border ${
                             user.is_onboarded
-                              ? 'bg-teal-50 text-teal-700 border-teal-200'
+                              ? 'bg-brand-50 text-brand-700 border-brand-200'
                               : 'bg-orange-50 text-orange-700 border-orange-200'
                           }`}
                         >
@@ -291,7 +291,7 @@ export default function Users() {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => navigate(`/users/${user.id}`)}
-                            className="p-2 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
+                            className="p-2 text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"
                             title="Voir les détails"
                           >
                             <Eye className="h-4 w-4" />
@@ -301,7 +301,7 @@ export default function Users() {
                             className={`p-2 rounded-lg transition-colors ${
                               user.is_active
                                 ? 'text-red-600 hover:bg-red-50'
-                                : 'text-teal-600 hover:bg-teal-50'
+                                : 'text-brand-600 hover:bg-brand-50'
                             }`}
                             title={user.is_active ? 'Désactiver' : 'Activer'}
                           >

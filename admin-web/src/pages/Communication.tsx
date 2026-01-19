@@ -149,7 +149,7 @@ export default function Communication() {
   if (messagesLoading || promotionsLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-teal-200 border-t-teal-500 rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-2 border-brand-200 border-t-brand-500 rounded-full animate-spin"></div>
       </div>
     )
   }
@@ -173,14 +173,14 @@ export default function Communication() {
       </div>
 
       {/* Tabs */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-soft">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-theme-sm">
         <div className="border-b border-gray-100">
           <div className="flex">
             <button
               onClick={() => setActiveTab('messages')}
               className={`px-6 py-3 text-sm font-medium transition-colors ${
                 activeTab === 'messages'
-                  ? 'text-teal-600 border-b-2 border-teal-600'
+                  ? 'text-brand-600 border-b-2 border-brand-600'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
@@ -191,7 +191,7 @@ export default function Communication() {
               onClick={() => setActiveTab('promotions')}
               className={`px-6 py-3 text-sm font-medium transition-colors ${
                 activeTab === 'promotions'
-                  ? 'text-teal-600 border-b-2 border-teal-600'
+                  ? 'text-brand-600 border-b-2 border-brand-600'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
@@ -202,7 +202,7 @@ export default function Communication() {
               onClick={() => setActiveTab('congratulate')}
               className={`px-6 py-3 text-sm font-medium transition-colors ${
                 activeTab === 'congratulate'
-                  ? 'text-teal-600 border-b-2 border-teal-600'
+                  ? 'text-brand-600 border-b-2 border-brand-600'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
@@ -227,7 +227,7 @@ export default function Communication() {
                         type="text"
                         value={messageForm.subject}
                         onChange={(e) => setMessageForm({ ...messageForm, subject: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                         required
                       />
                     </div>
@@ -237,7 +237,7 @@ export default function Communication() {
                       <select
                         value={messageForm.type}
                         onChange={(e) => setMessageForm({ ...messageForm, type: e.target.value as any })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                       >
                         <option value="announcement">Annonce</option>
                         <option value="support">Support</option>
@@ -253,7 +253,7 @@ export default function Communication() {
                       <select
                         value={messageForm.target_audience}
                         onChange={(e) => setMessageForm({ ...messageForm, target_audience: e.target.value as any })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                       >
                         <option value="all">Tous les utilisateurs</option>
                         <option value="active_users">Utilisateurs actifs</option>
@@ -269,7 +269,7 @@ export default function Communication() {
                         value={messageForm.content}
                         onChange={(e) => setMessageForm({ ...messageForm, content: e.target.value })}
                         rows={6}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                         placeholder="Bonjour {{name}}, ..."
                         required
                       />
@@ -279,7 +279,7 @@ export default function Communication() {
                     <button
                       type="submit"
                       disabled={sendMessageMutation.isPending}
-                      className="w-full px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition-colors font-medium disabled:opacity-50"
+                      className="w-full px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors font-medium disabled:opacity-50"
                     >
                       <Send className="inline h-4 w-4 mr-2" />
                       {sendMessageMutation.isPending ? 'Envoi...' : 'Envoyer le message'}
@@ -336,7 +336,7 @@ export default function Communication() {
                         type="text"
                         value={promotionForm.code}
                         onChange={(e) => setPromotionForm({ ...promotionForm, code: e.target.value.toUpperCase() })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                         placeholder="PROMO2024"
                         required
                       />
@@ -348,7 +348,7 @@ export default function Communication() {
                         type="text"
                         value={promotionForm.name}
                         onChange={(e) => setPromotionForm({ ...promotionForm, name: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                         required
                       />
                     </div>
@@ -358,7 +358,7 @@ export default function Communication() {
                       <select
                         value={promotionForm.type}
                         onChange={(e) => setPromotionForm({ ...promotionForm, type: e.target.value as any })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                       >
                         <option value="discount">Réduction</option>
                         <option value="free_month">Mois gratuit</option>
@@ -377,7 +377,7 @@ export default function Communication() {
                             max="100"
                             value={promotionForm.discount_percentage}
                             onChange={(e) => setPromotionForm({ ...promotionForm, discount_percentage: parseInt(e.target.value) || 0 })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                           />
                         </div>
                         <div>
@@ -387,7 +387,7 @@ export default function Communication() {
                             min="0"
                             value={promotionForm.discount_amount}
                             onChange={(e) => setPromotionForm({ ...promotionForm, discount_amount: parseInt(e.target.value) || 0 })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                           />
                         </div>
                       </>
@@ -401,7 +401,7 @@ export default function Communication() {
                           min="1"
                           value={promotionForm.free_months}
                           onChange={(e) => setPromotionForm({ ...promotionForm, free_months: parseInt(e.target.value) || 0 })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                           required
                         />
                       </div>
@@ -414,7 +414,7 @@ export default function Communication() {
                           value={promotionForm.gift_description}
                           onChange={(e) => setPromotionForm({ ...promotionForm, gift_description: e.target.value })}
                           rows={3}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                           required
                         />
                       </div>
@@ -426,7 +426,7 @@ export default function Communication() {
                         type="date"
                         value={promotionForm.valid_from}
                         onChange={(e) => setPromotionForm({ ...promotionForm, valid_from: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                         required
                       />
                     </div>
@@ -437,7 +437,7 @@ export default function Communication() {
                         type="date"
                         value={promotionForm.valid_until}
                         onChange={(e) => setPromotionForm({ ...promotionForm, valid_until: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                       />
                     </div>
 
@@ -448,14 +448,14 @@ export default function Communication() {
                         min="0"
                         value={promotionForm.max_uses}
                         onChange={(e) => setPromotionForm({ ...promotionForm, max_uses: parseInt(e.target.value) || 0 })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                       />
                     </div>
 
                     <button
                       type="submit"
                       disabled={createPromotionMutation.isPending}
-                      className="w-full px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition-colors font-medium disabled:opacity-50"
+                      className="w-full px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors font-medium disabled:opacity-50"
                     >
                       <Plus className="inline h-4 w-4 mr-2" />
                       {createPromotionMutation.isPending ? 'Création...' : 'Créer la promotion'}
@@ -475,7 +475,7 @@ export default function Communication() {
                           <div className="flex items-start justify-between mb-2">
                             <div>
                               <h3 className="text-sm font-medium text-gray-900">{promo.name}</h3>
-                              <p className="text-xs text-teal-600 font-mono mt-1">{promo.code}</p>
+                              <p className="text-xs text-brand-600 font-mono mt-1">{promo.code}</p>
                             </div>
                             <span className={`px-2 py-1 text-xs rounded-full ${
                               promo.is_active ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-700'
@@ -520,7 +520,7 @@ export default function Communication() {
                     value={congratulateForm.message}
                     onChange={(e) => setCongratulateForm({ ...congratulateForm, message: e.target.value })}
                     rows={6}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                     placeholder="Félicitations ! Vous êtes un utilisateur actif et nous vous remercions..."
                     required
                   />
@@ -532,7 +532,7 @@ export default function Communication() {
                     type="text"
                     value={congratulateForm.gift_description}
                     onChange={(e) => setCongratulateForm({ ...congratulateForm, gift_description: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                     placeholder="Ex: 1 mois gratuit, 20% de réduction..."
                   />
                   <p className="text-xs text-gray-500 mt-1">

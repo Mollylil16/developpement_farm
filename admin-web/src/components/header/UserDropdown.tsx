@@ -31,7 +31,7 @@ export default function UserDropdown() {
         className="flex items-center text-gray-700 dark:text-gray-400 dropdown-toggle"
       >
         <span className="mr-3 overflow-hidden rounded-full h-11 w-11">
-          <div className="w-11 h-11 rounded-full bg-teal-500 flex items-center justify-center text-white text-sm font-semibold">
+          <div className="w-11 h-11 rounded-full bg-brand-500 flex items-center justify-center text-white text-sm font-semibold">
             {admin?.prenom?.[0] || admin?.nom?.[0] || "A"}
           </div>
         </span>

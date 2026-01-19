@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, UnauthorizedException, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
@@ -1090,6 +1090,249 @@ export class AdminService {
       ...result,
       promotion_id: promotionId,
       promotion_code: promotionCode,
+    };
+  }
+
+  // ==================== VALIDATION VÉTÉRINAIRES ====================
+
+  async getVeterinariansForValidation(
+    page: number = 1,
+    limit: number = 50,
+    filters?: { status?: string; search?: string },
+  ) {
+    const offset = (page - 1) * limit;
+    let query = `
+      SELECT 
+        u.id,
+        u.email,
+        u.telephone,
+        u.nom,
+        u.prenom,
+        u.is_active,
+        u.date_creation,
+        u.derniere_connexion,
+        u.veterinarian_validation_status,
+        u.cni_document_url,
+        u.diploma_document_url,
+        u.cni_verified,
+        u.diploma_verified,
+        u.validation_reason,
+        u.validated_at,
+        u.validated_by,
+        u.documents_submitted_at,
+        a.nom as admin_validator_nom,
+        a.prenom as admin_validator_prenom
+      FROM users u
+      LEFT JOIN admins a ON u.validated_by = a.id
+      WHERE u.active_role = 'veterinarian'
+    `;
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (filters?.status && filters.status !== 'all') {
+      query += ` AND u.veterinarian_validation_status = $${paramIndex}`;
+      params.push(filters.status);
+      paramIndex++;
+    }
+
+    if (filters?.search) {
+      query += ` AND (u.email ILIKE $${paramIndex} OR u.nom ILIKE $${paramIndex} OR u.prenom ILIKE $${paramIndex} OR u.telephone ILIKE $${paramIndex})`;
+      params.push(`%${filters.search}%`);
+      paramIndex++;
+    }
+
+    query += ` ORDER BY 
+      CASE u.veterinarian_validation_status 
+        WHEN 'pending' THEN 1
+        WHEN 'approved' THEN 2
+        WHEN 'rejected' THEN 3
+        ELSE 4
+      END,
+      u.documents_submitted_at DESC NULLS LAST,
+      u.date_creation DESC
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(limit, offset);
+
+    const result = await this.db.query(query, params);
+
+    // Compter le total
+    let countQuery = `
+      SELECT COUNT(*) as total
+      FROM users u
+      WHERE u.active_role = 'veterinarian'
+    `;
+    const countParams: any[] = [];
+    let countParamIndex = 1;
+
+    if (filters?.status && filters.status !== 'all') {
+      countQuery += ` AND u.veterinarian_validation_status = $${countParamIndex}`;
+      countParams.push(filters.status);
+      countParamIndex++;
+    }
+
+    if (filters?.search) {
+      countQuery += ` AND (u.email ILIKE $${countParamIndex} OR u.nom ILIKE $${countParamIndex} OR u.prenom ILIKE $${countParamIndex} OR u.telephone ILIKE $${countParamIndex})`;
+      countParams.push(`%${filters.search}%`);
+      countParamIndex++;
+    }
+
+    const countResult = await this.db.query(countQuery, countParams);
+    const total = parseInt(countResult.rows[0].total);
+
+    return {
+      veterinarians: result.rows.map((row) => ({
+        id: row.id,
+        email: row.email,
+        telephone: row.telephone,
+        nom: row.nom,
+        prenom: row.prenom,
+        is_active: row.is_active,
+        date_creation: row.date_creation,
+        derniere_connexion: row.derniere_connexion,
+        validation_status: row.veterinarian_validation_status || 'pending',
+        cni_document_url: row.cni_document_url,
+        diploma_document_url: row.diploma_document_url,
+        cni_verified: row.cni_verified || false,
+        diploma_verified: row.diploma_verified || false,
+        validation_reason: row.validation_reason,
+        validated_at: row.validated_at,
+        validated_by: row.validated_by,
+        validator_name: row.admin_validator_nom && row.admin_validator_prenom
+          ? `${row.admin_validator_prenom} ${row.admin_validator_nom}`
+          : null,
+        documents_submitted_at: row.documents_submitted_at,
+      })),
+      pagination: {
+        page,
+        limit,
+        total,
+        total_pages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async approveVeterinarian(userId: string, adminId: string, reason?: string) {
+    // Vérifier que l'utilisateur existe et est un vétérinaire
+    const userResult = await this.db.query(
+      `SELECT id, active_role, email, nom, prenom FROM users WHERE id = $1`,
+      [userId],
+    );
+
+    if (userResult.rows.length === 0) {
+      throw new NotFoundException('Vétérinaire introuvable');
+    }
+
+    const user = userResult.rows[0];
+    if (user.active_role !== 'veterinarian') {
+      throw new NotFoundException('Cet utilisateur n\'est pas un vétérinaire');
+    }
+
+    // Mettre à jour le statut
+    await this.db.query(
+      `UPDATE users 
+       SET veterinarian_validation_status = 'approved',
+           validated_at = NOW(),
+           validated_by = $1,
+           validation_reason = $2,
+           cni_verified = COALESCE(cni_document_url IS NOT NULL, false),
+           diploma_verified = COALESCE(diploma_document_url IS NOT NULL, false)
+       WHERE id = $3`,
+      [adminId, reason || null, userId],
+    );
+
+    return {
+      success: true,
+      message: 'Vétérinaire approuvé avec succès',
+      user: {
+        id: user.id,
+        email: user.email,
+        nom: user.nom,
+        prenom: user.prenom,
+        validation_status: 'approved',
+        validated_at: new Date(),
+      },
+    };
+  }
+
+  async rejectVeterinarian(userId: string, adminId: string, reason: string) {
+    if (!reason || reason.trim().length === 0) {
+      throw new BadRequestException('La raison du rejet est obligatoire');
+    }
+
+    // Vérifier que l'utilisateur existe et est un vétérinaire
+    const userResult = await this.db.query(
+      `SELECT id, active_role, email, nom, prenom FROM users WHERE id = $1`,
+      [userId],
+    );
+
+    if (userResult.rows.length === 0) {
+      throw new NotFoundException('Vétérinaire introuvable');
+    }
+
+    const user = userResult.rows[0];
+    if (user.active_role !== 'veterinarian') {
+      throw new NotFoundException('Cet utilisateur n\'est pas un vétérinaire');
+    }
+
+    // Mettre à jour le statut
+    await this.db.query(
+      `UPDATE users 
+       SET veterinarian_validation_status = 'rejected',
+           validated_at = NOW(),
+           validated_by = $1,
+           validation_reason = $2
+       WHERE id = $3`,
+      [adminId, reason, userId],
+    );
+
+    return {
+      success: true,
+      message: 'Vétérinaire rejeté',
+      user: {
+        id: user.id,
+        email: user.email,
+        nom: user.nom,
+        prenom: user.prenom,
+        validation_status: 'rejected',
+        validated_at: new Date(),
+        validation_reason: reason,
+      },
+    };
+  }
+
+  async getVeterinarianDocuments(userId: string) {
+    // Vérifier que l'utilisateur existe et est un vétérinaire
+    const userResult = await this.db.query(
+      `SELECT 
+        id, 
+        email, 
+        nom, 
+        prenom, 
+        active_role,
+        cni_document_url,
+        diploma_document_url,
+        cni_verified,
+        diploma_verified,
+        documents_submitted_at
+      FROM users WHERE id = $1`,
+      [userId],
+    );
+
+    if (userResult.rows.length === 0) {
+      throw new NotFoundException('Vétérinaire introuvable');
+    }
+
+    const user = userResult.rows[0];
+    if (user.active_role !== 'veterinarian') {
+      throw new NotFoundException('Cet utilisateur n\'est pas un vétérinaire');
+    }
+
+    return {
+      cni_document_url: user.cni_document_url,
+      diploma_document_url: user.diploma_document_url,
+      cni_verified: user.cni_verified || false,
+      diploma_verified: user.diploma_verified || false,
+      documents_submitted_at: user.documents_submitted_at,
     };
   }
 }

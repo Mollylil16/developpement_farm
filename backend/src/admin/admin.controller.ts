@@ -112,6 +112,57 @@ export class AdminController {
     );
   }
 
+  // ==================== VALIDATION VÉTÉRINAIRES ====================
+  // IMPORTANT: Ces routes doivent être déclarées AVANT les routes /users/:userId
+  // pour éviter que "veterinarians" soit interprété comme un userId
+
+  @Get('users/veterinarians')
+  @ApiOperation({ summary: 'Obtenir la liste des vétérinaires pour validation' })
+  async getVeterinariansForValidation(
+    @CurrentAdmin() admin: any,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.adminService.getVeterinariansForValidation(
+      parseInt(page || '1'),
+      parseInt(limit || '50'),
+      { status, search },
+    );
+  }
+
+  @Get('users/veterinarians/:userId/documents')
+  @ApiOperation({ summary: 'Obtenir les documents d\'un vétérinaire' })
+  async getVeterinarianDocuments(
+    @CurrentAdmin() admin: any,
+    @Param('userId') userId: string,
+  ) {
+    return this.adminService.getVeterinarianDocuments(userId);
+  }
+
+  @Post('users/veterinarians/:userId/approve')
+  @ApiOperation({ summary: 'Approuver un vétérinaire' })
+  async approveVeterinarian(
+    @CurrentAdmin() admin: any,
+    @Param('userId') userId: string,
+    @Body('reason') reason?: string,
+  ) {
+    return this.adminService.approveVeterinarian(userId, admin.id, reason);
+  }
+
+  @Post('users/veterinarians/:userId/reject')
+  @ApiOperation({ summary: 'Rejeter un vétérinaire' })
+  async rejectVeterinarian(
+    @CurrentAdmin() admin: any,
+    @Param('userId') userId: string,
+    @Body('reason') reason: string,
+  ) {
+    return this.adminService.rejectVeterinarian(userId, admin.id, reason);
+  }
+
+  // ==================== USERS ====================
+
   @Get('users/:userId')
   @ApiOperation({ summary: 'Obtenir les détails d\'un utilisateur' })
   async getUserDetail(

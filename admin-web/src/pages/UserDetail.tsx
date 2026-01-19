@@ -59,7 +59,7 @@ export default function UserDetail() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="w-8 h-8 border-2 border-teal-200 border-t-teal-500 rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-2 border-brand-200 border-t-brand-500 rounded-full animate-spin"></div>
       </div>
     )
   }
@@ -97,7 +97,7 @@ export default function UserDetail() {
       </div>
 
       {/* Informations utilisateur */}
-      <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-soft">
+      <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-theme-sm">
         <div className="flex items-start justify-between mb-6">
           <h2 className="text-lg font-semibold text-gray-900">Informations</h2>
           <button
@@ -105,7 +105,7 @@ export default function UserDetail() {
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
               user.is_active
                 ? 'bg-red-50 text-red-700 hover:bg-red-100'
-                : 'bg-teal-50 text-teal-700 hover:bg-teal-100'
+                : 'bg-brand-50 text-brand-700 hover:bg-brand-100'
             }`}
           >
             <Power className="h-4 w-4" />
@@ -169,26 +169,26 @@ export default function UserDetail() {
           </div>
           <div className="flex items-center gap-3">
             {user.is_active ? (
-              <CheckCircle className="h-5 w-5 text-teal-600" />
+              <CheckCircle className="h-5 w-5 text-brand-600" />
             ) : (
               <XCircle className="h-5 w-5 text-red-600" />
             )}
             <div>
               <p className="text-xs text-gray-500">Statut</p>
-              <p className={`text-sm font-medium ${user.is_active ? 'text-teal-700' : 'text-red-700'}`}>
+              <p className={`text-sm font-medium ${user.is_active ? 'text-brand-700' : 'text-red-700'}`}>
                 {user.is_active ? 'Actif' : 'Inactif'}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             {user.is_onboarded ? (
-              <CheckCircle className="h-5 w-5 text-teal-600" />
+              <CheckCircle className="h-5 w-5 text-brand-600" />
             ) : (
               <XCircle className="h-5 w-5 text-orange-600" />
             )}
             <div>
               <p className="text-xs text-gray-500">Onboarded</p>
-              <p className={`text-sm font-medium ${user.is_onboarded ? 'text-teal-700' : 'text-orange-700'}`}>
+              <p className={`text-sm font-medium ${user.is_onboarded ? 'text-brand-700' : 'text-orange-700'}`}>
                 {user.is_onboarded ? 'Oui' : 'Non'}
               </p>
             </div>
@@ -197,7 +197,7 @@ export default function UserDetail() {
       </div>
 
       {/* Abonnements */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-soft overflow-hidden">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-theme-sm overflow-hidden">
         <div className="p-6 border-b border-gray-100">
           <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <CreditCard className="h-5 w-5" />
@@ -232,7 +232,7 @@ export default function UserDetail() {
                       <span
                         className={`px-2.5 py-1 text-xs font-medium rounded-full border ${
                           sub.status === 'active'
-                            ? 'bg-teal-50 text-teal-700 border-teal-200'
+                            ? 'bg-brand-50 text-brand-700 border-brand-200'
                             : sub.status === 'expired'
                             ? 'bg-red-50 text-red-700 border-red-200'
                             : 'bg-gray-50 text-gray-700 border-gray-200'
@@ -259,7 +259,7 @@ export default function UserDetail() {
       </div>
 
       {/* Transactions */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-soft overflow-hidden">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-theme-sm overflow-hidden">
         <div className="p-6 border-b border-gray-100">
           <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <DollarSign className="h-5 w-5" />
@@ -303,7 +303,7 @@ export default function UserDetail() {
                       <span
                         className={`px-2.5 py-1 text-xs font-medium rounded-full border ${
                           transaction.status === 'completed'
-                            ? 'bg-teal-50 text-teal-700 border-teal-200'
+                            ? 'bg-teal-50 text-brand-700 border-teal-200'
                             : transaction.status === 'pending'
                             ? 'bg-orange-50 text-orange-700 border-orange-200'
                             : 'bg-red-50 text-red-700 border-red-200'
@@ -321,7 +321,7 @@ export default function UserDetail() {
       </div>
 
       {/* Projets */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-soft overflow-hidden">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-theme-sm overflow-hidden">
         <div className="p-6 border-b border-gray-100">
           <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <FolderOpen className="h-5 w-5" />
@@ -358,7 +358,7 @@ export default function UserDetail() {
                       <span
                         className={`px-2.5 py-1 text-xs font-medium rounded-full border ${
                           project.statut === 'actif'
-                            ? 'bg-teal-50 text-teal-700 border-teal-200'
+                            ? 'bg-teal-50 text-brand-700 border-teal-200'
                             : 'bg-gray-50 text-gray-700 border-gray-200'
                         }`}
                       >
