@@ -161,8 +161,14 @@ export class ChatAgentService {
    * 1. Cache rapide (5% des cas) - Salutations/remerciements
    * 2. Gemini (95% des cas) - Appel direct avec recherche web
    * 3. Fallback Knowledge Base (si Gemini échoue)
+   * 
+   * @param userMessage - Le message de l'utilisateur
+   * @param externalHistory - Historique externe optionnel (depuis useChatAgent). Si fourni, utilise cet historique au lieu de this.conversationHistory
    */
-  async sendMessage(userMessage: string): Promise<ChatMessage> {
+  async sendMessage(
+    userMessage: string,
+    externalHistory?: Array<{ role: string; content: string }>
+  ): Promise<ChatMessage> {
     if (!this.context) {
       throw new Error("Le contexte de l'agent n'est pas initialisé");
     }
@@ -220,10 +226,28 @@ export class ChatAgentService {
         
         // Construire le prompt optimisé pour Gemini
         const systemPrompt = this.buildGeminiSystemPrompt();
-        const conversationContext = this.conversationHistory.slice(-10).map((msg) => ({
-          role: msg.role === 'user' ? 'user' : 'model',
-          content: msg.content,
-        }));
+        
+        // Utiliser l'historique externe si fourni (depuis useChatAgent), sinon utiliser l'historique interne
+        // Limiter à 30 messages pour éviter de dépasser les limites de Gemini (~30K tokens)
+        let conversationContext: Array<{ role: string; content: string }>;
+        
+        if (externalHistory && externalHistory.length > 0) {
+          // Utiliser l'historique externe (source unique de vérité depuis useChatAgent)
+          conversationContext = externalHistory
+            .slice(-30) // Limiter à 30 messages pour conserver plus de contexte que .slice(-10)
+            .map((entry) => ({
+              role: entry.role === 'user' ? 'user' : 'model',
+              content: entry.content || '',
+            }));
+          logger.debug(`[ChatAgentService] Utilisation de l'historique externe: ${conversationContext.length} messages`);
+        } else {
+          // Fallback sur l'historique interne (limité à 30 messages au lieu de 10)
+          conversationContext = this.conversationHistory.slice(-30).map((msg) => ({
+            role: msg.role === 'user' ? 'user' : 'model',
+            content: msg.content,
+          }));
+          logger.debug(`[ChatAgentService] Utilisation de l'historique interne: ${conversationContext.length} messages`);
+        }
         
         // Appeler le backend Gemini
         const geminiResponse = await this.callBackendGemini(

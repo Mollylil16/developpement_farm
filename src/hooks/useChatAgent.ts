@@ -369,7 +369,20 @@ export function useChatAgent() {
           throw new Error('ChatAgentService non initialisé');
         }
 
-        const assistantMessage = await chatAgentServiceRef.current.sendMessage(trimmedContent);
+        // Convertir conversationHistoryRef en format compatible avec ChatAgentService
+        // conversationHistoryRef est au format ConversationHistoryEntry[] avec { role, parts: [{ text }] }
+        const historyForGemini = conversationHistoryRef.current
+          .slice(0, -1) // Exclure le message utilisateur actuel qui vient d'être ajouté (sera ajouté séparément)
+          .map((entry) => ({
+            role: entry.role,
+            content: entry.parts[0]?.text || '',
+          }));
+
+        // Passer l'historique directement à ChatAgentService pour garantir la synchronisation
+        const assistantMessage = await chatAgentServiceRef.current.sendMessage(
+          trimmedContent,
+          historyForGemini
+        );
         
         pushHistory('model', assistantMessage.content);
 
