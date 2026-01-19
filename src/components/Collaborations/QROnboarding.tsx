@@ -63,6 +63,7 @@ const SLIDES: Slide[] = [
 export default function QROnboarding({ visible, onClose }: QROnboardingProps) {
   const { colors } = useTheme();
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [modalWidth, setModalWidth] = useState(SCREEN_WIDTH * 0.9);
   const scrollViewRef = useRef<ScrollView>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
@@ -94,7 +95,7 @@ export default function QROnboarding({ visible, onClose }: QROnboardingProps) {
       const nextSlide = currentSlide + 1;
       setCurrentSlide(nextSlide);
       scrollViewRef.current?.scrollTo({
-        x: nextSlide * SCREEN_WIDTH,
+        x: nextSlide * modalWidth,
         animated: true,
       });
     } else {
@@ -107,7 +108,7 @@ export default function QROnboarding({ visible, onClose }: QROnboardingProps) {
       const prevSlide = currentSlide - 1;
       setCurrentSlide(prevSlide);
       scrollViewRef.current?.scrollTo({
-        x: prevSlide * SCREEN_WIDTH,
+        x: prevSlide * modalWidth,
         animated: true,
       });
     }
@@ -131,7 +132,7 @@ export default function QROnboarding({ visible, onClose }: QROnboardingProps) {
   };
 
   const handleScroll = (event: { nativeEvent: { contentOffset: { x: number } } }) => {
-    const slideIndex = Math.round(event.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+    const slideIndex = Math.round(event.nativeEvent.contentOffset.x / modalWidth);
     setCurrentSlide(slideIndex);
   };
 
@@ -158,7 +159,15 @@ export default function QROnboarding({ visible, onClose }: QROnboardingProps) {
           },
         ]}
       >
-        <View style={styles.modalContainer}>
+        <View 
+          style={styles.modalContainer}
+          onLayout={(event) => {
+            const { width } = event.nativeEvent.layout;
+            if (width > 0 && width !== modalWidth) {
+              setModalWidth(Math.min(width, 400)); // Respecter maxWidth
+            }
+          }}
+        >
           {/* Bouton fermer */}
           <TouchableOpacity
             style={[styles.closeButton, { backgroundColor: colors.surface }]}
@@ -181,7 +190,7 @@ export default function QROnboarding({ visible, onClose }: QROnboardingProps) {
             contentContainerStyle={styles.scrollContent}
           >
             {SLIDES.map((slide, index) => (
-              <View key={index} style={styles.slide}>
+              <View key={index} style={[styles.slide, { width: modalWidth }]}>
                 <LinearGradient
                   colors={slide.gradientColors}
                   start={{ x: 0, y: 0 }}
@@ -314,13 +323,13 @@ const styles = StyleSheet.create({
     }),
   },
   scrollView: {
-    flex: 1,
+    height: 400, // Hauteur fixe pour que le ScrollView ait une contrainte claire
   },
   scrollContent: {
-    width: SCREEN_WIDTH * 0.9 * SLIDES.length,
+    flexDirection: 'row',
   },
   slide: {
-    width: SCREEN_WIDTH * 0.9,
+    width: SCREEN_WIDTH * 0.9, // Sera recalculé via onLayout
     height: 400,
   },
   slideGradient: {

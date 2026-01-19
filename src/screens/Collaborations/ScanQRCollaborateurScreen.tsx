@@ -23,7 +23,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { CameraView, CameraType, BarcodeScanningResult } from 'expo-camera';
+import { CameraView, BarcodeScanningResult } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
@@ -376,7 +376,7 @@ export default function ScanQRCollaborateurScreen() {
       <View style={styles.cameraContainer}>
           <CameraView
             style={styles.camera}
-            facing={CameraType.back}
+            facing="back"
             onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
             barcodeScannerSettings={{
               barcodeTypes: ['qr'],
