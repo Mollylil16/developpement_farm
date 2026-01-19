@@ -25,6 +25,7 @@ import { AgentLearningsModule } from './agent-learnings/agent-learnings.module';
 import { KnowledgeBaseModule } from './knowledge-base/knowledge-base.module';
 import { ChatAgentModule } from './chat-agent/chat-agent.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { AgricoleModule } from './agricole/agricole.module';
 import { AppController } from './app.controller';
 import { JwtAuthGlobalGuard } from './common/guards/jwt-auth.global.guard';
 
@@ -70,6 +71,7 @@ import { JwtAuthGlobalGuard } from './common/guards/jwt-auth.global.guard';
     KnowledgeBaseModule,
     ChatAgentModule,
     NotificationsModule,
+    AgricoleModule,
   ],
   controllers: [AppController],
   providers: [
