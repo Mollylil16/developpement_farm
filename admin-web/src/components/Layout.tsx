@@ -11,12 +11,23 @@ import {
   X,
   Search,
   ChevronDown,
+  ChevronRight,
   Plus,
   MessageSquare,
   Bell,
   UserPlus,
   FileText,
   Settings,
+  ShieldCheck,
+  BarChart3,
+  Activity,
+  Baby,
+  UtensilsCrossed,
+  Syringe,
+  FileSearch,
+  TrendingUp,
+  Map,
+  Award,
 } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 
@@ -28,6 +39,19 @@ const navigation = [
   { name: 'Utilisateurs', href: '/users', icon: Users },
   { name: 'Projets', href: '/projects', icon: FolderOpen },
   { name: 'Communication', href: '/communication', icon: Mail },
+  { name: 'Validation', href: '/validation', icon: ShieldCheck },
+]
+
+const agricultureSubmenu = [
+  { name: 'Performances', href: '/data/performances', icon: BarChart3 },
+  { name: 'Santé', href: '/data/sante', icon: Activity },
+  { name: 'Reproduction', href: '/data/reproduction', icon: Baby },
+  { name: 'Nutrition', href: '/data/nutrition', icon: UtensilsCrossed },
+  { name: 'Vaccination', href: '/data/vaccination', icon: Syringe },
+  { name: 'Traçabilité', href: '/data/tracabilite', icon: FileSearch },
+  { name: 'Économie', href: '/data/economie', icon: TrendingUp },
+  { name: 'Cartographie', href: '/data/cartographie', icon: Map },
+  { name: 'Certifications', href: '/data/certifications', icon: Award },
 ]
 
 export default function Layout() {
@@ -39,9 +63,17 @@ export default function Layout() {
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
   const [showQuickActions, setShowQuickActions] = useState(false)
+  const [showAgricultureMenu, setShowAgricultureMenu] = useState(location.pathname.startsWith('/data/'))
   const searchRef = useRef<HTMLDivElement>(null)
   const notificationsRef = useRef<HTMLDivElement>(null)
   const actionsRef = useRef<HTMLDivElement>(null)
+
+  // Ouvrir automatiquement le menu Agriculture si on est sur une page /data/
+  useEffect(() => {
+    if (location.pathname.startsWith('/data/')) {
+      setShowAgricultureMenu(true)
+    }
+  }, [location.pathname])
 
   // Recherche globale
   const { data: searchResults, isLoading: searchLoading } = useQuery({
@@ -115,9 +147,11 @@ export default function Layout() {
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="flex items-center gap-3 h-20 px-6 border-b border-gray-100">
-            <div className="w-10 h-10 rounded-lg bg-teal-500 flex items-center justify-center">
-              <span className="text-white text-lg font-bold">FP</span>
-            </div>
+            <img 
+              src="/logo.jpeg" 
+              alt="FarmtrackPro Logo" 
+              className="w-10 h-10 rounded-lg object-cover"
+            />
             <div>
               <h1 className="text-lg font-semibold text-gray-900">FarmtrackPro</h1>
             </div>
@@ -139,7 +173,7 @@ export default function Layout() {
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
                 onFocus={() => searchQuery.length >= 2 && setShowSearchResults(true)}
-                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
               />
               <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                 <kbd className="px-1.5 py-0.5 text-xs font-semibold text-gray-500 bg-white border border-gray-200 rounded">⌘ K</kbd>
@@ -186,24 +220,72 @@ export default function Layout() {
                   to={item.href}
                   className={`flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-all ${
                     isActive
-                      ? 'bg-teal-50 text-teal-700'
+                      ? 'bg-brand-50 text-brand-600'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                   }`}
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  <item.icon className={`h-5 w-5 ${isActive ? 'text-teal-600' : 'text-gray-400'}`} />
+                  <item.icon className={`h-5 w-5 ${isActive ? 'text-brand-500' : 'text-gray-400'}`} />
                   <span>{item.name}</span>
                 </Link>
               )
             })}
+
+            {/* Ministère Agriculture - Menu déroulant */}
+            <div className="mt-2">
+              <button
+                onClick={() => setShowAgricultureMenu(!showAgricultureMenu)}
+                className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-all ${
+                  location.pathname.startsWith('/data/')
+                    ? 'bg-brand-50 text-brand-600'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <FileText className={`h-5 w-5 ${location.pathname.startsWith('/data/') ? 'text-brand-500' : 'text-gray-400'}`} />
+                  <span>Ministère Agriculture</span>
+                </div>
+                {showAgricultureMenu ? (
+                  <ChevronDown className="h-4 w-4 text-gray-400" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 text-gray-400" />
+                )}
+              </button>
+
+              {/* Sous-menu agricole */}
+              {showAgricultureMenu && (
+                <div className="ml-4 mt-1 space-y-1">
+                  {agricultureSubmenu.map((item) => {
+                    const isActive = location.pathname === item.href
+                    return (
+                      <Link
+                        key={item.name}
+                        to={item.href}
+                        className={`flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-all ${
+                          isActive
+                            ? 'bg-brand-50 text-brand-600 font-medium'
+                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                        }`}
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        <item.icon className={`h-4 w-4 ${isActive ? 'text-brand-500' : 'text-gray-400'}`} />
+                        <span>{item.name}</span>
+                      </Link>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </nav>
 
           {/* Workspace selector (bottom) */}
           <div className="p-4 border-t border-gray-100">
             <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center">
-                <span className="text-white text-xs font-bold">FP</span>
-              </div>
+              <img 
+                src="/logo.jpeg" 
+                alt="FarmtrackPro Logo" 
+                className="w-8 h-8 rounded-lg object-cover"
+              />
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium text-gray-900 truncate">FarmtrackPro Workspace</div>
               </div>
@@ -241,12 +323,24 @@ export default function Layout() {
                location.pathname === '/finance' ? 'Finance' :
                location.pathname === '/users' ? 'Utilisateurs' :
                location.pathname.startsWith('/users/') ? 'Détails utilisateur' :
-               location.pathname === '/projects' ? 'Projets' : 'Dashboard'}
+               location.pathname === '/projects' ? 'Projets' :
+               location.pathname === '/communication' ? 'Communication' :
+               location.pathname === '/validation' ? 'Validation Vétérinaires' :
+               location.pathname === '/data/performances' ? 'Performances Zootechniques' :
+               location.pathname === '/data/sante' ? 'Santé Animale' :
+               location.pathname === '/data/reproduction' ? 'Reproduction' :
+               location.pathname === '/data/nutrition' ? 'Nutrition' :
+               location.pathname === '/data/vaccination' ? 'Vaccination' :
+               location.pathname === '/data/tracabilite' ? 'Traçabilité' :
+               location.pathname === '/data/economie' ? 'Économie' :
+               location.pathname === '/data/cartographie' ? 'Cartographie' :
+               location.pathname === '/data/certifications' ? 'Certifications' :
+               'Dashboard'}
             </h1>
             <div className="flex items-center gap-3">
               {/* User avatars */}
               <div className="flex items-center -space-x-2">
-                <div className="w-8 h-8 rounded-full bg-teal-500 border-2 border-white flex items-center justify-center text-white text-xs font-semibold">
+                <div className="w-8 h-8 rounded-full bg-brand-500 border-2 border-white flex items-center justify-center text-white text-xs font-semibold">
                   {admin?.prenom?.[0]}
                 </div>
               </div>
