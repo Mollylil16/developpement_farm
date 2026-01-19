@@ -50,12 +50,12 @@ export class AgricoleService {
     const feedConversionResult = await this.db.query(`
       SELECT 
         COALESCE(
-          SUM(r.quantite_ration) / NULLIF(SUM(COALESCE((SELECT poids FROM production_pesees WHERE animal_id = pa.id ORDER BY date_pesee DESC LIMIT 1), pa.poids_initial) - COALESCE(pa.poids_initial, 0)), 0),
+          SUM(r.poids_kg) / NULLIF(SUM(COALESCE((SELECT poids FROM production_pesees WHERE animal_id = pa.id ORDER BY date_pesee DESC LIMIT 1), pa.poids_initial) - COALESCE(pa.poids_initial, 0)), 0),
           0
         ) as feed_conversion_ratio
       FROM rations r
       JOIN production_animaux pa ON r.projet_id = pa.projet_id
-      WHERE r.date_ration >= NOW() - INTERVAL '${interval}'
+      WHERE r.date_creation >= NOW() - INTERVAL '${interval}'
         AND pa.actif = TRUE
     `);
 
@@ -64,7 +64,7 @@ export class AgricoleService {
       SELECT 
         DATE_TRUNC('day', pa.date_naissance) as date,
         COUNT(*) as animal_count,
-        AVG(pa.poids_actuel) as avg_weight,
+        AVG(COALESCE((SELECT poids FROM production_pesees WHERE animal_id = pa.id ORDER BY date_pesee DESC LIMIT 1), pa.poids_initial, 0)) as avg_weight,
         AVG(EXTRACT(EPOCH FROM (NOW() - pa.date_naissance)) / 86400) as avg_age_days
       FROM production_animaux pa
       WHERE pa.actif = TRUE
@@ -153,14 +153,14 @@ export class AgricoleService {
     const incidents = await this.db.query(`
       SELECT 
         m.id,
-        m.date_mortalite as date,
+        m.date as date,
         m.cause as type,
         m.notes as description,
         p.nom as projet_nom
       FROM mortalites m
       LEFT JOIN projets p ON m.projet_id = p.id
-      WHERE m.date_mortalite >= NOW() - INTERVAL '${interval}'
-      ORDER BY m.date_mortalite DESC
+      WHERE m.date >= NOW() - INTERVAL '${interval}'
+      ORDER BY m.date DESC
       LIMIT 50
     `);
 
@@ -182,14 +182,14 @@ export class AgricoleService {
     const cadaversManagement = await this.db.query(`
       SELECT 
         m.id,
-        m.date_mortalite,
+        m.date as date_mortalite,
         m.cause,
         m.notes as disposal_method,
         p.nom as projet_nom
       FROM mortalites m
       LEFT JOIN projets p ON m.projet_id = p.id
-      WHERE m.date_mortalite >= NOW() - INTERVAL '${interval}'
-      ORDER BY m.date_mortalite DESC
+      WHERE m.date >= NOW() - INTERVAL '${interval}'
+      ORDER BY m.date DESC
       LIMIT 100
     `);
 
@@ -218,9 +218,9 @@ export class AgricoleService {
     const birthRateResult = await this.db.query(`
       SELECT 
         COUNT(DISTINCT g.id) as total_gestations,
-        COUNT(DISTINCT CASE WHEN g.date_mise_bas IS NOT NULL THEN g.id END) as successful_births
+        COUNT(DISTINCT CASE WHEN g.date_mise_bas_reelle IS NOT NULL THEN g.id END) as successful_births
       FROM gestations g
-      WHERE g.date_insemination >= NOW() - INTERVAL '1 year'
+      WHERE g.date_sautage >= NOW() - INTERVAL '1 year'
     `);
 
     const totalGestations = parseInt(birthRateResult.rows[0]?.total_gestations || '0');
@@ -251,16 +251,16 @@ export class AgricoleService {
     const feedComposition = await this.db.query(`
       SELECT 
         r.id,
-        r.date_ration,
-        r.quantite_ration,
+        r.date_creation as date_ration,
+        r.poids_kg as quantite_ration,
         COUNT(DISTINCT ir.ingredient_id) as ingredient_count,
         p.nom as projet_nom
       FROM rations r
       LEFT JOIN ingredients_ration ir ON r.id = ir.ration_id
       LEFT JOIN projets p ON r.projet_id = p.id
-      WHERE r.date_ration >= NOW() - INTERVAL '6 months'
-      GROUP BY r.id, r.date_ration, r.quantite_ration, p.nom
-      ORDER BY r.date_ration DESC
+      WHERE r.date_creation >= NOW() - INTERVAL '6 months'
+      GROUP BY r.id, r.date_creation, r.poids_kg, p.nom
+      ORDER BY r.date_creation DESC
       LIMIT 100
     `);
 
@@ -271,7 +271,7 @@ export class AgricoleService {
         i.provenance,
         i.fournisseur,
         COUNT(DISTINCT ir.ration_id) as usage_count,
-        SUM(ir.quantite_kg) as total_quantity_kg
+        SUM(ir.quantite) as total_quantity_kg
       FROM ingredients i
       LEFT JOIN ingredients_ration ir ON i.id = ir.ingredient_id
       WHERE ir.ration_id IS NOT NULL
@@ -288,7 +288,7 @@ export class AgricoleService {
         i.type as additive_type,
         i.provenance,
         COUNT(DISTINCT ir.ration_id) as usage_count,
-        SUM(ir.quantite_kg) as total_quantity_kg,
+        SUM(ir.quantite) as total_quantity_kg,
         COUNT(DISTINCT r.projet_id) as projects_using
       FROM ingredients i
       LEFT JOIN ingredients_ration ir ON i.id = ir.ingredient_id
@@ -379,10 +379,10 @@ export class AgricoleService {
         pa.projet_id,
         p.nom as projet_nom,
         pa.date_naissance,
-        pa.poids_actuel,
+        COALESCE((SELECT poids FROM production_pesees WHERE animal_id = pa.id ORDER BY date_pesee DESC LIMIT 1), pa.poids_initial, 0) as poids_actuel,
         pa.sexe,
-        pa.categorie,
-        COALESCE(pa.poids_naissance, 0) as birth_weight
+        pa.categorie_poids as categorie,
+        COALESCE(pa.poids_initial, 0) as birth_weight
       FROM production_animaux pa
       JOIN projets p ON pa.projet_id = p.id
       WHERE pa.actif = TRUE
@@ -445,7 +445,7 @@ export class AgricoleService {
         COALESCE(SUM(rv.montant), 0) as total_revenus
       FROM depenses_ponctuelles dp
       FULL OUTER JOIN revenus rv ON 1=1
-      WHERE dp.date_depense >= NOW() - INTERVAL '1 year'
+      WHERE dp.date >= NOW() - INTERVAL '1 year'
          OR rv.date_revenu >= NOW() - INTERVAL '1 year'
     `);
 
@@ -471,11 +471,11 @@ export class AgricoleService {
         COUNT(DISTINCT p.id) as farm_count,
         COUNT(DISTINCT pa.id) as animal_count,
         p.management_method,
-        COUNT(DISTINCT CASE WHEN pa.categorie = 'truie' THEN pa.id END) as truie_count,
-        COUNT(DISTINCT CASE WHEN pa.categorie = 'verrat' THEN pa.id END) as verrat_count,
-        COUNT(DISTINCT CASE WHEN pa.categorie = 'porcelet' THEN pa.id END) as porcelet_count,
-        COUNT(DISTINCT CASE WHEN pa.categorie = 'croissance' THEN pa.id END) as croissance_count,
-        COUNT(DISTINCT CASE WHEN pa.categorie = 'engraissement' THEN pa.id END) as engraissement_count
+        COUNT(DISTINCT CASE WHEN pa.sexe = 'femelle' AND pa.reproducteur = TRUE THEN pa.id END) as truie_count,
+        COUNT(DISTINCT CASE WHEN pa.sexe = 'male' AND pa.reproducteur = TRUE THEN pa.id END) as verrat_count,
+        COUNT(DISTINCT CASE WHEN pa.categorie_poids = 'porcelet' THEN pa.id END) as porcelet_count,
+        COUNT(DISTINCT CASE WHEN pa.categorie_poids = 'croissance' THEN pa.id END) as croissance_count,
+        COUNT(DISTINCT CASE WHEN pa.categorie_poids = 'finition' THEN pa.id END) as engraissement_count
       FROM projets p
       LEFT JOIN production_animaux pa ON p.id = pa.projet_id AND pa.actif = TRUE
       GROUP BY p.localisation, p.management_method
