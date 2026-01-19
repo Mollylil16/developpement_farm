@@ -40,10 +40,8 @@ export class ChatAgentController {
       throw new BadRequestException('message est requis');
     }
 
-    const projectId = body.projectId || body.projetId || req.user?.projetId;
-    if (!projectId) {
-      throw new BadRequestException('projectId est requis');
-    }
+    // projectId est optionnel - certains profils (buyer, veterinarian, technician) peuvent ne pas avoir de projet
+    const projectId = body.projectId || body.projetId || req.user?.projetId || null;
 
     return this.chatAgentService.handleFunctionCallingMessage(
       {
@@ -61,15 +59,18 @@ export class ChatAgentController {
   @ApiOperation({ summary: 'Streaming Server-Sent Events des réponses de Kouakou' })
   async streamChat(
     @Query('message') message: string,
-    @Query('projectId') projectId: string,
-    @Query('history') historyRaw: string | undefined,
+    @Query('projectId') projectId?: string,
+    @Query('history') historyRaw?: string,
     @Request() req: any,
     @Res() res: Response,
   ) {
-    if (!message || !projectId) {
-      res.status(400).json({ message: 'message et projectId sont requis' });
+    if (!message) {
+      res.status(400).json({ message: 'message est requis' });
       return;
     }
+
+    // projectId est optionnel - utiliser celui de l'utilisateur ou null
+    const effectiveProjectId = projectId || req.user?.projetId || null;
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -90,7 +91,7 @@ export class ChatAgentController {
       await this.chatAgentService.streamResponse(
         {
           message,
-          projectId,
+          projectId: effectiveProjectId,
           history: this.decodeHistory(historyRaw),
         },
         req.user,

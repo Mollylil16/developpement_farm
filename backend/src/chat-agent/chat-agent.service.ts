@@ -37,7 +37,7 @@ interface GeminiContent {
 interface ChatAgentFunctionRequest {
   message: string;
   history?: GeminiContent[];
-  projectId: string;
+  projectId: string | null; // Optionnel - certains profils n'ont pas de projet
   generationConfig?: Record<string, unknown>;
   conversationId?: string;
 }
@@ -1472,9 +1472,8 @@ export class ChatAgentService {
       throw new BadRequestException('message est requis');
     }
 
-    if (!request.projectId) {
-      throw new BadRequestException('projectId est requis');
-    }
+    // projectId est optionnel - certains profils (buyer, veterinarian, technician) peuvent ne pas avoir de projet
+    // Les fonctions qui nécessitent un projet vérifieront elles-mêmes
 
     if (!this.geminiApiKey) {
       throw new ServiceUnavailableException('GEMINI_API_KEY non configurée');
@@ -2106,18 +2105,25 @@ export class ChatAgentService {
   }
 
   private buildSystemInstruction(projectContext?: {
-    projectId: string;
+    projectId: string | null;
     projectName?: string;
     totalAnimals?: number;
     userId: string;
   }): string {
-    const contextInfo = projectContext
+    const contextInfo = projectContext && projectContext.projectId
       ? `
 **CONTEXTE DU PROJET :**
 - Projet : ${projectContext.projectName || 'Non spécifié'}
 - Nombre d'animaux : ${projectContext.totalAnimals || 0}
 - ID Projet : ${projectContext.projectId}
 - ID Utilisateur : ${projectContext.userId}
+`
+      : projectContext
+      ? `
+**CONTEXTE UTILISATEUR :**
+- Aucun projet actif (profil sans projet : buyer, veterinarian, ou technician)
+- ID Utilisateur : ${projectContext.userId}
+- ⚠️ Note: Certaines fonctions nécessitant un projet ne sont pas disponibles.
 `
       : '';
 
@@ -2249,7 +2255,7 @@ Maintenant, aide l'utilisateur avec sa demande.`;
   private async executeFunctionCall(
     name: string,
     args: Record<string, unknown>,
-    projectId: string,
+    projectId: string | null,
     userId: string,
   ): Promise<FunctionExecutionResult> {
     try {

@@ -693,9 +693,10 @@ Règles strictes pour la mémoire et le contexte :
 Comporte-toi de manière utile, proactive et engageante. Réponds en français si l'utilisateur s'exprime en français, et adapte-toi à son style. Si des recherches avancées sont nécessaires, propose-les explicitement mais en lien avec le contexte actuel.
 
 CONTEXTE ACTUEL:
-- Projet: ${context.projetId}
+- Projet: ${context.projetId || 'Aucun projet actif (profil sans projet)'}
 - Date: ${context.currentDate}
-- Utilisateur: ${context.userName || 'Éleveur'}
+- Utilisateur: ${context.userName || 'Utilisateur'}
+${context.projetId ? '' : '\n⚠️ Note: Tu es en mode conversationnel général. Certaines fonctions nécessitant un projet ne sont pas disponibles.'}
 
 RÈGLES CRITIQUES (par ordre de priorité):
 1. FORMAT: Réponds TOUJOURS en JSON valide avec cette structure:
