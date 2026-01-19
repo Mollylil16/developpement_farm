@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { adminApi } from '../../services/api'
 import { Syringe, AlertCircle } from 'lucide-react'
 
 export default function Vaccination() {

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { UtensilsCrossed, AlertCircle } from 'lucide-react'
+import { adminApi } from '../../services/api'
 
 export default function Nutrition() {
   const { data, isLoading, error } = useQuery({

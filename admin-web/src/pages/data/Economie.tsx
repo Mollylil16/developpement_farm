@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { adminApi } from '../../services/api'
 import { TrendingUp, AlertCircle } from 'lucide-react'
 
 export default function Economie() {

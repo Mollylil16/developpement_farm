@@ -220,6 +220,86 @@ export const adminApi = {
     const response = await api.put(`/admin/promotions/${id}/status`, { is_active: isActive })
     return response.data
   },
+
+  // ==================== VALIDATION VÉTÉRINAIRES ====================
+
+  getVeterinariansForValidation: async (params?: {
+    page?: number
+    limit?: number
+    status?: string
+    search?: string
+  }) => {
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.status) queryParams.append('status', params.status)
+    if (params?.search) queryParams.append('search', params.search)
+
+    const response = await api.get(`/admin/users/veterinarians?${queryParams.toString()}`)
+    return response.data
+  },
+
+  approveVeterinarian: async (userId: string, reason?: string) => {
+    const response = await api.post(`/admin/users/veterinarians/${userId}/approve`, { reason })
+    return response.data
+  },
+
+  rejectVeterinarian: async (userId: string, reason: string) => {
+    const response = await api.post(`/admin/users/veterinarians/${userId}/reject`, { reason })
+    return response.data
+  },
+
+  getVeterinarianDocuments: async (userId: string) => {
+    const response = await api.get(`/admin/users/veterinarians/${userId}/documents`)
+    return response.data
+  },
+
+  // ==================== DONNÉES AGRICOLES ====================
+
+  getPerformancesData: async (period: 'week' | 'month' | 'year' = 'month') => {
+    const response = await api.get(`/admin/agricole/performances?period=${period}`)
+    return response.data
+  },
+
+  getSanteData: async (period: 'week' | 'month' | 'year' = 'month') => {
+    const response = await api.get(`/admin/agricole/sante?period=${period}`)
+    return response.data
+  },
+
+  getReproductionData: async () => {
+    const response = await api.get('/admin/agricole/reproduction')
+    return response.data
+  },
+
+  getNutritionData: async () => {
+    const response = await api.get('/admin/agricole/nutrition')
+    return response.data
+  },
+
+  getVaccinationData: async () => {
+    const response = await api.get('/admin/agricole/vaccination')
+    return response.data
+  },
+
+  getTracabiliteData: async () => {
+    const response = await api.get('/admin/agricole/tracabilite')
+    return response.data
+  },
+
+  getEconomieData: async () => {
+    const response = await api.get('/admin/agricole/economie')
+    return response.data
+  },
+
+  getCartographieData: async () => {
+    const response = await api.get('/admin/agricole/cartographie')
+    return response.data
+  },
+
+  getCertificationsData: async () => {
+    const response = await api.get('/admin/agricole/certifications')
+    return response.data
+  },
 }
 
 export default api
