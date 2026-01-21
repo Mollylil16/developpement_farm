@@ -63,6 +63,10 @@ export default function CollaborationVetTechScreen() {
   } | null>(null);
   const [showInfo, setShowInfo] = useState(false);
 
+  // Déterminer le rôle actif : utiliser activeRole du contexte OU user.activeRole de Redux
+  // Cela permet de gérer les cas où le contexte n'est pas encore synchronisé
+  const currentActiveRole = activeRole || user?.activeRole;
+
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
@@ -72,31 +76,77 @@ export default function CollaborationVetTechScreen() {
   // Timer pour le countdown
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const expirationTimeRef = useRef<number>(0);
+  
+  // Refs pour éviter les appels API multiples
+  const loadQRCodeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isLoadQRCodeInProgressRef = useRef<boolean>(false);
+  const lastLoadedRoleRef = useRef<string | null>(null);
 
   // Vérifier que l'utilisateur a un profil vétérinaire ou technicien actif
   useEffect(() => {
-    if (activeRole !== 'veterinarian' && activeRole !== 'technician') {
-      Alert.alert(
-        'Accès refusé',
-        'Cet écran est réservé aux profils vétérinaire et technicien.',
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.goBack(),
-          },
-        ]
-      );
+    // Utiliser currentActiveRole qui combine activeRole du contexte et user.activeRole
+    if (currentActiveRole !== 'veterinarian' && currentActiveRole !== 'technician') {
+      // Ne pas afficher d'alerte immédiatement, attendre un peu pour laisser le temps au contexte de se synchroniser
+      const timer = setTimeout(() => {
+        // Vérifier à nouveau après un court délai
+        const finalRole = activeRole || user?.activeRole;
+        if (finalRole !== 'veterinarian' && finalRole !== 'technician') {
+          Alert.alert(
+            'Accès refusé',
+            'Cet écran est réservé aux profils vétérinaire et technicien.',
+            [
+              {
+                text: 'OK',
+                onPress: () => navigation.goBack(),
+              },
+            ]
+          );
+        }
+      }, 500); // Délai de 500ms pour laisser le temps au contexte de se synchroniser
+
+      return () => clearTimeout(timer);
     }
-  }, [activeRole, navigation]);
+  }, [activeRole, currentActiveRole, user?.activeRole, navigation]);
 
   /**
    * Charge le QR code depuis l'API (basé sur profileId)
    */
   const loadQRCode = useCallback(async (showLoading = true) => {
-    // Ne pas charger si l'écran n'est pas focus (visible) ou si le profil n'est pas valide
-    if (!isFocused || (activeRole !== 'veterinarian' && activeRole !== 'technician')) {
+    // Ne pas charger si l'écran n'est pas focus (visible)
+    if (!isFocused) {
       return;
     }
+
+    // Vérifier strictement que le rôle est vétérinaire ou technicien
+    // Utiliser currentActiveRole qui combine activeRole du contexte et user.activeRole
+    const roleToCheck = currentActiveRole || activeRole || user?.activeRole;
+    
+    if (roleToCheck !== 'veterinarian' && roleToCheck !== 'technician') {
+      // Si le rôle n'est toujours pas valide après un court délai, définir l'erreur
+      // Sinon, attendre un peu pour laisser le temps au contexte de se synchroniser
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      
+      // Vérifier à nouveau après le délai
+      const finalRole = activeRole || user?.activeRole;
+      if (finalRole !== 'veterinarian' && finalRole !== 'technician') {
+        setError('Cet écran est réservé aux profils vétérinaire et technicien.');
+        setLoading(false);
+        setRegenerating(false);
+        isLoadQRCodeInProgressRef.current = false;
+        return;
+      }
+    }
+
+    // Vérifier si un appel est déjà en cours pour le même rôle
+    const currentRole = roleToCheck || activeRole || user?.activeRole;
+    if (isLoadQRCodeInProgressRef.current && lastLoadedRoleRef.current === currentRole) {
+      console.log('[CollaborationVetTechScreen] Appel QR code déjà en cours pour ce rôle, ignoré');
+      return;
+    }
+
+    // Marquer qu'un appel est en cours
+    isLoadQRCodeInProgressRef.current = true;
+    lastLoadedRoleRef.current = currentRole;
 
     try {
       if (showLoading) {
@@ -134,18 +184,26 @@ export default function CollaborationVetTechScreen() {
       setError(errorMessage);
 
       const errorStatus = (err as { response?: { status?: number } })?.response?.status;
+      
+      // Ne pas afficher d'alerte pour les erreurs 403 (accès refusé) - c'est attendu si le profil n'est pas valide
+      // Ne pas afficher d'alerte pour les erreurs 401 (non authentifié) - gérées ailleurs
+      // Afficher une alerte uniquement pour les autres erreurs et si l'écran est visible
       if (isFocused && errorStatus !== 401 && errorStatus !== 403) {
         Alert.alert(
           'Erreur de chargement',
           errorMessage || 'Impossible de charger votre QR code. Veuillez réessayer plus tard.',
           [{ text: 'OK' }]
         );
+      } else if (errorStatus === 403) {
+        // Pour les erreurs 403, définir un message d'erreur explicite
+        setError('Seuls les profils vétérinaire et technicien peuvent générer un QR code de profil.');
       }
     } finally {
       setLoading(false);
       setRegenerating(false);
+      isLoadQRCodeInProgressRef.current = false;
     }
-  }, [isFocused, activeRole]);
+  }, [isFocused, activeRole, currentActiveRole, user?.activeRole]);
 
   /**
    * Démarre le countdown timer
@@ -300,29 +358,59 @@ export default function CollaborationVetTechScreen() {
    * Obtient le nom du profil
    */
   const getProfileTypeLabel = useCallback((): string => {
-    if (activeRole === 'veterinarian') return 'Vétérinaire';
-    if (activeRole === 'technician') return 'Technicien';
+    const roleToCheck = currentActiveRole || activeRole || user?.activeRole;
+    if (roleToCheck === 'veterinarian') return 'Vétérinaire';
+    if (roleToCheck === 'technician') return 'Technicien';
     return 'Profil';
-  }, [activeRole]);
+  }, [activeRole, currentActiveRole, user?.activeRole]);
 
   // Charger le QR code quand l'écran est focus ou que le profil actif change
+  // Utiliser uniquement user?.activeRole comme dépendance principale (source de vérité)
+  // pour éviter les déclenchements multiples lors du switchRole
   useEffect(() => {
-    if (!isFocused || (activeRole !== 'veterinarian' && activeRole !== 'technician')) return;
+    // Annuler tout timeout précédent
+    if (loadQRCodeTimeoutRef.current) {
+      clearTimeout(loadQRCodeTimeoutRef.current);
+      loadQRCodeTimeoutRef.current = null;
+    }
+
+    // Utiliser user?.activeRole comme source de vérité (vient de Redux après sync backend)
+    const roleToCheck = user?.activeRole || activeRole;
+    if (!isFocused || (roleToCheck !== 'veterinarian' && roleToCheck !== 'technician')) {
+      // Réinitialiser les refs si l'écran n'est plus focus ou le rôle n'est pas valide
+      isLoadQRCodeInProgressRef.current = false;
+      lastLoadedRoleRef.current = null;
+      return;
+    }
 
     let isMounted = true;
 
-    const loadData = async () => {
-      if (isMounted && isFocused) {
-        await loadQRCode(true);
+    // Utiliser un debounce pour éviter les appels multiples lors de changements rapides
+    // Délai augmenté à 800ms pour laisser le temps au backend de synchroniser
+    loadQRCodeTimeoutRef.current = setTimeout(async () => {
+      // Vérifier à nouveau que l'écran est toujours focus et le rôle est toujours valide
+      if (!isMounted || !isFocused) {
+        return;
       }
-    };
 
-    loadData();
+      // Utiliser user?.activeRole comme source de vérité finale
+      const finalRole = user?.activeRole || activeRole;
+      if (finalRole === 'veterinarian' || finalRole === 'technician') {
+        // Vérifier si on a déjà chargé pour ce rôle
+        if (lastLoadedRoleRef.current !== finalRole) {
+          await loadQRCode(true);
+        }
+      }
+    }, 800); // Délai de 800ms pour debounce et synchronisation
 
     return () => {
       isMounted = false;
+      if (loadQRCodeTimeoutRef.current) {
+        clearTimeout(loadQRCodeTimeoutRef.current);
+        loadQRCodeTimeoutRef.current = null;
+      }
     };
-  }, [isFocused, activeRole, loadQRCode]);
+  }, [isFocused, user?.activeRole, activeRole, loadQRCode]); // Dépendances simplifiées
 
   // Animation d'entrée
   useEffect(() => {
@@ -420,14 +508,18 @@ export default function CollaborationVetTechScreen() {
                 <View style={styles.qrCodePlaceholder}>
                   <Ionicons name="alert-circle" size={48} color={colors.error} />
                   <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
-                  <TouchableOpacity
-                    style={[styles.retryButton, { backgroundColor: colors.primary }]}
-                    onPress={() => loadQRCode(true)}
-                  >
-                    <Text style={[styles.retryButtonText, { color: colors.textOnPrimary }]}>
-                      Réessayer
-                    </Text>
-                  </TouchableOpacity>
+                  {/* Ne pas afficher le bouton "Réessayer" pour les erreurs d'accès (403) */}
+                  {!error.includes('Seuls les profils vétérinaire et technicien') &&
+                    !error.includes('réservé aux profils') && (
+                      <TouchableOpacity
+                        style={[styles.retryButton, { backgroundColor: colors.primary }]}
+                        onPress={() => loadQRCode(true)}
+                      >
+                        <Text style={[styles.retryButtonText, { color: colors.textOnPrimary }]}>
+                          Réessayer
+                        </Text>
+                      </TouchableOpacity>
+                    )}
                 </View>
               ) : qrCodeData ? (
                 <View style={styles.qrCodeWrapper}>

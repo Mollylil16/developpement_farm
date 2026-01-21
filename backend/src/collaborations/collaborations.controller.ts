@@ -335,7 +335,6 @@ export class CollaborationsController {
   @ApiResponse({ status: 200, description: 'Liste des invitations en attente.' })
   async findInvitationsEnAttente(
     @CurrentUser('id') userId: string,
-    @CurrentUser('activeRole') activeRole: string | undefined,
     @Query('email') email?: string,
     @Query('telephone') telephone?: string,
     @Req() req?: ExpressRequest
@@ -343,6 +342,13 @@ export class CollaborationsController {
     try {
       const ipAddress = req?.ip || req?.connection?.remoteAddress;
       const userAgent = req?.get('user-agent');
+      
+      // Récupérer active_role depuis la base de données (pas du JWT qui ne le contient pas)
+      const userResult = await this.databaseService.query(
+        `SELECT active_role FROM users WHERE id = $1`,
+        [userId]
+      );
+      const activeRole = userResult.rows[0]?.active_role;
       const profileId = activeRole && activeRole !== 'producer' ? `profile_${userId}_${activeRole}` : undefined;
 
       return await this.collaborationsService.findInvitationsEnAttente(
@@ -727,17 +733,11 @@ export class CollaborationsController {
   })
   async generateProfileQRCode(
     @CurrentUser('id') userId: string,
-    @CurrentUser('activeRole') activeRole: string | undefined,
     @Query('expiry') expiry?: string
   ) {
-    // Vérifier que l'utilisateur a un profil vétérinaire ou technicien actif
-    if (!activeRole || (activeRole !== 'veterinarian' && activeRole !== 'technician')) {
-      throw new UnauthorizedException(
-        'Seuls les profils vétérinaire et technicien peuvent générer un QR code de profil'
-      );
-    }
-
-    // Récupérer les informations de l'utilisateur pour vérifier le profil
+    // Récupérer les informations de l'utilisateur depuis la base de données
+    // NOTE: On n'utilise PAS @CurrentUser('activeRole') car le JWT ne contient pas cette info
+    // La source de vérité est active_role dans la base de données
     const userResult = await this.databaseService.query(
       `SELECT id, nom, prenom, roles, active_role FROM users WHERE id = $1`,
       [userId]
@@ -748,11 +748,14 @@ export class CollaborationsController {
     }
 
     const user = userResult.rows[0];
-    const roles = user.roles ? JSON.parse(user.roles) : {};
+    const activeRole = user.active_role; // Utiliser active_role de la DB, pas du JWT
+    const roles = typeof user.roles === 'string' ? JSON.parse(user.roles) : (user.roles || {});
     
-    // Vérifier que le profil actif est bien vétérinaire ou technicien
-    if (user.active_role !== activeRole) {
-      throw new BadRequestException('Le profil actif ne correspond pas au rôle demandé');
+    // Vérifier que l'utilisateur a un profil vétérinaire ou technicien actif
+    if (!activeRole || (activeRole !== 'veterinarian' && activeRole !== 'technician')) {
+      throw new UnauthorizedException(
+        `Seuls les profils vétérinaire et technicien peuvent générer un QR code de profil. Votre profil actif est: ${activeRole || 'non défini'}`
+      );
     }
 
     // Générer le profileId unique : profile_${userId}_${activeRole}
