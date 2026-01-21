@@ -82,31 +82,10 @@ export default function CollaborationVetTechScreen() {
   const isLoadQRCodeInProgressRef = useRef<boolean>(false);
   const lastLoadedRoleRef = useRef<string | null>(null);
 
-  // Vérifier que l'utilisateur a un profil vétérinaire ou technicien actif
-  useEffect(() => {
-    // Utiliser currentActiveRole qui combine activeRole du contexte et user.activeRole
-    if (currentActiveRole !== 'veterinarian' && currentActiveRole !== 'technician') {
-      // Ne pas afficher d'alerte immédiatement, attendre un peu pour laisser le temps au contexte de se synchroniser
-      const timer = setTimeout(() => {
-        // Vérifier à nouveau après un court délai
-        const finalRole = activeRole || user?.activeRole;
-        if (finalRole !== 'veterinarian' && finalRole !== 'technician') {
-          Alert.alert(
-            'Accès refusé',
-            'Cet écran est réservé aux profils vétérinaire et technicien.',
-            [
-              {
-                text: 'OK',
-                onPress: () => navigation.goBack(),
-              },
-            ]
-          );
-        }
-      }, 500); // Délai de 500ms pour laisser le temps au contexte de se synchroniser
-
-      return () => clearTimeout(timer);
-    }
-  }, [activeRole, currentActiveRole, user?.activeRole, navigation]);
+  // NOTE: Cet écran est un onglet de navigation (tab navigator)
+  // On ne peut pas faire goBack() car il n'y a pas d'écran précédent
+  // Si le profil n'est pas vétérinaire/technicien, on affiche simplement un message d'erreur sur l'écran
+  // La vérification du rôle est déjà faite dans loadQRCode() qui définit l'erreur appropriée
 
   /**
    * Charge le QR code depuis l'API (basé sur profileId)
