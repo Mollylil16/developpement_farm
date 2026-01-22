@@ -3481,6 +3481,7 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
     this.logger.log(`[getBuyerInquiries] Recherche offres pour buyerId: ${buyerId}`);
 
     // NOTE: Les offres sont stockées dans marketplace_offers (pas marketplace_inquiries)
+    // ✅ IMPORTANT: Récupérer o.subject_ids pour savoir quels sujets SPÉCIFIQUES ont été sélectionnés
     const offersResult = await this.databaseService.query(
       `SELECT
         o.id,
@@ -3495,13 +3496,14 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
         o.expires_at,
         o.counter_offer_of,
         o.date_recuperation_souhaitee,
+        o.subject_ids as offer_subject_ids,
         TO_CHAR(o.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as created_at_iso,
         TO_CHAR(o.responded_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as responded_at_iso,
         o.created_at,
         o.responded_at,
         l.calculated_price as listing_price,
         l.listing_type,
-        l.pig_count,
+        l.pig_count as listing_pig_count,
         l.subject_id,
         l.pig_ids,
         u.nom as seller_nom,
@@ -3521,52 +3523,64 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       this.logger.debug('[getBuyerInquiries] Première offre brute:', {
         id: offersResult.rows[0].id,
         proposed_price: offersResult.rows[0].proposed_price,
-        pig_count: offersResult.rows[0].pig_count,
+        offer_subject_ids: offersResult.rows[0].offer_subject_ids,
         created_at: offersResult.rows[0].created_at,
         status: offersResult.rows[0].status,
         seller_nom: offersResult.rows[0].seller_nom,
       });
     }
 
-    return offersResult.rows.map((row: any) => ({
-      id: row.id,
-      listingId: row.listing_id,
-      buyerId: row.buyer_id,
-      sellerId: row.seller_id,
-      inquiryType: 'offer', // Les offres marketplace sont toujours de type 'offer'
-      offeredAmount: row.proposed_price ? parseFloat(row.proposed_price) : null,
-      proposedPrice: row.proposed_price ? parseFloat(row.proposed_price) : null,
-      originalPrice: row.original_price ? parseFloat(row.original_price) : null,
-      message: row.message,
-      status: row.status,
-      termsAccepted: row.terms_accepted,
-      expiresAt: row.expires_at,
-      counterOfferOf: row.counter_offer_of,
-      dateRecuperationSouhaitee: row.date_recuperation_souhaitee,
-      createdAt: row.created_at_iso || row.created_at,
-      respondedAt: row.responded_at_iso || row.responded_at,
-      // Propriétés aplaties pour compatibilité frontend
-      listing_price: row.listing_price ? parseFloat(row.listing_price) : null,
-      listing_type: row.listing_type,
-      pig_count: row.pig_count,
-      subject_id: row.subject_id,
-      pig_ids: row.pig_ids,
-      seller_nom: row.seller_nom,
-      seller_prenom: row.seller_prenom,
-      seller_telephone: row.seller_telephone,
-      // Objets nested aussi gardés pour compatibilité future
-      listing: {
-        id: row.listing_id,
-        price: row.listing_price ? parseFloat(row.listing_price) : null,
-        listingType: row.listing_type,
-      },
-      seller: {
-        id: row.seller_id,
-        nom: row.seller_nom,
-        prenom: row.seller_prenom,
-        telephone: row.seller_telephone,
-      },
-    }));
+    return offersResult.rows.map((row: any) => {
+      // ✅ Calculer le nombre réel de sujets dans l'offre
+      const offerSubjectIds = Array.isArray(row.offer_subject_ids) 
+        ? row.offer_subject_ids 
+        : (row.offer_subject_ids ? JSON.parse(row.offer_subject_ids) : []);
+      const offerPigCount = offerSubjectIds.length || 1;
+      
+      return {
+        id: row.id,
+        listingId: row.listing_id,
+        buyerId: row.buyer_id,
+        sellerId: row.seller_id,
+        inquiryType: 'offer', // Les offres marketplace sont toujours de type 'offer'
+        offeredAmount: row.proposed_price ? parseFloat(row.proposed_price) : null,
+        proposedPrice: row.proposed_price ? parseFloat(row.proposed_price) : null,
+        originalPrice: row.original_price ? parseFloat(row.original_price) : null,
+        message: row.message,
+        status: row.status,
+        termsAccepted: row.terms_accepted,
+        expiresAt: row.expires_at,
+        counterOfferOf: row.counter_offer_of,
+        dateRecuperationSouhaitee: row.date_recuperation_souhaitee,
+        createdAt: row.created_at_iso || row.created_at,
+        respondedAt: row.responded_at_iso || row.responded_at,
+        // ✅ CORRECTION: Utiliser les subjectIds de l'OFFRE (pas du listing)
+        subjectIds: offerSubjectIds,
+        pig_count: offerPigCount, // Nombre de sujets dans l'offre
+        // Propriétés aplaties pour compatibilité frontend
+        listing_price: row.listing_price ? parseFloat(row.listing_price) : null,
+        listing_type: row.listing_type,
+        listing_pig_count: row.listing_pig_count, // Nombre total de sujets dans le listing
+        subject_id: row.subject_id,
+        pig_ids: row.pig_ids,
+        seller_nom: row.seller_nom,
+        seller_prenom: row.seller_prenom,
+        seller_telephone: row.seller_telephone,
+        // Objets nested aussi gardés pour compatibilité future
+        listing: {
+          id: row.listing_id,
+          price: row.listing_price ? parseFloat(row.listing_price) : null,
+          listingType: row.listing_type,
+          pigCount: row.listing_pig_count,
+        },
+        seller: {
+          id: row.seller_id,
+          nom: row.seller_nom,
+          prenom: row.seller_prenom,
+          telephone: row.seller_telephone,
+        },
+      };
+    });
   }
 
   /**
@@ -3577,6 +3591,7 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       this.logger.log(`[getSellerInquiries] Recherche offres reçues pour vendeur ${sellerId}`);
 
       // NOTE: Les offres sont stockées dans marketplace_offers (pas marketplace_inquiries)
+      // ✅ IMPORTANT: Récupérer o.subject_ids pour savoir quels sujets SPÉCIFIQUES ont été sélectionnés par l'acheteur
       const offersResult = await this.databaseService.query(
         `SELECT
           o.id,
@@ -3591,13 +3606,14 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
           o.expires_at,
           o.counter_offer_of,
           o.date_recuperation_souhaitee,
+          o.subject_ids as offer_subject_ids,
           TO_CHAR(o.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as created_at_iso,
           TO_CHAR(o.responded_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as responded_at_iso,
           o.created_at,
           o.responded_at,
           l.calculated_price as listing_price,
           l.listing_type,
-          l.pig_count,
+          l.pig_count as listing_pig_count,
           l.subject_id,
           l.pig_ids,
           u.nom as buyer_nom,
@@ -3623,47 +3639,59 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
         return isNaN(parsed) ? null : parsed;
       };
 
-      const result = offersResult.rows.map((row: any) => ({
-        id: row.id,
-        listingId: row.listing_id,
-        buyerId: row.buyer_id,
-        sellerId: row.seller_id,
-        inquiryType: 'offer', // Les offres marketplace sont toujours de type 'offer'
-        offeredAmount: safeParseFloat(row.proposed_price),
-        proposedPrice: safeParseFloat(row.proposed_price),
-        originalPrice: safeParseFloat(row.original_price),
-        message: row.message,
-        status: row.status,
-        termsAccepted: row.terms_accepted,
-        expiresAt: row.expires_at,
-        counterOfferOf: row.counter_offer_of,
-        dateRecuperationSouhaitee: row.date_recuperation_souhaitee,
-        createdAt: row.created_at_iso || row.created_at,
-        respondedAt: row.responded_at_iso || row.responded_at,
-        // Propriétés aplaties pour compatibilité frontend
-        listing_price: safeParseFloat(row.listing_price),
-        listing_type: row.listing_type,
-        pig_count: row.pig_count,
-        subject_id: row.subject_id,
-        pig_ids: row.pig_ids,
-        buyer_nom: row.buyer_nom,
-        buyer_prenom: row.buyer_prenom,
-        buyer_telephone: row.buyer_telephone,
-        buyer_email: row.buyer_email,
-        // Objets nested aussi gardés pour compatibilité future
-        listing: {
-          id: row.listing_id,
-          price: safeParseFloat(row.listing_price),
-          listingType: row.listing_type,
-        },
-        buyer: {
-          id: row.buyer_id,
-          nom: row.buyer_nom,
-          prenom: row.buyer_prenom,
-          telephone: row.buyer_telephone,
-          email: row.buyer_email,
-        },
-      }));
+      const result = offersResult.rows.map((row: any) => {
+        // ✅ Calculer le nombre réel de sujets dans l'offre
+        const offerSubjectIds = Array.isArray(row.offer_subject_ids) 
+          ? row.offer_subject_ids 
+          : (row.offer_subject_ids ? JSON.parse(row.offer_subject_ids) : []);
+        const offerPigCount = offerSubjectIds.length || 1;
+        
+        return {
+          id: row.id,
+          listingId: row.listing_id,
+          buyerId: row.buyer_id,
+          sellerId: row.seller_id,
+          inquiryType: 'offer', // Les offres marketplace sont toujours de type 'offer'
+          offeredAmount: safeParseFloat(row.proposed_price),
+          proposedPrice: safeParseFloat(row.proposed_price),
+          originalPrice: safeParseFloat(row.original_price),
+          message: row.message,
+          status: row.status,
+          termsAccepted: row.terms_accepted,
+          expiresAt: row.expires_at,
+          counterOfferOf: row.counter_offer_of,
+          dateRecuperationSouhaitee: row.date_recuperation_souhaitee,
+          createdAt: row.created_at_iso || row.created_at,
+          respondedAt: row.responded_at_iso || row.responded_at,
+          // ✅ CORRECTION: Utiliser les subjectIds de l'OFFRE (pas du listing)
+          subjectIds: offerSubjectIds,
+          pig_count: offerPigCount, // Nombre de sujets dans l'offre
+          // Propriétés aplaties pour compatibilité frontend
+          listing_price: safeParseFloat(row.listing_price),
+          listing_type: row.listing_type,
+          listing_pig_count: row.listing_pig_count, // Nombre total de sujets dans le listing
+          subject_id: row.subject_id,
+          pig_ids: row.pig_ids,
+          buyer_nom: row.buyer_nom,
+          buyer_prenom: row.buyer_prenom,
+          buyer_telephone: row.buyer_telephone,
+          buyer_email: row.buyer_email,
+          // Objets nested aussi gardés pour compatibilité future
+          listing: {
+            id: row.listing_id,
+            price: safeParseFloat(row.listing_price),
+            listingType: row.listing_type,
+            pigCount: row.listing_pig_count, // Nombre total dans le listing
+          },
+          buyer: {
+            id: row.buyer_id,
+            nom: row.buyer_nom,
+            prenom: row.buyer_prenom,
+            telephone: row.buyer_telephone,
+            email: row.buyer_email,
+          },
+        };
+      });
 
       this.logger.log(`[getSellerInquiries] ${result.length} offres formatées pour vendeur ${sellerId}`);
       return result;
