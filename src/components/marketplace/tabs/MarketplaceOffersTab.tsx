@@ -12,6 +12,8 @@ import {
   TouchableOpacity,
   Alert,
   StyleSheet,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,7 +21,7 @@ import { formatSafeDate } from '../../../utils/dateUtils';
 import { useAppSelector, useAppDispatch } from '../../../store/hooks';
 import apiClient from '../../../services/api/apiClient';
 import marketplaceService from '../../../services/MarketplaceService';
-import { acceptOffer, rejectOffer } from '../../../store/slices/marketplaceSlice';
+import { acceptOffer, rejectOffer, counterOffer } from '../../../store/slices/marketplaceSlice';
 import { MarketplaceTheme } from '../../../styles/marketplace.theme';
 import EmptyState from '../../EmptyState';
 import type { Offer } from '../../../types/marketplace';
@@ -42,6 +44,13 @@ function MarketplaceOffersTab({
   const { user } = useAppSelector((state) => state.auth ?? { user: null });
   const dispatch = useAppDispatch();
   const [offersTab, setOffersTab] = useState<'received' | 'sent'>('received');
+  
+  // États pour la contre-proposition
+  const [counterModalVisible, setCounterModalVisible] = useState(false);
+  const [selectedOfferForCounter, setSelectedOfferForCounter] = useState<Offer | null>(null);
+  const [counterPrice, setCounterPrice] = useState('');
+  const [counterMessage, setCounterMessage] = useState('');
+  const [isSubmittingCounter, setIsSubmittingCounter] = useState(false);
 
   // Logs sécurisés (aucune donnée sensible)
   React.useEffect(() => {
@@ -121,6 +130,48 @@ function MarketplaceOffersTab({
         },
       },
     ]);
+  };
+
+  // Ouvrir le modal de contre-proposition
+  const handleCounterOffer = (offer: Offer) => {
+    setSelectedOfferForCounter(offer);
+    const currentPrice = offer.offeredAmount || offer.proposedPrice || 0;
+    setCounterPrice(currentPrice.toString());
+    setCounterMessage('');
+    setCounterModalVisible(true);
+  };
+
+  // Soumettre la contre-proposition
+  const submitCounterOffer = async () => {
+    if (!selectedOfferForCounter || !user?.id) return;
+    
+    const newPrice = parseFloat(counterPrice);
+    if (isNaN(newPrice) || newPrice <= 0) {
+      Alert.alert('Erreur', 'Veuillez entrer un prix valide');
+      return;
+    }
+
+    setIsSubmittingCounter(true);
+    try {
+      await dispatch(counterOffer({
+        offerId: selectedOfferForCounter.id,
+        producerId: user.id,
+        nouveauPrixTotal: newPrice,
+        message: counterMessage.trim() || undefined,
+      })).unwrap();
+      
+      Alert.alert(
+        'Succès', 
+        `Contre-proposition de ${newPrice.toLocaleString('fr-FR')} FCFA envoyée à l'acheteur`
+      );
+      setCounterModalVisible(false);
+      setSelectedOfferForCounter(null);
+      onRefresh();
+    } catch (error) {
+      Alert.alert('Erreur', getErrorMessage(error) || 'Impossible d\'envoyer la contre-proposition');
+    } finally {
+      setIsSubmittingCounter(false);
+    }
   };
 
   const currentOffers = offersTab === 'received' ? receivedOffers : sentOffers;
@@ -251,12 +302,10 @@ function MarketplaceOffersTab({
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: marketplaceColors.primary }]}
-              onPress={() => {
-                Alert.alert('Chat', "Ouvrir le chat avec l'acheteur");
-              }}
+              onPress={() => handleCounterOffer(item)}
             >
               <Text style={[styles.actionText, { color: marketplaceColors.textInverse }]}>
-                💬 Chat
+                💰 Contre-proposition
               </Text>
             </TouchableOpacity>
           </View>
@@ -401,6 +450,89 @@ function MarketplaceOffersTab({
         ListFooterComponent={<View style={{ height: 20 }} />} // ✅ Espace supplémentaire en bas
         showsVerticalScrollIndicator={true}
       />
+
+      {/* Modal de contre-proposition */}
+      <Modal
+        visible={counterModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setCounterModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: marketplaceColors.surface }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: marketplaceColors.text }]}>
+                💰 Contre-proposition
+              </Text>
+              <TouchableOpacity onPress={() => setCounterModalVisible(false)}>
+                <Ionicons name="close" size={24} color={marketplaceColors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {selectedOfferForCounter && (
+              <View style={styles.modalBody}>
+                <Text style={[styles.modalLabel, { color: marketplaceColors.textSecondary }]}>
+                  Offre actuelle: {(selectedOfferForCounter.offeredAmount || selectedOfferForCounter.proposedPrice || 0).toLocaleString('fr-FR')} FCFA
+                </Text>
+                
+                <Text style={[styles.inputLabel, { color: marketplaceColors.text }]}>
+                  Votre prix proposé (FCFA)
+                </Text>
+                <TextInput
+                  style={[styles.modalInput, { 
+                    backgroundColor: marketplaceColors.background,
+                    color: marketplaceColors.text,
+                    borderColor: marketplaceColors.border
+                  }]}
+                  value={counterPrice}
+                  onChangeText={setCounterPrice}
+                  keyboardType="numeric"
+                  placeholder="Ex: 150000"
+                  placeholderTextColor={marketplaceColors.textSecondary}
+                />
+
+                <Text style={[styles.inputLabel, { color: marketplaceColors.text }]}>
+                  Message (optionnel)
+                </Text>
+                <TextInput
+                  style={[styles.modalInput, styles.messageInput, { 
+                    backgroundColor: marketplaceColors.background,
+                    color: marketplaceColors.text,
+                    borderColor: marketplaceColors.border
+                  }]}
+                  value={counterMessage}
+                  onChangeText={setCounterMessage}
+                  placeholder="Expliquez votre proposition..."
+                  placeholderTextColor={marketplaceColors.textSecondary}
+                  multiline
+                  numberOfLines={3}
+                />
+
+                <View style={styles.modalActions}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, { backgroundColor: marketplaceColors.border }]}
+                    onPress={() => setCounterModalVisible(false)}
+                    disabled={isSubmittingCounter}
+                  >
+                    <Text style={[styles.modalButtonText, { color: marketplaceColors.text }]}>
+                      Annuler
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalButton, { backgroundColor: marketplaceColors.primary }]}
+                    onPress={submitCounterOffer}
+                    disabled={isSubmittingCounter}
+                  >
+                    <Text style={[styles.modalButtonText, { color: marketplaceColors.textInverse }]}>
+                      {isSubmittingCounter ? 'Envoi...' : 'Envoyer'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -526,6 +658,67 @@ const styles = StyleSheet.create({
   },
   actionText: {
     fontSize: 14,
+    fontWeight: '600',
+  },
+  // Styles pour le modal de contre-proposition
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 12,
+    padding: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  modalBody: {
+    gap: 12,
+  },
+  modalLabel: {
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+  },
+  messageInput: {
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    fontSize: 16,
     fontWeight: '600',
   },
 });
