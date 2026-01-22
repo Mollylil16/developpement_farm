@@ -129,18 +129,22 @@ describe('BatchPigsService', () => {
 
       const userId = 'owner_123';
 
-      // transferPig fait plusieurs vérifications :
-      // 1. checkBatchOwnership pour from_batch_id
-      // 2. checkBatchOwnership pour to_batch_id
-      // 3. Vérification existence porc
-      // 4. UPDATE porc
-      // 5. INSERT mouvement
+      // transferPig fait :
+      // 1. SELECT porc
+      // 2. checkBatchOwnership from_batch
+      // 3. checkBatchOwnership to_batch
+      // 4. SELECT to_batch
+      // 5. UPDATE porc
+      // 6. INSERT mouvement
+      // 7. SELECT porc mis à jour
       databaseService.query
+        .mockResolvedValueOnce({ rows: [mockPig] }) // SELECT porc
         .mockResolvedValueOnce({ rows: [{ id: 'batch_123' }] }) // checkBatchOwnership from_batch
         .mockResolvedValueOnce({ rows: [{ id: 'batch_456' }] }) // checkBatchOwnership to_batch
-        .mockResolvedValueOnce({ rows: [mockPig] }) // Vérification existence porc
-        .mockResolvedValueOnce({ rows: [{ ...mockPig, batch_id: 'batch_456' }] }) // UPDATE porc
-        .mockResolvedValueOnce({ rows: [{ id: 'mov_123' }] }); // INSERT mouvement
+        .mockResolvedValueOnce({ rows: [{ id: 'batch_456' }] }) // SELECT to_batch
+        .mockResolvedValueOnce({ rowCount: 1 }) // UPDATE porc
+        .mockResolvedValueOnce({ rowCount: 1 }) // INSERT mouvement
+        .mockResolvedValueOnce({ rows: [{ ...mockPig, batch_id: 'batch_456' }] }); // SELECT porc mis à jour
 
       // Act
       const result = await service.transferPig(transferDto, userId);
@@ -160,17 +164,15 @@ describe('BatchPigsService', () => {
 
       const userId = 'owner_123';
 
-      databaseService.query
-        .mockResolvedValueOnce({ rows: [{ id: 'batch_123' }] }) // checkBatchOwnership from_batch
-        .mockResolvedValueOnce({ rows: [{ id: 'batch_456' }] }) // checkBatchOwnership to_batch
-        .mockResolvedValueOnce({ rows: [] }); // Porc inexistant
+      // transferPig commence par SELECT porc
+      databaseService.query.mockResolvedValueOnce({ rows: [] }); // Porc inexistant
 
       // Act & Assert
       try {
         await service.transferPig(transferDto, userId);
         expect(true).toBe(false);
       } catch (error) {
-        expect(error).toBeInstanceOf(BadRequestException);
+        expect(error).toBeInstanceOf(NotFoundException);
       }
     });
   });
@@ -222,16 +224,20 @@ describe('BatchPigsService', () => {
       const batchId = 'batch_123';
       const userId = 'owner_123';
 
-      // checkBatchOwnership puis calculs stats
+      // getBatchStats fait :
+      // 1. checkBatchOwnership
+      // 2. getPigsByBatch (qui fait checkBatchOwnership + SELECT porcs)
       databaseService.query
-        .mockResolvedValueOnce({ rows: [{ id: 'batch_123' }] }) // checkBatchOwnership
-        .mockResolvedValueOnce({ rows: [{ count: '10', avg_weight: '30.5' }] }); // Stats
+        .mockResolvedValueOnce({ rows: [{ id: 'batch_123' }] }) // checkBatchOwnership (dans getBatchStats)
+        .mockResolvedValueOnce({ rows: [{ id: 'batch_123' }] }) // checkBatchOwnership (dans getPigsByBatch)
+        .mockResolvedValueOnce({ rows: [mockPig] }); // SELECT porcs (dans getPigsByBatch)
 
       // Act
       const result = await service.getBatchStats(batchId, userId);
 
       // Assert
       expect(result).toBeDefined();
+      expect(result.total).toBe(1);
     });
   });
 
@@ -241,10 +247,14 @@ describe('BatchPigsService', () => {
       const batchId = 'batch_123';
       const userId = 'owner_123';
 
-      // checkBatchOwnership puis DELETE
+      // deleteBatch fait :
+      // 1. checkBatchOwnership
+      // 2. SELECT COUNT porcs
+      // 3. DELETE batch
       databaseService.query
         .mockResolvedValueOnce({ rows: [{ id: 'batch_123' }] }) // checkBatchOwnership
-        .mockResolvedValueOnce({ rowCount: 1 }); // DELETE
+        .mockResolvedValueOnce({ rows: [{ count: '0' }] }) // SELECT COUNT (bande vide)
+        .mockResolvedValueOnce({ rows: [{ id: 'batch_123' }] }); // DELETE batch
 
       // Act
       await service.deleteBatch(batchId, userId);
