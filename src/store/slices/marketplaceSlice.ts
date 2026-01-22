@@ -334,12 +334,15 @@ export const counterOffer = createAsyncThunk(
 
 /**
  * Rejeter une offre
+ * - Producteur peut rejeter une offre 'pending'
+ * - Acheteur peut rejeter une contre-proposition 'countered' en passant role='buyer'
  */
 export const rejectOffer = createAsyncThunk(
   'marketplace/rejectOffer',
-  async (data: { offerId: string; producerId: string }, { rejectWithValue }) => {
+  async (data: { offerId: string; producerId: string; role?: 'producer' | 'buyer' }, { rejectWithValue }) => {
     try {
-      await apiClient.patch(`/marketplace/offers/${data.offerId}/reject`);
+      const role = data.role || 'producer';
+      await apiClient.patch(`/marketplace/offers/${data.offerId}/reject?role=${role}`);
 
       return data.offerId;
     } catch (error: unknown) {

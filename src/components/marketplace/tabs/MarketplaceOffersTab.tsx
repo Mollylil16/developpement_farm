@@ -138,12 +138,37 @@ function MarketplaceOffersTab({
     }
   };
 
-  const handleRejectOffer = async (offerId: string) => {
+  const handleRejectOffer = async (offerId: string, role: 'producer' | 'buyer' = 'producer') => {
     try {
       if (!user?.id) return;
-      await dispatch(rejectOffer({ offerId, producerId: user.id })).unwrap();
-      Alert.alert('Succès', 'Offre refusée');
-      onRefresh();
+      
+      const confirmMessage = role === 'buyer' 
+        ? 'Voulez-vous refuser cette contre-proposition ?'
+        : 'Voulez-vous refuser cette offre ?';
+      
+      Alert.alert(
+        'Confirmer le refus',
+        confirmMessage,
+        [
+          { text: 'Annuler', style: 'cancel' },
+          {
+            text: 'Refuser',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await dispatch(rejectOffer({ offerId, producerId: user.id, role })).unwrap();
+                Alert.alert(
+                  'Succès', 
+                  role === 'buyer' ? 'Contre-proposition refusée' : 'Offre refusée'
+                );
+                onRefresh();
+              } catch (err) {
+                Alert.alert('Erreur', getErrorMessage(err));
+              }
+            },
+          },
+        ]
+      );
     } catch (error) {
       Alert.alert('Erreur', getErrorMessage(error));
     }
@@ -364,7 +389,7 @@ function MarketplaceOffersTab({
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: marketplaceColors.error }]}
-              onPress={() => handleRejectOffer(item.id)}
+              onPress={() => handleRejectOffer(item.id, 'buyer')}
             >
               <Text style={[styles.actionText, { color: marketplaceColors.textInverse }]}>
                 ❌ Refuser

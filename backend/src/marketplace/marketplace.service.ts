@@ -1279,6 +1279,22 @@ export class MarketplaceService {
       [createOfferDto.listingId]
     );
 
+    // ✅ Notifier le producteur de la nouvelle offre
+    try {
+      const offerSubjectCount = createOfferDto.subjectIds?.length || 1;
+      await this.notificationsService.createNotification({
+        userId: listing.producerId,
+        type: NotificationType.NEW_OFFER,
+        title: 'Nouvelle offre reçue',
+        message: `Vous avez reçu une offre de ${createOfferDto.proposedPrice.toLocaleString('fr-FR')} FCFA pour ${offerSubjectCount} sujet(s)`,
+        relatedType: 'offer',
+        relatedId: id,
+      });
+      this.logger.log(`[createOffer] Notification envoyée au producteur ${listing.producerId} pour offre ${id}`);
+    } catch (error) {
+      this.logger.warn(`[createOffer] Erreur notification au producteur: ${error.message}`);
+    }
+
     return this.mapRowToOffer(result.rows[0]);
   }
 
@@ -1440,6 +1456,37 @@ export class MarketplaceService {
         ]
       );
 
+      // ✅ Rejeter automatiquement les autres offres pending sur ce listing (si vente totale)
+      if (!isPartialSale) {
+        const rejectedOffersResult = await client.query(
+          `UPDATE marketplace_offers 
+           SET status = 'rejected', responded_at = $1, derniere_modification = $1
+           WHERE listing_id = $2 AND id != $3 AND status IN ('pending', 'countered')
+           RETURNING id, buyer_id`,
+          [now, offerData.listing_id, offerId]
+        );
+
+        // Notifier les autres acheteurs que leurs offres ont été automatiquement rejetées
+        for (const rejectedOffer of rejectedOffersResult.rows) {
+          try {
+            await this.notificationsService.createNotification({
+              userId: rejectedOffer.buyer_id,
+              type: NotificationType.OFFER_REJECTED,
+              title: 'Offre non retenue',
+              message: 'Votre offre n\'a pas été retenue car une autre offre a été acceptée sur cette annonce',
+              relatedType: 'offer',
+              relatedId: rejectedOffer.id,
+            });
+          } catch (e) {
+            this.logger.warn(`[acceptOffer] Erreur notification offre rejetée ${rejectedOffer.id}: ${e.message}`);
+          }
+        }
+
+        if (rejectedOffersResult.rows.length > 0) {
+          this.logger.log(`[acceptOffer] ${rejectedOffersResult.rows.length} autre(s) offre(s) automatiquement rejetée(s)`);
+        }
+      }
+
       // Notifier l'autre partie
       const notifyUserId = role === 'producer' ? offerData.buyer_id : offerData.producer_id;
       try {
@@ -1468,7 +1515,12 @@ export class MarketplaceService {
     });
   }
 
-  async rejectOffer(offerId: string, producerId: string) {
+  /**
+   * Rejeter une offre
+   * - Producteur peut rejeter une offre 'pending'
+   * - Acheteur peut rejeter une contre-proposition 'countered'
+   */
+  async rejectOffer(offerId: string, userId: string, role: 'producer' | 'buyer' = 'producer') {
     const offer = await this.databaseService.query(
       'SELECT * FROM marketplace_offers WHERE id = $1',
       [offerId]
@@ -1478,15 +1530,52 @@ export class MarketplaceService {
       throw new NotFoundException('Offre introuvable');
     }
 
-    if (offer.rows[0].producer_id !== producerId) {
-      throw new ForbiddenException("Vous n'êtes pas autorisé à rejeter cette offre");
+    const offerData = offer.rows[0];
+
+    // Validation selon le rôle
+    if (role === 'producer') {
+      // Producteur peut rejeter une offre pending
+      if (offerData.producer_id !== userId) {
+        throw new ForbiddenException("Vous n'êtes pas autorisé à rejeter cette offre");
+      }
+      if (offerData.status !== 'pending') {
+        throw new BadRequestException('Cette offre ne peut plus être rejetée (statut: ' + offerData.status + ')');
+      }
+    } else if (role === 'buyer') {
+      // Acheteur peut rejeter une contre-proposition
+      if (offerData.buyer_id !== userId) {
+        throw new ForbiddenException("Vous n'êtes pas autorisé à rejeter cette offre");
+      }
+      if (offerData.status !== 'countered') {
+        throw new BadRequestException('Vous ne pouvez rejeter que les contre-propositions reçues');
+      }
     }
+
+    const now = new Date().toISOString();
 
     await this.databaseService.query(
       'UPDATE marketplace_offers SET status = $1, responded_at = $2, derniere_modification = $2 WHERE id = $3',
-      ['rejected', new Date().toISOString(), offerId]
+      ['rejected', now, offerId]
     );
 
+    // Notifier l'autre partie
+    const notifyUserId = role === 'producer' ? offerData.buyer_id : offerData.producer_id;
+    try {
+      await this.notificationsService.createNotification({
+        userId: notifyUserId,
+        type: NotificationType.OFFER_REJECTED,
+        title: role === 'producer' ? 'Offre refusée' : 'Contre-proposition refusée',
+        message: role === 'producer' 
+          ? 'Le producteur a refusé votre offre'
+          : 'L\'acheteur a refusé votre contre-proposition',
+        relatedType: 'offer',
+        relatedId: offerId,
+      });
+    } catch (error) {
+      this.logger.warn(`[rejectOffer] Erreur notification: ${error.message}`);
+    }
+
+    this.logger.log(`[rejectOffer] Offre ${offerId} rejetée par ${role} ${userId}`);
     return { id: offerId };
   }
 

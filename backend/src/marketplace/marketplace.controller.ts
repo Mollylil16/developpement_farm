@@ -403,11 +403,28 @@ export class MarketplaceController {
   }
 
   @Patch('offers/:id/reject')
-  @ApiOperation({ summary: 'Rejeter une offre' })
+  @ApiOperation({ 
+    summary: 'Rejeter une offre',
+    description: `
+      - Producteur peut rejeter une offre 'pending'
+      - Acheteur peut rejeter une contre-proposition 'countered' en passant role=buyer
+    `
+  })
+  @ApiQuery({
+    name: 'role',
+    required: false,
+    enum: ['producer', 'buyer'],
+    description: "Rôle de l'utilisateur (défaut: producer). Utiliser 'buyer' pour rejeter une contre-proposition.",
+  })
   @ApiResponse({ status: 200, description: 'Offre rejetée avec succès.' })
   @ApiResponse({ status: 404, description: 'Offre introuvable.' })
-  async rejectOffer(@Param('id') id: string, @CurrentUser('id') userId: string) {
-    return this.marketplaceService.rejectOffer(id, userId);
+  @ApiResponse({ status: 400, description: 'Offre ne peut plus être rejetée.' })
+  async rejectOffer(
+    @Param('id') id: string, 
+    @CurrentUser('id') userId: string,
+    @Query('role') role: 'producer' | 'buyer' = 'producer'
+  ) {
+    return this.marketplaceService.rejectOffer(id, userId, role);
   }
 
   // ========================================
