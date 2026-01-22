@@ -131,7 +131,7 @@ export class ChatAgentService {
     {
       name: 'create_revenue',
       description:
-        'Crée un revenu (vente, subvention, prestation). Utilise cette fonction pour enregistrer tout encaissement.',
+        'Crée un revenu (vente, subvention, prestation). Utilise cette fonction pour enregistrer tout encaissement SAUF les ventes de porcs (utilise create_pig_sale pour les ventes de porcs).',
       parameters: {
         type: 'object',
         properties: {
@@ -141,7 +141,7 @@ export class ChatAgentService {
           },
           source: {
             type: 'string',
-            description: 'Origine du revenu (ex: vente de porcs, subvention, location, fumier, etc.)',
+            description: 'Origine du revenu (ex: subvention, location, fumier, etc.) - PAS pour les ventes de porcs',
           },
           description: {
             type: 'string',
@@ -153,6 +153,52 @@ export class ChatAgentService {
           },
         },
         required: ['amount', 'source', 'description'],
+      },
+    },
+    {
+      name: 'create_pig_sale',
+      description:
+        'Enregistre une vente de porcs avec mise à jour automatique du cheptel. Utilise cette fonction UNIQUEMENT pour les ventes de porcs. ' +
+        'IMPORTANT : Garde en mémoire les informations de la conversation précédente (montant, nombre de porcs, date, etc.) et ne demande que les informations manquantes. ' +
+        'Ne demande JAMAIS l\'ID du client ou l\'ID du listing marketplace - ces informations ne sont pas nécessaires pour une vente directe.',
+      parameters: {
+        type: 'object',
+        properties: {
+          montant: {
+            type: 'number',
+            description: 'Montant total de la vente en FCFA (OBLIGATOIRE)',
+          },
+          quantite: {
+            type: 'number',
+            description: 'Nombre de porcs vendus (OBLIGATOIRE)',
+          },
+          date: {
+            type: 'string',
+            description: 'Date de la vente au format ISO (YYYY-MM-DD). Si non fournie, utilise la date d\'aujourd\'hui.',
+          },
+          batch_id: {
+            type: 'string',
+            description: 'ID de la loge/bande de provenance (OBLIGATOIRE si le projet est en mode batch/bande, sinon ne pas fournir)',
+          },
+          animal_ids: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'IDs des animaux vendus (OBLIGATOIRE si le projet est en mode individuel, sinon ne pas fournir)',
+          },
+          poids_kg: {
+            type: 'number',
+            description: 'Poids total en kg (optionnel, sera calculé automatiquement si non fourni)',
+          },
+          description: {
+            type: 'string',
+            description: 'Description optionnelle (nom de l\'acheteur, remarques, etc.)',
+          },
+          commentaire: {
+            type: 'string',
+            description: 'Commentaire optionnel',
+          },
+        },
+        required: ['montant', 'quantite'],
       },
     },
     {
@@ -2269,13 +2315,34 @@ ${roleSpecificSection}
 - Remerciements : "De rien, je suis là pour vous aider !"
 - Clarifications : Si tu ne comprends pas, demande des précisions
 
+## 5. MÉMOIRE DE CONVERSATION (CRITIQUE)
+
+**TU DOIS TOUJOURS GARDER EN MÉMOIRE les informations de la conversation précédente :**
+- Si l'utilisateur a déjà mentionné un montant, un nombre de porcs, une date, etc., TU DOIS t'en souvenir
+- Ne redemande JAMAIS une information déjà fournie dans la conversation
+- Pour les ventes de porcs, utilise la fonction \`create_pig_sale\` et ne demande QUE les informations manquantes
+- **IMPORTANT** : Pour une vente directe de porcs, tu n'as PAS besoin de l'ID du client ou de l'ID du listing marketplace
+- Les seules informations nécessaires sont :
+  - **Montant** (en FCFA) - OBLIGATOIRE
+  - **Nombre de porcs vendus** (quantite) - OBLIGATOIRE
+  - **Date de la vente** - Optionnel (utilise aujourd'hui si non fournie)
+  - **ID de la loge/bande** (batch_id) - OBLIGATOIRE si le projet est en mode batch
+  - **IDs des animaux** (animal_ids) - OBLIGATOIRE si le projet est en mode individuel
+
+**Exemple de conversation avec mémoire :**
+User: "Enregistre une vente de 4 porcs pour 264000"
+Assistant: "Parfait ! Pour enregistrer cette vente, j'ai besoin de la date (ou j'utiliserai aujourd'hui) et de la loge de provenance si tu es en mode batch."
+User: "Date: 2026-01-22, loge: LOGE-001"
+Assistant: [Appel create_pig_sale avec montant=264000, quantite=4, date="2026-01-22", batch_id="LOGE-001"] ✅ Vente enregistrée !
+
 # RÈGLES IMPORTANTES
 
 1. **PRIORITÉ À LA RECHERCHE WEB** : En cas de doute, CHERCHE EN LIGNE
 2. **TOUJOURS extraire les paramètres** : Ne demande pas si l'info est dans le message
-3. **SOIS PRÉCIS** : Donne des montants, dates, noms exacts
-4. **ADAPTE-TOI AU CONTEXTE** : Utilise les infos du projet
-5. **RESTE PROFESSIONNEL** : Tu es un expert en élevage
+3. **GARDE EN MÉMOIRE** : Ne redemande JAMAIS une information déjà fournie dans la conversation
+4. **SOIS PRÉCIS** : Donne des montants, dates, noms exacts
+5. **ADAPTE-TOI AU CONTEXTE** : Utilise les infos du projet
+6. **RESTE PROFESSIONNEL** : Tu es un expert en élevage
 
 # FORMAT DE RÉPONSE
 
@@ -2379,6 +2446,8 @@ Maintenant, aide l'utilisateur avec sa demande.`;
           return await this.handleGetVentes(args, projectId, userId);
         case 'analyze_ventes':
           return await this.handleAnalyzeVentes(args, projectId, userId);
+        case 'create_pig_sale':
+          return await this.handleCreatePigSale(args, projectId, userId);
         case 'get_dettes_en_cours':
           return await this.handleGetDettesEnCours(args, projectId, userId);
         case 'describe_graph_trends':
@@ -2603,6 +2672,90 @@ Maintenant, aide l'utilisateur avec sa demande.`;
       message: `Revenu de ${amount.toLocaleString('fr-FR')} FCFA enregistré`,
       data: revenu,
     };
+  }
+
+  private async handleCreatePigSale(
+    args: Record<string, unknown>,
+    projectId: string | null,
+    userId: string,
+  ): Promise<FunctionExecutionResult> {
+    if (!projectId) {
+      return {
+        success: false,
+        message: 'Un projet est requis pour enregistrer une vente de porcs',
+        error: 'projectId requis',
+      };
+    }
+
+    const montant = this.normalizeAmount(args.montant);
+    if (montant === null || montant <= 0) {
+      return {
+        success: false,
+        message: 'Montant invalide pour la vente de porcs',
+        error: 'montant invalide',
+      };
+    }
+
+    const quantite = typeof args.quantite === 'number' ? Math.floor(args.quantite) : null;
+    if (quantite === null || quantite <= 0) {
+      return {
+        success: false,
+        message: 'Quantité invalide pour la vente de porcs',
+        error: 'quantite invalide',
+      };
+    }
+
+    const date = this.normalizeDateInput(args.date);
+    const description =
+      typeof args.description === 'string' && args.description.trim()
+        ? args.description.trim()
+        : undefined;
+    const commentaire =
+      typeof args.commentaire === 'string' && args.commentaire.trim()
+        ? args.commentaire.trim()
+        : undefined;
+    const poids_kg =
+      typeof args.poids_kg === 'number' && args.poids_kg > 0 ? args.poids_kg : undefined;
+
+    // Construire le DTO pour createVentePorc
+    // Le service createVentePorc gère déjà la récupération du management_method
+    // et la validation selon le mode (individual/batch)
+    try {
+      const dto: Record<string, unknown> = {
+        projet_id: projectId,
+        montant,
+        date,
+        quantite,
+        poids_kg,
+        description,
+        commentaire,
+      };
+
+      // Ajouter batch_id si fourni (mode batch)
+      if (typeof args.batch_id === 'string' && args.batch_id.trim().length > 0) {
+        dto.batch_id = args.batch_id.trim();
+      }
+
+      // Ajouter animal_ids si fourni (mode individuel)
+      if (Array.isArray(args.animal_ids) && args.animal_ids.length > 0) {
+        dto.animal_ids = args.animal_ids.filter((id) => typeof id === 'string' && id.trim().length > 0);
+      }
+
+      const vente = await this.financeService.createVentePorc(dto as any, userId);
+
+      return {
+        success: true,
+        message: `Vente de ${quantite} porc(s) pour ${montant.toLocaleString('fr-FR')} FCFA enregistrée avec succès`,
+        data: vente,
+      };
+    } catch (error) {
+      this.logger.error('Erreur handleCreatePigSale', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Erreur lors de l\'enregistrement de la vente',
+        error: error instanceof Error ? error.message : 'Erreur inconnue',
+      };
+    }
   }
 
   private async handleGetTransactions(
