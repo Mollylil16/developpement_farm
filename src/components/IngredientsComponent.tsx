@@ -437,10 +437,10 @@ export default function IngredientsComponent() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Liste des ingrédients */}
-      <FlatList
-        data={filteredIngredients}
-        renderItem={renderIngredientCard}
-        keyExtractor={(item) => item.id}
+        <FlatList
+          data={filteredIngredients}
+          renderItem={renderIngredientCard}
+          keyExtractor={(item) => item.id}
         ListHeaderComponent={renderHeader}
         ListFooterComponent={renderFooter}
         ListEmptyComponent={renderEmpty}
@@ -448,16 +448,16 @@ export default function IngredientsComponent() {
           styles.listContainer,
           filteredIngredients.length === 0 && styles.listContainerEmpty
         ]}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[colors.primary]}
-            tintColor={colors.primary}
-          />
-        }
-      />
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          }
+        />
 
       {/* Modal Ajout/Modification Ingrédient */}
       <IngredientFormModal

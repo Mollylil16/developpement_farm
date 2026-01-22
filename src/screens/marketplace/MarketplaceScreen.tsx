@@ -231,15 +231,15 @@ function MarketplaceScreen() {
       
       // Log sécurisé (aucune donnée sensible)
       if (__DEV__) {
-        console.log('[MarketplaceScreen] Listings reçus:', {
-          count: allListings.length,
-          total: response.total,
+      console.log('[MarketplaceScreen] Listings reçus:', {
+        count: allListings.length,
+        total: response.total,
           listingsCount: allListings.length,
           statuses: allListings.reduce((acc, l) => {
             acc[l.status] = (acc[l.status] || 0) + 1;
             return acc;
           }, {} as Record<string, number>),
-        });
+      });
       }
 
       // Filtrer pour ne garder que les listings actifs (available ou reserved)

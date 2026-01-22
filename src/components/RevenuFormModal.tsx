@@ -433,7 +433,7 @@ export default function RevenuFormModal({
 
             if (isModeBatch) {
               venteData.batch_id = selectedBatchId;
-              venteData.quantite_vendue = parseInt(batchQuantite);
+              venteData.quantite = parseInt(batchQuantite); // Correction: le DTO attend "quantite", pas "quantite_vendue"
             } else {
               venteData.animal_ids = selectedAnimalIds;
             }

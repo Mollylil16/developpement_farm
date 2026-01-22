@@ -70,12 +70,41 @@ Le pop-up "Information" bloque le processus d'achat au lieu de permettre la cont
    - Si certains IDs échouent → problème spécifique à certains listings
    - Si le backend retourne des listings mais sans sujets → problème de récupération des sujets
 
+## 🐛 Problème critique identifié et corrigé
+
+### Problème SQL avec `pig_ids` JSONB
+
+**Localisation** : `backend/src/marketplace/marketplace.service.ts` ligne 965-966
+
+**Problème** : La requête SQL utilisait `WHERE a.id = ANY($1)` avec `listing.pig_ids` directement, mais `pig_ids` est un JSONB array dans la base de données. PostgreSQL ne peut pas utiliser directement un JSONB avec l'opérateur `ANY()` sur un array PostgreSQL.
+
+**Correction appliquée** :
+- Conversion correcte de `pig_ids` JSONB en array PostgreSQL `varchar[]`
+- Gestion de tous les cas : array JavaScript, string JSON, ou JSONB
+- Utilisation de `ANY($1::varchar[])` avec le bon type
+- Logs d'avertissement si aucun `pigId` valide n'est trouvé
+
+**Impact** : Cette correction devrait résoudre les cas où les listings batch ne retournent pas de sujets, ce qui causait le tableau vide.
+
+### Problème SQL critique #2 : Table incorrecte pour les listings batch
+
+**Localisation** : `backend/src/marketplace/marketplace.service.ts` ligne 986-1005
+
+**Problème** : La requête SQL cherchait les animaux des listings batch dans `production_animaux`, mais pour les listings batch, les animaux sont stockés dans `batch_pigs`, pas dans `production_animaux`.
+
+**Correction appliquée** :
+- Changement de la requête SQL pour chercher dans `batch_pigs` au lieu de `production_animaux`
+- Adaptation des colonnes : `batch_pigs` a une structure différente (`name` au lieu de `code`, `current_weight_kg` au lieu de `poids_initial`, `photo_url` au lieu de `photo_uri`, etc.)
+- Utilisation des colonnes correctes : `sex`, `birth_date`, `last_weighing_date`, `current_weight_kg`
+
+**Impact** : Cette correction devrait résoudre le problème principal : les listings batch retourneront maintenant les sujets correctement depuis `batch_pigs`.
+
 ## 📝 Fichiers modifiés
 
 1. `src/services/MarketplaceService.ts` - Logs de diagnostic ajoutés
 2. `src/screens/marketplace/MarketplaceScreen.tsx` - Logs de diagnostic et validation améliorée
 3. `src/components/marketplace/FarmDetailsModal.tsx` - Validation de `originalListingId`
-4. `backend/src/marketplace/marketplace.service.ts` - Logs de diagnostic détaillés
+4. `backend/src/marketplace/marketplace.service.ts` - **Logs de diagnostic détaillés + Correction SQL critique pour pig_ids JSONB**
 
 ## 🎯 Résultat attendu
 

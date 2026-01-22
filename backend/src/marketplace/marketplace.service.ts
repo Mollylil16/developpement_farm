@@ -892,6 +892,7 @@ export class MarketplaceService {
         this.logger.warn(`[getListingSubjects] L'ID ${listingId} correspond à un animal (pigId), pas à un listing. Vérifier que originalListingId est utilisé.`);
       }
       
+      // Lancer NotFoundException après la vérification pigId
       throw new NotFoundException(`Listing non trouvé pour l'ID: ${listingId}`);
     }
 
@@ -941,47 +942,94 @@ export class MarketplaceService {
           date: row.derniere_pesee_date,
         } : null,
       }));
-    } else if (listing.listing_type === 'batch' && listing.pig_ids && listing.pig_ids.length > 0) {
+    } else if (listing.listing_type === 'batch' && listing.pig_ids) {
       // Listing batch : plusieurs animaux
-      const animalsResult = await this.databaseService.query(
-        `SELECT 
-          a.id, a.code, a.nom, a.race, a.sexe, a.date_naissance, 
-          a.poids_initial, a.categorie_poids, a.statut, a.photo_uri,
-          (
-            SELECT poids_kg 
-            FROM production_pesees 
-            WHERE animal_id = a.id 
-            ORDER BY date DESC 
-            LIMIT 1
-          ) as derniere_pesee_poids,
-          (
-            SELECT date 
-            FROM production_pesees 
-            WHERE animal_id = a.id 
-            ORDER BY date DESC 
-            LIMIT 1
-          ) as derniere_pesee_date
-        FROM production_animaux a
-        WHERE a.id = ANY($1)`,
-        [listing.pig_ids]
-      );
+      // ✅ Log de diagnostic : voir ce que contient pig_ids
+      this.logger.debug(`[getListingSubjects] Listing batch - pig_ids type: ${typeof listing.pig_ids}, isArray: ${Array.isArray(listing.pig_ids)}, value: ${JSON.stringify(listing.pig_ids)}`);
+      
+      // ✅ Convertir pig_ids JSONB en array PostgreSQL pour la requête ANY()
+      // pig_ids peut être un JSONB array ou déjà un array JavaScript selon le driver
+      let pigIdsArray: string[];
+      if (Array.isArray(listing.pig_ids)) {
+        pigIdsArray = listing.pig_ids;
+        this.logger.debug(`[getListingSubjects] pig_ids est déjà un array JavaScript: ${pigIdsArray.length} éléments`);
+      } else if (typeof listing.pig_ids === 'string') {
+        try {
+          pigIdsArray = JSON.parse(listing.pig_ids);
+          this.logger.debug(`[getListingSubjects] pig_ids était une string JSON, parsée en array: ${pigIdsArray.length} éléments`);
+        } catch (error) {
+          this.logger.warn(`[getListingSubjects] Erreur parsing pig_ids JSON pour listing ${listingId}:`, error);
+          pigIdsArray = [];
+        }
+      } else {
+        // Si c'est un JSONB, extraire les valeurs avec jsonb_array_elements_text
+        // On va utiliser une requête qui convertit le JSONB en array
+        this.logger.debug(`[getListingSubjects] pig_ids est un JSONB, conversion nécessaire`);
+        const pigIdsResult = await this.databaseService.query(
+          `SELECT ARRAY(SELECT jsonb_array_elements_text($1::jsonb))::varchar[] as pig_ids_array`,
+          [JSON.stringify(listing.pig_ids)]
+        );
+        pigIdsArray = pigIdsResult.rows[0]?.pig_ids_array || [];
+        this.logger.debug(`[getListingSubjects] pig_ids JSONB converti en array: ${pigIdsArray.length} éléments`);
+      }
 
-      subjects = animalsResult.rows.map((row: any) => ({
-        id: row.id,
-        code: row.code,
-        nom: row.nom,
-        race: row.race,
-        sexe: row.sexe,
-        date_naissance: row.date_naissance,
-        poids_initial: row.poids_initial ? parseFloat(row.poids_initial) : null,
-        categorie_poids: row.categorie_poids,
-        statut: row.statut,
-        photo_uri: row.photo_uri,
-        derniere_pesee: row.derniere_pesee_poids ? {
-          poids_kg: parseFloat(row.derniere_pesee_poids),
-          date: row.derniere_pesee_date,
-        } : null,
-      }));
+      // ✅ Log de diagnostic : voir les pigIds extraits
+      this.logger.debug(`[getListingSubjects] pigIdsArray final: ${JSON.stringify(pigIdsArray)}`);
+
+      if (pigIdsArray.length === 0) {
+        this.logger.warn(`[getListingSubjects] Aucun pigId valide trouvé dans pig_ids pour listing ${listingId}. pig_ids original: ${JSON.stringify(listing.pig_ids)}`);
+        subjects = [];
+      } else {
+        // ✅ Log de diagnostic : voir la requête qui sera exécutée
+        this.logger.debug(`[getListingSubjects] Exécution requête SQL avec ${pigIdsArray.length} pigIds: ${JSON.stringify(pigIdsArray.slice(0, 5))}...`);
+        
+        // ✅ IMPORTANT: Pour les listings batch, les animaux sont dans batch_pigs, pas production_animaux
+        const animalsResult = await this.databaseService.query(
+          `SELECT 
+            bp.id,
+            COALESCE(bp.name, bp.id::text) as code, -- batch_pigs n'a pas de code, utiliser name ou id
+            bp.name as nom,
+            NULL as race, -- batches n'a pas de race, sera null
+            bp.sex as sexe, -- batch_pigs a une colonne sex
+            bp.birth_date as date_naissance, -- batch_pigs a birth_date
+            bp.current_weight_kg as poids_initial, -- Utiliser current_weight_kg comme poids
+            NULL as categorie_poids, -- batch_pigs n'a pas de categorie_poids
+            'vivant' as statut, -- batch_pigs n'a pas de colonne status, utiliser 'vivant' par défaut
+            bp.photo_url as photo_uri, -- batch_pigs a photo_url, pas photo_uri
+            bp.current_weight_kg as derniere_pesee_poids, -- Utiliser current_weight_kg comme dernière pesée
+            bp.last_weighing_date as derniere_pesee_date -- Utiliser last_weighing_date si disponible
+          FROM batch_pigs bp
+          WHERE bp.id = ANY($1::varchar[])`,
+          [pigIdsArray]
+        );
+
+        // ✅ Log de diagnostic : voir combien d'animaux ont été trouvés
+        this.logger.debug(`[getListingSubjects] Requête SQL retournée ${animalsResult.rows.length} animaux sur ${pigIdsArray.length} pigIds recherchés`);
+        
+        if (animalsResult.rows.length < pigIdsArray.length) {
+          // Trouver les pigIds qui n'ont pas été trouvés
+          const foundIds = new Set(animalsResult.rows.map((r: any) => r.id));
+          const missingIds = pigIdsArray.filter(id => !foundIds.has(id));
+          this.logger.warn(`[getListingSubjects] ${missingIds.length} pigIds non trouvés dans production_animaux: ${JSON.stringify(missingIds)}`);
+        }
+
+        subjects = animalsResult.rows.map((row: any) => ({
+          id: row.id,
+          code: row.code || `#${row.id.slice(0, 8)}`, // Fallback si pas de code
+          nom: row.nom || null,
+          race: row.race || null,
+          sexe: row.sexe || null,
+          date_naissance: row.date_naissance || null,
+          poids_initial: row.poids_initial ? parseFloat(row.poids_initial) : (row.derniere_pesee_poids ? parseFloat(row.derniere_pesee_poids) : null),
+          categorie_poids: row.categorie_poids || null,
+          statut: row.statut || 'vivant',
+          photo_uri: row.photo_uri || null,
+          derniere_pesee: row.derniere_pesee_poids ? {
+            poids_kg: parseFloat(row.derniere_pesee_poids),
+            date: row.derniere_pesee_date || new Date().toISOString(),
+          } : null,
+        }));
+      }
     }
 
     const result = {
