@@ -221,9 +221,16 @@ export const rejeterInvitation = createAsyncThunk(
   }
 );
 
+// Type étendu pour les collaborations avec info projet
+interface CollaborateurAvecProjet extends Collaborateur {
+  projet_nom?: string;
+  projet_localisation?: string;
+}
+
 /**
  * 🆕 Charger toutes les collaborations actives d'un utilisateur (vétérinaire/technicien)
- * Permet de récupérer tous les projets auxquels l'utilisateur a accès via collaboration
+ * Utilise le nouvel endpoint GET /collaborations/mes-projets qui retourne les collaborations actives
+ * avec les informations des projets associés
  */
 export const loadCollaborationsActives = createAsyncThunk(
   'collaboration/loadCollaborationsActives',
@@ -232,33 +239,25 @@ export const loadCollaborationsActives = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      // Récupérer toutes les collaborations (incluant les actives)
       const params: Record<string, string> = {};
       if (email) params.email = email;
       if (telephone) params.telephone = telephone;
 
-      const response = await apiClient.get<Collaborateur[]>('/collaborations/invitations', {
+      // 🆕 Utiliser le nouvel endpoint qui retourne directement les collaborations actives avec les projets
+      const response = await apiClient.get<CollaborateurAvecProjet[]>('/collaborations/mes-projets', {
         params,
       });
 
-      // Filtrer uniquement les collaborations actives
-      const collaborationsActives = (response || []).filter(
-        (c) => c.statut === 'actif'
-      );
+      const collaborationsActives: Collaborateur[] = response || [];
 
-      // Récupérer les projets associés
-      const projetsAccessibles: Projet[] = [];
-      for (const collab of collaborationsActives) {
-        try {
-          const projet = await apiClient.get<Projet>(`/projets/${collab.projet_id}`);
-          if (projet) {
-            projetsAccessibles.push(projet);
-          }
-        } catch (error) {
-          // Ignorer les projets introuvables
-          console.warn(`Projet ${collab.projet_id} introuvable pour collaboration ${collab.id}`);
-        }
-      }
+      // Construire la liste des projets à partir des données de collaborations
+      const projetsAccessibles: Projet[] = collaborationsActives.map((collab) => ({
+        id: collab.projet_id,
+        nom: (collab as CollaborateurAvecProjet).projet_nom || `Projet ${collab.projet_id}`,
+        localisation: (collab as CollaborateurAvecProjet).projet_localisation,
+        proprietaire_id: '', // Non disponible dans cette réponse
+        date_creation: collab.date_creation || new Date().toISOString(),
+      }));
 
       return { collaborationsActives, projetsAccessibles };
     } catch (error: unknown) {

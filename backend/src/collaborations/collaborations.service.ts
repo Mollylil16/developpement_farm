@@ -1577,6 +1577,110 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
   }
 
   /**
+   * 🆕 Récupérer toutes les collaborations actives d'un utilisateur (pour vétérinaires/techniciens)
+   * Ces collaborations représentent les projets des producteurs auxquels l'utilisateur a accès
+   */
+  async findMesCollaborationsActives(
+    userId: string,
+    email?: string,
+    telephone?: string,
+    profileId?: string
+  ): Promise<Collaborateur[]> {
+    try {
+      if (!userId && !email && !telephone) {
+        return [];
+      }
+
+      // Construire la requête pour récupérer les collaborations ACTIVES
+      let query = `SELECT 
+        c.id, c.projet_id, c.user_id, c.nom, c.prenom, c.email, c.telephone, c.role, c.statut,
+        c.permission_reproduction, c.permission_nutrition, c.permission_finance, 
+        c.permission_rapports, c.permission_planification, c.permission_mortalites, c.permission_sante,
+        c.date_invitation, c.date_acceptation, c.notes, c.date_creation, c.derniere_modification,
+        c.profile_id,
+        p.nom as projet_nom, p.localisation as projet_localisation
+        FROM collaborations c
+        LEFT JOIN projets p ON c.projet_id = p.id
+        WHERE c.statut = 'actif'`;
+      const params: unknown[] = [];
+      let paramIndex = 1;
+
+      // Construire les conditions de recherche
+      const conditions: string[] = [];
+
+      if (userId) {
+        conditions.push(`c.user_id = $${paramIndex}`);
+        params.push(userId);
+        paramIndex++;
+      }
+
+      if (profileId) {
+        conditions.push(`c.profile_id = $${paramIndex}`);
+        params.push(profileId);
+        paramIndex++;
+      }
+
+      if (email) {
+        conditions.push(`c.email = $${paramIndex}`);
+        params.push(email);
+        paramIndex++;
+      }
+
+      if (telephone) {
+        conditions.push(`c.telephone = $${paramIndex}`);
+        params.push(telephone);
+        paramIndex++;
+      }
+
+      if (conditions.length > 0) {
+        query += ` AND (${conditions.join(' OR ')})`;
+      }
+
+      query += ` ORDER BY c.date_acceptation DESC, c.date_creation DESC`;
+
+      this.logger.debug(`[findMesCollaborationsActives] Exécution de la requête: ${query}`);
+      this.logger.debug(`[findMesCollaborationsActives] Paramètres: ${JSON.stringify(params)}`);
+
+      const result = await this.databaseService.query(query, params);
+
+      this.logger.debug(`[findMesCollaborationsActives] ${result.rows.length} collaboration(s) active(s) trouvée(s)`);
+
+      // Mapper les résultats
+      const mappedResults = result.rows.map((row) => {
+        try {
+          const collaborateur = this.mapRowToCollaborateur(row);
+          // Ajouter les infos du projet
+          return {
+            ...collaborateur,
+            projet_nom: row.projet_nom,
+            projet_localisation: row.projet_localisation,
+          };
+        } catch (error: unknown) {
+          this.logger.error('Erreur lors du mapping d\'une collaboration active:', error);
+          return {
+            id: row.id || '',
+            projet_id: row.projet_id || '',
+            nom: row.nom || '',
+            prenom: row.prenom || '',
+            email: row.email || '',
+            statut: row.statut || 'actif',
+            role: row.role || 'observateur',
+            permissions: this.columnsToPermissions(row),
+            date_creation: row.date_creation || new Date().toISOString(),
+            projet_nom: row.projet_nom,
+            projet_localisation: row.projet_localisation,
+          };
+        }
+      });
+
+      return mappedResults;
+    } catch (error) {
+      this.logger.error('Erreur lors de la récupération des collaborations actives:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Nettoie les invitations expirées en changeant leur statut en 'expire'
    * @returns Le nombre d'invitations expirées
    */

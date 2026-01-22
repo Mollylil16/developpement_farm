@@ -365,6 +365,40 @@ export class CollaborationsController {
     }
   }
 
+  @Get('mes-projets')
+  @ApiOperation({ 
+    summary: "Récupérer les projets accessibles via collaborations actives (pour vétérinaires/techniciens)",
+    description: "Retourne la liste des collaborations actives de l'utilisateur, représentant les projets des producteurs auxquels il a accès"
+  })
+  @ApiQuery({ name: 'email', required: false, description: "Email de l'utilisateur" })
+  @ApiQuery({ name: 'telephone', required: false, description: "Téléphone de l'utilisateur" })
+  @ApiResponse({ status: 200, description: 'Liste des collaborations actives avec les infos des projets.' })
+  async findMesProjetsAccessibles(
+    @CurrentUser('id') userId: string,
+    @Query('email') email?: string,
+    @Query('telephone') telephone?: string
+  ) {
+    try {
+      // Récupérer active_role depuis la base de données
+      const userResult = await this.databaseService.query(
+        `SELECT active_role FROM users WHERE id = $1`,
+        [userId]
+      );
+      const activeRole = userResult.rows[0]?.active_role;
+      const profileId = activeRole && activeRole !== 'producer' ? `profile_${userId}_${activeRole}` : undefined;
+
+      return await this.collaborationsService.findMesCollaborationsActives(
+        userId,
+        email,
+        telephone,
+        profileId
+      );
+    } catch (error: unknown) {
+      console.error('[CollaborationsController] Erreur dans findMesProjetsAccessibles:', error);
+      throw error;
+    }
+  }
+
   @Get('statistics')
   @ApiOperation({ 
     summary: "Récupérer les statistiques des collaborations d'un projet",
