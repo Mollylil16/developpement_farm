@@ -57,21 +57,17 @@ export default function CreateBatchListingModal({
   const [pigCount, setPigCount] = useState('');
   const [selectedPigIds, setSelectedPigIds] = useState<string[]>([]);
   const [pricePerKg, setPricePerKg] = useState('');
-  const [averageWeight, setAverageWeight] = useState('');
   const scrollViewRef = React.useRef<ScrollView>(null);
 
   useEffect(() => {
     if (visible) {
       loadPigs();
-      // Initialiser avec le poids moyen de la bande
-      setAverageWeight(batch.average_weight_kg?.toString() || '');
     } else {
       // Reset form
       setMode('all');
       setPigCount('');
       setSelectedPigIds([]);
       setPricePerKg('');
-      setAverageWeight(batch.average_weight_kg?.toString() || '');
     }
   }, [visible, batch]);
 
@@ -107,12 +103,6 @@ export default function CreateBatchListingModal({
     const price = parseFloat(pricePerKg.replace(',', '.'));
     if (isNaN(price) || price <= 0) {
       Alert.alert('Erreur', 'Veuillez entrer un prix au kg valide');
-      return;
-    }
-
-    const weight = parseFloat(averageWeight.replace(',', '.'));
-    if (isNaN(weight) || weight <= 0) {
-      Alert.alert('Erreur', 'Veuillez entrer un poids moyen valide');
       return;
     }
 
@@ -154,13 +144,13 @@ export default function CreateBatchListingModal({
       const city = userLocation.city || 'Non spécifié';
       const region = userLocation.region || 'Non spécifié';
 
+      // ✅ Ne plus envoyer averageWeight - les poids réels de chaque animal sont utilisés
       await apiClient.post('/marketplace/listings/batch', {
         batchId: batch.id,
         farmId: projetActif.id,
         pigCount: finalPigCount,
         pigIds: finalPigIds,
         pricePerKg: price,
-        averageWeight: weight,
         lastWeightDate: lastWeightDate,
         location: {
           latitude: userLocation.latitude,
@@ -343,19 +333,12 @@ export default function CreateBatchListingModal({
             placeholderTextColor={colors.textSecondary}
           />
 
-          {/* Poids moyen */}
-          <Text style={[styles.label, { color: colors.text }]}>Poids moyen (kg) *</Text>
-          <TextInput
-            style={[
-              styles.input,
-              { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
-            ]}
-            value={averageWeight}
-            onChangeText={setAverageWeight}
-            keyboardType="decimal-pad"
-            placeholder="Ex: 50.5"
-            placeholderTextColor={colors.textSecondary}
-          />
+          {/* Info: poids réel utilisé */}
+          <View style={[styles.infoBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.infoBoxText, { color: colors.textSecondary }]}>
+              💡 Le poids réel de chaque porc sera utilisé pour calculer le prix individuel.
+            </Text>
+          </View>
           </ScrollView>
 
           <View style={[styles.footer, { borderTopColor: colors.divider, backgroundColor: colors.background }]}>
@@ -467,6 +450,16 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md,
     fontSize: FONT_SIZES.md,
+  },
+  infoBox: {
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    marginTop: SPACING.sm,
+  },
+  infoBoxText: {
+    fontSize: FONT_SIZES.sm,
+    textAlign: 'center',
   },
   footer: {
     flexDirection: 'row',

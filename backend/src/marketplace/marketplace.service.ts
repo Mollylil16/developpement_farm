@@ -150,10 +150,6 @@ export class MarketplaceService {
       await this.checkProjetOwnership(createBatchListingDto.farmId, userId);
 
       // Valider les champs requis
-      if (!createBatchListingDto.averageWeight || createBatchListingDto.averageWeight <= 0) {
-        throw new BadRequestException('Le poids moyen doit être supérieur à 0');
-      }
-
       if (!createBatchListingDto.pricePerKg || createBatchListingDto.pricePerKg <= 0) {
         throw new BadRequestException('Le prix au kg doit être supérieur à 0');
       }
@@ -270,13 +266,45 @@ export class MarketplaceService {
         throw new BadRequestException('Ces porcs sont déjà en vente sur le marketplace');
       }
 
+      // ✅ Calculer le poids moyen automatiquement à partir des poids réels des porcs
+      let averageWeight: number;
+      
+      if (createBatchListingDto.averageWeight && createBatchListingDto.averageWeight > 0) {
+        // Si le poids moyen est fourni, l'utiliser
+        averageWeight = parseFloat(String(createBatchListingDto.averageWeight));
+      } else {
+        // Calculer automatiquement depuis les poids réels des porcs sélectionnés
+        const pigsWeightResult = await this.databaseService.query(
+          `SELECT AVG(current_weight_kg) as avg_weight, SUM(current_weight_kg) as total_weight
+           FROM batch_pigs 
+           WHERE id = ANY($1::varchar[]) AND current_weight_kg IS NOT NULL AND current_weight_kg > 0`,
+          [pigIds]
+        );
+        
+        const calculatedAvgWeight = parseFloat(pigsWeightResult.rows[0]?.avg_weight) || 0;
+        
+        if (calculatedAvgWeight <= 0) {
+          // Fallback: utiliser le poids moyen de la bande si disponible
+          averageWeight = parseFloat(batchData.average_weight_kg) || 0;
+          
+          if (averageWeight <= 0) {
+            throw new BadRequestException(
+              'Impossible de calculer le poids moyen. Veuillez d\'abord peser les porcs ou renseigner un poids moyen pour la bande.'
+            );
+          }
+          
+          this.logger.warn(`[createBatchListing] Aucun poids individuel disponible, utilisation du poids moyen de la bande: ${averageWeight} kg`);
+        } else {
+          averageWeight = calculatedAvgWeight;
+          this.logger.log(`[createBatchListing] Poids moyen calculé automatiquement: ${averageWeight.toFixed(2)} kg pour ${pigIds.length} porcs`);
+        }
+      }
+
       // Utiliser une transaction pour garantir la cohérence des données
       return await this.databaseService.transaction(async (client) => {
         const id = this.generateId('listing');
         const now = new Date().toISOString();
         
-        // S'assurer que averageWeight est un nombre valide
-        const averageWeight = parseFloat(String(createBatchListingDto.averageWeight)) || 0;
         const pricePerKg = parseFloat(String(createBatchListingDto.pricePerKg)) || 0;
         
         if (averageWeight <= 0 || pricePerKg <= 0) {
