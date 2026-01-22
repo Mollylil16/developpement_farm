@@ -582,10 +582,24 @@ export default function FarmDetailsModal({
         
         // ✅ Pour les listings batch virtuels, utiliser originalListingId (ID réel du listing)
         // Pour les listings individuels, utiliser listing.id directement
-        const listingId = (listing as any).originalListingId || listing.id;
+        const originalListingId = (listing as any).originalListingId;
+        const listingId = originalListingId || listing.id;
         const subjectId = listing.subjectId || listing.id;
         
-        console.log(`[FarmDetailsModal] Sélection - listingId: ${listingId}, subjectId: ${subjectId}, selectedId: ${selectedId}, originalListingId: ${(listing as any).originalListingId || 'N/A'}`);
+        // ✅ Validation : s'assurer qu'on utilise bien un listingId et non un pigId
+        // Si originalListingId n'est pas défini pour un listing batch virtuel, c'est un problème
+        if (listing.listingType === 'batch' && !originalListingId && listing.id !== listingId) {
+          console.error(`[FarmDetailsModal] ⚠️ PROBLÈME: Listing batch virtuel sans originalListingId!`, {
+            listingId: listing.id,
+            listingType: listing.listingType,
+            hasOriginalListingId: !!originalListingId,
+            selectedId,
+          });
+          // Ne pas retourner null, mais utiliser le listing.id comme fallback
+          // Le backend devrait quand même trouver le listing si l'ID est correct
+        }
+        
+        console.log(`[FarmDetailsModal] Sélection - listingId: ${listingId}, subjectId: ${subjectId}, selectedId: ${selectedId}, originalListingId: ${originalListingId || 'N/A'}, listingType: ${listing.listingType}`);
         
         return {
           listingId,

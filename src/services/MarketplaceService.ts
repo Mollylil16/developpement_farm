@@ -806,13 +806,40 @@ export class MarketplaceService {
     }>;
   }>> {
     try {
+      // ✅ Log de diagnostic : voir quels IDs sont envoyés
+      logger.info('[MarketplaceService] getMultipleListingsWithSubjects appelé avec:', {
+        listingIdsCount: listingIds.length,
+        listingIds: listingIds,
+      });
+
       const apiClient = (await import('../services/api/apiClient')).default;
       const response = await apiClient.post('/marketplace/listings/details', {
         listingIds,
       });
+
+      // ✅ Log de diagnostic : voir ce qui est retourné
+      logger.info('[MarketplaceService] getMultipleListingsWithSubjects réponse:', {
+        responseCount: response?.length || 0,
+        response: response?.map((r: any) => ({
+          listingId: r.listing?.id,
+          listingType: r.listing?.listingType,
+          subjectsCount: r.subjects?.length || 0,
+        })) || [],
+      });
+
       return response || [];
     } catch (error) {
-      logger.error('[MarketplaceService] Erreur chargement listings:', error);
+      // ✅ Log détaillé de l'erreur
+      const errorDetails = error instanceof Error 
+        ? { message: error.message, stack: error.stack?.substring(0, 500) }
+        : { error: String(error) };
+      
+      logger.error('[MarketplaceService] Erreur chargement listings:', {
+        ...errorDetails,
+        listingIdsCount: listingIds.length,
+        listingIds: listingIds,
+      });
+      
       return [];
     }
   }

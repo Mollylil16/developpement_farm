@@ -36,6 +36,7 @@ import ProfileMenuModal from '../components/ProfileMenuModal';
 import { NotificationPanel } from '../components/marketplace';
 import SupportContactModal from '../components/SupportContactModal';
 import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
+import ProjectSelectorCollaborateur from '../components/Collaborations/ProjectSelectorCollaborateur';
 import type { VisiteVeterinaire } from '../types/sante';
 
 const DashboardVetScreen: React.FC = () => {
@@ -58,7 +59,11 @@ const DashboardVetScreen: React.FC = () => {
     refresh,
   } = useVetData(currentUser?.id);
   const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetCollaboratifActif, collaborateurActuel } = useAppSelector((state) => state.collaboration);
   const { planifications } = useAppSelector((state) => state.planification);
+
+  // Pour les vétérinaires, utiliser le projet collaboratif sélectionné (projet du producteur)
+  const projetActifPourVet = projetCollaboratifActif || projetActif;
   const profil = useProfilData();
   const animations = useDashboardAnimations();
   const {
@@ -316,9 +321,9 @@ const DashboardVetScreen: React.FC = () => {
             profilInitiales={profil.profilInitiales || ''}
             currentDate={currentDate}
             projetNom={
-              vetProfile?.qualifications?.licenseNumber
+              projetCollaboratifActif?.nom || (vetProfile?.qualifications?.licenseNumber
                 ? `License: ${vetProfile.qualifications.licenseNumber}`
-                : undefined
+                : undefined)
             }
             invitationsCount={0}
             notificationCount={marketplaceUnreadCount}
@@ -327,6 +332,11 @@ const DashboardVetScreen: React.FC = () => {
             onPressInvitations={() => {}}
             onPressNotifications={handlePressNotifications}
           />
+
+          {/* 🆕 Sélecteur de projet collaboratif */}
+          <View style={styles.projectSelectorContainer}>
+            <ProjectSelectorCollaborateur />
+          </View>
 
           {/* Stats vétérinaire */}
           <View style={styles.statsRow}>
@@ -609,6 +619,10 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 100,
+  },
+  projectSelectorContainer: {
+    marginTop: SPACING.md,
+    paddingHorizontal: 0,
   },
   statsRow: {
     flexDirection: 'row',

@@ -600,6 +600,17 @@ function MarketplaceScreen() {
         const realListingIds = Array.from(new Set(selections.map(s => s.listingId)));
         const selectedPigIds = new Map<string, string[]>(); // Map: listingId -> pigIds sélectionnés
         
+        // ✅ Log de diagnostic : voir les sélections reçues
+        console.log('[MarketplaceScreen] handleMakeOfferFromFarm - Sélections reçues:', {
+          selectionsCount: selections.length,
+          selections: selections.map(s => ({
+            listingId: s.listingId,
+            subjectId: s.subjectId,
+            listingIdType: typeof s.listingId,
+            subjectIdType: typeof s.subjectId,
+          })),
+        });
+        
         for (const selection of selections) {
           const { listingId, subjectId } = selection;
           
@@ -609,12 +620,41 @@ function MarketplaceScreen() {
           selectedPigIds.get(listingId)!.push(subjectId);
         }
 
+        // ✅ Log de diagnostic : voir les IDs qui seront envoyés au backend
+        console.log('[MarketplaceScreen] handleMakeOfferFromFarm - IDs à envoyer au backend:', {
+          realListingIdsCount: realListingIds.length,
+          realListingIds: realListingIds,
+          selectedPigIdsMap: Array.from(selectedPigIds.entries()).map(([listingId, pigIds]) => ({
+            listingId,
+            pigIdsCount: pigIds.length,
+            pigIds: pigIds.slice(0, 5), // Limiter à 5 pour le log
+          })),
+        });
+
         // ✅ Récupérer les listings avec leurs sujets via l'endpoint marketplace public
         const listingsData = await marketplaceService.getMultipleListingsWithSubjects(realListingIds);
 
+        // ✅ Log de diagnostic : voir ce qui a été retourné
+        console.log('[MarketplaceScreen] handleMakeOfferFromFarm - Réponse du backend:', {
+          listingsDataCount: listingsData?.length || 0,
+          listingsData: listingsData?.map((ld: any) => ({
+            listingId: ld.listing?.id,
+            listingType: ld.listing?.listingType,
+            subjectsCount: ld.subjects?.length || 0,
+            hasListing: !!ld.listing,
+            hasSubjects: !!ld.subjects,
+          })) || [],
+        });
+
         if (!listingsData || listingsData.length === 0) {
-          // ✅ Message d'erreur plus informatif
-          console.error('[MarketplaceScreen] Aucun listing valide trouvé pour les IDs:', realListingIds);
+          // ✅ Message d'erreur plus informatif avec détails de diagnostic
+          console.error('[MarketplaceScreen] Aucun listing valide trouvé pour les IDs:', {
+            realListingIds,
+            realListingIdsCount: realListingIds.length,
+            selectionsCount: selections.length,
+            selections: selections,
+          });
+          
           Alert.alert(
             'Information', 
             'Aucune information détaillée disponible pour les sujets sélectionnés. Vous pouvez quand même faire une offre en utilisant les informations du listing.'

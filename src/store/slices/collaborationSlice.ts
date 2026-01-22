@@ -12,10 +12,16 @@ import type {
 import { DEFAULT_PERMISSIONS } from '../../types/collaboration';
 import apiClient from '../../services/api/apiClient';
 
+import type { Projet } from '../../types/projet';
+
 interface CollaborationState {
   collaborateurs: Collaborateur[];
   collaborateurActuel: Collaborateur | null; // Collaborateur actuel pour le projet actif
   invitationsEnAttente: Collaborateur[]; // Invitations en attente pour l'utilisateur connecté
+  // 🆕 Gestion des projets collaboratifs (pour vétérinaires/techniciens)
+  collaborationsActives: Collaborateur[]; // Toutes les collaborations actives de l'utilisateur
+  projetCollaboratifActif: Projet | null; // Le projet du producteur actuellement sélectionné
+  projetsAccessibles: Projet[]; // Liste des projets accessibles via collaborations
   loading: boolean;
   error: string | null;
 }
@@ -24,6 +30,9 @@ const initialState: CollaborationState = {
   collaborateurs: [],
   collaborateurActuel: null,
   invitationsEnAttente: [],
+  collaborationsActives: [],
+  projetCollaboratifActif: null,
+  projetsAccessibles: [],
   loading: false,
   error: null,
 };
@@ -212,6 +221,86 @@ export const rejeterInvitation = createAsyncThunk(
   }
 );
 
+/**
+ * 🆕 Charger toutes les collaborations actives d'un utilisateur (vétérinaire/technicien)
+ * Permet de récupérer tous les projets auxquels l'utilisateur a accès via collaboration
+ */
+export const loadCollaborationsActives = createAsyncThunk(
+  'collaboration/loadCollaborationsActives',
+  async (
+    { userId, email, telephone }: { userId: string; email?: string; telephone?: string },
+    { rejectWithValue }
+  ) => {
+    try {
+      // Récupérer toutes les collaborations (incluant les actives)
+      const params: Record<string, string> = {};
+      if (email) params.email = email;
+      if (telephone) params.telephone = telephone;
+
+      const response = await apiClient.get<Collaborateur[]>('/collaborations/invitations', {
+        params,
+      });
+
+      // Filtrer uniquement les collaborations actives
+      const collaborationsActives = (response || []).filter(
+        (c) => c.statut === 'actif'
+      );
+
+      // Récupérer les projets associés
+      const projetsAccessibles: Projet[] = [];
+      for (const collab of collaborationsActives) {
+        try {
+          const projet = await apiClient.get<Projet>(`/projets/${collab.projet_id}`);
+          if (projet) {
+            projetsAccessibles.push(projet);
+          }
+        } catch (error) {
+          // Ignorer les projets introuvables
+          console.warn(`Projet ${collab.projet_id} introuvable pour collaboration ${collab.id}`);
+        }
+      }
+
+      return { collaborationsActives, projetsAccessibles };
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error));
+    }
+  }
+);
+
+/**
+ * 🆕 Sélectionner un projet collaboratif (pour vétérinaires/techniciens)
+ * Charge les données du projet et met à jour collaborateurActuel
+ */
+export const selectProjetCollaboratif = createAsyncThunk(
+  'collaboration/selectProjetCollaboratif',
+  async (
+    { projetId, userId }: { projetId: string; userId: string },
+    { rejectWithValue, getState }
+  ) => {
+    try {
+      // Récupérer le projet
+      const projet = await apiClient.get<Projet>(`/projets/${projetId}`);
+      
+      // Récupérer la collaboration actuelle pour ce projet
+      const collaborateur = await apiClient.get<Collaborateur | null>('/collaborations/actuel', {
+        params: { projet_id: projetId },
+      });
+
+      if (!collaborateur) {
+        throw new Error("Vous n'avez pas accès à ce projet");
+      }
+
+      if (collaborateur.statut !== 'actif') {
+        throw new Error("Votre collaboration n'est pas active pour ce projet");
+      }
+
+      return { projet, collaborateur };
+    } catch (error: unknown) {
+      return rejectWithValue(getErrorMessage(error));
+    }
+  }
+);
+
 const collaborationSlice = createSlice({
   name: 'collaboration',
   initialState,
@@ -224,6 +313,17 @@ const collaborationSlice = createSlice({
     },
     clearInvitationsEnAttente: (state) => {
       state.invitationsEnAttente = [];
+    },
+    // 🆕 Actions pour la gestion des projets collaboratifs
+    clearProjetCollaboratif: (state) => {
+      state.projetCollaboratifActif = null;
+      state.collaborateurActuel = null;
+    },
+    clearCollaborationsActives: (state) => {
+      state.collaborationsActives = [];
+      state.projetsAccessibles = [];
+      state.projetCollaboratifActif = null;
+      state.collaborateurActuel = null;
     },
   },
   extraReducers: (builder) => {
@@ -363,10 +463,54 @@ const collaborationSlice = createSlice({
       .addCase(rejeterInvitation.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
+      })
+      // 🆕 loadCollaborationsActives
+      .addCase(loadCollaborationsActives.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(loadCollaborationsActives.fulfilled, (state, action) => {
+        state.loading = false;
+        state.collaborationsActives = action.payload.collaborationsActives;
+        state.projetsAccessibles = action.payload.projetsAccessibles;
+        // Si un seul projet accessible, le sélectionner automatiquement
+        if (action.payload.projetsAccessibles.length === 1 && !state.projetCollaboratifActif) {
+          state.projetCollaboratifActif = action.payload.projetsAccessibles[0];
+          // Trouver la collaboration correspondante pour collaborateurActuel
+          const collab = action.payload.collaborationsActives.find(
+            (c) => c.projet_id === action.payload.projetsAccessibles[0].id
+          );
+          if (collab) {
+            state.collaborateurActuel = collab;
+          }
+        }
+      })
+      .addCase(loadCollaborationsActives.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      // 🆕 selectProjetCollaboratif
+      .addCase(selectProjetCollaboratif.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(selectProjetCollaboratif.fulfilled, (state, action) => {
+        state.loading = false;
+        state.projetCollaboratifActif = action.payload.projet;
+        state.collaborateurActuel = action.payload.collaborateur;
+      })
+      .addCase(selectProjetCollaboratif.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
       });
   },
 });
 
-export const { clearError, clearCollaborateurActuel, clearInvitationsEnAttente } =
-  collaborationSlice.actions;
+export const { 
+  clearError, 
+  clearCollaborateurActuel, 
+  clearInvitationsEnAttente,
+  clearProjetCollaboratif,
+  clearCollaborationsActives,
+} = collaborationSlice.actions;
 export default collaborationSlice.reducer;

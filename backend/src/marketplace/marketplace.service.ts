@@ -870,13 +870,29 @@ export class MarketplaceService {
       };
     }
 
+    // ✅ Log de diagnostic : voir quel ID est recherché
+    this.logger.debug(`[getListingSubjects] Recherche listing avec ID: ${listingId}`);
+
     const listingResult = await this.databaseService.query(
       `SELECT * FROM marketplace_listings WHERE id = $1`,
       [listingId]
     );
 
     if (listingResult.rows.length === 0) {
-      throw new NotFoundException('Listing non trouvé');
+      // ✅ Log de diagnostic : voir pourquoi le listing n'est pas trouvé
+      this.logger.warn(`[getListingSubjects] Listing non trouvé pour ID: ${listingId} (type: ${typeof listingId}, longueur: ${listingId?.length})`);
+      
+      // Vérifier si c'est peut-être un pigId au lieu d'un listingId
+      const pigIdCheck = await this.databaseService.query(
+        `SELECT id FROM production_animaux WHERE id = $1 LIMIT 1`,
+        [listingId]
+      );
+      
+      if (pigIdCheck.rows.length > 0) {
+        this.logger.warn(`[getListingSubjects] L'ID ${listingId} correspond à un animal (pigId), pas à un listing. Vérifier que originalListingId est utilisé.`);
+      }
+      
+      throw new NotFoundException(`Listing non trouvé pour l'ID: ${listingId}`);
     }
 
     const listing = listingResult.rows[0];
@@ -986,9 +1002,34 @@ export class MarketplaceService {
    * Récupérer plusieurs listings avec leurs sujets en une seule requête
    */
   async getListingsWithSubjects(listingIds: string[]) {
+    // ✅ Log de diagnostic : voir quels IDs sont reçus
+    this.logger.log(`[getListingsWithSubjects] Appelé avec ${listingIds.length} listingIds:`, listingIds);
+
     const results = await Promise.allSettled(
       listingIds.map(id => this.getListingSubjects(id))
     );
+
+    // ✅ Log de diagnostic : voir quels IDs ont réussi/échoué
+    const successful: string[] = [];
+    const failed: Array<{ id: string; reason: string }> = [];
+
+    results.forEach((result, index) => {
+      const listingId = listingIds[index];
+      if (result.status === 'fulfilled') {
+        successful.push(listingId);
+      } else {
+        failed.push({
+          id: listingId,
+          reason: result.reason?.message || String(result.reason) || 'Unknown error',
+        });
+      }
+    });
+
+    this.logger.log(`[getListingsWithSubjects] Résultats: ${successful.length} réussis, ${failed.length} échoués`);
+    
+    if (failed.length > 0) {
+      this.logger.warn(`[getListingsWithSubjects] IDs échoués:`, failed);
+    }
 
     return results
       .filter((result): result is PromiseFulfilledResult<any> => result.status === 'fulfilled')

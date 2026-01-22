@@ -24,6 +24,7 @@ import DashboardHeader from '../components/dashboard/DashboardHeader';
 import ProfileMenuModal from '../components/ProfileMenuModal';
 import { NotificationPanel } from '../components/marketplace';
 import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
+import ProjectSelectorCollaborateur from '../components/Collaborations/ProjectSelectorCollaborateur';
 import { useProfilData } from '../hooks/useProfilData';
 import { useDashboardAnimations } from '../hooks/useDashboardAnimations';
 import { useMarketplaceNotifications } from '../hooks/useMarketplaceNotifications';
@@ -41,7 +42,11 @@ const DashboardTechScreen: React.FC = () => {
     currentUser?.id
   );
   const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetCollaboratifActif, collaborateurActuel } = useAppSelector((state) => state.collaboration);
   const { planifications, planificationsAVenir } = useAppSelector((state) => state.planification);
+
+  // Pour les techniciens, utiliser le projet collaboratif sélectionné (projet du producteur)
+  const projetActifPourTech = projetCollaboratifActif || projetActif;
   const profil = useProfilData();
   const animations = useDashboardAnimations();
   const {
@@ -131,9 +136,9 @@ const DashboardTechScreen: React.FC = () => {
             profilInitiales={profil.profilInitiales || ''}
             currentDate={currentDate}
             projetNom={
-              techProfile?.qualifications?.level
+              projetCollaboratifActif?.nom || (techProfile?.qualifications?.level
                 ? `Niveau: ${levelLabels[techProfile.qualifications.level]}`
-                : undefined
+                : undefined)
             }
             invitationsCount={0}
             notificationCount={marketplaceUnreadCount}
@@ -142,6 +147,11 @@ const DashboardTechScreen: React.FC = () => {
             onPressInvitations={() => {}}
             onPressNotifications={handlePressNotifications}
           />
+
+          {/* 🆕 Sélecteur de projet collaboratif */}
+          <View style={styles.projectSelectorContainer}>
+            <ProjectSelectorCollaborateur />
+          </View>
 
           {/* Fermes assistées */}
           <View style={styles.section}>
@@ -384,6 +394,10 @@ const styles = StyleSheet.create({
   seeAllText: {
     fontSize: FONT_SIZES.sm,
     fontWeight: FONT_WEIGHTS.medium,
+  },
+  projectSelectorContainer: {
+    marginTop: SPACING.md,
+    paddingHorizontal: 0,
   },
   tasksList: {
     gap: SPACING.sm,
