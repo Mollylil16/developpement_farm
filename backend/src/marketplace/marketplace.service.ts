@@ -1361,11 +1361,61 @@ export class MarketplaceService {
         ['accepted', now, offerData.proposed_price, offerId]
       );
 
-      // Mettre à jour le listing
-      await client.query(
-        'UPDATE marketplace_listings SET status = $1, derniere_modification = $2 WHERE id = $3',
-        ['reserved', now, offerData.listing_id]
+      // ✅ Récupérer le listing pour déterminer la mise à jour appropriée
+      const listingResult = await client.query(
+        'SELECT pig_ids, pig_count, listing_type, price_per_kg, weight FROM marketplace_listings WHERE id = $1',
+        [offerData.listing_id]
       );
+      
+      const listing = listingResult.rows[0];
+      const offerSubjectIds = Array.isArray(offerData.subject_ids) 
+        ? offerData.subject_ids 
+        : JSON.parse(offerData.subject_ids || '[]');
+      const listingPigIds = Array.isArray(listing?.pig_ids) 
+        ? listing.pig_ids 
+        : JSON.parse(listing?.pig_ids || '[]');
+      
+      // ✅ Déterminer si l'offre concerne tous les sujets ou seulement une partie
+      const isPartialSale = listing?.listing_type === 'batch' && 
+                           listingPigIds.length > 0 && 
+                           offerSubjectIds.length > 0 &&
+                           offerSubjectIds.length < listingPigIds.length;
+      
+      if (isPartialSale) {
+        // ✅ VENTE PARTIELLE: Retirer les sujets vendus du listing et le garder actif
+        const remainingPigIds = listingPigIds.filter((id: string) => !offerSubjectIds.includes(id));
+        const newPigCount = remainingPigIds.length;
+        
+        // Recalculer le poids moyen et le prix pour les sujets restants
+        const remainingPigsWeight = await client.query(
+          `SELECT AVG(current_weight_kg) as avg_weight, SUM(current_weight_kg) as total_weight
+           FROM batch_pigs 
+           WHERE id = ANY($1::varchar[]) AND current_weight_kg IS NOT NULL AND current_weight_kg > 0`,
+          [remainingPigIds]
+        );
+        
+        const newAvgWeight = parseFloat(remainingPigsWeight.rows[0]?.avg_weight) || listing.weight || 0;
+        const pricePerKg = parseFloat(listing.price_per_kg) || 0;
+        const newCalculatedPrice = pricePerKg * newAvgWeight * newPigCount;
+        
+        await client.query(
+          `UPDATE marketplace_listings 
+           SET pig_ids = $1, pig_count = $2, weight = $3, calculated_price = $4, 
+               status = 'available', derniere_modification = $5 
+           WHERE id = $6`,
+          [JSON.stringify(remainingPigIds), newPigCount, newAvgWeight, newCalculatedPrice, now, offerData.listing_id]
+        );
+        
+        this.logger.log(`[acceptOffer] Vente partielle: ${offerSubjectIds.length} sujet(s) vendu(s), ${remainingPigIds.length} restant(s) sur le listing ${offerData.listing_id}`);
+      } else {
+        // ✅ VENTE TOTALE: Marquer le listing comme réservé/vendu
+        await client.query(
+          'UPDATE marketplace_listings SET status = $1, derniere_modification = $2 WHERE id = $3',
+          ['reserved', now, offerData.listing_id]
+        );
+        
+        this.logger.log(`[acceptOffer] Vente totale: listing ${offerData.listing_id} marqué comme 'reserved'`);
+      }
 
       // Créer la transaction
       const transactionId = this.generateId('transaction');
