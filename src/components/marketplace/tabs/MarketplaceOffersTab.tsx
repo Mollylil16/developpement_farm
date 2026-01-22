@@ -89,10 +89,50 @@ function MarketplaceOffersTab({
 
   const handleAcceptOffer = async (offerId: string, role: 'producer' | 'buyer' = 'producer') => {
     try {
-      if (!user?.id) return;
-      await dispatch(acceptOffer({ offerId, userId: user.id, role })).unwrap();
-      Alert.alert('Succès', 'Offre acceptée');
-      onRefresh();
+      if (!user?.id) {
+        Alert.alert('Erreur', 'Vous devez être connecté pour accepter cette offre');
+        return;
+      }
+      
+      // Confirmation avant acceptation
+      Alert.alert(
+        'Confirmer',
+        role === 'producer' 
+          ? 'Voulez-vous accepter cette offre ? Une transaction sera créée.'
+          : 'Voulez-vous accepter cette contre-proposition ?',
+        [
+          { text: 'Annuler', style: 'cancel' },
+          {
+            text: 'Accepter',
+            style: 'default',
+            onPress: async () => {
+              try {
+                await dispatch(acceptOffer({ offerId, userId: user.id, role })).unwrap();
+                Alert.alert('Succès', 'Offre acceptée ! Une transaction a été créée.');
+                onRefresh();
+              } catch (error) {
+                const errorMsg = getErrorMessage(error);
+                console.error('[MarketplaceOffersTab] Erreur acceptation:', error);
+                
+                // Messages d'erreur plus explicites
+                if (errorMsg.toLowerCase().includes('connexion') || errorMsg.toLowerCase().includes('network')) {
+                  Alert.alert(
+                    'Erreur de connexion',
+                    'Impossible de contacter le serveur. Vérifiez votre connexion Internet et réessayez.',
+                    [{ text: 'OK' }, { text: 'Réessayer', onPress: () => handleAcceptOffer(offerId, role) }]
+                  );
+                } else if (errorMsg.toLowerCase().includes('session') || errorMsg.toLowerCase().includes('token')) {
+                  Alert.alert('Session expirée', 'Veuillez vous reconnecter à l\'application.');
+                } else if (errorMsg.toLowerCase().includes('autorisé') || errorMsg.toLowerCase().includes('forbidden')) {
+                  Alert.alert('Non autorisé', 'Vous n\'êtes pas autorisé à accepter cette offre.');
+                } else {
+                  Alert.alert('Erreur', errorMsg || 'Une erreur est survenue lors de l\'acceptation');
+                }
+              }
+            },
+          },
+        ]
+      );
     } catch (error) {
       Alert.alert('Erreur', getErrorMessage(error));
     }
