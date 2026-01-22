@@ -132,6 +132,19 @@ export class FinanceController {
       'En mode individuel : fournir animal_ids. En mode bande : fournir batch_id et quantite.',
   })
   createVentePorc(@Body() createVentePorcDto: CreateVentePorcDto, @CurrentUser() user: any) {
+    // Log des données reçues pour diagnostic (sans données sensibles)
+    console.log('[FinanceController] createVentePorc - Données reçues:', {
+      projet_id: createVentePorcDto.projet_id,
+      montant: createVentePorcDto.montant,
+      date: createVentePorcDto.date,
+      has_animal_ids: !!createVentePorcDto.animal_ids,
+      animal_ids_count: createVentePorcDto.animal_ids?.length || 0,
+      has_batch_id: !!createVentePorcDto.batch_id,
+      has_quantite: !!createVentePorcDto.quantite,
+      quantite: createVentePorcDto.quantite,
+      user_id: user.id,
+    });
+    
     return this.financeService.createVentePorc(createVentePorcDto, user.id);
   }
 

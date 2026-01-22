@@ -1480,11 +1480,22 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
     const hasBatchId = createVentePorcDto.batch_id && createVentePorcDto.quantite && createVentePorcDto.quantite > 0;
 
     if (!hasAnimalIds && !hasBatchId) {
-      throw new BadRequestException(
-        'Pour enregistrer une vente, vous devez obligatoirement identifier les porcs vendus : ' +
+      const errorMessage = 'Pour enregistrer une vente, vous devez obligatoirement identifier les porcs vendus : ' +
         'en mode suivi individuel, fournissez les IDs des animaux (animal_ids), ' +
-        'ou en mode élevage en bande, fournissez la loge (batch_id) et la quantité (quantite).'
-      );
+        'ou en mode élevage en bande, fournissez la loge (batch_id) et la quantité (quantite).';
+      
+      console.error('[FinanceService] createVentePorc - Validation échouée:', {
+        projet_id: createVentePorcDto.projet_id,
+        has_animal_ids: hasAnimalIds,
+        animal_ids: createVentePorcDto.animal_ids,
+        has_batch_id: !!createVentePorcDto.batch_id,
+        batch_id: createVentePorcDto.batch_id,
+        has_quantite: !!createVentePorcDto.quantite,
+        quantite: createVentePorcDto.quantite,
+        user_id: userId,
+      });
+      
+      throw new BadRequestException(errorMessage);
     }
 
     // 2. Récupérer le mode de gestion du projet
