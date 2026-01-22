@@ -319,7 +319,8 @@ export const counterOffer = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const counterOffer = await apiClient.put<Offer>(`/marketplace/offers/${data.offerId}/counter`, {
+      // ✅ Correction: utiliser PATCH au lieu de PUT (cohérence avec le backend)
+      const counterOffer = await apiClient.patch<Offer>(`/marketplace/offers/${data.offerId}/counter`, {
         nouveau_prix_total: data.nouveauPrixTotal,
         message: data.message,
       });
