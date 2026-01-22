@@ -19,9 +19,9 @@
     "noFallthroughCasesInSwitch": false,
     "esModuleInterop": true,
     "resolveJsonModule": true,
-    "types": ["node", "jest", "@types/jest"],
+    "types": ["node"],
     "moduleResolution": "node"
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "scripts"]
+  "exclude": ["node_modules", "dist", "scripts", "**/*.spec.ts", "**/*.test.ts", "**/__tests__/**"]
 }
