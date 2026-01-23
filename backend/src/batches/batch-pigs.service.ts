@@ -126,19 +126,19 @@ export class BatchPigsService {
         this.logger.warn(
           `[checkBatchOwnership] Bande ${batchId} appartient au projet ${projetId}, ` +
           `proprietaire_id=${proprietaireIdStr}, userId=${normalizedUserId}, match=${match}`
-          );
+        );
           
-          // Si proprietaire_id est NULL, c'est un problème de configuration
-          if (!proprietaireId) {
-            this.logger.error(
-              `[checkBatchOwnership] Le projet ${batchCheck.rows[0].projet_id} n'a pas de proprietaire_id défini. ` +
-              `C'est un problème de configuration de la base de données.`
-            );
-          }
+        // Si proprietaire_id est NULL, c'est un problème de configuration
+        if (!proprietaireId) {
+          this.logger.error(
+            `[checkBatchOwnership] Le projet ${projetId} n'a pas de proprietaire_id défini. ` +
+            `C'est un problème de configuration de la base de données.`
+          );
         }
+      }
         
-        // La bande existe mais n'appartient pas à l'utilisateur
-        throw new ForbiddenException('Cette bande ne vous appartient pas');
+      // La bande existe mais n'appartient pas à l'utilisateur
+      throw new ForbiddenException('Cette bande ne vous appartient pas');
     } catch (error) {
       // Si c'est déjà une exception NestJS, la relancer telle quelle
       if (error instanceof NotFoundException || error instanceof ForbiddenException) {
