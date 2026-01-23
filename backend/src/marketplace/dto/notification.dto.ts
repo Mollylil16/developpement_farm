@@ -3,6 +3,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsActionUrl } from './validators/action-url.validator';
 
 export enum NotificationType {
+  NEW_OFFER = 'new_offer',           // ✅ Nouvelle offre reçue par le producteur
   OFFER_RECEIVED = 'offer_received',
   OFFER_ACCEPTED = 'offer_accepted',
   OFFER_REJECTED = 'offer_rejected',
