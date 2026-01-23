@@ -23,8 +23,10 @@ import { useRole } from '../contexts/RoleContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useVetData } from '../hooks/useVetData';
 import { useProfilData } from '../hooks/useProfilData';
-import { useAppSelector } from '../store/hooks';
+import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { useDashboardAnimations } from '../hooks/useDashboardAnimations';
+import { loadInvitationsEnAttente } from '../store/slices/collaborationSlice';
+import InvitationsModal from '../components/InvitationsModal';
 import { useMarketplaceNotifications } from '../hooks/useMarketplaceNotifications';
 import { SCREENS } from '../navigation/types';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
@@ -45,10 +47,12 @@ const DashboardVetScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const isFocused = useIsFocused();
+  const dispatch = useAppDispatch();
   const [refreshing, setRefreshing] = useState(false);
   const [profileMenuVisible, setProfileMenuVisible] = useState(false);
   const [notificationPanelVisible, setNotificationPanelVisible] = useState(false);
   const [supportModalVisible, setSupportModalVisible] = useState(false);
+  const [invitationsModalVisible, setInvitationsModalVisible] = useState(false);
   const {
     todayConsultations,
     upcomingConsultations,
@@ -59,8 +63,24 @@ const DashboardVetScreen: React.FC = () => {
     refresh,
   } = useVetData(currentUser?.id);
   const { projetActif } = useAppSelector((state) => state.projet);
-  const { projetCollaboratifActif, collaborateurActuel } = useAppSelector((state) => state.collaboration);
+  const { projetCollaboratifActif, collaborateurActuel, invitationsEnAttente } = useAppSelector((state) => state.collaboration);
   const { planifications } = useAppSelector((state) => state.planification);
+
+  // Charger les invitations en attente au montage et quand l'écran devient actif
+  React.useEffect(() => {
+    if (isFocused && currentUser) {
+      dispatch(loadInvitationsEnAttente({
+        userId: currentUser.id,
+        email: currentUser.email || undefined,
+        telephone: currentUser.telephone || undefined,
+      }));
+    }
+  }, [dispatch, isFocused, currentUser?.id, currentUser?.email, currentUser?.telephone]);
+
+  // Nombre d'invitations en attente
+  const invitationsCount = Array.isArray(invitationsEnAttente)
+    ? invitationsEnAttente.filter((inv) => inv.statut === 'en_attente').length
+    : 0;
 
   // Pour les vétérinaires, utiliser le projet collaboratif sélectionné (projet du producteur)
   const projetActifPourVet = projetCollaboratifActif || projetActif;
@@ -109,6 +129,10 @@ const DashboardVetScreen: React.FC = () => {
     setNotificationPanelVisible(true);
   }, []);
 
+  const handlePressInvitations = useCallback(() => {
+    setInvitationsModalVisible(true);
+  }, []);
+
   const handleCloseProfileMenu = useCallback(() => {
     setProfileMenuVisible(false);
   }, []);
@@ -155,11 +179,11 @@ const DashboardVetScreen: React.FC = () => {
                   ? `License: ${vetProfile.qualifications.licenseNumber}`
                   : undefined
               }
-              invitationsCount={0}
+              invitationsCount={invitationsCount}
               notificationCount={marketplaceUnreadCount}
               headerAnim={animations.headerAnim}
               onPressPhoto={handlePressPhoto}
-              onPressInvitations={() => {}}
+              onPressInvitations={handlePressInvitations}
               onPressNotifications={handlePressNotifications}
             />
 
@@ -325,11 +349,11 @@ const DashboardVetScreen: React.FC = () => {
                 ? `License: ${vetProfile.qualifications.licenseNumber}`
                 : undefined)
             }
-            invitationsCount={0}
+            invitationsCount={invitationsCount}
             notificationCount={marketplaceUnreadCount}
             headerAnim={animations.headerAnim}
             onPressPhoto={handlePressPhoto}
-            onPressInvitations={() => {}}
+            onPressInvitations={handlePressInvitations}
             onPressNotifications={handlePressNotifications}
           />
 
@@ -511,6 +535,13 @@ const DashboardVetScreen: React.FC = () => {
         visible={supportModalVisible}
         onClose={() => setSupportModalVisible(false)}
       />
+
+      {/* Modal des invitations en attente */}
+      <InvitationsModal
+        visible={invitationsModalVisible}
+        onClose={() => setInvitationsModalVisible(false)}
+      />
+
       {/* Bouton flottant pour accéder à l'agent conversationnel */}
       <ChatAgentFAB />
     </SafeAreaView>

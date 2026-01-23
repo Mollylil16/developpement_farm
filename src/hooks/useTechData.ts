@@ -117,7 +117,7 @@ export function useTechData(techUserId?: string) {
       const todayTasks: TechData['todayTasks'] = [];
       for (const farm of assistedFarms) {
         // Charger les planifications de cette ferme depuis l'API backend
-        const farmPlanifications = await apiClient.get<any[]>(`/planification/planifications`, {
+        const farmPlanifications = await apiClient.get<any[]>(`/planifications`, {
           params: { projet_id: farm.farmId },
         });
 

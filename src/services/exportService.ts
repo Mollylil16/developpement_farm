@@ -84,7 +84,7 @@ export async function exportAllDataJSON(projetId: string): Promise<string> {
     const rations = await apiClient.get<any[]>(`/nutrition/rations`, {
       params: { projet_id: projetId },
     });
-    const planifications = await apiClient.get<any[]>(`/planification/planifications`, {
+    const planifications = await apiClient.get<any[]>(`/planifications`, {
       params: { projet_id: projetId },
     });
     const collaborateurs = await apiClient.get<any[]>(`/collaborations`, {

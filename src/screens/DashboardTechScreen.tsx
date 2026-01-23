@@ -14,7 +14,9 @@ import { fr } from 'date-fns/locale';
 import { useRole } from '../contexts/RoleContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useTechData } from '../hooks/useTechData';
-import { useAppSelector } from '../store/hooks';
+import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { loadInvitationsEnAttente } from '../store/slices/collaborationSlice';
+import InvitationsModal from '../components/InvitationsModal';
 import { SCREENS } from '../navigation/types';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS, LIGHT_COLORS } from '../constants/theme';
 import Card from '../components/Card';
@@ -35,15 +37,33 @@ const DashboardTechScreen: React.FC = () => {
   const { colors, isDark } = useTheme();
   const navigation = useNavigation();
   const isFocused = useIsFocused();
+  const dispatch = useAppDispatch();
   const [refreshing, setRefreshing] = useState(false);
   const [profileMenuVisible, setProfileMenuVisible] = useState(false);
   const [notificationPanelVisible, setNotificationPanelVisible] = useState(false);
+  const [invitationsModalVisible, setInvitationsModalVisible] = useState(false);
   const { assistedFarms, todayTasks, recentRecords, loading, error, refresh } = useTechData(
     currentUser?.id
   );
   const { projetActif } = useAppSelector((state) => state.projet);
-  const { projetCollaboratifActif, collaborateurActuel } = useAppSelector((state) => state.collaboration);
+  const { projetCollaboratifActif, collaborateurActuel, invitationsEnAttente } = useAppSelector((state) => state.collaboration);
   const { planifications, planificationsAVenir } = useAppSelector((state) => state.planification);
+
+  // Charger les invitations en attente au montage et quand l'écran devient actif
+  React.useEffect(() => {
+    if (isFocused && currentUser) {
+      dispatch(loadInvitationsEnAttente({
+        userId: currentUser.id,
+        email: currentUser.email || undefined,
+        telephone: currentUser.telephone || undefined,
+      }));
+    }
+  }, [dispatch, isFocused, currentUser?.id, currentUser?.email, currentUser?.telephone]);
+
+  // Nombre d'invitations en attente
+  const invitationsCount = Array.isArray(invitationsEnAttente)
+    ? invitationsEnAttente.filter((inv) => inv.statut === 'en_attente').length
+    : 0;
 
   // Pour les techniciens, utiliser le projet collaboratif sélectionné (projet du producteur)
   const projetActifPourTech = projetCollaboratifActif || projetActif;

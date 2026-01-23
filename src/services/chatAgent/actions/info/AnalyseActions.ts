@@ -172,7 +172,7 @@ export class AnalyseActions {
     const rappel = dateRappel.toISOString().split('T')[0];
 
     // Créer la planification via l'API backend
-    const planification = await apiClient.post<any>('/planification/planifications', {
+    const planification = await apiClient.post<any>('/planifications', {
       projet_id: context.projetId,
       type: type,
       titre: paramsTyped.titre,
