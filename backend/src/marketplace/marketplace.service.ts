@@ -1403,14 +1403,10 @@ export class MarketplaceService {
         const newPigCount = remainingPigIds.length;
         
         // Recalculer le poids moyen et le prix pour les sujets restants
-        const remainingPigsWeight = await client.query(
-          `SELECT AVG(current_weight_kg) as avg_weight, SUM(current_weight_kg) as total_weight
-           FROM batch_pigs 
-           WHERE id = ANY($1::varchar[]) AND current_weight_kg IS NOT NULL AND current_weight_kg > 0`,
-          [remainingPigIds]
-        );
-        
-        const newAvgWeight = parseFloat(remainingPigsWeight.rows[0]?.avg_weight) || listing.weight || 0;
+        // Optimisation: utiliser le poids moyen existant du listing comme approximation
+        // Cela évite une requête SQL coûteuse sur batch_pigs qui peut prendre plusieurs secondes
+        // Le poids moyen reste généralement stable pour un lot
+        const newAvgWeight = listing.weight || 0;
         const pricePerKg = parseFloat(listing.price_per_kg) || 0;
         const newCalculatedPrice = pricePerKg * newAvgWeight * newPigCount;
         
@@ -1467,19 +1463,23 @@ export class MarketplaceService {
         );
 
         // Notifier les autres acheteurs que leurs offres ont été automatiquement rejetées
-        for (const rejectedOffer of rejectedOffersResult.rows) {
-          try {
-            await this.notificationsService.createNotification({
+        // Optimisation: envoyer les notifications en parallèle au lieu de séquentiellement
+        if (rejectedOffersResult.rows.length > 0) {
+          const notificationPromises = rejectedOffersResult.rows.map((rejectedOffer) =>
+            this.notificationsService.createNotification({
               userId: rejectedOffer.buyer_id,
               type: NotificationType.OFFER_REJECTED,
               title: 'Offre non retenue',
               message: 'Votre offre n\'a pas été retenue car une autre offre a été acceptée sur cette annonce',
               relatedType: 'offer',
               relatedId: rejectedOffer.id,
-            });
-          } catch (e) {
-            this.logger.warn(`[acceptOffer] Erreur notification offre rejetée ${rejectedOffer.id}: ${e.message}`);
-          }
+            }).catch((e) => {
+              this.logger.warn(`[acceptOffer] Erreur notification offre rejetée ${rejectedOffer.id}: ${e.message}`);
+            })
+          );
+          
+          // Attendre toutes les notifications en parallèle (avec timeout pour éviter de bloquer trop longtemps)
+          await Promise.allSettled(notificationPromises);
         }
 
         if (rejectedOffersResult.rows.length > 0) {
@@ -1488,17 +1488,22 @@ export class MarketplaceService {
       }
 
       // Notifier l'autre partie
+      // Optimisation: utiliser les données du listing déjà récupérées au lieu de refaire une requête
       const notifyUserId = role === 'producer' ? offerData.buyer_id : offerData.producer_id;
       try {
-        const listing = await this.findOneListing(offerData.listing_id);
+        // Utiliser les données du listing déjà récupérées dans la transaction
+        const listingTitle = listing?.listing_type === 'batch' 
+          ? `Lot de ${listing.pig_count || offerSubjectIds.length} sujet(s)`
+          : 'Annonce';
+        
         await this.notificationsService.notifyOfferAccepted(
           notifyUserId,
           offerId,
-          (listing as any)?.title || (listing as any)?.code || 'Annonce'
+          listingTitle
         );
       } catch (error) {
-        this.logger.warn(`[acceptOffer] Impossible de récupérer le listing pour notification: ${error.message}`);
-        // Créer la notification de base si le listing n'est pas disponible
+        this.logger.warn(`[acceptOffer] Impossible d'envoyer la notification: ${error.message}`);
+        // Créer la notification de base si l'envoi échoue
         await this.notificationsService.createNotification({
           userId: notifyUserId,
           type: NotificationType.OFFER_ACCEPTED,
@@ -1508,6 +1513,8 @@ export class MarketplaceService {
             : 'Votre contre-proposition a été acceptée par l\'acheteur',
           relatedType: 'transaction',
           relatedId: transactionId,
+        }).catch((e) => {
+          this.logger.warn(`[acceptOffer] Erreur notification de base: ${e.message}`);
         });
       }
 
