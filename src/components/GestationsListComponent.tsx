@@ -37,6 +37,7 @@ import FormField from './FormField';
 import DatePickerField from './DatePickerField';
 import Button from './Button';
 import { useActionPermissions } from '../hooks/useActionPermissions';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 function GestationsListComponent() {
   const { colors } = useTheme();
@@ -59,7 +60,8 @@ function GestationsListComponent() {
   );
   const [refreshing, setRefreshing] = useState(false);
 
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   
   // Détecter le mode de gestion (individuel ou bande)
   const isModeBatch = projetActif?.management_method === 'batch';

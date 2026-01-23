@@ -5,7 +5,7 @@
 
 import { useEffect, useCallback, useRef } from 'react';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
-import { selectProjetActif } from '../../store/selectors/projetSelectors';
+import { useProjetEffectif } from '../useProjetEffectif';
 import { selectAllAnimaux, selectProductionLoading, selectProductionError } from '../../store/selectors/productionSelectors';
 import { loadProductionAnimaux } from '../../store/slices/productionSlice';
 import { createLoggerWithPrefix } from '../../utils/logger';
@@ -57,7 +57,8 @@ export function useProductionData(options: UseProductionDataOptions = {}) {
   } = options;
 
   const dispatch = useAppDispatch();
-  const projetActif = useAppSelector(selectProjetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const animaux = useAppSelector(selectAllAnimaux);
   const loading = useAppSelector(selectProductionLoading);
   const error = useAppSelector(selectProductionError);

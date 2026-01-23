@@ -24,12 +24,14 @@ import { getCategorieAnimal } from '../../utils/animalUtils';
 import { useActionPermissions } from '../useActionPermissions';
 import { getErrorMessage } from '../../types/errors';
 import { createLoggerWithPrefix } from '../../utils/logger';
+import { useProjetEffectif } from '../useProjetEffectif';
 
 const logger = createLoggerWithPrefix('useProductionCheptelStatut');
 
 export function useProductionCheptelStatut() {
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const allAnimaux = useAppSelector(selectAllAnimaux);
   const mortalites = useAppSelector(selectAllMortalites);
   const { canUpdate } = useActionPermissions();

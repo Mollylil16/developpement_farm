@@ -22,6 +22,7 @@ import { useVaccinationsLogic } from './sante/useVaccinationsLogic';
 import { useMaladiesLogic } from './sante/useMaladiesLogic';
 import { useTraitementsLogic } from './sante/useTraitementsLogic';
 import { useModeElevage, ModeElevage } from './useModeElevage';
+import { useProjetEffectif } from './useProjetEffectif';
 
 export type OngletType = 'vaccinations' | 'maladies' | 'traitements' | 'veterinaire' | 'mortalites';
 
@@ -64,8 +65,8 @@ export interface SanteLogicReturn {
 export function useSanteLogic(): SanteLogicReturn {
   const dispatch = useAppDispatch();
 
-  // Sélecteurs Redux
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const loading = useAppSelector(selectSanteLoading);
   const alertes = useAppSelector(selectSanteAlertes);
   const nombreAlertesCritiques = useAppSelector(selectNombreAlertesCritiques);

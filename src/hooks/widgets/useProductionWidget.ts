@@ -9,6 +9,7 @@ import {
   selectPeseesRecents,
   selectAnimauxActifs,
 } from '../../store/selectors/productionSelectors';
+import { useProjetEffectif } from '../useProjetEffectif';
 import apiClient from '../../services/api/apiClient';
 import type { Batch } from '../../types/batch';
 import { logger } from '../../utils/logger';
@@ -26,7 +27,8 @@ export function useProductionWidget(projetId?: string): ProductionWidgetData | n
   const dispatch = useAppDispatch();
   const animauxActifs = useAppSelector(selectAnimauxActifs);
   const peseesRecents = useAppSelector(selectPeseesRecents);
-  const projetActif = useAppSelector((state) => state.projet.projetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const isBatchMode = projetActif?.management_method === 'batch';
   const dataChargeesRef = useRef<string | null>(null);
   const [batchMetrics, setBatchMetrics] = useState<{ total: number; loges: number } | null>(null);

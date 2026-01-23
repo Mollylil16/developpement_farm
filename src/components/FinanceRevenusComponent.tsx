@@ -28,6 +28,7 @@ import RevenuFormModal from './RevenuFormModal';
 import VenteDetailModal from './VenteDetailModal';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { logger } from '../utils/logger';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 function FinanceRevenusComponent() {
   const { colors } = useTheme();
@@ -47,7 +48,8 @@ function FinanceRevenusComponent() {
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedVenteDetail, setSelectedVenteDetail] = useState<Revenu | null>(null);
 
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   // Charger les données à chaque fois que l'écran est focus
   useFocusEffect(

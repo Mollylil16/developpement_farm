@@ -1,10 +1,12 @@
 /**
  * Hook personnalisé pour détecter le mode d'élevage actif
  * Retourne 'bande' ou 'individuel' selon le projet actif
+ * 
+ * Utilise useProjetEffectif pour supporter les vétérinaires/techniciens
+ * qui travaillent sur des projets collaboratifs.
  */
 
-import { useAppSelector } from '../store/hooks';
-import { selectProjetActif } from '../store/selectors/projetSelectors';
+import { useProjetEffectif } from './useProjetEffectif';
 
 export type ModeElevage = 'bande' | 'individuel';
 
@@ -13,7 +15,7 @@ export type ModeElevage = 'bande' | 'individuel';
  * @returns 'bande' si management_method === 'batch', 'individuel' sinon
  */
 export function useModeElevage(): ModeElevage {
-  const projetActif = useAppSelector(selectProjetActif);
+  const projetActif = useProjetEffectif();
   
   // Par défaut, mode individuel si pas de projet ou management_method non défini
   const managementMethod = projetActif?.management_method || 'individual';

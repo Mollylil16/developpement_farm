@@ -26,7 +26,7 @@ import {
   selectAllAnimaux,
   selectPeseesRecents,
 } from '../store/selectors/productionSelectors';
-import { selectProjetActif } from '../store/selectors/projetSelectors';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import {
   selectAllVaccinations,
   selectAllMaladies,
@@ -73,7 +73,8 @@ function ProductionCheptelComponent() {
   const navigation = useNavigation<NavigationProp<any>>();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
-  const projetActif = useAppSelector(selectProjetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   
   // Vérifier la méthode de gestion du projet
   const managementMethod = projetActif?.management_method || 'individual';
