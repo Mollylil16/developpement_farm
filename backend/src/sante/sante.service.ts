@@ -63,7 +63,8 @@ export class SanteService {
   }
 
   /**
-   * Vérifie que le projet appartient à l'utilisateur
+   * Vérifie que le projet appartient à l'utilisateur OU qu'il est collaborateur actif
+   * avec les permissions appropriées (sante ou gestion_complete)
    */
   private async checkProjetOwnership(projetId: string, userId: string): Promise<void> {
     const result = await this.databaseService.query(
@@ -76,9 +77,30 @@ export class SanteService {
     const rawProprietaireId = result.rows[0].proprietaire_id;
     const proprietaireId = String(rawProprietaireId || '').trim();
     const normalizedUserId = String(userId || '').trim();
-    if (proprietaireId !== normalizedUserId) {
-      throw new ForbiddenException('Ce projet ne vous appartient pas');
+    
+    // ✅ Si l'utilisateur est le propriétaire, OK
+    if (proprietaireId === normalizedUserId) {
+      return;
     }
+    
+    // ✅ Sinon, vérifier s'il est collaborateur actif avec permission 'sante'
+    const collabResult = await this.databaseService.query(
+      `SELECT id, permission_sante, permission_gestion_complete FROM collaborations 
+       WHERE projet_id = $1 
+       AND (user_id = $2 OR profile_id LIKE $3)
+       AND statut = 'actif'`,
+      [projetId, normalizedUserId, `%${normalizedUserId}%`]
+    );
+    
+    if (collabResult.rows.length > 0) {
+      const collab = collabResult.rows[0];
+      // Vérifier si la permission sante ou gestion_complete est accordée
+      if (collab.permission_sante === true || collab.permission_gestion_complete === true) {
+        return;
+      }
+    }
+    
+    throw new ForbiddenException('Vous n\'avez pas accès à ce projet ou les permissions nécessaires');
   }
 
   /**
