@@ -258,3 +258,51 @@ const { listings, loadListingsDebounced } = useMarketplaceData({
 | Re-renders inutiles | Non mesuré | Baseline à établir | 📝 À mesurer |
 | Temps de chargement dashboard | Non mesuré | <2s | 📝 À mesurer |
 
+
+---
+
+## ✅ HOOKS D'OPTIMISATION CRÉÉS
+
+| Hook | Fichier | Description |
+|------|---------|-------------|
+| `useDebounce` | `src/hooks/useDebounce.ts` | Debounce une valeur (recherche) |
+| `useThrottle` | `src/hooks/useThrottle.ts` | Limite fréquence des mises à jour |
+| `useThrottledCallback` | `src/hooks/useThrottle.ts` | Wrapper pour fonctions throttlées |
+| `useMemoizedApiCall` | `src/hooks/useMemoizedApiCall.ts` | Cache API + déduplication |
+| `useMarketplaceData` | `src/hooks/useMarketplaceData.ts` | Données marketplace optimisées |
+| `useApiCache` | `src/hooks/useApiCache.ts` | Cache générique (existant) |
+
+---
+
+## 🔜 PROCHAINES ÉTAPES
+
+### Court terme (1-2 semaines)
+
+1. **Intégrer useMarketplaceData** dans MarketplaceScreen.tsx
+2. **Implémenter les TODO haute priorité** (modals demandes)
+3. **Ajouter React.memo** aux composants de liste (FlatList renderItem)
+
+### Moyen terme (1 mois)
+
+1. **Mesurer les performances** avec React DevTools Profiler
+2. **Optimiser les composants lourds** (>1000 lignes)
+3. **Implémenter la virtualisation** pour les longues listes
+
+### Long terme
+
+1. **Migrer le code deprecated** (senderId, responderType)
+2. **Supprimer les fichiers orphelins** identifiés
+3. **Documenter les patterns d'optimisation** pour l'équipe
+
+---
+
+## 📋 CHECKLIST DE VALIDATION
+
+- [x] Logs debug backend supprimés
+- [x] Babel configuré pour production
+- [x] Hooks d'optimisation créés
+- [x] Documentation mise à jour
+- [ ] MarketplaceScreen refactorisé
+- [ ] Mesures de performance baseline
+- [ ] TODO haute priorité implémentés
+- [ ] React.memo ajouté aux composants critiques
