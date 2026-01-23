@@ -97,7 +97,7 @@ const ENV_CONFIG = {
   production: {
     // URL du backend Render en production
     apiUrl: process.env.EXPO_PUBLIC_API_URL || 'https://fermier-pro-backend.onrender.com',
-    timeout: 20000, // 20 secondes (Render peut avoir des latences)
+    timeout: 10000, // 10 secondes (suffisant si backend optimisé)
     enableLogging: false,
   },
 };
