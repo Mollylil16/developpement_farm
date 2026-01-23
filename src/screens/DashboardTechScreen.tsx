@@ -109,6 +109,10 @@ const DashboardTechScreen: React.FC = () => {
     setNotificationPanelVisible(true);
   }, []);
 
+  const handlePressInvitations = useCallback(() => {
+    setInvitationsModalVisible(true);
+  }, []);
+
   const handleCloseProfileMenu = useCallback(() => {
     setProfileMenuVisible(false);
   }, []);
@@ -160,11 +164,11 @@ const DashboardTechScreen: React.FC = () => {
                 ? `Niveau: ${levelLabels[techProfile.qualifications.level]}`
                 : undefined)
             }
-            invitationsCount={0}
+            invitationsCount={invitationsCount}
             notificationCount={marketplaceUnreadCount}
             headerAnim={animations.headerAnim}
             onPressPhoto={handlePressPhoto}
-            onPressInvitations={() => {}}
+            onPressInvitations={handlePressInvitations}
             onPressNotifications={handlePressNotifications}
           />
 
@@ -327,6 +331,13 @@ const DashboardTechScreen: React.FC = () => {
           marketplaceNotifications.forEach((n) => markAsRead(n.id));
         }}
       />
+
+      {/* Modal des invitations en attente */}
+      <InvitationsModal
+        visible={invitationsModalVisible}
+        onClose={() => setInvitationsModalVisible(false)}
+      />
+
       {/* Bouton flottant pour accéder à l'agent conversationnel */}
       <ChatAgentFAB />
     </SafeAreaView>
