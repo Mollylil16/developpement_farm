@@ -1061,6 +1061,29 @@ export class MarketplaceService {
   // ========================================
 
   /**
+   * Récupérer les IDs des sujets déjà acceptés pour un listing et un acheteur
+   * Utilisé pour filtrer les sujets disponibles dans l'interface
+   */
+  async getAcceptedSubjectIds(listingId: string, buyerId: string): Promise<string[]> {
+    try {
+      const existingOffers = await this.offerRepo.findByBuyerId(buyerId);
+      const acceptedSubjectIds = new Set<string>();
+
+      // Récupérer tous les subjectIds des offres acceptées pour ce listing
+      existingOffers
+        .filter((offer) => offer.listingId === listingId && offer.status === 'accepted')
+        .forEach((offer) => {
+          offer.subjectIds.forEach((id) => acceptedSubjectIds.add(id));
+        });
+
+      return Array.from(acceptedSubjectIds);
+    } catch (error) {
+      logger.error('[marketplace] Erreur récupération sujets acceptés:', error);
+      return [];
+    }
+  }
+
+  /**
    * Récupérer mes offres envoyées (acheteur)
    */
   async getMyOffers(): Promise<any[]> {

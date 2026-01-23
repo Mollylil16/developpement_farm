@@ -1243,17 +1243,31 @@ export class MarketplaceService {
       throw new BadRequestException("Cette annonce n'est plus disponible");
     }
 
-    // Vérifier si l'acheteur a déjà une offre acceptée pour ce listing
-    const existingAcceptedOffer = await this.databaseService.query(
-      `SELECT id, status FROM marketplace_offers 
+    // Vérifier si l'acheteur a déjà une offre acceptée pour ce listing avec des sujets en commun
+    // Logique simple : récupérer tous les subjectIds des offres acceptées et vérifier s'il y a intersection
+    const existingAcceptedOffers = await this.databaseService.query(
+      `SELECT subject_ids FROM marketplace_offers 
        WHERE buyer_id = $1 
        AND listing_id = $2 
-       AND status = 'accepted'
-       LIMIT 1`,
+       AND status = 'accepted'`,
       [userId, createOfferDto.listingId]
     );
 
-    if (existingAcceptedOffer.rows.length > 0) {
+    // Collecter tous les subjectIds déjà acceptés
+    const acceptedSubjectIds = new Set<string>();
+    for (const offerRow of existingAcceptedOffers.rows) {
+      const existingSubjectIds = Array.isArray(offerRow.subject_ids)
+        ? offerRow.subject_ids
+        : typeof offerRow.subject_ids === 'string'
+        ? JSON.parse(offerRow.subject_ids)
+        : [];
+      existingSubjectIds.forEach((id: string) => acceptedSubjectIds.add(id));
+    }
+
+    // Vérifier si au moins un sujet de la nouvelle offre est déjà accepté
+    const hasAcceptedSubject = createOfferDto.subjectIds.some((id) => acceptedSubjectIds.has(id));
+
+    if (hasAcceptedSubject) {
       throw new BadRequestException(
         "Vous avez déjà une offre acceptée par le producteur pour ce sujet. Merci de consulter vos offres reçues."
       );

@@ -28,6 +28,8 @@ import SaleTermsDisplay from './SaleTermsDisplay';
 import SubjectCard from './SubjectCard';
 import type { SubjectCard as SubjectCardType } from '../../types/marketplace';
 import { formatPrice, calculateTotalPrice } from '../../services/PricingService';
+import { useAppSelector } from '../../store/hooks';
+import marketplaceService from '../../services/MarketplaceService';
 
 interface OfferModalProps {
   visible: boolean;
@@ -65,6 +67,10 @@ export default function OfferModal({
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [acceptedSubjectIds, setAcceptedSubjectIds] = useState<Set<string>>(new Set());
+  const [loadingAcceptedSubjects, setLoadingAcceptedSubjects] = useState(false);
+
+  const { user } = useAppSelector((state) => state.auth ?? { user: null });
 
   // Animation pour le swipe
   const pan = useRef(new Animated.ValueXY()).current;
@@ -108,6 +114,29 @@ export default function OfferModal({
     })
   ).current;
 
+  // Charger les sujets déjà acceptés quand le modal s'ouvre
+  useEffect(() => {
+    if (visible && user?.id && listingId) {
+      setLoadingAcceptedSubjects(true);
+      marketplaceService
+        .getAcceptedSubjectIds(listingId, user.id)
+        .then((ids) => {
+          setAcceptedSubjectIds(new Set(ids));
+        })
+        .catch((error) => {
+          console.error('Erreur chargement sujets acceptés:', error);
+        })
+        .finally(() => {
+          setLoadingAcceptedSubjects(false);
+        });
+    } else {
+      setAcceptedSubjectIds(new Set());
+    }
+  }, [visible, user?.id, listingId]);
+
+  // Filtrer les sujets disponibles (exclure ceux déjà acceptés)
+  const availableSubjects = subjects.filter((s) => !acceptedSubjectIds.has(s.id));
+
   // Reset au montage/démontage
   useEffect(() => {
     if (!visible) {
@@ -118,9 +147,9 @@ export default function OfferModal({
       setTermsAccepted(false);
       pan.setValue({ x: 0, y: 0 });
     } else {
-      // Pré-sélectionner tous les sujets par défaut (ils sont tous disponibles puisqu'ils sont passés)
-      if (subjects.length > 0) {
-        const idsToSelect = subjects.map((s) => s.id);
+      // Pré-sélectionner tous les sujets disponibles par défaut (exclure ceux déjà acceptés)
+      if (availableSubjects.length > 0) {
+        const idsToSelect = availableSubjects.map((s) => s.id);
         setSelectedIds(new Set(idsToSelect));
       }
       // Pré-remplir avec le prix original
@@ -131,7 +160,7 @@ export default function OfferModal({
       setSelectedDate(defaultDate);
       setDateRecuperationSouhaitee(defaultDate.toISOString().split('T')[0]);
     }
-  }, [visible, subjects, originalPrice]);
+  }, [visible, availableSubjects, originalPrice]);
 
   const handleDateChange = (event: any, date?: Date) => {
     if (Platform.OS === 'android') {
@@ -154,7 +183,7 @@ export default function OfferModal({
   };
 
   const getSelectedSubjects = () => {
-    return subjects.filter((s) => selectedIds.has(s.id));
+    return availableSubjects.filter((s) => selectedIds.has(s.id));
   };
 
   const getTotalWeight = () => {
@@ -187,6 +216,13 @@ export default function OfferModal({
 
   const handleSubmit = async () => {
     // Validations
+    if (availableSubjects.length === 0) {
+      Alert.alert(
+        'Aucun sujet disponible',
+        'Tous les sujets de cette annonce ont déjà une offre acceptée. Vous ne pouvez pas faire de nouvelle offre.'
+      );
+      return;
+    }
     if (selectedIds.size === 0) {
       Alert.alert('Erreur', 'Veuillez sélectionner au moins un sujet');
       return;
@@ -249,6 +285,7 @@ export default function OfferModal({
 
   // Vérifier si le bouton doit être activé
   const isSubmitEnabled =
+    availableSubjects.length > 0 &&
     selectedIds.size > 0 &&
     proposedPrice.trim() !== '' &&
     !isNaN(parseFloat(proposedPrice)) &&
@@ -304,18 +341,43 @@ export default function OfferModal({
                 Poids total : {getTotalWeight().toFixed(1)} kg
               </Text>
 
-              <View style={styles.subjectsList} key="subjects-list">
-                {subjects.map((subject) => (
-                  <SubjectCard
-                    key={subject.id}
-                    subject={subject}
-                    onPress={() => toggleSelection(subject.id)}
-                    selected={selectedIds.has(subject.id)}
-                    selectable={true}
-                    onSelect={() => toggleSelection(subject.id)}
-                  />
-                ))}
-              </View>
+              {loadingAcceptedSubjects ? (
+                <View style={styles.loadingContainer}>
+                  <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+                    Chargement des sujets disponibles...
+                  </Text>
+                </View>
+              ) : availableSubjects.length === 0 ? (
+                <View style={[styles.infoBox, { backgroundColor: colors.warning + '20' }]}>
+                  <Ionicons name="information-circle" size={20} color={colors.warning} />
+                  <Text style={[styles.infoText, { color: colors.text }]}>
+                    Tous les sujets de cette annonce ont déjà une offre acceptée. Vous ne pouvez pas faire de nouvelle offre pour ces sujets.
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  {acceptedSubjectIds.size > 0 && (
+                    <View style={[styles.infoBox, { backgroundColor: colors.info + '20', marginBottom: SPACING.sm }]}>
+                      <Ionicons name="checkmark-circle" size={20} color={colors.info} />
+                      <Text style={[styles.infoText, { color: colors.text }]}>
+                        {acceptedSubjectIds.size} sujet(s) déjà accepté(s) - non disponible(s) pour une nouvelle offre
+                      </Text>
+                    </View>
+                  )}
+                  <View style={styles.subjectsList} key="subjects-list">
+                    {availableSubjects.map((subject) => (
+                      <SubjectCard
+                        key={subject.id}
+                        subject={subject}
+                        onPress={() => toggleSelection(subject.id)}
+                        selected={selectedIds.has(subject.id)}
+                        selectable={true}
+                        onSelect={() => toggleSelection(subject.id)}
+                      />
+                    ))}
+                  </View>
+                </>
+              )}
             </View>
 
             {/* Proposition de prix */}
@@ -666,6 +728,28 @@ const styles = StyleSheet.create({
   warningText: {
     flex: 1,
     fontSize: MarketplaceTheme.typography.fontSizes.xs,
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: MarketplaceTheme.spacing.sm,
+    padding: MarketplaceTheme.spacing.md,
+    borderRadius: MarketplaceTheme.borderRadius.md,
+    marginBottom: MarketplaceTheme.spacing.sm,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: MarketplaceTheme.typography.fontSizes.sm,
+    lineHeight: 20,
+  },
+  loadingContainer: {
+    padding: MarketplaceTheme.spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontSize: MarketplaceTheme.typography.fontSizes.sm,
+    marginTop: MarketplaceTheme.spacing.sm,
   },
   datePickerButton: {
     flexDirection: 'row',
