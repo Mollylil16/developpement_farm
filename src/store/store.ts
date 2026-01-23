@@ -110,6 +110,9 @@ export const store = configureStore({
       serializableCheck: {
         ignoredActions: ['persist/PERSIST', 'persist/REHYDRATE'],
       },
+      // ✅ Désactiver immutableCheck en dev pour éviter les warnings de performance
+      // avec un state volumineux (ce middleware est déjà désactivé en production)
+      immutableCheck: __DEV__ ? { warnAfter: 128 } : false, // Augmenter le seuil à 128ms en dev
     }).concat(authMiddleware),
 });
 
