@@ -145,27 +145,38 @@ export function useMarketplaceData() {
 }
 ```
 
-### Priorité 3: Débouncer les appels API
+### Priorité 3: Utiliser les hooks d'optimisation
 
 ```typescript
-// Pour les filtres/recherches
-const debouncedLoadListings = useMemo(
-  () => debounce(loadListings, 300),
-  [loadListings]
+// Hook useDebounce - pour valeurs (recherche)
+const debouncedSearch = useDebounce(searchQuery, 300);
+
+// Hook useThrottle - pour événements fréquents (scroll)
+const throttledScrollY = useThrottle(scrollY, 100);
+
+// Hook useThrottledCallback - pour fonctions
+const throttledOnScroll = useThrottledCallback(onScroll, 100);
+
+// Hook useMemoizedApiCall - pour appels API avec cache
+const { data, loading, refresh } = useMemoizedApiCall(
+  () => apiClient.get('/endpoint'),
+  { cacheKey: 'my-data', ttl: 60000 }
 );
+
+// Hook useMarketplaceData - pour données marketplace
+const { listings, loadListingsDebounced } = useMarketplaceData({
+  cacheDuration: 30000,
+  autoLoad: true,
+});
 ```
 
-### Priorité 4: Supprimer console.log en production
+### Priorité 4: Console.log auto-supprimés en production
+
+✅ **Configuré via babel.config.js**
 
 ```typescript
-// babel.config.js
-module.exports = {
-  plugins: [
-    ['transform-remove-console', { 
-      exclude: ['error', 'warn'] // Garder error et warn
-    }]
-  ]
-};
+// En production, tous les console.log sont automatiquement supprimés
+// Seuls console.error et console.warn sont conservés
 ```
 
 ---
