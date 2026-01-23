@@ -316,11 +316,17 @@ function MarketplaceOffersTab({
         </View>
 
         <View style={styles.content}>
+          {/* Afficher le nom du producteur pour les contre-propositions reçues */}
+          {(item.isCounterProposalReceived || item.counterOfferOf) && offersTab === 'received' && (
+            <Text style={[styles.sellerName, { color: marketplaceColors.textSecondary, marginBottom: 4 }]}>
+              De: {item.seller_nom || item.buyer_nom} {item.seller_prenom || item.buyer_prenom}
+            </Text>
+          )}
           <Text style={[styles.subjectCount, { color: marketplaceColors.text }]}>
             {getSubjectCount()} sujet{getSubjectCount() > 1 ? 's' : ''}
           </Text>
           <Text style={[styles.price, { color: marketplaceColors.primary }]}>
-            {item.status === 'countered' && offersTab === 'sent'
+            {(item.isCounterProposalReceived || item.counterOfferOf) && offersTab === 'received'
               ? 'Prix proposé par le producteur: '
               : 'Offre: '}
             {getOfferAmount().toLocaleString()} FCFA
@@ -347,7 +353,8 @@ function MarketplaceOffersTab({
           )}
         </View>
 
-        {isPending && offersTab === 'received' && (
+        {/* Boutons pour le PRODUCTEUR : offres initiales reçues (pending, pas de contre-proposition) */}
+        {isPending && offersTab === 'received' && !item.isCounterProposalReceived && !item.counterOfferOf && (
           <View style={styles.actions}>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: marketplaceColors.success }]}
@@ -376,8 +383,8 @@ function MarketplaceOffersTab({
           </View>
         )}
 
-        {/* Pour les contre-propositions reçues par l'acheteur (offres envoyées avec statut "countered") */}
-        {item.status === 'countered' && offersTab === 'sent' && (
+        {/* Boutons pour l'ACHETEUR : contre-propositions reçues du producteur (dans onglet "reçues") */}
+        {offersTab === 'received' && (item.isCounterProposalReceived || item.counterOfferOf) && item.status === 'countered' && (
           <View style={styles.actions}>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: marketplaceColors.success }]}
@@ -441,10 +448,10 @@ function MarketplaceOffersTab({
           >
             Reçues ({receivedOffers.length})
           </Text>
-          {receivedOffers.filter((o) => o.status === 'pending').length > 0 && (
+          {receivedOffers.filter((o) => o.status === 'pending' || (o.status === 'countered' && (o.isCounterProposalReceived || o.counterOfferOf))).length > 0 && (
             <View style={[styles.tabBadge, { backgroundColor: marketplaceColors.error }]}>
               <Text style={[styles.tabBadgeText, { color: marketplaceColors.textInverse }]}>
-                {receivedOffers.filter((o) => o.status === 'pending').length}
+                {receivedOffers.filter((o) => o.status === 'pending' || (o.status === 'countered' && (o.isCounterProposalReceived || o.counterOfferOf))).length}
               </Text>
             </View>
           )}

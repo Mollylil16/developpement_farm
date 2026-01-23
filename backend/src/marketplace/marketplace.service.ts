@@ -3699,12 +3699,13 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       FROM marketplace_offers o
       LEFT JOIN marketplace_listings l ON o.listing_id = l.id
       LEFT JOIN users u ON o.producer_id = u.id
-      WHERE o.buyer_id = $1
+      WHERE o.buyer_id = $1 
+        AND (o.counter_offer_of IS NULL)
       ORDER BY o.created_at DESC`,
       [buyerId]
     );
 
-    this.logger.log(`[getBuyerInquiries] ${buyerId}: ${offersResult.rows.length} offres trouvées`);
+    this.logger.log(`[getBuyerInquiries] ${buyerId}: ${offersResult.rows.length} offres initiales trouvées (sans contre-propositions)`);
 
     if (offersResult.rows.length > 0) {
       this.logger.debug('[getBuyerInquiries] Première offre brute:', {
@@ -3810,12 +3811,53 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
         FROM marketplace_offers o
         LEFT JOIN marketplace_listings l ON o.listing_id = l.id
         LEFT JOIN users u ON o.buyer_id = u.id
-        WHERE o.producer_id = $1
+        WHERE o.producer_id = $1 AND o.counter_offer_of IS NULL
         ORDER BY o.created_at DESC`,
         [sellerId]
       );
 
-      this.logger.log(`[getSellerInquiries] ${offersResult.rows.length} offres trouvées pour vendeur ${sellerId}`);
+      // Récupérer aussi les contre-propositions reçues par l'utilisateur (quand il est acheteur)
+      const counterOffersResult = await this.databaseService.query(
+        `SELECT
+          o.id,
+          o.listing_id,
+          o.buyer_id,
+          o.producer_id as seller_id,
+          o.proposed_price,
+          o.original_price,
+          o.message,
+          o.status,
+          o.terms_accepted,
+          o.expires_at,
+          o.counter_offer_of,
+          o.date_recuperation_souhaitee,
+          o.subject_ids as offer_subject_ids,
+          TO_CHAR(o.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as created_at_iso,
+          TO_CHAR(o.responded_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as responded_at_iso,
+          o.created_at,
+          o.responded_at,
+          l.calculated_price as listing_price,
+          l.listing_type,
+          l.pig_count as listing_pig_count,
+          l.subject_id,
+          l.pig_ids,
+          u2.nom as buyer_nom,
+          u2.prenom as buyer_prenom,
+          u2.telephone as buyer_telephone,
+          u2.email as buyer_email,
+          u.nom as seller_nom,
+          u.prenom as seller_prenom,
+          'counter_proposal_received' as offer_category
+        FROM marketplace_offers o
+        LEFT JOIN marketplace_listings l ON o.listing_id = l.id
+        LEFT JOIN users u ON o.producer_id = u.id
+        LEFT JOIN users u2 ON o.buyer_id = u2.id
+        WHERE o.buyer_id = $1 AND o.counter_offer_of IS NOT NULL
+        ORDER BY o.created_at DESC`,
+        [sellerId]
+      );
+
+      this.logger.log(`[getSellerInquiries] ${offersResult.rows.length} offres initiales + ${counterOffersResult.rows.length} contre-propositions reçues pour user ${sellerId}`);
 
       // Fonction helper pour conversion sécurisée
       const safeParseFloat = (value: any): number | null => {
@@ -3826,8 +3868,8 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
         return isNaN(parsed) ? null : parsed;
       };
 
-      const result = offersResult.rows.map((row: any) => {
-        // ✅ Calculer le nombre réel de sujets dans l'offre
+      // Fonction de mapping commune
+      const mapOfferRow = (row: any, isCounterProposal: boolean = false) => {
         const offerSubjectIds = Array.isArray(row.offer_subject_ids) 
           ? row.offer_subject_ids 
           : (row.offer_subject_ids ? JSON.parse(row.offer_subject_ids) : []);
@@ -3838,7 +3880,7 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
           listingId: row.listing_id,
           buyerId: row.buyer_id,
           sellerId: row.seller_id,
-          inquiryType: 'offer', // Les offres marketplace sont toujours de type 'offer'
+          inquiryType: 'offer',
           offeredAmount: safeParseFloat(row.proposed_price),
           proposedPrice: safeParseFloat(row.proposed_price),
           originalPrice: safeParseFloat(row.original_price),
@@ -3850,25 +3892,29 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
           dateRecuperationSouhaitee: row.date_recuperation_souhaitee,
           createdAt: row.created_at_iso || row.created_at,
           respondedAt: row.responded_at_iso || row.responded_at,
-          // ✅ CORRECTION: Utiliser les subjectIds de l'OFFRE (pas du listing)
           subjectIds: offerSubjectIds,
-          pig_count: offerPigCount, // Nombre de sujets dans l'offre
-          // Propriétés aplaties pour compatibilité frontend
+          pig_count: offerPigCount,
           listing_price: safeParseFloat(row.listing_price),
           listing_type: row.listing_type,
-          listing_pig_count: row.listing_pig_count, // Nombre total de sujets dans le listing
+          listing_pig_count: row.listing_pig_count,
           subject_id: row.subject_id,
           pig_ids: row.pig_ids,
-          buyer_nom: row.buyer_nom,
-          buyer_prenom: row.buyer_prenom,
+          // Pour les offres normales, buyer_nom vient du buyer
+          // Pour les contre-propositions reçues, on affiche le nom du producteur
+          buyer_nom: isCounterProposal ? row.seller_nom : row.buyer_nom,
+          buyer_prenom: isCounterProposal ? row.seller_prenom : row.buyer_prenom,
           buyer_telephone: row.buyer_telephone,
           buyer_email: row.buyer_email,
-          // Objets nested aussi gardés pour compatibilité future
+          // Indicateur pour le frontend
+          isCounterProposalReceived: isCounterProposal,
+          // Nom du producteur pour les contre-propositions
+          seller_nom: row.seller_nom,
+          seller_prenom: row.seller_prenom,
           listing: {
             id: row.listing_id,
             price: safeParseFloat(row.listing_price),
             listingType: row.listing_type,
-            pigCount: row.listing_pig_count, // Nombre total dans le listing
+            pigCount: row.listing_pig_count,
           },
           buyer: {
             id: row.buyer_id,
@@ -3878,9 +3924,22 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
             email: row.buyer_email,
           },
         };
+      };
+
+      // Mapper les offres reçues (en tant que producteur)
+      const producerOffers = offersResult.rows.map((row: any) => mapOfferRow(row, false));
+      
+      // Mapper les contre-propositions reçues (en tant qu'acheteur)
+      const counterProposals = counterOffersResult.rows.map((row: any) => mapOfferRow(row, true));
+
+      // Fusionner et trier par date de création (plus récent en premier)
+      const result = [...producerOffers, ...counterProposals].sort((a, b) => {
+        const dateA = new Date(a.createdAt || 0).getTime();
+        const dateB = new Date(b.createdAt || 0).getTime();
+        return dateB - dateA;
       });
 
-      this.logger.log(`[getSellerInquiries] ${result.length} offres formatées pour vendeur ${sellerId}`);
+      this.logger.log(`[getSellerInquiries] ${result.length} offres formatées pour user ${sellerId} (${producerOffers.length} offres + ${counterProposals.length} contre-propositions)`);
       return result;
     } catch (error) {
       this.logger.error(`[getSellerInquiries] Erreur récupération offres pour vendeur ${sellerId}:`, error);
