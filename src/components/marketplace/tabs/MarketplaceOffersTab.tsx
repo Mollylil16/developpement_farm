@@ -523,8 +523,9 @@ function MarketplaceOffersTab({
         maxToRenderPerBatch={10}
         windowSize={5}
         initialNumToRender={10}
-        ListFooterComponent={<View style={{ height: 20 }} />} // ✅ Espace supplémentaire en bas
+        ListFooterComponent={<View style={{ height: 20 }} />}
         showsVerticalScrollIndicator={true}
+        nestedScrollEnabled={true} // ✅ Permet le scroll imbriqué
       />
 
       {/* Modal de contre-proposition */}

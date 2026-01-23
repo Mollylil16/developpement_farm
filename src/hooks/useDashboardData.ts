@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useAppDispatch } from '../store/hooks';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
 import {
   loadMortalitesParProjet,
   loadStatistiquesMortalite,
@@ -31,6 +31,8 @@ export function useDashboardData({
   onProfilPhotoLoad,
 }: UseDashboardDataProps): UseDashboardDataReturn {
   const dispatch = useAppDispatch();
+  const isAuthenticated = useAppSelector((state) => state.auth?.isAuthenticated);
+  const authLoading = useAppSelector((state) => state.auth?.isLoading);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -49,7 +51,11 @@ export function useDashboardData({
    * Note: Si rate limiting nécessaire, il doit être géré côté API client avec retry
    */
   const chargerDonnees = useCallback(async () => {
-    if (!projetId) return;
+    // Ne pas charger si pas de projet ou si pas authentifié
+    if (!projetId || !isAuthenticated || authLoading) {
+      logger.debug('[useDashboardData] Skipping load - projetId:', projetId, 'isAuthenticated:', isAuthenticated, 'authLoading:', authLoading);
+      return;
+    }
 
     try {
 // Vérifier si les données sont récentes (< 30 secondes) pour éviter les rechargements inutiles
@@ -105,7 +111,7 @@ export function useDashboardData({
       // Ne pas bloquer l'application si une requête échoue
       // Les données disponibles seront affichées
     }
-  }, [projetId, dispatch]); // Retirer onProfilPhotoLoad des dépendances pour éviter re-créations
+  }, [projetId, dispatch, isAuthenticated, authLoading]); // Retirer onProfilPhotoLoad des dépendances pour éviter re-créations
 
   /**
    * Rafraîchit les données (pull-to-refresh)
