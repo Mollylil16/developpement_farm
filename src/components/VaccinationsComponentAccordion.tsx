@@ -70,7 +70,7 @@ interface Props {
 
 type SectionOuverte = TypeProphylaxie | `${TypeProphylaxie}_calendrier` | null;
 
-export default function VaccinationsComponentAccordion({ refreshControl }: Props) {
+function VaccinationsComponentAccordion({ refreshControl }: Props) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const modeElevage = useModeElevage();
@@ -2157,3 +2157,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(VaccinationsComponentAccordion);

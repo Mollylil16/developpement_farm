@@ -78,7 +78,7 @@ const PERIODICITE_JOURS: Record<Periodicite, number> = {
   personnalise: 0,
 };
 
-export default function VeterinaireComponent({ refreshControl }: VeterinaireComponentProps) {
+function VeterinaireComponent({ refreshControl }: VeterinaireComponentProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const navigation = useNavigation<unknown>();
@@ -1400,3 +1400,6 @@ const styles = StyleSheet.create({
     height: SPACING.xl,
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(VeterinaireComponent);

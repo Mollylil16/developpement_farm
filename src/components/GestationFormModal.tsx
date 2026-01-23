@@ -70,7 +70,7 @@ const getTodayLocalDate = () => {
   return `${year}-${month}-${day}`;
 };
 
-export default function GestationFormModal({
+function GestationFormModal({
   visible,
   onClose,
   onSuccess,
@@ -1435,3 +1435,6 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xs,
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(GestationFormModal);

@@ -24,7 +24,7 @@ import { Batch } from '../types/batch';
 
 type EstimationMode = 'date' | 'animaux';
 
-export default function ProductionEstimationsComponent() {
+function ProductionEstimationsComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
@@ -1201,3 +1201,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(ProductionEstimationsComponent);

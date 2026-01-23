@@ -80,7 +80,7 @@ const areRecommandationsEqual = (a: Recommandation[], b: Recommandation[]) => {
   });
 };
 
-export default function PerformanceIndicatorsComponent() {
+function PerformanceIndicatorsComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const [exportingPDF, setExportingPDF] = useState(false);
@@ -1276,3 +1276,6 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xl,
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(PerformanceIndicatorsComponent);

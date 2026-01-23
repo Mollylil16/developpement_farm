@@ -65,7 +65,7 @@ import { resolveLocationFromCoords } from '../services/location/locationResolver
 
 const logger = createLoggerWithPrefix('ProductionCheptel');
 
-export default function ProductionCheptelComponent() {
+function ProductionCheptelComponent() {
   // IMPORTANT: Tous les hooks doivent être appelés AVANT tout return conditionnel
   // pour respecter les règles des hooks React
   
@@ -1219,3 +1219,6 @@ export default function ProductionCheptelComponent() {
     fontWeight: '700',
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(ProductionCheptelComponent);

@@ -46,7 +46,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { evaluerGMQIndividuel, calculerGMQMoyen } from '../utils/gmqEvaluation';
 
-export default function ProductionAnimalsListComponent() {
+function ProductionAnimalsListComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
@@ -1281,3 +1281,6 @@ const styles = StyleSheet.create({
     lineHeight: FONT_SIZES.sm * 1.6,
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(ProductionAnimalsListComponent);
