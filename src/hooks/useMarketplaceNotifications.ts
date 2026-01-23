@@ -124,7 +124,10 @@ export function useMarketplaceNotifications(
   const markAsRead = useCallback(async (notificationId: string) => {
     try {
       // Marquer la notification comme lue via l'API backend
-      await apiClient.patch(`/marketplace/notifications/${notificationId}/read`);
+      // ✅ Utiliser l'endpoint correct avec body
+      await apiClient.patch('/marketplace/notifications/mark-read', {
+        notificationIds: [notificationId],
+      });
 
       // Mettre à jour l'état local
       setNotifications((prev) =>

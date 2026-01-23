@@ -147,13 +147,10 @@ export const searchListings = createAsyncThunk(
       // OPTIMISATION : Mettre en cache les résultats pour la page 1 uniquement
       if (page === 1 && response.listings.length > 0) {
         try {
-          const { setCachedListings } = await import('../../services/marketplaceCache');
-          // Ne pas attendre le cache (opération asynchrone non bloquante)
-          setCachedListings(response.listings, params.filters, sortOption, page).catch((cacheError) => {
-            if (__DEV__) {
-              console.warn('[marketplaceSlice] Erreur lors du stockage du cache:', cacheError);
-            }
-          });
+          const { marketplaceCache } = await import('../../services/marketplaceCache');
+          // Utiliser l'instance singleton pour mettre en cache
+          const cacheParams = { ...params.filters, sort: sortOption };
+          marketplaceCache.setListings(cacheParams, response.listings);
         } catch (cacheError) {
           // Ignorer les erreurs de cache
           if (__DEV__) {
