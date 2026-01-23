@@ -117,7 +117,7 @@ export function useDashboardData({
    * Rafraîchit les données (pull-to-refresh)
    */
   const onRefresh = useCallback(async () => {
-    if (!projetId) return;
+    if (!projetId || !isAuthenticated || authLoading) return;
 
     setRefreshing(true);
     try {
@@ -127,13 +127,19 @@ export function useDashboardData({
     } finally {
       setRefreshing(false);
     }
-  }, [projetId, chargerDonnees]);
+  }, [projetId, chargerDonnees, isAuthenticated, authLoading]);
 
   /**
    * Chargement initial au montage ou changement de projet
+   * Attend que l'authentification soit confirmée avant de charger
    */
   useEffect(() => {
-    if (!projetId) {
+    // Ne pas charger si authentification en cours ou pas authentifié
+    if (authLoading) {
+      return;
+    }
+
+    if (!isAuthenticated || !projetId) {
       setIsInitialLoading(false);
       return;
     }
@@ -168,7 +174,7 @@ export function useDashboardData({
     }, 300); // Réduit de 500ms à 300ms
 
     return () => clearTimeout(timeoutId);
-  }, [projetId, chargerDonnees]);
+  }, [projetId, chargerDonnees, isAuthenticated, authLoading]);
 
   return {
     isInitialLoading,

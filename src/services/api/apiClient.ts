@@ -768,10 +768,17 @@ async function executeHttpRequest<T>(
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     } else {
-      // Pas de token disponible - c'est normal pour les utilisateurs non connectés
+      // Pas de token disponible - lancer une erreur 401 immédiatement
+      // plutôt que d'envoyer la requête au serveur pour échouer
       if (__DEV__) {
         logger.debug(`[${endpoint}] Aucun token d'authentification (utilisateur non connecté)`);
       }
+      // Pour les endpoints qui nécessitent une authentification,
+      // renvoyer une erreur 401 sans appeler le serveur
+      throw new APIError(
+        'Aucun token de rafraîchissement disponible. Veuillez vous reconnecter.',
+        401
+      );
     }
   }
 
