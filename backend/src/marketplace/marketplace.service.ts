@@ -1566,21 +1566,20 @@ export class MarketplaceService {
     );
 
     // Notifier l'autre partie
+    // Optimisation: notification en arrière-plan pour ne pas bloquer la réponse
     const notifyUserId = role === 'producer' ? offerData.buyer_id : offerData.producer_id;
-    try {
-      await this.notificationsService.createNotification({
-        userId: notifyUserId,
-        type: NotificationType.OFFER_REJECTED,
-        title: role === 'producer' ? 'Offre refusée' : 'Contre-proposition refusée',
-        message: role === 'producer' 
-          ? 'Le producteur a refusé votre offre'
-          : 'L\'acheteur a refusé votre contre-proposition',
-        relatedType: 'offer',
-        relatedId: offerId,
-      });
-    } catch (error) {
+    this.notificationsService.createNotification({
+      userId: notifyUserId,
+      type: NotificationType.OFFER_REJECTED,
+      title: role === 'producer' ? 'Offre refusée' : 'Contre-proposition refusée',
+      message: role === 'producer' 
+        ? 'Le producteur a refusé votre offre'
+        : 'L\'acheteur a refusé votre contre-proposition',
+      relatedType: 'offer',
+      relatedId: offerId,
+    }).catch((error) => {
       this.logger.warn(`[rejectOffer] Erreur notification: ${error.message}`);
-    }
+    });
 
     this.logger.log(`[rejectOffer] Offre ${offerId} rejetée par ${role} ${userId}`);
     return { id: offerId };
@@ -1616,11 +1615,17 @@ export class MarketplaceService {
       throw new BadRequestException('Vous ne pouvez faire une contre-proposition que sur une offre en attente');
     }
 
-    // Récupérer le listing pour vérifier qu'il est toujours disponible
-    const listing = await this.findOneListing(originalOfferData.listing_id);
-    if (listing.status !== 'available') {
+    // Optimisation: vérifier le statut du listing avec une requête simple au lieu de findOneListing
+    const listingStatusResult = await this.databaseService.query(
+      'SELECT status, listing_type, pig_count FROM marketplace_listings WHERE id = $1',
+      [originalOfferData.listing_id]
+    );
+    
+    if (listingStatusResult.rows.length === 0 || listingStatusResult.rows[0].status !== 'available') {
       throw new BadRequestException("Cette annonce n'est plus disponible");
     }
+    
+    const listingInfo = listingStatusResult.rows[0];
 
     // Utiliser une transaction pour garantir la cohérence
     return await this.databaseService.transaction(async (client) => {
@@ -1662,17 +1667,21 @@ export class MarketplaceService {
       );
 
       // Notifier l'acheteur
+      // Optimisation: utiliser les données du listing déjà récupérées au lieu de refaire findOneListing
       try {
-        const listing = await this.findOneListing(originalOfferData.listing_id);
+        const listingTitle = listingInfo.listing_type === 'batch' 
+          ? `Lot de ${listingInfo.pig_count || 1} sujet(s)`
+          : 'Annonce';
+        
         await this.notificationsService.notifyOfferCountered(
           originalOfferData.buyer_id,
           counterOfferId,
-          (listing as any)?.title || (listing as any)?.code || 'Annonce',
+          listingTitle,
           counterOfferDto.nouveau_prix_total
         );
       } catch (error) {
-        this.logger.warn(`[counterOffer] Impossible de récupérer le listing pour notification: ${error.message}`);
-        // Créer la notification de base si le listing n'est pas disponible
+        this.logger.warn(`[counterOffer] Impossible d'envoyer la notification: ${error.message}`);
+        // Créer la notification de base si l'envoi échoue
         await this.notificationsService.createNotification({
           userId: originalOfferData.buyer_id,
           type: NotificationType.OFFER_COUNTERED,
@@ -1680,6 +1689,8 @@ export class MarketplaceService {
           message: `Le producteur vous propose un nouveau prix de ${counterOfferDto.nouveau_prix_total.toLocaleString('fr-FR')} FCFA`,
           relatedId: counterOfferId,
           relatedType: 'offer',
+        }).catch((e) => {
+          this.logger.warn(`[counterOffer] Erreur notification de base: ${e.message}`);
         });
       }
 
@@ -4221,61 +4232,61 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
   }
 
   async withdrawOffer(offerId: string, userId: string) {
-    return await this.databaseService.transaction(async (client) => {
-      // NOTE: Les offres sont dans marketplace_offers (pas marketplace_inquiries)
-      const offerResult = await client.query(
-        `SELECT id, buyer_id, producer_id, status FROM marketplace_offers WHERE id = $1`,
-        [offerId]
+    // Récupérer les données de l'offre avant la transaction pour la notification
+    const offerResult = await this.databaseService.query(
+      `SELECT id, buyer_id, producer_id, status FROM marketplace_offers WHERE id = $1`,
+      [offerId]
+    );
+
+    if (offerResult.rows.length === 0) {
+      throw new NotFoundException('Offre non trouvée');
+    }
+
+    const offerData = offerResult.rows[0];
+
+    // Vérifier que c'est bien l'acheteur qui fait la demande
+    if (offerData.buyer_id !== userId) {
+      throw new ForbiddenException('Vous ne pouvez pas retirer cette offre');
+    }
+
+    // Vérifier que l'offre est encore en attente
+    if (offerData.status !== 'pending') {
+      throw new BadRequestException(
+        'Impossible de retirer une offre déjà acceptée ou refusée'
       );
+    }
 
-      if (offerResult.rows.length === 0) {
-        throw new NotFoundException('Offre non trouvée');
-      }
-
-      const offerData = offerResult.rows[0];
-
-      // Vérifier que c'est bien l'acheteur qui fait la demande
-      if (offerData.buyer_id !== userId) {
-        throw new ForbiddenException('Vous ne pouvez pas retirer cette offre');
-      }
-
-      // Vérifier que l'offre est encore en attente
-      if (offerData.status !== 'pending') {
-        throw new BadRequestException(
-          'Impossible de retirer une offre déjà acceptée ou refusée'
-        );
-      }
-
-      // Mettre à jour le statut à "withdrawn"
+    // Transaction pour mettre à jour le statut
+    await this.databaseService.transaction(async (client) => {
       await client.query(
         `UPDATE marketplace_offers
          SET status = 'withdrawn', derniere_modification = NOW()
          WHERE id = $1`,
         [offerId]
       );
-
-      // Notifier le vendeur (optionnel)
-      try {
-        await this.notificationsService.createNotification({
-          userId: offerData.producer_id,
-          type: NotificationType.OFFER_WITHDRAWN,
-          title: 'Offre retirée',
-          message: 'Un acheteur a retiré son offre',
-          relatedType: 'offer',
-          relatedId: offerId,
-        });
-        this.logger.log(`[withdrawOffer] Notification envoyée au vendeur ${offerData.producer_id}`);
-      } catch (error) {
-        this.logger.error(`[withdrawOffer] Erreur notification: ${error.message}`);
-        // Ne pas bloquer le retrait si la notification échoue
-      }
-
-      this.logger.log(`[withdrawOffer] Offre ${offerId} retirée par acheteur ${userId}`);
-      return {
-        message: 'Offre retirée avec succès',
-        offerId,
-      };
     });
+
+    // Notifier le vendeur en arrière-plan (après la transaction pour ne pas bloquer)
+    // Optimisation: notification en arrière-plan pour ne pas bloquer la réponse
+    this.notificationsService.createNotification({
+      userId: offerData.producer_id,
+      type: NotificationType.OFFER_WITHDRAWN,
+      title: 'Offre retirée',
+      message: 'Un acheteur a retiré son offre',
+      relatedType: 'offer',
+      relatedId: offerId,
+    }).then(() => {
+      this.logger.log(`[withdrawOffer] Notification envoyée au vendeur ${offerData.producer_id}`);
+    }).catch((error) => {
+      this.logger.error(`[withdrawOffer] Erreur notification: ${error.message}`);
+      // Ne pas bloquer le retrait si la notification échoue
+    });
+
+    this.logger.log(`[withdrawOffer] Offre ${offerId} retirée par acheteur ${userId}`);
+    return {
+      message: 'Offre retirée avec succès',
+      offerId,
+    };
   }
 
   /**
