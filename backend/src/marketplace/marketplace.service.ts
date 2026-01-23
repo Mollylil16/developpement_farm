@@ -4644,31 +4644,16 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       }
     }
 
-    // Calculer le prix moyen
+    // Calculer le prix moyen basé UNIQUEMENT sur les données du marketplace
     const avgPricePlatform = totalWeightKg > 0 
       ? Math.round(totalPriceFcfa / totalWeightKg) 
       : null;
 
-    // Prix régional de référence - récupérer depuis la table si disponible
-    let avgPriceRegional = 2300; // FCFA/kg par défaut
-    try {
-      const regionalResult = await this.databaseService.query(
-        `SELECT price_per_kg FROM regional_pork_price 
-         WHERE region = 'national' 
-         ORDER BY updated_at DESC LIMIT 1`
-      );
-      if (regionalResult.rows.length > 0) {
-        avgPriceRegional = parseFloat(regionalResult.rows[0].price_per_kg) || 2300;
-      }
-    } catch (e) {
-      // Ignorer, utiliser la valeur par défaut
-    }
-
-    // Déterminer la source
-    let sourcePriority = 'regional';
+    // Déterminer la source (sans prix régional)
+    let sourcePriority: 'platform' | 'offers' | 'listings' | 'none' = 'none';
     if (transactionsCount > 0 && avgPricePlatform) {
       sourcePriority = 'platform';
-    } else if (offersCount > 0) {
+    } else if (offersCount > 0 && avgPricePlatform) {
       sourcePriority = 'offers';
     } else if (listingsCount > 0 && avgPricePlatform) {
       sourcePriority = 'listings';
@@ -4678,8 +4663,9 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       id: `${year}-W${weekNumber.toString().padStart(2, '0')}`,
       year,
       weekNumber,
-      avgPricePlatform: avgPricePlatform || avgPriceRegional,
-      avgPriceRegional,
+      // Prix basé UNIQUEMENT sur le marketplace (null si pas de données)
+      avgPricePlatform: avgPricePlatform,
+      avgPriceRegional: null, // Plus utilisé
       transactionsCount,
       offersCount,
       listingsCount,
@@ -4740,12 +4726,12 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
           id,
           trendData.year,
           trendData.weekNumber,
-          trendData.avgPricePlatform || trendData.avg_price_platform,
-          trendData.avgPriceRegional || trendData.avg_price_regional || 2300,
+          trendData.avgPricePlatform || trendData.avg_price_platform || null,
+          trendData.avgPriceRegional || trendData.avg_price_regional || null, // Plus de fallback régional
           trendData.transactionsCount || trendData.transactions_count || 0,
           trendData.offersCount || trendData.offers_count || 0,
           trendData.listingsCount || trendData.listings_count || 0,
-          trendData.sourcePriority || trendData.source_priority || 'regional',
+          trendData.sourcePriority || trendData.source_priority || 'none',
           trendData.totalWeightKg || trendData.total_weight_kg,
           trendData.totalPriceFcfa || trendData.total_price_fcfa,
         ]
