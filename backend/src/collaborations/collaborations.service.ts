@@ -1213,14 +1213,23 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
     const collaboration = invitationResult.rows[0];
     const invitationEmail = collaboration.email?.toLowerCase().trim();
     const invitationTelephone = collaboration.telephone?.trim();
+    const invitationProfileId = collaboration.profile_id;
 
     // Vérifier que l'invitation appartient à l'utilisateur
-    // Par user_id OU email OU telephone (comparaison insensible à la casse)
+    // Par user_id OU email OU telephone OU profile_id (pour les invitations QR)
     const matchByUserId = collaboration.user_id === userId;
     const matchByEmail = userEmail && invitationEmail && userEmail === invitationEmail;
     const matchByTelephone = userTelephone && invitationTelephone && userTelephone === invitationTelephone;
+    // ✅ Vérifier par profile_id (invitations QR: format profile_userId_role ou contient userId)
+    const matchByProfileId = invitationProfileId && (
+      invitationProfileId === `profile_${userId}_veterinarian` ||
+      invitationProfileId === `profile_${userId}_technician` ||
+      invitationProfileId === `profile_${userId}_producer` ||
+      invitationProfileId === `profile_${userId}_buyer` ||
+      invitationProfileId.includes(userId)
+    );
 
-    if (!matchByUserId && !matchByEmail && !matchByTelephone) {
+    if (!matchByUserId && !matchByEmail && !matchByTelephone && !matchByProfileId) {
       throw new ForbiddenException(
         "Cette invitation ne vous est pas destinée. Vérifiez que l'email ou le téléphone correspond à votre compte."
       );
@@ -1339,14 +1348,23 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
     const collaboration = invitationResult.rows[0];
     const invitationEmail = collaboration.email?.toLowerCase().trim();
     const invitationTelephone = collaboration.telephone?.trim();
+    const invitationProfileId = collaboration.profile_id;
 
     // Vérifier que l'invitation appartient à l'utilisateur
-    // Par user_id OU email OU telephone (comparaison insensible à la casse)
+    // Par user_id OU email OU telephone OU profile_id (pour les invitations QR)
     const matchByUserId = collaboration.user_id === userId;
     const matchByEmail = userEmail && invitationEmail && userEmail === invitationEmail;
     const matchByTelephone = userTelephone && invitationTelephone && userTelephone === invitationTelephone;
+    // ✅ Vérifier par profile_id (invitations QR: format profile_userId_role ou contient userId)
+    const matchByProfileId = invitationProfileId && (
+      invitationProfileId === `profile_${userId}_veterinarian` ||
+      invitationProfileId === `profile_${userId}_technician` ||
+      invitationProfileId === `profile_${userId}_producer` ||
+      invitationProfileId === `profile_${userId}_buyer` ||
+      invitationProfileId.includes(userId)
+    );
 
-    if (!matchByUserId && !matchByEmail && !matchByTelephone) {
+    if (!matchByUserId && !matchByEmail && !matchByTelephone && !matchByProfileId) {
       throw new ForbiddenException(
         "Cette invitation ne vous est pas destinée. Vérifiez que l'email ou le téléphone correspond à votre compte."
       );
