@@ -36,17 +36,16 @@ export class PlanificationsService {
     
     // ✅ Sinon, vérifier s'il est collaborateur actif avec permission 'planification'
     const collabResult = await this.databaseService.query(
-      `SELECT id, permissions FROM collaborations 
+      `SELECT id, permission_planification FROM collaborations 
        WHERE projet_id = $1 
        AND (user_id = $2 OR profile_id LIKE $3)
-       AND status = 'actif'`,
+       AND statut = 'actif'`,
       [projetId, normalizedUserId, `%${normalizedUserId}%`]
     );
     
     if (collabResult.rows.length > 0) {
-      const permissions = collabResult.rows[0].permissions || {};
       // Vérifier si la permission planification est accordée
-      if (permissions.planification === true || permissions.gestion_complete === true) {
+      if (collabResult.rows[0].permission_planification === true) {
         return;
       }
     }
