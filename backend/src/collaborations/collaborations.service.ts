@@ -1211,25 +1211,46 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
     }
 
     const collaboration = invitationResult.rows[0];
+    const invitationUserId = collaboration.user_id?.trim();
     const invitationEmail = collaboration.email?.toLowerCase().trim();
     const invitationTelephone = collaboration.telephone?.trim();
-    const invitationProfileId = collaboration.profile_id;
+    const invitationProfileId = collaboration.profile_id?.trim();
+    const normalizedUserId = userId?.trim();
+
+    // Log pour debug
+    this.logger.debug(`[accepterInvitation] Vérification invitation ${id}:`, {
+      invitationUserId,
+      normalizedUserId,
+      invitationEmail,
+      userEmail,
+      invitationTelephone,
+      userTelephone,
+      invitationProfileId,
+    });
 
     // Vérifier que l'invitation appartient à l'utilisateur
     // Par user_id OU email OU telephone OU profile_id (pour les invitations QR)
-    const matchByUserId = collaboration.user_id === userId;
+    const matchByUserId = invitationUserId && normalizedUserId && invitationUserId === normalizedUserId;
     const matchByEmail = userEmail && invitationEmail && userEmail === invitationEmail;
     const matchByTelephone = userTelephone && invitationTelephone && userTelephone === invitationTelephone;
     // ✅ Vérifier par profile_id (invitations QR: format profile_userId_role ou contient userId)
-    const matchByProfileId = invitationProfileId && (
-      invitationProfileId === `profile_${userId}_veterinarian` ||
-      invitationProfileId === `profile_${userId}_technician` ||
-      invitationProfileId === `profile_${userId}_producer` ||
-      invitationProfileId === `profile_${userId}_buyer` ||
-      invitationProfileId.includes(userId)
+    const matchByProfileId = invitationProfileId && normalizedUserId && (
+      invitationProfileId === `profile_${normalizedUserId}_veterinarian` ||
+      invitationProfileId === `profile_${normalizedUserId}_technician` ||
+      invitationProfileId === `profile_${normalizedUserId}_producer` ||
+      invitationProfileId === `profile_${normalizedUserId}_buyer` ||
+      invitationProfileId.includes(normalizedUserId)
     );
 
+    this.logger.debug(`[accepterInvitation] Résultats match:`, {
+      matchByUserId,
+      matchByEmail,
+      matchByTelephone,
+      matchByProfileId,
+    });
+
     if (!matchByUserId && !matchByEmail && !matchByTelephone && !matchByProfileId) {
+      this.logger.warn(`[accepterInvitation] Aucun match pour invitation ${id}, userId=${normalizedUserId}`);
       throw new ForbiddenException(
         "Cette invitation ne vous est pas destinée. Vérifiez que l'email ou le téléphone correspond à votre compte."
       );
