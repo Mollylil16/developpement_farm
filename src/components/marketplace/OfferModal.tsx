@@ -3,7 +3,7 @@
  * Avec sélection de sujets, proposition de prix, et acceptation des conditions
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -134,8 +134,17 @@ export default function OfferModal({
     }
   }, [visible, user?.id, listingId]);
 
-  // Filtrer les sujets disponibles (exclure ceux déjà acceptés)
-  const availableSubjects = subjects.filter((s) => !acceptedSubjectIds.has(s.id));
+  // ✅ Mémoriser les sujets disponibles pour éviter les boucles infinies
+  const availableSubjects = useMemo(
+    () => subjects.filter((s) => !acceptedSubjectIds.has(s.id)),
+    [subjects, acceptedSubjectIds]
+  );
+  
+  // ✅ Mémoriser les IDs des sujets disponibles pour les dépendances
+  const availableSubjectIds = useMemo(
+    () => availableSubjects.map((s) => s.id).join(','),
+    [availableSubjects]
+  );
 
   // Reset au montage/démontage
   useEffect(() => {
@@ -160,7 +169,8 @@ export default function OfferModal({
       setSelectedDate(defaultDate);
       setDateRecuperationSouhaitee(defaultDate.toISOString().split('T')[0]);
     }
-  }, [visible, availableSubjects, originalPrice]);
+  // ✅ Utiliser availableSubjectIds (string) au lieu de availableSubjects (array) pour éviter la boucle infinie
+  }, [visible, availableSubjectIds, originalPrice]);
 
   const handleDateChange = (event: any, date?: Date) => {
     if (Platform.OS === 'android') {

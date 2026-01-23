@@ -58,6 +58,7 @@ import apiClient from '../services/api/apiClient';
 import BandeEnRetardGroup from './sante/BandeEnRetardGroup';
 import AnimauxSansBandeGroup from './sante/AnimauxSansBandeGroup';
 import AnimalEnRetardItem from './sante/AnimalEnRetardItem';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 // Activer LayoutAnimation sur Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -76,7 +77,8 @@ function VaccinationsComponentAccordion({ refreshControl }: Props) {
   const modeElevage = useModeElevage();
   const isModeBatch = modeElevage === 'bande';
 
-  const projetActif = useAppSelector((state) => state.projet.projetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const vaccinations = useAppSelector(selectAllVaccinations);
   const animaux = useAppSelector(selectAllAnimaux);
   const allDepensesPonctuelles = useAppSelector(selectAllDepensesPonctuelles);
