@@ -63,6 +63,7 @@ import MarketplaceOffersTab from '../../components/marketplace/tabs/MarketplaceO
 import { useGeolocation } from '../../hooks/useGeolocation';
 import { useMarketplaceNotifications } from '../../hooks/useMarketplaceNotifications';
 import { useScreenPreloader } from '../../hooks/useScreenPreloader';
+import { useMarketplaceData } from '../../hooks/useMarketplaceData';
 
 // Services
 import apiClient from '../../services/api/apiClient';
@@ -177,6 +178,11 @@ function MarketplaceScreen() {
   const [sentOffers, setSentOffers] = useState<Offer[]>([]);
   const [offersLoading, setOffersLoading] = useState(false);
 
+  // Refs pour le cache et l'optimisation des appels API
+  const CACHE_DURATION = 30000; // 30 secondes
+  const offersLastLoad = useRef<number>(0);
+  const myListingsLastLoad = useRef<number>(0);
+
   const loadListings = useCallback(() => {
     const searchFilters: FiltersType = {
       ...filters,
@@ -192,9 +198,18 @@ function MarketplaceScreen() {
     );
   }, [dispatch, filters, sortBy, searchQuery]);
 
-  // Charger mes annonces depuis l'API backend
-  const loadMyListings = useCallback(async () => {
+  // Charger mes annonces depuis l'API backend avec cache
+  const loadMyListings = useCallback(async (forceReload = false) => {
     if (!user?.id || !projetActif) return;
+
+    // Vérifier le cache (skip si données récentes < 30s)
+    const now = Date.now();
+    if (!forceReload && (now - myListingsLastLoad.current) < CACHE_DURATION) {
+      if (__DEV__) {
+        console.log('[MarketplaceScreen] Mes annonces: utilisation du cache');
+      }
+      return;
+    }
 
     try {
       setMyListingsLoading(true);
@@ -204,11 +219,8 @@ function MarketplaceScreen() {
       if (__DEV__) {
         console.log('[MarketplaceScreen] Chargement mes annonces:', {
           projetId: projetActif.id,
-          userId: '[REDACTED]',
           hasProjet: !!projetActif,
           projetName: projetActif.nom,
-          statut: projetActif.statut,
-          // Données sensibles NON exposées : prix, nombres d'animaux, métriques, dates
         });
       }
       
@@ -319,6 +331,7 @@ function MarketplaceScreen() {
 
       const validListings = enrichedListings.filter((l): l is MarketplaceListing => l !== null);
       setMyListings(validListings);
+      myListingsLastLoad.current = Date.now();
     } catch (error) {
       console.error('Erreur chargement mes annonces:', error);
       const errorMessage =
@@ -342,28 +355,40 @@ function MarketplaceScreen() {
     }
   }, [user, isBuyer]);
 
-  // Charger les offres
-  const loadOffers = useCallback(async () => {
+  // Charger les offres avec cache
+  const loadOffers = useCallback(async (forceReload = false) => {
     if (!user?.id) return;
+
+    // Vérifier le cache (skip si données récentes < 30s)
+    const now = Date.now();
+    if (!forceReload && (now - offersLastLoad.current) < CACHE_DURATION) {
+      if (__DEV__) {
+        console.log('[MarketplaceScreen] Offres: utilisation du cache');
+      }
+      return;
+    }
 
     try {
       setOffersLoading(true);
 
-      // Charger les offres reçues (en tant que vendeur/producteur)
-      const receivedResponse = await marketplaceService.getReceivedOffers();
-      const received = Array.isArray(receivedResponse) ? receivedResponse : [];
+      // Charger les offres en parallèle
+      const [receivedResponse, sentResponse] = await Promise.all([
+        marketplaceService.getReceivedOffers(),
+        marketplaceService.getMyOffers(),
+      ]);
 
-      // Charger les offres envoyées (en tant qu'acheteur)
-      const sentResponse = await marketplaceService.getMyOffers();
+      const received = Array.isArray(receivedResponse) ? receivedResponse : [];
       const sent = Array.isArray(sentResponse) ? sentResponse.filter(
         (offer) => offer.status !== 'withdrawn' && offer.status !== 'expired'
       ) : [];
 
-      console.log('[MarketplaceScreen] Offres reçues:', received.length);
-      console.log('[MarketplaceScreen] Offres envoyées:', sent.length);
+      if (__DEV__) {
+        console.log('[MarketplaceScreen] Offres chargées:', { received: received.length, sent: sent.length });
+      }
 
       setReceivedOffers(received);
       setSentOffers(sent);
+      offersLastLoad.current = Date.now();
     } catch (error) {
       console.error('Erreur chargement offres:', error);
       const errorMessage =
@@ -1190,7 +1215,7 @@ function MarketplaceScreen() {
         <MarketplaceMyListingsTab
           listings={myListings}
           loading={myListingsLoading}
-          onRefresh={loadMyListings}
+          onRefresh={() => loadMyListings(true)}
           onViewDetails={(listing) => {
             setSelectedListingForDetails(listing);
             setListingDetailsModalVisible(true);
@@ -1253,7 +1278,7 @@ function MarketplaceScreen() {
           receivedOffers={receivedOffers}
           sentOffers={sentOffers}
           loading={offersLoading}
-          onRefresh={loadOffers}
+          onRefresh={() => loadOffers(true)}
         />
       )}
 
