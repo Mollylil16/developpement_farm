@@ -4546,30 +4546,57 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
 
   /**
    * Calculer la tendance pour une semaine spécifique
+   * Utilise les listings DISPONIBLES pendant cette semaine (pas seulement créés)
    */
   private async calculateWeekTrend(year: number, weekNumber: number) {
     // Calculer les dates de début et fin de la semaine
     const weekStart = this.getWeekStartDate(year, weekNumber);
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekEnd.getDate() + 7);
+    
+    const now = new Date();
+    const isCurrentOrFutureWeek = weekEnd >= now;
 
-    // 1. Récupérer les listings disponibles cette semaine
-    const listingsResult = await this.databaseService.query(
-      `SELECT 
-        id, price_per_kg, calculated_price, weight, pig_count, listing_type,
-        listed_at
-      FROM marketplace_listings
-      WHERE status = 'available'
-        AND listed_at >= $1
-        AND listed_at < $2`,
-      [weekStart.toISOString(), weekEnd.toISOString()]
-    );
+    // 1. Récupérer les listings qui étaient DISPONIBLES pendant cette semaine
+    // Un listing est disponible si:
+    // - Il a été créé AVANT la fin de la semaine
+    // - Il n'a pas été vendu/expiré AVANT le début de la semaine
+    // Pour la semaine en cours, on prend simplement tous les listings disponibles
+    let listingsResult;
+    if (isCurrentOrFutureWeek) {
+      // Semaine en cours : tous les listings actuellement disponibles
+      listingsResult = await this.databaseService.query(
+        `SELECT 
+          id, price_per_kg, calculated_price, weight, pig_count, listing_type,
+          listed_at
+        FROM marketplace_listings
+        WHERE status = 'available'
+          AND price_per_kg IS NOT NULL 
+          AND price_per_kg > 0`
+      );
+    } else {
+      // Semaines passées : listings qui existaient pendant cette semaine
+      listingsResult = await this.databaseService.query(
+        `SELECT 
+          id, price_per_kg, calculated_price, weight, pig_count, listing_type,
+          listed_at, updated_at, status
+        FROM marketplace_listings
+        WHERE listed_at <= $2
+          AND price_per_kg IS NOT NULL 
+          AND price_per_kg > 0
+          AND (
+            status = 'available'
+            OR (status IN ('sold', 'expired') AND updated_at >= $1)
+          )`,
+        [weekStart.toISOString(), weekEnd.toISOString()]
+      );
+    }
 
     // 2. Récupérer les transactions complétées cette semaine
     const transactionsResult = await this.databaseService.query(
       `SELECT 
         t.id, t.final_price, t.completed_at,
-        l.weight, l.pig_count
+        l.weight, l.pig_count, l.price_per_kg
       FROM marketplace_transactions t
       LEFT JOIN marketplace_listings l ON t.listing_id = l.id
       WHERE t.status = 'completed'
@@ -4578,13 +4605,25 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       [weekStart.toISOString(), weekEnd.toISOString()]
     );
 
-    // 3. Calculer le prix moyen pondéré
+    // 3. Récupérer les offres acceptées cette semaine (pour le comptage)
+    const offersResult = await this.databaseService.query(
+      `SELECT 
+        id, proposed_price, original_price, listing_id
+      FROM marketplace_offers
+      WHERE status = 'accepted'
+        AND responded_at >= $1
+        AND responded_at < $2`,
+      [weekStart.toISOString(), weekEnd.toISOString()]
+    );
+
+    // 4. Calculer le prix moyen pondéré
     let totalWeightKg = 0;
     let totalPriceFcfa = 0;
     let listingsCount = listingsResult.rows.length;
     let transactionsCount = transactionsResult.rows.length;
+    let offersCount = offersResult.rows.length;
 
-    // Prix depuis les transactions (prioritaire)
+    // Prix depuis les transactions (prioritaire - prix réels des ventes)
     for (const t of transactionsResult.rows) {
       const weight = parseFloat(t.weight) || (parseFloat(t.pig_count) * 80); // 80kg par défaut
       if (weight > 0 && t.final_price > 0) {
@@ -4593,8 +4632,8 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       }
     }
 
-    // Si pas assez de transactions, utiliser les listings
-    if (totalWeightKg === 0) {
+    // Si pas assez de transactions, utiliser les listings disponibles
+    if (totalWeightKg === 0 || transactionsCount < 3) {
       for (const l of listingsResult.rows) {
         const weight = parseFloat(l.weight) || (parseFloat(l.pig_count) * 80);
         const pricePerKg = parseFloat(l.price_per_kg) || 0;
@@ -4610,13 +4649,27 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       ? Math.round(totalPriceFcfa / totalWeightKg) 
       : null;
 
-    // Prix régional de référence (fallback)
-    const avgPriceRegional = 2300; // FCFA/kg par défaut
+    // Prix régional de référence - récupérer depuis la table si disponible
+    let avgPriceRegional = 2300; // FCFA/kg par défaut
+    try {
+      const regionalResult = await this.databaseService.query(
+        `SELECT price_per_kg FROM regional_pork_price 
+         WHERE region = 'national' 
+         ORDER BY updated_at DESC LIMIT 1`
+      );
+      if (regionalResult.rows.length > 0) {
+        avgPriceRegional = parseFloat(regionalResult.rows[0].price_per_kg) || 2300;
+      }
+    } catch (e) {
+      // Ignorer, utiliser la valeur par défaut
+    }
 
     // Déterminer la source
     let sourcePriority = 'regional';
     if (transactionsCount > 0 && avgPricePlatform) {
       sourcePriority = 'platform';
+    } else if (offersCount > 0) {
+      sourcePriority = 'offers';
     } else if (listingsCount > 0 && avgPricePlatform) {
       sourcePriority = 'listings';
     }
@@ -4628,7 +4681,7 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       avgPricePlatform: avgPricePlatform || avgPriceRegional,
       avgPriceRegional,
       transactionsCount,
-      offersCount: 0,
+      offersCount,
       listingsCount,
       sourcePriority,
       totalWeightKg: totalWeightKg > 0 ? Math.round(totalWeightKg * 100) / 100 : null,
