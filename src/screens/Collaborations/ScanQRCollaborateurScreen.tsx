@@ -110,10 +110,6 @@ export default function ScanQRCollaborateurScreen() {
     };
   }, [cornerAnim1, cornerAnim2, cornerAnim3, cornerAnim4]);
 
-  // Mettre à jour les permissions quand le rôle change
-  useEffect(() => {
-    setPermissions(DEFAULT_PERMISSIONS[selectedRole]);
-  }, [selectedRole]);
 
   /**
    * Gère le scan d'un QR code
@@ -183,7 +179,8 @@ export default function ScanQRCollaborateurScreen() {
         console.error('Erreur lors de la validation du QR code:', error);
         
         // Gestion des erreurs spécifiques
-        const errorMessage = error.response?.data?.message || error.message || 'Erreur inconnue';
+        const err = error as any;
+        const errorMessage = err?.response?.data?.message || err?.message || 'Erreur inconnue';
         
         if (errorMessage.includes('expiré') || errorMessage.includes('expired')) {
           Alert.alert('Code expiré', 'Ce code a expiré. Demandez un nouveau scan.');

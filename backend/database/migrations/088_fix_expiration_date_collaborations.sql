@@ -1,6 +1,6 @@
--- Migration 088: Correction - S'assurer que expiration_date existe dans collaborations
+-- Migration 088: Correction - S'assurer que les colonnes manquantes existent dans collaborations
 -- Date: 2026-01-23
--- Description: Vérifie et ajoute la colonne expiration_date si elle n'existe pas
+-- Description: Vérifie et ajoute les colonnes expiration_date et invitation_type si elles n'existent pas
 --              Cette migration corrige l'erreur "column expiration_date does not exist"
 
 -- Étape 1: Ajouter la colonne expiration_date si elle n'existe pas
@@ -21,6 +21,27 @@ BEGIN
         RAISE NOTICE 'Colonne expiration_date ajoutée à la table collaborations';
     ELSE
         RAISE NOTICE 'Colonne expiration_date existe déjà dans la table collaborations';
+    END IF;
+END $$;
+
+-- Étape 1b: Ajouter la colonne invitation_type si elle n'existe pas
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_name = 'collaborations' 
+        AND column_name = 'invitation_type'
+    ) THEN
+        ALTER TABLE collaborations 
+        ADD COLUMN invitation_type VARCHAR(20) DEFAULT 'manual';
+        
+        COMMENT ON COLUMN collaborations.invitation_type IS 
+        'Type d''invitation: manual (formulaire), qr_scan (scan QR code), email, sms';
+        
+        RAISE NOTICE 'Colonne invitation_type ajoutée à la table collaborations';
+    ELSE
+        RAISE NOTICE 'Colonne invitation_type existe déjà dans la table collaborations';
     END IF;
 END $$;
 
@@ -71,5 +92,24 @@ BEGIN
         CHECK (statut IN ('actif', 'inactif', 'en_attente', 'expire'));
         
         RAISE NOTICE 'Contrainte collaborations_statut_check créée avec ''expire''';
+    END IF;
+END $$;
+
+-- Étape 5: Ajouter la contrainte CHECK pour invitation_type si elle n'existe pas
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.table_constraints 
+        WHERE table_name = 'collaborations' 
+        AND constraint_name = 'collaborations_invitation_type_check'
+    ) THEN
+        ALTER TABLE collaborations
+        ADD CONSTRAINT collaborations_invitation_type_check 
+        CHECK (invitation_type IN ('manual', 'qr_scan', 'email', 'sms', 'telephone'));
+        
+        RAISE NOTICE 'Contrainte collaborations_invitation_type_check créée';
+    ELSE
+        RAISE NOTICE 'Contrainte collaborations_invitation_type_check existe déjà';
     END IF;
 END $$;
