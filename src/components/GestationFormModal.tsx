@@ -214,6 +214,12 @@ function GestationFormModal({
     }
   }, [dispatch, projetActif?.id, visible, isModeBatch]);
 
+  // D'abord filtrer les animaux du projet (doit être AVANT truies qui l'utilise)
+  const animauxProjet = useMemo(() => {
+    if (!projetActif || !animaux) return [];
+    return animaux.filter((a: ProductionAnimal) => a.projet_id === projetActif.id);
+  }, [animaux, projetActif?.id]);
+
   // Générer une liste de truies basée sur les animaux enregistrés
   // En mode batch, utiliser les truies individuelles des bandes de truies reproductrices
   const truies = useMemo(() => {
@@ -226,6 +232,8 @@ function GestationFormModal({
 
     // Mode individuel : Récupérer uniquement les truies réellement enregistrées dans le cheptel
     // Filtrer : femelles actives ET reproductrices
+    if (!animauxProjet || animauxProjet.length === 0) return [];
+    
     const truiesEnregistrees = animauxProjet.filter(
       (a: ProductionAnimal) =>
         a.sexe === 'femelle' &&
@@ -248,11 +256,6 @@ function GestationFormModal({
       };
     });
   }, [projetActif?.id, animauxProjet, isModeBatch, truiesBatch]);
-
-  const animauxProjet = useMemo(() => {
-    if (!projetActif) return [];
-    return animaux.filter((a: ProductionAnimal) => a.projet_id === projetActif.id);
-  }, [animaux, projetActif?.id]);
 
   // Générer une liste de verrats basée uniquement sur les verrats réellement enregistrés dans le cheptel
   // Ne plus créer de verrats virtuels pour éviter les verrats fantômes
