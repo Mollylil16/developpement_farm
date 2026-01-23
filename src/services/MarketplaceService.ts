@@ -996,10 +996,27 @@ export class MarketplaceService {
       }
     }
 
-    // Vérifier si l'acheteur a déjà fait une offre pour ce sujet
+    // Vérifier si l'acheteur a déjà fait une offre acceptée pour ce sujet
     const existingOffers = await this.offerRepo.findByBuyerId(data.buyerId);
-    const hasExistingOffer = existingOffers.some((offer) => {
-      // Vérifier si l'offre existe pour le même listing et contient au moins un des mêmes sujets
+    const hasAcceptedOffer = existingOffers.some((offer) => {
+      // Vérifier si l'offre existe pour le même listing, est acceptée, et contient au moins un des mêmes sujets
+      if (offer.listingId === data.listingId && offer.status === 'accepted') {
+        // Vérifier si au moins un sujet est en commun
+        const commonSubjects = offer.subjectIds.filter((id) => data.subjectIds.includes(id));
+        return commonSubjects.length > 0;
+      }
+      return false;
+    });
+
+    if (hasAcceptedOffer) {
+      throw new Error(
+        "Vous avez déjà une offre acceptée par le producteur pour ce sujet. Merci de consulter vos offres reçues."
+      );
+    }
+
+    // Vérifier si l'acheteur a déjà fait une offre en attente pour ce sujet
+    const hasPendingOffer = existingOffers.some((offer) => {
+      // Vérifier si l'offre existe pour le même listing, est en attente, et contient au moins un des mêmes sujets
       if (offer.listingId === data.listingId && offer.status === 'pending') {
         // Vérifier si au moins un sujet est en commun
         const commonSubjects = offer.subjectIds.filter((id) => data.subjectIds.includes(id));
@@ -1008,7 +1025,7 @@ export class MarketplaceService {
       return false;
     });
 
-    if (hasExistingOffer) {
+    if (hasPendingOffer) {
       throw new Error(
         "Vous avez déjà fait une offre pour ce sujet. Veuillez retirer votre offre existante avant d'en créer une nouvelle."
       );

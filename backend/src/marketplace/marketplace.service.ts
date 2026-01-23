@@ -1243,6 +1243,22 @@ export class MarketplaceService {
       throw new BadRequestException("Cette annonce n'est plus disponible");
     }
 
+    // Vérifier si l'acheteur a déjà une offre acceptée pour ce listing
+    const existingAcceptedOffer = await this.databaseService.query(
+      `SELECT id, status FROM marketplace_offers 
+       WHERE buyer_id = $1 
+       AND listing_id = $2 
+       AND status = 'accepted'
+       LIMIT 1`,
+      [userId, createOfferDto.listingId]
+    );
+
+    if (existingAcceptedOffer.rows.length > 0) {
+      throw new BadRequestException(
+        "Vous avez déjà une offre acceptée par le producteur pour ce sujet. Merci de consulter vos offres reçues."
+      );
+    }
+
     const id = this.generateId('offer');
     const now = new Date().toISOString();
     const expiresAt =
@@ -1489,36 +1505,99 @@ export class MarketplaceService {
         }
       }
 
-      // Notifier l'autre partie
-      // Optimisation: utiliser les données du listing déjà récupérées au lieu de refaire une requête
-      const notifyUserId = role === 'producer' ? offerData.buyer_id : offerData.producer_id;
-      try {
-        // Utiliser les données du listing déjà récupérées dans la transaction
-        const listingTitle = listing?.listing_type === 'batch' 
-          ? `Lot de ${listing.pig_count || offerSubjectIds.length} sujet(s)`
-          : 'Annonce';
-        
-        await this.notificationsService.notifyOfferAccepted(
-          notifyUserId,
-          offerId,
-          listingTitle
+      // ✅ NOTIFICATIONS ENRICHIES avec contact et localisation
+      // Récupérer les informations complètes du producteur et de l'acheteur
+      const [producerResult, buyerResult, listingLocationResult] = await Promise.all([
+        client.query(
+          'SELECT id, nom, prenom, email, telephone FROM users WHERE id = $1',
+          [offerData.producer_id]
+        ),
+        client.query(
+          'SELECT id, nom, prenom, email, telephone FROM users WHERE id = $1',
+          [offerData.buyer_id]
+        ),
+        client.query(
+          `SELECT location_latitude, location_longitude, location_address, location_city, location_region, farm_id
+           FROM marketplace_listings WHERE id = $1`,
+          [offerData.listing_id]
+        ),
+      ]);
+
+      const producer = producerResult.rows[0];
+      const buyer = buyerResult.rows[0];
+      const listingLocation = listingLocationResult.rows[0];
+
+      // Récupérer le nom de la ferme si disponible
+      let farmName = 'Ferme';
+      if (listingLocation?.farm_id) {
+        const farmResult = await client.query(
+          'SELECT nom FROM projets WHERE id = $1',
+          [listingLocation.farm_id]
         );
-      } catch (error) {
-        this.logger.warn(`[acceptOffer] Impossible d'envoyer la notification: ${error.message}`);
-        // Créer la notification de base si l'envoi échoue
-        await this.notificationsService.createNotification({
-          userId: notifyUserId,
-          type: NotificationType.OFFER_ACCEPTED,
-          title: 'Offre acceptée',
-          message: role === 'producer' 
-            ? 'Votre offre a été acceptée par le producteur'
-            : 'Votre contre-proposition a été acceptée par l\'acheteur',
-          relatedType: 'transaction',
-          relatedId: transactionId,
-        }).catch((e) => {
-          this.logger.warn(`[acceptOffer] Erreur notification de base: ${e.message}`);
-        });
+        if (farmResult.rows[0]?.nom) {
+          farmName = farmResult.rows[0].nom;
+        }
       }
+
+      const subjectCount = offerSubjectIds.length || 1;
+      const finalPrice = parseFloat(offerData.proposed_price) || 0;
+      const pickupDate = offerData.date_recuperation_souhaitee 
+        ? new Date(offerData.date_recuperation_souhaitee).toLocaleDateString('fr-FR')
+        : null;
+
+      // Envoyer les notifications enrichies en parallèle (sans bloquer)
+      const notificationPromises = [];
+
+      // Notification pour l'ACHETEUR avec détails de la ferme et contact producteur
+      if (buyer) {
+        notificationPromises.push(
+          this.notificationsService.notifySaleConfirmedToBuyer(
+            offerData.buyer_id,
+            transactionId,
+            {
+              producerName: `${producer?.prenom || ''} ${producer?.nom || ''}`.trim() || 'Producteur',
+              producerPhone: producer?.telephone || null,
+              producerEmail: producer?.email || null,
+              farmName,
+              farmAddress: listingLocation?.location_address || 'Adresse non disponible',
+              farmCity: listingLocation?.location_city || '',
+              farmRegion: listingLocation?.location_region || null,
+              latitude: listingLocation?.location_latitude ? parseFloat(listingLocation.location_latitude) : null,
+              longitude: listingLocation?.location_longitude ? parseFloat(listingLocation.location_longitude) : null,
+              finalPrice,
+              subjectCount,
+              pickupDate,
+            }
+          ).catch((e) => {
+            this.logger.warn(`[acceptOffer] Erreur notification enrichie acheteur: ${e.message}`);
+          })
+        );
+      }
+
+      // Notification pour le PRODUCTEUR avec contact acheteur
+      if (producer) {
+        notificationPromises.push(
+          this.notificationsService.notifySaleConfirmedToProducer(
+            offerData.producer_id,
+            transactionId,
+            {
+              buyerName: `${buyer?.prenom || ''} ${buyer?.nom || ''}`.trim() || 'Acheteur',
+              buyerPhone: buyer?.telephone || null,
+              buyerEmail: buyer?.email || null,
+              finalPrice,
+              subjectCount,
+              pickupDate,
+            }
+          ).catch((e) => {
+            this.logger.warn(`[acceptOffer] Erreur notification enrichie producteur: ${e.message}`);
+          })
+        );
+      }
+
+      // Attendre les notifications en parallèle (non-bloquant pour la réponse)
+      Promise.allSettled(notificationPromises).then(() => {
+        this.logger.log(`[acceptOffer] Notifications enrichies envoyées pour transaction ${transactionId}`);
+      });
 
       return this.mapRowToTransaction(transaction.rows[0]);
     });

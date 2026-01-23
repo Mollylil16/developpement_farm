@@ -19,12 +19,20 @@ interface NotificationCardProps {
 type NotificationType =
   | 'new_listing'
   | 'new_offer'
+  | 'offer_received'
   | 'offer_accepted'
   | 'offer_rejected'
+  | 'offer_countered'
+  | 'offer_withdrawn'
   | 'delivery_confirmed'
   | 'transaction_completed'
   | 'new_message'
-  | 'rating_received';
+  | 'rating_received'
+  | 'listing_sold'
+  | 'listing_expired'
+  // ✅ Nouveaux types pour notifications enrichies
+  | 'sale_confirmed_buyer'
+  | 'sale_confirmed_producer';
 
 const NOTIFICATION_CONFIG: Record<
   NotificationType,
@@ -44,6 +52,11 @@ const NOTIFICATION_CONFIG: Record<
     color: MarketplaceTheme.colors.accent,
     bgColor: MarketplaceTheme.colors.accent + '15',
   },
+  offer_received: {
+    icon: 'pricetag',
+    color: MarketplaceTheme.colors.accent,
+    bgColor: MarketplaceTheme.colors.accent + '15',
+  },
   offer_accepted: {
     icon: 'checkmark-circle',
     color: MarketplaceTheme.colors.success,
@@ -53,6 +66,16 @@ const NOTIFICATION_CONFIG: Record<
     icon: 'close-circle',
     color: MarketplaceTheme.colors.error,
     bgColor: MarketplaceTheme.colors.error + '15',
+  },
+  offer_countered: {
+    icon: 'swap-horizontal',
+    color: MarketplaceTheme.colors.warning,
+    bgColor: MarketplaceTheme.colors.warning + '15',
+  },
+  offer_withdrawn: {
+    icon: 'arrow-undo',
+    color: MarketplaceTheme.colors.textSecondary,
+    bgColor: MarketplaceTheme.colors.textSecondary + '15',
   },
   delivery_confirmed: {
     icon: 'car',
@@ -73,6 +96,27 @@ const NOTIFICATION_CONFIG: Record<
     icon: 'star',
     color: MarketplaceTheme.colors.gold,
     bgColor: MarketplaceTheme.colors.gold + '15',
+  },
+  listing_sold: {
+    icon: 'cash',
+    color: MarketplaceTheme.colors.success,
+    bgColor: MarketplaceTheme.colors.success + '15',
+  },
+  listing_expired: {
+    icon: 'time',
+    color: MarketplaceTheme.colors.textSecondary,
+    bgColor: MarketplaceTheme.colors.textSecondary + '15',
+  },
+  // ✅ Notifications enrichies pour vente confirmée
+  sale_confirmed_buyer: {
+    icon: 'checkmark-done-circle',
+    color: MarketplaceTheme.colors.success,
+    bgColor: MarketplaceTheme.colors.success + '15',
+  },
+  sale_confirmed_producer: {
+    icon: 'cash',
+    color: MarketplaceTheme.colors.success,
+    bgColor: MarketplaceTheme.colors.success + '15',
   },
 };
 
@@ -122,9 +166,10 @@ export default function NotificationCard({
           {notification.title}
         </Text>
 
-        {notification.body && (
-          <Text style={[styles.body, { color: colors.textSecondary }]} numberOfLines={2}>
-            {notification.body}
+        {/* Afficher body ou message comme texte secondaire */}
+        {(notification.body || notification.message) && (
+          <Text style={[styles.body, { color: colors.textSecondary }]} numberOfLines={3}>
+            {notification.body || notification.message}
           </Text>
         )}
 
