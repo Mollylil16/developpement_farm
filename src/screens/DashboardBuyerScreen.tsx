@@ -205,14 +205,15 @@ const DashboardBuyerScreen: React.FC = () => {
                 />
               </Card>
             ) : (
-              <FlatList
-                data={activeOffers.slice(0, 3)}
+              <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => <OfferCard offer={item} colors={colors} />}
                 contentContainerStyle={styles.offersList}
-              />
+              >
+                {activeOffers.slice(0, 3).map((offer) => (
+                  <OfferCard key={offer.id} offer={offer} colors={colors} />
+                ))}
+              </ScrollView>
             )}
           </View>
 
@@ -300,16 +301,15 @@ const DashboardBuyerScreen: React.FC = () => {
                 />
               </Card>
             ) : (
-              <FlatList
-                data={recentListings.slice(0, 3)}
+              <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
-                  <ListingCard listing={item} colors={colors} navigation={navigation} />
-                )}
                 contentContainerStyle={styles.listingsList}
-              />
+              >
+                {recentListings.slice(0, 3).map((listing) => (
+                  <ListingCard key={listing.id} listing={listing} colors={colors} navigation={navigation} />
+                ))}
+              </ScrollView>
             )}
           </View>
         </View>
