@@ -1,0 +1,209 @@
+# 🔍 Analyse d'Optimisation du Codebase
+
+**Date:** 23 Janvier 2026  
+**Portée:** Frontend (React Native) + Backend (NestJS)
+
+---
+
+## 📊 Statistiques Globales
+
+| Métrique | Valeur | Impact |
+|----------|--------|--------|
+| Console.log/warn/error | **680** | 🔴 Production |
+| TODO/FIXME | **76** | 🟡 Dette technique |
+| Appels apiClient | **573** | 🟡 À optimiser |
+| useEffect | **269** | 🟡 Re-renders potentiels |
+| fetch/axios directs | **30** | 🟡 Non centralisé |
+| Logs de debug backend | **6** | 🔴 À supprimer |
+
+---
+
+## 🐛 CODE MORT / OBSOLÈTE À SUPPRIMER
+
+### 1. Logs de debug backend (CRITIQUE)
+
+**Fichier:** `backend/src/marketplace/marketplace.controller.ts`
+
+```typescript
+// À SUPPRIMER - Logs de debug vers localhost:7242
+fetch('http://127.0.0.1:7242/ingest/...')
+```
+
+**Lignes:** 442, 449, 456
+
+---
+
+### 2. Fichiers potentiellement obsolètes
+
+| Fichier | Raison | Action |
+|---------|--------|--------|
+| `src/utils/textRenderingScanner.ts` | Marqué deprecated | Vérifier usage |
+| `src/services/database.ts` | Possible doublon | Vérifier vs DatabaseService |
+| `src/database/repositories/MarketplaceRepositories.ts` | Ancien système | Migrer vers MarketplaceService |
+
+---
+
+### 3. Console.log à supprimer en production
+
+**Fichiers les plus critiques (>10 logs):**
+
+| Fichier | Logs | Priorité |
+|---------|------|----------|
+| `screens/marketplace/MarketplaceScreen.tsx` | 28 | 🔴 Haute |
+| `components/FinanceGraphiquesComponent.tsx` | 22 | 🔴 Haute |
+| `scripts/migrateUsersToMultiRole.ts` | 18 | Script OK |
+| `database/repositories/FinanceRepository.ts` | 15 | 🟡 Backend |
+| `database/repositories/BaseRepository.ts` | 15 | 🟡 Backend |
+
+---
+
+## ⚡ PROBLÈMES DE RE-RENDERS
+
+### 1. useEffect sans dépendances correctes
+
+**Pattern problématique:**
+```typescript
+// ❌ eslint-disable-next-line react-hooks/exhaustive-deps
+useEffect(() => {
+  loadData();
+}, [someVar]); // Dépendances manquantes
+```
+
+**Fichiers concernés:**
+- `src/screens/WeighingScreen.tsx` (lignes 545-560)
+- `src/screens/SaleScreen.tsx` (ligne 186)
+- `src/screens/MortalityScreen.tsx` (ligne 353)
+- `src/screens/DiseaseScreen.tsx` (ligne 342)
+
+### 2. Hooks avec objets dans les dépendances
+
+**Pattern problématique:**
+```typescript
+// ❌ Crée une nouvelle référence à chaque render
+const options = { projetId, limit: 10 };
+useEffect(() => {}, [options]); // Re-render infini
+```
+
+---
+
+## 🌐 APPELS API REDONDANTS
+
+### 1. Appels multiples au même endpoint
+
+**MarketplaceScreen.tsx:**
+```typescript
+// ❌ loadListings() appelé 4 fois dans différents useEffect
+useEffect(() => { loadListings(); }, [tab]);
+useEffect(() => { loadListings(); }, [filters]);
+useEffect(() => { loadListings(); }, [sort]);
+```
+
+**Solution:** Debounce + consolidation
+
+### 2. Appels non cachés
+
+| Endpoint | Fréquence | Cache actuel |
+|----------|-----------|--------------|
+| `/production-animaux` | Chaque écran | ✅ Redux |
+| `/marketplace/listings` | Chaque tab | ❌ Aucun |
+| `/batch-weighings/batch/:id` | Chaque visite | ❌ Aucun |
+| `/finance/depenses` | Chaque écran | ✅ Redux |
+
+### 3. Bonnes pratiques existantes ✅
+
+- `useFinanceData` - Cache 5 secondes ✅
+- `useProductionData` - Cache 5 secondes ✅
+- `useDashboardData` - Cache 30 secondes ✅
+- `useApiCache` - Hook générique ✅
+
+---
+
+## 🔧 OPTIMISATIONS RECOMMANDÉES
+
+### Priorité 1: Supprimer les logs de debug
+
+```bash
+# Backend: Supprimer les fetch de debug
+grep -rn "fetch('http://127.0.0.1:7242" backend/src --include="*.ts"
+```
+
+### Priorité 2: Centraliser les appels API marketplace
+
+```typescript
+// Créer un hook useMarketplaceData similaire à useFinanceData
+export function useMarketplaceData() {
+  const dernierChargementRef = useRef<number>(0);
+  const CACHE_DURATION = 10000; // 10 secondes
+  
+  const loadListings = useCallback(async () => {
+    const now = Date.now();
+    if (now - dernierChargementRef.current < CACHE_DURATION) {
+      return; // Utiliser le cache
+    }
+    // ...
+  }, []);
+}
+```
+
+### Priorité 3: Débouncer les appels API
+
+```typescript
+// Pour les filtres/recherches
+const debouncedLoadListings = useMemo(
+  () => debounce(loadListings, 300),
+  [loadListings]
+);
+```
+
+### Priorité 4: Supprimer console.log en production
+
+```typescript
+// babel.config.js
+module.exports = {
+  plugins: [
+    ['transform-remove-console', { 
+      exclude: ['error', 'warn'] // Garder error et warn
+    }]
+  ]
+};
+```
+
+---
+
+## 📁 FICHIERS À NETTOYER
+
+### Frontend (src/)
+
+| Fichier | Action | Priorité |
+|---------|--------|----------|
+| `screens/marketplace/MarketplaceScreen.tsx` | Supprimer 28 console.log | 🔴 |
+| `components/FinanceGraphiquesComponent.tsx` | Supprimer 22 console.log | 🔴 |
+| `utils/textRenderingScanner.ts` | Vérifier si utilisé | 🟡 |
+| `services/database.ts` | Vérifier si doublon | 🟡 |
+
+### Backend (backend/src/)
+
+| Fichier | Action | Priorité |
+|---------|--------|----------|
+| `marketplace/marketplace.controller.ts` | Supprimer 6 fetch debug | 🔴 |
+
+---
+
+## 🎯 ACTIONS IMMÉDIATES
+
+1. **Supprimer les logs de debug backend** (6 lignes)
+2. **Configurer babel pour supprimer console.log en prod**
+3. **Implémenter debounce sur MarketplaceScreen**
+4. **Auditer les 76 TODO/FIXME**
+
+---
+
+## 📈 MÉTRIQUES CIBLES
+
+| Métrique | Actuel | Cible |
+|----------|--------|-------|
+| Console.log en prod | 680 | 0 (auto-supprimés) |
+| Appels API redondants | ~30% | <5% |
+| Re-renders inutiles | Non mesuré | Baseline à établir |
+| Temps de chargement dashboard | Non mesuré | <2s |
+

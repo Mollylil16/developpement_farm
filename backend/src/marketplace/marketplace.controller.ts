@@ -438,23 +438,10 @@ export class MarketplaceController {
   })
   @ApiResponse({ status: 200, description: 'Liste de mes offres.' })
   async getMyOffers(@CurrentUser('id') userId: string) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({location:'marketplace.controller.ts:407', message:'Controller getMyOffers appelé', data:{userId}, timestamp:Date.now(), sessionId:'debug-session', runId:'initial', hypothesisId:'A,E'})}).catch(() => {});
-    // #endregion
-
     try {
       const result = await this.marketplaceService.getBuyerInquiries(userId);
-
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({location:'marketplace.controller.ts:414', message:'Controller getMyOffers réussi', data:{offersCount:result?.length, userId}, timestamp:Date.now(), sessionId:'debug-session', runId:'initial', hypothesisId:'C'})}).catch(() => {});
-      // #endregion
-
-      // TEMPORAIRE: Formater les données brutes pour compatibilité
       return result || [];
     } catch (error) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({location:'marketplace.controller.ts:418', message:'Controller getMyOffers ERREUR', data:{error:error.message, userId}, timestamp:Date.now(), sessionId:'debug-session', runId:'initial', hypothesisId:'E'})}).catch(() => {});
-      // #endregion
       throw error;
     }
   }
