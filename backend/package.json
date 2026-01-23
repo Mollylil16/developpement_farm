@@ -39,7 +39,7 @@
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.0",
-    "@nestjs/swagger": "^11.2.3",
+    "@nestjs/swagger": "^11.2.5",
     "@nestjs/throttler": "^6.5.0",
     "apple-signin-auth": "^2.0.0",
     "axios": "^1.6.0",
@@ -59,6 +59,7 @@
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.0",
     "sharp": "^0.34.5",
+    "swagger-ui-express": "^5.0.1",
     "uuid": "^8.3.2"
   },
   "devDependencies": {
