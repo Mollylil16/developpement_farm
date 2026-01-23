@@ -30,7 +30,7 @@ import DepenseFormModal from './DepenseFormModal';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { logger } from '../utils/logger';
 
-export default function FinanceDepensesComponent() {
+function FinanceDepensesComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
@@ -584,3 +584,6 @@ const styles = StyleSheet.create({
     height: 400,
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(FinanceDepensesComponent);

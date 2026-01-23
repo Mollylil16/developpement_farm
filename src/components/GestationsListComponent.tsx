@@ -38,7 +38,7 @@ import DatePickerField from './DatePickerField';
 import Button from './Button';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 
-export default function GestationsListComponent() {
+function GestationsListComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
@@ -866,3 +866,6 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(GestationsListComponent);

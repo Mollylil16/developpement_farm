@@ -29,7 +29,7 @@ import VenteDetailModal from './VenteDetailModal';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { logger } from '../utils/logger';
 
-export default function FinanceRevenusComponent() {
+function FinanceRevenusComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
@@ -741,3 +741,6 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(FinanceRevenusComponent);

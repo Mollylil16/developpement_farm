@@ -31,7 +31,7 @@ import CollaborationFormModal from './CollaborationFormModal';
 import StatCard from './StatCard';
 import { useRole } from '../contexts/RoleContext';
 
-export default function CollaborationListComponent() {
+function CollaborationListComponent() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
@@ -663,3 +663,6 @@ const styles = StyleSheet.create({
     lineHeight: FONT_SIZES.sm * 1.4,
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(CollaborationListComponent);

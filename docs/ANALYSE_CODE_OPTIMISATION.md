@@ -258,7 +258,6 @@ const { listings, loadListingsDebounced } = useMarketplaceData({
 | Re-renders inutiles | Non mesuré | Baseline à établir | 📝 À mesurer |
 | Temps de chargement dashboard | Non mesuré | <2s | 📝 À mesurer |
 
-
 ---
 
 ## ✅ HOOKS D'OPTIMISATION CRÉÉS
@@ -278,7 +277,7 @@ const { listings, loadListingsDebounced } = useMarketplaceData({
 
 ### Court terme (1-2 semaines)
 
-1. **Intégrer useMarketplaceData** dans MarketplaceScreen.tsx
+1. **Intégrer `useMarketplaceData`** dans `MarketplaceScreen.tsx`
 2. **Implémenter les TODO haute priorité** (modals demandes)
 3. **Ajouter React.memo** aux composants de liste (FlatList renderItem)
 

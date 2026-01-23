@@ -29,7 +29,7 @@ import LoadingSpinner from './LoadingSpinner';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { FORMULES_RECOMMANDEES, getValeursNutritionnelles } from '../types/nutrition';
 
-export default function IngredientsComponent() {
+function IngredientsComponent() {
   const { colors, isDark } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canDelete, canUpdate } = useActionPermissions();
@@ -651,3 +651,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(IngredientsComponent);

@@ -27,7 +27,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { TYPE_DETTE_LABELS, STATUT_DETTE_LABELS, FREQUENCE_REMBOURSEMENT_LABELS } from '../types/finance';
 
-export default function FinanceDettesComponent() {
+function FinanceDettesComponent() {
   const { colors } = useTheme();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const projetActif = useAppSelector(selectProjetActif);
@@ -504,3 +504,6 @@ const styles = StyleSheet.create({
   },
 });
 
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(FinanceDettesComponent);

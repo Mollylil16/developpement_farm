@@ -24,7 +24,7 @@ import { getErrorMessage } from '../types/common';
 
 const MIN_RELOAD_INTERVAL = 60000; // 1 minute minimum entre rechargements
 
-export default function BatchCheptelView() {
+function BatchCheptelView() {
   const { colors } = useTheme();
   const projetActif = useAppSelector(selectProjetActif);
   
@@ -652,3 +652,6 @@ const styles = StyleSheet.create({
   },
 });
 
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(BatchCheptelView);

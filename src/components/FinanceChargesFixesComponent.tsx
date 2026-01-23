@@ -25,7 +25,7 @@ import { selectAllChargesFixes, selectFinanceLoading } from '../store/selectors/
 import { selectProjetActif } from '../store/selectors/projetSelectors';
 import { logger } from '../utils/logger';
 
-export default function FinanceChargesFixesComponent() {
+function FinanceChargesFixesComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
@@ -419,3 +419,6 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(FinanceChargesFixesComponent);
