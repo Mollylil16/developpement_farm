@@ -214,7 +214,7 @@ function GestationFormModal({
     }
   }, [dispatch, projetActif?.id, visible, isModeBatch]);
 
-  // Générer une liste de truies basée sur le projet actif (en soustrayant les mortalités)
+  // Générer une liste de truies basée sur les animaux enregistrés
   // En mode batch, utiliser les truies individuelles des bandes de truies reproductrices
   const truies = useMemo(() => {
     if (!projetActif) return [];
@@ -224,25 +224,30 @@ function GestationFormModal({
       return truiesBatch;
     }
 
-    // Mode individuel : calculer le nombre de truies mortes
-    const mortalitesProjet = mortalites.filter((m: Mortalite) => m.projet_id === projetActif.id);
-    const mortalitesTruies = mortalitesProjet
-      .filter((m: Mortalite) => m.categorie === 'truie')
-      .reduce((sum: number, m: Mortalite) => sum + (m.nombre_porcs || 0), 0);
+    // Mode individuel : Récupérer uniquement les truies réellement enregistrées dans le cheptel
+    // Filtrer : femelles actives ET reproductrices
+    const truiesEnregistrees = animauxProjet.filter(
+      (a: ProductionAnimal) =>
+        a.sexe === 'femelle' &&
+        a.statut?.toLowerCase() === 'actif' &&
+        (a.reproducteur === true ||
+          (typeof a.reproducteur === 'number' && a.reproducteur === 1) ||
+          (typeof a.reproducteur === 'string' && a.reproducteur === '1')) &&
+        a.projet_id === projetActif.id
+    );
 
-    // Nombre de truies actives = nombre initial - mortalités
-    const nombreTruiesActives = Math.max(0, projetActif.nombre_truies - mortalitesTruies);
-
-    const truiesList = [];
-    for (let i = 1; i <= nombreTruiesActives; i++) {
-      truiesList.push({
-        id: `truie_${i}`,
-        nom: `Truie ${i}`,
-        numero: i,
-      });
-    }
-    return truiesList;
-  }, [projetActif?.id, mortalites, isModeBatch, truiesBatch]);
+    // Convertir en format TruieOption
+    return truiesEnregistrees.map((truie: ProductionAnimal) => {
+      const numero = parseInt(truie.code?.replace(/\D/g, '') || '0') || 0;
+      return {
+        id: truie.id,
+        nom: truie.nom || truie.code || `Truie ${numero}`,
+        numero: numero,
+        code: truie.code,
+        race: truie.race,
+      };
+    });
+  }, [projetActif?.id, animauxProjet, isModeBatch, truiesBatch]);
 
   const animauxProjet = useMemo(() => {
     if (!projetActif) return [];
