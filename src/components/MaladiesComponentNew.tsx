@@ -42,6 +42,7 @@ import { useModeElevage } from '../hooks/useModeElevage';
 import BatchSelector from './sante/BatchSelector';
 import { Batch } from '../types/batch';
 import apiClient from '../services/api/apiClient';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -57,7 +58,8 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
   const modeElevage = useModeElevage();
   const isModeBatch = modeElevage === 'bande';
 
-  const projetActif = useAppSelector((state) => state.projet?.projetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const maladies = useAppSelector((state) => selectAllMaladies(state));
   const animaux = useAppSelector((state) => selectAllAnimaux(state));
 

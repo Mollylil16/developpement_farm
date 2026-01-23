@@ -29,6 +29,7 @@ import LoadingSpinner from './LoadingSpinner';
 import DepenseFormModal from './DepenseFormModal';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { logger } from '../utils/logger';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 function FinanceDepensesComponent() {
   const { colors } = useTheme();
@@ -46,7 +47,8 @@ function FinanceDepensesComponent() {
   const ITEMS_PER_PAGE = 50;
   const [refreshing, setRefreshing] = useState(false);
 
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   useEffect(() => {
     if (projetActif) {

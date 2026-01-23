@@ -90,15 +90,38 @@ interface StreamEmitters {
 export class ChatAgentService {
   private readonly logger = new Logger(ChatAgentService.name);
   private readonly geminiApiKey: string;
-  // ✅ CHANGÉ: gemini-1.5-flash supporte mieux les function calls que gemini-2.0-flash
-  private readonly geminiApiUrl =
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
-  private readonly geminiStreamApiUrl =
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:streamGenerateContent?alt=sse';
-  private readonly geminiRequestTimeoutMs = 30_000;
+  
+  // ✅ Modèles Gemini avec support des function calls (par ordre de priorité)
+  private readonly GEMINI_MODELS = {
+    // Modèle principal: gemini-1.5-flash-002 (stable, rapide, bon function calling)
+    primary: 'gemini-1.5-flash-002',
+    // Fallback: gemini-1.5-pro (plus lent mais meilleure qualité)
+    fallback: 'gemini-1.5-pro',
+  };
+  
+  // URL de base de l'API Gemini
+  private readonly geminiBaseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
+  
+  // URLs dynamiques basées sur le modèle actif
+  private get geminiApiUrl(): string {
+    return `${this.geminiBaseUrl}/${this.GEMINI_MODELS.primary}:generateContent`;
+  }
+  private get geminiStreamApiUrl(): string {
+    return `${this.geminiBaseUrl}/${this.GEMINI_MODELS.primary}:streamGenerateContent?alt=sse`;
+  }
+  private get geminiApiFallbackUrl(): string {
+    return `${this.geminiBaseUrl}/${this.GEMINI_MODELS.fallback}:generateContent`;
+  }
+  private get geminiStreamFallbackUrl(): string {
+    return `${this.geminiBaseUrl}/${this.GEMINI_MODELS.fallback}:streamGenerateContent?alt=sse`;
+  }
+  
+  private readonly geminiRequestTimeoutMs = 45_000; // ✅ Augmenté pour modèles pro
   private readonly defaultGenerationConfig = {
     temperature: 0.7,
-    maxOutputTokens: 2048, // ✅ Augmenté pour des réponses plus complètes
+    maxOutputTokens: 4096, // ✅ Augmenté pour des réponses plus complètes et contextuelles
+    topP: 0.95,
+    topK: 40,
   };
   private readonly toolDeclarations = [
     {
@@ -1970,26 +1993,35 @@ export class ChatAgentService {
           totalTools: filteredTools.length,
         });
         
-        const response = await fetch(`${this.geminiApiUrl}?key=${this.geminiApiKey}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(finalPayload),
+        // ✅ Essayer le modèle principal d'abord
+        const result = await this.tryGeminiCall(
+          this.geminiApiUrl,
+          finalPayload,
           signal,
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          const errorSummary = errorData?.error?.status || response.statusText || 'Unknown';
-          this.logger.error(`Erreur API Gemini: ${response.status} - ${errorSummary}`);
-          throw new BadRequestException(
-            `Erreur Gemini: ${errorData.error?.message || response.statusText}`
-          );
+          this.GEMINI_MODELS.primary
+        );
+        
+        if (result.success) {
+          return result.data;
         }
-
-        const data = await response.json();
-        return data;
+        
+        // ✅ Si erreur function calling, fallback vers gemini-1.5-pro
+        if (result.error?.includes('function calling') || result.error?.includes('Tool use')) {
+          this.logger.warn(`[ChatAgent] ⚠️ Fallback vers ${this.GEMINI_MODELS.fallback} suite à erreur function calling`);
+          const fallbackResult = await this.tryGeminiCall(
+            this.geminiApiFallbackUrl,
+            finalPayload,
+            signal,
+            this.GEMINI_MODELS.fallback
+          );
+          
+          if (fallbackResult.success) {
+            return fallbackResult.data;
+          }
+          throw new BadRequestException(fallbackResult.error || 'Erreur Gemini fallback');
+        }
+        
+        throw new BadRequestException(result.error || 'Erreur Gemini');
       }
       
       // ✅ Si pas de function calling, on peut ajouter google_search
@@ -2013,26 +2045,18 @@ export class ChatAgentService {
         totalTools: tools.length,
       });
       
-      const response = await fetch(`${this.geminiApiUrl}?key=${this.geminiApiKey}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(finalPayload),
+      const result = await this.tryGeminiCall(
+        this.geminiApiUrl,
+        finalPayload,
         signal,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        const errorSummary = errorData?.error?.status || response.statusText || 'Unknown';
-        this.logger.error(`Erreur API Gemini: ${response.status} - ${errorSummary}`);
-        throw new BadRequestException(
-          `Erreur Gemini: ${errorData.error?.message || response.statusText}`
-        );
+        this.GEMINI_MODELS.primary
+      );
+      
+      if (result.success) {
+        return result.data;
       }
-
-      const data = await response.json();
-      return data;
+      
+      throw new BadRequestException(result.error || 'Erreur Gemini');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erreur inconnue';
       this.logger.error(`Erreur lors de l'appel Gemini: ${message}`);
@@ -2042,6 +2066,45 @@ export class ChatAgentService {
       throw new ServiceUnavailableException('Erreur lors de la communication avec Gemini');
     } finally {
       clear();
+    }
+  }
+  
+  /**
+   * ✅ Méthode helper pour faire un appel Gemini avec gestion d'erreur
+   */
+  private async tryGeminiCall(
+    url: string,
+    payload: any,
+    signal: AbortSignal,
+    modelName: string
+  ): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      this.logger.debug(`[ChatAgent] 🤖 Appel à ${modelName}...`);
+      
+      const response = await fetch(`${url}?key=${this.geminiApiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        signal,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData?.error?.message || response.statusText || 'Unknown error';
+        const errorStatus = errorData?.error?.status || response.status;
+        this.logger.error(`[ChatAgent] ❌ Erreur ${modelName}: ${errorStatus} - ${errorMessage}`);
+        return { success: false, error: `Erreur Gemini (${modelName}): ${errorMessage}` };
+      }
+
+      const data = await response.json();
+      this.logger.debug(`[ChatAgent] ✅ Réponse de ${modelName} reçue`);
+      return { success: true, data };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue';
+      this.logger.error(`[ChatAgent] ❌ Exception ${modelName}: ${message}`);
+      return { success: false, error: message };
     }
   }
 

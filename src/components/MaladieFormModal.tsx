@@ -27,6 +27,7 @@ import {
   GRAVITE_MALADIE_LABELS,
 } from '../types/sante';
 import { formatLocalDate, parseLocalDate } from '../utils/dateUtils';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 interface Props {
   visible: boolean;
@@ -38,7 +39,8 @@ interface Props {
 export default function MaladieFormModal({ visible, onClose, maladie, animalId }: Props) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   const isEditing = !!maladie;
 
