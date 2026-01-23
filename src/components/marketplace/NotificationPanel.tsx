@@ -254,6 +254,7 @@ const styles = StyleSheet.create({
   },
   panel: {
     width: PANEL_WIDTH,
+    minHeight: 300, // ✅ Hauteur minimum pour afficher le contenu
     maxHeight: PANEL_HEIGHT,
     borderRadius: MarketplaceTheme.borderRadius.lg,
     ...MarketplaceTheme.shadows.large,
