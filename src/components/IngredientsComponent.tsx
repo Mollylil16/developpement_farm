@@ -28,12 +28,14 @@ import PriceScannerModal from './PriceScannerModal';
 import LoadingSpinner from './LoadingSpinner';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { FORMULES_RECOMMANDEES, getValeursNutritionnelles } from '../types/nutrition';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 function IngredientsComponent() {
   const { colors, isDark } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canDelete, canUpdate } = useActionPermissions();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const { ingredients = [], loading = false } = useAppSelector((state) => state.nutrition ?? { ingredients: [], loading: false });
   const [showIngredientModal, setShowIngredientModal] = useState(false);
   const [selectedIngredient, setSelectedIngredient] = useState<Ingredient | null>(null);

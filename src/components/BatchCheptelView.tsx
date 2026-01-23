@@ -7,7 +7,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppSelector } from '../store/hooks';
-import { selectProjetActif } from '../store/selectors/projetSelectors';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import { Batch, BATCH_CATEGORY_LABELS, BATCH_CATEGORY_ICONS } from '../types/batch';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, MALE_COLOR, FEMALE_COLOR, CASTRATED_COLOR } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -26,7 +26,8 @@ const MIN_RELOAD_INTERVAL = 60000; // 1 minute minimum entre rechargements
 
 function BatchCheptelView() {
   const { colors } = useTheme();
-  const projetActif = useAppSelector(selectProjetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   
   // Référence pour le dernier chargement (éviter les appels excessifs)
   const lastLoadRef = useRef<{ projetId: string | null; timestamp: number }>({ projetId: null, timestamp: 0 });

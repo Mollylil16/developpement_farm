@@ -80,7 +80,8 @@ function GestationFormModal({
 }: GestationFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const animaux: ProductionAnimal[] = useAppSelector(selectAllAnimaux);
   const mortalites: Mortalite[] = useAppSelector(selectAllMortalites);
   const { canCreate, canUpdate } = useActionPermissions();

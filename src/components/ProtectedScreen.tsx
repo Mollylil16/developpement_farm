@@ -8,6 +8,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useRolePermissions } from '../hooks/useRolePermissions';
 import { useRole } from '../contexts/RoleContext';
 import { useAppSelector } from '../store/hooks';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import { useTheme } from '../contexts/ThemeContext';
 import { SCREENS } from '../navigation/types';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../constants/theme';
@@ -44,7 +45,8 @@ export default function ProtectedScreen({
 }: ProtectedScreenProps) {
   const { activeRole } = useRole();
   const rolePermissions = useRolePermissions();
-  const projetActif = useAppSelector((state) => state.projet.projetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const currentUser = useAppSelector((state) => state.auth?.user);
   const collaborateurActuel = useAppSelector((state) => state.collaboration.collaborateurActuel);
   const navigation = useNavigation();

@@ -90,14 +90,15 @@ interface StreamEmitters {
 export class ChatAgentService {
   private readonly logger = new Logger(ChatAgentService.name);
   private readonly geminiApiKey: string;
+  // ✅ CHANGÉ: gemini-1.5-flash supporte mieux les function calls que gemini-2.0-flash
   private readonly geminiApiUrl =
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+    'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
   private readonly geminiStreamApiUrl =
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse';
+    'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:streamGenerateContent?alt=sse';
   private readonly geminiRequestTimeoutMs = 30_000;
   private readonly defaultGenerationConfig = {
     temperature: 0.7,
-    maxOutputTokens: 1024,
+    maxOutputTokens: 2048, // ✅ Augmenté pour des réponses plus complètes
   };
   private readonly toolDeclarations = [
     {
