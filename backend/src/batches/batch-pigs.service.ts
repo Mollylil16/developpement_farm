@@ -119,7 +119,6 @@ export class BatchPigsService {
         
         // La bande existe mais n'appartient pas à l'utilisateur
         throw new ForbiddenException('Cette bande ne vous appartient pas');
-      }
     } catch (error) {
       // Si c'est déjà une exception NestJS, la relancer telle quelle
       if (error instanceof NotFoundException || error instanceof ForbiddenException) {
@@ -851,7 +850,6 @@ throw error;
     }
     
     throw new ForbiddenException('Vous n\'avez pas accès à ce projet ou les permissions nécessaires');
-    }
   }
 
   /**
