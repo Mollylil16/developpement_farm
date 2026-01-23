@@ -15,6 +15,7 @@ import DatePickerField from './DatePickerField';
 import { SPACING, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useActionPermissions } from '../hooks/useActionPermissions';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 interface DepenseFormModalProps {
   visible: boolean;
@@ -33,7 +34,8 @@ export default function DepenseFormModal({
 }: DepenseFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const { canCreate, canUpdate } = useActionPermissions();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateDepensePonctuelleInput & { photos: string[] }>({

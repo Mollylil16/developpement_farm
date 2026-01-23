@@ -41,9 +41,48 @@ BEGIN
     END IF;
 END $$;
 
+-- Ajouter permission_reproduction si elle n'existe pas
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'collaborations' AND column_name = 'permission_reproduction'
+    ) THEN
+        ALTER TABLE collaborations ADD COLUMN permission_reproduction BOOLEAN DEFAULT false;
+        COMMENT ON COLUMN collaborations.permission_reproduction IS 'Permission pour gérer la reproduction (gestations, sevrages)';
+        RAISE NOTICE 'Colonne permission_reproduction ajoutée';
+    END IF;
+END $$;
+
+-- Ajouter permission_sante si elle n'existe pas
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'collaborations' AND column_name = 'permission_sante'
+    ) THEN
+        ALTER TABLE collaborations ADD COLUMN permission_sante BOOLEAN DEFAULT false;
+        COMMENT ON COLUMN collaborations.permission_sante IS 'Permission pour gérer la santé (vaccinations, traitements)';
+        RAISE NOTICE 'Colonne permission_sante ajoutée';
+    END IF;
+END $$;
+
+-- Ajouter permission_finance si elle n'existe pas
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'collaborations' AND column_name = 'permission_finance'
+    ) THEN
+        ALTER TABLE collaborations ADD COLUMN permission_finance BOOLEAN DEFAULT false;
+        COMMENT ON COLUMN collaborations.permission_finance IS 'Permission pour consulter les finances';
+        RAISE NOTICE 'Colonne permission_finance ajoutée';
+    END IF;
+END $$;
+
 -- Index sur les permissions pour les requêtes de vérification
 CREATE INDEX IF NOT EXISTS idx_collab_permissions
-ON collaborations(permission_gestion_complete, permission_cheptel, permission_planification)
+ON collaborations(permission_gestion_complete, permission_cheptel, permission_planification, permission_reproduction, permission_sante, permission_finance)
 WHERE statut = 'actif';
 
 -- Vérification finale
@@ -54,7 +93,7 @@ BEGIN
     SELECT COUNT(*) INTO col_count
     FROM information_schema.columns 
     WHERE table_name = 'collaborations' 
-    AND column_name IN ('permission_gestion_complete', 'permission_cheptel', 'permission_planification');
+    AND column_name IN ('permission_gestion_complete', 'permission_cheptel', 'permission_planification', 'permission_reproduction', 'permission_sante', 'permission_finance');
     
     RAISE NOTICE 'Migration 090: % colonnes de permission vérifiées/ajoutées', col_count;
 END $$;

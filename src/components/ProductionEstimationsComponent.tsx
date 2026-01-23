@@ -21,13 +21,15 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useModeElevage } from '../hooks/useModeElevage';
 import apiClient from '../services/api/apiClient';
 import { Batch } from '../types/batch';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 type EstimationMode = 'date' | 'animaux';
 
 function ProductionEstimationsComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const animaux = useAppSelector(selectAllAnimaux);
   const peseesParAnimal = useAppSelector(selectPeseesParAnimal);
   const loading = useAppSelector((state) => state.production.loading);

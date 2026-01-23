@@ -27,6 +27,7 @@ import {
   usePurchasesWidget,
   useExpensesWidget,
 } from '../../hooks/widgets';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
 
 type WidgetType =
   | 'nutrition'
@@ -51,7 +52,8 @@ export type WidgetData =
   | ExpensesWidgetData;
 
 export function useWidgetData() {
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   // Utiliser les hooks spécialisés pour les widgets producteur
   const nutritionData = useNutritionWidget(projetActif?.id);

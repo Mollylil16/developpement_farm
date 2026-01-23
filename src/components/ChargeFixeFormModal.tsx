@@ -15,6 +15,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { Alert } from 'react-native';
 import { logger } from '../utils/logger';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 interface ChargeFixeFormModalProps {
   visible: boolean;
@@ -34,7 +35,8 @@ export default function ChargeFixeFormModal({
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate } = useActionPermissions();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateChargeFixeInput>({
     categorie: 'autre',

@@ -22,7 +22,7 @@ import LoadingSpinner from './LoadingSpinner';
 import ChargeFixeFormModal from './ChargeFixeFormModal';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { selectAllChargesFixes, selectFinanceLoading } from '../store/selectors/financeSelectors';
-import { selectProjetActif } from '../store/selectors/projetSelectors';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import { logger } from '../utils/logger';
 
 function FinanceChargesFixesComponent() {
@@ -31,7 +31,8 @@ function FinanceChargesFixesComponent() {
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const chargesFixes: ChargeFixe[] = useAppSelector(selectAllChargesFixes);
   const loading = useAppSelector(selectFinanceLoading);
-  const projetActif = useAppSelector(selectProjetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const [selectedCharge, setSelectedCharge] = useState<ChargeFixe | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);

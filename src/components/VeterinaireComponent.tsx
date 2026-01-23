@@ -40,6 +40,7 @@ import SearchVetModal from './SearchVetModal';
 import Button from './Button';
 import { SCREENS } from '../navigation/types';
 import { Veterinarian } from '../types/veterinarian';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 interface VeterinaireComponentProps {
   refreshControl?: React.ReactElement<RefreshControlProps>;
@@ -83,7 +84,8 @@ function VeterinaireComponent({ refreshControl }: VeterinaireComponentProps) {
   const dispatch = useAppDispatch();
   const navigation = useNavigation<unknown>();
 
-  const projetActif = useAppSelector((state) => state.projet.projetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const collaborateurs = useAppSelector((state) => selectAllCollaborateurs(state));
   const visites = useAppSelector((state) => selectAllVisitesVeterinaires(state));
 

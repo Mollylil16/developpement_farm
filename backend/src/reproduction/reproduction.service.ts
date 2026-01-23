@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { GestationUtilsService } from '../common/services/gestation-utils.service';
 import { CreateGestationDto } from './dto/create-gestation.dto';
@@ -8,6 +8,8 @@ import { UpdateSevrageDto } from './dto/update-sevrage.dto';
 
 @Injectable()
 export class ReproductionService {
+  private readonly logger = new Logger(ReproductionService.name);
+  
   constructor(private databaseService: DatabaseService) {}
 
   /**
@@ -54,7 +56,7 @@ export class ReproductionService {
     
     // ✅ Sinon, vérifier s'il est collaborateur actif avec permission 'reproduction'
     const collabResult = await this.databaseService.query(
-      `SELECT id, permission_reproduction, permission_gestion_complete FROM collaborations 
+      `SELECT id, permission_reproduction, permission_gestion_complete, permissions FROM collaborations 
        WHERE projet_id = $1 
        AND (user_id = $2 OR profile_id LIKE $3)
        AND statut = 'actif'`,
@@ -63,9 +65,24 @@ export class ReproductionService {
     
     if (collabResult.rows.length > 0) {
       const collab = collabResult.rows[0];
-      // Vérifier si la permission reproduction ou gestion_complete est accordée
+      this.logger.debug(`[checkProjetOwnership] Collaborateur trouvé pour projet ${projetId}, userId=${normalizedUserId}. Permissions:`, {
+        permission_reproduction: collab.permission_reproduction,
+        permission_gestion_complete: collab.permission_gestion_complete,
+        old_permissions_jsonb: collab.permissions,
+      });
+      
+      // ✅ Vérifier les nouvelles colonnes de permissions booléennes
       if (collab.permission_reproduction === true || collab.permission_gestion_complete === true) {
         return;
+      }
+      
+      // ✅ Fallback pour les anciennes structures de permissions (JSONB)
+      if (collab.permissions && typeof collab.permissions === 'object') {
+        const oldPermissions = collab.permissions;
+        if (oldPermissions.reproduction === true || oldPermissions.gestion_complete === true || oldPermissions.cheptel === true) {
+          this.logger.warn(`[checkProjetOwnership] Accès accordé via ancienne permission JSONB pour projet ${projetId}, userId=${normalizedUserId}`);
+          return;
+        }
       }
     }
     

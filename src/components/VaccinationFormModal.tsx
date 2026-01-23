@@ -22,6 +22,7 @@ import {
   STATUT_VACCINATION_LABELS,
 } from '../types/sante';
 import { formatLocalDate, parseLocalDate } from '../utils/dateUtils';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 interface Props {
   visible: boolean;
@@ -42,7 +43,8 @@ export default function VaccinationFormModal({
 }: Props) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const mode = useModeElevage();
   const isBatchMode = mode === 'bande' || !!batchId;
   // Note: calendriers n'est pas utilisé dans ce composant
