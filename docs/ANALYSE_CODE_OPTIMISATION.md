@@ -191,19 +191,59 @@ module.exports = {
 
 ## 🎯 ACTIONS IMMÉDIATES
 
-1. **Supprimer les logs de debug backend** (6 lignes)
-2. **Configurer babel pour supprimer console.log en prod**
-3. **Implémenter debounce sur MarketplaceScreen**
-4. **Auditer les 76 TODO/FIXME**
+1. ✅ **Supprimer les logs de debug backend** (6 lignes) - FAIT
+2. ✅ **Configurer babel pour supprimer console.log en prod** - FAIT
+3. ✅ **Créer hook useMarketplaceData optimisé** - FAIT
+4. 📝 **Auditer les TODO/FIXME** (voir ci-dessous)
+
+---
+
+## 📝 TODO/FIXME À TRAITER
+
+### Priorité Haute (fonctionnalité manquante)
+
+| Fichier | Ligne | Description |
+|---------|-------|-------------|
+| `MarketplaceScreen.tsx` | 1206 | Modal détails demande d'achat |
+| `MarketplaceScreen.tsx` | 1220 | Modal répondre à demande |
+| `MarketplaceScreen.tsx` | 1231 | Modal détails demande |
+| `MarketplaceService.ts` | 873 | Mise à jour statut après vente |
+
+### Priorité Moyenne (amélioration)
+
+| Fichier | Ligne | Description |
+|---------|-------|-------------|
+| `DashboardVetScreen.tsx` | 283, 501 | Navigation notifications |
+| `DashboardTechScreen.tsx` | 302 | Navigation notifications |
+| `CollaborationsScreen.tsx` | 309, 370 | Paramètres et détails projet |
+
+### Priorité Basse (dette technique)
+
+| Fichier | Ligne | Description |
+|---------|-------|-------------|
+| `collaborationSlice.ts` | 55, 121 | Sync vetProfile côté backend |
+| `apiClient.ts` | 362 | Retirer fallback après migration |
+| `ChatAgentAPI.ts` | 26 | Intégrer vraie API |
+
+---
+
+## 🗑️ CODE DEPRECATED À NETTOYER
+
+| Service | Statut | Utilisé par | Action |
+|---------|--------|-------------|--------|
+| `ChatAgentService` | @deprecated | Tests uniquement | Garder pour tests |
+| `getDatabase()` | @deprecated | Tests uniquement | Garder pour compatibilité |
+| `buyerId` (PurchaseRequest) | @deprecated | Transition vers senderId | Migrer progressivement |
 
 ---
 
 ## 📈 MÉTRIQUES CIBLES
 
-| Métrique | Actuel | Cible |
-|----------|--------|-------|
-| Console.log en prod | 680 | 0 (auto-supprimés) |
-| Appels API redondants | ~30% | <5% |
-| Re-renders inutiles | Non mesuré | Baseline à établir |
-| Temps de chargement dashboard | Non mesuré | <2s |
+| Métrique | Actuel | Cible | Statut |
+|----------|--------|-------|--------|
+| Console.log en prod | 680 | 0 (auto-supprimés) | ✅ Configuré |
+| Logs debug backend | 6 | 0 | ✅ Supprimés |
+| Appels API redondants | ~30% | <5% | 🔄 Hook créé |
+| Re-renders inutiles | Non mesuré | Baseline à établir | 📝 À mesurer |
+| Temps de chargement dashboard | Non mesuré | <2s | 📝 À mesurer |
 
