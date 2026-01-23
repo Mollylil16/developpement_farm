@@ -305,3 +305,54 @@ const { listings, loadListingsDebounced } = useMarketplaceData({
 - [ ] Mesures de performance baseline
 - [ ] TODO haute priorité implémentés
 - [ ] React.memo ajouté aux composants critiques
+
+---
+
+## 🔌 UTILISATION DES HOOKS D'OPTIMISATION
+
+### Import centralisé
+
+```typescript
+// Import depuis le module performance
+import { 
+  useDebounce, 
+  useThrottle, 
+  useThrottledCallback,
+  useMemoizedApiCall,
+  invalidateCacheByPattern,
+  useMarketplaceData 
+} from '../hooks/performance';
+```
+
+### Exemples d'utilisation
+
+```typescript
+// 1. Debounce pour recherche
+const [search, setSearch] = useState('');
+const debouncedSearch = useDebounce(search, 300);
+
+useEffect(() => {
+  if (debouncedSearch) {
+    loadResults(debouncedSearch);
+  }
+}, [debouncedSearch]);
+
+// 2. Throttle pour scroll
+const [scrollY, setScrollY] = useState(0);
+const throttledScrollY = useThrottle(scrollY, 100);
+
+// 3. API avec cache et déduplication
+const { data, loading, refresh, invalidate } = useMemoizedApiCall(
+  () => apiClient.get(`/projects/${projectId}/animals`),
+  { 
+    cacheKey: `animals-${projectId}`, 
+    ttl: 30000, // 30 secondes
+    enabled: !!projectId 
+  }
+);
+
+// 4. Invalider le cache par pattern
+const handleDataChange = () => {
+  invalidateCacheByPattern(/^animals-/); // Invalide tous les caches d'animaux
+};
+```
