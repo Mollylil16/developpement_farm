@@ -356,3 +356,56 @@ const handleDataChange = () => {
   invalidateCacheByPattern(/^animals-/); // Invalide tous les caches d'animaux
 };
 ```
+
+---
+
+## ✅ OPTIMISATIONS APPLIQUÉES (23 Jan 2026)
+
+### 1. MarketplaceScreen.tsx - Cache API
+
+```typescript
+// Refs pour le cache
+const CACHE_DURATION = 30000; // 30 secondes
+const offersLastLoad = useRef<number>(0);
+const myListingsLastLoad = useRef<number>(0);
+
+// loadOffers avec cache
+const loadOffers = useCallback(async (forceReload = false) => {
+  const now = Date.now();
+  if (!forceReload && (now - offersLastLoad.current) < CACHE_DURATION) {
+    return; // Utiliser le cache
+  }
+  // ... charger en parallèle avec Promise.all
+  offersLastLoad.current = Date.now();
+}, [user]);
+```
+
+### 2. Composants mémorisés avec React.memo
+
+| Composant | Fichier |
+|-----------|---------|
+| CollaborationListComponent | `src/components/CollaborationListComponent.tsx` |
+| FinanceRevenusComponent | `src/components/FinanceRevenusComponent.tsx` |
+| FinanceChargesFixesComponent | `src/components/FinanceChargesFixesComponent.tsx` |
+| FinanceDepensesComponent | `src/components/FinanceDepensesComponent.tsx` |
+| FinanceDettesComponent | `src/components/FinanceDettesComponent.tsx` |
+| GestationsListComponent | `src/components/GestationsListComponent.tsx` |
+| BatchCheptelView | `src/components/BatchCheptelView.tsx` |
+| IngredientsComponent | `src/components/IngredientsComponent.tsx` |
+
+### 3. Hooks d'optimisation créés
+
+| Hook | Usage |
+|------|-------|
+| `useDebounce` | Recherche, filtres |
+| `useThrottle` | Scroll, resize |
+| `useThrottledCallback` | Fonctions fréquentes |
+| `useMemoizedApiCall` | API avec cache global |
+| `useMarketplaceData` | Marketplace optimisé |
+
+### Résultats attendus
+
+- **~50% réduction** des appels API redondants
+- **Meilleure réactivité** des interfaces
+- **Moins de re-renders** inutiles
+- **Console.log supprimés** en production (babel)
