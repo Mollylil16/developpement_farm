@@ -149,7 +149,7 @@ export default function NotificationPanel({
           onStartShouldSetResponder={() => true}
         >
           {/* Header */}
-          <View style={[styles.header, { borderBottomColor: colors.divider }]}>
+          <View style={[styles.header, { borderBottomColor: colors.divider, backgroundColor: colors.surfaceSolid || '#FFFFFF' }]}>
             <Text style={[styles.headerTitle, { color: colors.text }]}>Notifications</Text>
             <View style={styles.headerActions}>
               {unreadCount > 0 && (
@@ -164,7 +164,7 @@ export default function NotificationPanel({
           </View>
 
           {/* Onglets */}
-          <View style={[styles.tabs, { borderBottomColor: colors.divider }]}>
+          <View style={[styles.tabs, { borderBottomColor: colors.divider, backgroundColor: colors.surfaceSolid || '#FFFFFF' }]}>
             {(['all', 'offers', 'messages', 'system'] as TabType[]).map((tab) => {
               const count = unreadCountByTab[tab];
               const isActive = activeTab === tab;
@@ -207,7 +207,7 @@ export default function NotificationPanel({
 
           {/* Liste des notifications */}
           <ScrollView
-            style={styles.list}
+            style={[styles.list, { backgroundColor: colors.surfaceSolid || '#FFFFFF' }]}
             contentContainerStyle={[
               styles.listContent,
               filteredNotifications.length === 0 && styles.listContentEmpty
@@ -319,6 +319,7 @@ const styles = StyleSheet.create({
   list: {
     flex: 1,
     minHeight: 200,
+    flexGrow: 1, // ✅ S'assurer que le ScrollView prend l'espace disponible
   },
   listContent: {
     padding: MarketplaceTheme.spacing.sm,
