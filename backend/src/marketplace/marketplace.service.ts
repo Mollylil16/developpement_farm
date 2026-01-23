@@ -597,14 +597,16 @@ export class MarketplaceService {
           COUNT(CASE WHEN producer_id = $1 AND farm_id = $2 THEN 1 END) as by_both
           FROM marketplace_listings WHERE status != 'removed'`;
         const checkResult = await this.databaseService.query(checkQuery, [userId || '', projetId || '']);
-        this.logger.warn(`[findAllListings] Aucun listing trouvé. Statistiques:`, checkResult.rows[0]);
-        // Récupérer les valeurs réelles dans la base pour comparaison
-        const actualValuesQuery = `SELECT id, producer_id, farm_id, status, 
-          pg_typeof(producer_id) as producer_id_type, 
-          pg_typeof(farm_id) as farm_id_type
-          FROM marketplace_listings WHERE status != 'removed' LIMIT 5`;
-        const actualValues = await this.databaseService.query(actualValuesQuery);
-        this.logger.warn(`[findAllListings] Valeurs réelles dans la base:`, actualValues.rows);
+        this.logger.debug(`[findAllListings] Aucun listing trouvé. Statistiques:`, checkResult.rows[0]);
+        // Récupérer les valeurs réelles dans la base pour comparaison (debug uniquement)
+        if (process.env.NODE_ENV !== 'production') {
+          const actualValuesQuery = `SELECT id, producer_id, farm_id, status, 
+            pg_typeof(producer_id) as producer_id_type, 
+            pg_typeof(farm_id) as farm_id_type
+            FROM marketplace_listings WHERE status != 'removed' LIMIT 5`;
+          const actualValues = await this.databaseService.query(actualValuesQuery);
+          this.logger.debug(`[findAllListings] Valeurs réelles dans la base:`, actualValues.rows);
+        }
       }
       
       // Mapper les résultats avec gestion d'erreur pour chaque ligne
