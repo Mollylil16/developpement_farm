@@ -454,3 +454,42 @@ Les fichiers les plus concernés :
 - FinanceGraphiquesComponent.tsx (11)
 
 Ces logs sont utiles en développement et ne seront pas inclus dans le build de production.
+
+---
+
+## 🔒 AUDIT SÉCURITÉ (23 Jan 2026)
+
+### Vulnérabilités corrigées
+
+| Package | Sévérité | Action |
+|---------|----------|--------|
+| tar (backend) | HIGH | ✅ Corrigé via npm audit fix |
+
+### Vulnérabilités restantes (non critiques)
+
+| Package | Sévérité | Raison |
+|---------|----------|--------|
+| lodash (@nestjs/config) | MODERATE | Breaking change requis |
+| lodash (@nestjs/swagger) | MODERATE | Breaking change requis |
+| @expo/cli (frontend) | HIGH | Breaking change (expo 54) |
+
+### Dépendances potentiellement inutilisées
+
+**À évaluer:**
+- bignumber.js
+- buffer  
+- lodash (peut être utilisé indirectement)
+- make-plural
+
+**DevDependencies:**
+- postinstall-postinstall
+- ts-node
+
+*Note: Ces dépendances peuvent être utilisées indirectement. Évaluer avant suppression.*
+
+### Configuration TypeScript
+
+- ✅ strict: true
+- ✅ esModuleInterop: true
+- ✅ skipLibCheck: true
+- ✅ Exclusions correctes configurées
