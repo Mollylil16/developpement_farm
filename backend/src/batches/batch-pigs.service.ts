@@ -79,7 +79,7 @@ export class BatchPigsService {
       
       // 3. Vérifier si l'utilisateur est collaborateur actif avec permission 'cheptel'
       const collabResult = await this.db.query(
-        `SELECT id, permission_cheptel, permission_gestion_complete FROM collaborations 
+        `SELECT id, permission_cheptel, permission_gestion_complete, permissions FROM collaborations 
          WHERE projet_id = $1 
          AND (user_id = $2 OR profile_id LIKE $3)
          AND statut = 'actif'`,
@@ -88,8 +88,28 @@ export class BatchPigsService {
       
       if (collabResult.rows.length > 0) {
         const collab = collabResult.rows[0];
+        
+        // Log pour debug
+        this.logger.debug(
+          `[checkBatchOwnership] Collab trouvé: id=${collab.id}, ` +
+          `permission_cheptel=${collab.permission_cheptel}, ` +
+          `permission_gestion_complete=${collab.permission_gestion_complete}, ` +
+          `permissions=${JSON.stringify(collab.permissions)}`
+        );
+        
+        // Vérifier les nouvelles colonnes de permission
         if (collab.permission_cheptel === true || collab.permission_gestion_complete === true) {
-          return; // ✅ L'utilisateur est collaborateur avec permission
+          return; // ✅ L'utilisateur est collaborateur avec permission (nouvelles colonnes)
+        }
+        
+        // ✅ FALLBACK: Vérifier l'ancienne colonne permissions JSONB
+        if (collab.permissions) {
+          const perms = typeof collab.permissions === 'string' 
+            ? JSON.parse(collab.permissions) 
+            : collab.permissions;
+          if (perms.cheptel === true || perms.gestion_complete === true || perms.production === true) {
+            return; // ✅ L'utilisateur a les permissions via JSONB
+          }
         }
       }
       

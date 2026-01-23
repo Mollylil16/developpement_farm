@@ -31,6 +31,7 @@ import {
 } from '../types/sante';
 import VaccinationFormModalNew from './VaccinationFormModalNew';
 import CalendrierVaccinalModal from './CalendrierVaccinalModal';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 const { width } = Dimensions.get('window');
 
@@ -42,7 +43,8 @@ export default function VaccinationsComponentNew({ refreshControl }: Props) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
 
-  const projetActif = useAppSelector((state) => state.projet.projetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const vaccinations = useAppSelector((state) => selectAllVaccinations(state));
   const animaux = useAppSelector((state) => selectAllAnimaux(state));
 

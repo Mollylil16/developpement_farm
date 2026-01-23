@@ -39,6 +39,7 @@ import {
   RisqueConsanguinite,
 } from '../utils/consanguiniteUtils';
 import { validateGestation } from '../validation/reproductionSchemas';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 interface GestationFormModalProps {
   visible: boolean;
