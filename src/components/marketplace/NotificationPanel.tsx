@@ -208,24 +208,29 @@ export default function NotificationPanel({
           {/* Liste des notifications */}
           <ScrollView
             style={styles.list}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
+            contentContainerStyle={[
+              styles.listContent,
+              filteredNotifications.length === 0 && styles.listContentEmpty
+            ]}
+            showsVerticalScrollIndicator={true}
+            nestedScrollEnabled={true}
           >
             {filteredNotifications.length === 0 ? (
               <View style={styles.emptyContainer}>
-                <Ionicons name="notifications-off-outline" size={64} color={colors.textLight} />
+                <Ionicons name="notifications-off-outline" size={64} color={colors.textLight || colors.textSecondary} />
                 <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
                   Aucune notification
                 </Text>
               </View>
             ) : (
               filteredNotifications.map((notification) => (
-                <NotificationCard
-                  key={notification.id}
-                  notification={notification}
-                  onPress={() => handleNotificationPress(notification)}
-                  onMarkAsRead={() => onMarkAsRead(notification.id)}
-                />
+                <View key={notification.id} style={styles.notificationItem}>
+                  <NotificationCard
+                    notification={notification}
+                    onPress={() => handleNotificationPress(notification)}
+                    onMarkAsRead={() => onMarkAsRead(notification.id)}
+                  />
+                </View>
               ))
             )}
           </ScrollView>
@@ -312,15 +317,24 @@ const styles = StyleSheet.create({
   },
   list: {
     flex: 1,
+    minHeight: 200,
   },
   listContent: {
     padding: MarketplaceTheme.spacing.sm,
+    gap: MarketplaceTheme.spacing.sm,
   },
-  emptyContainer: {
+  listContentEmpty: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: MarketplaceTheme.spacing.xl,
+  },
+  notificationItem: {
+    marginBottom: MarketplaceTheme.spacing.xs,
+  },
+  emptyContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: MarketplaceTheme.spacing.xl * 2,
   },
   emptyText: {
     marginTop: MarketplaceTheme.spacing.md,
