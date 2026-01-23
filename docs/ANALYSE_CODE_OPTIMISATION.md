@@ -409,3 +409,48 @@ const loadOffers = useCallback(async (forceReload = false) => {
 - **Meilleure réactivité** des interfaces
 - **Moins de re-renders** inutiles
 - **Console.log supprimés** en production (babel)
+
+---
+
+## 🆕 COMPOSANTS VOLUMINEUX MÉMORISÉS (Batch 2)
+
+| Composant | Lignes | Module |
+|-----------|--------|--------|
+| VaccinationsComponentAccordion | 2159 | Santé |
+| GestationFormModal | 1437 | Reproduction |
+| VeterinaireComponent | 1402 | Santé |
+| ProductionAnimalsListComponent | 1283 | Production |
+| PerformanceIndicatorsComponent | 1278 | Performance |
+| ProductionCheptelComponent | 1221 | Production |
+| ProductionEstimationsComponent | 1203 | Production |
+
+### Total composants mémorisés: 15
+
+**Batch 1 (8 composants):**
+- CollaborationListComponent
+- FinanceRevenusComponent
+- FinanceChargesFixesComponent
+- FinanceDepensesComponent
+- FinanceDettesComponent
+- GestationsListComponent
+- BatchCheptelView
+- IngredientsComponent
+
+**Batch 2 (7 composants):**
+- VaccinationsComponentAccordion
+- GestationFormModal
+- VeterinaireComponent
+- ProductionAnimalsListComponent
+- PerformanceIndicatorsComponent
+- ProductionCheptelComponent
+- ProductionEstimationsComponent
+
+### Console.log restants
+
+62 console.log dans le code source (automatiquement supprimés en production via babel).
+
+Les fichiers les plus concernés :
+- MarketplaceScreen.tsx (13)
+- FinanceGraphiquesComponent.tsx (11)
+
+Ces logs sont utiles en développement et ne seront pas inclus dans le build de production.
