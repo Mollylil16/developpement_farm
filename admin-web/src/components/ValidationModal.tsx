@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Modal } from './ui/modal'
-import { FileText, CheckCircle, XCircle, Download, Eye, AlertCircle } from 'lucide-react'
+import { FileText, CheckCircle, XCircle, Download, Eye, AlertCircle, Loader2 } from 'lucide-react'
 import Button from './ui/button/Button'
 import Badge from './ui/badge/Badge'
+import { adminApi } from '../services/api'
 
 interface Veterinarian {
   id: string
@@ -36,8 +37,39 @@ export default function ValidationModal({
   const [rejectionReason, setRejectionReason] = useState('')
   const [showRejectionForm, setShowRejectionForm] = useState(false)
   const [approvalReason, setApprovalReason] = useState('')
+  const [documents, setDocuments] = useState<{ cni_document_url?: string; diploma_document_url?: string } | null>(null)
+  const [loadingDocuments, setLoadingDocuments] = useState(false)
+
+  // Charger les documents quand le modal s'ouvre
+  useEffect(() => {
+    if (isOpen && veterinarian) {
+      setLoadingDocuments(true)
+      adminApi
+        .getVeterinarianDocuments(veterinarian.id)
+        .then((data) => {
+          setDocuments(data)
+        })
+        .catch((error) => {
+          console.error('Erreur lors du chargement des documents:', error)
+          // Utiliser les documents déjà présents dans veterinarian si disponibles
+          setDocuments({
+            cni_document_url: veterinarian.cni_document || veterinarian.cni_document_url,
+            diploma_document_url: veterinarian.diploma_document || veterinarian.diploma_document_url,
+          })
+        })
+        .finally(() => {
+          setLoadingDocuments(false)
+        })
+    } else {
+      setDocuments(null)
+    }
+  }, [isOpen, veterinarian])
 
   if (!veterinarian) return null
+
+  // Utiliser les documents chargés ou ceux du veterinarian
+  const cniDocument = documents?.cni_document_url || veterinarian.cni_document || veterinarian.cni_document_url
+  const diplomaDocument = documents?.diploma_document_url || veterinarian.diploma_document || veterinarian.diploma_document_url
 
   const handleApprove = () => {
     onApprove(veterinarian.id, approvalReason || undefined)
@@ -153,13 +185,18 @@ export default function ValidationModal({
                 {veterinarian.cni_verified ? 'Vérifiée' : 'Non vérifiée'}
               </Badge>
             </div>
-            {veterinarian.cni_document ? (
-              <div className="flex items-center gap-2">
+            {loadingDocuments ? (
+              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Chargement des documents...</span>
+              </div>
+            ) : cniDocument ? (
+              <div className="flex items-center gap-2 flex-wrap">
                 <Button
                   size="sm"
                   variant="outline"
                   startIcon={<Eye className="h-4 w-4" />}
-                  onClick={() => window.open(veterinarian.cni_document, '_blank')}
+                  onClick={() => window.open(cniDocument, '_blank')}
                 >
                   Voir le document
                 </Button>
@@ -169,8 +206,9 @@ export default function ValidationModal({
                   startIcon={<Download className="h-4 w-4" />}
                   onClick={() => {
                     const link = document.createElement('a')
-                    link.href = veterinarian.cni_document!
+                    link.href = cniDocument
                     link.download = `CNI_${veterinarian.nom}_${veterinarian.prenom}.pdf`
+                    link.target = '_blank'
                     link.click()
                   }}
                 >
@@ -206,13 +244,18 @@ export default function ValidationModal({
                 {veterinarian.diploma_verified ? 'Vérifié' : 'Non vérifié'}
               </Badge>
             </div>
-            {veterinarian.diploma_document ? (
-              <div className="flex items-center gap-2">
+            {loadingDocuments ? (
+              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Chargement des documents...</span>
+              </div>
+            ) : diplomaDocument ? (
+              <div className="flex items-center gap-2 flex-wrap">
                 <Button
                   size="sm"
                   variant="outline"
                   startIcon={<Eye className="h-4 w-4" />}
-                  onClick={() => window.open(veterinarian.diploma_document, '_blank')}
+                  onClick={() => window.open(diplomaDocument, '_blank')}
                 >
                   Voir le document
                 </Button>
@@ -222,8 +265,9 @@ export default function ValidationModal({
                   startIcon={<Download className="h-4 w-4" />}
                   onClick={() => {
                     const link = document.createElement('a')
-                    link.href = veterinarian.diploma_document!
+                    link.href = diplomaDocument
                     link.download = `Diplome_${veterinarian.nom}_${veterinarian.prenom}.pdf`
+                    link.target = '_blank'
                     link.click()
                   }}
                 >

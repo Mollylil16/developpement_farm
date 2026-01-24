@@ -36,8 +36,8 @@ export class AgricoleService {
       FROM (
         SELECT 
           pa.id,
-          COALESCE((SELECT poids FROM production_pesees WHERE animal_id = pa.id ORDER BY date_pesee DESC LIMIT 1), pa.poids_initial) as current_weight,
-          LAG(COALESCE((SELECT poids FROM production_pesees WHERE animal_id = pa.id ORDER BY date_pesee DESC LIMIT 1), pa.poids_initial)) OVER (PARTITION BY pa.id ORDER BY pa.date_naissance) as previous_weight,
+          COALESCE((SELECT poids_kg FROM production_pesees WHERE animal_id = pa.id ORDER BY date DESC LIMIT 1), pa.poids_initial) as current_weight,
+          LAG(COALESCE((SELECT poids_kg FROM production_pesees WHERE animal_id = pa.id ORDER BY date DESC LIMIT 1), pa.poids_initial)) OVER (PARTITION BY pa.id ORDER BY pa.date_naissance) as previous_weight,
           pa.date_naissance as current_date,
           LAG(pa.date_naissance) OVER (PARTITION BY pa.id ORDER BY pa.date_naissance) as previous_date
         FROM production_animaux pa
@@ -50,7 +50,7 @@ export class AgricoleService {
     const feedConversionResult = await this.db.query(`
       SELECT 
         COALESCE(
-          SUM(r.poids_kg) / NULLIF(SUM(COALESCE((SELECT poids FROM production_pesees WHERE animal_id = pa.id ORDER BY date_pesee DESC LIMIT 1), pa.poids_initial) - COALESCE(pa.poids_initial, 0)), 0),
+          SUM(r.poids_kg) / NULLIF(SUM(COALESCE((SELECT poids_kg FROM production_pesees WHERE animal_id = pa.id ORDER BY date DESC LIMIT 1), pa.poids_initial) - COALESCE(pa.poids_initial, 0)), 0),
           0
         ) as feed_conversion_ratio
       FROM rations r
@@ -64,7 +64,7 @@ export class AgricoleService {
       SELECT 
         DATE_TRUNC('day', pa.date_naissance) as date,
         COUNT(*) as animal_count,
-        AVG(COALESCE((SELECT poids FROM production_pesees WHERE animal_id = pa.id ORDER BY date_pesee DESC LIMIT 1), pa.poids_initial, 0)) as avg_weight,
+        AVG(COALESCE((SELECT poids_kg FROM production_pesees WHERE animal_id = pa.id ORDER BY date DESC LIMIT 1), pa.poids_initial, 0)) as avg_weight,
         AVG(EXTRACT(EPOCH FROM (NOW() - pa.date_naissance)) / 86400) as avg_age_days
       FROM production_animaux pa
       WHERE pa.actif = TRUE
@@ -268,15 +268,15 @@ export class AgricoleService {
     const ingredientOrigins = await this.db.query(`
       SELECT 
         i.nom as ingredient_name,
-        i.provenance,
-        i.fournisseur,
+        NULL as provenance,
+        NULL as fournisseur,
         COUNT(DISTINCT ir.ration_id) as usage_count,
         SUM(ir.quantite) as total_quantity_kg
       FROM ingredients i
       LEFT JOIN ingredients_ration ir ON i.id = ir.ingredient_id
       WHERE ir.ration_id IS NOT NULL
         OR i.date_creation >= NOW() - INTERVAL '6 months'
-      GROUP BY i.id, i.nom, i.provenance, i.fournisseur
+      GROUP BY i.id, i.nom
       ORDER BY total_quantity_kg DESC NULLS LAST
       LIMIT 50
     `);
@@ -285,20 +285,17 @@ export class AgricoleService {
     const additives = await this.db.query(`
       SELECT 
         i.nom as additive_name,
-        i.type as additive_type,
-        i.provenance,
+        NULL as additive_type,
+        NULL as provenance,
         COUNT(DISTINCT ir.ration_id) as usage_count,
         SUM(ir.quantite) as total_quantity_kg,
         COUNT(DISTINCT r.projet_id) as projects_using
       FROM ingredients i
       LEFT JOIN ingredients_ration ir ON i.id = ir.ingredient_id
       LEFT JOIN rations r ON ir.ration_id = r.id
-      WHERE (i.type ILIKE '%additif%' 
-        OR i.type ILIKE '%conservateur%'
-        OR i.type ILIKE '%antibiotique%'
-        OR i.nom ILIKE '%additif%')
+      WHERE i.nom ILIKE '%additif%'
         AND (ir.ration_id IS NOT NULL OR i.date_creation >= NOW() - INTERVAL '1 year')
-      GROUP BY i.id, i.nom, i.type, i.provenance
+      GROUP BY i.id, i.nom
       ORDER BY total_quantity_kg DESC NULLS LAST
       LIMIT 30
     `);
@@ -379,7 +376,7 @@ export class AgricoleService {
         pa.projet_id,
         p.nom as projet_nom,
         pa.date_naissance,
-        COALESCE((SELECT poids FROM production_pesees WHERE animal_id = pa.id ORDER BY date_pesee DESC LIMIT 1), pa.poids_initial, 0) as poids_actuel,
+        COALESCE((SELECT poids_kg FROM production_pesees WHERE animal_id = pa.id ORDER BY date DESC LIMIT 1), pa.poids_initial, 0) as poids_actuel,
         pa.sexe,
         pa.categorie_poids as categorie,
         COALESCE(pa.poids_initial, 0) as birth_weight

@@ -116,25 +116,25 @@ export default function Projects() {
       {/* Table des projets */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-theme-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[800px]">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Projet
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
                   Propriétaire
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Animaux
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Statut
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
                   Date de création
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
@@ -149,39 +149,43 @@ export default function Projects() {
               ) : (
                 data?.data?.map((project: any) => (
                   <tr key={project.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-brand-100 flex items-center justify-center">
-                          <FolderOpen className="h-5 w-5 text-brand-600" />
+                    <td className="px-4 sm:px-6 py-4">
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-brand-100 flex items-center justify-center flex-shrink-0">
+                          <FolderOpen className="h-4 w-4 sm:h-5 sm:w-5 text-brand-600" />
                         </div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{project.nom || 'Sans nom'}</p>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{project.nom || 'Sans nom'}</p>
                           {project.description && (
                             <p className="text-xs text-gray-500 truncate max-w-xs">{project.description}</p>
                           )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
-                          <Users className="h-4 w-4 text-gray-600" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-900">
+                          {/* Propriétaire visible sur mobile */}
+                          <p className="text-xs text-gray-500 truncate md:hidden mt-1">
                             {project.user_prenom} {project.user_nom}
                           </p>
-                          <p className="text-xs text-gray-500">{project.user_email}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-4 sm:px-6 py-4 hidden md:table-cell">
                       <div className="flex items-center gap-2">
-                        <PiggyBank className="h-4 w-4 text-gray-400" />
+                        <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                          <Users className="h-4 w-4 text-gray-600" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm text-gray-900 truncate">
+                            {project.user_prenom} {project.user_nom}
+                          </p>
+                          <p className="text-xs text-gray-500 truncate">{project.user_email}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <PiggyBank className="h-4 w-4 text-gray-400 flex-shrink-0" />
                         <span className="text-sm text-gray-900">{project.total_animals || 0}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                       <span
                         className={`px-2.5 py-1 text-xs font-medium rounded-full border ${
                           project.statut === 'actif'
@@ -192,20 +196,21 @@ export default function Projects() {
                         {project.statut === 'actif' ? 'Actif' : 'Archivé'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden lg:table-cell">
                       <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4" />
+                        <Calendar className="h-4 w-4 flex-shrink-0" />
                         {project.date_creation
                           ? new Date(project.date_creation).toLocaleDateString('fr-FR')
                           : 'N/A'}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                       <button
                         onClick={() => navigate(`/users?user_id=${project.user_id}`)}
-                        className="text-sm font-medium text-brand-600 hover:text-brand-700"
+                        className="text-xs sm:text-sm font-medium text-brand-600 hover:text-brand-700 whitespace-nowrap"
                       >
-                        Voir utilisateur
+                        <span className="hidden sm:inline">Voir utilisateur</span>
+                        <span className="sm:hidden">Voir</span>
                       </button>
                     </td>
                   </tr>

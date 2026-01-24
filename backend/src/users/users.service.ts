@@ -114,7 +114,9 @@ export class UsersService {
     // Colonnes nécessaires pour mapRowToUser (optimisation: éviter SELECT *)
     const userColumns = `id, email, telephone, nom, prenom, provider, provider_id, photo, 
       saved_farms, date_creation, derniere_connexion, roles, active_role, 
-      is_onboarded, onboarding_completed_at, is_active`;
+      is_onboarded, onboarding_completed_at, is_active,
+      veterinarian_validation_status, cni_document_url, diploma_document_url,
+      cni_verified, diploma_verified, validated_at, validation_reason`;
     
     const result = await this.databaseService.query(
       `SELECT ${userColumns} FROM users WHERE id = $1 AND is_active = true`,
@@ -830,6 +832,20 @@ export class UsersService {
       }
     }
 
+    // Ajouter le statut de validation dans roles.veterinarian si l'utilisateur est vétérinaire
+    if (row.active_role === 'veterinarian' && roles && roles.veterinarian) {
+      roles.veterinarian = {
+        ...roles.veterinarian,
+        validationStatus: row.veterinarian_validation_status || 'pending',
+        cniDocumentUrl: row.cni_document_url || undefined,
+        diplomaDocumentUrl: row.diploma_document_url || undefined,
+        cniVerified: row.cni_verified || false,
+        diplomaVerified: row.diploma_verified || false,
+        validatedAt: row.validated_at || undefined,
+        validationReason: row.validation_reason || undefined,
+      };
+    }
+
     return {
       id: row.id,
       email: row.email || undefined,
@@ -846,6 +862,8 @@ export class UsersService {
       isOnboarded: row.is_onboarded === true || row.is_onboarded === 1,
       onboardingCompletedAt: row.onboarding_completed_at || undefined,
       is_active: row.is_active === true || row.is_active === 1, // Important pour le guard JWT
+      // Statut de validation pour les vétérinaires (pour compatibilité)
+      veterinarian_validation_status: row.veterinarian_validation_status || undefined,
     };
   }
 

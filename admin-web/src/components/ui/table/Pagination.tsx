@@ -61,23 +61,24 @@ export default function Pagination({
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
       {/* Informations */}
-      <div className="text-sm text-gray-600 dark:text-gray-400">
+      <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 text-center sm:text-left">
         Affichage de <span className="font-medium text-gray-900 dark:text-white">{startItem}</span> à{' '}
         <span className="font-medium text-gray-900 dark:text-white">{endItem}</span> sur{' '}
         <span className="font-medium text-gray-900 dark:text-white">{totalItems}</span> résultats
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center gap-2">
-        {/* Première page */}
+      <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-center">
+        {/* Première page - Caché sur mobile */}
         <Button
           size="sm"
           variant="outline"
           startIcon={<ChevronsLeft className="h-4 w-4" />}
           onClick={() => onPageChange(1)}
           disabled={currentPage === 1}
+          className="hidden md:flex"
         >
-          Début
+          <span className="hidden lg:inline">Début</span>
         </Button>
 
         {/* Page précédente */}
@@ -87,16 +88,18 @@ export default function Pagination({
           startIcon={<ChevronLeft className="h-4 w-4" />}
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage === 1}
+          className="text-xs sm:text-sm"
         >
-          Précédent
+          <span className="hidden sm:inline">Précédent</span>
+          <span className="sm:hidden">Préc.</span>
         </Button>
 
         {/* Numéros de page */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5 sm:gap-1">
           {getPageNumbers().map((page, index) => {
             if (page === '...') {
               return (
-                <span key={`ellipsis-${index}`} className="px-2 text-gray-400">
+                <span key={`ellipsis-${index}`} className="px-1 sm:px-2 text-gray-400 text-xs sm:text-sm">
                   ...
                 </span>
               )
@@ -107,7 +110,7 @@ export default function Pagination({
                 size="sm"
                 variant={currentPage === page ? 'primary' : 'outline'}
                 onClick={() => onPageChange(page as number)}
-                className="min-w-[40px]"
+                className="min-w-[32px] sm:min-w-[40px] text-xs sm:text-sm px-1 sm:px-2"
               >
                 {page}
               </Button>
@@ -122,30 +125,33 @@ export default function Pagination({
           endIcon={<ChevronRight className="h-4 w-4" />}
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages}
+          className="text-xs sm:text-sm"
         >
-          Suivant
+          <span className="hidden sm:inline">Suivant</span>
+          <span className="sm:hidden">Suiv.</span>
         </Button>
 
-        {/* Dernière page */}
+        {/* Dernière page - Caché sur mobile */}
         <Button
           size="sm"
           variant="outline"
           endIcon={<ChevronsRight className="h-4 w-4" />}
           onClick={() => onPageChange(totalPages)}
           disabled={currentPage === totalPages}
+          className="hidden md:flex"
         >
-          Fin
+          <span className="hidden lg:inline">Fin</span>
         </Button>
       </div>
 
       {/* Items par page */}
       {onItemsPerPageChange && (
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-600 dark:text-gray-400">Par page:</span>
+          <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 hidden sm:inline">Par page:</span>
           <select
             value={itemsPerPage}
             onChange={(e) => onItemsPerPageChange(parseInt(e.target.value))}
-            className="px-3 py-1.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+            className="px-2 sm:px-3 py-1.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-xs sm:text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
           >
             {itemsPerPageOptions.map((option) => (
               <option key={option} value={option}>

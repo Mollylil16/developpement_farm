@@ -26,8 +26,10 @@ export default function Validation() {
   const approveMutation = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
       adminApi.approveVeterinarian(id, reason),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['veterinarians-validation'] })
+    onSuccess: async () => {
+      // Invalider et refetch immédiatement pour mettre à jour le statut
+      await queryClient.invalidateQueries({ queryKey: ['veterinarians-validation'] })
+      await queryClient.refetchQueries({ queryKey: ['veterinarians-validation'] })
       toast.success('Vétérinaire approuvé avec succès')
       setIsModalOpen(false)
       setSelectedVet(null)
@@ -40,8 +42,10 @@ export default function Validation() {
   const rejectMutation = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason: string }) =>
       adminApi.rejectVeterinarian(id, reason),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['veterinarians-validation'] })
+    onSuccess: async () => {
+      // Invalider et refetch immédiatement pour mettre à jour le statut
+      await queryClient.invalidateQueries({ queryKey: ['veterinarians-validation'] })
+      await queryClient.refetchQueries({ queryKey: ['veterinarians-validation'] })
       toast.success('Vétérinaire rejeté avec succès')
       setIsModalOpen(false)
       setSelectedVet(null)
@@ -59,8 +63,27 @@ export default function Validation() {
     rejectMutation.mutate({ id, reason })
   }
 
-  const handleOpenModal = (vet: any) => {
-    setSelectedVet(vet)
+  const handleOpenModal = async (vet: any) => {
+    // Charger les documents du vétérinaire
+    try {
+      const documentsData = await adminApi.getVeterinarianDocuments(vet.id)
+      setSelectedVet({
+        ...vet,
+        status: vet.validation_status || vet.status || 'pending',
+        cni_document: documentsData.cni_document_url,
+        diploma_document: documentsData.diploma_document_url,
+        submitted_at: vet.documents_submitted_at,
+      })
+    } catch (error) {
+      // En cas d'erreur, utiliser les données disponibles
+      setSelectedVet({
+        ...vet,
+        status: vet.validation_status || vet.status || 'pending',
+        cni_document: vet.cni_document_url,
+        diploma_document: vet.diploma_document_url,
+        submitted_at: vet.documents_submitted_at,
+      })
+    }
     setIsModalOpen(true)
   }
 
@@ -158,10 +181,10 @@ export default function Validation() {
                         {vet.prenom} {vet.nom}
                       </h3>
                       <Badge
-                        variant={vet.status === 'approved' ? 'solid' : 'light'}
-                        color={vet.status === 'approved' ? 'success' : vet.status === 'rejected' ? 'error' : 'warning'}
+                        variant={(vet.validation_status || vet.status) === 'approved' ? 'solid' : 'light'}
+                        color={(vet.validation_status || vet.status) === 'approved' ? 'success' : (vet.validation_status || vet.status) === 'rejected' ? 'error' : 'warning'}
                       >
-                        {vet.status === 'approved' ? 'Approuvé' : vet.status === 'rejected' ? 'Rejeté' : 'En attente'}
+                        {(vet.validation_status || vet.status) === 'approved' ? 'Approuvé' : (vet.validation_status || vet.status) === 'rejected' ? 'Rejeté' : 'En attente'}
                       </Badge>
                     </div>
                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{vet.email}</p>

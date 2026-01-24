@@ -75,8 +75,8 @@ export default function Users() {
     <div className="space-y-6">
       {/* Filtres et recherche style HiveQ */}
       <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-theme-sm">
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {/* Recherche */}
+        <div className="space-y-4">
+          {/* Recherche - Pleine largeur sur mobile */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
@@ -88,70 +88,75 @@ export default function Users() {
             />
           </div>
 
-          {/* Filtre abonnement */}
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-gray-400" />
-            <div className="flex gap-2 flex-1 bg-gray-50 rounded-lg p-1 border border-gray-100">
-              <button
-                onClick={() => setHasSubscription(undefined)}
-                className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  hasSubscription === undefined
-                    ? 'bg-brand-500 text-white shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-white'
-                }`}
-              >
-                Tous
-              </button>
-              <button
-                onClick={() => setHasSubscription(true)}
-                className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  hasSubscription === true
-                    ? 'bg-brand-500 text-white shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-white'
-                }`}
-              >
-                Avec abonnement
-              </button>
-              <button
-                onClick={() => setHasSubscription(false)}
-                className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  hasSubscription === false
-                    ? 'bg-brand-500 text-white shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-white'
-                }`}
-              >
-                Sans abonnement
-              </button>
-            </div>
-          </div>
-
-          {/* Filtre rôle */}
-          <div className="lg:col-span-2 flex items-center gap-2 flex-wrap">
-            <span className="text-sm text-gray-600 font-medium">Rôle:</span>
-            <div className="flex gap-2 flex-wrap flex-1">
-              <button
-                onClick={() => setSelectedRole(undefined)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  selectedRole === undefined
-                    ? 'bg-brand-500 text-white shadow-sm'
-                    : 'bg-gray-50 text-gray-600 hover:text-gray-900 hover:bg-white border border-gray-200'
-                }`}
-              >
-                Tous
-              </button>
-              {Object.entries(ROLE_LABELS).map(([key, label]) => (
+          {/* Filtres - Responsive */}
+          <div className="flex flex-col sm:flex-row gap-4">
+            {/* Filtre abonnement */}
+            <div className="flex items-center gap-2 flex-1">
+              <Filter className="h-4 w-4 text-gray-400 flex-shrink-0" />
+              <div className="flex gap-1 sm:gap-2 flex-1 bg-gray-50 rounded-lg p-1 border border-gray-100">
                 <button
-                  key={key}
-                  onClick={() => setSelectedRole(selectedRole === key ? undefined : key)}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    selectedRole === key
+                  onClick={() => setHasSubscription(undefined)}
+                  className={`flex-1 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+                    hasSubscription === undefined
+                      ? 'bg-brand-500 text-white shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-white'
+                  }`}
+                >
+                  Tous
+                </button>
+                <button
+                  onClick={() => setHasSubscription(true)}
+                  className={`flex-1 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+                    hasSubscription === true
+                      ? 'bg-brand-500 text-white shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-white'
+                  }`}
+                >
+                  <span className="hidden sm:inline">Avec abonnement</span>
+                  <span className="sm:hidden">Avec</span>
+                </button>
+                <button
+                  onClick={() => setHasSubscription(false)}
+                  className={`flex-1 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+                    hasSubscription === false
+                      ? 'bg-brand-500 text-white shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-white'
+                  }`}
+                >
+                  <span className="hidden sm:inline">Sans abonnement</span>
+                  <span className="sm:hidden">Sans</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Filtre rôle */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm text-gray-600 font-medium hidden sm:inline">Rôle:</span>
+              <div className="flex gap-1 sm:gap-2 flex-wrap flex-1">
+                <button
+                  onClick={() => setSelectedRole(undefined)}
+                  className={`px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+                    selectedRole === undefined
                       ? 'bg-brand-500 text-white shadow-sm'
                       : 'bg-gray-50 text-gray-600 hover:text-gray-900 hover:bg-white border border-gray-200'
                   }`}
                 >
-                  {label}
+                  Tous
                 </button>
-              ))}
+                {Object.entries(ROLE_LABELS).map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() => setSelectedRole(selectedRole === key ? undefined : key)}
+                    className={`px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+                      selectedRole === key
+                        ? 'bg-brand-500 text-white shadow-sm'
+                        : 'bg-gray-50 text-gray-600 hover:text-gray-900 hover:bg-white border border-gray-200'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -160,34 +165,34 @@ export default function Users() {
       {/* Table style HiveQ */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-theme-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[1000px]">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Utilisateur
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Rôle
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
                   Email
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Plan
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Statut
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
                   Onboarded
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden xl:table-cell">
                   Date d'inscription
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden xl:table-cell">
                   Dernière connexion
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
@@ -210,28 +215,30 @@ export default function Users() {
 
                   return (
                     <tr key={user.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-3">
+                      <td className="px-4 sm:px-6 py-4">
+                        <div className="flex items-center gap-2 sm:gap-3">
                           {user.subscription_id ? (
-                            <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center">
+                            <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center flex-shrink-0">
                               <UserCheck className="h-4 w-4 text-brand-600" />
                             </div>
                           ) : (
-                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
                               <UserX className="h-4 w-4 text-gray-400" />
                             </div>
                           )}
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">
                               {user.prenom} {user.nom}
                             </p>
                             {user.telephone && (
-                              <p className="text-xs text-gray-500">{user.telephone}</p>
+                              <p className="text-xs text-gray-500 truncate">{user.telephone}</p>
                             )}
+                            {/* Email visible sur mobile */}
+                            <p className="text-xs text-gray-500 truncate lg:hidden">{user.email || user.telephone || 'N/A'}</p>
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-4 sm:px-6 py-4">
                         {user.active_role ? (
                           <span
                             className={`px-2.5 py-1 text-xs font-medium rounded-full border ${
@@ -249,13 +256,15 @@ export default function Users() {
                           </p>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{user.email || 'N/A'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden lg:table-cell">
+                        {user.email || user.telephone || 'N/A'}
+                      </td>
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         {user.plan_display_name || (
                           <span className="text-gray-400">Aucun</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                         <span
                           className={`px-2.5 py-1 text-xs font-medium rounded-full border ${
                             user.is_active
@@ -266,7 +275,7 @@ export default function Users() {
                           {user.is_active ? 'Actif' : 'Inactif'}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap hidden md:table-cell">
                         <span
                           className={`px-2.5 py-1 text-xs font-medium rounded-full border ${
                             user.is_onboarded
@@ -277,28 +286,28 @@ export default function Users() {
                           {user.is_onboarded ? 'Oui' : 'Non'}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden xl:table-cell">
                         {user.date_creation
                           ? new Date(user.date_creation).toLocaleDateString('fr-FR')
                           : 'N/A'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden xl:table-cell">
                         {user.derniere_connexion
                           ? new Date(user.derniere_connexion).toLocaleDateString('fr-FR')
                           : 'Jamais'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-1 sm:gap-2">
                           <button
                             onClick={() => navigate(`/users/${user.id}`)}
-                            className="p-2 text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"
+                            className="p-1.5 sm:p-2 text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"
                             title="Voir les détails"
                           >
                             <Eye className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => updateStatusMutation.mutate({ userId: user.id, isActive: !user.is_active })}
-                            className={`p-2 rounded-lg transition-colors ${
+                            className={`p-1.5 sm:p-2 rounded-lg transition-colors ${
                               user.is_active
                                 ? 'text-red-600 hover:bg-red-50'
                                 : 'text-brand-600 hover:bg-brand-50'
@@ -317,22 +326,22 @@ export default function Users() {
           </table>
         </div>
         {data?.pagination && (
-          <div className="p-4 border-t border-gray-100 flex items-center justify-between bg-gray-50">
-            <p className="text-sm text-gray-500">
+          <div className="p-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-gray-50">
+            <p className="text-sm text-gray-500 text-center sm:text-left">
               Page {data.pagination.page} sur {data.pagination.total_pages} ({data.pagination.total} utilisateurs)
             </p>
             <div className="flex gap-2">
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+                className="px-3 sm:px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-colors"
               >
                 Précédent
               </button>
               <button
                 onClick={() => setPage((p) => p + 1)}
                 disabled={page >= data.pagination.total_pages}
-                className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+                className="px-3 sm:px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-colors"
               >
                 Suivant
               </button>
