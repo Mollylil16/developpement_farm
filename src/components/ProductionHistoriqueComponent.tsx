@@ -51,7 +51,8 @@ export default function ProductionHistoriqueComponent() {
   const dispatch = useAppDispatch();
   const { canUpdate, canDelete } = useActionPermissions();
   const navigation = useNavigation<NavigationProp<any>>();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const animaux = useAppSelector(selectAllAnimaux);
   const loading = useAppSelector(selectProductionLoading);
   const mortalites = useAppSelector(selectAllMortalites);

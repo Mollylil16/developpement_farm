@@ -90,7 +90,8 @@ export default function FarmDetailsModal({
 }: FarmDetailsModalProps) {
   const { colors, spacing, typography, borderRadius } = MarketplaceTheme;
   const { user } = useAppSelector((state) => state.auth ?? { user: null });
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   // ✅ Déterminer le farmId : soit depuis farm, soit depuis initialListing
   const farmId = farm?.farmId || initialListing?.farmId;

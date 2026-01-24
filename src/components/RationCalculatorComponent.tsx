@@ -39,7 +39,8 @@ export default function RationCalculatorComponent() {
     }>;
   } | null>(null);
 
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   useEffect(() => {
     if (projetActif) {

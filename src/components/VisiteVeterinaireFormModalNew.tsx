@@ -60,7 +60,8 @@ export default function VisiteVeterinaireFormModalNew({
 }: VisiteVeterinaireFormModalNewProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const projetActif = useAppSelector((state) => state.projet.projetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const animaux = useAppSelector(selectAllAnimaux);
   const modeElevage = useModeElevage();
   const isModeBatch = modeElevage === 'bande';

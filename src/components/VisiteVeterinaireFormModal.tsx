@@ -30,7 +30,8 @@ interface Props {
 export default function VisiteVeterinaireFormModal({ visible, onClose, visite }: Props) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   const isEditing = !!visite;
 

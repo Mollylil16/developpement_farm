@@ -36,7 +36,8 @@ function CollaborationListComponent() {
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
   const { activeRole } = useRole();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const currentUser = useAppSelector((state) => state.auth?.user);
 
   // Vérifier si l'utilisateur est propriétaire du projet actif

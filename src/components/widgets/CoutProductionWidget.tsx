@@ -21,7 +21,8 @@ interface CoutProductionWidgetProps {
 function CoutProductionWidget({ projetId, onPress }: CoutProductionWidgetProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<{

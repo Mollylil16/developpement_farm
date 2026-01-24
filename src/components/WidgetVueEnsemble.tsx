@@ -20,7 +20,8 @@ interface WidgetVueEnsembleProps {
 
 function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
   const { colors } = useTheme();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const { gestations } = useAppSelector((state) => state.reproduction);
   const { chargesFixes, depensesPonctuelles } = useAppSelector((state) => state.finance);
   const { indicateursPerformance } = useAppSelector((state) => state.reports);

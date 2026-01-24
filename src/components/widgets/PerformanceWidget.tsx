@@ -20,7 +20,8 @@ interface PerformanceWidgetProps {
 
 function PerformanceWidget({ projetId, onPress }: PerformanceWidgetProps) {
   const { colors } = useTheme();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const revenus = useAppSelector(selectAllRevenus);
 
   const [loading, setLoading] = useState(true);

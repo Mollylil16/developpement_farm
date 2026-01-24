@@ -28,7 +28,8 @@ interface ProjectedRevenueCardProps {
 
 export default function ProjectedRevenueCard({ type }: ProjectedRevenueCardProps) {
   const { colors } = useTheme();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const revenus = useAppSelector(selectAllRevenus);
   const peseesParAnimal = useAppSelector(selectPeseesParAnimal);
   const { animauxActifs } = useAnimauxActifs({ projetId: projetActif?.id });

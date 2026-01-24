@@ -37,7 +37,8 @@ import { selectAllGestations } from '../store/selectors/reproductionSelectors';
 export default function GestationsCalendarComponent() {
   const { colors } = useTheme();
   const gestations: Gestation[] = useAppSelector(selectAllGestations);
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   // ✅ MÉMOÏSER la length pour éviter les boucles infinies

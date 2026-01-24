@@ -30,7 +30,8 @@ export default function HomeView({
   const { colors } = useTheme();
   const navigation = useNavigation<NavigationProp<any>>();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const { activeRole, availableRoles, switchRole, currentUser } = useRole();
   const [roleSwitcherVisible, setRoleSwitcherVisible] = useState(false);
   const [addRoleModalVisible, setAddRoleModalVisible] = useState(false);

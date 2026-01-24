@@ -40,7 +40,8 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
 
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const { objectifProduction, simulationResultat, recommendations, loading } = useAppSelector(
     (state) => state.planningProduction
   );

@@ -16,7 +16,8 @@ import { fr } from 'date-fns/locale';
 export default function PlanificationCalendarComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const { planifications } = useAppSelector((state) => state.planification);
   const [currentMonth, setCurrentMonth] = useState(new Date());
 

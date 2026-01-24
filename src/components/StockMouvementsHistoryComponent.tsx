@@ -29,7 +29,8 @@ const ITEMS_PER_PAGE = 50;
 export default function StockMouvementsHistoryComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const { stocks, mouvementsParAliment, loading } = useAppSelector((state) => state.stocks);
 
   const [searchQuery, setSearchQuery] = useState('');

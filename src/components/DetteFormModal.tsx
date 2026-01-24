@@ -33,7 +33,8 @@ export default function DetteFormModal({
 }: DetteFormModalProps) {
   const { colors } = useTheme();
   const { canCreate, canUpdate } = useActionPermissions();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateDetteInput>({
     projet_id: projetActif?.id || '',

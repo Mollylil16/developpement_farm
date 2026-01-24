@@ -23,7 +23,8 @@ export default function RationsHistoryComponent() {
   const [page, setPage] = useState(1);
   const ITEMS_PER_PAGE = 50;
 
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   useEffect(() => {
     if (projetActif) {

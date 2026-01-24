@@ -60,7 +60,8 @@ export default function BatchSelector({
   label = 'Sélectionner une loge',
 }: BatchSelectorProps) {
   const { colors } = useTheme();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loading, setLoading] = useState(false);

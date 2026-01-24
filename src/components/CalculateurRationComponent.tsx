@@ -22,7 +22,8 @@ import LoadingSpinner from './LoadingSpinner';
 export default function CalculateurRationComponent() {
   const { colors, isDark } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const { ingredients = [], loading = false } = useAppSelector((state) => state.nutrition ?? { ingredients: [], loading: false });
 
   // États du formulaire

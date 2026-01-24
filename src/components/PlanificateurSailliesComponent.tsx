@@ -40,7 +40,8 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
     (state) => state.planningProduction
   );
   const animaux = useAppSelector(selectAllAnimaux);
-  const projetActif = useAppSelector((state) => state.projet.projetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   const [vueListe, setVueListe] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
