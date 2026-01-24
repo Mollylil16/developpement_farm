@@ -55,8 +55,9 @@ export class ReproductionService {
     }
     
     // ✅ Sinon, vérifier s'il est collaborateur actif avec permission 'reproduction'
+    // ✅ Ne pas inclure 'permissions' car cette colonne peut ne pas exister
     const collabResult = await this.databaseService.query(
-      `SELECT id, permission_reproduction, permission_gestion_complete, permissions FROM collaborations 
+      `SELECT id, permission_reproduction, permission_gestion_complete FROM collaborations 
        WHERE projet_id = $1 
        AND (user_id = $2 OR profile_id LIKE $3)
        AND statut = 'actif'`,
@@ -68,21 +69,11 @@ export class ReproductionService {
       this.logger.debug(`[checkProjetOwnership] Collaborateur trouvé pour projet ${projetId}, userId=${normalizedUserId}. Permissions:`, {
         permission_reproduction: collab.permission_reproduction,
         permission_gestion_complete: collab.permission_gestion_complete,
-        old_permissions_jsonb: collab.permissions,
       });
       
       // ✅ Vérifier les nouvelles colonnes de permissions booléennes
       if (collab.permission_reproduction === true || collab.permission_gestion_complete === true) {
         return;
-      }
-      
-      // ✅ Fallback pour les anciennes structures de permissions (JSONB)
-      if (collab.permissions && typeof collab.permissions === 'object') {
-        const oldPermissions = collab.permissions;
-        if (oldPermissions.reproduction === true || oldPermissions.gestion_complete === true || oldPermissions.cheptel === true) {
-          this.logger.warn(`[checkProjetOwnership] Accès accordé via ancienne permission JSONB pour projet ${projetId}, userId=${normalizedUserId}`);
-          return;
-        }
       }
     }
     
