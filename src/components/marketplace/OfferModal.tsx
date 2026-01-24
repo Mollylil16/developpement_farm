@@ -114,6 +114,9 @@ export default function OfferModal({
     })
   ).current;
 
+  // ✅ Ref pour tracker si on a déjà initialisé les sélections
+  const hasInitializedRef = useRef(false);
+
   // Charger les sujets déjà acceptés quand le modal s'ouvre
   useEffect(() => {
     if (visible && user?.id && listingId) {
@@ -129,8 +132,10 @@ export default function OfferModal({
         .finally(() => {
           setLoadingAcceptedSubjects(false);
         });
-    } else {
-      setAcceptedSubjectIds(new Set());
+    }
+    // ✅ Reset hasInitializedRef quand le modal se ferme
+    if (!visible) {
+      hasInitializedRef.current = false;
     }
   }, [visible, user?.id, listingId]);
 
@@ -139,38 +144,37 @@ export default function OfferModal({
     () => subjects.filter((s) => !acceptedSubjectIds.has(s.id)),
     [subjects, acceptedSubjectIds]
   );
-  
-  // ✅ Mémoriser les IDs des sujets disponibles pour les dépendances
-  const availableSubjectIds = useMemo(
-    () => availableSubjects.map((s) => s.id).join(','),
-    [availableSubjects]
-  );
 
-  // Reset au montage/démontage
+  // Reset et initialisation - UNE SEULE FOIS quand le modal s'ouvre
   useEffect(() => {
     if (!visible) {
+      // Reset complet quand le modal se ferme
       setSelectedIds(new Set());
       setProposedPrice('');
       setMessage('');
       setDateRecuperationSouhaitee('');
       setTermsAccepted(false);
+      setAcceptedSubjectIds(new Set());
       pan.setValue({ x: 0, y: 0 });
-    } else {
-      // Pré-sélectionner tous les sujets disponibles par défaut (exclure ceux déjà acceptés)
-      if (availableSubjects.length > 0) {
-        const idsToSelect = availableSubjects.map((s) => s.id);
-        setSelectedIds(new Set(idsToSelect));
-      }
+    } else if (!hasInitializedRef.current && availableSubjects.length > 0) {
+      // ✅ Initialiser UNE SEULE FOIS quand le modal s'ouvre
+      hasInitializedRef.current = true;
+      
+      // Pré-sélectionner tous les sujets disponibles par défaut
+      const idsToSelect = availableSubjects.map((s) => s.id);
+      setSelectedIds(new Set(idsToSelect));
+      
       // Pré-remplir avec le prix original
       setProposedPrice(originalPrice.toString());
+      
       // Pré-remplir la date de récupération avec 7 jours à partir d'aujourd'hui
       const defaultDate = new Date();
       defaultDate.setDate(defaultDate.getDate() + 7);
       setSelectedDate(defaultDate);
       setDateRecuperationSouhaitee(defaultDate.toISOString().split('T')[0]);
     }
-  // ✅ Utiliser availableSubjectIds (string) au lieu de availableSubjects (array) pour éviter la boucle infinie
-  }, [visible, availableSubjectIds, originalPrice]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, availableSubjects.length, originalPrice]);
 
   const handleDateChange = (event: any, date?: Date) => {
     if (Platform.OS === 'android') {

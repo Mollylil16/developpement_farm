@@ -29,6 +29,7 @@ import StockAlimentFormModal from './StockAlimentFormModal';
 import StockMovementFormModal from './StockMovementFormModal';
 import Button from './Button';
 import { useActionPermissions } from '../hooks/useActionPermissions';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 const screenWidth = Dimensions.get('window').width;
 // Largeur fixe pour les cartes : largeur écran - (padding horizontal * 2)
@@ -38,7 +39,8 @@ export default function NutritionStockComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const { stocks, mouvementsParAliment, loading } = useAppSelector((state) => state.stocks);
   const [selectedStock, setSelectedStock] = useState<StockAliment | null>(null);
   const [showAlimentModal, setShowAlimentModal] = useState(false);

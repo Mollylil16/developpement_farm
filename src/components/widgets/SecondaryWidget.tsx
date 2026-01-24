@@ -25,6 +25,7 @@ import { startOfMonth, parseISO, isAfter } from 'date-fns';
 import type { Mortalite } from '../../types/mortalites';
 import { SafeTextWrapper } from '../../utils/textRenderingGuard';
 import { logger } from '../../utils/logger';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
 
 interface SecondaryWidgetProps {
   type:
@@ -41,7 +42,8 @@ interface SecondaryWidgetProps {
 function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const [marketplaceStats, setMarketplaceStats] = useState({ myListings: 0, available: 0 });
   const { rations, rationsBudget } = useAppSelector((state) => state.nutrition);
   const { planifications } = useAppSelector((state) => state.planification);

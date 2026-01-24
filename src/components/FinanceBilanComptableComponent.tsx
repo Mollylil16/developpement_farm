@@ -29,11 +29,13 @@ import { CATEGORIE_DEPENSE_LABELS, CategorieDepense } from '../types/finance';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import OpexCapexChart from './finance/OpexCapexChart';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 export default function FinanceBilanComptableComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const depensesPonctuelles = useAppSelector(selectAllDepensesPonctuelles);
   const loading = useAppSelector((state) => state.finance?.loading ?? false);
 
