@@ -147,13 +147,10 @@ export const searchListings = createAsyncThunk(
       // OPTIMISATION : Mettre en cache les résultats pour la page 1 uniquement
       if (page === 1 && response.listings.length > 0) {
         try {
-          const { setCachedListings } = await import('../../services/marketplaceCache');
-          // Ne pas attendre le cache (opération asynchrone non bloquante)
-          setCachedListings(response.listings, params.filters, sortOption, page).catch((cacheError) => {
-            if (__DEV__) {
-              console.warn('[marketplaceSlice] Erreur lors du stockage du cache:', cacheError);
-            }
-          });
+          const { marketplaceCache } = await import('../../services/marketplaceCache');
+          // Utiliser l'instance singleton pour mettre en cache
+          const cacheParams = { ...params.filters, sort: sortOption };
+          marketplaceCache.setListings(cacheParams, response.listings);
         } catch (cacheError) {
           // Ignorer les erreurs de cache
           if (__DEV__) {
@@ -319,7 +316,8 @@ export const counterOffer = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const counterOffer = await apiClient.put<Offer>(`/marketplace/offers/${data.offerId}/counter`, {
+      // ✅ Correction: utiliser PATCH au lieu de PUT (cohérence avec le backend)
+      const counterOffer = await apiClient.patch<Offer>(`/marketplace/offers/${data.offerId}/counter`, {
         nouveau_prix_total: data.nouveauPrixTotal,
         message: data.message,
       });
@@ -333,12 +331,15 @@ export const counterOffer = createAsyncThunk(
 
 /**
  * Rejeter une offre
+ * - Producteur peut rejeter une offre 'pending'
+ * - Acheteur peut rejeter une contre-proposition 'countered' en passant role='buyer'
  */
 export const rejectOffer = createAsyncThunk(
   'marketplace/rejectOffer',
-  async (data: { offerId: string; producerId: string }, { rejectWithValue }) => {
+  async (data: { offerId: string; producerId: string; role?: 'producer' | 'buyer' }, { rejectWithValue }) => {
     try {
-      await apiClient.patch(`/marketplace/offers/${data.offerId}/reject`);
+      const role = data.role || 'producer';
+      await apiClient.patch(`/marketplace/offers/${data.offerId}/reject?role=${role}`);
 
       return data.offerId;
     } catch (error: unknown) {

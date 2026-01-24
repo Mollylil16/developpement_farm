@@ -33,12 +33,14 @@ import EmptyState from './EmptyState';
 import LoadingSpinner from './LoadingSpinner';
 import PlanificationFormModal from './PlanificationFormModal';
 import { useActionPermissions } from '../hooks/useActionPermissions';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 export default function PlanificationListComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const { planifications, planificationsAVenir, loading } = useAppSelector(
     (state) => state.planification
   );

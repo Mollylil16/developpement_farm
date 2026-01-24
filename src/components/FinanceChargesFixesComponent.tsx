@@ -22,16 +22,17 @@ import LoadingSpinner from './LoadingSpinner';
 import ChargeFixeFormModal from './ChargeFixeFormModal';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { selectAllChargesFixes, selectFinanceLoading } from '../store/selectors/financeSelectors';
-import { selectProjetActif } from '../store/selectors/projetSelectors';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import { logger } from '../utils/logger';
 
-export default function FinanceChargesFixesComponent() {
+function FinanceChargesFixesComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const chargesFixes: ChargeFixe[] = useAppSelector(selectAllChargesFixes);
   const loading = useAppSelector(selectFinanceLoading);
-  const projetActif = useAppSelector(selectProjetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const [selectedCharge, setSelectedCharge] = useState<ChargeFixe | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -419,3 +420,6 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(FinanceChargesFixesComponent);

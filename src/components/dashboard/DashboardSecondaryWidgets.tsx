@@ -93,6 +93,59 @@ const DashboardSecondaryWidgets = memo(function DashboardSecondaryWidgets({
   };
 
   if (horizontal) {
+    // Vérifier si c'est le profil acheteur (widgets purchases et expenses)
+    const isBuyerProfile = widgets.length >= 2 && 
+      widgets[0]?.type === 'purchases' && 
+      widgets[1]?.type === 'expenses';
+
+    // Pour le profil acheteur, afficher les cartes horizontalement sur la même ligne
+    if (isBuyerProfile) {
+      return (
+        <View style={styles.container}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Modules principaux</Text>
+          <View style={styles.horizontalRowContainer}>
+            {widgets.slice(0, 2).map((widget, widgetIndex) => {
+              const widgetData = getWidgetData(widget.type);
+              if (!widgetData) return null;
+
+              return (
+                <Animated.View
+                  key={`${widget.type}-${widgetIndex}`}
+                  style={[
+                    styles.horizontalCardWrapper,
+                    {
+                      opacity: animations[widgetIndex] || animations[animations.length - 1],
+                      transform: [
+                        {
+                          translateY: (
+                            animations[widgetIndex] || animations[animations.length - 1]
+                          ).interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [20, 0],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
+                  <CompactModuleCard
+                    icon={widgetData.emoji}
+                    title={widgetData.title}
+                    primaryValue={widgetData.primary}
+                    secondaryValue={widgetData.secondary}
+                    labelPrimary={widgetData.labelPrimary}
+                    labelSecondary={widgetData.labelSecondary}
+                    onPress={() => onPressWidget(widget.screen)}
+                  />
+                </Animated.View>
+              );
+            })}
+          </View>
+        </View>
+      );
+    }
+
+    // Mode horizontal avec scroll (pour les autres profils)
     return (
       <View style={styles.container}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Modules principaux</Text>
@@ -292,6 +345,14 @@ const styles = StyleSheet.create({
   },
   dotActive: {
     opacity: 1,
+  },
+  horizontalRowContainer: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+    paddingHorizontal: SPACING.xs,
+  },
+  horizontalCardWrapper: {
+    flex: 1,
   },
 });
 

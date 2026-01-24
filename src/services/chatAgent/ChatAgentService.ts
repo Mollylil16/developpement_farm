@@ -504,27 +504,30 @@ export class ChatAgentService {
     systemPrompt: string,
     conversationHistory: Array<{ role: string; content: string }>
   ): Promise<string> {
-    if (!this.context?.projetId) {
-      const error = new Error('Contexte projetId manquant - impossible d\'appeler Gemini');
+    // projetId peut être null pour les profils sans projet (buyer, veterinarian, technician)
+    if (!this.context?.userId) {
+      const error = new Error('Contexte userId manquant - impossible d\'appeler Gemini');
       logger.error('[Gemini] ❌', error.message);
       throw error;
     }
 
     logger.debug(`[Gemini] Appel backend /kouakou/chat avec message: "${message.substring(0, 50)}..."`);
-    logger.debug(`[Gemini] Contexte: projetId=${this.context.projetId}, userId=${this.context.userId}`);
+    logger.debug(`[Gemini] Contexte: projetId=${this.context.projetId || 'null'}, userId=${this.context.userId}`);
     
     try {
       const response = await apiClient.post<GeminiBackendResponse | { response: string }>('/kouakou/chat', {
         message,
         userId: this.context.userId,
-        projectId: this.context.projetId, // Ajouter projectId explicitement
-        projetId: this.context.projetId,   // Et aussi projetId pour compatibilité
+        projectId: this.context.projetId || null, // Peut être null pour profils sans projet
+        projetId: this.context.projetId || null,   // Et aussi projetId pour compatibilité
+        activeRole: this.context.activeRole, // Rôle actif pour adapter le prompt
         context: {
-          farmId: this.context.projetId,
-          projectId: this.context.projetId, // Dans le contexte aussi
+          farmId: this.context.projetId || null,
+          projectId: this.context.projetId || null, // Dans le contexte aussi
           systemPrompt,
           conversationHistory,
           recentTransactions: this.context.recentTransactions,
+          activeRole: this.context.activeRole,
         },
       });
 

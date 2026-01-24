@@ -41,11 +41,13 @@ import EmptyState from './EmptyState';
 import CustomModal from './CustomModal';
 import ModifierIngredientsRationModal from './ModifierIngredientsRationModal';
 import { logger } from '../utils/logger';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 export default function BudgetisationAlimentComponent() {
   const { colors, isDark } = useTheme();
   const dispatch = useAppDispatch();
-  const projetActif = useAppSelector((state) => state.projet?.projetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const ingredients = useAppSelector((state) => state.nutrition?.ingredients ?? []);
   const rationsBudget = useAppSelector((state) => state.nutrition?.rationsBudget ?? []);
   const loading = useAppSelector((state) => state.nutrition?.loading ?? false);

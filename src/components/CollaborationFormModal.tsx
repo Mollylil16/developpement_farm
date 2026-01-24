@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import { createCollaborateur, updateCollaborateur } from '../store/slices/collaborationSlice';
 import type {
   Collaborateur,
@@ -37,7 +38,8 @@ export default function CollaborationFormModal({
 }: CollaborationFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const { activeRole } = useRole();
   const currentUser = useAppSelector((state) => state.auth?.user);
 

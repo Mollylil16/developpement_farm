@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { ImageService } from '../common/services/image.service';
 import { compressImage } from '../common/helpers/image-compression.helper';
@@ -12,6 +12,8 @@ import { PeseesEvolutionDto } from './dto/pesees-evolution.dto';
 
 @Injectable()
 export class ProductionService {
+  private readonly logger = new Logger(ProductionService.name);
+  
   constructor(
     private databaseService: DatabaseService,
     private cacheService: CacheService,
@@ -33,22 +35,50 @@ export class ProductionService {
   }
 
   /**
-   * Vérifie que le projet appartient à l'utilisateur
+   * Vérifie que le projet appartient à l'utilisateur OU qu'il est collaborateur actif
+   * avec les permissions appropriées (cheptel ou gestion_complete)
    */
   private async checkProjetOwnership(projetId: string, userId: string): Promise<void> {
-const result = await this.databaseService.query(
+    const result = await this.databaseService.query(
       'SELECT proprietaire_id FROM projets WHERE id = $1',
       [projetId]
     );
     if (result.rows.length === 0) {
-throw new NotFoundException('Projet introuvable');
+      throw new NotFoundException('Projet introuvable');
     }
     const rawProprietaireId = result.rows[0].proprietaire_id;
     const proprietaireId = String(rawProprietaireId || '').trim();
     const normalizedUserId = String(userId || '').trim();
-if (proprietaireId !== normalizedUserId) {
-throw new ForbiddenException('Ce projet ne vous appartient pas');
+    
+    // ✅ Si l'utilisateur est le propriétaire, OK
+    if (proprietaireId === normalizedUserId) {
+      return;
     }
+    
+    // ✅ Sinon, vérifier s'il est collaborateur actif avec permission 'cheptel'
+    // ✅ Ne pas inclure 'permissions' car cette colonne peut ne pas exister
+    const collabResult = await this.databaseService.query(
+      `SELECT id, permission_cheptel, permission_gestion_complete FROM collaborations 
+       WHERE projet_id = $1 
+       AND (user_id = $2 OR profile_id LIKE $3)
+       AND statut = 'actif'`,
+      [projetId, normalizedUserId, `%${normalizedUserId}%`]
+    );
+    
+    if (collabResult.rows.length > 0) {
+      const collab = collabResult.rows[0];
+      this.logger.debug(`[checkProjetOwnership] Collaborateur trouvé pour projet ${projetId}, userId=${normalizedUserId}. Permissions:`, {
+        permission_cheptel: collab.permission_cheptel,
+        permission_gestion_complete: collab.permission_gestion_complete,
+      });
+      
+      // ✅ Vérifier les nouvelles colonnes de permissions booléennes
+      if (collab.permission_cheptel === true || collab.permission_gestion_complete === true) {
+        return;
+      }
+    }
+    
+    throw new ForbiddenException('Vous n\'avez pas accès à ce projet ou les permissions nécessaires');
   }
 
   /**

@@ -5,6 +5,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useAppSelector } from '../../store/hooks';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
 import { useTheme } from '../../contexts/ThemeContext';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS } from '../../constants/theme';
 import { useProfilData } from '../../hooks/useProfilData';
@@ -13,7 +14,8 @@ import ProfilePhoto from '../ProfilePhoto';
 export default function UserSummary() {
   const { colors } = useTheme();
   const { user } = useAppSelector((state) => state.auth);
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   
   // Utiliser useProfilData pour avoir la photo synchronisée
   const { profilPhotoUri } = useProfilData();

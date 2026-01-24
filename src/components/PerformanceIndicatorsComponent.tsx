@@ -45,6 +45,7 @@ import { TAUX_CARCASSE } from '../config/finance.config';
 import PerformanceGlobaleService, {
   PerformanceGlobale,
 } from '../services/PerformanceGlobaleService';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 const areIndicatorsEqual = (
   a: IndicateursPerformance | null | undefined,
@@ -80,12 +81,13 @@ const areRecommandationsEqual = (a: Recommandation[], b: Recommandation[]) => {
   });
 };
 
-export default function PerformanceIndicatorsComponent() {
+function PerformanceIndicatorsComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const [exportingPDF, setExportingPDF] = useState(false);
   const [performanceGlobale, setPerformanceGlobale] = useState<PerformanceGlobale | null>(null);
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const chargesFixes: ChargeFixe[] = useAppSelector(selectAllChargesFixes);
   const depensesPonctuelles: DepensePonctuelle[] = useAppSelector(selectAllDepensesPonctuelles);
   const revenus = useAppSelector(selectAllRevenus);
@@ -1276,3 +1278,6 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xl,
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(PerformanceIndicatorsComponent);

@@ -8,7 +8,7 @@ import { useEffect, useRef } from 'react';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { selectAllAnimaux } from '../store/selectors/productionSelectors';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
-import { selectProjetActif } from '../store/selectors/projetSelectors';
+import { useProjetEffectif } from './useProjetEffectif';
 
 interface UseLoadAnimauxOnMountOptions {
   /**
@@ -39,7 +39,8 @@ interface UseLoadAnimauxOnMountOptions {
 export function useLoadAnimauxOnMount(options: UseLoadAnimauxOnMountOptions = {}) {
   const { forceReload = false, onLoaded } = options;
   const dispatch = useAppDispatch();
-  const projetActif = useAppSelector(selectProjetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const animaux = useAppSelector(selectAllAnimaux);
   
   // Utiliser useRef pour éviter les chargements multiples

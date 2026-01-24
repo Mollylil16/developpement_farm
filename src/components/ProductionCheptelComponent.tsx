@@ -26,7 +26,7 @@ import {
   selectAllAnimaux,
   selectPeseesRecents,
 } from '../store/selectors/productionSelectors';
-import { selectProjetActif } from '../store/selectors/projetSelectors';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import {
   selectAllVaccinations,
   selectAllMaladies,
@@ -65,7 +65,7 @@ import { resolveLocationFromCoords } from '../services/location/locationResolver
 
 const logger = createLoggerWithPrefix('ProductionCheptel');
 
-export default function ProductionCheptelComponent() {
+function ProductionCheptelComponent() {
   // IMPORTANT: Tous les hooks doivent être appelés AVANT tout return conditionnel
   // pour respecter les règles des hooks React
   
@@ -73,7 +73,8 @@ export default function ProductionCheptelComponent() {
   const navigation = useNavigation<NavigationProp<any>>();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
-  const projetActif = useAppSelector(selectProjetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   
   // Vérifier la méthode de gestion du projet
   const managementMethod = projetActif?.management_method || 'individual';
@@ -1219,3 +1220,6 @@ export default function ProductionCheptelComponent() {
     fontWeight: '700',
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(ProductionCheptelComponent);

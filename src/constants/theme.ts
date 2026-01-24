@@ -18,6 +18,10 @@ export const LIGHT_COLORS = {
   female: '#E91E63', // Rose pour femelle
   castrated: '#9C27B0', // Violet pour castré
 
+  // Couleurs pour les rôles professionnels
+  veterinarian: '#2196F3', // Bleu pour vétérinaire
+  technician: '#FF9800', // Orange pour technicien
+
   // Couleurs système
   error: '#EF5350', // Rouge moderne
   success: '#66BB6A', // Vert succès
@@ -83,6 +87,10 @@ export const DARK_COLORS = {
   male: '#42A5F5', // Bleu plus clair
   female: '#F48FB1', // Rose plus clair
   castrated: '#CE93D8', // Violet plus clair
+
+  // Couleurs pour les rôles professionnels
+  veterinarian: '#42A5F5', // Bleu pour vétérinaire (plus clair pour dark)
+  technician: '#FFB74D', // Orange plus clair pour technicien (dark)
 
   // Couleurs système
   error: '#EF5350', // Rouge moderne (identique)

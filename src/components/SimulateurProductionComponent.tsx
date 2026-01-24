@@ -17,6 +17,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import {
   setObjectifProduction,
   simulerProduction,
@@ -40,7 +41,8 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
 
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const { objectifProduction, simulationResultat, recommendations, loading } = useAppSelector(
     (state) => state.planningProduction
   );

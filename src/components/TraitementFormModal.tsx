@@ -28,6 +28,7 @@ import {
   VOIE_ADMINISTRATION_LABELS,
 } from '../types/sante';
 import { formatLocalDate, parseLocalDate } from '../utils/dateUtils';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 interface Props {
   visible: boolean;
@@ -46,7 +47,8 @@ export default function TraitementFormModal({
 }: Props) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const maladies = useAppSelector(selectAllMaladies);
 
   const isEditing = !!traitement;

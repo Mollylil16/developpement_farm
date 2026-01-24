@@ -16,9 +16,9 @@ export class NotificationsService {
     await this.databaseService.query(
       `INSERT INTO marketplace_notifications (
         id, user_id, type, title, message,
-        related_type, related_id, action_url,
+        related_type, related_id, action_url, data,
         read, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, FALSE, NOW())`,
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, FALSE, NOW())`,
       [
         notificationId,
         dto.userId,
@@ -28,6 +28,7 @@ export class NotificationsService {
         dto.relatedType || null,
         dto.relatedId || null,
         dto.actionUrl || null,
+        dto.data ? JSON.stringify(dto.data) : null,
       ]
     );
 
@@ -60,6 +61,8 @@ export class NotificationsService {
       actionUrl: row.action_url,
       createdAt: row.created_at,
       readAt: row.read_at,
+      // ✅ Inclure les données enrichies
+      data: row.data ? (typeof row.data === 'string' ? JSON.parse(row.data) : row.data) : null,
     }));
   }
 
@@ -194,6 +197,131 @@ export class NotificationsService {
       message: `${senderName}: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`,
       relatedType: 'message',
       actionUrl: `/marketplace/messages`,
+    });
+  }
+
+  // ========================================
+  // NOTIFICATIONS ENRICHIES POUR VENTE CONFIRMÉE
+  // ========================================
+
+  /**
+   * Génère un lien Google Maps à partir des coordonnées
+   */
+  private generateGoogleMapsUrl(latitude: number, longitude: number): string {
+    return `https://www.google.com/maps?q=${latitude},${longitude}`;
+  }
+
+  /**
+   * Notification enrichie pour l'ACHETEUR après acceptation d'offre
+   * Inclut: contact producteur, localisation ferme, lien GPS
+   */
+  async notifySaleConfirmedToBuyer(
+    buyerId: string,
+    transactionId: string,
+    data: {
+      producerName: string;
+      producerPhone?: string;
+      producerEmail?: string;
+      farmName: string;
+      farmAddress: string;
+      farmCity: string;
+      farmRegion?: string;
+      latitude?: number;
+      longitude?: number;
+      finalPrice: number;
+      subjectCount: number;
+      pickupDate?: string;
+    }
+  ) {
+    const googleMapsUrl = data.latitude && data.longitude 
+      ? this.generateGoogleMapsUrl(data.latitude, data.longitude)
+      : null;
+
+    const messageLines = [
+      `🎉 Votre offre pour ${data.subjectCount} sujet(s) a été acceptée !`,
+      `💰 Prix final: ${data.finalPrice.toLocaleString('fr-FR')} FCFA`,
+    ];
+
+    if (data.pickupDate) {
+      messageLines.push(`📅 Récupération prévue: ${data.pickupDate}`);
+    }
+
+    return await this.createNotification({
+      userId: buyerId,
+      type: NotificationType.SALE_CONFIRMED_BUYER,
+      title: '🎉 Offre acceptée - Détails de récupération',
+      message: messageLines.join('\n'),
+      relatedType: 'transaction',
+      relatedId: transactionId,
+      actionUrl: `/marketplace/transactions/${transactionId}`,
+      data: {
+        transactionId,
+        finalPrice: data.finalPrice,
+        subjectCount: data.subjectCount,
+        pickupDate: data.pickupDate || null,
+        producer: {
+          name: data.producerName,
+          phone: data.producerPhone || null,
+          email: data.producerEmail || null,
+        },
+        farm: {
+          name: data.farmName,
+          address: data.farmAddress,
+          city: data.farmCity,
+          region: data.farmRegion || null,
+          latitude: data.latitude || null,
+          longitude: data.longitude || null,
+          googleMapsUrl,
+        },
+      },
+    });
+  }
+
+  /**
+   * Notification enrichie pour le PRODUCTEUR après acceptation d'offre
+   * Inclut: contact acheteur, détails transaction
+   */
+  async notifySaleConfirmedToProducer(
+    producerId: string,
+    transactionId: string,
+    data: {
+      buyerName: string;
+      buyerPhone?: string;
+      buyerEmail?: string;
+      finalPrice: number;
+      subjectCount: number;
+      pickupDate?: string;
+    }
+  ) {
+    const messageLines = [
+      `💰 Vente confirmée de ${data.subjectCount} sujet(s) !`,
+      `Prix: ${data.finalPrice.toLocaleString('fr-FR')} FCFA`,
+      `Acheteur: ${data.buyerName}`,
+    ];
+
+    if (data.pickupDate) {
+      messageLines.push(`📅 Récupération prévue: ${data.pickupDate}`);
+    }
+
+    return await this.createNotification({
+      userId: producerId,
+      type: NotificationType.SALE_CONFIRMED_PRODUCER,
+      title: '💰 Vente confirmée - Informations acheteur',
+      message: messageLines.join('\n'),
+      relatedType: 'transaction',
+      relatedId: transactionId,
+      actionUrl: `/marketplace/transactions/${transactionId}`,
+      data: {
+        transactionId,
+        finalPrice: data.finalPrice,
+        subjectCount: data.subjectCount,
+        pickupDate: data.pickupDate || null,
+        buyer: {
+          name: data.buyerName,
+          phone: data.buyerPhone || null,
+          email: data.buyerEmail || null,
+        },
+      },
     });
   }
 }

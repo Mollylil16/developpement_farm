@@ -45,12 +45,14 @@ import { fr } from 'date-fns/locale';
 import { useFocusEffect } from '@react-navigation/native';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { evaluerGMQIndividuel, calculerGMQMoyen } from '../utils/gmqEvaluation';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
-export default function ProductionAnimalsListComponent() {
+function ProductionAnimalsListComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const animaux = useAppSelector(selectAllAnimaux);
   const peseesParAnimal = useAppSelector(selectPeseesParAnimal);
   const peseesRecents = useAppSelector(selectPeseesRecents);
@@ -1281,3 +1283,6 @@ const styles = StyleSheet.create({
     lineHeight: FONT_SIZES.sm * 1.6,
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(ProductionAnimalsListComponent);

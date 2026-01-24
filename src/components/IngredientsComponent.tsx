@@ -28,12 +28,14 @@ import PriceScannerModal from './PriceScannerModal';
 import LoadingSpinner from './LoadingSpinner';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { FORMULES_RECOMMANDEES, getValeursNutritionnelles } from '../types/nutrition';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
-export default function IngredientsComponent() {
+function IngredientsComponent() {
   const { colors, isDark } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canDelete, canUpdate } = useActionPermissions();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const { ingredients = [], loading = false } = useAppSelector((state) => state.nutrition ?? { ingredients: [], loading: false });
   const [showIngredientModal, setShowIngredientModal] = useState(false);
   const [selectedIngredient, setSelectedIngredient] = useState<Ingredient | null>(null);
@@ -437,10 +439,10 @@ export default function IngredientsComponent() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Liste des ingrédients */}
-      <FlatList
-        data={filteredIngredients}
-        renderItem={renderIngredientCard}
-        keyExtractor={(item) => item.id}
+        <FlatList
+          data={filteredIngredients}
+          renderItem={renderIngredientCard}
+          keyExtractor={(item) => item.id}
         ListHeaderComponent={renderHeader}
         ListFooterComponent={renderFooter}
         ListEmptyComponent={renderEmpty}
@@ -448,16 +450,16 @@ export default function IngredientsComponent() {
           styles.listContainer,
           filteredIngredients.length === 0 && styles.listContainerEmpty
         ]}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[colors.primary]}
-            tintColor={colors.primary}
-          />
-        }
-      />
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          }
+        />
 
       {/* Modal Ajout/Modification Ingrédient */}
       <IngredientFormModal
@@ -651,3 +653,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(IngredientsComponent);

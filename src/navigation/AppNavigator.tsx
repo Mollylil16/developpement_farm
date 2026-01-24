@@ -15,6 +15,7 @@ import {
   loadCollaborateurActuel,
   clearCollaborateurActuel,
   loadInvitationsEnAttente,
+  loadCollaborationsActives,
 } from '../store/slices/collaborationSlice';
 import { loadUserFromStorageThunk } from '../store/slices/authSlice';
 import { useRole } from '../contexts/RoleContext';
@@ -43,6 +44,13 @@ function MainTabs() {
   const projetActif = useAppSelector((state) => state.projet?.projetActif);
   const currentUser = useAppSelector((state) => state.auth?.user);
   const collaborateurActuel = useAppSelector((state) => state.collaboration?.collaborateurActuel);
+  // 🆕 Projet collaboratif pour vétérinaires/techniciens
+  const projetCollaboratifActif = useAppSelector((state) => state.collaboration?.projetCollaboratifActif);
+
+  // Pour vétérinaires/techniciens, utiliser le projet collaboratif s'il est sélectionné
+  const projetEffectif = (activeRole === 'veterinarian' || activeRole === 'technician')
+    ? projetCollaboratifActif
+    : projetActif;
 
   // Helper pour vérifier les permissions par module (compatibilité avec l'ancien système)
   const hasPermission = (module: string): boolean => {
@@ -279,7 +287,7 @@ function MainTabs() {
         </Tab.Screen>
       )}
 
-      {/* Collaboration - Accessible seulement au propriétaire */}
+      {/* Collaboration - Accessible seulement au propriétaire (caché de la barre) */}
       {isProprietaire && (
         <Tab.Screen
           name={SCREENS.COLLABORATION}
@@ -288,6 +296,19 @@ function MainTabs() {
           }}
         >
           {() => <LazyScreens.CollaborationScreen />}
+        </Tab.Screen>
+      )}
+
+      {/* Collaboration - Accessible aux profils vétérinaire et technicien (visible dans la barre) */}
+      {(activeRole === 'veterinarian' || activeRole === 'technician') && (
+        <Tab.Screen
+          name={SCREENS.COLLABORATION_VET_TECH}
+          options={{
+            tabBarLabel: 'Collaboration',
+            tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>👥</Text>,
+          }}
+        >
+          {() => <LazyScreens.CollaborationVetTechScreen />}
         </Tab.Screen>
       )}
 
@@ -377,20 +398,62 @@ export default function AppNavigator() {
   // Utiliser useRef pour éviter de charger plusieurs fois le collaborateur
   const collaborateurChargeRef = React.useRef<string | null>(null);
 
+  // Utiliser useRef pour éviter de charger plusieurs fois les collaborations actives
+  const collaborationsActivesChargeesRef = React.useRef<string | null>(null);
+
+  useEffect(() => {
+    // 🆕 Pour les vétérinaires/techniciens, charger leurs collaborations actives
+    // (les projets des producteurs auxquels ils ont accès)
+    if (isAuthenticated && user) {
+      const activeRole = user.activeRole || 
+        (user.roles?.producer ? 'producer' : 
+         user.roles?.buyer ? 'buyer' : 
+         user.roles?.veterinarian ? 'veterinarian' : 
+         user.roles?.technician ? 'technician' : 'producer');
+
+      if (activeRole === 'veterinarian' || activeRole === 'technician') {
+        const cle = `${user.id}-${activeRole}`;
+        if (collaborationsActivesChargeesRef.current !== cle) {
+          dispatch(
+            loadCollaborationsActives({
+              userId: user.id,
+              email: user.email || undefined,
+              telephone: user.telephone || undefined,
+            })
+          );
+          collaborationsActivesChargeesRef.current = cle;
+        }
+      }
+    } else {
+      collaborationsActivesChargeesRef.current = null;
+    }
+  }, [dispatch, isAuthenticated, user?.id, user?.activeRole]);
+
   useEffect(() => {
     // Charger le collaborateur actuel quand le projet actif change
+    // Pour les producteurs, utiliser projetActif
+    // Pour les vétérinaires/techniciens, le collaborateurActuel est chargé via selectProjetCollaboratif
     if (isAuthenticated && user && projetActif) {
-      const cle = `${user.id}-${projetActif.id}`;
-      if (collaborateurChargeRef.current !== cle) {
-        dispatch(loadCollaborateurActuel({ userId: user.id, projetId: projetActif.id }));
-        collaborateurChargeRef.current = cle;
+      const activeRole = user.activeRole || 
+        (user.roles?.producer ? 'producer' : 
+         user.roles?.buyer ? 'buyer' : 
+         user.roles?.veterinarian ? 'veterinarian' : 
+         user.roles?.technician ? 'technician' : 'producer');
+
+      // Pour les producteurs uniquement (ou si pas de projet collaboratif sélectionné pour vet/tech)
+      if (activeRole === 'producer') {
+        const cle = `${user.id}-${projetActif.id}`;
+        if (collaborateurChargeRef.current !== cle) {
+          dispatch(loadCollaborateurActuel({ userId: user.id, projetId: projetActif.id }));
+          collaborateurChargeRef.current = cle;
+        }
       }
     } else if (!projetActif) {
       // Si pas de projet actif, effacer le collaborateur actuel
       dispatch(clearCollaborateurActuel());
       collaborateurChargeRef.current = null;
     }
-  }, [dispatch, isAuthenticated, user?.id, projetActif?.id]);
+  }, [dispatch, isAuthenticated, user?.id, user?.activeRole, projetActif?.id]);
 
   // Utiliser useRef pour éviter de charger plusieurs fois les invitations
   const invitationsChargeesRef = React.useRef<string | null>(null);
@@ -578,7 +641,7 @@ export default function AppNavigator() {
         >
           {() => <LazyScreens.MyQRCodeScreen />}
         </Stack.Screen>
-        <Stack.Screen 
+        <Stack.Screen
           name={SCREENS.SCAN_QR_COLLABORATEUR} 
           options={{ 
             headerShown: false, // Fullscreen pour la caméra
@@ -587,6 +650,15 @@ export default function AppNavigator() {
           }}
         >
           {() => <LazyScreens.ScanQRCollaborateurScreen />}
+        </Stack.Screen>
+        <Stack.Screen
+          name={SCREENS.QR_INVITATION_CONFIG}
+          options={{
+            headerShown: false,
+            presentation: 'card',
+          }}
+        >
+          {() => <LazyScreens.QRInvitationConfigScreen />}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.DOCUMENTS}>
           {() => <LazyScreens.DocumentsScreen />}

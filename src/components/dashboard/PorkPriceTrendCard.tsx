@@ -95,8 +95,8 @@ export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
     // Créer les labels (Semaine N)
     const labels = last4Weeks.map((t) => `S${t.weekNumber}`);
 
-    // Créer les données de prix
-    const priceData = last4Weeks.map((t) => t.avgPricePlatform || t.avgPriceRegional || 0);
+    // Créer les données de prix (uniquement depuis le marketplace, pas de fallback régional)
+    const priceData = last4Weeks.map((t) => t.avgPricePlatform || 0);
 
     // Calculer min et max pour l'échelle
     const allPrices = priceData.filter((p) => p > 0);
@@ -129,10 +129,10 @@ export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
         };
       }
 
-      // Prendre les 4 dernières semaines
+      // Prendre les 4 dernières semaines (uniquement données marketplace)
       const last4Weeks = trends.slice(-4);
       const prices = last4Weeks
-        .map((t) => t.avgPricePlatform || t.avgPriceRegional || 0)
+        .map((t) => t.avgPricePlatform || 0)
         .filter((p) => p > 0);
 
       if (prices.length === 0) {
@@ -155,7 +155,7 @@ export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
       if (trends.length >= 8) {
         const previous4Weeks = trends.slice(-8, -4);
         const previousPrices = previous4Weeks
-          .map((t) => t.avgPricePlatform || t.avgPriceRegional || 0)
+          .map((t) => t.avgPricePlatform || 0)
           .filter((p) => p > 0);
         
         if (previousPrices.length > 0) {
@@ -243,8 +243,8 @@ export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
         </View>
         <EmptyState
           icon={<Ionicons name="stats-chart-outline" size={48} color={colors.textSecondary} />}
-          title="Aucune donnée disponible"
-          message="Les tendances de prix seront disponibles une fois que des transactions auront été enregistrées"
+          title="Aucune donnée marketplace"
+          message="Les tendances de prix seront disponibles une fois que des annonces avec prix/kg auront été publiées sur le marketplace"
         />
       </Card>
     );

@@ -5,7 +5,7 @@
 
 import React, { useRef, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { useAppDispatch } from '../../store/hooks';
 import {
   loadProductionAnimaux,
   loadPeseesRecents,
@@ -15,7 +15,7 @@ import {
   loadMaladies,
   loadTraitements,
 } from '../../store/slices/santeSlice';
-import { selectProjetActif } from '../../store/selectors/projetSelectors';
+import { useProjetEffectif } from '../useProjetEffectif';
 import { createLoggerWithPrefix } from '../../utils/logger';
 import { useMarketplaceStatusForAnimals } from '../useMarketplaceStatusForAnimals';
 
@@ -28,7 +28,8 @@ const CACHE_DURATION_MS = 5000; // 5 secondes
  */
 export function useProductionCheptelData() {
   const dispatch = useAppDispatch();
-  const projetActif = useAppSelector(selectProjetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const { refresh: refreshMarketplace } = useMarketplaceStatusForAnimals();
 
   const aChargeRef = useRef<string | null>(null);

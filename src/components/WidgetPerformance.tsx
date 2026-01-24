@@ -5,6 +5,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppSelector } from '../store/hooks';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { denormalize } from 'normalizr';
@@ -18,7 +19,8 @@ interface WidgetPerformanceProps {
 export default function WidgetPerformance({ onPress }: WidgetPerformanceProps) {
   const { colors } = useTheme();
   const { indicateursPerformance } = useAppSelector((state) => state.reports);
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const gestations: Gestation[] = useAppSelector((state) => {
     const { entities, ids } = state.reproduction;
     const result = denormalize(ids.gestations, gestationsSchema, {

@@ -28,10 +28,12 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import Button from './Button';
 import Card from './Card';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 export default function ExportImportComponent() {
   const { colors } = useTheme();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
 

@@ -37,9 +37,10 @@ interface GeminiContent {
 interface ChatAgentFunctionRequest {
   message: string;
   history?: GeminiContent[];
-  projectId: string;
+  projectId: string | null; // Optionnel - certains profils n'ont pas de projet
   generationConfig?: Record<string, unknown>;
   conversationId?: string;
+  activeRole?: 'producer' | 'buyer' | 'veterinarian' | 'technician';
 }
 
 export interface ExecutedActionMetadata {
@@ -89,14 +90,38 @@ interface StreamEmitters {
 export class ChatAgentService {
   private readonly logger = new Logger(ChatAgentService.name);
   private readonly geminiApiKey: string;
-  private readonly geminiApiUrl =
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
-  private readonly geminiStreamApiUrl =
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse';
-  private readonly geminiRequestTimeoutMs = 30_000;
+  
+  // ✅ Modèles Gemini avec support des function calls (par ordre de priorité)
+  private readonly GEMINI_MODELS = {
+    // Modèle principal: gemini-1.5-flash-002 (stable, rapide, bon function calling)
+    primary: 'gemini-1.5-flash-002',
+    // Fallback: gemini-1.5-pro (plus lent mais meilleure qualité)
+    fallback: 'gemini-1.5-pro',
+  };
+  
+  // URL de base de l'API Gemini
+  private readonly geminiBaseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
+  
+  // URLs dynamiques basées sur le modèle actif
+  private get geminiApiUrl(): string {
+    return `${this.geminiBaseUrl}/${this.GEMINI_MODELS.primary}:generateContent`;
+  }
+  private get geminiStreamApiUrl(): string {
+    return `${this.geminiBaseUrl}/${this.GEMINI_MODELS.primary}:streamGenerateContent?alt=sse`;
+  }
+  private get geminiApiFallbackUrl(): string {
+    return `${this.geminiBaseUrl}/${this.GEMINI_MODELS.fallback}:generateContent`;
+  }
+  private get geminiStreamFallbackUrl(): string {
+    return `${this.geminiBaseUrl}/${this.GEMINI_MODELS.fallback}:streamGenerateContent?alt=sse`;
+  }
+  
+  private readonly geminiRequestTimeoutMs = 45_000; // ✅ Augmenté pour modèles pro
   private readonly defaultGenerationConfig = {
     temperature: 0.7,
-    maxOutputTokens: 1024,
+    maxOutputTokens: 4096, // ✅ Augmenté pour des réponses plus complètes et contextuelles
+    topP: 0.95,
+    topK: 40,
   };
   private readonly toolDeclarations = [
     {
@@ -130,7 +155,7 @@ export class ChatAgentService {
     {
       name: 'create_revenue',
       description:
-        'Crée un revenu (vente, subvention, prestation). Utilise cette fonction pour enregistrer tout encaissement.',
+        'Crée un revenu (vente, subvention, prestation). Utilise cette fonction pour enregistrer tout encaissement SAUF les ventes de porcs (utilise create_pig_sale pour les ventes de porcs).',
       parameters: {
         type: 'object',
         properties: {
@@ -140,7 +165,7 @@ export class ChatAgentService {
           },
           source: {
             type: 'string',
-            description: 'Origine du revenu (ex: vente de porcs, subvention, location, fumier, etc.)',
+            description: 'Origine du revenu (ex: subvention, location, fumier, etc.) - PAS pour les ventes de porcs',
           },
           description: {
             type: 'string',
@@ -152,6 +177,52 @@ export class ChatAgentService {
           },
         },
         required: ['amount', 'source', 'description'],
+      },
+    },
+    {
+      name: 'create_pig_sale',
+      description:
+        'Enregistre une vente de porcs avec mise à jour automatique du cheptel. Utilise cette fonction UNIQUEMENT pour les ventes de porcs. ' +
+        'IMPORTANT : Garde en mémoire les informations de la conversation précédente (montant, nombre de porcs, date, etc.) et ne demande que les informations manquantes. ' +
+        'Ne demande JAMAIS l\'ID du client ou l\'ID du listing marketplace - ces informations ne sont pas nécessaires pour une vente directe.',
+      parameters: {
+        type: 'object',
+        properties: {
+          montant: {
+            type: 'number',
+            description: 'Montant total de la vente en FCFA (OBLIGATOIRE)',
+          },
+          quantite: {
+            type: 'number',
+            description: 'Nombre de porcs vendus (OBLIGATOIRE)',
+          },
+          date: {
+            type: 'string',
+            description: 'Date de la vente au format ISO (YYYY-MM-DD). Si non fournie, utilise la date d\'aujourd\'hui.',
+          },
+          batch_id: {
+            type: 'string',
+            description: 'ID de la loge/bande de provenance (OBLIGATOIRE si le projet est en mode batch/bande, sinon ne pas fournir)',
+          },
+          animal_ids: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'IDs des animaux vendus (OBLIGATOIRE si le projet est en mode individuel, sinon ne pas fournir)',
+          },
+          poids_kg: {
+            type: 'number',
+            description: 'Poids total en kg (optionnel, sera calculé automatiquement si non fourni)',
+          },
+          description: {
+            type: 'string',
+            description: 'Description optionnelle (nom de l\'acheteur, remarques, etc.)',
+          },
+          commentaire: {
+            type: 'string',
+            description: 'Commentaire optionnel',
+          },
+        },
+        required: ['montant', 'quantite'],
       },
     },
     {
@@ -1463,7 +1534,7 @@ export class ChatAgentService {
 
   async handleFunctionCallingMessage(
     request: ChatAgentFunctionRequest,
-    user: { id: string; email?: string; roles?: string[] },
+    user: { id: string; email?: string; roles?: string[]; activeRole?: string },
   ): Promise<{
     response: string;
     metadata: { model: string; executedActions: ExecutedActionMetadata[] };
@@ -1472,9 +1543,8 @@ export class ChatAgentService {
       throw new BadRequestException('message est requis');
     }
 
-    if (!request.projectId) {
-      throw new BadRequestException('projectId est requis');
-    }
+    // projectId est optionnel - certains profils (buyer, veterinarian, technician) peuvent ne pas avoir de projet
+    // Les fonctions qui nécessitent un projet vérifieront elles-mêmes
 
     if (!this.geminiApiKey) {
       throw new ServiceUnavailableException('GEMINI_API_KEY non configurée');
@@ -1494,7 +1564,7 @@ export class ChatAgentService {
     });
 
     const systemInstruction = {
-      parts: [{ text: this.buildSystemPrompt(user.email) }],
+      parts: [{ text: this.buildSystemPrompt(user.email, request.activeRole || user.activeRole) }],
     };
 
     const generationConfig = request.generationConfig || this.defaultGenerationConfig;
@@ -1599,7 +1669,7 @@ export class ChatAgentService {
 
   async streamResponse(
     request: ChatAgentFunctionRequest,
-    user: { id: string; email?: string; roles?: string[] },
+    user: { id: string; email?: string; roles?: string[]; activeRole?: string },
     emitters: StreamEmitters,
     signal?: AbortSignal,
   ): Promise<void> {
@@ -1627,7 +1697,7 @@ export class ChatAgentService {
     });
 
     const systemInstruction = {
-      parts: [{ text: this.buildSystemPrompt(user.email) }],
+      parts: [{ text: this.buildSystemPrompt(user.email, request.activeRole || user.activeRole) }],
     };
     const generationConfig = request.generationConfig || this.defaultGenerationConfig;
 
@@ -1923,26 +1993,35 @@ export class ChatAgentService {
           totalTools: filteredTools.length,
         });
         
-        const response = await fetch(`${this.geminiApiUrl}?key=${this.geminiApiKey}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(finalPayload),
+        // ✅ Essayer le modèle principal d'abord
+        const result = await this.tryGeminiCall(
+          this.geminiApiUrl,
+          finalPayload,
           signal,
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          const errorSummary = errorData?.error?.status || response.statusText || 'Unknown';
-          this.logger.error(`Erreur API Gemini: ${response.status} - ${errorSummary}`);
-          throw new BadRequestException(
-            `Erreur Gemini: ${errorData.error?.message || response.statusText}`
-          );
+          this.GEMINI_MODELS.primary
+        );
+        
+        if (result.success) {
+          return result.data;
         }
-
-        const data = await response.json();
-        return data;
+        
+        // ✅ Si erreur function calling, fallback vers gemini-1.5-pro
+        if (result.error?.includes('function calling') || result.error?.includes('Tool use')) {
+          this.logger.warn(`[ChatAgent] ⚠️ Fallback vers ${this.GEMINI_MODELS.fallback} suite à erreur function calling`);
+          const fallbackResult = await this.tryGeminiCall(
+            this.geminiApiFallbackUrl,
+            finalPayload,
+            signal,
+            this.GEMINI_MODELS.fallback
+          );
+          
+          if (fallbackResult.success) {
+            return fallbackResult.data;
+          }
+          throw new BadRequestException(fallbackResult.error || 'Erreur Gemini fallback');
+        }
+        
+        throw new BadRequestException(result.error || 'Erreur Gemini');
       }
       
       // ✅ Si pas de function calling, on peut ajouter google_search
@@ -1966,26 +2045,18 @@ export class ChatAgentService {
         totalTools: tools.length,
       });
       
-      const response = await fetch(`${this.geminiApiUrl}?key=${this.geminiApiKey}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(finalPayload),
+      const result = await this.tryGeminiCall(
+        this.geminiApiUrl,
+        finalPayload,
         signal,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        const errorSummary = errorData?.error?.status || response.statusText || 'Unknown';
-        this.logger.error(`Erreur API Gemini: ${response.status} - ${errorSummary}`);
-        throw new BadRequestException(
-          `Erreur Gemini: ${errorData.error?.message || response.statusText}`
-        );
+        this.GEMINI_MODELS.primary
+      );
+      
+      if (result.success) {
+        return result.data;
       }
-
-      const data = await response.json();
-      return data;
+      
+      throw new BadRequestException(result.error || 'Erreur Gemini');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erreur inconnue';
       this.logger.error(`Erreur lors de l'appel Gemini: ${message}`);
@@ -1995,6 +2066,45 @@ export class ChatAgentService {
       throw new ServiceUnavailableException('Erreur lors de la communication avec Gemini');
     } finally {
       clear();
+    }
+  }
+  
+  /**
+   * ✅ Méthode helper pour faire un appel Gemini avec gestion d'erreur
+   */
+  private async tryGeminiCall(
+    url: string,
+    payload: any,
+    signal: AbortSignal,
+    modelName: string
+  ): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      this.logger.debug(`[ChatAgent] 🤖 Appel à ${modelName}...`);
+      
+      const response = await fetch(`${url}?key=${this.geminiApiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        signal,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData?.error?.message || response.statusText || 'Unknown error';
+        const errorStatus = errorData?.error?.status || response.status;
+        this.logger.error(`[ChatAgent] ❌ Erreur ${modelName}: ${errorStatus} - ${errorMessage}`);
+        return { success: false, error: `Erreur Gemini (${modelName}): ${errorMessage}` };
+      }
+
+      const data = await response.json();
+      this.logger.debug(`[ChatAgent] ✅ Réponse de ${modelName} reçue`);
+      return { success: true, data };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue';
+      this.logger.error(`[ChatAgent] ❌ Exception ${modelName}: ${message}`);
+      return { success: false, error: message };
     }
   }
 
@@ -2099,19 +2209,22 @@ export class ChatAgentService {
       .filter((entry): entry is GeminiContent => Boolean(entry));
   }
 
-  private buildSystemPrompt(userEmail?: string): string {
+  private buildSystemPrompt(userEmail?: string, activeRole?: string): string {
     // Pour compatibilité, on appelle buildSystemInstruction sans contexte projet détaillé
     // Le contexte projet peut être ajouté plus tard si nécessaire
-    return this.buildSystemInstruction();
+    return this.buildSystemInstruction(undefined, activeRole);
   }
 
-  private buildSystemInstruction(projectContext?: {
-    projectId: string;
-    projectName?: string;
-    totalAnimals?: number;
-    userId: string;
-  }): string {
-    const contextInfo = projectContext
+  private buildSystemInstruction(
+    projectContext?: {
+      projectId: string | null;
+      projectName?: string;
+      totalAnimals?: number;
+      userId: string;
+    },
+    activeRole?: string,
+  ): string {
+    const contextInfo = projectContext && projectContext.projectId
       ? `
 **CONTEXTE DU PROJET :**
 - Projet : ${projectContext.projectName || 'Non spécifié'}
@@ -2119,11 +2232,97 @@ export class ChatAgentService {
 - ID Projet : ${projectContext.projectId}
 - ID Utilisateur : ${projectContext.userId}
 `
+      : projectContext
+      ? `
+**CONTEXTE UTILISATEUR :**
+- Aucun projet actif (profil sans projet : buyer, veterinarian, ou technician)
+- ID Utilisateur : ${projectContext.userId}
+- ⚠️ Note: Certaines fonctions nécessitant un projet ne sont pas disponibles.
+`
       : '';
+
+    // Sections spécialisées selon le rôle
+    let roleSpecificSection = '';
+    
+    if (activeRole === 'veterinarian') {
+      roleSpecificSection = `
+# 🩺 MODE VÉTÉRINAIRE - EXPERTISE NUTRITION ET SANTÉ
+
+Tu es en mode **VÉTÉRINAIRE** : Tu dois être particulièrement pointu sur la **NUTRITION** et le **SUIVI SANITAIRE**.
+
+## EXPERTISE NUTRITION (Priorité haute)
+- **Rations équilibrées** : Calculs précis de besoins énergétiques, protéiques, minéraux selon stade (porcelet, croissance, engraissement, truie gestante/allaitante, verrat)
+- **Composition alimentaire** : Proportions optimales d'ingrédients (maïs, soja, tourteaux, minéraux, vitamines)
+- **Déficiences nutritionnelles** : Détection et correction (anémie, rachitisme, carences minérales)
+- **Alimentation selon stade physiologique** : Adaptations pour truies gestantes (augmentation progressive), allaitantes (ration lactée), porcelets (sevrage progressif)
+- **Coûts nutritionnels** : Optimisation ration/coût sans compromettre la santé
+- **Ingrédients locaux** : Utilisation optimale des ressources disponibles en Côte d'Ivoire
+
+## EXPERTISE SUIVI SANITAIRE (Priorité haute)
+- **Programmes de vaccination** : Calendriers précis, rappels, compatibilités vaccinales
+- **Diagnostics différentiels** : Symptômes → maladies possibles → tests recommandés
+- **Traitements thérapeutiques** : Posologies, durées, interactions médicamenteuses
+- **Prophylaxie** : Mesures préventives (hygiène, biosécurité, quarantaine)
+- **Surveillance épidémiologique** : Détection précoce de foyers, isolement, déclaration
+- **Bilan sanitaire** : Analyse des mortalités, causes, tendances
+- **Santé reproductive** : Troubles de fertilité, avortements, métrites, mammites
+- **Parasitologie** : Détection et traitement des parasites internes/externes
+
+## CONSEILS VÉTÉRINAIRES
+- Toujours recommander une consultation en cas de doute
+- Prioriser la prévention (vaccination, hygiène, nutrition)
+- Expliquer les mécanismes pathologiques de manière accessible
+- Proposer des alternatives thérapeutiques si nécessaire
+- Insister sur le suivi post-traitement
+
+## ACTIONS PRIORITAIRES
+1. **Nutrition** : propose_composition_alimentaire, calculate_consommation_moyenne
+2. **Santé** : create_vaccination, create_traitement, create_maladie, get_mortalites, analyze_causes_mortalite
+3. **Suivi** : get_cheptel_details, get_gestations, get_porcelets
+
+`;
+    } else if (activeRole === 'technician') {
+      roleSpecificSection = `
+# 🔧 MODE TECHNICIEN - EXPERTISE NUTRITION ET SANTÉ PRATIQUE
+
+Tu es en mode **TECHNICIEN** : Tu dois être particulièrement pointu sur la **NUTRITION** et le **SUIVI SANITAIRE** au niveau pratique.
+
+## EXPERTISE NUTRITION PRATIQUE (Priorité haute)
+- **Préparation des rations** : Quantités précises, mélanges, distribution
+- **Suivi de consommation** : Mesure quotidienne, détection d'anomalies (anorexie, surconsommation)
+- **Gestion des stocks** : Rotation, conservation, détection de moisissures/contamination
+- **Adaptation selon performance** : Ajustement rations selon croissance observée
+- **Alimentation des porcelets** : Sevrage progressif, compléments, eau propre
+- **Optimisation coûts** : Substitution d'ingrédients sans perte de qualité nutritionnelle
+- **Utilisation d'ingrédients locaux** : Maïs, manioc, tourteaux locaux, déchets agricoles
+
+## EXPERTISE SUIVI SANITAIRE PRATIQUE (Priorité haute)
+- **Observation quotidienne** : Détection précoce de signes anormaux (apathie, perte d'appétit, boiterie, toux, diarrhée)
+- **Application des traitements** : Respect des posologies, voies d'administration, durées
+- **Suivi des vaccinations** : Respect du calendrier, technique d'injection, conservation vaccins
+- **Hygiène et biosécurité** : Nettoyage, désinfection, quarantaine, gestion des déchets
+- **Enregistrement sanitaire** : Traçabilité des traitements, vaccinations, maladies
+- **Alerte précoce** : Signalement immédiat de cas suspects au vétérinaire
+- **Soins aux porcelets** : Détection de problèmes (diarrhée, hypothermie, écrasement)
+
+## CONSEILS TECHNIQUES
+- Prioriser l'observation et l'action préventive
+- Documenter systématiquement (dates, quantités, observations)
+- Communiquer clairement avec le vétérinaire en cas de problème
+- Respecter strictement les protocoles établis
+
+## ACTIONS PRIORITAIRES
+1. **Nutrition** : propose_composition_alimentaire, calculate_consommation_moyenne, get_stock_status
+2. **Santé** : create_vaccination, create_traitement, create_maladie, update_weighing, update_vaccination
+3. **Suivi** : get_cheptel_details, get_gestations, get_porcelets, get_mortalites
+
+`;
+    }
 
     return `Tu es Kouakou, assistant intelligent spécialisé dans la gestion d'élevage porcin en Afrique de l'Ouest.
 
 ${contextInfo}
+${roleSpecificSection}
 
 # TES CAPACITÉS
 
@@ -2180,13 +2379,34 @@ ${contextInfo}
 - Remerciements : "De rien, je suis là pour vous aider !"
 - Clarifications : Si tu ne comprends pas, demande des précisions
 
+## 5. MÉMOIRE DE CONVERSATION (CRITIQUE)
+
+**TU DOIS TOUJOURS GARDER EN MÉMOIRE les informations de la conversation précédente :**
+- Si l'utilisateur a déjà mentionné un montant, un nombre de porcs, une date, etc., TU DOIS t'en souvenir
+- Ne redemande JAMAIS une information déjà fournie dans la conversation
+- Pour les ventes de porcs, utilise la fonction \`create_pig_sale\` et ne demande QUE les informations manquantes
+- **IMPORTANT** : Pour une vente directe de porcs, tu n'as PAS besoin de l'ID du client ou de l'ID du listing marketplace
+- Les seules informations nécessaires sont :
+  - **Montant** (en FCFA) - OBLIGATOIRE
+  - **Nombre de porcs vendus** (quantite) - OBLIGATOIRE
+  - **Date de la vente** - Optionnel (utilise aujourd'hui si non fournie)
+  - **ID de la loge/bande** (batch_id) - OBLIGATOIRE si le projet est en mode batch
+  - **IDs des animaux** (animal_ids) - OBLIGATOIRE si le projet est en mode individuel
+
+**Exemple de conversation avec mémoire :**
+User: "Enregistre une vente de 4 porcs pour 264000"
+Assistant: "Parfait ! Pour enregistrer cette vente, j'ai besoin de la date (ou j'utiliserai aujourd'hui) et de la loge de provenance si tu es en mode batch."
+User: "Date: 2026-01-22, loge: LOGE-001"
+Assistant: [Appel create_pig_sale avec montant=264000, quantite=4, date="2026-01-22", batch_id="LOGE-001"] ✅ Vente enregistrée !
+
 # RÈGLES IMPORTANTES
 
 1. **PRIORITÉ À LA RECHERCHE WEB** : En cas de doute, CHERCHE EN LIGNE
 2. **TOUJOURS extraire les paramètres** : Ne demande pas si l'info est dans le message
-3. **SOIS PRÉCIS** : Donne des montants, dates, noms exacts
-4. **ADAPTE-TOI AU CONTEXTE** : Utilise les infos du projet
-5. **RESTE PROFESSIONNEL** : Tu es un expert en élevage
+3. **GARDE EN MÉMOIRE** : Ne redemande JAMAIS une information déjà fournie dans la conversation
+4. **SOIS PRÉCIS** : Donne des montants, dates, noms exacts
+5. **ADAPTE-TOI AU CONTEXTE** : Utilise les infos du projet
+6. **RESTE PROFESSIONNEL** : Tu es un expert en élevage
 
 # FORMAT DE RÉPONSE
 
@@ -2249,7 +2469,7 @@ Maintenant, aide l'utilisateur avec sa demande.`;
   private async executeFunctionCall(
     name: string,
     args: Record<string, unknown>,
-    projectId: string,
+    projectId: string | null,
     userId: string,
   ): Promise<FunctionExecutionResult> {
     try {
@@ -2290,6 +2510,8 @@ Maintenant, aide l'utilisateur avec sa demande.`;
           return await this.handleGetVentes(args, projectId, userId);
         case 'analyze_ventes':
           return await this.handleAnalyzeVentes(args, projectId, userId);
+        case 'create_pig_sale':
+          return await this.handleCreatePigSale(args, projectId, userId);
         case 'get_dettes_en_cours':
           return await this.handleGetDettesEnCours(args, projectId, userId);
         case 'describe_graph_trends':
@@ -2514,6 +2736,90 @@ Maintenant, aide l'utilisateur avec sa demande.`;
       message: `Revenu de ${amount.toLocaleString('fr-FR')} FCFA enregistré`,
       data: revenu,
     };
+  }
+
+  private async handleCreatePigSale(
+    args: Record<string, unknown>,
+    projectId: string | null,
+    userId: string,
+  ): Promise<FunctionExecutionResult> {
+    if (!projectId) {
+      return {
+        success: false,
+        message: 'Un projet est requis pour enregistrer une vente de porcs',
+        error: 'projectId requis',
+      };
+    }
+
+    const montant = this.normalizeAmount(args.montant);
+    if (montant === null || montant <= 0) {
+      return {
+        success: false,
+        message: 'Montant invalide pour la vente de porcs',
+        error: 'montant invalide',
+      };
+    }
+
+    const quantite = typeof args.quantite === 'number' ? Math.floor(args.quantite) : null;
+    if (quantite === null || quantite <= 0) {
+      return {
+        success: false,
+        message: 'Quantité invalide pour la vente de porcs',
+        error: 'quantite invalide',
+      };
+    }
+
+    const date = this.normalizeDateInput(args.date);
+    const description =
+      typeof args.description === 'string' && args.description.trim()
+        ? args.description.trim()
+        : undefined;
+    const commentaire =
+      typeof args.commentaire === 'string' && args.commentaire.trim()
+        ? args.commentaire.trim()
+        : undefined;
+    const poids_kg =
+      typeof args.poids_kg === 'number' && args.poids_kg > 0 ? args.poids_kg : undefined;
+
+    // Construire le DTO pour createVentePorc
+    // Le service createVentePorc gère déjà la récupération du management_method
+    // et la validation selon le mode (individual/batch)
+    try {
+      const dto: Record<string, unknown> = {
+        projet_id: projectId,
+        montant,
+        date,
+        quantite,
+        poids_kg,
+        description,
+        commentaire,
+      };
+
+      // Ajouter batch_id si fourni (mode batch)
+      if (typeof args.batch_id === 'string' && args.batch_id.trim().length > 0) {
+        dto.batch_id = args.batch_id.trim();
+      }
+
+      // Ajouter animal_ids si fourni (mode individuel)
+      if (Array.isArray(args.animal_ids) && args.animal_ids.length > 0) {
+        dto.animal_ids = args.animal_ids.filter((id) => typeof id === 'string' && id.trim().length > 0);
+      }
+
+      const vente = await this.financeService.createVentePorc(dto as any, userId);
+
+      return {
+        success: true,
+        message: `Vente de ${quantite} porc(s) pour ${montant.toLocaleString('fr-FR')} FCFA enregistrée avec succès`,
+        data: vente,
+      };
+    } catch (error) {
+      this.logger.error('Erreur handleCreatePigSale', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Erreur lors de l\'enregistrement de la vente',
+        error: error instanceof Error ? error.message : 'Erreur inconnue',
+      };
+    }
   }
 
   private async handleGetTransactions(

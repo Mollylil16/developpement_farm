@@ -5,6 +5,7 @@
 import React, { useMemo, memo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppSelector } from '../store/hooks';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import { useLoadAnimauxOnMount } from '../hooks/useLoadAnimauxOnMount';
 import { selectAllAnimaux, selectProductionUpdateCounter } from '../store/selectors/productionSelectors';
 import { countAnimalsByCategory } from '../utils/animalUtils';
@@ -20,7 +21,8 @@ interface WidgetVueEnsembleProps {
 
 function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
   const { colors } = useTheme();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const { gestations } = useAppSelector((state) => state.reproduction);
   const { chargesFixes, depensesPonctuelles } = useAppSelector((state) => state.finance);
   const { indicateursPerformance } = useAppSelector((state) => state.reports);

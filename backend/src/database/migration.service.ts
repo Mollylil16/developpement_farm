@@ -204,13 +204,18 @@ export class MigrationService implements OnModuleInit {
         return;
       }
       
-      // Exécuter la migration dans une transaction
-      await this.databaseService.transaction(async (client) => {
-        // Exécuter le SQL de la migration
-        await client.query(sql);
+      // Vérifier si la migration contient ALTER TYPE ... ADD VALUE
+      // Ces commandes ne peuvent PAS s'exécuter dans une transaction PostgreSQL
+      const hasAlterTypeAddValue = sql.toLowerCase().includes('alter type') && 
+                                   sql.toLowerCase().includes('add value');
+      
+      if (hasAlterTypeAddValue) {
+        // Exécuter SANS transaction pour les migrations qui modifient des enums
+        this.logger.debug(`Migration ${migration.filename} contient ALTER TYPE ADD VALUE, exécution sans transaction`);
+        await this.databaseService.query(sql);
         
-        // Enregistrer la migration comme appliquée (utiliser ON CONFLICT sur migration_name)
-        await client.query(
+        // Enregistrer la migration comme appliquée
+        await this.databaseService.query(
           `INSERT INTO schema_migrations (migration_number, migration_name) 
            VALUES ($1, $2)
            ON CONFLICT (migration_name) DO UPDATE 
@@ -218,7 +223,23 @@ export class MigrationService implements OnModuleInit {
                applied_at = CURRENT_TIMESTAMP`,
           [migration.number, migration.filename]
         );
-      });
+      } else {
+        // Exécuter la migration dans une transaction (comportement normal)
+        await this.databaseService.transaction(async (client) => {
+          // Exécuter le SQL de la migration
+          await client.query(sql);
+          
+          // Enregistrer la migration comme appliquée (utiliser ON CONFLICT sur migration_name)
+          await client.query(
+            `INSERT INTO schema_migrations (migration_number, migration_name) 
+             VALUES ($1, $2)
+             ON CONFLICT (migration_name) DO UPDATE 
+             SET migration_number = EXCLUDED.migration_number,
+                 applied_at = CURRENT_TIMESTAMP`,
+            [migration.number, migration.filename]
+          );
+        });
+      }
       
       this.logger.log(`✅ Migration ${migration.filename} appliquée avec succès`);
     } catch (error: any) {

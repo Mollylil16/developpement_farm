@@ -10,31 +10,20 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
-  Modal,
-  ScrollView,
-  Switch,
-  TextInput,
   ActivityIndicator,
   Animated,
   Dimensions,
-  Linking,
-  Platform,
-  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { SCREENS } from '../../navigation/types';
 import { CameraView, BarcodeScanningResult } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { loadProjets } from '../../store/slices/projetSlice';
-import { loadCollaborateursParProjet } from '../../store/slices/collaborationSlice';
-import { hapticScanSuccess, hapticInvitationAccepted, hapticError } from '../../utils/haptics';
-import Toast from 'react-native-toast-message';
 import apiClient from '../../services/api/apiClient';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, COLORS } from '../../constants/theme';
-import type { RoleCollaborateur } from '../../types/collaboration';
-import { ROLE_LABELS, DEFAULT_PERMISSIONS } from '../../types/collaboration';
 import { useQRPermissions } from '../../hooks/useQRPermissions';
 import PermissionDeniedScreen from '../../components/Collaborations/PermissionDeniedScreen';
 import ManualQRInput from '../../components/Collaborations/ManualQRInput';
@@ -44,6 +33,8 @@ const SCAN_AREA_SIZE = 250;
 
 interface ScannedUser {
   userId: string;
+  profileId?: string; // ID du profil spécifique (pour QR codes de profil)
+  profileType?: 'veterinarian' | 'technician'; // Type de profil (pour QR codes de profil)
   nom: string;
   prenom: string;
   email: string;
@@ -63,21 +54,13 @@ export default function ScanQRCollaborateurScreen() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { user } = useAppSelector((state) => state.auth);
-  const { projets } = useAppSelector((state) => state.projet);
   const { projetActif } = useAppSelector((state) => state.projet);
 
   const { hasPermission, isLoading: permissionLoading, requestPermission, openSettings } = useQRPermissions();
   const [scanned, setScanned] = useState(false);
   const [showManualInput, setShowManualInput] = useState(false);
-  const [scannedUser, setScannedUser] = useState<ScannedUser | null>(null);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [validating, setValidating] = useState(false);
   const [selectedProjetId, setSelectedProjetId] = useState<string>('');
-  const [selectedRole, setSelectedRole] = useState<RoleCollaborateur>('observateur');
-  const [permissions, setPermissions] = useState(DEFAULT_PERMISSIONS.observateur);
-  const [showProjetPicker, setShowProjetPicker] = useState(false);
-  const [showRolePicker, setShowRolePicker] = useState(false);
 
   // Animations
   const cornerAnim1 = useRef(new Animated.Value(1)).current;
@@ -92,11 +75,6 @@ export default function ScanQRCollaborateurScreen() {
       setSelectedProjetId(projetActif.id);
     }
   }, [projetActif]);
-
-  // Charger les projets au montage
-  useEffect(() => {
-    dispatch(loadProjets());
-  }, [dispatch]);
 
   // Animation des coins du scanner
   useEffect(() => {
@@ -132,10 +110,6 @@ export default function ScanQRCollaborateurScreen() {
     };
   }, [cornerAnim1, cornerAnim2, cornerAnim3, cornerAnim4]);
 
-  // Mettre à jour les permissions quand le rôle change
-  useEffect(() => {
-    setPermissions(DEFAULT_PERMISSIONS[selectedRole]);
-  }, [selectedRole]);
 
   /**
    * Gère le scan d'un QR code
@@ -155,16 +129,46 @@ export default function ScanQRCollaborateurScreen() {
         });
 
         if (response.canBeAdded) {
-          setScannedUser(response);
-          setShowConfirmModal(true);
-          // Animation de succès
-          Animated.spring(successCheckAnim, {
-            toValue: 1,
-            useNativeDriver: true,
-          }).start();
-          // Feedback haptique
+          // Vérifier que c'est un QR code de profil (vétérinaire ou technicien)
+          if (!response.profileId || !response.profileType) {
+            Alert.alert(
+              'QR code invalide',
+              'Ce code QR n\'est pas celui d\'un vétérinaire ou technicien. Seuls les profils vétérinaire et technicien peuvent être ajoutés via QR code.'
+            );
+            setScanned(false);
+            return;
+          }
+
+          // Vérifier que le profileType est valide
+          if (response.profileType !== 'veterinarian' && response.profileType !== 'technician') {
+            Alert.alert(
+              'Type de profil invalide',
+              'Ce code QR n\'est pas celui d\'un vétérinaire ou technicien.'
+            );
+            setScanned(false);
+            return;
+          }
+
+          // Navigation vers l'écran de configuration de l'invitation
           const { hapticScanSuccess } = await import('../../utils/haptics');
           hapticScanSuccess();
+          
+          (navigation as any).navigate(SCREENS.QR_INVITATION_CONFIG, {
+            scannedProfile: {
+              userId: response.userId,
+              profileId: response.profileId,
+              profileType: response.profileType,
+              nom: response.nom,
+              prenom: response.prenom,
+              email: response.email,
+              telephone: response.telephone,
+              photo: response.photo,
+            },
+            projetId: selectedProjetId || projetActif?.id || '',
+          });
+          
+          // Réinitialiser pour permettre un nouveau scan
+          setScanned(false);
         } else {
           const { hapticError } = await import('../../utils/haptics');
           hapticError();
@@ -175,7 +179,8 @@ export default function ScanQRCollaborateurScreen() {
         console.error('Erreur lors de la validation du QR code:', error);
         
         // Gestion des erreurs spécifiques
-        const errorMessage = error.response?.data?.message || error.message || 'Erreur inconnue';
+        const err = error as any;
+        const errorMessage = err?.response?.data?.message || err?.message || 'Erreur inconnue';
         
         if (errorMessage.includes('expiré') || errorMessage.includes('expired')) {
           Alert.alert('Code expiré', 'Ce code a expiré. Demandez un nouveau scan.');
@@ -211,13 +216,32 @@ export default function ScanQRCollaborateurScreen() {
       });
 
       if (response.canBeAdded) {
-        setScannedUser(response);
+        // Vérifier que c'est un QR code de profil (vétérinaire ou technicien)
+        if (!response.profileId || !response.profileType) {
+          throw new Error('Ce code QR n\'est pas celui d\'un vétérinaire ou technicien. Seuls les profils vétérinaire et technicien peuvent être ajoutés via QR code.');
+        }
+
+        // Vérifier que le profileType est valide
+        if (response.profileType !== 'veterinarian' && response.profileType !== 'technician') {
+          throw new Error('Ce code QR n\'est pas celui d\'un vétérinaire ou technicien.');
+        }
+
+        // Navigation vers l'écran de configuration de l'invitation
         setShowManualInput(false);
-        setShowConfirmModal(true);
-        Animated.spring(successCheckAnim, {
-          toValue: 1,
-          useNativeDriver: true,
-        }).start();
+        
+        (navigation as any).navigate(SCREENS.QR_INVITATION_CONFIG, {
+          scannedProfile: {
+            userId: response.userId,
+            profileId: response.profileId,
+            profileType: response.profileType,
+            nom: response.nom,
+            prenom: response.prenom,
+            email: response.email,
+            telephone: response.telephone,
+            photo: response.photo,
+          },
+          projetId: selectedProjetId || projetActif?.id || '',
+        });
       } else {
         throw new Error(response.reason || 'Ce collaborateur ne peut pas être ajouté');
       }
@@ -229,65 +253,6 @@ export default function ScanQRCollaborateurScreen() {
     }
   }, [selectedProjetId, projetActif, successCheckAnim]);
 
-  /**
-   * Ajoute le collaborateur au projet
-   */
-  const handleAddCollaborator = useCallback(async () => {
-    if (!scannedUser || !selectedProjetId) {
-      Alert.alert('Erreur', 'Veuillez sélectionner un projet');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await apiClient.post('/collaborations/from-qr', {
-        scanned_user_id: scannedUser.userId,
-        projet_id: selectedProjetId,
-        role: selectedRole,
-        permissions: permissions,
-      });
-
-      // Recharger les collaborateurs du projet
-      await dispatch(loadCollaborateursParProjet(selectedProjetId));
-
-      // Animation de succès
-      Animated.spring(successCheckAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-      }).start();
-
-      // Fermer le modal et rediriger
-      setShowConfirmModal(false);
-      setScannedUser(null);
-      setScanned(false);
-
-      Alert.alert(
-        'Succès',
-        `${scannedUser.prenom} ${scannedUser.nom} a été ajouté au projet`,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              navigation.goBack();
-            },
-          },
-        ]
-      );
-    } catch (error: any) {
-      console.error('Erreur lors de l\'ajout du collaborateur:', error);
-      hapticError();
-      const errorMessage = error.response?.data?.message || error.message || 'Erreur inconnue';
-      Toast.show({
-        type: 'error',
-        text1: 'Erreur',
-        text2: errorMessage,
-        visibilityTime: 4000,
-      });
-      Alert.alert('Erreur', errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  }, [scannedUser, selectedProjetId, selectedRole, permissions, dispatch, navigation, successCheckAnim]);
 
   /**
    * Génère les initiales
@@ -457,204 +422,6 @@ export default function ScanQRCollaborateurScreen() {
           )}
         </View>
 
-      {/* Modal de confirmation */}
-      <Modal
-        visible={showConfirmModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => {
-          setShowConfirmModal(false);
-          setScanned(false);
-        }}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {/* Animation de succès */}
-              <View style={styles.successContainer}>
-                <Animated.View
-                  style={[
-                    styles.successCheck,
-                    {
-                      transform: [
-                        {
-                          scale: successCheckAnim.interpolate({
-                            inputRange: [0, 0.5, 1],
-                            outputRange: [0, 1.2, 1],
-                          }),
-                        },
-                      ],
-                      opacity: successCheckAnim,
-                    },
-                  ]}
-                >
-                  <Ionicons name="checkmark-circle" size={64} color={colors.success} />
-                </Animated.View>
-              </View>
-
-              {/* Photo/Avatar */}
-              <View style={styles.userInfoContainer}>
-                {scannedUser?.photo ? (
-                  <Image
-                    source={{ uri: scannedUser.photo }}
-                    style={styles.userPhoto}
-                  />
-                ) : (
-                  <View style={[styles.userAvatar, { backgroundColor: colors.primary + '20' }]}>
-                    <Text style={[styles.userAvatarText, { color: colors.primary }]}>
-                      {scannedUser ? getInitials(scannedUser.nom, scannedUser.prenom) : '?'}
-                    </Text>
-                  </View>
-                )}
-
-                {/* Nom */}
-                <Text style={[styles.userName, { color: colors.text }]}>
-                  {scannedUser?.prenom} {scannedUser?.nom}
-                </Text>
-
-                {/* Email et téléphone */}
-                {scannedUser?.email && (
-                  <View style={styles.userDetailRow}>
-                    <Ionicons name="mail-outline" size={16} color={colors.textSecondary} />
-                    <Text style={[styles.userDetailText, { color: colors.textSecondary }]}>
-                      {scannedUser.email}
-                    </Text>
-                  </View>
-                )}
-                {scannedUser?.telephone && (
-                  <View style={styles.userDetailRow}>
-                    <Ionicons name="call-outline" size={16} color={colors.textSecondary} />
-                    <Text style={[styles.userDetailText, { color: colors.textSecondary }]}>
-                      {scannedUser.telephone}
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              {/* Message */}
-              <Text style={[styles.confirmMessage, { color: colors.text }]}>
-                Voulez-vous ajouter {scannedUser?.prenom} {scannedUser?.nom} à votre projet ?
-              </Text>
-
-              {/* Formulaire de configuration */}
-              <View style={styles.configForm}>
-                {/* Sélection du projet */}
-                <View style={styles.formField}>
-                  <Text style={[styles.formLabel, { color: colors.text }]}>Projet</Text>
-                  <TouchableOpacity
-                    style={[styles.pickerButton, { backgroundColor: colors.surfaceVariant, borderColor: colors.border }]}
-                    onPress={() => setShowProjetPicker(!showProjetPicker)}
-                  >
-                    <Text style={[styles.pickerButtonText, { color: colors.text }]}>
-                      {projets.find((p) => p.id === selectedProjetId)?.nom || 'Sélectionner un projet'}
-                    </Text>
-                    <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                  {showProjetPicker && (
-                    <View style={[styles.pickerDropdown, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                      {projets.map((projet) => (
-                        <TouchableOpacity
-                          key={projet.id}
-                          style={styles.pickerOption}
-                          onPress={() => {
-                            setSelectedProjetId(projet.id);
-                            setShowProjetPicker(false);
-                          }}
-                        >
-                          <Text style={[styles.pickerOptionText, { color: colors.text }]}>{projet.nom}</Text>
-                          {selectedProjetId === projet.id && (
-                            <Ionicons name="checkmark" size={20} color={colors.primary} />
-                          )}
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
-                </View>
-
-                {/* Sélection du rôle */}
-                <View style={styles.formField}>
-                  <Text style={[styles.formLabel, { color: colors.text }]}>Rôle</Text>
-                  <TouchableOpacity
-                    style={[styles.pickerButton, { backgroundColor: colors.surfaceVariant, borderColor: colors.border }]}
-                    onPress={() => setShowRolePicker(!showRolePicker)}
-                  >
-                    <Text style={[styles.pickerButtonText, { color: colors.text }]}>
-                      {ROLE_LABELS[selectedRole]}
-                    </Text>
-                    <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                  {showRolePicker && (
-                    <View style={[styles.pickerDropdown, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                      {(['veterinaire', 'ouvrier', 'observateur'] as RoleCollaborateur[]).map((role) => (
-                        <TouchableOpacity
-                          key={role}
-                          style={styles.pickerOption}
-                          onPress={() => {
-                            setSelectedRole(role);
-                            setShowRolePicker(false);
-                          }}
-                        >
-                          <Text style={[styles.pickerOptionText, { color: colors.text }]}>{ROLE_LABELS[role]}</Text>
-                          {selectedRole === role && (
-                            <Ionicons name="checkmark" size={20} color={colors.primary} />
-                          )}
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
-                </View>
-
-                {/* Permissions */}
-                <View style={styles.formField}>
-                  <Text style={[styles.formLabel, { color: colors.text }]}>Permissions</Text>
-                  {Object.entries(permissions).map(([key, value]) => (
-                    <View key={key} style={styles.permissionRow}>
-                      <Text style={[styles.permissionLabel, { color: colors.text }]}>
-                        {key.charAt(0).toUpperCase() + key.slice(1)}
-                      </Text>
-                      <Switch
-                        value={value}
-                        onValueChange={(newValue) =>
-                          setPermissions((prev) => ({ ...prev, [key]: newValue }))
-                        }
-                        trackColor={{ false: colors.border, true: colors.primary }}
-                        thumbColor={value ? colors.textOnPrimary : colors.textSecondary}
-                      />
-                    </View>
-                  ))}
-                </View>
-              </View>
-
-              {/* Boutons */}
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.modalButtonCancel, { borderColor: colors.border }]}
-                  onPress={() => {
-                    setShowConfirmModal(false);
-                    setScanned(false);
-                  }}
-                  disabled={loading}
-                >
-                  <Text style={[styles.modalButtonText, { color: colors.text }]}>Annuler</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.modalButtonConfirm, { backgroundColor: colors.primary }]}
-                  onPress={handleAddCollaborator}
-                  disabled={loading || !selectedProjetId}
-                >
-                  {loading ? (
-                    <ActivityIndicator color={colors.textOnPrimary} />
-                  ) : (
-                    <Text style={[styles.modalButtonText, { color: colors.textOnPrimary }]}>
-                      Ajouter au projet
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }

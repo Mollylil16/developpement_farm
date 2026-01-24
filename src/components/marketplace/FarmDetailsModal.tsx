@@ -24,6 +24,7 @@ import type { FarmCard, MarketplaceListing } from '../../types/marketplace';
 import { formatDate } from '../../utils/formatters';
 import { formatPrice } from '../../services/PricingService';
 import { useAppSelector } from '../../store/hooks';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
 import apiClient from '../../services/api/apiClient';
 import { API_CONFIG } from '../../config/api.config';
 import { TYPE_PROPHYLAXIE_LABELS } from '../../types/sante';
@@ -90,7 +91,8 @@ export default function FarmDetailsModal({
 }: FarmDetailsModalProps) {
   const { colors, spacing, typography, borderRadius } = MarketplaceTheme;
   const { user } = useAppSelector((state) => state.auth ?? { user: null });
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   // ✅ Déterminer le farmId : soit depuis farm, soit depuis initialListing
   const farmId = farm?.farmId || initialListing?.farmId;
@@ -470,6 +472,91 @@ export default function FarmDetailsModal({
     }
   }, [visible, farm, initialListing, loadListings]);
 
+  // ✅ Enrichir les listings avec les poids réels depuis le backend
+  // Après le chargement initial avec poids moyens, récupérer les poids individuels
+  useEffect(() => {
+    const enrichWithRealWeights = async () => {
+      if (!visible || listings.length === 0) return;
+      
+      // Trouver les listings batch qui ont besoin d'enrichissement
+      const batchListingIds = new Set<string>();
+      listings.forEach((listing) => {
+        const originalId = (listing as MarketplaceListing & { originalListingId?: string }).originalListingId;
+        if (originalId) {
+          batchListingIds.add(originalId);
+        }
+      });
+      
+      if (batchListingIds.size === 0) return;
+      
+      try {
+        // Appeler l'API pour récupérer les poids réels
+        const response = await apiClient.post<Array<{
+          listing: any;
+          subjects: Array<{
+            id: string;
+            code?: string;
+            poids_initial?: number;
+            derniere_pesee?: { poids_kg: number; date: string };
+          }>;
+        }>>('/marketplace/listings/details', {
+          listingIds: Array.from(batchListingIds),
+        });
+        
+        if (!response || response.length === 0) return;
+        
+        // Créer une map des poids réels par subjectId
+        const realWeights = new Map<string, number>();
+        for (const item of response) {
+          if (item.subjects) {
+            for (const subject of item.subjects) {
+              // Priorité : dernière pesée > poids initial
+              const realWeight = subject.derniere_pesee?.poids_kg || subject.poids_initial;
+              if (realWeight && realWeight > 0) {
+                realWeights.set(subject.id, realWeight);
+              }
+            }
+          }
+        }
+        
+        if (realWeights.size === 0) return;
+        
+        // Mettre à jour les listings avec les poids réels
+        setListings((prevListings) => 
+          prevListings.map((listing) => {
+            const subjectId = listing.subjectId || listing.id;
+            const realWeight = realWeights.get(subjectId);
+            
+            if (realWeight && realWeight !== listing.weight) {
+              // Recalculer le prix avec le poids réel
+              const pricePerKg = listing.pricePerKg || 0;
+              const calculatedPrice = Math.round(realWeight * pricePerKg);
+              
+              logger.debug(`[FarmDetailsModal] Mise à jour poids: ${listing.code} ${listing.weight}kg → ${realWeight}kg (prix: ${calculatedPrice} FCFA)`);
+              
+              return {
+                ...listing,
+                weight: realWeight,
+                calculatedPrice,
+                totalPrice: calculatedPrice,
+              };
+            }
+            return listing;
+          })
+        );
+        
+        logger.info(`[FarmDetailsModal] Poids réels mis à jour pour ${realWeights.size} sujets`);
+      } catch (error) {
+        // Ne pas bloquer l'affichage en cas d'erreur, garder les poids moyens
+        logger.warn('[FarmDetailsModal] Impossible de récupérer les poids réels:', error);
+      }
+    };
+    
+    // Déclencher après un court délai pour ne pas bloquer l'affichage initial
+    const timer = setTimeout(enrichWithRealWeights, 100);
+    return () => clearTimeout(timer);
+  }, [visible, listings.length > 0]); // Déclencher quand les listings sont chargés
+
   // Races disponibles
   const availableRaces = useMemo(() => {
     const races = new Set<string>();
@@ -582,10 +669,24 @@ export default function FarmDetailsModal({
         
         // ✅ Pour les listings batch virtuels, utiliser originalListingId (ID réel du listing)
         // Pour les listings individuels, utiliser listing.id directement
-        const listingId = (listing as any).originalListingId || listing.id;
+        const originalListingId = (listing as any).originalListingId;
+        const listingId = originalListingId || listing.id;
         const subjectId = listing.subjectId || listing.id;
         
-        console.log(`[FarmDetailsModal] Sélection - listingId: ${listingId}, subjectId: ${subjectId}, selectedId: ${selectedId}, originalListingId: ${(listing as any).originalListingId || 'N/A'}`);
+        // ✅ Validation : s'assurer qu'on utilise bien un listingId et non un pigId
+        // Si originalListingId n'est pas défini pour un listing batch virtuel, c'est un problème
+        if (listing.listingType === 'batch' && !originalListingId && listing.id !== listingId) {
+          console.error(`[FarmDetailsModal] ⚠️ PROBLÈME: Listing batch virtuel sans originalListingId!`, {
+            listingId: listing.id,
+            listingType: listing.listingType,
+            hasOriginalListingId: !!originalListingId,
+            selectedId,
+          });
+          // Ne pas retourner null, mais utiliser le listing.id comme fallback
+          // Le backend devrait quand même trouver le listing si l'ID est correct
+        }
+        
+        console.log(`[FarmDetailsModal] Sélection - listingId: ${listingId}, subjectId: ${subjectId}, selectedId: ${selectedId}, originalListingId: ${originalListingId || 'N/A'}, listingType: ${listing.listingType}`);
         
         return {
           listingId,

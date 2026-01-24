@@ -35,6 +35,7 @@ import {
 import { getCategorieAnimal } from '../utils/animalUtils';
 import { formatLocalDate, getCurrentLocalDate } from '../utils/dateUtils';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 interface Props {
   visible: boolean;
@@ -52,7 +53,8 @@ export default function VaccinationFormModalNew({
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
 
-  const projetActif = useAppSelector((state) => state.projet.projetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const animaux = useAppSelector((state) => selectAllAnimaux(state));
   const loading = useAppSelector((state) => state.sante.loading.vaccinations);
 

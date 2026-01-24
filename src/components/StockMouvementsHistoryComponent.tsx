@@ -14,6 +14,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import { loadStocks, loadMouvementsParAliment } from '../store/slices/stocksSlice';
 import type { StockAliment, StockMouvement } from '../types/nutrition';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
@@ -29,7 +30,8 @@ const ITEMS_PER_PAGE = 50;
 export default function StockMouvementsHistoryComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const { stocks, mouvementsParAliment, loading } = useAppSelector((state) => state.stocks);
 
   const [searchQuery, setSearchQuery] = useState('');

@@ -6,6 +6,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Calendar, DateData } from 'react-native-calendars';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import { loadPlanificationsParProjet } from '../store/slices/planificationSlice';
 import type { Planification, TypeTache } from '../types/planification';
 import { SPACING, FONT_SIZES } from '../constants/theme';
@@ -16,7 +17,8 @@ import { fr } from 'date-fns/locale';
 export default function PlanificationCalendarComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const { planifications } = useAppSelector((state) => state.planification);
   const [currentMonth, setCurrentMonth] = useState(new Date());
 

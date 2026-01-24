@@ -40,6 +40,10 @@ const ENDPOINT_TIMEOUTS: Record<string, number> = {
   
   // Marketplace - peut avoir beaucoup de listings
   '/marketplace/listings': 20000,
+  '/marketplace/my-offers': 20000,
+  '/marketplace/my-received-offers': 20000,
+  '/marketplace/offers': 20000,
+  '/marketplace/notifications': 15000,
   
   // Kouakou - IA peut prendre du temps
   '/kouakou/chat': 30000,
@@ -764,10 +768,17 @@ async function executeHttpRequest<T>(
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     } else {
-      // Pas de token disponible - c'est normal pour les utilisateurs non connectés
+      // Pas de token disponible - lancer une erreur 401 immédiatement
+      // plutôt que d'envoyer la requête au serveur pour échouer
       if (__DEV__) {
         logger.debug(`[${endpoint}] Aucun token d'authentification (utilisateur non connecté)`);
       }
+      // Pour les endpoints qui nécessitent une authentification,
+      // renvoyer une erreur 401 sans appeler le serveur
+      throw new APIError(
+        'Aucun token de rafraîchissement disponible. Veuillez vous reconnecter.',
+        401
+      );
     }
   }
 
@@ -838,9 +849,9 @@ async function executeHttpRequest<T>(
             });
           }
           throw new APIError(
-            `La requête a pris trop de temps (timeout: ${timeout}ms). Le backend est peut-être inaccessible sur ${API_BASE_URL}.`,
+            `La requête a pris trop de temps (timeout: ${timeout}ms). Le backend peut être temporairement surchargé. Veuillez réessayer dans quelques instants.`,
             408,
-            { originalError: errorMessage, timeout, elapsed: elapsedMs }
+            { originalError: errorMessage, timeout, elapsed: elapsedMs, endpoint }
           );
         } else {
           // Annulation manuelle ou autre

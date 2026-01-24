@@ -15,22 +15,42 @@ export class PlanificationsService {
   }
 
   /**
-   * Vérifie que le projet appartient à l'utilisateur
+   * Vérifie que le projet appartient à l'utilisateur OU qu'il est collaborateur actif
    */
   private async checkProjetOwnership(projetId: string, userId: string): Promise<void> {
-const result = await this.databaseService.query(
+    const result = await this.databaseService.query(
       'SELECT proprietaire_id FROM projets WHERE id = $1',
       [projetId]
     );
     if (result.rows.length === 0) {
-throw new NotFoundException('Projet introuvable');
+      throw new NotFoundException('Projet introuvable');
     }
     const rawProprietaireId = result.rows[0].proprietaire_id;
     const proprietaireId = String(rawProprietaireId || '').trim();
     const normalizedUserId = String(userId || '').trim();
-if (proprietaireId !== normalizedUserId) {
-throw new ForbiddenException('Ce projet ne vous appartient pas');
+    
+    // ✅ Si l'utilisateur est propriétaire, c'est OK
+    if (proprietaireId === normalizedUserId) {
+      return;
     }
+    
+    // ✅ Sinon, vérifier s'il est collaborateur actif avec permission 'planification'
+    const collabResult = await this.databaseService.query(
+      `SELECT id, permission_planification FROM collaborations 
+       WHERE projet_id = $1 
+       AND (user_id = $2 OR profile_id LIKE $3)
+       AND statut = 'actif'`,
+      [projetId, normalizedUserId, `%${normalizedUserId}%`]
+    );
+    
+    if (collabResult.rows.length > 0) {
+      // Vérifier si la permission planification est accordée
+      if (collabResult.rows[0].permission_planification === true) {
+        return;
+      }
+    }
+    
+    throw new ForbiddenException('Ce projet ne vous appartient pas');
   }
 
   /**

@@ -6,6 +6,7 @@ import React, { memo, useState, useCallback, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppSelector } from '../../store/hooks';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
 import { 
   selectPeseesParAnimal, 
   selectProductionUpdateCounter 
@@ -25,7 +26,8 @@ const MIN_RELOAD_INTERVAL = 60000; // 1 minute minimum entre rechargements
 
 function LivestockStatsCard() {
   const { colors } = useTheme();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const peseesParAnimal = useAppSelector(selectPeseesParAnimal);
   const updateCounter = useAppSelector(selectProductionUpdateCounter);
   const { animauxActifs } = useAnimauxActifs({ projetId: projetActif?.id });

@@ -3,6 +3,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsActionUrl } from './validators/action-url.validator';
 
 export enum NotificationType {
+  NEW_OFFER = 'new_offer',           // ✅ Nouvelle offre reçue par le producteur
   OFFER_RECEIVED = 'offer_received',
   OFFER_ACCEPTED = 'offer_accepted',
   OFFER_REJECTED = 'offer_rejected',
@@ -11,6 +12,9 @@ export enum NotificationType {
   MESSAGE_RECEIVED = 'message_received',
   LISTING_SOLD = 'listing_sold',
   LISTING_EXPIRED = 'listing_expired',
+  // ✅ Notifications enrichies avec détails de contact et localisation
+  SALE_CONFIRMED_BUYER = 'sale_confirmed_buyer',     // Pour l'acheteur avec détails ferme
+  SALE_CONFIRMED_PRODUCER = 'sale_confirmed_producer', // Pour le producteur avec détails acheteur
 }
 
 export class CreateNotificationDto {
@@ -57,6 +61,13 @@ export class CreateNotificationDto {
   @IsActionUrl()
   @IsOptional()
   actionUrl?: string;
+
+  @ApiPropertyOptional({
+    description: 'Données enrichies (contact, localisation, détails transaction)',
+    example: { producer: { name: 'Jean', phone: '+225 07 xx xx xx' } }
+  })
+  @IsOptional()
+  data?: Record<string, any>;
 }
 
 export class MarkAsReadDto {

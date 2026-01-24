@@ -6,6 +6,7 @@
 import React, { useEffect, useState, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useAppSelector } from '../../store/hooks';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
 import { selectAllRevenus } from '../../store/selectors/financeSelectors';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -20,7 +21,8 @@ interface PerformanceWidgetProps {
 
 function PerformanceWidget({ projetId, onPress }: PerformanceWidgetProps) {
   const { colors } = useTheme();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const revenus = useAppSelector(selectAllRevenus);
 
   const [loading, setLoading] = useState(true);

@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { useAppSelector } from '../store/hooks';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import type { Dette, CreateDetteInput, TypeDette, StatutDette, FrequenceRemboursement } from '../types/finance';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
@@ -33,7 +34,8 @@ export default function DetteFormModal({
 }: DetteFormModalProps) {
   const { colors } = useTheme();
   const { canCreate, canUpdate } = useActionPermissions();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateDetteInput>({
     projet_id: projetActif?.id || '',

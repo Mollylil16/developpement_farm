@@ -254,8 +254,15 @@ function CollaborationsScreenContent() {
   // Gérer l'affichage du QR code
   const handleShowQR = useCallback(() => {
     triggerHaptic('light');
-    navigation.navigate(SCREENS.MY_QR_CODE as never);
-  }, [navigation]);
+    const activeRole = currentUser?.activeRole;
+    
+    // Rediriger vers le bon écran selon le rôle
+    if (activeRole === 'veterinarian' || activeRole === 'technician') {
+      navigation.navigate(SCREENS.COLLABORATION_VET_TECH as never);
+    } else {
+      navigation.navigate(SCREENS.MY_QR_CODE as never);
+    }
+  }, [navigation, currentUser?.activeRole]);
 
   // Gérer l'invitation manuelle
   const handleInvite = useCallback(() => {

@@ -14,7 +14,9 @@ import { fr } from 'date-fns/locale';
 import { useRole } from '../contexts/RoleContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useTechData } from '../hooks/useTechData';
-import { useAppSelector } from '../store/hooks';
+import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { loadInvitationsEnAttente } from '../store/slices/collaborationSlice';
+import InvitationsModal from '../components/InvitationsModal';
 import { SCREENS } from '../navigation/types';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS, LIGHT_COLORS } from '../constants/theme';
 import Card from '../components/Card';
@@ -24,6 +26,7 @@ import DashboardHeader from '../components/dashboard/DashboardHeader';
 import ProfileMenuModal from '../components/ProfileMenuModal';
 import { NotificationPanel } from '../components/marketplace';
 import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
+import ProjectSelectorCollaborateur from '../components/Collaborations/ProjectSelectorCollaborateur';
 import { useProfilData } from '../hooks/useProfilData';
 import { useDashboardAnimations } from '../hooks/useDashboardAnimations';
 import { useMarketplaceNotifications } from '../hooks/useMarketplaceNotifications';
@@ -34,14 +37,36 @@ const DashboardTechScreen: React.FC = () => {
   const { colors, isDark } = useTheme();
   const navigation = useNavigation();
   const isFocused = useIsFocused();
+  const dispatch = useAppDispatch();
   const [refreshing, setRefreshing] = useState(false);
   const [profileMenuVisible, setProfileMenuVisible] = useState(false);
   const [notificationPanelVisible, setNotificationPanelVisible] = useState(false);
+  const [invitationsModalVisible, setInvitationsModalVisible] = useState(false);
   const { assistedFarms, todayTasks, recentRecords, loading, error, refresh } = useTechData(
     currentUser?.id
   );
   const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetCollaboratifActif, collaborateurActuel, invitationsEnAttente } = useAppSelector((state) => state.collaboration);
   const { planifications, planificationsAVenir } = useAppSelector((state) => state.planification);
+
+  // Charger les invitations en attente au montage et quand l'écran devient actif
+  React.useEffect(() => {
+    if (isFocused && currentUser) {
+      dispatch(loadInvitationsEnAttente({
+        userId: currentUser.id,
+        email: currentUser.email || undefined,
+        telephone: currentUser.telephone || undefined,
+      }));
+    }
+  }, [dispatch, isFocused, currentUser?.id, currentUser?.email, currentUser?.telephone]);
+
+  // Nombre d'invitations en attente
+  const invitationsCount = Array.isArray(invitationsEnAttente)
+    ? invitationsEnAttente.filter((inv) => inv.statut === 'en_attente').length
+    : 0;
+
+  // Pour les techniciens, utiliser le projet collaboratif sélectionné (projet du producteur)
+  const projetActifPourTech = projetCollaboratifActif || projetActif;
   const profil = useProfilData();
   const animations = useDashboardAnimations();
   const {
@@ -82,6 +107,10 @@ const DashboardTechScreen: React.FC = () => {
 
   const handlePressNotifications = useCallback(() => {
     setNotificationPanelVisible(true);
+  }, []);
+
+  const handlePressInvitations = useCallback(() => {
+    setInvitationsModalVisible(true);
   }, []);
 
   const handleCloseProfileMenu = useCallback(() => {
@@ -131,17 +160,22 @@ const DashboardTechScreen: React.FC = () => {
             profilInitiales={profil.profilInitiales || ''}
             currentDate={currentDate}
             projetNom={
-              techProfile?.qualifications?.level
+              projetCollaboratifActif?.nom || (techProfile?.qualifications?.level
                 ? `Niveau: ${levelLabels[techProfile.qualifications.level]}`
-                : undefined
+                : undefined)
             }
-            invitationsCount={0}
+            invitationsCount={invitationsCount}
             notificationCount={marketplaceUnreadCount}
             headerAnim={animations.headerAnim}
             onPressPhoto={handlePressPhoto}
-            onPressInvitations={() => {}}
+            onPressInvitations={handlePressInvitations}
             onPressNotifications={handlePressNotifications}
           />
+
+          {/* 🆕 Sélecteur de projet collaboratif */}
+          <View style={styles.projectSelectorContainer}>
+            <ProjectSelectorCollaborateur />
+          </View>
 
           {/* Fermes assistées */}
           <View style={styles.section}>
@@ -297,6 +331,13 @@ const DashboardTechScreen: React.FC = () => {
           marketplaceNotifications.forEach((n) => markAsRead(n.id));
         }}
       />
+
+      {/* Modal des invitations en attente */}
+      <InvitationsModal
+        visible={invitationsModalVisible}
+        onClose={() => setInvitationsModalVisible(false)}
+      />
+
       {/* Bouton flottant pour accéder à l'agent conversationnel */}
       <ChatAgentFAB />
     </SafeAreaView>
@@ -384,6 +425,10 @@ const styles = StyleSheet.create({
   seeAllText: {
     fontSize: FONT_SIZES.sm,
     fontWeight: FONT_WEIGHTS.medium,
+  },
+  projectSelectorContainer: {
+    marginTop: SPACING.md,
+    paddingHorizontal: 0,
   },
   tasksList: {
     gap: SPACING.sm,

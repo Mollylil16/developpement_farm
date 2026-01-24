@@ -26,7 +26,7 @@ export function useMarketplaceNotifications(
     pollIntervalMs = DEFAULT_POLLING_INTERVAL_MS,
     respectAppState = true,
   } = options;
-  const projetActifId = useAppSelector((state) => state.projet.projetActif?.id);
+  // Note: projetActifId n'est plus requis - les acheteurs/collaborateurs n'ont pas de projet propre
   const currentUserId = useAppSelector((state) => state.auth.user?.id);
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -45,7 +45,9 @@ export function useMarketplaceNotifications(
     async (options: { silent?: boolean } = {}) => {
       const { silent = false } = options;
 
-      if (!effectiveEnabled || !currentUserId || !projetActifId) {
+      // ✅ CORRECTION: Ne plus exiger projetActifId pour charger les notifications
+      // Les acheteurs purs et collaborateurs n'ont pas de projetActif mais doivent voir leurs notifications
+      if (!effectiveEnabled || !currentUserId) {
         if (!silent) {
           setLoading(false);
         }
@@ -113,7 +115,7 @@ export function useMarketplaceNotifications(
         isFetchingRef.current = false;
       }
     },
-    [currentUserId, projetActifId, effectiveEnabled]
+    [currentUserId, effectiveEnabled]
   );
 
   /**
@@ -122,7 +124,10 @@ export function useMarketplaceNotifications(
   const markAsRead = useCallback(async (notificationId: string) => {
     try {
       // Marquer la notification comme lue via l'API backend
-      await apiClient.patch(`/marketplace/notifications/${notificationId}/read`);
+      // ✅ Utiliser l'endpoint correct avec body
+      await apiClient.patch('/marketplace/notifications/mark-read', {
+        notificationIds: [notificationId],
+      });
 
       // Mettre à jour l'état local
       setNotifications((prev) =>
@@ -193,15 +198,16 @@ export function useMarketplaceNotifications(
   }, [effectiveEnabled, loadNotifications]);
 
   // Polling périodique uniquement quand activé et utilisateur présent
+  // ✅ CORRECTION: Ne plus exiger projetActifId pour le polling
   useEffect(() => {
-    if (!effectiveEnabled || !currentUserId || !projetActifId) return;
+    if (!effectiveEnabled || !currentUserId) return;
 
     const interval = setInterval(() => {
       loadNotifications({ silent: true });
     }, pollIntervalMs);
 
     return () => clearInterval(interval);
-  }, [effectiveEnabled, currentUserId, projetActifId, loadNotifications, pollIntervalMs]);
+  }, [effectiveEnabled, currentUserId, loadNotifications, pollIntervalMs]);
 
   useEffect(() => {
     if (!respectAppState) return;

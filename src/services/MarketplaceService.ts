@@ -806,13 +806,40 @@ export class MarketplaceService {
     }>;
   }>> {
     try {
+      // ✅ Log de diagnostic : voir quels IDs sont envoyés
+      logger.info('[MarketplaceService] getMultipleListingsWithSubjects appelé avec:', {
+        listingIdsCount: listingIds.length,
+        listingIds: listingIds,
+      });
+
       const apiClient = (await import('../services/api/apiClient')).default;
       const response = await apiClient.post('/marketplace/listings/details', {
         listingIds,
       });
+
+      // ✅ Log de diagnostic : voir ce qui est retourné
+      logger.info('[MarketplaceService] getMultipleListingsWithSubjects réponse:', {
+        responseCount: response?.length || 0,
+        response: response?.map((r: any) => ({
+          listingId: r.listing?.id,
+          listingType: r.listing?.listingType,
+          subjectsCount: r.subjects?.length || 0,
+        })) || [],
+      });
+
       return response || [];
     } catch (error) {
-      logger.error('[MarketplaceService] Erreur chargement listings:', error);
+      // ✅ Log détaillé de l'erreur
+      const errorDetails = error instanceof Error 
+        ? { message: error.message, stack: error.stack?.substring(0, 500) }
+        : { error: String(error) };
+      
+      logger.error('[MarketplaceService] Erreur chargement listings:', {
+        ...errorDetails,
+        listingIdsCount: listingIds.length,
+        listingIds: listingIds,
+      });
+      
       return [];
     }
   }
@@ -969,10 +996,27 @@ export class MarketplaceService {
       }
     }
 
-    // Vérifier si l'acheteur a déjà fait une offre pour ce sujet
+    // Vérifier si l'acheteur a déjà fait une offre acceptée pour ce sujet
     const existingOffers = await this.offerRepo.findByBuyerId(data.buyerId);
-    const hasExistingOffer = existingOffers.some((offer) => {
-      // Vérifier si l'offre existe pour le même listing et contient au moins un des mêmes sujets
+    const hasAcceptedOffer = existingOffers.some((offer) => {
+      // Vérifier si l'offre existe pour le même listing, est acceptée, et contient au moins un des mêmes sujets
+      if (offer.listingId === data.listingId && offer.status === 'accepted') {
+        // Vérifier si au moins un sujet est en commun
+        const commonSubjects = offer.subjectIds.filter((id) => data.subjectIds.includes(id));
+        return commonSubjects.length > 0;
+      }
+      return false;
+    });
+
+    if (hasAcceptedOffer) {
+      throw new Error(
+        "Vous avez déjà une offre acceptée par le producteur pour ce sujet. Merci de consulter vos offres reçues."
+      );
+    }
+
+    // Vérifier si l'acheteur a déjà fait une offre en attente pour ce sujet
+    const hasPendingOffer = existingOffers.some((offer) => {
+      // Vérifier si l'offre existe pour le même listing, est en attente, et contient au moins un des mêmes sujets
       if (offer.listingId === data.listingId && offer.status === 'pending') {
         // Vérifier si au moins un sujet est en commun
         const commonSubjects = offer.subjectIds.filter((id) => data.subjectIds.includes(id));
@@ -981,7 +1025,7 @@ export class MarketplaceService {
       return false;
     });
 
-    if (hasExistingOffer) {
+    if (hasPendingOffer) {
       throw new Error(
         "Vous avez déjà fait une offre pour ce sujet. Veuillez retirer votre offre existante avant d'en créer une nouvelle."
       );
@@ -1015,6 +1059,29 @@ export class MarketplaceService {
   // ========================================
   // RÉCUPÉRATION DES OFFRES
   // ========================================
+
+  /**
+   * Récupérer les IDs des sujets déjà acceptés pour un listing et un acheteur
+   * Utilisé pour filtrer les sujets disponibles dans l'interface
+   */
+  async getAcceptedSubjectIds(listingId: string, buyerId: string): Promise<string[]> {
+    try {
+      const existingOffers = await this.offerRepo.findByBuyerId(buyerId);
+      const acceptedSubjectIds = new Set<string>();
+
+      // Récupérer tous les subjectIds des offres acceptées pour ce listing
+      existingOffers
+        .filter((offer) => offer.listingId === listingId && offer.status === 'accepted')
+        .forEach((offer) => {
+          offer.subjectIds.forEach((id) => acceptedSubjectIds.add(id));
+        });
+
+      return Array.from(acceptedSubjectIds);
+    } catch (error) {
+      logger.error('[marketplace] Erreur récupération sujets acceptés:', error);
+      return [];
+    }
+  }
 
   /**
    * Récupérer mes offres envoyées (acheteur)

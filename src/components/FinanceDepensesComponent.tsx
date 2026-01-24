@@ -29,8 +29,9 @@ import LoadingSpinner from './LoadingSpinner';
 import DepenseFormModal from './DepenseFormModal';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { logger } from '../utils/logger';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
-export default function FinanceDepensesComponent() {
+function FinanceDepensesComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
@@ -46,7 +47,8 @@ export default function FinanceDepensesComponent() {
   const ITEMS_PER_PAGE = 50;
   const [refreshing, setRefreshing] = useState(false);
 
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   useEffect(() => {
     if (projetActif) {
@@ -584,3 +586,6 @@ const styles = StyleSheet.create({
     height: 400,
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(FinanceDepensesComponent);

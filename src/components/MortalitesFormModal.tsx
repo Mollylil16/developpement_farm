@@ -32,6 +32,7 @@ import BatchSelector from './sante/BatchSelector';
 import { Batch } from '../types/batch';
 import { useFocusEffect } from '@react-navigation/native';
 import apiClient from '../services/api/apiClient';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 // Fonction helper pour convertir une date en format local YYYY-MM-DD
 const formatDateToLocal = (date: Date): string => {
@@ -65,7 +66,8 @@ export default function MortalitesFormModal({
 }: MortalitesFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const animaux = useAppSelector(selectAllAnimaux);
   const { canCreate, canUpdate } = useActionPermissions();
   const modeElevage = useModeElevage();

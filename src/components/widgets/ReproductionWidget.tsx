@@ -12,6 +12,7 @@ import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constant
 import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
 import { differenceInDays, parseISO, isAfter, isBefore } from 'date-fns';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
 
 interface ReproductionWidgetProps {
   onPress?: () => void;
@@ -22,7 +23,8 @@ function ReproductionWidget({ onPress }: ReproductionWidgetProps) {
   const dispatch = useAppDispatch();
   const gestations = useAppSelector(selectAllGestations);
 
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   // Utiliser useRef pour éviter les chargements multiples (boucle infinie)
   // ❌ CORRECTION CRITIQUE: Ne PAS charger les gestations dans le widget !

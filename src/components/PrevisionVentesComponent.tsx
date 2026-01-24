@@ -31,6 +31,7 @@ import { getCategorieAnimal } from '../utils/animalUtils';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
 import { useFocusEffect } from '@react-navigation/native';
 import { createLoggerWithPrefix } from '../utils/logger';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 const logger = createLoggerWithPrefix('PrevisionVentes');
 
@@ -50,7 +51,8 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
     sailliesPlanifiees,
   } = useAppSelector((state) => state.planningProduction);
   const animaux = useAppSelector(selectAllAnimaux);
-  const projetActif = useAppSelector((state) => state.projet.projetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   const [vueListe, setVueListe] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);

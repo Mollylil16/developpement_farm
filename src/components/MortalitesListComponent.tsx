@@ -41,6 +41,7 @@ import { useActionPermissions } from '../hooks/useActionPermissions';
 import Card from './Card';
 import MortaliteDashboard from './mortalites/MortaliteDashboard';
 import { selectAllAnimaux } from '../store/selectors/productionSelectors';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 interface Props {
   refreshControl?: React.ReactElement<RefreshControlProps>;
@@ -52,7 +53,8 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
   const { colors, isDark } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const mortalites = useAppSelector(selectAllMortalites);
   const statistiques = useAppSelector(selectStatistiquesMortalite);
   const loading = useAppSelector(selectMortalitesLoading);

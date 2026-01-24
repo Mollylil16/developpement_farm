@@ -20,6 +20,7 @@ import { selectAllGestations, selectAllSevrages } from '../store/selectors/repro
 import { AlertePlanningProduction } from '../types/planningProduction';
 import type { StockAliment } from '../types/nutrition';
 import type { Planification } from '../types/planification';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 export interface Alerte {
   id: string;
@@ -34,7 +35,8 @@ export default function AlertesWidget() {
   const { colors } = useTheme();
   const navigation = useNavigation();
   const dispatch = useAppDispatch();
-  const projetActif = useAppSelector((state) => state.projet?.projetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const gestations: Gestation[] = useAppSelector(selectAllGestations);
   const sevrages: Sevrage[] = useAppSelector(selectAllSevrages);
   const stocks = useAppSelector((state) => state.stocks?.stocks ?? []);

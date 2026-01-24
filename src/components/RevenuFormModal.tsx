@@ -35,6 +35,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { logger } from '../utils/logger';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { revenuSchema, validateWithSchema, validateField } from '../validation/financeSchemas';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 interface RevenuFormModalProps {
   visible: boolean;
@@ -57,7 +58,8 @@ export default function RevenuFormModal({
 }: RevenuFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const animaux = useAppSelector(selectAllAnimaux);
   const peseesRecents = useAppSelector(selectPeseesRecents);
   const { canCreate, canUpdate } = useActionPermissions();
@@ -433,7 +435,7 @@ export default function RevenuFormModal({
 
             if (isModeBatch) {
               venteData.batch_id = selectedBatchId;
-              venteData.quantite_vendue = parseInt(batchQuantite);
+              venteData.quantite = parseInt(batchQuantite); // Correction: le DTO attend "quantite", pas "quantite_vendue"
             } else {
               venteData.animal_ids = selectedAnimalIds;
             }

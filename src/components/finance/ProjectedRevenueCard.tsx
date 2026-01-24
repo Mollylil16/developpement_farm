@@ -6,6 +6,7 @@ import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppSelector } from '../../store/hooks';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
 import { selectPeseesParAnimal } from '../../store/selectors/productionSelectors';
 import { selectAllRevenus } from '../../store/selectors/financeSelectors';
 import { SPACING, FONT_SIZES } from '../../constants/theme';
@@ -28,7 +29,8 @@ interface ProjectedRevenueCardProps {
 
 export default function ProjectedRevenueCard({ type }: ProjectedRevenueCardProps) {
   const { colors } = useTheme();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const revenus = useAppSelector(selectAllRevenus);
   const peseesParAnimal = useAppSelector(selectPeseesParAnimal);
   const { animauxActifs } = useAnimauxActifs({ projetId: projetActif?.id });

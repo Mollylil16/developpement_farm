@@ -240,14 +240,22 @@ export interface ProducerRating {
  * Type de notification marketplace
  */
 export type NotificationType =
+  | 'new_offer'
   | 'offer_received'
   | 'offer_accepted'
   | 'offer_rejected'
+  | 'offer_countered'
+  | 'offer_withdrawn'
   | 'message_received'
   | 'delivery_confirmed'
   | 'rating_received'
   | 'delivery_reminder'
-  | 'payment_reminder';
+  | 'payment_reminder'
+  | 'listing_sold'
+  | 'listing_expired'
+  // Notifications enrichies avec détails contact/localisation
+  | 'sale_confirmed_buyer'
+  | 'sale_confirmed_producer';
 
 /**
  * Type d'entit├® li├®e ├á la notification
@@ -263,13 +271,42 @@ export interface Notification {
   type: NotificationType;
   title: string;
   message: string;
-  body?: string; // Alias pour message (d├®tails suppl├®mentaires)
+  body?: string; // Alias pour message (détails supplémentaires)
   relatedId: string; // ID de l'offre, transaction, etc.
   relatedType: NotificationRelatedType;
   read: boolean;
   actionUrl?: string;
   createdAt: string;
   readAt?: string;
+  // ✅ Données enrichies pour les notifications de vente confirmée
+  data?: {
+    transactionId?: string;
+    finalPrice?: number;
+    subjectCount?: number;
+    pickupDate?: string | null;
+    // Détails du producteur (pour l'acheteur)
+    producer?: {
+      name: string;
+      phone?: string | null;
+      email?: string | null;
+    };
+    // Détails de la ferme (pour l'acheteur)
+    farm?: {
+      name: string;
+      address: string;
+      city: string;
+      region?: string | null;
+      latitude?: number | null;
+      longitude?: number | null;
+      googleMapsUrl?: string | null;
+    };
+    // Détails de l'acheteur (pour le producteur)
+    buyer?: {
+      name: string;
+      phone?: string | null;
+      email?: string | null;
+    };
+  };
 }
 
 /**

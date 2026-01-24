@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import {
   loadCollaborateursParProjet,
   deleteCollaborateur,
@@ -31,12 +32,13 @@ import CollaborationFormModal from './CollaborationFormModal';
 import StatCard from './StatCard';
 import { useRole } from '../contexts/RoleContext';
 
-export default function CollaborationListComponent() {
+function CollaborationListComponent() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
   const { activeRole } = useRole();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const currentUser = useAppSelector((state) => state.auth?.user);
 
   // Vérifier si l'utilisateur est propriétaire du projet actif
@@ -663,3 +665,6 @@ const styles = StyleSheet.create({
     lineHeight: FONT_SIZES.sm * 1.4,
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(CollaborationListComponent);

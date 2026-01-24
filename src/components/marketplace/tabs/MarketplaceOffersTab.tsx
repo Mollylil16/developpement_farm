@@ -12,6 +12,9 @@ import {
   TouchableOpacity,
   Alert,
   StyleSheet,
+  Modal,
+  TextInput,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,11 +22,13 @@ import { formatSafeDate } from '../../../utils/dateUtils';
 import { useAppSelector, useAppDispatch } from '../../../store/hooks';
 import apiClient from '../../../services/api/apiClient';
 import marketplaceService from '../../../services/MarketplaceService';
-import { acceptOffer, rejectOffer } from '../../../store/slices/marketplaceSlice';
+import { acceptOffer, rejectOffer, counterOffer } from '../../../store/slices/marketplaceSlice';
 import { MarketplaceTheme } from '../../../styles/marketplace.theme';
 import EmptyState from '../../EmptyState';
 import type { Offer } from '../../../types/marketplace';
 import { getErrorMessage } from '../../../types/errors';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../../../constants/theme';
+import { useTheme } from '../../../contexts/ThemeContext';
 
 interface MarketplaceOffersTabProps {
   receivedOffers: Offer[];
@@ -39,9 +44,17 @@ function MarketplaceOffersTab({
   onRefresh,
 }: MarketplaceOffersTabProps) {
   const marketplaceColors = MarketplaceTheme.colors;
+  const { colors, isDark } = useTheme();
   const { user } = useAppSelector((state) => state.auth ?? { user: null });
   const dispatch = useAppDispatch();
   const [offersTab, setOffersTab] = useState<'received' | 'sent'>('received');
+  
+  // États pour la contre-proposition
+  const [counterModalVisible, setCounterModalVisible] = useState(false);
+  const [selectedOfferForCounter, setSelectedOfferForCounter] = useState<Offer | null>(null);
+  const [counterPrice, setCounterPrice] = useState('');
+  const [counterMessage, setCounterMessage] = useState('');
+  const [isSubmittingCounter, setIsSubmittingCounter] = useState(false);
 
   // Logs sécurisés (aucune donnée sensible)
   React.useEffect(() => {
@@ -80,21 +93,86 @@ function MarketplaceOffersTab({
 
   const handleAcceptOffer = async (offerId: string, role: 'producer' | 'buyer' = 'producer') => {
     try {
-      if (!user?.id) return;
-      await dispatch(acceptOffer({ offerId, userId: user.id, role })).unwrap();
-      Alert.alert('Succès', 'Offre acceptée');
-      onRefresh();
+      if (!user?.id) {
+        Alert.alert('Erreur', 'Vous devez être connecté pour accepter cette offre');
+        return;
+      }
+      
+      // Confirmation avant acceptation
+      Alert.alert(
+        'Confirmer',
+        role === 'producer' 
+          ? 'Voulez-vous accepter cette offre ? Une transaction sera créée.'
+          : 'Voulez-vous accepter cette contre-proposition ?',
+        [
+          { text: 'Annuler', style: 'cancel' },
+          {
+            text: 'Accepter',
+            style: 'default',
+            onPress: async () => {
+              try {
+                await dispatch(acceptOffer({ offerId, userId: user.id, role })).unwrap();
+                Alert.alert('Succès', 'Offre acceptée ! Une transaction a été créée.');
+                onRefresh();
+              } catch (error) {
+                const errorMsg = getErrorMessage(error);
+                console.error('[MarketplaceOffersTab] Erreur acceptation:', error);
+                
+                // Messages d'erreur plus explicites
+                if (errorMsg.toLowerCase().includes('connexion') || errorMsg.toLowerCase().includes('network')) {
+                  Alert.alert(
+                    'Erreur de connexion',
+                    'Impossible de contacter le serveur. Vérifiez votre connexion Internet et réessayez.',
+                    [{ text: 'OK' }, { text: 'Réessayer', onPress: () => handleAcceptOffer(offerId, role) }]
+                  );
+                } else if (errorMsg.toLowerCase().includes('session') || errorMsg.toLowerCase().includes('token')) {
+                  Alert.alert('Session expirée', 'Veuillez vous reconnecter à l\'application.');
+                } else if (errorMsg.toLowerCase().includes('autorisé') || errorMsg.toLowerCase().includes('forbidden')) {
+                  Alert.alert('Non autorisé', 'Vous n\'êtes pas autorisé à accepter cette offre.');
+                } else {
+                  Alert.alert('Erreur', errorMsg || 'Une erreur est survenue lors de l\'acceptation');
+                }
+              }
+            },
+          },
+        ]
+      );
     } catch (error) {
       Alert.alert('Erreur', getErrorMessage(error));
     }
   };
 
-  const handleRejectOffer = async (offerId: string) => {
+  const handleRejectOffer = async (offerId: string, role: 'producer' | 'buyer' = 'producer') => {
     try {
       if (!user?.id) return;
-      await dispatch(rejectOffer({ offerId, producerId: user.id })).unwrap();
-      Alert.alert('Succès', 'Offre refusée');
-      onRefresh();
+      
+      const confirmMessage = role === 'buyer' 
+        ? 'Voulez-vous refuser cette contre-proposition ?'
+        : 'Voulez-vous refuser cette offre ?';
+      
+      Alert.alert(
+        'Confirmer le refus',
+        confirmMessage,
+        [
+          { text: 'Annuler', style: 'cancel' },
+          {
+            text: 'Refuser',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await dispatch(rejectOffer({ offerId, producerId: user.id, role })).unwrap();
+                Alert.alert(
+                  'Succès', 
+                  role === 'buyer' ? 'Contre-proposition refusée' : 'Offre refusée'
+                );
+                onRefresh();
+              } catch (err) {
+                Alert.alert('Erreur', getErrorMessage(err));
+              }
+            },
+          },
+        ]
+      );
     } catch (error) {
       Alert.alert('Erreur', getErrorMessage(error));
     }
@@ -121,6 +199,48 @@ function MarketplaceOffersTab({
         },
       },
     ]);
+  };
+
+  // Ouvrir le modal de contre-proposition
+  const handleCounterOffer = (offer: Offer) => {
+    setSelectedOfferForCounter(offer);
+    const currentPrice = offer.offeredAmount || offer.proposedPrice || 0;
+    setCounterPrice(currentPrice.toString());
+    setCounterMessage('');
+    setCounterModalVisible(true);
+  };
+
+  // Soumettre la contre-proposition
+  const submitCounterOffer = async () => {
+    if (!selectedOfferForCounter || !user?.id) return;
+    
+    const newPrice = parseFloat(counterPrice);
+    if (isNaN(newPrice) || newPrice <= 0) {
+      Alert.alert('Erreur', 'Veuillez entrer un prix valide');
+      return;
+    }
+
+    setIsSubmittingCounter(true);
+    try {
+      await dispatch(counterOffer({
+        offerId: selectedOfferForCounter.id,
+        producerId: user.id,
+        nouveauPrixTotal: newPrice,
+        message: counterMessage.trim() || undefined,
+      })).unwrap();
+      
+      Alert.alert(
+        'Succès', 
+        `Contre-proposition de ${newPrice.toLocaleString('fr-FR')} FCFA envoyée à l'acheteur`
+      );
+      setCounterModalVisible(false);
+      setSelectedOfferForCounter(null);
+      onRefresh();
+    } catch (error) {
+      Alert.alert('Erreur', getErrorMessage(error) || 'Impossible d\'envoyer la contre-proposition');
+    } finally {
+      setIsSubmittingCounter(false);
+    }
   };
 
   const currentOffers = offersTab === 'received' ? receivedOffers : sentOffers;
@@ -200,11 +320,17 @@ function MarketplaceOffersTab({
         </View>
 
         <View style={styles.content}>
+          {/* Afficher le nom du producteur pour les contre-propositions reçues */}
+          {(item.isCounterProposalReceived || item.counterOfferOf) && offersTab === 'received' && (
+            <Text style={[styles.sellerName, { color: marketplaceColors.textSecondary, marginBottom: 4 }]}>
+              De: {item.seller_nom || item.buyer_nom} {item.seller_prenom || item.buyer_prenom}
+            </Text>
+          )}
           <Text style={[styles.subjectCount, { color: marketplaceColors.text }]}>
             {getSubjectCount()} sujet{getSubjectCount() > 1 ? 's' : ''}
           </Text>
           <Text style={[styles.price, { color: marketplaceColors.primary }]}>
-            {item.status === 'countered' && offersTab === 'sent'
+            {(item.isCounterProposalReceived || item.counterOfferOf) && offersTab === 'received'
               ? 'Prix proposé par le producteur: '
               : 'Offre: '}
             {getOfferAmount().toLocaleString()} FCFA
@@ -231,7 +357,8 @@ function MarketplaceOffersTab({
           )}
         </View>
 
-        {isPending && offersTab === 'received' && (
+        {/* Boutons pour le PRODUCTEUR : offres initiales reçues (pending, pas de contre-proposition) */}
+        {isPending && offersTab === 'received' && !item.isCounterProposalReceived && !item.counterOfferOf && (
           <View style={styles.actions}>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: marketplaceColors.success }]}
@@ -251,19 +378,17 @@ function MarketplaceOffersTab({
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: marketplaceColors.primary }]}
-              onPress={() => {
-                Alert.alert('Chat', "Ouvrir le chat avec l'acheteur");
-              }}
+              onPress={() => handleCounterOffer(item)}
             >
               <Text style={[styles.actionText, { color: marketplaceColors.textInverse }]}>
-                💬 Chat
+                💰 Contre-proposition
               </Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {/* Pour les contre-propositions reçues par l'acheteur (offres envoyées avec statut "countered") */}
-        {item.status === 'countered' && offersTab === 'sent' && (
+        {/* Boutons pour l'ACHETEUR : contre-propositions reçues du producteur (dans onglet "reçues") */}
+        {offersTab === 'received' && (item.isCounterProposalReceived || item.counterOfferOf) && item.status === 'countered' && (
           <View style={styles.actions}>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: marketplaceColors.success }]}
@@ -275,7 +400,7 @@ function MarketplaceOffersTab({
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: marketplaceColors.error }]}
-              onPress={() => handleRejectOffer(item.id)}
+              onPress={() => handleRejectOffer(item.id, 'buyer')}
             >
               <Text style={[styles.actionText, { color: marketplaceColors.textInverse }]}>
                 ❌ Refuser
@@ -327,10 +452,10 @@ function MarketplaceOffersTab({
           >
             Reçues ({receivedOffers.length})
           </Text>
-          {receivedOffers.filter((o) => o.status === 'pending').length > 0 && (
+          {receivedOffers.filter((o) => o.status === 'pending' || (o.status === 'countered' && (o.isCounterProposalReceived || o.counterOfferOf))).length > 0 && (
             <View style={[styles.tabBadge, { backgroundColor: marketplaceColors.error }]}>
               <Text style={[styles.tabBadgeText, { color: marketplaceColors.textInverse }]}>
-                {receivedOffers.filter((o) => o.status === 'pending').length}
+                {receivedOffers.filter((o) => o.status === 'pending' || (o.status === 'countered' && (o.isCounterProposalReceived || o.counterOfferOf))).length}
               </Text>
             </View>
           )}
@@ -398,9 +523,131 @@ function MarketplaceOffersTab({
         maxToRenderPerBatch={10}
         windowSize={5}
         initialNumToRender={10}
-        ListFooterComponent={<View style={{ height: 20 }} />} // ✅ Espace supplémentaire en bas
+        ListFooterComponent={<View style={{ height: 20 }} />}
         showsVerticalScrollIndicator={true}
+        nestedScrollEnabled={true} // ✅ Permet le scroll imbriqué
       />
+
+      {/* Modal de contre-proposition */}
+      <Modal
+        visible={counterModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setCounterModalVisible(false)}
+      >
+        <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.divider }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Contre-proposition
+              </Text>
+              <TouchableOpacity onPress={() => setCounterModalVisible(false)}>
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {selectedOfferForCounter && (
+              <>
+                <ScrollView 
+                  style={styles.modalBody} 
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={styles.modalBodyContent}
+                >
+                  {/* Informations de l'offre actuelle */}
+                  <View style={[styles.infoCard, { backgroundColor: colors.surfaceLight || colors.surface }]}>
+                    <View style={styles.infoRow}>
+                      <Ionicons name="pricetag-outline" size={20} color={colors.textSecondary} />
+                      <View style={styles.infoContent}>
+                        <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                          Offre actuelle
+                        </Text>
+                        <Text style={[styles.infoValue, { color: colors.text }]}>
+                          {(selectedOfferForCounter.offeredAmount || selectedOfferForCounter.proposedPrice || 0).toLocaleString('fr-FR')} FCFA
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.infoRow}>
+                      <Ionicons name="cash-outline" size={20} color={colors.textSecondary} />
+                      <View style={styles.infoContent}>
+                        <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                          Prix de l'annonce
+                        </Text>
+                        <Text style={[styles.infoValue, { color: colors.text }]}>
+                          {(selectedOfferForCounter.originalPrice || 0).toLocaleString('fr-FR')} FCFA
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Champ prix proposé */}
+                  <View style={styles.inputSection}>
+                    <Text style={[styles.inputLabel, { color: colors.text }]}>
+                      Votre prix proposé (FCFA)
+                    </Text>
+                    <TextInput
+                      style={[styles.modalInput, { 
+                        backgroundColor: colors.background,
+                        color: colors.text,
+                        borderColor: colors.border
+                      }]}
+                      value={counterPrice}
+                      onChangeText={setCounterPrice}
+                      keyboardType="numeric"
+                      placeholder="Ex: 150000"
+                      placeholderTextColor={colors.textSecondary}
+                    />
+                  </View>
+
+                  {/* Champ message */}
+                  <View style={styles.inputSection}>
+                    <Text style={[styles.inputLabel, { color: colors.text }]}>
+                      Message (optionnel)
+                    </Text>
+                    <TextInput
+                      style={[styles.modalInput, styles.messageInput, { 
+                        backgroundColor: colors.background,
+                        color: colors.text,
+                        borderColor: colors.border
+                      }]}
+                      value={counterMessage}
+                      onChangeText={setCounterMessage}
+                      placeholder="Expliquez votre proposition..."
+                      placeholderTextColor={colors.textSecondary}
+                      multiline
+                      numberOfLines={3}
+                      textAlignVertical="top"
+                    />
+                  </View>
+                </ScrollView>
+
+                {/* Boutons d'action (fixés en bas) */}
+                <View style={[styles.modalActions, { backgroundColor: colors.surface, borderTopColor: colors.divider }]}>
+                  <TouchableOpacity
+                    style={[styles.modalButtonCancel, { borderColor: colors.border }]}
+                    onPress={() => setCounterModalVisible(false)}
+                    disabled={isSubmittingCounter}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.modalButtonTextCancel, { color: colors.text }]}>
+                      Annuler
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalButtonSend, { backgroundColor: colors.primary }]}
+                    onPress={submitCounterOffer}
+                    disabled={isSubmittingCounter || !counterPrice || parseFloat(counterPrice) <= 0}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.modalButtonTextSend, { color: colors.textOnPrimary || '#FFF' }]}>
+                      {isSubmittingCounter ? 'Envoi...' : 'Envoyer'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -527,6 +774,107 @@ const styles = StyleSheet.create({
   actionText: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  // Styles pour le modal de contre-proposition (style similaire au modal d'ajout de profil)
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: SPACING.lg,
+    paddingBottom: 32,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.lg,
+    paddingBottom: SPACING.md,
+    borderBottomWidth: 1,
+  },
+  modalTitle: {
+    fontSize: FONT_SIZES.xl,
+    fontWeight: FONT_WEIGHTS.bold,
+  },
+  modalBody: {
+    flex: 1,
+  },
+  modalBodyContent: {
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.md,
+    gap: SPACING.md,
+  },
+  infoCard: {
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+  },
+  infoContent: {
+    marginLeft: SPACING.sm,
+    flex: 1,
+  },
+  infoLabel: {
+    fontSize: FONT_SIZES.sm,
+    marginBottom: 2,
+  },
+  infoValue: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: FONT_WEIGHTS.semiBold,
+  },
+  inputSection: {
+    marginBottom: SPACING.md,
+  },
+  inputLabel: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: FONT_WEIGHTS.semiBold,
+    marginBottom: SPACING.xs,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    fontSize: FONT_SIZES.md,
+  },
+  messageInput: {
+    minHeight: 100,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.lg,
+    borderTopWidth: 1,
+  },
+  modalButtonCancel: {
+    flex: 1,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  modalButtonTextCancel: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: FONT_WEIGHTS.semiBold,
+  },
+  modalButtonSend: {
+    flex: 1,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    alignItems: 'center',
+  },
+  modalButtonTextSend: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: FONT_WEIGHTS.semiBold,
   },
 });
 

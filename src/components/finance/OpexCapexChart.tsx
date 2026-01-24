@@ -7,6 +7,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Dimensions, ScrollView, TextStyle } from 'react-native';
 import { BarChart } from 'react-native-chart-kit';
 import { useAppSelector } from '../../store/hooks';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
 import { selectAllDepensesPonctuelles } from '../../store/selectors/financeSelectors';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -24,7 +25,8 @@ const screenWidth = Dimensions.get('window').width;
 export default function OpexCapexChart() {
   const { colors, isDark } = useTheme();
   const depensesPonctuelles = useAppSelector(selectAllDepensesPonctuelles);
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   const chartData = useMemo(() => {
     const maintenant = new Date();

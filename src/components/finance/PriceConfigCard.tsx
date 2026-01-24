@@ -6,6 +6,7 @@ import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ViewStyle } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
 import { updateProjet } from '../../store/slices/projetSlice';
 import { SPACING, FONT_SIZES } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -20,7 +21,8 @@ interface PriceConfigCardProps {
 export default function PriceConfigCard({ onPriceUpdate }: PriceConfigCardProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   const [isEditingPrix, setIsEditingPrix] = useState(false);
   const [prixVif, setPrixVif] = useState<string>('');

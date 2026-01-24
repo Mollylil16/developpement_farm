@@ -150,10 +150,6 @@ export class MarketplaceService {
       await this.checkProjetOwnership(createBatchListingDto.farmId, userId);
 
       // Valider les champs requis
-      if (!createBatchListingDto.averageWeight || createBatchListingDto.averageWeight <= 0) {
-        throw new BadRequestException('Le poids moyen doit être supérieur à 0');
-      }
-
       if (!createBatchListingDto.pricePerKg || createBatchListingDto.pricePerKg <= 0) {
         throw new BadRequestException('Le prix au kg doit être supérieur à 0');
       }
@@ -270,13 +266,45 @@ export class MarketplaceService {
         throw new BadRequestException('Ces porcs sont déjà en vente sur le marketplace');
       }
 
+      // ✅ Calculer le poids moyen automatiquement à partir des poids réels des porcs
+      let averageWeight: number;
+      
+      if (createBatchListingDto.averageWeight && createBatchListingDto.averageWeight > 0) {
+        // Si le poids moyen est fourni, l'utiliser
+        averageWeight = parseFloat(String(createBatchListingDto.averageWeight));
+      } else {
+        // Calculer automatiquement depuis les poids réels des porcs sélectionnés
+        const pigsWeightResult = await this.databaseService.query(
+          `SELECT AVG(current_weight_kg) as avg_weight, SUM(current_weight_kg) as total_weight
+           FROM batch_pigs 
+           WHERE id = ANY($1::varchar[]) AND current_weight_kg IS NOT NULL AND current_weight_kg > 0`,
+          [pigIds]
+        );
+        
+        const calculatedAvgWeight = parseFloat(pigsWeightResult.rows[0]?.avg_weight) || 0;
+        
+        if (calculatedAvgWeight <= 0) {
+          // Fallback: utiliser le poids moyen de la bande si disponible
+          averageWeight = parseFloat(batchData.average_weight_kg) || 0;
+          
+          if (averageWeight <= 0) {
+            throw new BadRequestException(
+              'Impossible de calculer le poids moyen. Veuillez d\'abord peser les porcs ou renseigner un poids moyen pour la bande.'
+            );
+          }
+          
+          this.logger.warn(`[createBatchListing] Aucun poids individuel disponible, utilisation du poids moyen de la bande: ${averageWeight} kg`);
+        } else {
+          averageWeight = calculatedAvgWeight;
+          this.logger.log(`[createBatchListing] Poids moyen calculé automatiquement: ${averageWeight.toFixed(2)} kg pour ${pigIds.length} porcs`);
+        }
+      }
+
       // Utiliser une transaction pour garantir la cohérence des données
       return await this.databaseService.transaction(async (client) => {
         const id = this.generateId('listing');
         const now = new Date().toISOString();
         
-        // S'assurer que averageWeight est un nombre valide
-        const averageWeight = parseFloat(String(createBatchListingDto.averageWeight)) || 0;
         const pricePerKg = parseFloat(String(createBatchListingDto.pricePerKg)) || 0;
         
         if (averageWeight <= 0 || pricePerKg <= 0) {
@@ -569,14 +597,16 @@ export class MarketplaceService {
           COUNT(CASE WHEN producer_id = $1 AND farm_id = $2 THEN 1 END) as by_both
           FROM marketplace_listings WHERE status != 'removed'`;
         const checkResult = await this.databaseService.query(checkQuery, [userId || '', projetId || '']);
-        this.logger.warn(`[findAllListings] Aucun listing trouvé. Statistiques:`, checkResult.rows[0]);
-        // Récupérer les valeurs réelles dans la base pour comparaison
-        const actualValuesQuery = `SELECT id, producer_id, farm_id, status, 
-          pg_typeof(producer_id) as producer_id_type, 
-          pg_typeof(farm_id) as farm_id_type
-          FROM marketplace_listings WHERE status != 'removed' LIMIT 5`;
-        const actualValues = await this.databaseService.query(actualValuesQuery);
-        this.logger.warn(`[findAllListings] Valeurs réelles dans la base:`, actualValues.rows);
+        this.logger.debug(`[findAllListings] Aucun listing trouvé. Statistiques:`, checkResult.rows[0]);
+        // Récupérer les valeurs réelles dans la base pour comparaison (debug uniquement)
+        if (process.env.NODE_ENV !== 'production') {
+          const actualValuesQuery = `SELECT id, producer_id, farm_id, status, 
+            pg_typeof(producer_id) as producer_id_type, 
+            pg_typeof(farm_id) as farm_id_type
+            FROM marketplace_listings WHERE status != 'removed' LIMIT 5`;
+          const actualValues = await this.databaseService.query(actualValuesQuery);
+          this.logger.debug(`[findAllListings] Valeurs réelles dans la base:`, actualValues.rows);
+        }
       }
       
       // Mapper les résultats avec gestion d'erreur pour chaque ligne
@@ -870,13 +900,30 @@ export class MarketplaceService {
       };
     }
 
+    // ✅ Log de diagnostic : voir quel ID est recherché
+    this.logger.debug(`[getListingSubjects] Recherche listing avec ID: ${listingId}`);
+
     const listingResult = await this.databaseService.query(
       `SELECT * FROM marketplace_listings WHERE id = $1`,
       [listingId]
     );
 
     if (listingResult.rows.length === 0) {
-      throw new NotFoundException('Listing non trouvé');
+      // ✅ Log de diagnostic : voir pourquoi le listing n'est pas trouvé
+      this.logger.warn(`[getListingSubjects] Listing non trouvé pour ID: ${listingId} (type: ${typeof listingId}, longueur: ${listingId?.length})`);
+      
+      // Vérifier si c'est peut-être un pigId au lieu d'un listingId
+      const pigIdCheck = await this.databaseService.query(
+        `SELECT id FROM production_animaux WHERE id = $1 LIMIT 1`,
+        [listingId]
+      );
+      
+      if (pigIdCheck.rows.length > 0) {
+        this.logger.warn(`[getListingSubjects] L'ID ${listingId} correspond à un animal (pigId), pas à un listing. Vérifier que originalListingId est utilisé.`);
+      }
+      
+      // Lancer NotFoundException après la vérification pigId
+      throw new NotFoundException(`Listing non trouvé pour l'ID: ${listingId}`);
     }
 
     const listing = listingResult.rows[0];
@@ -925,47 +972,94 @@ export class MarketplaceService {
           date: row.derniere_pesee_date,
         } : null,
       }));
-    } else if (listing.listing_type === 'batch' && listing.pig_ids && listing.pig_ids.length > 0) {
+    } else if (listing.listing_type === 'batch' && listing.pig_ids) {
       // Listing batch : plusieurs animaux
-      const animalsResult = await this.databaseService.query(
-        `SELECT 
-          a.id, a.code, a.nom, a.race, a.sexe, a.date_naissance, 
-          a.poids_initial, a.categorie_poids, a.statut, a.photo_uri,
-          (
-            SELECT poids_kg 
-            FROM production_pesees 
-            WHERE animal_id = a.id 
-            ORDER BY date DESC 
-            LIMIT 1
-          ) as derniere_pesee_poids,
-          (
-            SELECT date 
-            FROM production_pesees 
-            WHERE animal_id = a.id 
-            ORDER BY date DESC 
-            LIMIT 1
-          ) as derniere_pesee_date
-        FROM production_animaux a
-        WHERE a.id = ANY($1)`,
-        [listing.pig_ids]
-      );
+      // ✅ Log de diagnostic : voir ce que contient pig_ids
+      this.logger.debug(`[getListingSubjects] Listing batch - pig_ids type: ${typeof listing.pig_ids}, isArray: ${Array.isArray(listing.pig_ids)}, value: ${JSON.stringify(listing.pig_ids)}`);
+      
+      // ✅ Convertir pig_ids JSONB en array PostgreSQL pour la requête ANY()
+      // pig_ids peut être un JSONB array ou déjà un array JavaScript selon le driver
+      let pigIdsArray: string[];
+      if (Array.isArray(listing.pig_ids)) {
+        pigIdsArray = listing.pig_ids;
+        this.logger.debug(`[getListingSubjects] pig_ids est déjà un array JavaScript: ${pigIdsArray.length} éléments`);
+      } else if (typeof listing.pig_ids === 'string') {
+        try {
+          pigIdsArray = JSON.parse(listing.pig_ids);
+          this.logger.debug(`[getListingSubjects] pig_ids était une string JSON, parsée en array: ${pigIdsArray.length} éléments`);
+        } catch (error) {
+          this.logger.warn(`[getListingSubjects] Erreur parsing pig_ids JSON pour listing ${listingId}:`, error);
+          pigIdsArray = [];
+        }
+      } else {
+        // Si c'est un JSONB, extraire les valeurs avec jsonb_array_elements_text
+        // On va utiliser une requête qui convertit le JSONB en array
+        this.logger.debug(`[getListingSubjects] pig_ids est un JSONB, conversion nécessaire`);
+        const pigIdsResult = await this.databaseService.query(
+          `SELECT ARRAY(SELECT jsonb_array_elements_text($1::jsonb))::varchar[] as pig_ids_array`,
+          [JSON.stringify(listing.pig_ids)]
+        );
+        pigIdsArray = pigIdsResult.rows[0]?.pig_ids_array || [];
+        this.logger.debug(`[getListingSubjects] pig_ids JSONB converti en array: ${pigIdsArray.length} éléments`);
+      }
 
-      subjects = animalsResult.rows.map((row: any) => ({
-        id: row.id,
-        code: row.code,
-        nom: row.nom,
-        race: row.race,
-        sexe: row.sexe,
-        date_naissance: row.date_naissance,
-        poids_initial: row.poids_initial ? parseFloat(row.poids_initial) : null,
-        categorie_poids: row.categorie_poids,
-        statut: row.statut,
-        photo_uri: row.photo_uri,
-        derniere_pesee: row.derniere_pesee_poids ? {
-          poids_kg: parseFloat(row.derniere_pesee_poids),
-          date: row.derniere_pesee_date,
-        } : null,
-      }));
+      // ✅ Log de diagnostic : voir les pigIds extraits
+      this.logger.debug(`[getListingSubjects] pigIdsArray final: ${JSON.stringify(pigIdsArray)}`);
+
+      if (pigIdsArray.length === 0) {
+        this.logger.warn(`[getListingSubjects] Aucun pigId valide trouvé dans pig_ids pour listing ${listingId}. pig_ids original: ${JSON.stringify(listing.pig_ids)}`);
+        subjects = [];
+      } else {
+        // ✅ Log de diagnostic : voir la requête qui sera exécutée
+        this.logger.debug(`[getListingSubjects] Exécution requête SQL avec ${pigIdsArray.length} pigIds: ${JSON.stringify(pigIdsArray.slice(0, 5))}...`);
+        
+        // ✅ IMPORTANT: Pour les listings batch, les animaux sont dans batch_pigs, pas production_animaux
+        const animalsResult = await this.databaseService.query(
+          `SELECT 
+            bp.id,
+            COALESCE(bp.name, bp.id::text) as code, -- batch_pigs n'a pas de code, utiliser name ou id
+            bp.name as nom,
+            NULL as race, -- batches n'a pas de race, sera null
+            bp.sex as sexe, -- batch_pigs a une colonne sex
+            bp.birth_date as date_naissance, -- batch_pigs a birth_date
+            bp.current_weight_kg as poids_initial, -- Utiliser current_weight_kg comme poids
+            NULL as categorie_poids, -- batch_pigs n'a pas de categorie_poids
+            'vivant' as statut, -- batch_pigs n'a pas de colonne status, utiliser 'vivant' par défaut
+            bp.photo_url as photo_uri, -- batch_pigs a photo_url, pas photo_uri
+            bp.current_weight_kg as derniere_pesee_poids, -- Utiliser current_weight_kg comme dernière pesée
+            bp.last_weighing_date as derniere_pesee_date -- Utiliser last_weighing_date si disponible
+          FROM batch_pigs bp
+          WHERE bp.id = ANY($1::varchar[])`,
+          [pigIdsArray]
+        );
+
+        // ✅ Log de diagnostic : voir combien d'animaux ont été trouvés
+        this.logger.debug(`[getListingSubjects] Requête SQL retournée ${animalsResult.rows.length} animaux sur ${pigIdsArray.length} pigIds recherchés`);
+        
+        if (animalsResult.rows.length < pigIdsArray.length) {
+          // Trouver les pigIds qui n'ont pas été trouvés
+          const foundIds = new Set(animalsResult.rows.map((r: any) => r.id));
+          const missingIds = pigIdsArray.filter(id => !foundIds.has(id));
+          this.logger.warn(`[getListingSubjects] ${missingIds.length} pigIds non trouvés dans production_animaux: ${JSON.stringify(missingIds)}`);
+        }
+
+        subjects = animalsResult.rows.map((row: any) => ({
+          id: row.id,
+          code: row.code || `#${row.id.slice(0, 8)}`, // Fallback si pas de code
+          nom: row.nom || null,
+          race: row.race || null,
+          sexe: row.sexe || null,
+          date_naissance: row.date_naissance || null,
+          poids_initial: row.poids_initial ? parseFloat(row.poids_initial) : (row.derniere_pesee_poids ? parseFloat(row.derniere_pesee_poids) : null),
+          categorie_poids: row.categorie_poids || null,
+          statut: row.statut || 'vivant',
+          photo_uri: row.photo_uri || null,
+          derniere_pesee: row.derniere_pesee_poids ? {
+            poids_kg: parseFloat(row.derniere_pesee_poids),
+            date: row.derniere_pesee_date || new Date().toISOString(),
+          } : null,
+        }));
+      }
     }
 
     const result = {
@@ -986,9 +1080,34 @@ export class MarketplaceService {
    * Récupérer plusieurs listings avec leurs sujets en une seule requête
    */
   async getListingsWithSubjects(listingIds: string[]) {
+    // ✅ Log de diagnostic : voir quels IDs sont reçus
+    this.logger.log(`[getListingsWithSubjects] Appelé avec ${listingIds.length} listingIds:`, listingIds);
+
     const results = await Promise.allSettled(
       listingIds.map(id => this.getListingSubjects(id))
     );
+
+    // ✅ Log de diagnostic : voir quels IDs ont réussi/échoué
+    const successful: string[] = [];
+    const failed: Array<{ id: string; reason: string }> = [];
+
+    results.forEach((result, index) => {
+      const listingId = listingIds[index];
+      if (result.status === 'fulfilled') {
+        successful.push(listingId);
+      } else {
+        failed.push({
+          id: listingId,
+          reason: result.reason?.message || String(result.reason) || 'Unknown error',
+        });
+      }
+    });
+
+    this.logger.log(`[getListingsWithSubjects] Résultats: ${successful.length} réussis, ${failed.length} échoués`);
+    
+    if (failed.length > 0) {
+      this.logger.warn(`[getListingsWithSubjects] IDs échoués:`, failed);
+    }
 
     return results
       .filter((result): result is PromiseFulfilledResult<any> => result.status === 'fulfilled')
@@ -1124,6 +1243,36 @@ export class MarketplaceService {
       throw new BadRequestException("Cette annonce n'est plus disponible");
     }
 
+    // Vérifier si l'acheteur a déjà une offre acceptée pour ce listing avec des sujets en commun
+    // Logique simple : récupérer tous les subjectIds des offres acceptées et vérifier s'il y a intersection
+    const existingAcceptedOffers = await this.databaseService.query(
+      `SELECT subject_ids FROM marketplace_offers 
+       WHERE buyer_id = $1 
+       AND listing_id = $2 
+       AND status = 'accepted'`,
+      [userId, createOfferDto.listingId]
+    );
+
+    // Collecter tous les subjectIds déjà acceptés
+    const acceptedSubjectIds = new Set<string>();
+    for (const offerRow of existingAcceptedOffers.rows) {
+      const existingSubjectIds = Array.isArray(offerRow.subject_ids)
+        ? offerRow.subject_ids
+        : typeof offerRow.subject_ids === 'string'
+        ? JSON.parse(offerRow.subject_ids)
+        : [];
+      existingSubjectIds.forEach((id: string) => acceptedSubjectIds.add(id));
+    }
+
+    // Vérifier si au moins un sujet de la nouvelle offre est déjà accepté
+    const hasAcceptedSubject = createOfferDto.subjectIds.some((id) => acceptedSubjectIds.has(id));
+
+    if (hasAcceptedSubject) {
+      throw new BadRequestException(
+        "Vous avez déjà une offre acceptée par le producteur pour ce sujet. Merci de consulter vos offres reçues."
+      );
+    }
+
     const id = this.generateId('offer');
     const now = new Date().toISOString();
     const expiresAt =
@@ -1161,6 +1310,22 @@ export class MarketplaceService {
       'UPDATE marketplace_listings SET inquiries = inquiries + 1 WHERE id = $1',
       [createOfferDto.listingId]
     );
+
+    // ✅ Notifier le producteur de la nouvelle offre
+    try {
+      const offerSubjectCount = createOfferDto.subjectIds?.length || 1;
+      await this.notificationsService.createNotification({
+        userId: listing.producerId,
+        type: NotificationType.NEW_OFFER,
+        title: 'Nouvelle offre reçue',
+        message: `Vous avez reçu une offre de ${createOfferDto.proposedPrice.toLocaleString('fr-FR')} FCFA pour ${offerSubjectCount} sujet(s)`,
+        relatedType: 'offer',
+        relatedId: id,
+      });
+      this.logger.log(`[createOffer] Notification envoyée au producteur ${listing.producerId} pour offre ${id}`);
+    } catch (error) {
+      this.logger.warn(`[createOffer] Erreur notification au producteur: ${error.message}`);
+    }
 
     return this.mapRowToOffer(result.rows[0]);
   }
@@ -1244,11 +1409,57 @@ export class MarketplaceService {
         ['accepted', now, offerData.proposed_price, offerId]
       );
 
-      // Mettre à jour le listing
-      await client.query(
-        'UPDATE marketplace_listings SET status = $1, derniere_modification = $2 WHERE id = $3',
-        ['reserved', now, offerData.listing_id]
+      // ✅ Récupérer le listing pour déterminer la mise à jour appropriée
+      const listingResult = await client.query(
+        'SELECT pig_ids, pig_count, listing_type, price_per_kg, weight FROM marketplace_listings WHERE id = $1',
+        [offerData.listing_id]
       );
+      
+      const listing = listingResult.rows[0];
+      const offerSubjectIds = Array.isArray(offerData.subject_ids) 
+        ? offerData.subject_ids 
+        : JSON.parse(offerData.subject_ids || '[]');
+      const listingPigIds = Array.isArray(listing?.pig_ids) 
+        ? listing.pig_ids 
+        : JSON.parse(listing?.pig_ids || '[]');
+      
+      // ✅ Déterminer si l'offre concerne tous les sujets ou seulement une partie
+      const isPartialSale = listing?.listing_type === 'batch' && 
+                           listingPigIds.length > 0 && 
+                           offerSubjectIds.length > 0 &&
+                           offerSubjectIds.length < listingPigIds.length;
+      
+      if (isPartialSale) {
+        // ✅ VENTE PARTIELLE: Retirer les sujets vendus du listing et le garder actif
+        const remainingPigIds = listingPigIds.filter((id: string) => !offerSubjectIds.includes(id));
+        const newPigCount = remainingPigIds.length;
+        
+        // Recalculer le poids moyen et le prix pour les sujets restants
+        // Optimisation: utiliser le poids moyen existant du listing comme approximation
+        // Cela évite une requête SQL coûteuse sur batch_pigs qui peut prendre plusieurs secondes
+        // Le poids moyen reste généralement stable pour un lot
+        const newAvgWeight = listing.weight || 0;
+        const pricePerKg = parseFloat(listing.price_per_kg) || 0;
+        const newCalculatedPrice = pricePerKg * newAvgWeight * newPigCount;
+        
+        await client.query(
+          `UPDATE marketplace_listings 
+           SET pig_ids = $1, pig_count = $2, weight = $3, calculated_price = $4, 
+               status = 'available', derniere_modification = $5 
+           WHERE id = $6`,
+          [JSON.stringify(remainingPigIds), newPigCount, newAvgWeight, newCalculatedPrice, now, offerData.listing_id]
+        );
+        
+        this.logger.log(`[acceptOffer] Vente partielle: ${offerSubjectIds.length} sujet(s) vendu(s), ${remainingPigIds.length} restant(s) sur le listing ${offerData.listing_id}`);
+      } else {
+        // ✅ VENTE TOTALE: Marquer le listing comme réservé/vendu
+        await client.query(
+          'UPDATE marketplace_listings SET status = $1, derniere_modification = $2 WHERE id = $3',
+          ['reserved', now, offerData.listing_id]
+        );
+        
+        this.logger.log(`[acceptOffer] Vente totale: listing ${offerData.listing_id} marqué comme 'reserved'`);
+      }
 
       // Créer la transaction
       const transactionId = this.generateId('transaction');
@@ -1273,35 +1484,145 @@ export class MarketplaceService {
         ]
       );
 
-      // Notifier l'autre partie
-      const notifyUserId = role === 'producer' ? offerData.buyer_id : offerData.producer_id;
-      try {
-        const listing = await this.findOneListing(offerData.listing_id);
-        await this.notificationsService.notifyOfferAccepted(
-          notifyUserId,
-          offerId,
-          (listing as any)?.title || (listing as any)?.code || 'Annonce'
+      // ✅ Rejeter automatiquement les autres offres pending sur ce listing (si vente totale)
+      if (!isPartialSale) {
+        const rejectedOffersResult = await client.query(
+          `UPDATE marketplace_offers 
+           SET status = 'rejected', responded_at = $1, derniere_modification = $1
+           WHERE listing_id = $2 AND id != $3 AND status IN ('pending', 'countered')
+           RETURNING id, buyer_id`,
+          [now, offerData.listing_id, offerId]
         );
-      } catch (error) {
-        this.logger.warn(`[acceptOffer] Impossible de récupérer le listing pour notification: ${error.message}`);
-        // Créer la notification de base si le listing n'est pas disponible
-        await this.notificationsService.createNotification({
-          userId: notifyUserId,
-          type: NotificationType.OFFER_ACCEPTED,
-          title: 'Offre acceptée',
-          message: role === 'producer' 
-            ? 'Votre offre a été acceptée par le producteur'
-            : 'Votre contre-proposition a été acceptée par l\'acheteur',
-          relatedType: 'transaction',
-          relatedId: transactionId,
-        });
+
+        // Notifier les autres acheteurs que leurs offres ont été automatiquement rejetées
+        // Optimisation: envoyer les notifications en parallèle au lieu de séquentiellement
+        if (rejectedOffersResult.rows.length > 0) {
+          const notificationPromises = rejectedOffersResult.rows.map((rejectedOffer) =>
+            this.notificationsService.createNotification({
+              userId: rejectedOffer.buyer_id,
+              type: NotificationType.OFFER_REJECTED,
+              title: 'Offre non retenue',
+              message: 'Votre offre n\'a pas été retenue car une autre offre a été acceptée sur cette annonce',
+              relatedType: 'offer',
+              relatedId: rejectedOffer.id,
+            }).catch((e) => {
+              this.logger.warn(`[acceptOffer] Erreur notification offre rejetée ${rejectedOffer.id}: ${e.message}`);
+            })
+          );
+          
+          // Attendre toutes les notifications en parallèle (avec timeout pour éviter de bloquer trop longtemps)
+          await Promise.allSettled(notificationPromises);
+        }
+
+        if (rejectedOffersResult.rows.length > 0) {
+          this.logger.log(`[acceptOffer] ${rejectedOffersResult.rows.length} autre(s) offre(s) automatiquement rejetée(s)`);
+        }
       }
+
+      // ✅ NOTIFICATIONS ENRICHIES avec contact et localisation
+      // Récupérer les informations complètes du producteur et de l'acheteur
+      const [producerResult, buyerResult, listingLocationResult] = await Promise.all([
+        client.query(
+          'SELECT id, nom, prenom, email, telephone FROM users WHERE id = $1',
+          [offerData.producer_id]
+        ),
+        client.query(
+          'SELECT id, nom, prenom, email, telephone FROM users WHERE id = $1',
+          [offerData.buyer_id]
+        ),
+        client.query(
+          `SELECT location_latitude, location_longitude, location_address, location_city, location_region, farm_id
+           FROM marketplace_listings WHERE id = $1`,
+          [offerData.listing_id]
+        ),
+      ]);
+
+      const producer = producerResult.rows[0];
+      const buyer = buyerResult.rows[0];
+      const listingLocation = listingLocationResult.rows[0];
+
+      // Récupérer le nom de la ferme si disponible
+      let farmName = 'Ferme';
+      if (listingLocation?.farm_id) {
+        const farmResult = await client.query(
+          'SELECT nom FROM projets WHERE id = $1',
+          [listingLocation.farm_id]
+        );
+        if (farmResult.rows[0]?.nom) {
+          farmName = farmResult.rows[0].nom;
+        }
+      }
+
+      const subjectCount = offerSubjectIds.length || 1;
+      const finalPrice = parseFloat(offerData.proposed_price) || 0;
+      const pickupDate = offerData.date_recuperation_souhaitee 
+        ? new Date(offerData.date_recuperation_souhaitee).toLocaleDateString('fr-FR')
+        : null;
+
+      // Envoyer les notifications enrichies en parallèle (sans bloquer)
+      const notificationPromises = [];
+
+      // Notification pour l'ACHETEUR avec détails de la ferme et contact producteur
+      if (buyer) {
+        notificationPromises.push(
+          this.notificationsService.notifySaleConfirmedToBuyer(
+            offerData.buyer_id,
+            transactionId,
+            {
+              producerName: `${producer?.prenom || ''} ${producer?.nom || ''}`.trim() || 'Producteur',
+              producerPhone: producer?.telephone || null,
+              producerEmail: producer?.email || null,
+              farmName,
+              farmAddress: listingLocation?.location_address || 'Adresse non disponible',
+              farmCity: listingLocation?.location_city || '',
+              farmRegion: listingLocation?.location_region || null,
+              latitude: listingLocation?.location_latitude ? parseFloat(listingLocation.location_latitude) : null,
+              longitude: listingLocation?.location_longitude ? parseFloat(listingLocation.location_longitude) : null,
+              finalPrice,
+              subjectCount,
+              pickupDate,
+            }
+          ).catch((e) => {
+            this.logger.warn(`[acceptOffer] Erreur notification enrichie acheteur: ${e.message}`);
+          })
+        );
+      }
+
+      // Notification pour le PRODUCTEUR avec contact acheteur
+      if (producer) {
+        notificationPromises.push(
+          this.notificationsService.notifySaleConfirmedToProducer(
+            offerData.producer_id,
+            transactionId,
+            {
+              buyerName: `${buyer?.prenom || ''} ${buyer?.nom || ''}`.trim() || 'Acheteur',
+              buyerPhone: buyer?.telephone || null,
+              buyerEmail: buyer?.email || null,
+              finalPrice,
+              subjectCount,
+              pickupDate,
+            }
+          ).catch((e) => {
+            this.logger.warn(`[acceptOffer] Erreur notification enrichie producteur: ${e.message}`);
+          })
+        );
+      }
+
+      // Attendre les notifications en parallèle (non-bloquant pour la réponse)
+      Promise.allSettled(notificationPromises).then(() => {
+        this.logger.log(`[acceptOffer] Notifications enrichies envoyées pour transaction ${transactionId}`);
+      });
 
       return this.mapRowToTransaction(transaction.rows[0]);
     });
   }
 
-  async rejectOffer(offerId: string, producerId: string) {
+  /**
+   * Rejeter une offre
+   * - Producteur peut rejeter une offre 'pending'
+   * - Acheteur peut rejeter une contre-proposition 'countered'
+   */
+  async rejectOffer(offerId: string, userId: string, role: 'producer' | 'buyer' = 'producer') {
     const offer = await this.databaseService.query(
       'SELECT * FROM marketplace_offers WHERE id = $1',
       [offerId]
@@ -1311,15 +1632,51 @@ export class MarketplaceService {
       throw new NotFoundException('Offre introuvable');
     }
 
-    if (offer.rows[0].producer_id !== producerId) {
-      throw new ForbiddenException("Vous n'êtes pas autorisé à rejeter cette offre");
+    const offerData = offer.rows[0];
+
+    // Validation selon le rôle
+    if (role === 'producer') {
+      // Producteur peut rejeter une offre pending
+      if (offerData.producer_id !== userId) {
+        throw new ForbiddenException("Vous n'êtes pas autorisé à rejeter cette offre");
+      }
+      if (offerData.status !== 'pending') {
+        throw new BadRequestException('Cette offre ne peut plus être rejetée (statut: ' + offerData.status + ')');
+      }
+    } else if (role === 'buyer') {
+      // Acheteur peut rejeter une contre-proposition
+      if (offerData.buyer_id !== userId) {
+        throw new ForbiddenException("Vous n'êtes pas autorisé à rejeter cette offre");
+      }
+      if (offerData.status !== 'countered') {
+        throw new BadRequestException('Vous ne pouvez rejeter que les contre-propositions reçues');
+      }
     }
+
+    const now = new Date().toISOString();
 
     await this.databaseService.query(
       'UPDATE marketplace_offers SET status = $1, responded_at = $2, derniere_modification = $2 WHERE id = $3',
-      ['rejected', new Date().toISOString(), offerId]
+      ['rejected', now, offerId]
     );
 
+    // Notifier l'autre partie
+    // Optimisation: notification en arrière-plan pour ne pas bloquer la réponse
+    const notifyUserId = role === 'producer' ? offerData.buyer_id : offerData.producer_id;
+    this.notificationsService.createNotification({
+      userId: notifyUserId,
+      type: NotificationType.OFFER_REJECTED,
+      title: role === 'producer' ? 'Offre refusée' : 'Contre-proposition refusée',
+      message: role === 'producer' 
+        ? 'Le producteur a refusé votre offre'
+        : 'L\'acheteur a refusé votre contre-proposition',
+      relatedType: 'offer',
+      relatedId: offerId,
+    }).catch((error) => {
+      this.logger.warn(`[rejectOffer] Erreur notification: ${error.message}`);
+    });
+
+    this.logger.log(`[rejectOffer] Offre ${offerId} rejetée par ${role} ${userId}`);
     return { id: offerId };
   }
 
@@ -1353,11 +1710,17 @@ export class MarketplaceService {
       throw new BadRequestException('Vous ne pouvez faire une contre-proposition que sur une offre en attente');
     }
 
-    // Récupérer le listing pour vérifier qu'il est toujours disponible
-    const listing = await this.findOneListing(originalOfferData.listing_id);
-    if (listing.status !== 'available') {
+    // Optimisation: vérifier le statut du listing avec une requête simple au lieu de findOneListing
+    const listingStatusResult = await this.databaseService.query(
+      'SELECT status, listing_type, pig_count FROM marketplace_listings WHERE id = $1',
+      [originalOfferData.listing_id]
+    );
+    
+    if (listingStatusResult.rows.length === 0 || listingStatusResult.rows[0].status !== 'available') {
       throw new BadRequestException("Cette annonce n'est plus disponible");
     }
+    
+    const listingInfo = listingStatusResult.rows[0];
 
     // Utiliser une transaction pour garantir la cohérence
     return await this.databaseService.transaction(async (client) => {
@@ -1399,17 +1762,21 @@ export class MarketplaceService {
       );
 
       // Notifier l'acheteur
+      // Optimisation: utiliser les données du listing déjà récupérées au lieu de refaire findOneListing
       try {
-        const listing = await this.findOneListing(originalOfferData.listing_id);
+        const listingTitle = listingInfo.listing_type === 'batch' 
+          ? `Lot de ${listingInfo.pig_count || 1} sujet(s)`
+          : 'Annonce';
+        
         await this.notificationsService.notifyOfferCountered(
           originalOfferData.buyer_id,
           counterOfferId,
-          (listing as any)?.title || (listing as any)?.code || 'Annonce',
+          listingTitle,
           counterOfferDto.nouveau_prix_total
         );
       } catch (error) {
-        this.logger.warn(`[counterOffer] Impossible de récupérer le listing pour notification: ${error.message}`);
-        // Créer la notification de base si le listing n'est pas disponible
+        this.logger.warn(`[counterOffer] Impossible d'envoyer la notification: ${error.message}`);
+        // Créer la notification de base si l'envoi échoue
         await this.notificationsService.createNotification({
           userId: originalOfferData.buyer_id,
           type: NotificationType.OFFER_COUNTERED,
@@ -1417,6 +1784,8 @@ export class MarketplaceService {
           message: `Le producteur vous propose un nouveau prix de ${counterOfferDto.nouveau_prix_total.toLocaleString('fr-FR')} FCFA`,
           relatedId: counterOfferId,
           relatedType: 'offer',
+        }).catch((e) => {
+          this.logger.warn(`[counterOffer] Erreur notification de base: ${e.message}`);
         });
       }
 
@@ -3392,6 +3761,7 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
     this.logger.log(`[getBuyerInquiries] Recherche offres pour buyerId: ${buyerId}`);
 
     // NOTE: Les offres sont stockées dans marketplace_offers (pas marketplace_inquiries)
+    // ✅ IMPORTANT: Récupérer o.subject_ids pour savoir quels sujets SPÉCIFIQUES ont été sélectionnés
     const offersResult = await this.databaseService.query(
       `SELECT
         o.id,
@@ -3406,13 +3776,14 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
         o.expires_at,
         o.counter_offer_of,
         o.date_recuperation_souhaitee,
+        o.subject_ids as offer_subject_ids,
         TO_CHAR(o.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as created_at_iso,
         TO_CHAR(o.responded_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as responded_at_iso,
         o.created_at,
         o.responded_at,
         l.calculated_price as listing_price,
         l.listing_type,
-        l.pig_count,
+        l.pig_count as listing_pig_count,
         l.subject_id,
         l.pig_ids,
         u.nom as seller_nom,
@@ -3421,63 +3792,76 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       FROM marketplace_offers o
       LEFT JOIN marketplace_listings l ON o.listing_id = l.id
       LEFT JOIN users u ON o.producer_id = u.id
-      WHERE o.buyer_id = $1
+      WHERE o.buyer_id = $1 
+        AND (o.counter_offer_of IS NULL)
       ORDER BY o.created_at DESC`,
       [buyerId]
     );
 
-    this.logger.log(`[getBuyerInquiries] ${buyerId}: ${offersResult.rows.length} offres trouvées`);
+    this.logger.log(`[getBuyerInquiries] ${buyerId}: ${offersResult.rows.length} offres initiales trouvées (sans contre-propositions)`);
 
     if (offersResult.rows.length > 0) {
       this.logger.debug('[getBuyerInquiries] Première offre brute:', {
         id: offersResult.rows[0].id,
         proposed_price: offersResult.rows[0].proposed_price,
-        pig_count: offersResult.rows[0].pig_count,
+        offer_subject_ids: offersResult.rows[0].offer_subject_ids,
         created_at: offersResult.rows[0].created_at,
         status: offersResult.rows[0].status,
         seller_nom: offersResult.rows[0].seller_nom,
       });
     }
 
-    return offersResult.rows.map((row: any) => ({
-      id: row.id,
-      listingId: row.listing_id,
-      buyerId: row.buyer_id,
-      sellerId: row.seller_id,
-      inquiryType: 'offer', // Les offres marketplace sont toujours de type 'offer'
-      offeredAmount: row.proposed_price ? parseFloat(row.proposed_price) : null,
-      proposedPrice: row.proposed_price ? parseFloat(row.proposed_price) : null,
-      originalPrice: row.original_price ? parseFloat(row.original_price) : null,
-      message: row.message,
-      status: row.status,
-      termsAccepted: row.terms_accepted,
-      expiresAt: row.expires_at,
-      counterOfferOf: row.counter_offer_of,
-      dateRecuperationSouhaitee: row.date_recuperation_souhaitee,
-      createdAt: row.created_at_iso || row.created_at,
-      respondedAt: row.responded_at_iso || row.responded_at,
-      // Propriétés aplaties pour compatibilité frontend
-      listing_price: row.listing_price ? parseFloat(row.listing_price) : null,
-      listing_type: row.listing_type,
-      pig_count: row.pig_count,
-      subject_id: row.subject_id,
-      pig_ids: row.pig_ids,
-      seller_nom: row.seller_nom,
-      seller_prenom: row.seller_prenom,
-      seller_telephone: row.seller_telephone,
-      // Objets nested aussi gardés pour compatibilité future
-      listing: {
-        id: row.listing_id,
-        price: row.listing_price ? parseFloat(row.listing_price) : null,
-        listingType: row.listing_type,
-      },
-      seller: {
-        id: row.seller_id,
-        nom: row.seller_nom,
-        prenom: row.seller_prenom,
-        telephone: row.seller_telephone,
-      },
-    }));
+    return offersResult.rows.map((row: any) => {
+      // ✅ Calculer le nombre réel de sujets dans l'offre
+      const offerSubjectIds = Array.isArray(row.offer_subject_ids) 
+        ? row.offer_subject_ids 
+        : (row.offer_subject_ids ? JSON.parse(row.offer_subject_ids) : []);
+      const offerPigCount = offerSubjectIds.length || 1;
+      
+      return {
+        id: row.id,
+        listingId: row.listing_id,
+        buyerId: row.buyer_id,
+        sellerId: row.seller_id,
+        inquiryType: 'offer', // Les offres marketplace sont toujours de type 'offer'
+        offeredAmount: row.proposed_price ? parseFloat(row.proposed_price) : null,
+        proposedPrice: row.proposed_price ? parseFloat(row.proposed_price) : null,
+        originalPrice: row.original_price ? parseFloat(row.original_price) : null,
+        message: row.message,
+        status: row.status,
+        termsAccepted: row.terms_accepted,
+        expiresAt: row.expires_at,
+        counterOfferOf: row.counter_offer_of,
+        dateRecuperationSouhaitee: row.date_recuperation_souhaitee,
+        createdAt: row.created_at_iso || row.created_at,
+        respondedAt: row.responded_at_iso || row.responded_at,
+        // ✅ CORRECTION: Utiliser les subjectIds de l'OFFRE (pas du listing)
+        subjectIds: offerSubjectIds,
+        pig_count: offerPigCount, // Nombre de sujets dans l'offre
+        // Propriétés aplaties pour compatibilité frontend
+        listing_price: row.listing_price ? parseFloat(row.listing_price) : null,
+        listing_type: row.listing_type,
+        listing_pig_count: row.listing_pig_count, // Nombre total de sujets dans le listing
+        subject_id: row.subject_id,
+        pig_ids: row.pig_ids,
+        seller_nom: row.seller_nom,
+        seller_prenom: row.seller_prenom,
+        seller_telephone: row.seller_telephone,
+        // Objets nested aussi gardés pour compatibilité future
+        listing: {
+          id: row.listing_id,
+          price: row.listing_price ? parseFloat(row.listing_price) : null,
+          listingType: row.listing_type,
+          pigCount: row.listing_pig_count,
+        },
+        seller: {
+          id: row.seller_id,
+          nom: row.seller_nom,
+          prenom: row.seller_prenom,
+          telephone: row.seller_telephone,
+        },
+      };
+    });
   }
 
   /**
@@ -3488,6 +3872,7 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       this.logger.log(`[getSellerInquiries] Recherche offres reçues pour vendeur ${sellerId}`);
 
       // NOTE: Les offres sont stockées dans marketplace_offers (pas marketplace_inquiries)
+      // ✅ IMPORTANT: Récupérer o.subject_ids pour savoir quels sujets SPÉCIFIQUES ont été sélectionnés par l'acheteur
       const offersResult = await this.databaseService.query(
         `SELECT
           o.id,
@@ -3502,13 +3887,14 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
           o.expires_at,
           o.counter_offer_of,
           o.date_recuperation_souhaitee,
+          o.subject_ids as offer_subject_ids,
           TO_CHAR(o.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as created_at_iso,
           TO_CHAR(o.responded_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as responded_at_iso,
           o.created_at,
           o.responded_at,
           l.calculated_price as listing_price,
           l.listing_type,
-          l.pig_count,
+          l.pig_count as listing_pig_count,
           l.subject_id,
           l.pig_ids,
           u.nom as buyer_nom,
@@ -3518,12 +3904,53 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
         FROM marketplace_offers o
         LEFT JOIN marketplace_listings l ON o.listing_id = l.id
         LEFT JOIN users u ON o.buyer_id = u.id
-        WHERE o.producer_id = $1
+        WHERE o.producer_id = $1 AND o.counter_offer_of IS NULL
         ORDER BY o.created_at DESC`,
         [sellerId]
       );
 
-      this.logger.log(`[getSellerInquiries] ${offersResult.rows.length} offres trouvées pour vendeur ${sellerId}`);
+      // Récupérer aussi les contre-propositions reçues par l'utilisateur (quand il est acheteur)
+      const counterOffersResult = await this.databaseService.query(
+        `SELECT
+          o.id,
+          o.listing_id,
+          o.buyer_id,
+          o.producer_id as seller_id,
+          o.proposed_price,
+          o.original_price,
+          o.message,
+          o.status,
+          o.terms_accepted,
+          o.expires_at,
+          o.counter_offer_of,
+          o.date_recuperation_souhaitee,
+          o.subject_ids as offer_subject_ids,
+          TO_CHAR(o.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as created_at_iso,
+          TO_CHAR(o.responded_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as responded_at_iso,
+          o.created_at,
+          o.responded_at,
+          l.calculated_price as listing_price,
+          l.listing_type,
+          l.pig_count as listing_pig_count,
+          l.subject_id,
+          l.pig_ids,
+          u2.nom as buyer_nom,
+          u2.prenom as buyer_prenom,
+          u2.telephone as buyer_telephone,
+          u2.email as buyer_email,
+          u.nom as seller_nom,
+          u.prenom as seller_prenom,
+          'counter_proposal_received' as offer_category
+        FROM marketplace_offers o
+        LEFT JOIN marketplace_listings l ON o.listing_id = l.id
+        LEFT JOIN users u ON o.producer_id = u.id
+        LEFT JOIN users u2 ON o.buyer_id = u2.id
+        WHERE o.buyer_id = $1 AND o.counter_offer_of IS NOT NULL
+        ORDER BY o.created_at DESC`,
+        [sellerId]
+      );
+
+      this.logger.log(`[getSellerInquiries] ${offersResult.rows.length} offres initiales + ${counterOffersResult.rows.length} contre-propositions reçues pour user ${sellerId}`);
 
       // Fonction helper pour conversion sécurisée
       const safeParseFloat = (value: any): number | null => {
@@ -3534,49 +3961,78 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
         return isNaN(parsed) ? null : parsed;
       };
 
-      const result = offersResult.rows.map((row: any) => ({
-        id: row.id,
-        listingId: row.listing_id,
-        buyerId: row.buyer_id,
-        sellerId: row.seller_id,
-        inquiryType: 'offer', // Les offres marketplace sont toujours de type 'offer'
-        offeredAmount: safeParseFloat(row.proposed_price),
-        proposedPrice: safeParseFloat(row.proposed_price),
-        originalPrice: safeParseFloat(row.original_price),
-        message: row.message,
-        status: row.status,
-        termsAccepted: row.terms_accepted,
-        expiresAt: row.expires_at,
-        counterOfferOf: row.counter_offer_of,
-        dateRecuperationSouhaitee: row.date_recuperation_souhaitee,
-        createdAt: row.created_at_iso || row.created_at,
-        respondedAt: row.responded_at_iso || row.responded_at,
-        // Propriétés aplaties pour compatibilité frontend
-        listing_price: safeParseFloat(row.listing_price),
-        listing_type: row.listing_type,
-        pig_count: row.pig_count,
-        subject_id: row.subject_id,
-        pig_ids: row.pig_ids,
-        buyer_nom: row.buyer_nom,
-        buyer_prenom: row.buyer_prenom,
-        buyer_telephone: row.buyer_telephone,
-        buyer_email: row.buyer_email,
-        // Objets nested aussi gardés pour compatibilité future
-        listing: {
-          id: row.listing_id,
-          price: safeParseFloat(row.listing_price),
-          listingType: row.listing_type,
-        },
-        buyer: {
-          id: row.buyer_id,
-          nom: row.buyer_nom,
-          prenom: row.buyer_prenom,
-          telephone: row.buyer_telephone,
-          email: row.buyer_email,
-        },
-      }));
+      // Fonction de mapping commune
+      const mapOfferRow = (row: any, isCounterProposal: boolean = false) => {
+        const offerSubjectIds = Array.isArray(row.offer_subject_ids) 
+          ? row.offer_subject_ids 
+          : (row.offer_subject_ids ? JSON.parse(row.offer_subject_ids) : []);
+        const offerPigCount = offerSubjectIds.length || 1;
+        
+        return {
+          id: row.id,
+          listingId: row.listing_id,
+          buyerId: row.buyer_id,
+          sellerId: row.seller_id,
+          inquiryType: 'offer',
+          offeredAmount: safeParseFloat(row.proposed_price),
+          proposedPrice: safeParseFloat(row.proposed_price),
+          originalPrice: safeParseFloat(row.original_price),
+          message: row.message,
+          status: row.status,
+          termsAccepted: row.terms_accepted,
+          expiresAt: row.expires_at,
+          counterOfferOf: row.counter_offer_of,
+          dateRecuperationSouhaitee: row.date_recuperation_souhaitee,
+          createdAt: row.created_at_iso || row.created_at,
+          respondedAt: row.responded_at_iso || row.responded_at,
+          subjectIds: offerSubjectIds,
+          pig_count: offerPigCount,
+          listing_price: safeParseFloat(row.listing_price),
+          listing_type: row.listing_type,
+          listing_pig_count: row.listing_pig_count,
+          subject_id: row.subject_id,
+          pig_ids: row.pig_ids,
+          // Pour les offres normales, buyer_nom vient du buyer
+          // Pour les contre-propositions reçues, on affiche le nom du producteur
+          buyer_nom: isCounterProposal ? row.seller_nom : row.buyer_nom,
+          buyer_prenom: isCounterProposal ? row.seller_prenom : row.buyer_prenom,
+          buyer_telephone: row.buyer_telephone,
+          buyer_email: row.buyer_email,
+          // Indicateur pour le frontend
+          isCounterProposalReceived: isCounterProposal,
+          // Nom du producteur pour les contre-propositions
+          seller_nom: row.seller_nom,
+          seller_prenom: row.seller_prenom,
+          listing: {
+            id: row.listing_id,
+            price: safeParseFloat(row.listing_price),
+            listingType: row.listing_type,
+            pigCount: row.listing_pig_count,
+          },
+          buyer: {
+            id: row.buyer_id,
+            nom: row.buyer_nom,
+            prenom: row.buyer_prenom,
+            telephone: row.buyer_telephone,
+            email: row.buyer_email,
+          },
+        };
+      };
 
-      this.logger.log(`[getSellerInquiries] ${result.length} offres formatées pour vendeur ${sellerId}`);
+      // Mapper les offres reçues (en tant que producteur)
+      const producerOffers = offersResult.rows.map((row: any) => mapOfferRow(row, false));
+      
+      // Mapper les contre-propositions reçues (en tant qu'acheteur)
+      const counterProposals = counterOffersResult.rows.map((row: any) => mapOfferRow(row, true));
+
+      // Fusionner et trier par date de création (plus récent en premier)
+      const result = [...producerOffers, ...counterProposals].sort((a, b) => {
+        const dateA = new Date(a.createdAt || 0).getTime();
+        const dateB = new Date(b.createdAt || 0).getTime();
+        return dateB - dateA;
+      });
+
+      this.logger.log(`[getSellerInquiries] ${result.length} offres formatées pour user ${sellerId} (${producerOffers.length} offres + ${counterProposals.length} contre-propositions)`);
       return result;
     } catch (error) {
       this.logger.error(`[getSellerInquiries] Erreur récupération offres pour vendeur ${sellerId}:`, error);
@@ -3930,61 +4386,61 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
   }
 
   async withdrawOffer(offerId: string, userId: string) {
-    return await this.databaseService.transaction(async (client) => {
-      // NOTE: Les offres sont dans marketplace_offers (pas marketplace_inquiries)
-      const offerResult = await client.query(
-        `SELECT id, buyer_id, producer_id, status FROM marketplace_offers WHERE id = $1`,
-        [offerId]
+    // Récupérer les données de l'offre avant la transaction pour la notification
+    const offerResult = await this.databaseService.query(
+      `SELECT id, buyer_id, producer_id, status FROM marketplace_offers WHERE id = $1`,
+      [offerId]
+    );
+
+    if (offerResult.rows.length === 0) {
+      throw new NotFoundException('Offre non trouvée');
+    }
+
+    const offerData = offerResult.rows[0];
+
+    // Vérifier que c'est bien l'acheteur qui fait la demande
+    if (offerData.buyer_id !== userId) {
+      throw new ForbiddenException('Vous ne pouvez pas retirer cette offre');
+    }
+
+    // Vérifier que l'offre est encore en attente
+    if (offerData.status !== 'pending') {
+      throw new BadRequestException(
+        'Impossible de retirer une offre déjà acceptée ou refusée'
       );
+    }
 
-      if (offerResult.rows.length === 0) {
-        throw new NotFoundException('Offre non trouvée');
-      }
-
-      const offerData = offerResult.rows[0];
-
-      // Vérifier que c'est bien l'acheteur qui fait la demande
-      if (offerData.buyer_id !== userId) {
-        throw new ForbiddenException('Vous ne pouvez pas retirer cette offre');
-      }
-
-      // Vérifier que l'offre est encore en attente
-      if (offerData.status !== 'pending') {
-        throw new BadRequestException(
-          'Impossible de retirer une offre déjà acceptée ou refusée'
-        );
-      }
-
-      // Mettre à jour le statut à "withdrawn"
+    // Transaction pour mettre à jour le statut
+    await this.databaseService.transaction(async (client) => {
       await client.query(
         `UPDATE marketplace_offers
          SET status = 'withdrawn', derniere_modification = NOW()
          WHERE id = $1`,
         [offerId]
       );
-
-      // Notifier le vendeur (optionnel)
-      try {
-        await this.notificationsService.createNotification({
-          userId: offerData.producer_id,
-          type: NotificationType.OFFER_WITHDRAWN,
-          title: 'Offre retirée',
-          message: 'Un acheteur a retiré son offre',
-          relatedType: 'offer',
-          relatedId: offerId,
-        });
-        this.logger.log(`[withdrawOffer] Notification envoyée au vendeur ${offerData.producer_id}`);
-      } catch (error) {
-        this.logger.error(`[withdrawOffer] Erreur notification: ${error.message}`);
-        // Ne pas bloquer le retrait si la notification échoue
-      }
-
-      this.logger.log(`[withdrawOffer] Offre ${offerId} retirée par acheteur ${userId}`);
-      return {
-        message: 'Offre retirée avec succès',
-        offerId,
-      };
     });
+
+    // Notifier le vendeur en arrière-plan (après la transaction pour ne pas bloquer)
+    // Optimisation: notification en arrière-plan pour ne pas bloquer la réponse
+    this.notificationsService.createNotification({
+      userId: offerData.producer_id,
+      type: NotificationType.OFFER_WITHDRAWN,
+      title: 'Offre retirée',
+      message: 'Un acheteur a retiré son offre',
+      relatedType: 'offer',
+      relatedId: offerId,
+    }).then(() => {
+      this.logger.log(`[withdrawOffer] Notification envoyée au vendeur ${offerData.producer_id}`);
+    }).catch((error) => {
+      this.logger.error(`[withdrawOffer] Erreur notification: ${error.message}`);
+      // Ne pas bloquer le retrait si la notification échoue
+    });
+
+    this.logger.log(`[withdrawOffer] Offre ${offerId} retirée par acheteur ${userId}`);
+    return {
+      message: 'Offre retirée avec succès',
+      offerId,
+    };
   }
 
   /**
@@ -4090,30 +4546,57 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
 
   /**
    * Calculer la tendance pour une semaine spécifique
+   * Utilise les listings DISPONIBLES pendant cette semaine (pas seulement créés)
    */
   private async calculateWeekTrend(year: number, weekNumber: number) {
     // Calculer les dates de début et fin de la semaine
     const weekStart = this.getWeekStartDate(year, weekNumber);
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekEnd.getDate() + 7);
+    
+    const now = new Date();
+    const isCurrentOrFutureWeek = weekEnd >= now;
 
-    // 1. Récupérer les listings disponibles cette semaine
-    const listingsResult = await this.databaseService.query(
-      `SELECT 
-        id, price_per_kg, calculated_price, weight, pig_count, listing_type,
-        listed_at
-      FROM marketplace_listings
-      WHERE status = 'available'
-        AND listed_at >= $1
-        AND listed_at < $2`,
-      [weekStart.toISOString(), weekEnd.toISOString()]
-    );
+    // 1. Récupérer les listings qui étaient DISPONIBLES pendant cette semaine
+    // Un listing est disponible si:
+    // - Il a été créé AVANT la fin de la semaine
+    // - Il n'a pas été vendu/expiré AVANT le début de la semaine
+    // Pour la semaine en cours, on prend simplement tous les listings disponibles
+    let listingsResult;
+    if (isCurrentOrFutureWeek) {
+      // Semaine en cours : tous les listings actuellement disponibles
+      listingsResult = await this.databaseService.query(
+        `SELECT 
+          id, price_per_kg, calculated_price, weight, pig_count, listing_type,
+          listed_at
+        FROM marketplace_listings
+        WHERE status = 'available'
+          AND price_per_kg IS NOT NULL 
+          AND price_per_kg > 0`
+      );
+    } else {
+      // Semaines passées : listings qui existaient pendant cette semaine
+      listingsResult = await this.databaseService.query(
+        `SELECT 
+          id, price_per_kg, calculated_price, weight, pig_count, listing_type,
+          listed_at, updated_at, status
+        FROM marketplace_listings
+        WHERE listed_at <= $2
+          AND price_per_kg IS NOT NULL 
+          AND price_per_kg > 0
+          AND (
+            status = 'available'
+            OR (status IN ('sold', 'expired') AND updated_at >= $1)
+          )`,
+        [weekStart.toISOString(), weekEnd.toISOString()]
+      );
+    }
 
     // 2. Récupérer les transactions complétées cette semaine
     const transactionsResult = await this.databaseService.query(
       `SELECT 
         t.id, t.final_price, t.completed_at,
-        l.weight, l.pig_count
+        l.weight, l.pig_count, l.price_per_kg
       FROM marketplace_transactions t
       LEFT JOIN marketplace_listings l ON t.listing_id = l.id
       WHERE t.status = 'completed'
@@ -4122,13 +4605,25 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       [weekStart.toISOString(), weekEnd.toISOString()]
     );
 
-    // 3. Calculer le prix moyen pondéré
+    // 3. Récupérer les offres acceptées cette semaine (pour le comptage)
+    const offersResult = await this.databaseService.query(
+      `SELECT 
+        id, proposed_price, original_price, listing_id
+      FROM marketplace_offers
+      WHERE status = 'accepted'
+        AND responded_at >= $1
+        AND responded_at < $2`,
+      [weekStart.toISOString(), weekEnd.toISOString()]
+    );
+
+    // 4. Calculer le prix moyen pondéré
     let totalWeightKg = 0;
     let totalPriceFcfa = 0;
     let listingsCount = listingsResult.rows.length;
     let transactionsCount = transactionsResult.rows.length;
+    let offersCount = offersResult.rows.length;
 
-    // Prix depuis les transactions (prioritaire)
+    // Prix depuis les transactions (prioritaire - prix réels des ventes)
     for (const t of transactionsResult.rows) {
       const weight = parseFloat(t.weight) || (parseFloat(t.pig_count) * 80); // 80kg par défaut
       if (weight > 0 && t.final_price > 0) {
@@ -4137,8 +4632,8 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       }
     }
 
-    // Si pas assez de transactions, utiliser les listings
-    if (totalWeightKg === 0) {
+    // Si pas assez de transactions, utiliser les listings disponibles
+    if (totalWeightKg === 0 || transactionsCount < 3) {
       for (const l of listingsResult.rows) {
         const weight = parseFloat(l.weight) || (parseFloat(l.pig_count) * 80);
         const pricePerKg = parseFloat(l.price_per_kg) || 0;
@@ -4149,18 +4644,17 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       }
     }
 
-    // Calculer le prix moyen
+    // Calculer le prix moyen basé UNIQUEMENT sur les données du marketplace
     const avgPricePlatform = totalWeightKg > 0 
       ? Math.round(totalPriceFcfa / totalWeightKg) 
       : null;
 
-    // Prix régional de référence (fallback)
-    const avgPriceRegional = 2300; // FCFA/kg par défaut
-
-    // Déterminer la source
-    let sourcePriority = 'regional';
+    // Déterminer la source (sans prix régional)
+    let sourcePriority: 'platform' | 'offers' | 'listings' | 'none' = 'none';
     if (transactionsCount > 0 && avgPricePlatform) {
       sourcePriority = 'platform';
+    } else if (offersCount > 0 && avgPricePlatform) {
+      sourcePriority = 'offers';
     } else if (listingsCount > 0 && avgPricePlatform) {
       sourcePriority = 'listings';
     }
@@ -4169,10 +4663,11 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       id: `${year}-W${weekNumber.toString().padStart(2, '0')}`,
       year,
       weekNumber,
-      avgPricePlatform: avgPricePlatform || avgPriceRegional,
-      avgPriceRegional,
+      // Prix basé UNIQUEMENT sur le marketplace (null si pas de données)
+      avgPricePlatform: avgPricePlatform,
+      avgPriceRegional: null, // Plus utilisé
       transactionsCount,
-      offersCount: 0,
+      offersCount,
       listingsCount,
       sourcePriority,
       totalWeightKg: totalWeightKg > 0 ? Math.round(totalWeightKg * 100) / 100 : null,
@@ -4231,12 +4726,12 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
           id,
           trendData.year,
           trendData.weekNumber,
-          trendData.avgPricePlatform || trendData.avg_price_platform,
-          trendData.avgPriceRegional || trendData.avg_price_regional || 2300,
+          trendData.avgPricePlatform || trendData.avg_price_platform || null,
+          trendData.avgPriceRegional || trendData.avg_price_regional || null, // Plus de fallback régional
           trendData.transactionsCount || trendData.transactions_count || 0,
           trendData.offersCount || trendData.offers_count || 0,
           trendData.listingsCount || trendData.listings_count || 0,
-          trendData.sourcePriority || trendData.source_priority || 'regional',
+          trendData.sourcePriority || trendData.source_priority || 'none',
           trendData.totalWeightKg || trendData.total_weight_kg,
           trendData.totalPriceFcfa || trendData.total_price_fcfa,
         ]

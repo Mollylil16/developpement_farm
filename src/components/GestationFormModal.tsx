@@ -39,6 +39,7 @@ import {
   RisqueConsanguinite,
 } from '../utils/consanguiniteUtils';
 import { validateGestation } from '../validation/reproductionSchemas';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 interface GestationFormModalProps {
   visible: boolean;
@@ -70,7 +71,7 @@ const getTodayLocalDate = () => {
   return `${year}-${month}-${day}`;
 };
 
-export default function GestationFormModal({
+function GestationFormModal({
   visible,
   onClose,
   onSuccess,
@@ -79,7 +80,8 @@ export default function GestationFormModal({
 }: GestationFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const animaux: ProductionAnimal[] = useAppSelector(selectAllAnimaux);
   const mortalites: Mortalite[] = useAppSelector(selectAllMortalites);
   const { canCreate, canUpdate } = useActionPermissions();
@@ -214,7 +216,13 @@ export default function GestationFormModal({
     }
   }, [dispatch, projetActif?.id, visible, isModeBatch]);
 
-  // Générer une liste de truies basée sur le projet actif (en soustrayant les mortalités)
+  // D'abord filtrer les animaux du projet (doit être AVANT truies qui l'utilise)
+  const animauxProjet = useMemo(() => {
+    if (!projetActif || !animaux) return [];
+    return animaux.filter((a: ProductionAnimal) => a.projet_id === projetActif.id);
+  }, [animaux, projetActif?.id]);
+
+  // Générer une liste de truies basée sur les animaux enregistrés
   // En mode batch, utiliser les truies individuelles des bandes de truies reproductrices
   const truies = useMemo(() => {
     if (!projetActif) return [];
@@ -224,30 +232,32 @@ export default function GestationFormModal({
       return truiesBatch;
     }
 
-    // Mode individuel : calculer le nombre de truies mortes
-    const mortalitesProjet = mortalites.filter((m: Mortalite) => m.projet_id === projetActif.id);
-    const mortalitesTruies = mortalitesProjet
-      .filter((m: Mortalite) => m.categorie === 'truie')
-      .reduce((sum: number, m: Mortalite) => sum + (m.nombre_porcs || 0), 0);
+    // Mode individuel : Récupérer uniquement les truies réellement enregistrées dans le cheptel
+    // Filtrer : femelles actives ET reproductrices
+    if (!animauxProjet || animauxProjet.length === 0) return [];
+    
+    const truiesEnregistrees = animauxProjet.filter(
+      (a: ProductionAnimal) =>
+        a.sexe === 'femelle' &&
+        a.statut?.toLowerCase() === 'actif' &&
+        (a.reproducteur === true ||
+          (typeof a.reproducteur === 'number' && a.reproducteur === 1) ||
+          (typeof a.reproducteur === 'string' && a.reproducteur === '1')) &&
+        a.projet_id === projetActif.id
+    );
 
-    // Nombre de truies actives = nombre initial - mortalités
-    const nombreTruiesActives = Math.max(0, projetActif.nombre_truies - mortalitesTruies);
-
-    const truiesList = [];
-    for (let i = 1; i <= nombreTruiesActives; i++) {
-      truiesList.push({
-        id: `truie_${i}`,
-        nom: `Truie ${i}`,
-        numero: i,
-      });
-    }
-    return truiesList;
-  }, [projetActif?.id, mortalites, isModeBatch, truiesBatch]);
-
-  const animauxProjet = useMemo(() => {
-    if (!projetActif) return [];
-    return animaux.filter((a: ProductionAnimal) => a.projet_id === projetActif.id);
-  }, [animaux, projetActif?.id]);
+    // Convertir en format TruieOption
+    return truiesEnregistrees.map((truie: ProductionAnimal) => {
+      const numero = parseInt(truie.code?.replace(/\D/g, '') || '0') || 0;
+      return {
+        id: truie.id,
+        nom: truie.nom || truie.code || `Truie ${numero}`,
+        numero: numero,
+        code: truie.code,
+        race: truie.race,
+      };
+    });
+  }, [projetActif?.id, animauxProjet, isModeBatch, truiesBatch]);
 
   // Générer une liste de verrats basée uniquement sur les verrats réellement enregistrés dans le cheptel
   // Ne plus créer de verrats virtuels pour éviter les verrats fantômes
@@ -1435,3 +1445,6 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xs,
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(GestationFormModal);

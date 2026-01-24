@@ -16,6 +16,7 @@ import {
   selectAllChargesFixes,
   selectAllDepensesPonctuelles,
 } from '../../store/selectors/financeSelectors';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
 
 interface FinanceWidgetProps {
   onPress?: () => void;
@@ -27,7 +28,8 @@ function FinanceWidget({ onPress }: FinanceWidgetProps) {
   const chargesFixes: ChargeFixe[] = useAppSelector(selectAllChargesFixes);
   const depensesPonctuelles: DepensePonctuelle[] = useAppSelector(selectAllDepensesPonctuelles);
 
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   // Utiliser useRef pour éviter les chargements multiples (boucle infinie)
   const dataChargeesRef = React.useRef<string | null>(null);

@@ -20,6 +20,7 @@ import Card from '../Card';
 import { countAnimalsByCategory, countAnimalsByPoidsCategory } from '../../utils/animalUtils';
 import { selectPeseesParAnimal } from '../../store/selectors/productionSelectors';
 import { logger } from '../../utils/logger';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
 
 interface OverviewWidgetProps {
   onPress?: () => void;
@@ -28,7 +29,8 @@ interface OverviewWidgetProps {
 function OverviewWidget({ onPress }: OverviewWidgetProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const animaux = useAppSelector(selectAllAnimaux);
   const mortalites = useAppSelector(selectAllMortalites);
   const peseesParAnimal = useAppSelector(selectPeseesParAnimal);

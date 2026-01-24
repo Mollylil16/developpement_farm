@@ -27,6 +27,7 @@ import {
 import { SailliePlanifiee, STATUT_SAILLIE_LABELS } from '../types/planningProduction';
 import { selectAllAnimaux } from '../store/selectors/productionSelectors';
 import { getCategorieAnimal } from '../utils/animalUtils';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 interface Props {
   refreshControl: React.ReactElement<React.ComponentProps<typeof import('react-native').RefreshControl>>;
@@ -40,7 +41,8 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
     (state) => state.planningProduction
   );
   const animaux = useAppSelector(selectAllAnimaux);
-  const projetActif = useAppSelector((state) => state.projet.projetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   const [vueListe, setVueListe] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);

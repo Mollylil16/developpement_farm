@@ -15,6 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAppSelector } from '../../store/hooks';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../../constants/theme';
 import apiClient from '../../services/api/apiClient';
 import { Batch } from '../../types/batch';
@@ -60,7 +61,8 @@ export default function BatchSelector({
   label = 'Sélectionner une loge',
 }: BatchSelectorProps) {
   const { colors } = useTheme();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loading, setLoading] = useState(false);

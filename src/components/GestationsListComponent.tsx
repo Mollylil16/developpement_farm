@@ -37,8 +37,9 @@ import FormField from './FormField';
 import DatePickerField from './DatePickerField';
 import Button from './Button';
 import { useActionPermissions } from '../hooks/useActionPermissions';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
-export default function GestationsListComponent() {
+function GestationsListComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
@@ -59,7 +60,8 @@ export default function GestationsListComponent() {
   );
   const [refreshing, setRefreshing] = useState(false);
 
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   
   // Détecter le mode de gestion (individuel ou bande)
   const isModeBatch = projetActif?.management_method === 'batch';
@@ -866,3 +868,6 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(GestationsListComponent);

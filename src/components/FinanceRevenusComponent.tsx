@@ -28,8 +28,9 @@ import RevenuFormModal from './RevenuFormModal';
 import VenteDetailModal from './VenteDetailModal';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { logger } from '../utils/logger';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
-export default function FinanceRevenusComponent() {
+function FinanceRevenusComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
@@ -47,7 +48,8 @@ export default function FinanceRevenusComponent() {
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedVenteDetail, setSelectedVenteDetail] = useState<Revenu | null>(null);
 
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   // Charger les données à chaque fois que l'écran est focus
   useFocusEffect(
@@ -741,3 +743,6 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(FinanceRevenusComponent);

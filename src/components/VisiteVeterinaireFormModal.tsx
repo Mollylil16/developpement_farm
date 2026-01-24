@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import { createVisiteVeterinaire, updateVisiteVeterinaire } from '../store/slices/santeSlice';
 import CustomModal from './CustomModal';
 import { VisiteVeterinaire, CreateVisiteVeterinaireInput } from '../types/sante';
@@ -30,7 +31,8 @@ interface Props {
 export default function VisiteVeterinaireFormModal({ visible, onClose, visite }: Props) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   const isEditing = !!visite;
 

@@ -149,7 +149,7 @@ export default function NotificationPanel({
           onStartShouldSetResponder={() => true}
         >
           {/* Header */}
-          <View style={[styles.header, { borderBottomColor: colors.divider }]}>
+          <View style={[styles.header, { borderBottomColor: colors.divider, backgroundColor: colors.surfaceSolid || '#FFFFFF' }]}>
             <Text style={[styles.headerTitle, { color: colors.text }]}>Notifications</Text>
             <View style={styles.headerActions}>
               {unreadCount > 0 && (
@@ -164,7 +164,7 @@ export default function NotificationPanel({
           </View>
 
           {/* Onglets */}
-          <View style={[styles.tabs, { borderBottomColor: colors.divider }]}>
+          <View style={[styles.tabs, { borderBottomColor: colors.divider, backgroundColor: colors.surfaceSolid || '#FFFFFF' }]}>
             {(['all', 'offers', 'messages', 'system'] as TabType[]).map((tab) => {
               const count = unreadCountByTab[tab];
               const isActive = activeTab === tab;
@@ -207,25 +207,30 @@ export default function NotificationPanel({
 
           {/* Liste des notifications */}
           <ScrollView
-            style={styles.list}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
+            style={[styles.list, { backgroundColor: colors.surfaceSolid || '#FFFFFF' }]}
+            contentContainerStyle={[
+              styles.listContent,
+              filteredNotifications.length === 0 && styles.listContentEmpty
+            ]}
+            showsVerticalScrollIndicator={true}
+            nestedScrollEnabled={true}
           >
             {filteredNotifications.length === 0 ? (
               <View style={styles.emptyContainer}>
-                <Ionicons name="notifications-off-outline" size={64} color={colors.textLight} />
+                <Ionicons name="notifications-off-outline" size={64} color={colors.textLight || colors.textSecondary} />
                 <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
                   Aucune notification
                 </Text>
               </View>
             ) : (
               filteredNotifications.map((notification) => (
-                <NotificationCard
-                  key={notification.id}
-                  notification={notification}
-                  onPress={() => handleNotificationPress(notification)}
-                  onMarkAsRead={() => onMarkAsRead(notification.id)}
-                />
+                <View key={notification.id} style={styles.notificationItem}>
+                  <NotificationCard
+                    notification={notification}
+                    onPress={() => handleNotificationPress(notification)}
+                    onMarkAsRead={() => onMarkAsRead(notification.id)}
+                  />
+                </View>
               ))
             )}
           </ScrollView>
@@ -249,6 +254,7 @@ const styles = StyleSheet.create({
   },
   panel: {
     width: PANEL_WIDTH,
+    minHeight: 300, // ✅ Hauteur minimum pour afficher le contenu
     maxHeight: PANEL_HEIGHT,
     borderRadius: MarketplaceTheme.borderRadius.lg,
     ...MarketplaceTheme.shadows.large,
@@ -312,15 +318,25 @@ const styles = StyleSheet.create({
   },
   list: {
     flex: 1,
+    minHeight: 200,
+    flexGrow: 1, // ✅ S'assurer que le ScrollView prend l'espace disponible
   },
   listContent: {
     padding: MarketplaceTheme.spacing.sm,
+    gap: MarketplaceTheme.spacing.sm,
   },
-  emptyContainer: {
+  listContentEmpty: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: MarketplaceTheme.spacing.xl,
+  },
+  notificationItem: {
+    marginBottom: MarketplaceTheme.spacing.xs,
+  },
+  emptyContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: MarketplaceTheme.spacing.xl * 2,
   },
   emptyText: {
     marginTop: MarketplaceTheme.spacing.md,

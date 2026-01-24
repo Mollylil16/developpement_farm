@@ -100,10 +100,11 @@ export class CreateBatchListingDto {
   @Min(0)
   pricePerKg: number;
 
-  @ApiProperty({ description: 'Poids moyen en kg', example: 50.5 })
+  @ApiPropertyOptional({ description: 'Poids moyen en kg (optionnel - calculé automatiquement depuis les poids réels)', example: 50.5 })
+  @IsOptional()
   @IsNumber()
   @Min(0.01)
-  averageWeight: number;
+  averageWeight?: number;
 
   @ApiProperty({ description: 'Date de dernière pesée (ISO 8601)', example: '2023-03-10' })
   @IsString()

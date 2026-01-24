@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { useRole } from '../contexts/RoleContext';
 import { ProactiveRemindersService, VoiceService, ChatAgentService } from '../services/chatAgent';
 import { ChatMessage, Reminder, AgentContext } from '../types/chatAgent';
 import { format } from 'date-fns';
@@ -123,6 +124,7 @@ export function useChatAgent() {
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   const { user } = useAppSelector((state) => state.auth);
+  const { activeRole } = useRole();
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -152,9 +154,10 @@ export function useChatAgent() {
 
   /**
    * Initialise l'agent
+   * Fonctionne même sans projetActif (pour profils buyer, veterinarian, technician)
    */
   useEffect(() => {
-    if (!projetActif || !user) {
+    if (!user) {
       return;
     }
 
@@ -163,14 +166,23 @@ export function useChatAgent() {
 
     const initializeAgent = async () => {
       try {
+        // Générer un conversationId basé sur userId si pas de projetActif
+        const conversationKey = projetActif?.id || user.id;
         let conversationId: string | null = conversationIdRef.current;
         if (!conversationId) {
           try {
-            conversationId = await getOrCreateConversationId(projetActif.id);
+            if (projetActif?.id) {
+              conversationId = await getOrCreateConversationId(projetActif.id);
+            } else {
+              // Pour les profils sans projet, utiliser userId comme clé
+              conversationId = `conv_user_${user.id}_${Date.now()}_${Math.random()
+                .toString(36)
+                .substr(2, 9)}`;
+            }
             logger.debug('Conversation ID récupéré/créé:', conversationId);
           } catch (error) {
             logger.error('Erreur lors de la récupération/création du conversationId:', error);
-            conversationId = `conv_${projetActif.id}_${Date.now()}_${Math.random()
+            conversationId = `conv_${conversationKey}_${Date.now()}_${Math.random()
               .toString(36)
               .substr(2, 9)}`;
           }
@@ -179,8 +191,15 @@ export function useChatAgent() {
 
         let savedMessages: ChatMessage[] = [];
         try {
-          savedMessages = await loadConversationHistory(projetActif.id, conversationId, 100);
-          logger.debug(`Historique chargé: ${savedMessages.length} messages`);
+          // Charger l'historique seulement si on a un projetActif
+          if (projetActif?.id) {
+            savedMessages = await loadConversationHistory(projetActif.id, conversationId, 100);
+            logger.debug(`Historique chargé: ${savedMessages.length} messages`);
+          } else {
+            // Pour les profils sans projet, pas d'historique persistant pour l'instant
+            savedMessages = [];
+            logger.debug('Pas de projet actif - démarrage sans historique persistant');
+          }
         } catch (error) {
           if ((error as any)?.status === 500) {
             logger.debug(
@@ -223,12 +242,15 @@ export function useChatAgent() {
           }
         }
 
-        await remindersService.initialize({
-          projetId: projetActif.id,
-          userId: user.id,
-          userName: user.nom || user.email,
-          currentDate: format(new Date(), 'yyyy-MM-dd'),
-        });
+        // Initialiser remindersService seulement si on a un projetActif
+        if (projetActif?.id) {
+          await remindersService.initialize({
+            projetId: projetActif.id,
+            userId: user.id,
+            userName: user.nom || user.email,
+            currentDate: format(new Date(), 'yyyy-MM-dd'),
+          });
+        }
 
         if (isCancelled) {
           return;
@@ -239,10 +261,11 @@ export function useChatAgent() {
 
         // Initialiser ChatAgentService pour la détection d'intention et l'exécution
         const agentContext: AgentContext = {
-          projetId: projetActif.id,
+          projetId: projetActif?.id || null, // Peut être null pour profils sans projet
           userId: user.id,
           userName: user.prenom || user.nom || user.email,
           currentDate: format(new Date(), 'yyyy-MM-dd'),
+          activeRole: activeRole, // Rôle actif pour adapter le prompt
         };
         
         const chatAgentService = new ChatAgentService({
@@ -324,10 +347,11 @@ export function useChatAgent() {
 
   /**
    * Envoie un message à l'agent avec délai de réflexion
+   * Fonctionne même sans projetActif (pour profils buyer, veterinarian, technician)
    */
   const sendMessage = useCallback(
     async (content: string) => {
-      if (!projetActif?.id || isLoading || isThinking) {
+      if (!user || isLoading || isThinking) {
         return;
       }
 

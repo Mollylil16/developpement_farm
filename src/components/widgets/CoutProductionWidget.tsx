@@ -6,6 +6,7 @@
 import React, { useEffect, useState, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextStyle } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
 import { loadStatistiquesMoisActuel } from '../../store/slices/financeSlice';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -21,7 +22,8 @@ interface CoutProductionWidgetProps {
 function CoutProductionWidget({ projetId, onPress }: CoutProductionWidgetProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<{

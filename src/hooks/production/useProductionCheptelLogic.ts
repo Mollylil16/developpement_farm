@@ -6,6 +6,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { Alert } from 'react-native';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { logger } from '../../utils/logger';
 import {
   loadProductionAnimaux,
   deleteProductionAnimal,
@@ -90,12 +91,19 @@ export function useProductionCheptelLogic() {
         let existingListing: any = null;
         try {
           // Essayer de récupérer le listing via l'endpoint dédié
-          const listingResponse = await apiClient.get<any>(`/marketplace/listings/subject/${animal.id}`);
+          // Note: 404 est attendu si pas de listing, pas besoin de retry
+          const listingResponse = await apiClient.get<any>(`/marketplace/listings/subject/${animal.id}`, {
+            retry: false, // Pas de retry pour cette vérification
+          });
           if (listingResponse && (listingResponse.status === 'available' || listingResponse.status === 'reserved')) {
             existingListing = listingResponse;
           }
-        } catch {
-          // Si 404, pas de listing existant
+        } catch (error: any) {
+          // Si 404, pas de listing existant (c'est normal, on veut en créer un)
+          // Ne pas logger comme erreur car c'est un cas attendu
+          if (error?.status !== 404) {
+            logger.warn('[toggleMarketplace] Erreur vérification listing:', error);
+          }
           existingListing = null;
         }
 

@@ -19,6 +19,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import aiWeightService from '../services/aiWeightService';
 import { logger } from '../utils/logger';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 // Fonction helper pour convertir une date en format local YYYY-MM-DD
 const formatDateToLocal = (date: Date): string => {
@@ -63,7 +64,8 @@ export default function ProductionPeseeFormModal({
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate } = useActionPermissions();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const currentUser = useAppSelector((state) => state.auth?.user);
   const mode = useModeElevage();
   const isBatchMode = mode === 'bande' || !!batchId;

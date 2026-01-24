@@ -18,6 +18,7 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import CustomModal from './CustomModal';
 import { createVisiteVeterinaire, updateVisiteVeterinaire } from '../store/slices/santeSlice';
@@ -60,7 +61,8 @@ export default function VisiteVeterinaireFormModalNew({
 }: VisiteVeterinaireFormModalNewProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const projetActif = useAppSelector((state) => state.projet.projetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const animaux = useAppSelector(selectAllAnimaux);
   const modeElevage = useModeElevage();
   const isModeBatch = modeElevage === 'bande';

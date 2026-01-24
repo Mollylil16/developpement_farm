@@ -43,59 +43,92 @@ export class BatchPigsService {
   }
 
   /**
-   * Vérifie que la bande appartient au projet de l'utilisateur
+   * Vérifie que la bande appartient au projet de l'utilisateur OU qu'il est collaborateur actif
    */
   private async checkBatchOwnership(
     batchId: string,
     userId: string,
   ): Promise<void> {
     try {
-      // Vérifier directement dans la requête SQL (comme checkProjetOwnership dans marketplace)
-      const result = await this.db.query(
-        `SELECT b.id 
+      const normalizedUserId = String(userId || '').trim();
+      
+      // 1. Vérifier si l'utilisateur est propriétaire
+      const ownerResult = await this.db.query(
+        `SELECT b.id, b.projet_id
          FROM batches b
          JOIN projets p ON b.projet_id = p.id
          WHERE b.id = $1 AND p.proprietaire_id = $2`,
-        [batchId, userId],
+        [batchId, normalizedUserId],
       );
-      if (result.rows.length === 0) {
-        // Vérifier si la bande existe pour donner un message d'erreur plus précis
-        const batchCheck = await this.db.query(
-          `SELECT b.id, b.projet_id FROM batches b WHERE b.id = $1`,
-          [batchId],
-        );
-        if (batchCheck.rows.length === 0) {
-          throw new NotFoundException('Bande non trouvée');
-        }
-        
-        // Vérifier le proprietaire_id du projet pour le débogage
-        const projetCheck = await this.db.query(
-          `SELECT id, proprietaire_id FROM projets WHERE id = $1`,
-          [batchCheck.rows[0].projet_id],
-        );
-        if (projetCheck.rows.length > 0) {
-          const proprietaireId = projetCheck.rows[0].proprietaire_id;
-          const proprietaireIdStr = proprietaireId ? String(proprietaireId).trim() : 'NULL';
-          const normalizedUserId = String(userId || '').trim();
-          const match = proprietaireId ? String(proprietaireId).trim() === normalizedUserId : false;
-          
-          this.logger.warn(
-            `[checkBatchOwnership] Bande ${batchId} appartient au projet ${batchCheck.rows[0].projet_id}, ` +
-            `proprietaire_id=${proprietaireIdStr} (type: ${typeof proprietaireId}), userId=${normalizedUserId} (type: ${typeof userId}), match=${match}`
-          );
-          
-          // Si proprietaire_id est NULL, c'est un problème de configuration
-          if (!proprietaireId) {
-            this.logger.error(
-              `[checkBatchOwnership] Le projet ${batchCheck.rows[0].projet_id} n'a pas de proprietaire_id défini. ` +
-              `C'est un problème de configuration de la base de données.`
-            );
-          }
-        }
-        
-        // La bande existe mais n'appartient pas à l'utilisateur
-        throw new ForbiddenException('Cette bande ne vous appartient pas');
+      
+      if (ownerResult.rows.length > 0) {
+        return; // ✅ L'utilisateur est propriétaire
       }
+      
+      // 2. Vérifier si la bande existe
+      const batchCheck = await this.db.query(
+        `SELECT b.id, b.projet_id FROM batches b WHERE b.id = $1`,
+        [batchId],
+      );
+      
+      if (batchCheck.rows.length === 0) {
+        throw new NotFoundException('Bande non trouvée');
+      }
+      
+      const projetId = batchCheck.rows[0].projet_id;
+      
+      // 3. Vérifier si l'utilisateur est collaborateur actif avec permission 'cheptel'
+      // ✅ Ne pas inclure 'permissions' car cette colonne peut ne pas exister
+      const collabResult = await this.db.query(
+        `SELECT id, permission_cheptel, permission_gestion_complete FROM collaborations 
+         WHERE projet_id = $1 
+         AND (user_id = $2 OR profile_id LIKE $3)
+         AND statut = 'actif'`,
+        [projetId, normalizedUserId, `%${normalizedUserId}%`],
+      );
+      
+      if (collabResult.rows.length > 0) {
+        const collab = collabResult.rows[0];
+        
+        // Log pour debug
+        this.logger.debug(
+          `[checkBatchOwnership] Collab trouvé: id=${collab.id}, ` +
+          `permission_cheptel=${collab.permission_cheptel}, ` +
+          `permission_gestion_complete=${collab.permission_gestion_complete}`
+        );
+        
+        // Vérifier les nouvelles colonnes de permission booléennes
+        if (collab.permission_cheptel === true || collab.permission_gestion_complete === true) {
+          return; // ✅ L'utilisateur est collaborateur avec permission
+        }
+      }
+      
+      // Si aucune condition n'est remplie, vérifier pour le débogage
+      const projetCheck = await this.db.query(
+        `SELECT id, proprietaire_id FROM projets WHERE id = $1`,
+        [projetId],
+      );
+      if (projetCheck.rows.length > 0) {
+        const proprietaireId = projetCheck.rows[0].proprietaire_id;
+        const proprietaireIdStr = proprietaireId ? String(proprietaireId).trim() : 'NULL';
+        const match = proprietaireId ? String(proprietaireId).trim() === normalizedUserId : false;
+        
+        this.logger.warn(
+          `[checkBatchOwnership] Bande ${batchId} appartient au projet ${projetId}, ` +
+          `proprietaire_id=${proprietaireIdStr}, userId=${normalizedUserId}, match=${match}`
+        );
+          
+        // Si proprietaire_id est NULL, c'est un problème de configuration
+        if (!proprietaireId) {
+          this.logger.error(
+            `[checkBatchOwnership] Le projet ${projetId} n'a pas de proprietaire_id défini. ` +
+            `C'est un problème de configuration de la base de données.`
+          );
+        }
+      }
+        
+      // La bande existe mais n'appartient pas à l'utilisateur
+      throw new ForbiddenException('Cette bande ne vous appartient pas');
     } catch (error) {
       // Si c'est déjà une exception NestJS, la relancer telle quelle
       if (error instanceof NotFoundException || error instanceof ForbiddenException) {
@@ -786,25 +819,47 @@ throw error;
   }
 
   /**
-   * Vérifie que le projet appartient à l'utilisateur
+   * Vérifie que le projet appartient à l'utilisateur OU qu'il est collaborateur actif
+   * avec les permissions appropriées (cheptel ou gestion_complete)
    */
   private async checkProjetOwnership(
     projetId: string,
     userId: string,
   ): Promise<void> {
-const result = await this.db.query(
+    const result = await this.db.query(
       'SELECT proprietaire_id FROM projets WHERE id = $1',
       [projetId],
     );
     if (result.rows.length === 0) {
-throw new NotFoundException('Projet non trouvé');
+      throw new NotFoundException('Projet non trouvé');
     }
     const rawProprietaireId = result.rows[0].proprietaire_id;
     const proprietaireId = String(rawProprietaireId || '').trim();
     const normalizedUserId = String(userId || '').trim();
-if (proprietaireId !== normalizedUserId) {
-throw new ForbiddenException('Ce projet ne vous appartient pas');
+    
+    // ✅ Si l'utilisateur est le propriétaire, OK
+    if (proprietaireId === normalizedUserId) {
+      return;
     }
+    
+    // ✅ Sinon, vérifier s'il est collaborateur actif avec permission 'cheptel'
+    const collabResult = await this.db.query(
+      `SELECT id, permission_cheptel, permission_gestion_complete FROM collaborations 
+       WHERE projet_id = $1 
+       AND (user_id = $2 OR profile_id LIKE $3)
+       AND statut = 'actif'`,
+      [projetId, normalizedUserId, `%${normalizedUserId}%`],
+    );
+    
+    if (collabResult.rows.length > 0) {
+      const collab = collabResult.rows[0];
+      // Vérifier si la permission cheptel ou gestion_complete est accordée
+      if (collab.permission_cheptel === true || collab.permission_gestion_complete === true) {
+        return;
+      }
+    }
+    
+    throw new ForbiddenException('Vous n\'avez pas accès à ce projet ou les permissions nécessaires');
   }
 
   /**

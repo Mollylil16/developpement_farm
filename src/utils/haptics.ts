@@ -67,6 +67,13 @@ export const hapticInvitationAccepted = (): void => {
 };
 
 /**
+ * Retour haptique pour succès générique
+ */
+export const hapticSuccess = (): void => {
+  triggerHaptic('success');
+};
+
+/**
  * Retour haptique pour erreur
  */
 export const hapticError = (): void => {

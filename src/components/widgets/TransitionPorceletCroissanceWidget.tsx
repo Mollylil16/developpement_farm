@@ -12,6 +12,7 @@ import { SPACING, FONT_SIZES, FONT_WEIGHTS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
 import { SafeTextWrapper } from '../../utils/textRenderingGuard';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
 
 interface TransitionPorceletCroissanceWidgetProps {
   onPress?: () => void;
@@ -20,7 +21,8 @@ interface TransitionPorceletCroissanceWidgetProps {
 function TransitionPorceletCroissanceWidget({ onPress }: TransitionPorceletCroissanceWidgetProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const animaux = useAppSelector(selectAllAnimaux);
 
   // Utiliser useRef pour éviter les chargements multiples

@@ -140,10 +140,11 @@ export interface AgentActionResult {
 }
 
 export interface AgentContext {
-  projetId: string;
+  projetId: string | null; // Peut être null pour profils sans projet (buyer, veterinarian, technician)
   userId: string;
   userName?: string;
   currentDate: string;
+  activeRole?: 'producer' | 'buyer' | 'veterinarian' | 'technician'; // Rôle actif de l'utilisateur
   availableAnimals?: unknown[];
   availableLots?: unknown[];
   recentTransactions?: unknown[];

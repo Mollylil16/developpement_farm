@@ -38,6 +38,7 @@ import LivestockStatsCard from './finance/LivestockStatsCard';
 import RevenueProjectionsCard from './finance/RevenueProjectionsCard';
 // OpexCapexChart déplacé dans FinanceBilanComptableComponent
 import { exportFinancePDF } from '../services/pdf/financePDF';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -51,7 +52,8 @@ export default function FinanceGraphiquesComponent() {
   const depensesPonctuelles = useAppSelector(selectAllDepensesPonctuelles);
   const revenus = useAppSelector(selectAllRevenus);
   const financeLoading = useAppSelector((state) => state.finance?.loading ?? false);
-  const { projetActif } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   
   // Référence pour le dernier chargement (éviter les appels excessifs)
   const lastLoadRef = useRef<{ projetId: string | null; timestamp: number }>({ projetId: null, timestamp: 0 });
