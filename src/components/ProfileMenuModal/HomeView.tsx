@@ -8,6 +8,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
 import { signOut } from '../../store/slices/authSlice';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useRole } from '../../contexts/RoleContext';

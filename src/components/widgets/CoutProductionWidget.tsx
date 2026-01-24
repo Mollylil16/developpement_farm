@@ -6,6 +6,7 @@
 import React, { useEffect, useState, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextStyle } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
 import { loadStatistiquesMoisActuel } from '../../store/slices/financeSlice';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';

@@ -5,6 +5,7 @@
 import React, { useMemo, memo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppSelector } from '../store/hooks';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import { useLoadAnimauxOnMount } from '../hooks/useLoadAnimauxOnMount';
 import { selectAllAnimaux, selectProductionUpdateCounter } from '../store/selectors/productionSelectors';
 import { countAnimalsByCategory } from '../utils/animalUtils';

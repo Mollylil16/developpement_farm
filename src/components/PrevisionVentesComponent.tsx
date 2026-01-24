@@ -31,6 +31,7 @@ import { getCategorieAnimal } from '../utils/animalUtils';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
 import { useFocusEffect } from '@react-navigation/native';
 import { createLoggerWithPrefix } from '../utils/logger';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 const logger = createLoggerWithPrefix('PrevisionVentes');
 

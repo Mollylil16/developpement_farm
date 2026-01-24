@@ -13,6 +13,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import {
   loadProductionAnimaux,
   deleteProductionAnimal,

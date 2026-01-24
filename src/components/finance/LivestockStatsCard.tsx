@@ -6,6 +6,7 @@ import React, { memo, useState, useCallback, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppSelector } from '../../store/hooks';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
 import { 
   selectPeseesParAnimal, 
   selectProductionUpdateCounter 

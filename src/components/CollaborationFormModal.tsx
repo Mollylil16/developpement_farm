@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import { createCollaborateur, updateCollaborateur } from '../store/slices/collaborationSlice';
 import type {
   Collaborateur,

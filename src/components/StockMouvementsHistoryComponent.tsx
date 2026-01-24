@@ -14,6 +14,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import { loadStocks, loadMouvementsParAliment } from '../store/slices/stocksSlice';
 import type { StockAliment, StockMouvement } from '../types/nutrition';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';

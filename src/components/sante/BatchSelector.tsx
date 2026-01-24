@@ -15,6 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAppSelector } from '../../store/hooks';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../../constants/theme';
 import apiClient from '../../services/api/apiClient';
 import { Batch } from '../../types/batch';

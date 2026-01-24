@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { useAppSelector } from '../store/hooks';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import type { Dette, CreateDetteInput, TypeDette, StatutDette, FrequenceRemboursement } from '../types/finance';
 import CustomModal from './CustomModal';
 import FormField from './FormField';

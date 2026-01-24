@@ -27,6 +27,7 @@ import {
 import { SailliePlanifiee, STATUT_SAILLIE_LABELS } from '../types/planningProduction';
 import { selectAllAnimaux } from '../store/selectors/productionSelectors';
 import { getCategorieAnimal } from '../utils/animalUtils';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 interface Props {
   refreshControl: React.ReactElement<React.ComponentProps<typeof import('react-native').RefreshControl>>;

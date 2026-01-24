@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import { loadIngredients, createRation } from '../store/slices/nutritionSlice';
 import type { TypePorc, CreateRationInput } from '../types/nutrition';
 import { RECOMMANDATIONS_NUTRITION, getTypePorcLabel } from '../types/nutrition';

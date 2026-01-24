@@ -24,6 +24,7 @@ import type { FarmCard, MarketplaceListing } from '../../types/marketplace';
 import { formatDate } from '../../utils/formatters';
 import { formatPrice } from '../../services/PricingService';
 import { useAppSelector } from '../../store/hooks';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
 import apiClient from '../../services/api/apiClient';
 import { API_CONFIG } from '../../config/api.config';
 import { TYPE_PROPHYLAXIE_LABELS } from '../../types/sante';

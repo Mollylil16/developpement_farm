@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import { createVisiteVeterinaire, updateVisiteVeterinaire } from '../store/slices/santeSlice';
 import CustomModal from './CustomModal';
 import { VisiteVeterinaire, CreateVisiteVeterinaireInput } from '../types/sante';

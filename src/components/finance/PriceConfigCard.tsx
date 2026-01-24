@@ -6,6 +6,7 @@ import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ViewStyle } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
 import { updateProjet } from '../../store/slices/projetSlice';
 import { SPACING, FONT_SIZES } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';

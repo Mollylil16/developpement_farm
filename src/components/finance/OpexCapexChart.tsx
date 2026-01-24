@@ -7,6 +7,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Dimensions, ScrollView, TextStyle } from 'react-native';
 import { BarChart } from 'react-native-chart-kit';
 import { useAppSelector } from '../../store/hooks';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
 import { selectAllDepensesPonctuelles } from '../../store/selectors/financeSelectors';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
