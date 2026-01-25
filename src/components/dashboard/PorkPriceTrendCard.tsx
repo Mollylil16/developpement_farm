@@ -390,9 +390,6 @@ const styles = StyleSheet.create({
   refreshButtonDisabled: {
     opacity: 0.5,
   },
-  spinningIcon: {
-    // Animation CSS pas supportée en RN, mais on peut ajouter une indication visuelle
-  },
   subtitleContainer: {
     marginBottom: SPACING.md,
   },
