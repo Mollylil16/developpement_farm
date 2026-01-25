@@ -261,12 +261,14 @@ export type NotificationType =
   | 'appointment_accepted'
   | 'appointment_rejected'
   | 'appointment_cancelled'
-  | 'appointment_reminder';
+  | 'appointment_reminder'
+  // ✅ Types pour notifications de collaborations
+  | 'collaboration_removed';
 
 /**
  * Type d'entit├® li├®e ├á la notification
  */
-export type NotificationRelatedType = 'offer' | 'transaction' | 'message' | 'rating' | 'appointment';
+export type NotificationRelatedType = 'offer' | 'transaction' | 'message' | 'rating' | 'appointment' | 'collaboration';
 
 /**
  * Notification marketplace

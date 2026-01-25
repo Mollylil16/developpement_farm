@@ -38,7 +38,9 @@ type NotificationType =
   | 'appointment_accepted'
   | 'appointment_rejected'
   | 'appointment_cancelled'
-  | 'appointment_reminder';
+  | 'appointment_reminder'
+  // ✅ Types pour notifications de collaborations
+  | 'collaboration_removed';
 
 const NOTIFICATION_CONFIG: Record<
   NotificationType,
