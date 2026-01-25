@@ -39,6 +39,7 @@ import { NotificationPanel } from '../components/marketplace';
 import SupportContactModal from '../components/SupportContactModal';
 import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
 import ProjectSelectorCollaborateur from '../components/Collaborations/ProjectSelectorCollaborateur';
+import VetAppointmentsCard from '../components/dashboard/VetAppointmentsCard';
 import type { VisiteVeterinaire } from '../types/sante';
 
 const DashboardVetScreen: React.FC = () => {
@@ -301,15 +302,17 @@ const DashboardVetScreen: React.FC = () => {
         <NotificationPanel
           visible={notificationPanelVisible}
           notifications={marketplaceNotifications}
+          unreadCount={marketplaceUnreadCount}
           onClose={() => setNotificationPanelVisible(false)}
           onNotificationPress={(notification) => {
             markAsRead(notification.id);
             // TODO: Navigate to notification target
           }}
-          onDeleteNotification={deleteNotification}
+          onMarkAsRead={markAsRead}
           onMarkAllAsRead={() => {
             marketplaceNotifications.forEach((n) => markAsRead(n.id));
           }}
+          onDelete={deleteNotification}
         />
 
         {/* Support Contact Modal */}
