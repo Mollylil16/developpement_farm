@@ -152,112 +152,119 @@ export default function AppointmentDetailsModal({
       onClose={onClose}
       title="Détails du rendez-vous"
       showButtons={false}
-      scrollEnabled={true}
+      scrollEnabled={false}
     >
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Informations producteur */}
-        <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={styles.infoHeader}>
-            <Ionicons name="person-outline" size={24} color={colors.primary} />
-            <View style={styles.infoText}>
-              <Text style={[styles.infoTitle, { color: colors.text }]}>Producteur</Text>
-              <Text style={[styles.infoValue, { color: colors.text }]}>
-                {appointment.producerName || 'Producteur'}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Date et heure */}
-        <View style={styles.section}>
-          <View style={styles.dateTimeRow}>
-            <View style={styles.dateTimeItem}>
-              <Ionicons name="calendar-outline" size={20} color={colors.primary} />
-              <View style={styles.dateTimeText}>
-                <Text style={[styles.dateTimeLabel, { color: colors.textSecondary }]}>Date</Text>
-                <Text style={[styles.dateTimeValue, { color: colors.text }]}>
-                  {format(appointmentDate, 'EEEE d MMMM yyyy', { locale: fr })}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.dateTimeItem}>
-              <Ionicons name="time-outline" size={20} color={colors.primary} />
-              <View style={styles.dateTimeText}>
-                <Text style={[styles.dateTimeLabel, { color: colors.textSecondary }]}>Heure</Text>
-                <Text style={[styles.dateTimeValue, { color: colors.text }]}>
-                  {format(appointmentDate, 'HH:mm', { locale: fr })}
+      <View style={styles.container}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Informations producteur */}
+          <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={styles.infoHeader}>
+              <Ionicons name="person-outline" size={24} color={colors.primary} />
+              <View style={styles.infoText}>
+                <Text style={[styles.infoTitle, { color: colors.text }]}>Producteur</Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>
+                  {appointment.producerName || 'Producteur'}
                 </Text>
               </View>
             </View>
           </View>
-        </View>
 
-        {/* Raison */}
-        <View style={styles.section}>
-          <Text style={[styles.label, { color: colors.text }]}>Raison du rendez-vous</Text>
-          <View style={[styles.reasonBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.reasonText, { color: colors.text }]}>{appointment.reason}</Text>
-          </View>
-        </View>
-
-        {/* Lieu */}
-        {appointment.location && (
+          {/* Date et heure */}
           <View style={styles.section}>
-            <Text style={[styles.label, { color: colors.text }]}>Lieu d'intervention</Text>
-            <View style={[styles.locationBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Ionicons name="location-outline" size={16} color={colors.textSecondary} />
-              <Text style={[styles.locationText, { color: colors.text }]}>
-                {appointment.location}
-              </Text>
+            <View style={styles.dateTimeRow}>
+              <View style={styles.dateTimeItem}>
+                <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+                <View style={styles.dateTimeText}>
+                  <Text style={[styles.dateTimeLabel, { color: colors.textSecondary }]}>Date</Text>
+                  <Text style={[styles.dateTimeValue, { color: colors.text }]}>
+                    {format(appointmentDate, 'EEEE d MMMM yyyy', { locale: fr })}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.dateTimeItem}>
+                <Ionicons name="time-outline" size={20} color={colors.primary} />
+                <View style={styles.dateTimeText}>
+                  <Text style={[styles.dateTimeLabel, { color: colors.textSecondary }]}>Heure</Text>
+                  <Text style={[styles.dateTimeValue, { color: colors.text }]}>
+                    {format(appointmentDate, 'HH:mm', { locale: fr })}
+                  </Text>
+                </View>
+              </View>
             </View>
           </View>
-        )}
 
-        {/* Réponse du vétérinaire (si déjà répondu) */}
-        {appointment.status !== 'pending' && appointment.vetResponse && (
+          {/* Raison */}
           <View style={styles.section}>
-            <Text style={[styles.label, { color: colors.text }]}>Votre réponse</Text>
-            <View style={[styles.responseBox, { backgroundColor: colors.surfaceVariant }]}>
-              <Text style={[styles.responseText, { color: colors.text }]}>
-                {appointment.vetResponse}
-              </Text>
+            <Text style={[styles.label, { color: colors.text }]}>Raison du rendez-vous</Text>
+            <View style={[styles.reasonBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.reasonText, { color: colors.text }]}>{appointment.reason}</Text>
             </View>
           </View>
-        )}
 
-        {/* Formulaire de réponse (si en attente) */}
-        {appointment.status === 'pending' && (
-          <View style={styles.section}>
-            <Text style={[styles.label, { color: colors.text }]}>
-              Votre réponse (optionnel)
-            </Text>
-            <TextInput
-              style={[
-                styles.textArea,
-                {
-                  backgroundColor: colors.surface,
-                  borderColor: colors.border,
-                  color: colors.text,
-                },
-              ]}
-              placeholder="Ex: Je serai disponible à cette date. Merci de confirmer."
-              placeholderTextColor={colors.textSecondary}
-              value={vetResponse}
-              onChangeText={setVetResponse}
-              multiline
-              numberOfLines={3}
-              maxLength={500}
-              textAlignVertical="top"
-            />
-            <Text style={[styles.helperText, { color: colors.textSecondary }]}>
-              {vetResponse.length}/500 caractères
-            </Text>
-          </View>
-        )}
+          {/* Lieu */}
+          {appointment.location && (
+            <View style={styles.section}>
+              <Text style={[styles.label, { color: colors.text }]}>Lieu d'intervention</Text>
+              <View style={[styles.locationBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Ionicons name="location-outline" size={16} color={colors.textSecondary} />
+                <Text style={[styles.locationText, { color: colors.text }]}>
+                  {appointment.location}
+                </Text>
+              </View>
+            </View>
+          )}
 
-        {/* Actions (si en attente) */}
+          {/* Réponse du vétérinaire (si déjà répondu) */}
+          {appointment.status !== 'pending' && appointment.vetResponse && (
+            <View style={styles.section}>
+              <Text style={[styles.label, { color: colors.text }]}>Votre réponse</Text>
+              <View style={[styles.responseBox, { backgroundColor: colors.surfaceVariant }]}>
+                <Text style={[styles.responseText, { color: colors.text }]}>
+                  {appointment.vetResponse}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Formulaire de réponse (si en attente) */}
+          {appointment.status === 'pending' && (
+            <View style={styles.section}>
+              <Text style={[styles.label, { color: colors.text }]}>
+                Votre réponse (optionnel)
+              </Text>
+              <TextInput
+                style={[
+                  styles.textArea,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    color: colors.text,
+                  },
+                ]}
+                placeholder="Ex: Je serai disponible à cette date. Merci de confirmer."
+                placeholderTextColor={colors.textSecondary}
+                value={vetResponse}
+                onChangeText={setVetResponse}
+                multiline
+                numberOfLines={3}
+                maxLength={500}
+                textAlignVertical="top"
+              />
+              <Text style={[styles.helperText, { color: colors.textSecondary }]}>
+                {vetResponse.length}/500 caractères
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+
+        {/* Actions (si en attente) - En dehors du ScrollView pour être toujours visible */}
         {appointment.status === 'pending' && (
-          <View style={styles.actions}>
+          <View style={[styles.actionsContainer, { borderTopColor: colors.divider, backgroundColor: colors.surface }]}>
             <TouchableOpacity
               style={[styles.rejectButton, { backgroundColor: colors.error }]}
               onPress={handleReject}
@@ -289,23 +296,32 @@ export default function AppointmentDetailsModal({
           </View>
         )}
 
-        {/* Bouton fermer (si déjà traité) */}
+        {/* Bouton fermer (si déjà traité) - En dehors du ScrollView */}
         {appointment.status !== 'pending' && (
-          <TouchableOpacity
-            style={[styles.closeButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={onClose}
-          >
-            <Text style={[styles.closeButtonText, { color: colors.text }]}>Fermer</Text>
-          </TouchableOpacity>
+          <View style={[styles.actionsContainer, { borderTopColor: colors.divider, backgroundColor: colors.surface }]}>
+            <TouchableOpacity
+              style={[styles.closeButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onPress={onClose}
+            >
+              <Text style={[styles.closeButtonText, { color: colors.text }]}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
         )}
-      </ScrollView>
+      </View>
     </CustomModal>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    flexDirection: 'column',
+  },
   scrollView: {
-    maxHeight: 600,
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: SPACING.lg,
   },
   infoCard: {
     padding: SPACING.md,
@@ -402,11 +418,13 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.xs,
     marginTop: SPACING.xs,
   },
-  actions: {
+  actionsContainer: {
     flexDirection: 'row',
     gap: SPACING.md,
-    marginTop: SPACING.lg,
-    marginBottom: SPACING.md,
+    padding: SPACING.lg,
+    borderTopWidth: 1,
+    // Assure que les boutons sont toujours visibles
+    minHeight: 70,
   },
   acceptButton: {
     flex: 1,
