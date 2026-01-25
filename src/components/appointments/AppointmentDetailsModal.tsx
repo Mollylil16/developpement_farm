@@ -314,14 +314,15 @@ export default function AppointmentDetailsModal({
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    maxHeight: '100%',
     flexDirection: 'column',
   },
   scrollView: {
-    flex: 1,
+    maxHeight: 400, // Hauteur maximale pour le contenu scrollable
   },
   scrollContent: {
     paddingBottom: SPACING.lg,
+    paddingHorizontal: SPACING.lg,
   },
   infoCard: {
     padding: SPACING.md,
@@ -425,6 +426,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     // Assure que les boutons sont toujours visibles
     minHeight: 70,
+    // Empêche le conteneur de grandir indéfiniment
+    flexShrink: 0,
   },
   acceptButton: {
     flex: 1,
