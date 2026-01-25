@@ -528,7 +528,6 @@ function MarketplaceOffersTab({
         initialNumToRender={10}
         ListFooterComponent={<View style={{ height: 20 }} />}
         showsVerticalScrollIndicator={true}
-        nestedScrollEnabled={true} // ✅ Permet le scroll imbriqué
       />
 
       {/* Modal de contre-proposition */}
