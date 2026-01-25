@@ -3351,6 +3351,125 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
   }
 
   /**
+   * Marquer une annonce comme vendue (bouton "Vendu" dans Mes annonces).
+   * Sans acheteur : le vendeur indique une vente hors app.
+   * - Retire l'annonce du marketplace (status=sold)
+   * - Crée un revenu en Finance > Revenus
+   * - Retire les sujets du cheptel (statut vendu / suppression batch_pigs)
+   */
+  async marquerVendu(listingId: string, userId: string): Promise<{ success: boolean; revenueId: string; message: string }> {
+    this.logger.log(`[marquerVendu] Listing ${listingId} par userId ${userId}`);
+
+    return await this.databaseService.transaction(async (client) => {
+      const now = new Date().toISOString();
+
+      // 1. Vérifier que le listing existe et appartient à l'utilisateur
+      const listingResult = await client.query(
+        'SELECT * FROM marketplace_listings WHERE id = $1',
+        [listingId]
+      );
+
+      if (listingResult.rows.length === 0) {
+        throw new NotFoundException('Annonce introuvable');
+      }
+
+      const listing = listingResult.rows[0];
+
+      if (listing.producer_id !== userId) {
+        throw new ForbiddenException('Vous n\'êtes pas autorisé à marquer cette annonce comme vendue');
+      }
+
+      if (listing.status !== 'available' && listing.status !== 'reserved') {
+        throw new BadRequestException(
+          `Cette annonce n'est plus disponible pour être marquée vendue (statut: ${listing.status})`
+        );
+      }
+
+      // 2. Récupérer les subjectIds
+      const listingType = listing.listing_type || 'individual';
+      let subjectIds: string[] = [];
+
+      if (listingType === 'individual') {
+        if (!listing.subject_id) {
+          throw new BadRequestException('Annonce individuelle sans sujet');
+        }
+        subjectIds = [listing.subject_id];
+      } else if (listingType === 'batch') {
+        const pigIds = Array.isArray(listing.pig_ids)
+          ? listing.pig_ids
+          : typeof listing.pig_ids === 'string'
+            ? JSON.parse(listing.pig_ids || '[]')
+            : [];
+        if (pigIds.length === 0) {
+          throw new BadRequestException('Annonce de bande sans porcs');
+        }
+        subjectIds = pigIds;
+      }
+
+      // 3. Marquer le listing comme sold
+      await client.query(
+        `UPDATE marketplace_listings 
+         SET status = 'sold', updated_at = $1, derniere_modification = $1 
+         WHERE id = $2`,
+        [now, listingId]
+      );
+
+      // 4. Nettoyer les autres listings contenant ces sujets
+      await this.removeSubjectFromOtherListings(client, subjectIds, listingId, listingType);
+
+      // 5. Retirer les sujets du cheptel (statut vendu ou suppression batch_pigs)
+      await this.updateAnimalsSoldStatus(client, subjectIds, listingType, now);
+
+      // 6. Créer le revenu en Finance > Revenus (schéma table revenus)
+      const revenueId = this.generateId('revenu');
+      const montant = parseFloat(listing.calculated_price) || 0;
+      const weight = parseFloat(listing.weight) || 0;
+      const pigCount = parseInt(listing.pig_count, 10) || 1;
+      const totalKg = weight * pigCount;
+      const poidsKg = totalKg > 0 ? Math.round(totalKg) : null;
+      const animalId = listingType === 'individual' ? subjectIds[0] : null;
+
+      try {
+        await client.query(
+          `INSERT INTO revenus (
+            id, projet_id, montant, categorie, libelle_categorie, date,
+            description, commentaire, photos, poids_kg, animal_id,
+            date_creation, derniere_modification
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+          [
+            revenueId,
+            listing.farm_id,
+            montant,
+            'vente_porc',
+            null,
+            now,
+            `Vente marketplace - annonce ${listingId}`,
+            null,
+            null,
+            poidsKg,
+            animalId,
+            now,
+            now,
+          ]
+        );
+      } catch (revenusErr: any) {
+        this.logger.error('[marquerVendu] Erreur création revenu:', revenusErr?.message);
+        throw new BadRequestException(
+          `Impossible d'enregistrer le revenu: ${revenusErr?.message || 'erreur inconnue'}`
+        );
+      }
+
+      this.logger.log(`[marquerVendu] Annonce ${listingId} marquée vendue, revenu ${revenueId}`);
+
+      return {
+        success: true,
+        revenueId,
+        message: `Vente enregistrée. ${subjectIds.length} sujet(s) retiré(s) du cheptel, ${montant.toLocaleString('fr-FR')} FCFA ajouté(s) aux revenus.`,
+      };
+    });
+  }
+
+  /**
    * HELPER: Retire un sujet de tous les autres listings
    * 
    * RÈGLES:

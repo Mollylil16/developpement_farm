@@ -245,6 +245,21 @@ export class MarketplaceController {
     return this.marketplaceUnifiedService.updateUnifiedListing(id, updateListingDto, userId);
   }
 
+  @Post('listings/:id/marquer-vendu')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Marquer une annonce comme vendue',
+    description: `Marquer une annonce comme vendue (bouton "Vendu" dans Mes annonces). 
+      Retire l'annonce du marketplace, crée un revenu en Finance > Revenus, et retire les sujets du cheptel.`,
+  })
+  @ApiResponse({ status: 200, description: 'Annonce marquée vendue. Revenu créé et sujets retirés du cheptel.' })
+  @ApiResponse({ status: 400, description: 'Annonce non disponible ou erreur.' })
+  @ApiResponse({ status: 403, description: 'Non autorisé.' })
+  @ApiResponse({ status: 404, description: 'Annonce introuvable.' })
+  async marquerVendu(@Param('id') id: string, @CurrentUser('id') userId: string) {
+    return this.marketplaceService.marquerVendu(id, userId);
+  }
+
   @Delete('listings/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Supprimer une annonce (individuelle ou bande) - Unifié' })

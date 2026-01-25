@@ -70,6 +70,36 @@ function MarketplaceMyListingsTab({
     ]);
   };
 
+  const handleMarquerVendu = (listing: MarketplaceListing) => {
+    Alert.alert(
+      'Marquer comme vendu',
+      'Voulez-vous marquer cette annonce comme vendue ? La vente sera enregistrée en Finance > Revenus et les sujets seront retirés du cheptel.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Vendu',
+          onPress: async () => {
+            try {
+              if (!user?.id) {
+                Alert.alert('Erreur', 'Utilisateur non connecté');
+                return;
+              }
+              const res = await apiClient.post<{ success: boolean; message?: string }>(
+                `/marketplace/listings/${listing.id}/marquer-vendu`,
+                {}
+              );
+              onRefresh();
+              Alert.alert('Succès', res?.message || 'Annonce marquée vendue. Revenu enregistré et sujets retirés du cheptel.');
+            } catch (error) {
+              logger.error('Erreur marquer vendu:', error);
+              Alert.alert('Erreur', getErrorMessage(error));
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const renderItem = ({ item }: { item: MarketplaceListing }) => {
     const isBatchListing = item.listingType === 'batch' || item.batchId;
     const animal = !isBatchListing && item.subjectId 
@@ -110,6 +140,12 @@ function MarketplaceMyListingsTab({
               <Text style={[styles.actionText, { color: marketplaceColors.primary }]}>
                 Voir détails
               </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: '#15803d15' }]}
+              onPress={() => handleMarquerVendu(item)}
+            >
+              <Text style={[styles.actionText, { color: '#15803d' }]}>Vendu</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: marketplaceColors.error + '15' }]}
