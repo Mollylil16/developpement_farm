@@ -15,6 +15,12 @@ export enum NotificationType {
   // ✅ Notifications enrichies avec détails de contact et localisation
   SALE_CONFIRMED_BUYER = 'sale_confirmed_buyer',     // Pour l'acheteur avec détails ferme
   SALE_CONFIRMED_PRODUCER = 'sale_confirmed_producer', // Pour le producteur avec détails acheteur
+  // ✅ Notifications pour les rendez-vous vétérinaires
+  APPOINTMENT_REQUESTED = 'appointment_requested',   // Demande de RDV reçue (vétérinaire)
+  APPOINTMENT_ACCEPTED = 'appointment_accepted',      // RDV accepté (producteur)
+  APPOINTMENT_REJECTED = 'appointment_rejected',     // RDV refusé (producteur)
+  APPOINTMENT_CANCELLED = 'appointment_cancelled',   // RDV annulé (les deux)
+  APPOINTMENT_REMINDER = 'appointment_reminder',     // Rappel RDV (les deux)
 }
 
 export class CreateNotificationDto {

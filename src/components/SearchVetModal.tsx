@@ -22,11 +22,12 @@ import { Veterinarian } from '../types/veterinarian';
 import { searchVeterinariansWithLocation, searchAllVeterinarians } from '../services/veterinarianService';
 import Button from './Button';
 import Card from './Card';
+import AppointmentRequestModal from './appointments/AppointmentRequestModal';
 
 interface SearchVetModalProps {
   visible: boolean;
   onClose: () => void;
-  onInvite: (vet: Veterinarian) => void;
+  onInvite?: (vet: Veterinarian) => void; // Optionnel maintenant, on utilise le modal de RDV
 }
 
 interface VetCardProps {
@@ -83,8 +84,11 @@ function VetCard({ vet, onInvite }: VetCardProps) {
 
       <View style={styles.actions}>
         <Button
-          title="Inviter"
-          onPress={onInvite}
+          title="Demander RDV"
+          onPress={() => {
+            setSelectedVet(vet);
+            setShowAppointmentModal(true);
+          }}
           variant="primary"
           size="small"
           style={styles.inviteButton}
@@ -110,6 +114,8 @@ export default function SearchVetModal({ visible, onClose, onInvite }: SearchVet
     null
   );
   const [searchMode, setSearchMode] = useState<'nearby' | 'all'>('all'); // Par défaut: tous les vétérinaires
+  const [selectedVet, setSelectedVet] = useState<Veterinarian | null>(null);
+  const [showAppointmentModal, setShowAppointmentModal] = useState(false);
 
   useEffect(() => {
     console.log('🔍 [SearchVetModal] visible changed:', visible);
@@ -265,6 +271,22 @@ export default function SearchVetModal({ visible, onClose, onInvite }: SearchVet
             )}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
+          />
+        )}
+
+        {/* Modal de demande de rendez-vous */}
+        {selectedVet && (
+          <AppointmentRequestModal
+            visible={showAppointmentModal}
+            onClose={() => {
+              setShowAppointmentModal(false);
+              setSelectedVet(null);
+            }}
+            vet={selectedVet}
+            onSuccess={() => {
+              // Recharger la liste des vétérinaires après succès
+              loadVeterinarians();
+            }}
           />
         )}
       </SafeAreaView>
