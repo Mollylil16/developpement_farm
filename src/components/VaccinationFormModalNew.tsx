@@ -620,13 +620,15 @@ export default function VaccinationFormModalNew({
                 </Text>
               </View>
             ) : (
-              <FlatList
-                data={animauxFiltres}
-                keyExtractor={(item) => item.id}
-                renderItem={renderAnimalItem}
-                scrollEnabled={false}
-                ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
-              />
+              // ✅ Utiliser .map() au lieu de FlatList car scrollEnabled={false} et on est dans un ScrollView
+              <View>
+                {animauxFiltres.map((item, index) => (
+                  <View key={item.id}>
+                    {renderAnimalItem({ item, index })}
+                    {index < animauxFiltres.length - 1 && <View style={{ height: 8 }} />}
+                  </View>
+                ))}
+              </View>
             )}
           </View>
         </View>
