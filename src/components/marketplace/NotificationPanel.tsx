@@ -48,6 +48,7 @@ const NOTIFICATION_TYPES_BY_TAB: Record<TabType, NotificationType[]> = {
     'appointment_rejected',
     'appointment_cancelled',
     'appointment_reminder',
+    'collaboration_removed',
   ],
   offers: ['offer_received', 'offer_accepted', 'offer_rejected'],
   messages: ['message_received'],
@@ -61,6 +62,7 @@ const NOTIFICATION_TYPES_BY_TAB: Record<TabType, NotificationType[]> = {
     'appointment_rejected',
     'appointment_cancelled',
     'appointment_reminder',
+    'collaboration_removed',
   ],
 };
 
