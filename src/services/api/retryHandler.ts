@@ -16,6 +16,8 @@ export interface RetryOptions {
 const DEFAULT_RETRY_OPTIONS: Required<RetryOptions> = {
   maxRetries: 3,
   retryDelay: 1000, // 1 seconde
+  // ⚠️ Ne pas retry les erreurs 400 (Bad Request) car elles indiquent généralement
+  // que la requête a déjà été traitée ou qu'il y a un problème de validation
   retryableStatuses: [408, 429, 500, 502, 503, 504], // Timeout, Rate Limit, Server Errors
   retryableErrors: [
     'Network error',

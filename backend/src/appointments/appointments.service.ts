@@ -324,28 +324,66 @@ export class AppointmentsService {
     updates.push(`updated_at = NOW()`);
     values.push(appointmentId);
 
-    await this.databaseService.query(
-      `UPDATE vet_appointments 
-       SET ${updates.join(', ')}
-       WHERE id = $${paramIndex}`,
-      values,
-    );
+    try {
+      await this.databaseService.query(
+        `UPDATE vet_appointments 
+         SET ${updates.join(', ')}
+         WHERE id = $${paramIndex}`,
+        values,
+      );
 
-    this.logger.log(
-      `[Appointments] Rendez-vous ${appointmentId} mis à jour: status=${updateAppointmentDto.status}`,
-    );
+      this.logger.log(
+        `[Appointments] ✅ Rendez-vous ${appointmentId} mis à jour en base: status=${updateAppointmentDto.status}`,
+      );
 
-    // Envoyer une notification au producteur
-    const updatedAppointment = await this.findOne(appointmentId, appointment.producerId);
+      // Vérifier que la mise à jour a bien été effectuée
+      const verification = await this.databaseService.query(
+        `SELECT id, status FROM vet_appointments WHERE id = $1`,
+        [appointmentId],
+      );
+
+      if (verification.rows.length === 0) {
+        this.logger.error(
+          `[Appointments] ❌ ERREUR: Rendez-vous ${appointmentId} non trouvé après mise à jour!`,
+        );
+        throw new Error('La mise à jour du rendez-vous a échoué');
+      }
+
+      const newStatus = verification.rows[0].status;
+      this.logger.debug(
+        `[Appointments] Vérification: Rendez-vous ${appointmentId} a maintenant le status ${newStatus}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `[Appointments] ❌ ERREUR lors de la mise à jour en base du rendez-vous ${appointmentId}:`,
+        error,
+      );
+      throw error;
+    }
+
+    // Récupérer le rendez-vous mis à jour pour les notifications (non-bloquant)
+    let updatedAppointment: AppointmentResponseDto;
+    try {
+      updatedAppointment = await this.findOne(appointmentId, appointment.producerId);
+    } catch (error) {
+      this.logger.warn(
+        `[Appointments] ⚠️ Impossible de récupérer le rendez-vous mis à jour pour les notifications, utilisation des données en cache`,
+      );
+      // Utiliser les données du rendez-vous original si la récupération échoue
+      updatedAppointment = appointment;
+    }
+
     const producerName = updatedAppointment.producerName || 'Producteur';
     const vetName = updatedAppointment.vetName || 'Vétérinaire';
 
+    // Envoyer une notification au producteur (non-bloquant)
     if (updateAppointmentDto.status === 'accepted') {
-      await this.notificationsService.createNotification({
-        userId: appointment.producerId,
-        type: 'appointment_accepted' as NotificationType,
-        title: 'Rendez-vous accepté',
-        message: `${vetName} a accepté votre demande de rendez-vous pour le ${this.formatDate(new Date(updatedAppointment.appointmentDate))}`,
+      try {
+        await this.notificationsService.createNotification({
+          userId: appointment.producerId,
+          type: 'appointment_accepted' as NotificationType,
+          title: 'Rendez-vous accepté',
+          message: `${vetName} a accepté votre demande de rendez-vous pour le ${this.formatDate(new Date(updatedAppointment.appointmentDate))}`,
         relatedType: 'appointment',
         relatedId: appointmentId,
         actionUrl: `/appointments/${appointmentId}`,
