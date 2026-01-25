@@ -275,6 +275,39 @@ export class UsersService {
     return result.rows.map((row) => this.mapRowToUser(row));
   }
 
+  /**
+   * Récupérer tous les vétérinaires validés
+   * Retourne uniquement les utilisateurs avec active_role = 'veterinarian' et validationStatus = 'approved'
+   */
+  async findAllVeterinarians(): Promise<any[]> {
+    const userColumns = `id, email, telephone, nom, prenom, provider, provider_id, photo, 
+      saved_farms, date_creation, derniere_connexion, roles, active_role, 
+      is_onboarded, onboarding_completed_at, is_active, veterinarian_validation_status`;
+    
+    const result = await this.databaseService.query(
+      `SELECT ${userColumns} 
+       FROM users 
+       WHERE is_active = true 
+         AND active_role = 'veterinarian'
+         AND veterinarian_validation_status = 'approved'
+       ORDER BY date_creation DESC`
+    );
+    
+    return result.rows.map((row) => {
+      const user = this.mapRowToUser(row);
+      // S'assurer que le rôle vétérinaire est bien présent et validé
+      if (user.roles?.veterinarian) {
+        user.roles.veterinarian = {
+          ...user.roles.veterinarian,
+          validationStatus: row.veterinarian_validation_status || 'approved',
+          verified: true, // Tous les vétérinaires retournés sont validés
+          isActive: true,
+        };
+      }
+      return user;
+    });
+  }
+
   async update(id: string, updateUserDto: any) {
     const existingUser = await this.findOne(id);
     if (!existingUser) {

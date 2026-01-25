@@ -7,21 +7,14 @@ import { Veterinarian } from '../types/veterinarian';
 import { getUserLocation, calculateDistance } from '../utils/locationUtils';
 
 /**
- * Rechercher des vétérinaires dans un rayon donné
+ * Rechercher tous les vétérinaires validés (sans filtre de distance)
  */
-export async function searchVeterinariansNearby(
-  userLat: number,
-  userLon: number,
-  radiusKm: number = 50
-): Promise<Veterinarian[]> {
+export async function searchAllVeterinarians(): Promise<Veterinarian[]> {
   try {
-    // Récupérer tous les utilisateurs avec rôle vétérinaire depuis l'API backend
-    const allUsers = await apiClient.get<any[]>('/users');
-    const allVets: Veterinarian[] = allUsers
-      .filter((user) => {
-        const vetRole = user.roles?.veterinarian;
-        return vetRole && vetRole.isActive && vetRole.verified;
-      })
+    // ✅ Utiliser le nouvel endpoint dédié qui retourne uniquement les vétérinaires validés
+    const veterinarians = await apiClient.get<any[]>('/users/veterinarians');
+    
+    const allVets: Veterinarian[] = veterinarians
       .map((user) => {
         const vetRole = user.roles?.veterinarian;
         return {
@@ -38,16 +31,37 @@ export async function searchVeterinariansNearby(
           specialties: vetRole?.specializations || [],
           rating: 0, // Par défaut, à mettre à jour si disponible
           reviewsCount: 0, // Par défaut, à mettre à jour si disponible
-          verified: vetRole?.verified || false,
+          verified: vetRole?.verified || vetRole?.validationStatus === 'approved' || vetRole?.validationStatus === 'validated' || false,
           createdAt: Date.now(), // Timestamp actuel par défaut
         };
       });
+
+    return allVets;
+  } catch (error) {
+    console.error('Erreur recherche vétérinaires:', error);
+    return [];
+  }
+}
+
+/**
+ * Rechercher des vétérinaires dans un rayon donné
+ */
+export async function searchVeterinariansNearby(
+  userLat: number,
+  userLon: number,
+  radiusKm: number = 50
+): Promise<Veterinarian[]> {
+  try {
+    // ✅ Utiliser le nouvel endpoint dédié
+    const allVets = await searchAllVeterinarians();
 
     // Filtrer par distance et ajouter la distance
     const nearbyVets = allVets
       .map((vet) => ({
         ...vet,
-        distance: calculateDistance(userLat, userLon, vet.latitude, vet.longitude),
+        distance: vet.latitude && vet.longitude 
+          ? calculateDistance(userLat, userLon, vet.latitude, vet.longitude)
+          : Infinity, // Si pas de coordonnées, mettre à Infinity pour les exclure du filtre
       }))
       .filter((vet) => vet.distance <= radiusKm)
       .sort((a, b) => a.distance - b.distance); // Trier par distance croissante
@@ -61,14 +75,20 @@ export async function searchVeterinariansNearby(
 
 /**
  * Rechercher des vétérinaires avec géolocalisation automatique
+ * Si la géolocalisation échoue, retourne tous les vétérinaires validés
  */
-export async function searchVeterinariansWithLocation(radiusKm: number = 50): Promise<{
+export async function searchVeterinariansWithLocation(radiusKm: number = 50, allowAllIfNoLocation: boolean = true): Promise<{
   veterinarians: Veterinarian[];
   userLocation: { latitude: number; longitude: number } | null;
 }> {
   const userLocation = await getUserLocation();
 
   if (!userLocation) {
+    // ✅ Si pas de géolocalisation et allowAllIfNoLocation = true, retourner tous les vétérinaires
+    if (allowAllIfNoLocation) {
+      const allVets = await searchAllVeterinarians();
+      return { veterinarians: allVets, userLocation: null };
+    }
     return { veterinarians: [], userLocation: null };
   }
 

@@ -19,7 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
 import { Veterinarian } from '../types/veterinarian';
-import { searchVeterinariansWithLocation } from '../services/veterinarianService';
+import { searchVeterinariansWithLocation, searchAllVeterinarians } from '../services/veterinarianService';
 import Button from './Button';
 import Card from './Card';
 
@@ -109,6 +109,7 @@ export default function SearchVetModal({ visible, onClose, onInvite }: SearchVet
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(
     null
   );
+  const [searchMode, setSearchMode] = useState<'nearby' | 'all'>('all'); // Par défaut: tous les vétérinaires
 
   useEffect(() => {
     console.log('🔍 [SearchVetModal] visible changed:', visible);
@@ -119,15 +120,24 @@ export default function SearchVetModal({ visible, onClose, onInvite }: SearchVet
       // Réinitialiser l'état quand le modal se ferme
       setVets([]);
       setUserLocation(null);
+      setSearchMode('all'); // Réinitialiser à 'all'
     }
   }, [visible]);
 
   async function loadVeterinarians() {
     setLoading(true);
     try {
-      const result = await searchVeterinariansWithLocation(50);
-      setVets(result.veterinarians);
-      setUserLocation(result.userLocation);
+      if (searchMode === 'all') {
+        // ✅ Rechercher tous les vétérinaires validés (sans filtre de distance)
+        const allVets = await searchAllVeterinarians();
+        setVets(allVets);
+        setUserLocation(null);
+      } else {
+        // Rechercher dans un rayon de 50km
+        const result = await searchVeterinariansWithLocation(50, true); // allowAllIfNoLocation = true
+        setVets(result.veterinarians);
+        setUserLocation(result.userLocation);
+      }
     } catch (error) {
       console.error('Erreur lors de la recherche de vétérinaires:', error);
       Alert.alert('Erreur', 'Impossible de rechercher des vétérinaires');
@@ -157,12 +167,63 @@ export default function SearchVetModal({ visible, onClose, onInvite }: SearchVet
           </TouchableOpacity>
         </View>
 
+        {/* Toggle de recherche */}
+        <View style={[styles.searchModeContainer, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+          <TouchableOpacity
+            style={[
+              styles.searchModeButton,
+              searchMode === 'all' && { backgroundColor: colors.primary },
+            ]}
+            onPress={() => {
+              setSearchMode('all');
+              loadVeterinarians();
+            }}
+          >
+            <Text
+              style={[
+                styles.searchModeText,
+                { color: searchMode === 'all' ? '#FFF' : colors.textSecondary },
+              ]}
+            >
+              Tous les vétérinaires
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.searchModeButton,
+              searchMode === 'nearby' && { backgroundColor: colors.primary },
+            ]}
+            onPress={() => {
+              setSearchMode('nearby');
+              loadVeterinarians();
+            }}
+          >
+            <Text
+              style={[
+                styles.searchModeText,
+                { color: searchMode === 'nearby' ? '#FFF' : colors.textSecondary },
+              ]}
+            >
+              À proximité (50 km)
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Localisation info */}
-        {userLocation && (
+        {userLocation && searchMode === 'nearby' && (
           <View style={[styles.locationInfo, { backgroundColor: colors.surface }]}>
             <Ionicons name="location" size={16} color={colors.primary} />
             <Text style={[styles.locationText, { color: colors.textSecondary }]}>
               Rayon : 50 km
+            </Text>
+          </View>
+        )}
+
+        {/* Info nombre de résultats */}
+        {!loading && vets.length > 0 && (
+          <View style={[styles.resultsInfo, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.resultsText, { color: colors.textSecondary }]}>
+              {vets.length} vétérinaire{vets.length > 1 ? 's' : ''} trouvé{vets.length > 1 ? 's' : ''}
             </Text>
           </View>
         )}
@@ -179,10 +240,14 @@ export default function SearchVetModal({ visible, onClose, onInvite }: SearchVet
           <View style={styles.emptyContainer}>
             <Ionicons name="search-outline" size={64} color={colors.textSecondary} />
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-              Aucun vétérinaire trouvé dans un rayon de 50 km
+              {searchMode === 'nearby' 
+                ? 'Aucun vétérinaire trouvé dans un rayon de 50 km'
+                : 'Aucun vétérinaire validé trouvé'}
             </Text>
             <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>
-              Essayez d'augmenter le rayon ou invitez un vétérinaire directement
+              {searchMode === 'nearby'
+                ? 'Essayez de rechercher tous les vétérinaires ou invitez un vétérinaire directement'
+                : 'Aucun vétérinaire n\'a encore été validé sur la plateforme'}
             </Text>
           </View>
         ) : (
@@ -224,6 +289,33 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     padding: SPACING.xs,
+  },
+  searchModeContainer: {
+    flexDirection: 'row',
+    padding: SPACING.sm,
+    gap: SPACING.sm,
+    borderBottomWidth: 1,
+  },
+  searchModeButton: {
+    flex: 1,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  searchModeText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: FONT_WEIGHTS.semiBold,
+  },
+  resultsInfo: {
+    padding: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: 'transparent',
+  },
+  resultsText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: FONT_WEIGHTS.medium,
   },
   locationInfo: {
     flexDirection: 'row',

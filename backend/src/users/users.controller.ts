@@ -52,6 +52,16 @@ export class UsersController {
     return this.usersService.findAll();
   }
 
+  @Get('veterinarians')
+  @ApiOperation({ 
+    summary: 'Récupérer tous les vétérinaires validés',
+    description: 'Retourne la liste de tous les utilisateurs avec un profil vétérinaire validé (validationStatus = approved)'
+  })
+  @ApiResponse({ status: 200, description: 'Liste des vétérinaires validés.' })
+  async findAllVeterinarians() {
+    return this.usersService.findAllVeterinarians();
+  }
+
   /**
    * 🆕 NOUVEAUX ENDPOINTS : Vérification d'existence (ne retournent que { exists: boolean })
    * Plus sécurisé que de retourner l'utilisateur complet
