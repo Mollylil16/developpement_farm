@@ -106,7 +106,11 @@ export class AppointmentsService {
         const producerName = `${producer.prenom || ''} ${producer.nom || ''}`.trim() || 'Un producteur';
         const vetName = `${vet.prenom || ''} ${vet.nom || ''}`.trim() || 'Vétérinaire';
 
-        await this.notificationsService.createNotification({
+        this.logger.log(
+          `[Appointments] Envoi notification au vétérinaire ${createAppointmentDto.vetId} pour RDV ${appointmentId}`,
+        );
+
+        const notificationResult = await this.notificationsService.createNotification({
           userId: createAppointmentDto.vetId,
           type: NotificationType.APPOINTMENT_REQUESTED,
           title: 'Nouvelle demande de rendez-vous',
@@ -123,12 +127,21 @@ export class AppointmentsService {
             location: createAppointmentDto.location,
           },
         });
+
+        this.logger.log(
+          `[Appointments] Notification créée avec succès: ${notificationResult.notificationId} pour vétérinaire ${createAppointmentDto.vetId}`,
+        );
       } catch (notificationError) {
         // Log l'erreur mais ne bloque pas la création du rendez-vous
         this.logger.error(
           `[Appointments] Erreur lors de l'envoi de la notification pour le rendez-vous ${appointmentId}:`,
           notificationError,
         );
+        // Log plus de détails pour le débogage
+        if (notificationError instanceof Error) {
+          this.logger.error(`[Appointments] Message d'erreur: ${notificationError.message}`);
+          this.logger.error(`[Appointments] Stack trace: ${notificationError.stack}`);
+        }
       }
 
       // Retourner le rendez-vous créé
