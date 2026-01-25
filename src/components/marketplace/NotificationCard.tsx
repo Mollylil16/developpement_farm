@@ -152,6 +152,12 @@ const NOTIFICATION_CONFIG: Record<
     color: MarketplaceTheme.colors.warning,
     bgColor: MarketplaceTheme.colors.warning + '15',
   },
+  // ✅ Notifications de collaborations
+  collaboration_removed: {
+    icon: 'person-remove',
+    color: MarketplaceTheme.colors.error,
+    bgColor: MarketplaceTheme.colors.error + '15',
+  },
 };
 
 // ✅ Composant pour afficher les données enrichies
