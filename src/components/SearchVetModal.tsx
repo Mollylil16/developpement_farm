@@ -32,10 +32,11 @@ interface SearchVetModalProps {
 
 interface VetCardProps {
   vet: Veterinarian;
-  onInvite: () => void;
+  onInvite?: () => void; // Optionnel maintenant
+  onRequestAppointment: () => void; // Nouvelle prop pour demander un RDV
 }
 
-function VetCard({ vet, onInvite }: VetCardProps) {
+function VetCard({ vet, onInvite, onRequestAppointment }: VetCardProps) {
   const { colors } = useTheme();
 
   return (
@@ -55,7 +56,7 @@ function VetCard({ vet, onInvite }: VetCardProps) {
       </View>
 
       <Text style={[styles.distance, { color: colors.textSecondary }]}>
-        📍 {vet.distance} km - {vet.city}
+        📍 {vet.distance ? `${vet.distance} km - ` : ''}{vet.city}
       </Text>
 
       <View style={styles.rating}>
@@ -85,10 +86,7 @@ function VetCard({ vet, onInvite }: VetCardProps) {
       <View style={styles.actions}>
         <Button
           title="Demander RDV"
-          onPress={() => {
-            setSelectedVet(vet);
-            setShowAppointmentModal(true);
-          }}
+          onPress={onRequestAppointment}
           variant="primary"
           size="small"
           style={styles.inviteButton}
@@ -263,9 +261,13 @@ export default function SearchVetModal({ visible, onClose, onInvite }: SearchVet
             renderItem={({ item }) => (
               <VetCard
                 vet={item}
-                onInvite={() => {
+                onInvite={onInvite ? () => {
                   onInvite(item);
                   onClose();
+                } : undefined}
+                onRequestAppointment={() => {
+                  setSelectedVet(item);
+                  setShowAppointmentModal(true);
                 }}
               />
             )}
