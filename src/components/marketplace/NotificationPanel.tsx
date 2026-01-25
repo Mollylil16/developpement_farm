@@ -43,10 +43,25 @@ const NOTIFICATION_TYPES_BY_TAB: Record<TabType, NotificationType[]> = {
     'rating_received',
     'delivery_reminder',
     'payment_reminder',
+    'appointment_requested',
+    'appointment_accepted',
+    'appointment_rejected',
+    'appointment_cancelled',
+    'appointment_reminder',
   ],
   offers: ['offer_received', 'offer_accepted', 'offer_rejected'],
   messages: ['message_received'],
-  system: ['delivery_confirmed', 'rating_received', 'delivery_reminder', 'payment_reminder'],
+  system: [
+    'delivery_confirmed',
+    'rating_received',
+    'delivery_reminder',
+    'payment_reminder',
+    'appointment_requested',
+    'appointment_accepted',
+    'appointment_rejected',
+    'appointment_cancelled',
+    'appointment_reminder',
+  ],
 };
 
 export default function NotificationPanel({

@@ -32,7 +32,13 @@ type NotificationType =
   | 'listing_expired'
   // ✅ Nouveaux types pour notifications enrichies
   | 'sale_confirmed_buyer'
-  | 'sale_confirmed_producer';
+  | 'sale_confirmed_producer'
+  // ✅ Types pour notifications de rendez-vous vétérinaires
+  | 'appointment_requested'
+  | 'appointment_accepted'
+  | 'appointment_rejected'
+  | 'appointment_cancelled'
+  | 'appointment_reminder';
 
 const NOTIFICATION_CONFIG: Record<
   NotificationType,
@@ -117,6 +123,32 @@ const NOTIFICATION_CONFIG: Record<
     icon: 'cash',
     color: MarketplaceTheme.colors.success,
     bgColor: MarketplaceTheme.colors.success + '15',
+  },
+  // ✅ Notifications de rendez-vous vétérinaires
+  appointment_requested: {
+    icon: 'calendar',
+    color: MarketplaceTheme.colors.primary,
+    bgColor: MarketplaceTheme.colors.primary + '15',
+  },
+  appointment_accepted: {
+    icon: 'checkmark-circle',
+    color: MarketplaceTheme.colors.success,
+    bgColor: MarketplaceTheme.colors.success + '15',
+  },
+  appointment_rejected: {
+    icon: 'close-circle',
+    color: MarketplaceTheme.colors.error,
+    bgColor: MarketplaceTheme.colors.error + '15',
+  },
+  appointment_cancelled: {
+    icon: 'close',
+    color: MarketplaceTheme.colors.textSecondary,
+    bgColor: MarketplaceTheme.colors.textSecondary + '15',
+  },
+  appointment_reminder: {
+    icon: 'notifications',
+    color: MarketplaceTheme.colors.warning,
+    bgColor: MarketplaceTheme.colors.warning + '15',
   },
 };
 

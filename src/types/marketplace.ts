@@ -255,7 +255,13 @@ export type NotificationType =
   | 'listing_expired'
   // Notifications enrichies avec détails contact/localisation
   | 'sale_confirmed_buyer'
-  | 'sale_confirmed_producer';
+  | 'sale_confirmed_producer'
+  // Notifications de rendez-vous vétérinaires
+  | 'appointment_requested'
+  | 'appointment_accepted'
+  | 'appointment_rejected'
+  | 'appointment_cancelled'
+  | 'appointment_reminder';
 
 /**
  * Type d'entit├® li├®e ├á la notification
