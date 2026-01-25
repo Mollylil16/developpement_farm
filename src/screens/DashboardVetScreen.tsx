@@ -386,6 +386,9 @@ const DashboardVetScreen: React.FC = () => {
             </Card>
           </View>
 
+          {/* Widget Rendez-vous */}
+          <VetAppointmentsCard />
+
           {/* Agenda du jour */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>

@@ -32,6 +32,7 @@ import DashboardHeader from '../components/dashboard/DashboardHeader';
 import DashboardMainWidgets from '../components/dashboard/DashboardMainWidgets';
 import DashboardSecondaryWidgets from '../components/dashboard/DashboardSecondaryWidgets';
 import AlertesWidget from '../components/AlertesWidget';
+import ProducerAppointmentsCard from '../components/dashboard/ProducerAppointmentsCard';
 import GlobalSearchModal from '../components/GlobalSearchModal';
 import InvitationsModal from '../components/InvitationsModal';
 import ProfileMenuModal from '../components/ProfileMenuModal';
@@ -308,6 +309,13 @@ function DashboardScreen() {
               horizontal={true}
             />
 
+            {/* Widget Rendez-vous (Producteur) */}
+            {activeRole === 'producer' && (
+              <View style={styles.appointmentsContainer}>
+                <ProducerAppointmentsCard />
+              </View>
+            )}
+
             {/* Alertes Widget */}
             <View style={styles.alertesContainer}>
               <AlertesWidget />
@@ -353,6 +361,10 @@ const styles = StyleSheet.create({
     padding: SPACING.xl,
     paddingTop: SPACING.lg + 10,
     paddingBottom: 100,
+  },
+  appointmentsContainer: {
+    marginTop: SPACING.md,
+    marginBottom: SPACING.md,
   },
   alertesContainer: {
     marginTop: SPACING.md,

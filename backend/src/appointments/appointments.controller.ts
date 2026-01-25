@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { AppointmentsService } from './appointments.service';
+import { AppointmentRemindersService } from './appointment-reminders.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 import { AppointmentResponseDto } from './dto/appointment-response.dto';
@@ -25,7 +26,10 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 export class AppointmentsController {
   private readonly logger = new Logger(AppointmentsController.name);
 
-  constructor(private readonly appointmentsService: AppointmentsService) {}
+  constructor(
+    private readonly appointmentsService: AppointmentsService,
+    private readonly remindersService: AppointmentRemindersService,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Créer une demande de rendez-vous' })
@@ -103,5 +107,13 @@ export class AppointmentsController {
   ): Promise<AppointmentResponseDto> {
     this.logger.log(`[Appointments] Annulation du rendez-vous ${id} par ${userId}`);
     return this.appointmentsService.cancel(id, userId);
+  }
+
+  @Post('reminders/send')
+  @ApiOperation({ summary: 'Envoyer les rappels quotidiens (cron job)' })
+  @ApiResponse({ status: 200, description: 'Rappels envoyés', schema: { properties: { sent: { type: 'number' }, errors: { type: 'number' } } } })
+  async sendReminders(): Promise<{ sent: number; errors: number }> {
+    this.logger.log('[Appointments] Envoi manuel des rappels quotidiens');
+    return this.remindersService.sendDailyReminders();
   }
 }
