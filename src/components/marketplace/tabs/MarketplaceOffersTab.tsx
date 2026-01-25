@@ -15,6 +15,9 @@ import {
   Modal,
   TextInput,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -534,118 +537,139 @@ function MarketplaceOffersTab({
         animationType="slide"
         transparent={true}
         onRequestClose={() => setCounterModalVisible(false)}
+        statusBarTranslucent={true}
       >
         <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
-            <View style={[styles.modalHeader, { borderBottomColor: colors.divider }]}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>
-                Contre-proposition
-              </Text>
-              <TouchableOpacity onPress={() => setCounterModalVisible(false)}>
-                <Ionicons name="close" size={24} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            {selectedOfferForCounter && (
-              <>
-                <ScrollView 
-                  style={styles.modalBody} 
-                  showsVerticalScrollIndicator={false}
-                  contentContainerStyle={styles.modalBodyContent}
-                >
-                  {/* Informations de l'offre actuelle */}
-                  <View style={[styles.infoCard, { backgroundColor: colors.surfaceLight || colors.surface }]}>
-                    <View style={styles.infoRow}>
-                      <Ionicons name="pricetag-outline" size={20} color={colors.textSecondary} />
-                      <View style={styles.infoContent}>
-                        <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
-                          Offre actuelle
-                        </Text>
-                        <Text style={[styles.infoValue, { color: colors.text }]}>
-                          {(selectedOfferForCounter.offeredAmount || selectedOfferForCounter.proposedPrice || 0).toLocaleString('fr-FR')} FCFA
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={styles.infoRow}>
-                      <Ionicons name="cash-outline" size={20} color={colors.textSecondary} />
-                      <View style={styles.infoContent}>
-                        <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
-                          Prix de l'annonce
-                        </Text>
-                        <Text style={[styles.infoValue, { color: colors.text }]}>
-                          {(selectedOfferForCounter.originalPrice || 0).toLocaleString('fr-FR')} FCFA
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-
-                  {/* Champ prix proposé */}
-                  <View style={styles.inputSection}>
-                    <Text style={[styles.inputLabel, { color: colors.text }]}>
-                      Votre prix proposé (FCFA)
-                    </Text>
-                    <TextInput
-                      style={[styles.modalInput, { 
-                        backgroundColor: colors.background,
-                        color: colors.text,
-                        borderColor: colors.border
-                      }]}
-                      value={counterPrice}
-                      onChangeText={setCounterPrice}
-                      keyboardType="numeric"
-                      placeholder="Ex: 150000"
-                      placeholderTextColor={colors.textSecondary}
-                    />
-                  </View>
-
-                  {/* Champ message */}
-                  <View style={styles.inputSection}>
-                    <Text style={[styles.inputLabel, { color: colors.text }]}>
-                      Message (optionnel)
-                    </Text>
-                    <TextInput
-                      style={[styles.modalInput, styles.messageInput, { 
-                        backgroundColor: colors.background,
-                        color: colors.text,
-                        borderColor: colors.border
-                      }]}
-                      value={counterMessage}
-                      onChangeText={setCounterMessage}
-                      placeholder="Expliquez votre proposition..."
-                      placeholderTextColor={colors.textSecondary}
-                      multiline
-                      numberOfLines={3}
-                      textAlignVertical="top"
-                    />
-                  </View>
-                </ScrollView>
-
-                {/* Boutons d'action (fixés en bas) */}
-                <View style={[styles.modalActions, { backgroundColor: colors.surface, borderTopColor: colors.divider }]}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setCounterModalVisible(false)}
+          />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+            style={{ flex: 1, justifyContent: 'flex-end' }}
+          >
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+                <View style={[styles.modalHeader, { borderBottomColor: colors.divider }]}>
+                  <Text style={[styles.modalTitle, { color: colors.text }]}>
+                    Contre-proposition
+                  </Text>
                   <TouchableOpacity
-                    style={[styles.modalButtonCancel, { borderColor: colors.border }]}
                     onPress={() => setCounterModalVisible(false)}
-                    disabled={isSubmittingCounter}
-                    activeOpacity={0.7}
+                    style={styles.closeButton}
                   >
-                    <Text style={[styles.modalButtonTextCancel, { color: colors.text }]}>
-                      Annuler
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.modalButtonSend, { backgroundColor: colors.primary }]}
-                    onPress={submitCounterOffer}
-                    disabled={isSubmittingCounter || !counterPrice || parseFloat(counterPrice) <= 0}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.modalButtonTextSend, { color: colors.textOnPrimary || '#FFF' }]}>
-                      {isSubmittingCounter ? 'Envoi...' : 'Envoyer'}
-                    </Text>
+                    <Ionicons name="close" size={24} color={colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
-              </>
-            )}
-          </View>
+
+                {selectedOfferForCounter && (
+                  <>
+                    <ScrollView 
+                      style={styles.modalBody} 
+                      showsVerticalScrollIndicator={false}
+                      contentContainerStyle={styles.modalBodyContent}
+                      keyboardShouldPersistTaps="handled"
+                    >
+                      {/* Informations de l'offre actuelle */}
+                      <View style={[styles.infoCard, { backgroundColor: colors.surfaceLight || colors.surface }]}>
+                        <View style={styles.infoRow}>
+                          <Ionicons name="pricetag-outline" size={20} color={colors.textSecondary} />
+                          <View style={styles.infoContent}>
+                            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                              Offre actuelle
+                            </Text>
+                            <Text style={[styles.infoValue, { color: colors.text }]}>
+                              {(selectedOfferForCounter.offeredAmount || selectedOfferForCounter.proposedPrice || 0).toLocaleString('fr-FR')} FCFA
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={styles.infoRow}>
+                          <Ionicons name="cash-outline" size={20} color={colors.textSecondary} />
+                          <View style={styles.infoContent}>
+                            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                              Prix de l'annonce
+                            </Text>
+                            <Text style={[styles.infoValue, { color: colors.text }]}>
+                              {(selectedOfferForCounter.originalPrice || 0).toLocaleString('fr-FR')} FCFA
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      {/* Champ prix proposé */}
+                      <View style={styles.inputSection}>
+                        <Text style={[styles.inputLabel, { color: colors.text }]}>
+                          Votre prix proposé (FCFA)
+                        </Text>
+                        <TextInput
+                          style={[styles.modalInput, { 
+                            backgroundColor: colors.background,
+                            color: colors.text,
+                            borderColor: colors.border
+                          }]}
+                          value={counterPrice}
+                          onChangeText={setCounterPrice}
+                          keyboardType="numeric"
+                          placeholder="Ex: 150000"
+                          placeholderTextColor={colors.textSecondary}
+                        />
+                      </View>
+
+                      {/* Champ message */}
+                      <View style={styles.inputSection}>
+                        <Text style={[styles.inputLabel, { color: colors.text }]}>
+                          Message (optionnel)
+                        </Text>
+                        <TextInput
+                          style={[styles.modalInput, styles.messageInput, { 
+                            backgroundColor: colors.background,
+                            color: colors.text,
+                            borderColor: colors.border
+                          }]}
+                          value={counterMessage}
+                          onChangeText={setCounterMessage}
+                          placeholder="Expliquez votre proposition..."
+                          placeholderTextColor={colors.textSecondary}
+                          multiline
+                          numberOfLines={3}
+                          textAlignVertical="top"
+                        />
+                      </View>
+                    </ScrollView>
+
+                    {/* Boutons d'action (fixés en bas) */}
+                    <View style={[styles.modalActions, { backgroundColor: colors.surface, borderTopColor: colors.divider }]}>
+                      <TouchableOpacity
+                        style={[styles.modalButtonCancel, { borderColor: colors.border }]}
+                        onPress={() => setCounterModalVisible(false)}
+                        disabled={isSubmittingCounter}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.modalButtonTextCancel, { color: colors.text }]}>
+                          Annuler
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.modalButtonSend, { backgroundColor: colors.primary }]}
+                        onPress={submitCounterOffer}
+                        disabled={isSubmittingCounter || !counterPrice || parseFloat(counterPrice) <= 0}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.modalButtonTextSend, { color: colors.textOnPrimary || '#FFF' }]}>
+                          {isSubmittingCounter ? 'Envoi...' : 'Envoyer'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                )}
+              </View>
+            </TouchableOpacity>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </SafeAreaView>
@@ -784,8 +808,9 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingTop: SPACING.lg,
-    paddingBottom: 32,
-    maxHeight: '80%',
+    paddingBottom: 0,
+    maxHeight: Dimensions.get('window').height * 0.85,
+    minHeight: Dimensions.get('window').height * 0.5,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -798,14 +823,20 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: FONT_SIZES.xl,
     fontWeight: FONT_WEIGHTS.bold,
+    flex: 1,
+  },
+  closeButton: {
+    padding: SPACING.xs,
+    marginLeft: SPACING.sm,
   },
   modalBody: {
     flex: 1,
+    maxHeight: Dimensions.get('window').height * 0.6,
   },
   modalBodyContent: {
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.md,
-    paddingBottom: SPACING.md,
+    paddingBottom: SPACING.xl,
     gap: SPACING.md,
   },
   infoCard: {
