@@ -13,27 +13,58 @@ export class NotificationsService {
     // Utiliser UUID v4 pour une génération d'ID cryptographiquement sécurisée
     const notificationId = `notif_${uuidv4()}`;
 
-    await this.databaseService.query(
-      `INSERT INTO marketplace_notifications (
-        id, user_id, type, title, message,
-        related_type, related_id, action_url, data,
-        read, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, FALSE, NOW())`,
-      [
-        notificationId,
-        dto.userId,
-        dto.type,
-        dto.title,
-        dto.message,
-        dto.relatedType || null,
-        dto.relatedId || null,
-        dto.actionUrl || null,
-        dto.data ? JSON.stringify(dto.data) : null,
-      ]
+    this.logger.log(
+      `[Notifications] Création notification: type=${dto.type}, userId=${dto.userId}, relatedId=${dto.relatedId}`,
     );
 
-    this.logger.log(`[Notifications] Notification créée: ${notificationId} pour user ${dto.userId}`);
-    return { notificationId };
+    try {
+      await this.databaseService.query(
+        `INSERT INTO marketplace_notifications (
+          id, user_id, type, title, message,
+          related_type, related_id, action_url, data,
+          read, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, FALSE, NOW())`,
+        [
+          notificationId,
+          dto.userId,
+          dto.type,
+          dto.title,
+          dto.message,
+          dto.relatedType || null,
+          dto.relatedId || null,
+          dto.actionUrl || null,
+          dto.data ? JSON.stringify(dto.data) : null,
+        ],
+      );
+
+      this.logger.log(
+        `[Notifications] ✅ Notification créée avec succès: ${notificationId} pour user ${dto.userId} (type: ${dto.type})`,
+      );
+
+      // Vérifier que la notification a bien été insérée
+      const verification = await this.databaseService.query(
+        `SELECT id, user_id, type, created_at FROM marketplace_notifications WHERE id = $1`,
+        [notificationId],
+      );
+
+      if (verification.rows.length > 0) {
+        this.logger.debug(
+          `[Notifications] Vérification: notification ${notificationId} trouvée en base pour user_id=${verification.rows[0].user_id}`,
+        );
+      } else {
+        this.logger.error(
+          `[Notifications] ⚠️ Notification ${notificationId} non trouvée après insertion!`,
+        );
+      }
+
+      return { notificationId };
+    } catch (error) {
+      this.logger.error(
+        `[Notifications] ❌ Erreur lors de la création de la notification:`,
+        error,
+      );
+      throw error;
+    }
   }
 
   async getUserNotifications(userId: string, unreadOnly: boolean = false) {
