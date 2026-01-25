@@ -96,8 +96,19 @@ export default function AppointmentRequestModal({
 
     try {
       const combinedDateTime = getCombinedDateTime();
+      
+      // ✅ S'assurer d'utiliser le bon ID (userId si disponible, sinon id)
+      const veterinarianId = vet.userId || vet.id;
+      
+      console.log('[AppointmentRequestModal] Création RDV avec:', {
+        vetId: veterinarianId,
+        vetIdOriginal: vet.id,
+        vetUserId: vet.userId,
+        appointmentDate: combinedDateTime.toISOString(),
+      });
+
       await create({
-        vetId: vet.id,
+        vetId: veterinarianId,
         appointmentDate: combinedDateTime.toISOString(),
         reason: reason.trim(),
         location: location.trim() || undefined,

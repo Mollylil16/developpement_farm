@@ -37,6 +37,10 @@ export class NotificationsService {
   }
 
   async getUserNotifications(userId: string, unreadOnly: boolean = false) {
+    this.logger.log(
+      `[Notifications] Récupération notifications pour user ${userId}, unreadOnly: ${unreadOnly}`,
+    );
+
     const query = unreadOnly
       ? `SELECT * FROM marketplace_notifications
          WHERE user_id = $1 AND read = FALSE
@@ -47,7 +51,32 @@ export class NotificationsService {
          LIMIT 50`;
 
     const result = await this.databaseService.query(query, [userId]);
-    
+
+    this.logger.log(
+      `[Notifications] ${result.rows.length} notification(s) trouvée(s) pour user ${userId}`,
+    );
+
+    if (result.rows.length > 0) {
+      const types = result.rows.map((r) => r.type).join(', ');
+      this.logger.debug(
+        `[Notifications] Types de notifications trouvées: ${types}`,
+      );
+      // Logger les notifications de type appointment pour débogage
+      const appointmentNotifications = result.rows.filter(
+        (r) => r.type && r.type.includes('appointment'),
+      );
+      if (appointmentNotifications.length > 0) {
+        this.logger.log(
+          `[Notifications] ${appointmentNotifications.length} notification(s) de rendez-vous trouvée(s)`,
+        );
+        appointmentNotifications.forEach((notif) => {
+          this.logger.debug(
+            `[Notifications] - ID: ${notif.id}, Type: ${notif.type}, Title: ${notif.title}, Created: ${notif.created_at}`,
+          );
+        });
+      }
+    }
+
     // Mapper les noms de colonnes snake_case vers camelCase pour le frontend
     return result.rows.map((row: any) => ({
       id: row.id,

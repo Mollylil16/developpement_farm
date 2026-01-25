@@ -42,6 +42,10 @@ export class AppointmentsService {
       );
 
       // Vérifier que le vétérinaire existe et est validé
+      this.logger.debug(
+        `[Appointments] Vérification vétérinaire avec ID: ${createAppointmentDto.vetId}`,
+      );
+
       const vetCheck = await this.databaseService.query(
         `SELECT id, nom, prenom, active_role, veterinarian_validation_status 
          FROM users 
@@ -51,10 +55,16 @@ export class AppointmentsService {
       );
 
       if (vetCheck.rows.length === 0) {
+        this.logger.error(
+          `[Appointments] Vétérinaire introuvable ou non validé: ${createAppointmentDto.vetId}`,
+        );
         throw new NotFoundException('Vétérinaire introuvable ou non validé');
       }
 
       const vet = vetCheck.rows[0];
+      this.logger.log(
+        `[Appointments] Vétérinaire trouvé: ${vet.id} (${vet.prenom} ${vet.nom})`,
+      );
 
       // Vérifier que la date est dans le futur
       const appointmentDate = new Date(createAppointmentDto.appointmentDate);
@@ -107,10 +117,17 @@ export class AppointmentsService {
         const vetName = `${vet.prenom || ''} ${vet.nom || ''}`.trim() || 'Vétérinaire';
 
         this.logger.log(
-          `[Appointments] Envoi notification au vétérinaire ${createAppointmentDto.vetId} pour RDV ${appointmentId}`,
+          `[Appointments] Envoi notification au vétérinaire ${createAppointmentDto.vetId} (vet.id=${vet.id}) pour RDV ${appointmentId}`,
         );
 
-        const notificationResult = await this.notificationsService.createNotification({
+        // Vérifier que l'ID du vétérinaire correspond
+        if (createAppointmentDto.vetId !== vet.id) {
+          this.logger.warn(
+            `[Appointments] ⚠️ Incohérence d'ID: createAppointmentDto.vetId=${createAppointmentDto.vetId} !== vet.id=${vet.id}`,
+          );
+        }
+
+        const notificationData = {
           userId: createAppointmentDto.vetId,
           type: NotificationType.APPOINTMENT_REQUESTED,
           title: 'Nouvelle demande de rendez-vous',
@@ -126,10 +143,16 @@ export class AppointmentsService {
             reason: createAppointmentDto.reason,
             location: createAppointmentDto.location,
           },
-        });
+        };
+
+        this.logger.debug(
+          `[Appointments] Données de notification: ${JSON.stringify(notificationData, null, 2)}`,
+        );
+
+        const notificationResult = await this.notificationsService.createNotification(notificationData);
 
         this.logger.log(
-          `[Appointments] Notification créée avec succès: ${notificationResult.notificationId} pour vétérinaire ${createAppointmentDto.vetId}`,
+          `[Appointments] ✅ Notification créée avec succès: ${notificationResult.notificationId} pour vétérinaire userId=${createAppointmentDto.vetId}`,
         );
       } catch (notificationError) {
         // Log l'erreur mais ne bloque pas la création du rendez-vous
