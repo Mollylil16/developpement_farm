@@ -384,17 +384,27 @@ export class AppointmentsService {
           type: 'appointment_accepted' as NotificationType,
           title: 'Rendez-vous accepté',
           message: `${vetName} a accepté votre demande de rendez-vous pour le ${this.formatDate(new Date(updatedAppointment.appointmentDate))}`,
-        relatedType: 'appointment',
-        relatedId: appointmentId,
-        actionUrl: `/appointments/${appointmentId}`,
-        data: {
-          appointmentId,
-          vetId: appointment.vetId,
-          vetName,
-          appointmentDate: updatedAppointment.appointmentDate,
-          vetResponse: updateAppointmentDto.vetResponse,
-        },
-      });
+          relatedType: 'appointment',
+          relatedId: appointmentId,
+          actionUrl: `/appointments/${appointmentId}`,
+          data: {
+            appointmentId,
+            vetId: appointment.vetId,
+            vetName,
+            appointmentDate: updatedAppointment.appointmentDate,
+            vetResponse: updateAppointmentDto.vetResponse,
+          },
+        });
+        this.logger.log(
+          `[Appointments] ✅ Notification d'acceptation envoyée au producteur ${appointment.producerId}`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `[Appointments] ⚠️ Erreur lors de l'envoi de la notification d'acceptation (non-bloquant):`,
+          error,
+        );
+        // Ne pas bloquer si la notification échoue
+      }
     } else if (updateAppointmentDto.status === 'rejected') {
       try {
         await this.notificationsService.createNotification({
