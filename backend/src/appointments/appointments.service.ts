@@ -120,11 +120,38 @@ export class AppointmentsService {
           `[Appointments] Envoi notification au vétérinaire ${createAppointmentDto.vetId} (vet.id=${vet.id}) pour RDV ${appointmentId}`,
         );
 
-        // Vérifier que l'ID du vétérinaire correspond
+        // ✅ Vérification approfondie : vérifier que l'ID du vétérinaire correspond
         if (createAppointmentDto.vetId !== vet.id) {
-          this.logger.warn(
-            `[Appointments] ⚠️ Incohérence d'ID: createAppointmentDto.vetId=${createAppointmentDto.vetId} !== vet.id=${vet.id}`,
+          this.logger.error(
+            `[Appointments] ❌ ERREUR CRITIQUE: Incohérence d'ID détectée! createAppointmentDto.vetId=${createAppointmentDto.vetId} !== vet.id=${vet.id}`,
           );
+          this.logger.error(
+            `[Appointments] La notification sera créée avec userId=${createAppointmentDto.vetId}, mais le vétérinaire a l'ID ${vet.id}. La notification ne sera probablement pas visible!`,
+          );
+        }
+
+        // ✅ Vérification supplémentaire : vérifier que le vétérinaire existe bien avec cet ID
+        const vetVerification = await this.databaseService.query(
+          `SELECT id, email, telephone, active_role FROM users WHERE id = $1`,
+          [createAppointmentDto.vetId],
+        );
+
+        if (vetVerification.rows.length === 0) {
+          this.logger.error(
+            `[Appointments] ❌ ERREUR CRITIQUE: L'ID vétérinaire ${createAppointmentDto.vetId} n'existe pas dans la table users!`,
+          );
+        } else {
+          const verifiedVet = vetVerification.rows[0];
+          this.logger.log(
+            `[Appointments] ✅ Vérification: L'ID ${createAppointmentDto.vetId} correspond à l'utilisateur ${verifiedVet.email || verifiedVet.telephone} avec active_role=${verifiedVet.active_role}`,
+          );
+
+          // Vérifier que c'est bien un vétérinaire
+          if (verifiedVet.active_role !== 'veterinarian') {
+            this.logger.warn(
+              `[Appointments] ⚠️ ATTENTION: L'utilisateur ${createAppointmentDto.vetId} n'a pas active_role='veterinarian' (actuel: ${verifiedVet.active_role})`,
+            );
+          }
         }
 
         const notificationData = {

@@ -72,6 +72,34 @@ export class NotificationsService {
       `[Notifications] Récupération notifications pour user ${userId}, unreadOnly: ${unreadOnly}`,
     );
 
+    // ✅ Vérification supplémentaire : chercher les notifications avec des user_id différents mais liées au même utilisateur
+    // Cela peut arriver si un utilisateur a plusieurs profils avec des IDs différents (problème potentiel)
+    const checkQuery = `SELECT COUNT(*) as count, 
+      array_agg(DISTINCT user_id) as user_ids
+      FROM marketplace_notifications 
+      WHERE user_id IN (
+        SELECT id FROM users WHERE id = $1
+        UNION
+        SELECT id FROM users WHERE email = (SELECT email FROM users WHERE id = $1)
+        UNION  
+        SELECT id FROM users WHERE telephone = (SELECT telephone FROM users WHERE id = $1)
+      )`;
+    
+    try {
+      const checkResult = await this.databaseService.query(checkQuery, [userId]);
+      if (checkResult.rows.length > 0 && checkResult.rows[0].user_ids) {
+        const userIds = checkResult.rows[0].user_ids;
+        if (userIds && userIds.length > 1) {
+          this.logger.warn(
+            `[Notifications] ⚠️ ATTENTION: Plusieurs IDs utilisateur trouvés pour le même compte: ${userIds.join(', ')}. Cela peut indiquer un problème de structure de données.`,
+          );
+        }
+      }
+    } catch (error) {
+      // Ne pas bloquer si la vérification échoue
+      this.logger.debug(`[Notifications] Vérification supplémentaire échouée (non critique):`, error);
+    }
+
     const query = unreadOnly
       ? `SELECT * FROM marketplace_notifications
          WHERE user_id = $1 AND read = FALSE
@@ -86,6 +114,42 @@ export class NotificationsService {
     this.logger.log(
       `[Notifications] ${result.rows.length} notification(s) trouvée(s) pour user ${userId}`,
     );
+
+    // ✅ Vérification : chercher les notifications de rendez-vous qui pourraient être liées à cet utilisateur
+    // mais avec un user_id différent (problème potentiel)
+    if (result.rows.length === 0) {
+      this.logger.debug(
+        `[Notifications] Aucune notification trouvée pour user ${userId}. Vérification des notifications de rendez-vous...`,
+      );
+      
+      // Chercher les notifications de rendez-vous récentes qui pourraient être liées à cet utilisateur
+      const appointmentCheckQuery = `
+        SELECT n.*, u.id as notification_user_id, u.email, u.telephone
+        FROM marketplace_notifications n
+        JOIN users u ON n.user_id = u.id
+        WHERE n.type = 'appointment_requested'
+          AND n.created_at > NOW() - INTERVAL '7 days'
+        ORDER BY n.created_at DESC
+        LIMIT 10
+      `;
+      
+      try {
+        const appointmentCheck = await this.databaseService.query(appointmentCheckQuery, []);
+        if (appointmentCheck.rows.length > 0) {
+          this.logger.debug(
+            `[Notifications] Notifications de rendez-vous récentes trouvées (pour débogage):`,
+          );
+          appointmentCheck.rows.forEach((notif) => {
+            this.logger.debug(
+              `[Notifications] - Notification ${notif.id}: user_id=${notif.notification_user_id}, email=${notif.email}, telephone=${notif.telephone}`,
+            );
+          });
+        }
+      } catch (error) {
+        // Ne pas bloquer si la vérification échoue
+        this.logger.debug(`[Notifications] Vérification appointments échouée (non critique):`, error);
+      }
+    }
 
     if (result.rows.length > 0) {
       const types = result.rows.map((r) => r.type).join(', ');
@@ -102,7 +166,7 @@ export class NotificationsService {
         );
         appointmentNotifications.forEach((notif) => {
           this.logger.debug(
-            `[Notifications] - ID: ${notif.id}, Type: ${notif.type}, Title: ${notif.title}, Created: ${notif.created_at}`,
+            `[Notifications] - ID: ${notif.id}, Type: ${notif.type}, Title: ${notif.title}, Created: ${notif.created_at}, user_id: ${notif.user_id}`,
           );
         });
       }
