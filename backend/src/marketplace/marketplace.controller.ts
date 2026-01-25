@@ -1016,8 +1016,12 @@ export class MarketplaceController {
     @Request() req,
     @Query('unreadOnly') unreadOnly?: string
   ) {
+    const userId = req.user.id;
+    this.logger.log(
+      `[MarketplaceController] Récupération notifications pour user ${userId}, unreadOnly: ${unreadOnly}`,
+    );
     return await this.notificationsService.getUserNotifications(
-      req.user.id,
+      userId,
       unreadOnly === 'true'
     );
   }
