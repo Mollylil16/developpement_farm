@@ -487,6 +487,29 @@ export class PorkPriceTrendService {
   async getLast26WeeksTrends(): Promise<WeeklyPorkPriceTrend[]> {
     return this.getLastWeeksTrends(27);
   }
+
+  /**
+   * Force le recalcul des tendances de prix pour les N dernières semaines
+   * Appelle le backend pour recalculer les tendances depuis les données marketplace
+   */
+  async forceRecalculateTrends(weeks: number = 4): Promise<WeeklyPorkPriceTrend[]> {
+    try {
+      logger.debug(`[PorkPriceTrendService] Force recalcul des ${weeks} dernières semaines...`);
+      
+      // Appeler l'endpoint de recalcul avec query parameter
+      await apiClient.post(`/marketplace/price-trends/calculate?weeks=${weeks}`);
+      
+      // Attendre un peu pour que le calcul se termine
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Récupérer les tendances recalculées
+      return await this.getLastWeeksTrends(weeks);
+    } catch (error: unknown) {
+      logger.error('[PorkPriceTrendService] Erreur lors du recalcul forcé:', error);
+      // En cas d'erreur, retourner les tendances existantes
+      return await this.getLastWeeksTrends(weeks);
+    }
+  }
 }
 
 /**

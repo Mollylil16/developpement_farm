@@ -1,10 +1,10 @@
 /**
  * Carte affichant la tendance du prix du porc poids vif (FCFA/kg)
- * Graphique sur les 6 derniers mois
+ * Graphique sur les 4 dernières semaines avec bouton de rafraîchissement
  */
 
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, Dimensions, TouchableOpacity, StyleProp, ViewStyle } from 'react-native';
+import React, { useMemo, useCallback } from 'react';
+import { View, Text, StyleSheet, Dimensions, TouchableOpacity, StyleProp, ViewStyle, ActivityIndicator } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 import { format, startOfMonth, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -32,9 +32,18 @@ export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
     priceChange,
     priceChangePercent,
     loading,
+    refreshing,
     error,
     lastUpdated,
+    forceRefresh,
   } = usePorkPriceTrend();
+
+  // Handler pour le bouton de rafraîchissement
+  const handleRefresh = useCallback(() => {
+    if (!refreshing && !loading) {
+      forceRefresh();
+    }
+  }, [refreshing, loading, forceRefresh]);
 
   // Configuration du graphique
   const chartConfig = useMemo(
@@ -201,13 +210,41 @@ export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
     };
   }, [avgPrice4Weeks, weekPriceChange, weekPriceChangePercent, previousAvgPrice, colors]);
 
-  if (loading) {
+  // Bouton de rafraîchissement
+  const RefreshButton = () => (
+    <TouchableOpacity
+      onPress={handleRefresh}
+      disabled={refreshing || loading}
+      style={[
+        styles.refreshButton,
+        { backgroundColor: colors.primary + '15' },
+        (refreshing || loading) && styles.refreshButtonDisabled,
+      ]}
+      accessibilityLabel="Actualiser les tendances de prix"
+      accessibilityHint="Appuyez pour recalculer les tendances de prix du marché"
+    >
+      {refreshing ? (
+        <ActivityIndicator size="small" color={colors.primary} />
+      ) : (
+        <Ionicons
+          name="refresh-outline"
+          size={20}
+          color={loading ? colors.textSecondary : colors.primary}
+        />
+      )}
+    </TouchableOpacity>
+  );
+
+  if (loading && !refreshing) {
     return (
       <Card style={[styles.card, style, { backgroundColor: colors.surface }]}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>
-            Tendance du prix du porc poids vif (FCFA/kg)
-          </Text>
+          <View style={styles.titleRow}>
+            <Text style={[styles.title, { color: colors.text }]}>
+              Tendance du prix du porc poids vif (FCFA/kg)
+            </Text>
+            <RefreshButton />
+          </View>
         </View>
         <View style={styles.loadingContainer}>
           <LoadingSpinner size="small" />
@@ -220,9 +257,12 @@ export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
     return (
       <Card style={[styles.card, style, { backgroundColor: colors.surface }]}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>
-            Tendance du prix du porc poids vif (FCFA/kg)
-          </Text>
+          <View style={styles.titleRow}>
+            <Text style={[styles.title, { color: colors.text }]}>
+              Tendance du prix du porc poids vif (FCFA/kg)
+            </Text>
+            <RefreshButton />
+          </View>
         </View>
         <EmptyState
           icon={<Ionicons name="alert-circle-outline" size={48} color={colors.error} />}
@@ -237,9 +277,12 @@ export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
     return (
       <Card style={[styles.card, style, { backgroundColor: colors.surface }]}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>
-            Tendance du prix du porc poids vif (FCFA/kg)
-          </Text>
+          <View style={styles.titleRow}>
+            <Text style={[styles.title, { color: colors.text }]}>
+              Tendance du prix du porc poids vif (FCFA/kg)
+            </Text>
+            <RefreshButton />
+          </View>
         </View>
         <EmptyState
           icon={<Ionicons name="stats-chart-outline" size={48} color={colors.textSecondary} />}
@@ -253,15 +296,18 @@ export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
   return (
     <Card style={[styles.card, style, { backgroundColor: colors.surface }]}>
       <View style={styles.header}>
-        <View style={styles.titleContainer}>
-          <Text style={[styles.title, { color: colors.text }]}>
-            Tendance du prix du porc poids vif (FCFA/kg)
-          </Text>
-          {lastUpdated && (
-            <Text style={[styles.lastUpdated, { color: colors.textSecondary }]}>
-              Mis à jour {format(new Date(lastUpdated), 'HH:mm', { locale: fr })}
+        <View style={styles.titleRow}>
+          <View style={styles.titleContainer}>
+            <Text style={[styles.title, { color: colors.text }]}>
+              Tendance du prix du porc poids vif (FCFA/kg)
             </Text>
-          )}
+            {lastUpdated && (
+              <Text style={[styles.lastUpdated, { color: colors.textSecondary }]}>
+                Mis à jour {format(new Date(lastUpdated), 'HH:mm', { locale: fr })}
+              </Text>
+            )}
+          </View>
+          <RefreshButton />
         </View>
       </View>
 
@@ -319,20 +365,33 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: SPACING.md,
   },
-  titleContainer: {
+  titleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+  },
+  titleContainer: {
+    flex: 1,
     marginBottom: SPACING.xs,
   },
   title: {
     fontSize: FONT_SIZES.lg,
     fontWeight: FONT_WEIGHTS.bold,
-    flex: 1,
   },
   lastUpdated: {
     fontSize: FONT_SIZES.xs,
+    marginTop: SPACING.xs,
+  },
+  refreshButton: {
+    padding: SPACING.sm,
+    borderRadius: BORDER_RADIUS.full,
     marginLeft: SPACING.sm,
+  },
+  refreshButtonDisabled: {
+    opacity: 0.5,
+  },
+  spinningIcon: {
+    // Animation CSS pas supportée en RN, mais on peut ajouter une indication visuelle
   },
   subtitleContainer: {
     marginBottom: SPACING.md,

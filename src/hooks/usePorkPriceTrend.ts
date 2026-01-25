@@ -15,6 +15,7 @@ interface PorkPriceTrendData {
   priceChange?: number;
   priceChangePercent?: number;
   loading: boolean;
+  refreshing: boolean;
   error: string | null;
   lastUpdated?: string;
 }
@@ -23,18 +24,34 @@ export function usePorkPriceTrend() {
   const [data, setData] = useState<PorkPriceTrendData>({
     trends: [],
     loading: true,
+    refreshing: false,
     error: null,
   });
 
-  const loadTrends = useCallback(async () => {
+  const loadTrends = useCallback(async (forceRecalculate: boolean = false) => {
     try {
-      setData((prev) => ({ ...prev, loading: true, error: null }));
+      if (forceRecalculate) {
+        setData((prev) => ({ ...prev, refreshing: true, error: null }));
+      } else {
+        setData((prev) => ({ ...prev, loading: true, error: null }));
+      }
 
       const trendService = getPorkPriceTrendService();
 
-      // Récupérer les tendances depuis le backend
-      // On récupère 8 semaines pour avoir 4 semaines + 4 semaines de comparaison
-      const trends = await trendService.getLastWeeksTrends(8);
+      let trends: WeeklyPorkPriceTrend[];
+      
+      if (forceRecalculate) {
+        // Forcer le recalcul des 4 dernières semaines
+        logger.debug('[usePorkPriceTrend] Recalcul forcé des tendances...');
+        trends = await trendService.forceRecalculateTrends(4);
+        // Récupérer aussi les 4 semaines précédentes pour la comparaison
+        const allTrends = await trendService.getLastWeeksTrends(8);
+        trends = allTrends;
+      } else {
+        // Récupérer les tendances depuis le backend
+        // On récupère 8 semaines pour avoir 4 semaines + 4 semaines de comparaison
+        trends = await trendService.getLastWeeksTrends(8);
+      }
 
       // Calculer les métriques si des données sont disponibles
       if (trends.length > 0) {
@@ -59,8 +76,9 @@ export function usePorkPriceTrend() {
           priceChange,
           priceChangePercent,
           loading: false,
+          refreshing: false,
           error: null,
-          lastUpdated: currentTrend?.updatedAt,
+          lastUpdated: currentTrend?.updatedAt || new Date().toISOString(),
         });
       } else {
         // Pas de données disponibles
@@ -71,6 +89,7 @@ export function usePorkPriceTrend() {
           priceChange: undefined,
           priceChangePercent: undefined,
           loading: false,
+          refreshing: false,
           error: null,
           lastUpdated: undefined,
         });
@@ -80,17 +99,23 @@ export function usePorkPriceTrend() {
       setData((prev) => ({
         ...prev,
         loading: false,
+        refreshing: false,
         error: getErrorMessage(error),
       }));
     }
   }, []);
 
   useEffect(() => {
-    loadTrends();
+    loadTrends(false);
+  }, [loadTrends]);
+
+  const forceRefresh = useCallback(() => {
+    loadTrends(true);
   }, [loadTrends]);
 
   return {
     ...data,
-    refresh: loadTrends,
+    refresh: () => loadTrends(false),
+    forceRefresh,
   };
 }
