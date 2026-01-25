@@ -73,9 +73,24 @@ export function useVetData(vetUserId?: string) {
         console.warn('Impossible de charger les collaborations:', error);
         allCollaborations = [];
       }
+      // ✅ Filtrer les collaborations selon les permissions (permission_sante OU permission_gestion_complete)
       const activeCollaborations = allCollaborations.filter(
-        (c) => c.user_id === vetUserId && c.role === 'veterinaire' && c.statut === 'actif'
+        (c) => 
+          c.user_id === vetUserId && 
+          c.role === 'veterinaire' && 
+          c.statut === 'actif' &&
+          (c.permission_sante === true || c.permission_gestion_complete === true || c.permissions?.sante === true)
       );
+      
+      // Créer une map pour vérifier rapidement les permissions par projet
+      const projectPermissionsMap = new Map<string, { permission_sante: boolean; permission_gestion_complete: boolean }>();
+      for (const collab of activeCollaborations) {
+        projectPermissionsMap.set(collab.projet_id, {
+          permission_sante: collab.permission_sante === true || collab.permissions?.sante === true,
+          permission_gestion_complete: collab.permission_gestion_complete === true || collab.permissions?.gestion_complete === true,
+        });
+      }
+      
       const collaborationProjectIds = activeCollaborations.map((c) => c.projet_id);
 
       // Combiner les IDs des clients et des collaborations pour obtenir tous les projets accessibles
@@ -88,18 +103,45 @@ export function useVetData(vetUserId?: string) {
       const allProjects = await apiClient.get<any[]>('/projets');
       const accessibleProjects = allProjects.filter((p) => accessibleProjectIds.has(p.id));
 
-      // Charger les planifications pour le projet actif si disponible
+      // Charger les planifications pour le projet actif si disponible et avec permission
       if (projetActif?.id && accessibleProjectIds.has(projetActif.id)) {
-        await dispatch(loadPlanificationsParProjet(projetActif.id));
+        const hasPermission = projectPermissionsMap.has(projetActif.id) || vetClients.some(c => c.farmId === projetActif.id);
+        if (hasPermission) {
+          try {
+            await dispatch(loadPlanificationsParProjet(projetActif.id));
+          } catch (error) {
+            logger.warn(`[useVetData] Erreur chargement planifications pour projet ${projetActif.id}:`, error);
+          }
+        }
       }
 
-      // Récupérer toutes les visites vétérinaires des projets accessibles depuis l'API backend
+      // ✅ Récupérer toutes les visites vétérinaires des projets accessibles avec gestion d'erreurs
       const allVisites: VisiteVeterinaire[] = [];
       for (const project of accessibleProjects) {
-        const visites = await apiClient.get<any[]>(`/sante/visites-veterinaires`, {
-          params: { projet_id: project.id },
-        });
-        allVisites.push(...visites);
+        // Vérifier si le vétérinaire a la permission pour ce projet
+        const hasPermission = 
+          vetClients.some(c => c.farmId === project.id) || // Client direct
+          projectPermissionsMap.has(project.id); // Collaboration avec permission
+        
+        if (!hasPermission) {
+          logger.debug(`[useVetData] Pas de permission pour projet ${project.id}, ignoré`);
+          continue;
+        }
+        
+        try {
+          const visites = await apiClient.get<any[]>(`/sante/visites-veterinaires`, {
+            params: { projet_id: project.id },
+          });
+          allVisites.push(...(visites || []));
+        } catch (error: any) {
+          // Gérer les erreurs 403 (permission refusée) et autres erreurs
+          if (error?.status === 403) {
+            logger.warn(`[useVetData] Permission refusée pour projet ${project.id} (403)`);
+          } else {
+            logger.error(`[useVetData] Erreur chargement visites pour projet ${project.id}:`, error);
+          }
+          // Continuer avec les autres projets même si celui-ci échoue
+        }
       }
 
       // Filtrer les consultations du jour
@@ -163,28 +205,47 @@ export function useVetData(vetUserId?: string) {
 
       const clientFarms = Array.from(clientMap.values());
 
-      // Détecter les alertes sanitaires (maladies récentes, vaccinations manquantes, etc.)
+      // ✅ Détecter les alertes sanitaires (maladies récentes, vaccinations manquantes, etc.)
       const healthAlerts: VetData['healthAlerts'] = [];
 
       for (const project of accessibleProjects) {
-        // Vérifier les maladies récentes (derniers 7 jours) depuis l'API backend
-        const maladies = await apiClient.get<any[]>(`/sante/maladies`, {
-          params: { projet_id: project.id },
-        });
-        const recentMaladies = maladies.filter((m) => {
-          const maladieDate = new Date(m.date_debut);
-          const daysAgo = (today.getTime() - maladieDate.getTime()) / (1000 * 60 * 60 * 24);
-          return daysAgo <= 7;
-        });
-
-        if (recentMaladies.length > 0) {
-          healthAlerts.push({
-            farmId: project.id,
-            farmName: project.nom || 'Ferme inconnue',
-            alertType: 'disease',
-            message: `${recentMaladies.length} maladie(s) récente(s) détectée(s)`,
-            severity: recentMaladies.length > 2 ? 'high' : 'medium',
+        // Vérifier si le vétérinaire a la permission pour ce projet
+        const hasPermission = 
+          vetClients.some(c => c.farmId === project.id) || // Client direct
+          projectPermissionsMap.has(project.id); // Collaboration avec permission
+        
+        if (!hasPermission) {
+          continue; // Ignorer ce projet
+        }
+        
+        try {
+          // Vérifier les maladies récentes (derniers 7 jours) depuis l'API backend
+          const maladies = await apiClient.get<any[]>(`/sante/maladies`, {
+            params: { projet_id: project.id },
           });
+          const recentMaladies = (maladies || []).filter((m) => {
+            const maladieDate = new Date(m.date_debut);
+            const daysAgo = (today.getTime() - maladieDate.getTime()) / (1000 * 60 * 60 * 24);
+            return daysAgo <= 7;
+          });
+
+          if (recentMaladies.length > 0) {
+            healthAlerts.push({
+              farmId: project.id,
+              farmName: project.nom || 'Ferme inconnue',
+              alertType: 'disease',
+              message: `${recentMaladies.length} maladie(s) récente(s) détectée(s)`,
+              severity: recentMaladies.length > 2 ? 'high' : 'medium',
+            });
+          }
+        } catch (error: any) {
+          // Gérer les erreurs 403 (permission refusée) et autres erreurs
+          if (error?.status === 403) {
+            logger.warn(`[useVetData] Permission refusée pour maladies projet ${project.id} (403)`);
+          } else {
+            logger.error(`[useVetData] Erreur chargement maladies pour projet ${project.id}:`, error);
+          }
+          // Continuer avec les autres projets même si celui-ci échoue
         }
       }
 
