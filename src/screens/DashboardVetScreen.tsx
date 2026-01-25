@@ -525,15 +525,17 @@ const DashboardVetScreen: React.FC = () => {
       <NotificationPanel
         visible={notificationPanelVisible}
         notifications={marketplaceNotifications}
+        unreadCount={marketplaceUnreadCount}
         onClose={() => setNotificationPanelVisible(false)}
         onNotificationPress={(notification) => {
           markAsRead(notification.id);
           // TODO: Navigate to notification target
         }}
-        onDeleteNotification={deleteNotification}
+        onMarkAsRead={markAsRead}
         onMarkAllAsRead={() => {
           marketplaceNotifications.forEach((n) => markAsRead(n.id));
         }}
+        onDelete={deleteNotification}
       />
 
       {/* Support Contact Modal */}
