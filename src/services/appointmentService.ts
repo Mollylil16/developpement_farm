@@ -36,7 +36,9 @@ export async function getUpcomingAppointments(
  * Récupérer un rendez-vous par ID
  */
 export async function getAppointmentById(appointmentId: string): Promise<Appointment> {
-  return apiClient.get<Appointment>(`/appointments/${appointmentId}`);
+  // Encoder l'ID pour éviter les problèmes de troncature dans l'URL
+  const encodedId = encodeURIComponent(appointmentId);
+  return apiClient.get<Appointment>(`/appointments/${encodedId}`);
 }
 
 /**
@@ -46,12 +48,16 @@ export async function updateAppointment(
   appointmentId: string,
   dto: UpdateAppointmentDto,
 ): Promise<Appointment> {
-  return apiClient.patch<Appointment>(`/appointments/${appointmentId}`, dto);
+  // Encoder l'ID pour éviter les problèmes de troncature dans l'URL
+  const encodedId = encodeURIComponent(appointmentId);
+  return apiClient.patch<Appointment>(`/appointments/${encodedId}`, dto);
 }
 
 /**
  * Annuler un rendez-vous
  */
 export async function cancelAppointment(appointmentId: string): Promise<Appointment> {
-  return apiClient.delete<Appointment>(`/appointments/${appointmentId}/cancel`);
+  // Encoder l'ID pour éviter les problèmes de troncature dans l'URL
+  const encodedId = encodeURIComponent(appointmentId);
+  return apiClient.delete<Appointment>(`/appointments/${encodedId}/cancel`);
 }
