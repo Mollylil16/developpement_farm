@@ -1206,22 +1206,22 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
     // Envoyer une notification au collaborateur retiré (si user_id existe)
     if (existing.user_id) {
       try {
-        await this.notificationsService.createNotification({
-          userId: existing.user_id,
-          type: NotificationType.COLLABORATION_REMOVED,
-          title: 'Accès au projet retiré',
-          message: `Vous avez été retiré du projet "${projetNom}" par ${proprietaireNom}. Vous n'avez plus accès à ce projet.`,
-          relatedType: 'collaboration',
-          relatedId: id,
-          actionUrl: '/collaborations',
-          data: {
+        await this.notificationsService.createNotification(
+          existing.user_id,
+          NotificationType.COLLABORATION_REMOVED,
+          'Accès au projet retiré',
+          `Vous avez été retiré du projet "${projetNom}" par ${proprietaireNom}. Vous n'avez plus accès à ce projet.`,
+          {
             collaborationId: id,
             projetId: existing.projet_id,
             projetNom: projetNom,
             proprietaireNom: proprietaireNom,
             role: existing.role,
-          },
-        });
+            relatedType: 'collaboration',
+            relatedId: id,
+            actionUrl: '/collaborations',
+          }
+        );
         this.logger.log(
           `[Collaborations] ✅ Notification de retrait envoyée au collaborateur ${existing.user_id} pour projet ${existing.projet_id}`,
         );
