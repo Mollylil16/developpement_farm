@@ -53,8 +53,8 @@ export default function ValidationModal({
           console.error('Erreur lors du chargement des documents:', error)
           // Utiliser les documents déjà présents dans veterinarian si disponibles
           setDocuments({
-            cni_document_url: veterinarian.cni_document || veterinarian.cni_document_url,
-            diploma_document_url: veterinarian.diploma_document || veterinarian.diploma_document_url,
+            cni_document_url: veterinarian.cni_document,
+            diploma_document_url: veterinarian.diploma_document,
           })
         })
         .finally(() => {
@@ -68,8 +68,8 @@ export default function ValidationModal({
   if (!veterinarian) return null
 
   // Utiliser les documents chargés ou ceux du veterinarian
-  const cniDocument = documents?.cni_document_url || veterinarian.cni_document || veterinarian.cni_document_url
-  const diplomaDocument = documents?.diploma_document_url || veterinarian.diploma_document || veterinarian.diploma_document_url
+  const cniDocument = documents?.cni_document_url || veterinarian.cni_document
+  const diplomaDocument = documents?.diploma_document_url || veterinarian.diploma_document
 
   const handleApprove = () => {
     onApprove(veterinarian.id, approvalReason || undefined)
