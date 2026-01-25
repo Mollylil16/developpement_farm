@@ -396,24 +396,43 @@ export class AppointmentsService {
         },
       });
     } else if (updateAppointmentDto.status === 'rejected') {
-      await this.notificationsService.createNotification({
-        userId: appointment.producerId,
-        type: 'appointment_rejected' as NotificationType,
-        title: 'Rendez-vous refusé',
-        message: `${vetName} a refusé votre demande de rendez-vous`,
-        relatedType: 'appointment',
-        relatedId: appointmentId,
-        actionUrl: `/appointments/${appointmentId}`,
-        data: {
-          appointmentId,
-          vetId: appointment.vetId,
-          vetName,
-          vetResponse: updateAppointmentDto.vetResponse,
-        },
-      });
+      try {
+        await this.notificationsService.createNotification({
+          userId: appointment.producerId,
+          type: 'appointment_rejected' as NotificationType,
+          title: 'Rendez-vous refusé',
+          message: `${vetName} a refusé votre demande de rendez-vous${updatedAppointment.vetResponse ? `: ${updatedAppointment.vetResponse}` : ''}`,
+          relatedType: 'appointment',
+          relatedId: appointmentId,
+          actionUrl: `/appointments/${appointmentId}`,
+          data: {
+            appointmentId,
+            vetId: appointment.vetId,
+            vetName,
+            vetResponse: updateAppointmentDto.vetResponse,
+          },
+        });
+        this.logger.log(
+          `[Appointments] ✅ Notification de refus envoyée au producteur ${appointment.producerId}`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `[Appointments] ⚠️ Erreur lors de l'envoi de la notification de refus (non-bloquant):`,
+          error,
+        );
+        // Ne pas bloquer si la notification échoue
+      }
     }
 
-    return updatedAppointment;
+    // Retourner le rendez-vous mis à jour (récupérer à nouveau pour être sûr d'avoir les dernières données)
+    try {
+      return await this.findOne(appointmentId, userId);
+    } catch (error) {
+      this.logger.warn(
+        `[Appointments] ⚠️ Impossible de récupérer le rendez-vous final, retour des données mises à jour`,
+      );
+      return updatedAppointment;
+    }
   }
 
   /**
