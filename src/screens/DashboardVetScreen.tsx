@@ -11,8 +11,6 @@ import {
   StyleSheet,
   RefreshControl,
   TouchableOpacity,
-  FlatList,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, useIsFocused } from '@react-navigation/native';
@@ -38,7 +36,6 @@ import ProfileMenuModal from '../components/ProfileMenuModal';
 import { NotificationPanel } from '../components/marketplace';
 import SupportContactModal from '../components/SupportContactModal';
 import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
-import ProjectSelectorCollaborateur from '../components/Collaborations/ProjectSelectorCollaborateur';
 import VetAppointmentsCard from '../components/dashboard/VetAppointmentsCard';
 import type { VisiteVeterinaire } from '../types/sante';
 
@@ -57,15 +54,11 @@ const DashboardVetScreen: React.FC = () => {
   const {
     todayConsultations,
     upcomingConsultations,
-    clientFarms,
-    healthAlerts,
     loading,
     error,
     refresh,
   } = useVetData(currentUser?.id);
-  const { projetActif } = useAppSelector((state) => state.projet);
   const { projetCollaboratifActif, collaborateurActuel, invitationsEnAttente } = useAppSelector((state) => state.collaboration);
-  const { planifications } = useAppSelector((state) => state.planification);
 
   // Charger les invitations en attente au montage et quand l'écran devient actif
   React.useEffect(() => {
@@ -83,8 +76,6 @@ const DashboardVetScreen: React.FC = () => {
     ? invitationsEnAttente.filter((inv) => inv.statut === 'en_attente').length
     : 0;
 
-  // Pour les vétérinaires, utiliser le projet collaboratif sélectionné (projet du producteur)
-  const projetActifPourVet = projetCollaboratifActif || projetActif;
   const profil = useProfilData();
   const animations = useDashboardAnimations();
   const {
@@ -360,11 +351,6 @@ const DashboardVetScreen: React.FC = () => {
             onPressNotifications={handlePressNotifications}
           />
 
-          {/* 🆕 Sélecteur de projet collaboratif */}
-          <View style={styles.projectSelectorContainer}>
-            <ProjectSelectorCollaborateur />
-          </View>
-
           {/* Stats vétérinaire */}
           <View style={styles.statsRow}>
             <Card style={[styles.statCard, { backgroundColor: colors.surface }]}>
@@ -429,92 +415,6 @@ const DashboardVetScreen: React.FC = () => {
             )}
           </View>
 
-          {/* Mes clients */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Mes clients</Text>
-              {clientFarms.length > 0 && (
-                <TouchableOpacity
-                  onPress={() => navigation.navigate(SCREENS.MY_CLIENTS as never)}
-                  style={styles.seeAllButton}
-                >
-                  <Text style={[styles.seeAllText, { color: colors.primary }]}>Voir tout</Text>
-                  <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-                </TouchableOpacity>
-              )}
-            </View>
-            {loading ? (
-              <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
-                <LoadingSpinner size="small" />
-              </Card>
-            ) : clientFarms.length === 0 ? (
-              <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
-                <EmptyState
-                  icon="people-outline"
-                  title="Aucun client"
-                  message="Vous n'avez pas encore de clients"
-                  compact
-                />
-              </Card>
-            ) : (
-              <View style={styles.clientsList}>
-                {clientFarms.slice(0, 3).map((client) => (
-                  <ClientCard key={client.farmId} client={client} colors={colors} />
-                ))}
-              </View>
-            )}
-          </View>
-
-          {/* Planifications du projet actif */}
-          {projetActif && planifications && planifications.length > 0 && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                  Planifications ({projetActif.nom})
-                </Text>
-                <TouchableOpacity
-                  onPress={() => navigation.navigate(SCREENS.PLANIFICATION as never)}
-                  style={styles.seeAllButton}
-                >
-                  <Text style={[styles.seeAllText, { color: colors.primary }]}>Voir tout</Text>
-                  <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-                </TouchableOpacity>
-              </View>
-              <View style={styles.consultationsList}>
-                {planifications
-                  .filter((p) => p.statut === 'a_faire' || p.statut === 'en_cours')
-                  .slice(0, 3)
-                  .map((planif) => (
-                    <PlanificationCard key={planif.id} planification={planif} colors={colors} />
-                  ))}
-              </View>
-            </View>
-          )}
-
-          {/* Alertes sanitaires */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Alertes sanitaires</Text>
-            {loading ? (
-              <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
-                <LoadingSpinner size="small" />
-              </Card>
-            ) : healthAlerts.length === 0 ? (
-              <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
-                <EmptyState
-                  icon="checkmark-circle-outline"
-                  title="Aucune alerte"
-                  message="Tout est en ordre"
-                  compact
-                />
-              </Card>
-            ) : (
-              <View style={styles.alertsList}>
-                {healthAlerts.slice(0, 3).map((alert, index) => (
-                  <AlertCard key={`${alert.farmId}-${index}`} alert={alert} colors={colors} />
-                ))}
-              </View>
-            )}
-          </View>
         </View>
       </ScrollView>
 
@@ -659,10 +559,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 100,
   },
-  projectSelectorContainer: {
-    marginTop: SPACING.md,
-    paddingHorizontal: 0,
-  },
   statsRow: {
     flexDirection: 'row',
     gap: SPACING.md,
@@ -728,12 +624,6 @@ const styles = StyleSheet.create({
     fontWeight: FONT_WEIGHTS.medium,
   },
   consultationsList: {
-    gap: SPACING.sm,
-  },
-  clientsList: {
-    gap: SPACING.sm,
-  },
-  alertsList: {
     gap: SPACING.sm,
   },
   pendingBanner: {
@@ -821,58 +711,6 @@ const styles = StyleSheet.create({
   },
 });
 
-// Composant Card pour les planifications
-const PlanificationCard: React.FC<{ planification: unknown; colors: unknown }> = ({
-  planification,
-  colors,
-}) => {
-  const statutColors: Record<string, string> = {
-    a_faire: colors.warning,
-    en_cours: colors.primary,
-    terminee: colors.success,
-  };
-
-  return (
-    <Card
-      style={[
-        componentStyles.planificationCard,
-        { backgroundColor: colors.surface, borderColor: colors.border },
-      ]}
-    >
-      <View style={componentStyles.planificationHeader}>
-        <View
-          style={[
-            componentStyles.statutBadge,
-            { backgroundColor: statutColors[planification.statut] + '20' },
-          ]}
-        >
-          <Text style={[componentStyles.statutText, { color: statutColors[planification.statut] }]}>
-            {planification.statut === 'a_faire'
-              ? 'À faire'
-              : planification.statut === 'en_cours'
-                ? 'En cours'
-                : 'Terminée'}
-          </Text>
-        </View>
-        <Text style={[componentStyles.planificationDate, { color: colors.textSecondary }]}>
-          {format(new Date(planification.date_prevue), 'd MMM', { locale: fr })}
-        </Text>
-      </View>
-      <Text style={[componentStyles.planificationTitle, { color: colors.text }]}>
-        {planification.titre}
-      </Text>
-      {planification.description && (
-        <Text
-          style={[componentStyles.planificationDescription, { color: colors.textSecondary }]}
-          numberOfLines={1}
-        >
-          {planification.description}
-        </Text>
-      )}
-    </Card>
-  );
-};
-
 // Composant Card pour les consultations
 const ConsultationCard: React.FC<{ consultation: VisiteVeterinaire; colors: unknown }> = ({
   consultation,
@@ -906,115 +744,7 @@ const ConsultationCard: React.FC<{ consultation: VisiteVeterinaire; colors: unkn
   );
 };
 
-// Composant Card pour les clients
-const ClientCard: React.FC<{
-  client: {
-    farmId: string;
-    farmName: string;
-    since: string;
-    lastConsultation?: string;
-    consultationCount: number;
-  };
-  colors: unknown;
-}> = ({ client, colors }) => {
-  return (
-    <Card
-      style={[
-        componentStyles.clientCard,
-        { backgroundColor: colors.surface, borderColor: colors.border },
-      ]}
-    >
-      <View style={componentStyles.clientHeader}>
-        <Ionicons name="business" size={20} color={colors.primary} />
-        <Text style={[componentStyles.clientName, { color: colors.text }]}>{client.farmName}</Text>
-      </View>
-      <Text style={[componentStyles.clientStats, { color: colors.textSecondary }]}>
-        {client.consultationCount} consultation{client.consultationCount > 1 ? 's' : ''}
-      </Text>
-      {client.lastConsultation && (
-        <Text style={[componentStyles.clientLastVisit, { color: colors.textSecondary }]}>
-          Dernière visite: {format(new Date(client.lastConsultation), 'd MMM yyyy', { locale: fr })}
-        </Text>
-      )}
-    </Card>
-  );
-};
-
-// Composant Card pour les alertes
-const AlertCard: React.FC<{
-  alert: { farmId: string; farmName: string; alertType: string; message: string; severity: string };
-  colors: unknown;
-}> = ({ alert, colors }) => {
-  const severityColors = {
-    low: colors.info,
-    medium: colors.warning,
-    high: colors.error,
-  };
-
-  const alertIcons = {
-    disease: 'alert-circle',
-    vaccination: 'medical',
-    treatment: 'flask',
-  };
-
-  return (
-    <Card
-      style={[
-        componentStyles.alertCard,
-        {
-          backgroundColor: colors.surface,
-          borderLeftColor: severityColors[alert.severity as keyof typeof severityColors],
-        },
-      ]}
-    >
-      <View style={componentStyles.alertHeader}>
-        <Ionicons
-          name={alertIcons[alert.alertType as keyof typeof alertIcons] || 'alert'}
-          size={20}
-          color={severityColors[alert.severity as keyof typeof severityColors]}
-        />
-        <Text style={[componentStyles.alertFarm, { color: colors.text }]}>{alert.farmName}</Text>
-      </View>
-      <Text style={[componentStyles.alertMessage, { color: colors.textSecondary }]}>
-        {alert.message}
-      </Text>
-    </Card>
-  );
-};
-
 const componentStyles = StyleSheet.create({
-  planificationCard: {
-    padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1,
-    marginBottom: SPACING.sm,
-  },
-  planificationHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.xs,
-  },
-  statutBadge: {
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 2,
-    borderRadius: BORDER_RADIUS.sm,
-  },
-  statutText: {
-    fontSize: FONT_SIZES.xs,
-    fontWeight: FONT_WEIGHTS.medium,
-  },
-  planificationDate: {
-    fontSize: FONT_SIZES.xs,
-  },
-  planificationTitle: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semiBold,
-    marginBottom: SPACING.xs,
-  },
-  planificationDescription: {
-    fontSize: FONT_SIZES.sm,
-  },
   consultationCard: {
     padding: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
@@ -1036,47 +766,6 @@ const componentStyles = StyleSheet.create({
     marginBottom: SPACING.xs,
   },
   consultationDiagnostic: {
-    fontSize: FONT_SIZES.sm,
-  },
-  clientCard: {
-    padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1,
-  },
-  clientHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-    marginBottom: SPACING.xs,
-  },
-  clientName: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semiBold,
-  },
-  clientStats: {
-    fontSize: FONT_SIZES.sm,
-    marginBottom: SPACING.xs,
-  },
-  clientLastVisit: {
-    fontSize: FONT_SIZES.xs,
-  },
-  alertCard: {
-    padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1,
-    borderLeftWidth: 4,
-  },
-  alertHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-    marginBottom: SPACING.xs,
-  },
-  alertFarm: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semiBold,
-  },
-  alertMessage: {
     fontSize: FONT_SIZES.sm,
   },
 });
