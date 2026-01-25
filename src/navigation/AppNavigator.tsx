@@ -209,8 +209,8 @@ function MainTabs() {
         </Tab.Screen>
       )}
 
-      {/* Reproduction - Visible si permission reproduction */}
-      {hasPermission('reproduction') && (
+      {/* Reproduction - Visible si permission reproduction (sauf pour vétérinaires) */}
+      {hasPermission('reproduction') && activeRole !== 'veterinarian' && (
         <Tab.Screen
           name={SCREENS.REPRODUCTION}
           options={{
@@ -235,8 +235,8 @@ function MainTabs() {
         </Tab.Screen>
       )}
 
-      {/* Rapports - Visible si permission rapports */}
-      {hasPermission('rapports') && (
+      {/* Rapports - Visible si permission rapports (sauf pour vétérinaires) */}
+      {hasPermission('rapports') && activeRole !== 'veterinarian' && (
         <Tab.Screen
           name={SCREENS.REPORTS}
           options={{
@@ -245,6 +245,32 @@ function MainTabs() {
           }}
         >
           {() => <LazyScreens.ReportsScreen />}
+        </Tab.Screen>
+      )}
+
+      {/* Mes Projets - Visible pour les vétérinaires et techniciens */}
+      {(activeRole === 'veterinarian' || activeRole === 'technician') && (
+        <Tab.Screen
+          name={SCREENS.MY_PROJECTS}
+          options={{
+            tabBarLabel: 'Mes Projets',
+            tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>🏢</Text>,
+          }}
+        >
+          {() => <LazyScreens.MyProjectsScreen />}
+        </Tab.Screen>
+      )}
+
+      {/* Statistiques - Visible uniquement pour les vétérinaires */}
+      {activeRole === 'veterinarian' && (
+        <Tab.Screen
+          name={SCREENS.STATISTICS}
+          options={{
+            tabBarLabel: 'Stats',
+            tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>📈</Text>,
+          }}
+        >
+          {() => <LazyScreens.StatisticsScreen />}
         </Tab.Screen>
       )}
 
@@ -570,6 +596,11 @@ export default function AppNavigator() {
       <Stack.Navigator
         screenOptions={{
           headerShown: false,
+          // ✅ S'assurer que le geste de retour fonctionne correctement
+          gestureEnabled: true, // Activer le geste de retour (swipe)
+          gestureDirection: 'horizontal', // Direction du geste
+          // ✅ Comportement par défaut : retour vers l'écran précédent dans la pile
+          headerBackTitleVisible: false, // Masquer le titre du bouton retour (iOS)
           cardStyleInterpolator: ({ current, next, layouts }) => {
             return {
               cardStyle: {
@@ -745,6 +776,19 @@ export default function AppNavigator() {
         {/* Écrans de détails */}
         <Stack.Screen name={SCREENS.SUJET_PESEE_DETAIL}>
           {() => <LazyScreens.SujetPeseeDetailScreen />}
+        </Stack.Screen>
+        {/* 🆕 Écrans pour vétérinaires et techniciens */}
+        <Stack.Screen name={SCREENS.VET_PROJECT_DETAIL}>
+          {() => <LazyScreens.VetProjectDetailScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.VET_CONSULTATIONS}>
+          {() => <LazyScreens.VetConsultationsScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.VET_REPORTS}>
+          {() => <LazyScreens.VetReportsScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.VET_TREATMENTS}>
+          {() => <LazyScreens.VetTreatmentsScreen />}
         </Stack.Screen>
         <Stack.Screen name="Main" component={MainTabs} />
       </Stack.Navigator>

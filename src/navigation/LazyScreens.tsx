@@ -10,6 +10,7 @@ export { default as DashboardTechScreen } from '../screens/DashboardTechScreen';
 export { default as ReproductionScreen } from '../screens/ReproductionScreen';
 export { default as FinanceScreen } from '../screens/FinanceScreen';
 export { default as ReportsScreen } from '../screens/ReportsScreen';
+export { default as StatisticsScreen } from '../screens/StatisticsScreen';
 export { default as MarketplaceScreen } from '../screens/marketplace/MarketplaceScreen';
 export { default as NutritionScreen } from '../screens/NutritionScreen';
 export { default as PlanningProductionScreen } from '../screens/PlanningProductionScreen';
@@ -59,3 +60,9 @@ export { default as DiseaseScreen } from '../screens/DiseaseScreen';
 export { default as GestationScreen } from '../screens/GestationScreen';
 export { default as ManageProfilesScreen } from '../screens/ManageProfilesScreen';
 export { default as SujetPeseeDetailScreen } from '../screens/pesees/SujetPeseeDetailScreen';
+// 🆕 Écrans pour vétérinaires et techniciens
+export { default as MyProjectsScreen } from '../screens/MyProjectsScreen';
+export { default as VetProjectDetailScreen } from '../screens/VetProjectDetailScreen';
+export { default as VetConsultationsScreen } from '../screens/VetConsultationsScreen';
+export { default as VetReportsScreen } from '../screens/VetReportsScreen';
+export { default as VetTreatmentsScreen } from '../screens/VetTreatmentsScreen';
