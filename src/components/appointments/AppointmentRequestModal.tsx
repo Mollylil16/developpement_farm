@@ -135,141 +135,148 @@ export default function AppointmentRequestModal({
       onClose={onClose}
       title={`Demander un rendez-vous`}
       showButtons={false}
-      scrollEnabled={true}
+      scrollEnabled={false}
     >
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Informations vétérinaire */}
-        <View style={[styles.vetInfoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={styles.vetInfoHeader}>
-            <Ionicons name="medical" size={24} color={colors.primary} />
-            <View style={styles.vetInfoText}>
-              <Text style={[styles.vetName, { color: colors.text }]}>
-                Dr. {vet.firstName} {vet.lastName}
-              </Text>
-              {vet.city && (
-                <Text style={[styles.vetLocation, { color: colors.textSecondary }]}>
-                  📍 {vet.city}
+      <View style={styles.container}>
+        <ScrollView 
+          style={styles.scrollView} 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Informations vétérinaire */}
+          <View style={[styles.vetInfoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={styles.vetInfoHeader}>
+              <Ionicons name="medical" size={24} color={colors.primary} />
+              <View style={styles.vetInfoText}>
+                <Text style={[styles.vetName, { color: colors.text }]}>
+                  Dr. {vet.firstName} {vet.lastName}
                 </Text>
-              )}
+                {vet.city && (
+                  <Text style={[styles.vetLocation, { color: colors.textSecondary }]}>
+                    📍 {vet.city}
+                  </Text>
+                )}
+              </View>
             </View>
           </View>
-        </View>
 
-        {/* Date du rendez-vous */}
-        <View style={styles.section}>
-          <Text style={[styles.label, { color: colors.text }]}>
-            Date du rendez-vous <Text style={{ color: colors.error }}>*</Text>
-          </Text>
-          <TouchableOpacity
-            style={[styles.dateTimeButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={() => setShowDatePicker(true)}
-          >
-            <Ionicons name="calendar-outline" size={20} color={colors.primary} />
-            <Text style={[styles.dateTimeText, { color: colors.text }]}>
-              {format(appointmentDate, 'EEEE d MMMM yyyy', { locale: fr })}
+          {/* Date du rendez-vous */}
+          <View style={styles.section}>
+            <Text style={[styles.label, { color: colors.text }]}>
+              Date du rendez-vous <Text style={{ color: colors.error }}>*</Text>
             </Text>
-            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-          </TouchableOpacity>
-          {showDatePicker && (
-            <DateTimePicker
-              value={appointmentDate}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              minimumDate={new Date()}
-              onChange={(event, selectedDate) => {
-                setShowDatePicker(Platform.OS === 'ios');
-                if (selectedDate) {
-                  setAppointmentDate(selectedDate);
-                }
-              }}
-            />
-          )}
-        </View>
+            <TouchableOpacity
+              style={[styles.dateTimeButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+              <Text style={[styles.dateTimeText, { color: colors.text }]}>
+                {format(appointmentDate, 'EEEE d MMMM yyyy', { locale: fr })}
+              </Text>
+              <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+            {showDatePicker && (
+              <DateTimePicker
+                value={appointmentDate}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                minimumDate={new Date()}
+                onChange={(event, selectedDate) => {
+                  setShowDatePicker(Platform.OS === 'ios');
+                  if (selectedDate) {
+                    setAppointmentDate(selectedDate);
+                  }
+                }}
+              />
+            )}
+          </View>
 
-        {/* Heure du rendez-vous */}
-        <View style={styles.section}>
-          <Text style={[styles.label, { color: colors.text }]}>
-            Heure du rendez-vous <Text style={{ color: colors.error }}>*</Text>
-          </Text>
-          <TouchableOpacity
-            style={[styles.dateTimeButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={() => setShowTimePicker(true)}
-          >
-            <Ionicons name="time-outline" size={20} color={colors.primary} />
-            <Text style={[styles.dateTimeText, { color: colors.text }]}>
-              {format(appointmentTime, 'HH:mm', { locale: fr })}
+          {/* Heure du rendez-vous */}
+          <View style={styles.section}>
+            <Text style={[styles.label, { color: colors.text }]}>
+              Heure du rendez-vous <Text style={{ color: colors.error }}>*</Text>
             </Text>
-            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-          </TouchableOpacity>
-          {showTimePicker && (
-            <DateTimePicker
-              value={appointmentTime}
-              mode="time"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              is24Hour={true}
-              onChange={(event, selectedTime) => {
-                setShowTimePicker(Platform.OS === 'ios');
-                if (selectedTime) {
-                  setAppointmentTime(selectedTime);
-                }
-              }}
+            <TouchableOpacity
+              style={[styles.dateTimeButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onPress={() => setShowTimePicker(true)}
+            >
+              <Ionicons name="time-outline" size={20} color={colors.primary} />
+              <Text style={[styles.dateTimeText, { color: colors.text }]}>
+                {format(appointmentTime, 'HH:mm', { locale: fr })}
+              </Text>
+              <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+            {showTimePicker && (
+              <DateTimePicker
+                value={appointmentTime}
+                mode="time"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                is24Hour={true}
+                onChange={(event, selectedTime) => {
+                  setShowTimePicker(Platform.OS === 'ios');
+                  if (selectedTime) {
+                    setAppointmentTime(selectedTime);
+                  }
+                }}
+              />
+            )}
+          </View>
+
+          {/* Raison du rendez-vous */}
+          <View style={styles.section}>
+            <Text style={[styles.label, { color: colors.text }]}>
+              Raison du rendez-vous <Text style={{ color: colors.error }}>*</Text>
+            </Text>
+            <TextInput
+              style={[
+                styles.textArea,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  color: colors.text,
+                },
+              ]}
+              placeholder="Ex: Vaccination des porcelets - 50 sujets à vacciner"
+              placeholderTextColor={colors.textSecondary}
+              value={reason}
+              onChangeText={setReason}
+              multiline
+              numberOfLines={4}
+              maxLength={500}
+              textAlignVertical="top"
             />
-          )}
-        </View>
+            <Text style={[styles.helperText, { color: colors.textSecondary }]}>
+              {reason.length}/500 caractères
+            </Text>
+          </View>
 
-        {/* Raison du rendez-vous */}
-        <View style={styles.section}>
-          <Text style={[styles.label, { color: colors.text }]}>
-            Raison du rendez-vous <Text style={{ color: colors.error }}>*</Text>
-          </Text>
-          <TextInput
-            style={[
-              styles.textArea,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-                color: colors.text,
-              },
-            ]}
-            placeholder="Ex: Vaccination des porcelets - 50 sujets à vacciner"
-            placeholderTextColor={colors.textSecondary}
-            value={reason}
-            onChangeText={setReason}
-            multiline
-            numberOfLines={4}
-            maxLength={500}
-            textAlignVertical="top"
-          />
-          <Text style={[styles.helperText, { color: colors.textSecondary }]}>
-            {reason.length}/500 caractères
-          </Text>
-        </View>
+          {/* Lieu d'intervention */}
+          <View style={styles.section}>
+            <Text style={[styles.label, { color: colors.text }]}>Lieu d'intervention (optionnel)</Text>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  color: colors.text,
+                },
+              ]}
+              placeholder="Ex: Ferme de Yopougon, Abidjan"
+              placeholderTextColor={colors.textSecondary}
+              value={location}
+              onChangeText={setLocation}
+              maxLength={200}
+            />
+            <Text style={[styles.helperText, { color: colors.textSecondary }]}>
+              {location.length}/200 caractères
+            </Text>
+          </View>
+        </ScrollView>
 
-        {/* Lieu d'intervention */}
-        <View style={styles.section}>
-          <Text style={[styles.label, { color: colors.text }]}>Lieu d'intervention (optionnel)</Text>
-          <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-                color: colors.text,
-              },
-            ]}
-            placeholder="Ex: Ferme de Yopougon, Abidjan"
-            placeholderTextColor={colors.textSecondary}
-            value={location}
-            onChangeText={setLocation}
-            maxLength={200}
-          />
-          <Text style={[styles.helperText, { color: colors.textSecondary }]}>
-            {location.length}/200 caractères
-          </Text>
-        </View>
-
-        {/* Boutons d'action */}
-        <View style={styles.actions}>
+        {/* Boutons d'action - Toujours visibles en bas */}
+        <View style={[styles.actionsContainer, { backgroundColor: colors.background, borderTopColor: colors.border }]}>
           <TouchableOpacity
             style={[styles.cancelButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={onClose}
@@ -278,7 +285,13 @@ export default function AppointmentRequestModal({
             <Text style={[styles.cancelButtonText, { color: colors.text }]}>Annuler</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.submitButton, { backgroundColor: colors.primary }]}
+            style={[
+              styles.submitButton, 
+              { 
+                backgroundColor: loading || !reason.trim() ? colors.textSecondary : colors.primary,
+                opacity: loading || !reason.trim() ? 0.6 : 1,
+              }
+            ]}
             onPress={handleSubmit}
             disabled={loading || !reason.trim()}
           >
@@ -292,14 +305,20 @@ export default function AppointmentRequestModal({
             )}
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      </View>
     </CustomModal>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
   scrollView: {
-    maxHeight: 600,
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: SPACING.md,
   },
   vetInfoCard: {
     padding: SPACING.md,
@@ -359,6 +378,13 @@ const styles = StyleSheet.create({
   helperText: {
     fontSize: FONT_SIZES.xs,
     marginTop: SPACING.xs,
+  },
+  actionsContainer: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+    padding: SPACING.md,
+    borderTopWidth: 1,
+    paddingTop: SPACING.md,
   },
   actions: {
     flexDirection: 'row',
