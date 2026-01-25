@@ -36,90 +36,117 @@ export class AppointmentsService {
     createAppointmentDto: CreateAppointmentDto,
     producerId: string,
   ): Promise<AppointmentResponseDto> {
-    // Vérifier que le vétérinaire existe et est validé
-    const vetCheck = await this.databaseService.query(
-      `SELECT id, nom, prenom, active_role, veterinarian_validation_status 
-       FROM users 
-       WHERE id = $1 AND active_role = 'veterinarian' 
-       AND veterinarian_validation_status = 'approved'`,
-      [createAppointmentDto.vetId],
-    );
+    try {
+      this.logger.debug(
+        `[Appointments] Création d'un rendez-vous par producteur ${producerId} pour vétérinaire ${createAppointmentDto.vetId}`,
+      );
 
-    if (vetCheck.rows.length === 0) {
-      throw new NotFoundException('Vétérinaire introuvable ou non validé');
+      // Vérifier que le vétérinaire existe et est validé
+      const vetCheck = await this.databaseService.query(
+        `SELECT id, nom, prenom, active_role, veterinarian_validation_status 
+         FROM users 
+         WHERE id = $1 AND active_role = 'veterinarian' 
+         AND veterinarian_validation_status = 'approved'`,
+        [createAppointmentDto.vetId],
+      );
+
+      if (vetCheck.rows.length === 0) {
+        throw new NotFoundException('Vétérinaire introuvable ou non validé');
+      }
+
+      const vet = vetCheck.rows[0];
+
+      // Vérifier que la date est dans le futur
+      const appointmentDate = new Date(createAppointmentDto.appointmentDate);
+      const now = new Date();
+      if (appointmentDate <= now) {
+        throw new BadRequestException('La date du rendez-vous doit être dans le futur');
+      }
+
+      // Récupérer les informations du producteur
+      const producerCheck = await this.databaseService.query(
+        `SELECT id, nom, prenom FROM users WHERE id = $1`,
+        [producerId],
+      );
+
+      if (producerCheck.rows.length === 0) {
+        throw new NotFoundException('Producteur introuvable');
+      }
+
+      const producer = producerCheck.rows[0];
+
+      // Créer le rendez-vous
+      const appointmentId = this.generateId();
+      const nowISO = new Date().toISOString();
+
+      await this.databaseService.query(
+        `INSERT INTO vet_appointments (
+          id, producer_id, vet_id, appointment_date, reason, location,
+          status, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          appointmentId,
+          producerId,
+          createAppointmentDto.vetId,
+          appointmentDate.toISOString(),
+          createAppointmentDto.reason,
+          createAppointmentDto.location || null,
+          'pending',
+          nowISO,
+          nowISO,
+        ],
+      );
+
+      this.logger.log(
+        `[Appointments] Rendez-vous créé: ${appointmentId} par producteur ${producerId} pour vétérinaire ${createAppointmentDto.vetId}`,
+      );
+
+      // Envoyer une notification au vétérinaire (non-bloquant)
+      try {
+        const producerName = `${producer.prenom || ''} ${producer.nom || ''}`.trim() || 'Un producteur';
+        const vetName = `${vet.prenom || ''} ${vet.nom || ''}`.trim() || 'Vétérinaire';
+
+        await this.notificationsService.createNotification({
+          userId: createAppointmentDto.vetId,
+          type: NotificationType.APPOINTMENT_REQUESTED,
+          title: 'Nouvelle demande de rendez-vous',
+          message: `${producerName} vous a demandé un rendez-vous pour le ${this.formatDate(appointmentDate)}`,
+          relatedType: 'appointment',
+          relatedId: appointmentId,
+          actionUrl: `/appointments/${appointmentId}`,
+          data: {
+            appointmentId,
+            producerId,
+            producerName,
+            appointmentDate: appointmentDate.toISOString(),
+            reason: createAppointmentDto.reason,
+            location: createAppointmentDto.location,
+          },
+        });
+      } catch (notificationError) {
+        // Log l'erreur mais ne bloque pas la création du rendez-vous
+        this.logger.error(
+          `[Appointments] Erreur lors de l'envoi de la notification pour le rendez-vous ${appointmentId}:`,
+          notificationError,
+        );
+      }
+
+      // Retourner le rendez-vous créé
+      return this.findOne(appointmentId, producerId);
+    } catch (error) {
+      this.logger.error(
+        `[Appointments] Erreur lors de la création du rendez-vous par producteur ${producerId}:`,
+        error,
+      );
+      // Re-lancer l'erreur si c'est déjà une exception HTTP
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
+      // Sinon, lancer une erreur générique
+      throw new BadRequestException(
+        `Erreur lors de la création du rendez-vous: ${error instanceof Error ? error.message : 'Erreur inconnue'}`,
+      );
     }
-
-    const vet = vetCheck.rows[0];
-
-    // Vérifier que la date est dans le futur
-    const appointmentDate = new Date(createAppointmentDto.appointmentDate);
-    const now = new Date();
-    if (appointmentDate <= now) {
-      throw new BadRequestException('La date du rendez-vous doit être dans le futur');
-    }
-
-    // Récupérer les informations du producteur
-    const producerCheck = await this.databaseService.query(
-      `SELECT id, nom, prenom FROM users WHERE id = $1`,
-      [producerId],
-    );
-
-    if (producerCheck.rows.length === 0) {
-      throw new NotFoundException('Producteur introuvable');
-    }
-
-    const producer = producerCheck.rows[0];
-
-    // Créer le rendez-vous
-    const appointmentId = this.generateId();
-    const nowISO = new Date().toISOString();
-
-    await this.databaseService.query(
-      `INSERT INTO vet_appointments (
-        id, producer_id, vet_id, appointment_date, reason, location,
-        status, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [
-        appointmentId,
-        producerId,
-        createAppointmentDto.vetId,
-        appointmentDate.toISOString(),
-        createAppointmentDto.reason,
-        createAppointmentDto.location || null,
-        'pending',
-        nowISO,
-        nowISO,
-      ],
-    );
-
-    this.logger.log(
-      `[Appointments] Rendez-vous créé: ${appointmentId} par producteur ${producerId} pour vétérinaire ${createAppointmentDto.vetId}`,
-    );
-
-    // Envoyer une notification au vétérinaire
-    const producerName = `${producer.prenom || ''} ${producer.nom || ''}`.trim() || 'Un producteur';
-    const vetName = `${vet.prenom || ''} ${vet.nom || ''}`.trim() || 'Vétérinaire';
-
-    await this.notificationsService.createNotification({
-      userId: createAppointmentDto.vetId,
-      type: 'appointment_requested' as NotificationType,
-      title: 'Nouvelle demande de rendez-vous',
-      message: `${producerName} vous a demandé un rendez-vous pour le ${this.formatDate(appointmentDate)}`,
-      relatedType: 'appointment',
-      relatedId: appointmentId,
-      actionUrl: `/appointments/${appointmentId}`,
-      data: {
-        appointmentId,
-        producerId,
-        producerName,
-        appointmentDate: appointmentDate.toISOString(),
-        reason: createAppointmentDto.reason,
-        location: createAppointmentDto.location,
-      },
-    });
-
-    // Retourner le rendez-vous créé
-    return this.findOne(appointmentId, producerId);
   }
 
   /**
